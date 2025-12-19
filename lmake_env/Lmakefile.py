@@ -30,8 +30,8 @@ if 'slurm' in lmake.backends :
 else :
 	backend = 'local'
 
-config.caches.dir = {
-	'tag' : 'dir'
+config.caches.my_cache = {
+	'tag' : 'daemon'
 ,	'dir' : osp.dirname(repo_root)+'/lmake_env-cache'
 }
 
@@ -75,7 +75,7 @@ class BaseRule(Rule) :
 
 class PathRule(BaseRule) :                   # compiler must be accessed using the PATH as it must find its sub-binaries
 	environ = { 'PATH' : os.getenv('PATH') }
-	cache   = 'dir'
+	cache   = 'my_cache'
 
 class HtmlInfo(BaseRule) :
 	target = '{DirS}info.texi'

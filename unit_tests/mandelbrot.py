@@ -20,7 +20,7 @@ if __name__!='__main__' :
 	)
 
 	lmake.config.caches.my_cache = {
-		'tag' : 'dir'
+		'tag' : 'daemon'
 	,	'dir' : lmake.repo_root+'/CACHE'
 	}
 

@@ -30,7 +30,7 @@ SmallIds<uint64_t> _g_upload_keys  ;
 }
 
 struct CompileDigest {
-	NodeIdx         n_statics = 0 ;
+	VarIdx          n_statics = 0 ;
 	::vector<Cnode> deps      ;
 	::vector<Crc  > dep_crcs  ;
 } ;
@@ -40,7 +40,7 @@ CompileDigest _compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download
 		// services
 		bool operator<(Dep const& other) const { return ::pair(bucket,+node) < ::pair(other.bucket,+other.node) ; }
 		// data
-		int   bucket = 0/*garbage*/ ;
+		int   bucket = 0/*garbage*/ ;                                    // deps are sorted statics first, then existing, then non-existing
 		Cnode node   ;
 		Crc   crc    ;
 	} ;
@@ -50,7 +50,7 @@ CompileDigest _compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download
 		Cnode node ;
 		if (for_download) { node = {       n } ; if (!node) continue ; } // if it is not known in cache, it has no impact on matching
 		else                node = { New , n } ;
-		res.n_statics += dd.dflags[Dflag::Static] ;
+		if (dd.dflags[Dflag::Static]) { SWEAR( res.n_statics<Max<VarIdx> ) ; res.n_statics++ ; }
 		Crc crc = dd.crc() ;
 		deps.push_back({
 			.bucket = dd.dflags[Dflag::Static] ? 0 : crc!=Crc::None ? 1 : 2
@@ -66,10 +66,10 @@ CompileDigest _compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download
 
 DaemonCacheRpcReply download(DaemonCacheRpcReq const& crr) {
 	Trace trace("download",crr) ;
-	DaemonCacheRpcReply        res    { .proc=DaemonCacheRpcProc::Download }                     ;
-	Cjob                       job    { crr.job }                                                ; if (!job) { res.digest.hit_info=CacheHitInfo::NoJob ; trace("no_job") ; return res ; }
-	CompileDigest              deps   = _compile( crr.repo_deps , true/*for_download*/ )         ;
-	::pair<Crun,CacheHitInfo > digest = job->match( deps.n_statics , deps.deps , deps.dep_crcs ) ;
+	DaemonCacheRpcReply        res    { .proc=DaemonCacheRpcProc::Download , .digest={.hit_info=CacheHitInfo::NoJob} } ;
+	Cjob                       job    { crr.job }                                                                      ; if (!job) { trace("no_job") ; return res ; }
+	CompileDigest              deps   = _compile( crr.repo_deps , true/*for_download*/ )                               ; SWEAR( deps.n_statics==job->n_statics , crr.job,job ) ;
+	::pair<Crun,CacheHitInfo > digest = job->match( deps.deps , deps.dep_crcs )                                        ;
 	//
 	res.digest.hit_info = digest.second ;
 	if (res.digest.hit_info>=CacheHitInfo::Miss) { trace(res.digest.hit_info) ; return res ; }
@@ -118,10 +118,10 @@ void commit(DaemonCacheRpcReq const& crr) {
 	_g_upload_keys.release(crr.upload_key) ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
-	::string                   rf     = reserved_file(crr.upload_key)                                                                                      ;
-	Cjob                       job    { New , crr.job }                                                                                                    ;
-	CompileDigest              deps   = _compile( crr.info.end.digest.deps , false/*for_download*/ )                                                       ;
-	::pair<Crun,CacheHitInfo > digest = job->insert( crr.repo_key , _run_sz(crr.info) , _run_rate(crr.info) , deps.n_statics , deps.deps , deps.dep_crcs ) ;
+	::string                   rf     = reserved_file(crr.upload_key)                                                                     ;
+	CompileDigest              deps   = _compile( crr.info.end.digest.deps , false/*for_download*/ )                                      ;
+	Cjob                       job    { New , crr.job , deps.n_statics }                                                                  ;
+	::pair<Crun,CacheHitInfo > digest = job->insert( crr.repo_key , _run_sz(crr.info) , _run_rate(crr.info) , deps.deps , deps.dep_crcs ) ;
 	//
 	if (digest.second<CacheHitInfo::Miss) {
 		unlnk(rf) ;

@@ -126,12 +126,13 @@ Cjob::Cjob(::string const& name_) {
 	SWEAR( +self , name_ ) ;
 }
 
-Cjob::Cjob( NewType , ::string const& name_ ) {
+Cjob::Cjob( NewType , ::string const& name_ , VarIdx n_statics ) {
 	CjobName jn = _g_job_name_file.insert(name_) ;
 	Cjob&    j  = _g_job_name_file.at(jn)        ;
-	if (!j) j = _g_job_file.emplace(jn) ;
+	if (!j) j = _g_job_file.emplace(jn,n_statics) ;
+	else    SWEAR( j->n_statics==n_statics , name_,n_statics,j ) ;
 	self = j ;
-	SWEAR( +self , name_ ) ;
+	SWEAR( +self , name_,n_statics ) ;
 }
 
 //
@@ -168,10 +169,10 @@ void CjobData::victimize() {
 	_g_job_file     .pop(idx()) ;
 }
 
-::pair<Crun,CacheHitInfo> CjobData::match( NodeIdx n_statics , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) {
-	Trace trace("match",idx(),n_statics,deps.size(),dep_crcs.size()) ;
+::pair<Crun,CacheHitInfo> CjobData::match( ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) {
+	Trace trace("match",idx(),deps.size(),dep_crcs.size()) ;
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
-		CacheHitInfo hit_info = r->match( n_statics , deps , dep_crcs ) ;
+		CacheHitInfo hit_info = r->match( deps , dep_crcs ) ;
 		switch (hit_info) {
 			case CacheHitInfo::Hit   : r->access()     ; [[fallthrough]]         ;
 			case CacheHitInfo::Match : trace(hit_info) ; return { r , hit_info } ;
@@ -181,16 +182,16 @@ void CjobData::victimize() {
 	return { {} , CacheHitInfo::Miss } ;
 }
 
-::pair<Crun,CacheHitInfo> CjobData::insert( Hash::Crc key , Disk::DiskSz sz , Rate rate , NodeIdx n_statics , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) {
-	Trace trace("insert",idx(),key,sz,rate,n_statics,deps.size(),dep_crcs.size()) ;
-	Crun found_runs[2] ;                                                            // first and last with same key
+::pair<Crun,CacheHitInfo> CjobData::insert( Hash::Crc key , Disk::DiskSz sz , Rate rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) {
+	Trace trace("insert",idx(),key,sz,rate,deps.size(),dep_crcs.size()) ;
+	Crun found_runs[2] ;                                                  // first and last with same key
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
 		CrunData& rd = *r ;
 		if (rd.key==key) {
 			SWEAR( !found_runs[rd.key_is_last] , r,found_runs[rd.key_is_last] ) ;
 			found_runs[rd.key_is_last] = r ;
 		}
-		CacheHitInfo hit_info = rd.match( n_statics , deps , dep_crcs ) ;
+		CacheHitInfo hit_info = rd.match( deps , dep_crcs ) ;
 		switch (hit_info) {
 			case CacheHitInfo::Hit   :
 			case CacheHitInfo::Match : trace(hit_info) ; return { r , hit_info } ;
@@ -259,28 +260,54 @@ void CrunData::victimize() {
 	_g_run_file  .pop(idx()   ) ;
 }
 
-CacheHitInfo CrunData::match( NodeIdx n_statics , ::vector<Cnode> const& deps_ , ::vector<Hash::Crc> const& dep_crcs_ ) const {
-	Trace trace("match",idx(),n_statics,deps_.size(),dep_crcs_.size()) ;
-	SWEAR( dep_crcs_.size()<=deps_.size() , deps_,dep_crcs_ ) ;
+CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc> const& dep_crcs_ ) const {
+	Trace trace("match",idx(),deps_.size(),"in",deps.size(),"and",dep_crcs_.size(),"in",dep_crcs.size()) ;
 	//
+	VarIdx              n_statics     = job->n_statics    ;
 	CacheHitInfo        res           = CacheHitInfo::Hit ;
 	::span<Cnode const> deps_view     = deps    .view()   ;
 	::span<Crc   const> dep_crcs_view = dep_crcs.view()   ;
 	//
-	NodeIdx j1 = 0                ;                                                                   // index into provided deps, with    crc
-	NodeIdx j2 = dep_crcs_.size() ;                                                                   // index into provided deps, without crc
-	for( NodeIdx i=0 ; i<deps_view.size() ; i++ ) {
-		while ( j1<dep_crcs_.size() && +deps_[j1]<+deps_view[i] ) j1++ ;
-		if    ( i<n_statics                                     ) SWEAR( i==j1 , self,i,j1 ) ;        // static deps only depend on rule, so they must match
-		if    ( j1<dep_crcs_.size() && deps_view[i]==deps_[j1] ) {                                    // found with crc
-			if      (i>=dep_crcs_view.size()        ) { trace("miss") ; return CacheHitInfo::Miss ; } // found with crc while expecting none
-			else if (dep_crcs_view[i]!=dep_crcs_[j1]) { trace("miss") ; return CacheHitInfo::Miss ; } // found with a different crc
+	SWEAR( n_statics<=dep_crcs_    .size() && dep_crcs_    .size()<=deps_    .size() , n_statics,deps_    ,dep_crcs_     ) ;
+	SWEAR( n_statics<=dep_crcs_view.size() && dep_crcs_view.size()<=deps_view.size() , n_statics,deps_view,dep_crcs_view ) ;
+	// first check static deps
+	for( NodeIdx i : iota(n_statics) ) {
+		SWEAR( deps_view[i]==deps_[i] , i,deps,deps_view ) ;                                                                    // static deps only depend on job
+		if (dep_crcs_view[i]!=dep_crcs_[i]) { trace("miss1",i) ; return CacheHitInfo::Miss ; }                                  // found with a different crc
+	}
+	NodeIdx j1 = n_statics        ;                                                                                             // index into provided deps, with    crc
+	NodeIdx j2 = dep_crcs_.size() ;                                                                                             // index into provided deps, without crc
+	// then search for exising deps
+	for( NodeIdx i : iota(n_statics,dep_crcs_view.size()) ) {
+		while ( j1<dep_crcs_.size() && +deps_[j1]< +deps_view[i] ) j1++ ;
+		if    ( j1<dep_crcs_.size() &&  deps_[j1]== deps_view[i] ) {
+			if (dep_crcs_view[i]!=dep_crcs_[j1])                   { trace("miss2",i,j1   ) ; return CacheHitInfo::Miss ; }     // found with a different crc
+			j1++ ;                                                                                                              // fast path : j1 is consumed
 		} else {
-			while ( j2<deps_.size() && +deps_[j2]<+deps_view[i] ) j2++ ;
-			if    ( j2<deps_.size() && deps_view[i]==deps_[j2]  ) {                                   // found without crc
-				if (i<dep_crcs_view.size()) { trace("miss") ; return CacheHitInfo::Miss ; }           // found without crc while expecting one
+			while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
+			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) { trace("miss3",i,   j2) ; return CacheHitInfo::Miss ; }     // found without crc while expecting one
+			else                                                   { trace("match",i,j1,j2) ; res = CacheHitInfo::Match ; }     // not found
+		}
+	}
+	// then search for non-existing deps
+	if ( res==CacheHitInfo::Hit && dep_crcs_.size()==dep_crcs_view.size() ) {                                                   // fast path : all existing deps are consumed
+		SWEAR( j2==dep_crcs_.size() , j2,dep_crcs_.size() )  ;                                                                  // all existing deps were found existing
+		for( NodeIdx i : iota(dep_crcs_view.size(),deps_view.size()) ) {
+			while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
+			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                       // fast path : j2 is consumed
+			else                                                   { trace("match",i,j1,j2) ; res = CacheHitInfo::Match ; }     // not found
+		}
+	} else {
+		j1 = n_statics        ;                                                                                                 // reset search as desp are ordered separately existing/non-existing
+		j2 = dep_crcs_.size() ;                                                                                                 // .
+		for( NodeIdx i : iota(dep_crcs_view.size(),deps_view.size()) ) {
+			while ( j1<dep_crcs_.size() && +deps_[j1]< +deps_view[i] ) j1++ ;
+			if    ( j1<dep_crcs_.size() &&  deps_[j1]== deps_view[i] ) {
+				/**/                                                      trace("miss4",i,j1   ) ; return CacheHitInfo::Miss ;  // found with crc while expecting none
 			} else {
-				res = CacheHitInfo::Match ;                                                           // not found
+				while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
+				if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                   // fast path : j2 is consumed
+				else                                                   { trace("match",i,j1,j2) ; res = CacheHitInfo::Match ; } // not found
 			}
 		}
 	}

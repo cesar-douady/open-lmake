@@ -91,8 +91,8 @@ struct Cjob : Idxed<CjobIdx> {
 	friend ::string& operator+=( ::string& , Cjob const& ) ;
 	// cxtors & casts
 	using Base::Base ;
-	Cjob(           ::string const& name ) ; // make empty if not found
-	Cjob( NewType , ::string const& name ) ; // create new if not found
+	Cjob(           ::string const& name                    ) ; // make empty if not found
+	Cjob( NewType , ::string const& name , VarIdx n_statics ) ; // create new if not found
 	// accesses
 	CjobData const& operator* () const ;
 	CjobData      & operator* ()       ;
@@ -141,8 +141,8 @@ struct LruEntry {
 	bool/*last*/  erase     ( LruEntry& hdr , Crun , LruEntry CrunData::* lru ) ;
 	void          mv_to_top ( LruEntry& hdr , Crun , LruEntry CrunData::* lru ) ;
 	// data
-	Crun newer ;                                         // for headers : oldest
-	Crun older ;                                         // for headers : newest
+	Crun newer ; // for headers : oldest
+	Crun older ; // for headers : newest
 } ;
 // END_OF_VERSIONING
 
@@ -151,17 +151,18 @@ struct CjobData {
 	friend ::string& operator+=( ::string& , CjobData const& ) ;
 	// cxtors & casts
 	CjobData() = default ;
-	CjobData(CjobName n) : _name{n} {}
+	CjobData( CjobName n , VarIdx nss ) : n_statics{nss},_name{n} {}
 	// accesses
 	Cjob     idx () const ;
 	::string name() const { return _name.str() ; }
 	// services
-	::pair<Crun,CacheHitInfo> match    (                                               NodeIdx n_statics , ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ; // updates lru related info when hit
-	::pair<Crun,CacheHitInfo> insert   ( Hash::Crc key , Disk::DiskSz sz , Rate rate , NodeIdx n_statics , ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ; // like match, but create when miss
-	void                      victimize(                                                                                                                       ) ;
+	::pair<Crun,CacheHitInfo> match    (                                               ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ; // updates lru related info when hit
+	::pair<Crun,CacheHitInfo> insert   ( Hash::Crc key , Disk::DiskSz sz , Rate rate , ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ; // like match, but create when miss
+	void                      victimize(                                                                                                   ) ;
 	// data
 	// START_OF_VERSIONING DAEMON_CACHE
-	LruEntry lru = {} ;
+	VarIdx   n_statics = 0 ;
+	LruEntry lru       ;
 private :
 	CjobName _name ;
 	// END_OF_VERSIONING
@@ -187,21 +188,21 @@ struct CrunData {
 	Crun     idx (    ) const ;
 	::string name(Cjob) const ;
 	// services
-	void         access   (                                                                         )       ; // move to top in LRU (both job and glb)
-	void         victimize(                                                                         )       ;
-	CacheHitInfo match    ( NodeIdx n_statics , ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) const ;
+	void         access   (                                                     )       ; // move to top in LRU (both job and glb)
+	void         victimize(                                                     )       ;
+	CacheHitInfo match    ( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) const ;
 	// data
 	// START_OF_VERSIONING DAEMON_CACHE
-	Hash::Crc    key         ;                                                                                // identifies origin (repo+git_sha1)
+	Hash::Crc    key         ;                                                            // identifies origin (repo+git_sha1)
 	Time::Pdate  last_access ;
-	Disk::DiskSz sz          = 0                ;                                                             // size occupied by run
-	LruEntry     glb_lru     ;                                                                                // global LRU within rate
-	LruEntry     job_lru     ;                                                                                // job LRU
+	Disk::DiskSz sz          = 0                ;                                         // size occupied by run
+	LruEntry     glb_lru     ;                                                            // global LRU within rate
+	LruEntry     job_lru     ;                                                            // job LRU
 	Cjob         job         ;
-	Cnodes       deps        ;                                                                                // owned sorted by (is_static,existing,idx)
-	Ccrcs        dep_crcs    ;                                                                                // owned crcs for static and existing deps
+	Cnodes       deps        ;                                                            // owned sorted by (is_static,existing,idx)
+	Ccrcs        dep_crcs    ;                                                            // owned crcs for static and existing deps
 	Rate         rate        ;
-	bool         key_is_last = false/*garbage*/ ;                                                             // 2 runs may be stored for each key : the first and the last
+	bool         key_is_last = false/*garbage*/ ;                                         // 2 runs may be stored for each key : the first and the last
 	// END_OF_VERSIONING
 } ;
 static_assert( sizeof(CrunData)==56 ) ;
