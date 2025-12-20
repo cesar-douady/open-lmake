@@ -70,7 +70,8 @@ namespace Engine {
 	}
 
 	Config::Config(Dict const& py_map) : booted{true} {                                                                               // if config is read from makefiles, it is booted
-		key = to_hex(random<uint64_t>()) ;
+		key     = to_hex(random<uint64_t>()) ;
+		os_info = get_os_info()              ;
 		//
 		::vector_s fields = {{}} ;
 		try {
@@ -313,9 +314,10 @@ namespace Engine {
 		// clean
 		//
 		res << "clean :\n" ;
-		/**/                         res << "\tlink_support    : " << lnk_support                      <<'\n' ;
 		/**/                         res << "\tkey             : " << key                              <<'\n' ;
+		/**/                         res << "\tlink_support    : " << lnk_support                      <<'\n' ;
 		if (+user_local_admin_dir_s) res << "\tlocal_admin_dir : " << user_local_admin_dir_s<<rm_slash <<'\n' ;
+		if (+os_info               ) res << "\tos_info         : " << os_info                          <<'\n' ;
 		//
 		// static
 		//

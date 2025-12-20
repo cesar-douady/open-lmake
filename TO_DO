@@ -37,10 +37,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* add src_dirs in rule cmd crc
-	- then src_dirs can move from ConfigClean to ConfigStatic
-	- ensures everything is remade if src_dirs changes
-	- ensures cache takes it into account
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job

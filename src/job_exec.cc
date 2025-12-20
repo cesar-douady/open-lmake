@@ -3,8 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <sys/utsname.h>
-
 #include "disk.hh"
 #include "fd.hh"
 #include "hash.hh"
@@ -60,26 +58,6 @@ JobStartRpcReply get_start_info() {
 	}
 	g_user_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
-	return res ;
-}
-
-::string get_os_info() {
-	Trace trace("get_os_info") ;
-	::string         res            ;
-	::string         id             ;
-	::string         version_id     ;
-	struct ::utsname uname_info     ; if (::uname(&uname_info)!=0) uname_info.machine[0] = 0 ;                             // report empty in case of error
-	::string         etc_os_release ; try { etc_os_release = AcFd("/etc/os-release").read() ; } catch (::string const&) {} // .
-	for( ::string const& line : split(etc_os_release,'\n') ) {
-		size_t   pos = line.find('=')            ; if (pos==Npos) continue ;
-		::string key = strip(line.substr(0,pos)) ;
-		switch (key[0]) {
-			case 'I' : if (key=="ID"        ) id         = line.substr(pos+1) ; break ;
-			case 'V' : if (key=="VERSION_ID") version_id = line.substr(pos+1) ; break ;
-		DN}
-	}
-	res = cat(id,'/',version_id,'/',uname_info.machine) ;
-	trace("done",res) ;
 	return res ;
 }
 

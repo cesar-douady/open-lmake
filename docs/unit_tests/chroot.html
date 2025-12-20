@@ -112,16 +112,15 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
-    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
+    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,</span><span class="s1">&#39;../&#39;</span><span class="p">)</span>
 
-    <span class="k">class</span> <span class="nc">Cat</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span>     <span class="o">=</span> <span class="s1">&#39;dut-{Os:.*}&#39;</span>
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span>     <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;dut-{Autodep:\w+}-{Os:\w+}&#39;</span>
         <span class="n">chroot_dir</span> <span class="o">=</span> <span class="s1">&#39;{image_root(Os)}&#39;</span>
-        <span class="n">os_info</span>    <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;.*&#39;</span>                      <span class="c1"># XXX put a more restrictive os-dependent criteria here</span>
         <span class="n">lmake_root</span> <span class="o">=</span> <span class="s1">&#39;{lmake_install_root(Os)}&#39;</span>
-        <span class="n">autodep</span>    <span class="o">=</span> <span class="s1">&#39;ld_preload&#39;</span>               <span class="c1"># works on all os</span>
+        <span class="n">autodep</span>    <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{Autodep}</span><span class="s1">&#39;</span>
         <span class="n">cmd</span>        <span class="o">=</span> <span class="s1">&#39;echo dut&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
@@ -134,13 +133,24 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="p">,</span>   <span class="s1">&#39;ubuntu20&#39;</span> <span class="p">,</span> <span class="s1">&#39;ubuntu22&#39;</span> <span class="p">,</span> <span class="s1">&#39;ubuntu24&#39;</span>
     <span class="p">)</span>
     <span class="n">os_known</span> <span class="o">=</span> <span class="p">[</span> <span class="n">os</span> <span class="k">for</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_candidates</span> <span class="k">if</span> <span class="n">osp</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">image_root</span><span class="p">(</span><span class="n">os</span><span class="p">))</span> <span class="ow">and</span> <span class="n">osp</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="n">lmake_install_root</span><span class="p">(</span><span class="n">os</span><span class="p">))</span> <span class="p">]</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">os_known</span> <span class="p">:</span>
+    <span class="n">n_known</span>  <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">os_known</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">n_known</span> <span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;no foreign os available&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;skipped&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
         <span class="n">exit</span><span class="p">()</span>
 
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="o">*</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;dut-</span><span class="si">{</span><span class="n">os</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_known</span><span class="p">)</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">os_known</span><span class="p">)</span> <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="o">*</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;dut-ld_preload-</span><span class="si">{</span><span class="n">os</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_known</span><span class="p">)</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="n">n_known</span> <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="o">*</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;dut-ptrace-</span><span class="si">{</span><span class="n">os</span><span class="si">}</span><span class="s1">&#39;</span>     <span class="k">for</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_known</span><span class="p">)</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="n">n_known</span> <span class="p">)</span>
+
+    <span class="k">if</span> <span class="s1">&#39;ld_audit&#39;</span> <span class="ow">in</span> <span class="n">lmake</span><span class="o">.</span><span class="n">autodeps</span> <span class="p">:</span>
+        <span class="n">os_no_ld_audit</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;centos7&#39;</span>
+        <span class="p">,</span>   <span class="s1">&#39;suse154&#39;</span>  <span class="p">,</span> <span class="s1">&#39;suse155&#39;</span>
+        <span class="p">,</span>   <span class="s1">&#39;ubuntu20&#39;</span>
+        <span class="p">}</span>
+        <span class="n">n_no_ld_audit</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_known</span> <span class="k">if</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_no_ld_audit</span><span class="p">)</span>
+        <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="o">*</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;dut-ld_audit-</span><span class="si">{</span><span class="n">os</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_known</span><span class="p">)</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="n">n_known</span><span class="o">-</span><span class="n">n_no_ld_audit</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="n">n_no_ld_audit</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="nb">bool</span><span class="p">(</span><span class="n">n_no_ld_audit</span><span class="p">)</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>

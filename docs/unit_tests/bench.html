@@ -149,9 +149,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">local</span><span class="o">.</span><span class="n">cpu</span> <span class="o">*=</span> <span class="mi">2</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">slurm</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;interface&#39;</span> <span class="p">:</span> <span class="n">lmake</span><span class="o">.</span><span class="n">user_environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">&#39;LMAKE_INTERFACE&#39;</span><span class="p">,</span><span class="n">socket</span><span class="o">.</span><span class="n">gethostname</span><span class="p">())</span>
-    <span class="p">}</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">slurm</span> <span class="o">=</span> <span class="p">{}</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>

@@ -6,6 +6,7 @@
 #include <linux/capability.h>
 #include <sched.h>            // unshare
 #include <sys/syscall.h>
+#include <sys/utsname.h>
 
 #include "disk.hh"
 #include "hash.hh"
@@ -30,6 +31,30 @@
 using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
+
+//
+// get_os_info
+//
+
+::string get_os_info() {
+	Trace trace("get_os_info") ;
+	::string         res            ;
+	::string         id             ;
+	::string         version_id     ;
+	struct ::utsname uname_info     ; if (::uname(&uname_info)!=0) uname_info.machine[0] = 0 ;                             // report empty in case of error
+	::string         etc_os_release ; try { etc_os_release = AcFd("/etc/os-release").read() ; } catch (::string const&) {} // .
+	for( ::string const& line : split(etc_os_release,'\n') ) {
+		size_t   pos = line.find('=')            ; if (pos==Npos) continue ;
+		::string key = strip(line.substr(0,pos)) ;
+		switch (key[0]) {
+			case 'I' : if (key=="ID"        ) id         = line.substr(pos+1) ; break ;
+			case 'V' : if (key=="VERSION_ID") version_id = line.substr(pos+1) ; break ;
+		DN}
+	}
+	res = cat(id,'/',version_id,'/',uname_info.machine) ;
+	trace("done",res) ;
+	return res ;
+}
 
 //
 // quarantine

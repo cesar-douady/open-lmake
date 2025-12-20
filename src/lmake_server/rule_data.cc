@@ -823,6 +823,7 @@ namespace Engine {
 			return ;
 		}
 		h += g_config->lnk_support  ;                  // this has an influence on generated deps, hence is part of cmd def
+		h += g_config->os_info      ;                  // this has an influence on job execution , hence is part of cmd def
 		h += sub_repo_s             ;
 		h += Node::s_src_dirs_crc() ;                  // src_dirs influences deps recording
 		h += matches                ;                  // these define names and influence cmd execution, all is not necessary but simpler to code

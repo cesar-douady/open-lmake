@@ -1694,23 +1694,6 @@ Usually, the default value is fine, but you may need to set a name, for example:
 		deps    = { 'SRC' : f'{{File}}.{ext}' }
 		cmd     = 'gcc -c -o {OBJ} {SRC}'
 </code></pre>
-<h3 id="os_info"><a class="header" href="#os_info"><a href="unit_tests/os_info.html#:~:text=os%5Finfo%20%3D%20%27go%2Bd%5Cn%27"><code>os_info</code></a></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>f-str</code></td><td>re.escape(<code>&lt;ID&gt;/&lt;VERSION_ID&gt;/&lt;machine&gt;</code>)</td><td>Full</td><td><code>r'ubuntu/22\.04/x86_64'</code></td></tr>
-</tbody></table>
-</div>
-<p>This attribute specifies a regexpr characterizing if the OS environment in which jobs execute are acceptable.
-When a job starts, the same information is computed on the executing host and the value must match this regexpr.</p>
-<p>In the default value above, <code>&lt;ID&gt;</code> and <code>&lt;VERSION_ID&gt;</code> are taken from the corresponding lines in <code>/etc/os-release</code> and <code>&lt;machine&gt;</code> is <code>os.uname().machine</code>.</p>
-<p>If <code>None</code> or <code>''</code> no check is performed.</p>
-<p>This attribute is typically used jobs are executed in various OS environment, for example when using the <code>chroot_dir</code> attribute or when jobs are dispatched using slurm or SGE.</p>
-<h3 id="os_info_file"><a class="header" href="#os_info_file"><a href="unit_tests/os_info.html#:~:text=os%5Finfo%5Ffile%20%3D%20os%2Egetcwd%28%29%2B%27%2FLMAKE%2Flmake%2Fos%5Finfo"><code>os_info_file</code></a></a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>f-str</code></td><td><code>''</code></td><td>Full</td><td><code>'/my_os_tag'</code></td></tr>
-</tbody></table>
-</div>
-<p>This attribute specifies a file from which to get OS information for use with the <code>os_info</code> attribute above.
-When specified, the content of this file is used instead of <code>&lt;ID&gt;/&lt;VERSION_ID&gt;/&lt;machine&gt;</code> as described above.</p>
 <h3 id="prio"><a class="header" href="#prio"><a href="unit_tests/hide.html#:~:text=prio%20%3D%201"><code>prio</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>float</code></td><td><code>0</code> or <code>+inf</code></td><td>No</td><td><code>1</code></td></tr>

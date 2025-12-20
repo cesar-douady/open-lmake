@@ -117,15 +117,15 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="p">,</span>   <span class="s1">&#39;mandelbrot.zip&#39;</span>
     <span class="p">)</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">caches</span><span class="o">.</span><span class="n">dir</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;tag&#39;</span> <span class="p">:</span> <span class="s1">&#39;dir&#39;</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">caches</span><span class="o">.</span><span class="n">my_cache</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;tag&#39;</span> <span class="p">:</span> <span class="s1">&#39;daemon&#39;</span>
     <span class="p">,</span>   <span class="s1">&#39;dir&#39;</span> <span class="p">:</span> <span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="o">+</span><span class="s1">&#39;/CACHE&#39;</span>
     <span class="p">}</span>
 
     <span class="k">class</span> <span class="nc">Unzip</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">targets</span>     <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;FILE&#39;</span> <span class="p">:</span> <span class="sa">r</span><span class="s1">&#39;mandelbrot/{*:.*}&#39;</span> <span class="p">}</span>
         <span class="n">deps</span>        <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;ZIP&#39;</span>  <span class="p">:</span> <span class="s1">&#39;mandelbrot.zip&#39;</span>     <span class="p">}</span>
-        <span class="n">cache</span>       <span class="o">=</span> <span class="s1">&#39;dir&#39;</span>
+        <span class="n">cache</span>       <span class="o">=</span> <span class="s1">&#39;my_cache&#39;</span>
         <span class="n">compression</span> <span class="o">=</span> <span class="mi">1</span>
         <span class="n">cmd</span>         <span class="o">=</span> <span class="s1">&#39;unzip </span><span class="si">{ZIP}</span><span class="s1"> ; mv mandelbrot/output.txt mandelbrot/output.ref&#39;</span>
 
@@ -140,7 +140,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">stderr_ok</span>    <span class="o">=</span> <span class="kc">True</span>
         <span class="n">autodep</span>      <span class="o">=</span> <span class="s1">&#39;ld_preload_jemalloc&#39;</span>
         <span class="n">environ</span>      <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;LD_PRELOAD&#39;</span> <span class="p">:</span> <span class="s1">&#39;libjemalloc.so&#39;</span> <span class="p">}</span>
-        <span class="n">cache</span>        <span class="o">=</span> <span class="s1">&#39;dir&#39;</span>
+        <span class="n">cache</span>        <span class="o">=</span> <span class="s1">&#39;my_cache&#39;</span>
         <span class="n">compression</span>  <span class="o">=</span> <span class="mi">1</span>
         <span class="n">cmd</span>          <span class="o">=</span> <span class="s1">&#39;cd mandelbrot ; cargo run --release ; mv output.txt output.dut&#39;</span>
 

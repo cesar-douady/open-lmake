@@ -337,6 +337,12 @@ namespace Caches {
 }
 
 //
+// get_os_info
+//
+
+::string get_os_info() ;
+
+//
 // quarantine
 //
 

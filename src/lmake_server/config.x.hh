@@ -52,9 +52,10 @@ namespace Engine {
 		bool operator==(ConfigClean const&) const = default ;
 		// data
 		// START_OF_VERSIONING REPO
+		::string   key                    ;                    // random key to differentiate repo from other repos
 		LnkSupport lnk_support            = LnkSupport::Full ;
+		::string   os_info                ;                    // os version/release/architecture
 		::string   user_local_admin_dir_s ;
-		::string   key                    ; // random key to differentiate repo from other repos
 		// END_OF_VERSIONING
 	} ;
 
