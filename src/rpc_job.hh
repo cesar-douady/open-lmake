@@ -892,7 +892,6 @@ struct JobStartRpcReply {                                                // NOLI
 		::serdes( s , method                            ) ;
 		::serdes( s , network_delay                     ) ;
 		::serdes( s , nice                              ) ;
-		::serdes( s , os_info          , os_info_file   ) ;
 		::serdes( s , phy_lmake_root_s                  ) ;
 		::serdes( s , pre_actions                       ) ;
 		::serdes( s , rule                              ) ;
@@ -948,8 +947,6 @@ struct JobStartRpcReply {                                                // NOLI
 	AutodepMethod                           method            = AutodepMethod::Dflt ;
 	Time::Delay                             network_delay     ;
 	uint8_t                                 nice              = 0                   ;
-	::string                                os_info           ;                       // a regexpr of acceptable OS's
-	::string                                os_info_file      ;                       // a system file containing OS info, defaults to ID/VERSION_ID/architecture (from /etc/os-release and uname -m)
 	::string                                phy_lmake_root_s  ;
 	::vmap_s<FileAction>                    pre_actions       ;
 	::string                                rule              ;                       // rule name
@@ -980,15 +977,16 @@ struct JobEndRpcReq : JobRpcReq {
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
 		::serdes( s , digest                        ) ;
-		::serdes( s , phy_tmp_dir_s                 ) ;
 		::serdes( s , dyn_env                       ) ;
-		::serdes( s , user_trace                    ) ;
+		::serdes( s , end_date                      ) ;
+		::serdes( s , msg_stderr                    ) ;
+		::serdes( s , os_info                       ) ;
+		::serdes( s , phy_tmp_dir_s                 ) ;
+		::serdes( s , stats                         ) ;
+		::serdes( s , stdout                        ) ;
 		::serdes( s , total_sz                      ) ;
 		::serdes( s , total_z_sz                    ) ;
-		::serdes( s , end_date                      ) ;
-		::serdes( s , stats                         ) ;
-		::serdes( s , msg_stderr                    ) ;
-		::serdes( s , stdout                        ) ;
+		::serdes( s , user_trace                    ) ;
 		::serdes( s , wstatus                       ) ;
 	}
 	void cache_cleanup() ;                   // clean up info before uploading to cache
@@ -996,15 +994,16 @@ struct JobEndRpcReq : JobRpcReq {
 	// data
 	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
 	JobDigest<>              digest        ;
-	::string                 phy_tmp_dir_s ;
 	::vmap_ss                dyn_env       ; // env variables computed in job_exec
-	::vector<UserTraceEntry> user_trace    ;
+	Time::Pdate              end_date      ;
+	MsgStderr                msg_stderr    ;
+	::string                 os_info       ;
+	::string                 phy_tmp_dir_s ;
+	JobStats                 stats         ;
+	::string                 stdout        ;
 	Disk::DiskSz             total_sz      = 0 ;
 	Disk::DiskSz             total_z_sz    = 0 ;
-	Time::Pdate              end_date      ;
-	JobStats                 stats         ;
-	MsgStderr                msg_stderr    ;
-	::string                 stdout        ;
+	::vector<UserTraceEntry> user_trace    ;
 	int                      wstatus       = 0 ;
 	// END_OF_VERSIONING)
 } ;

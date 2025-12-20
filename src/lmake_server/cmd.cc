@@ -692,12 +692,12 @@ namespace Engine {
 					SWEAR( !step , step,s ) ;
 					step = s ;
 				}
-			Color c   = {} /*garbage*/ ;
+			Color c   = {}             ;
 			char  hdr = '?'/*garbage*/ ;
 			switch (step) {
 				case JobStep::Dep    :                               break ;
 				case JobStep::Queued : c = Color::Note ; hdr = 'Q' ; break ;
-				case JobStep::Exec   : c = Color::None ; hdr = 'R' ; break ;
+				case JobStep::Exec   :                   hdr = 'R' ; break ;
 				default : return ;
 			}
 			if (!job_seen.insert(job).second) return ;
@@ -857,12 +857,12 @@ namespace Engine {
 						case ReqKey::Info : {
 							struct Entry {
 								::string txt     ;
-								Color    color   = Color::None ;
-								bool     protect = true        ;
+								Color    color   = {}   ;
+								bool     protect = true ;
 							} ;
 							::string        su         = porcelaine ? ""s : ro.startup_dir_s ;
 							::vmap_s<Entry> tab        ;
-							auto push_entry = [&]( const char* k , ::string const& v , Color c=Color::None , bool protect=true ) {
+							auto push_entry = [&]( const char* k , ::string const& v , Color c={} , bool protect=true ) {
 								tab.emplace_back( k , Entry{v,c,protect} ) ;
 							} ;
 							//
@@ -940,7 +940,8 @@ namespace Engine {
 							//
 							if (job->run_status!=RunStatus::Ok) push_entry( "run status" , snake_str(RunStatus(job->run_status)) , Color::Err ) ;
 							if (+end) {
-								push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
+								/**/              push_entry( "end date" , end.end_date.str(3/*prec*/) ) ;
+								if (+end.os_info) push_entry( "os"       , end.os_info                 ) ;
 								Color status_color =
 									StatusAttrs[+digest.status].second.first==Yes   ? Color::Ok
 								:	StatusAttrs[+digest.status].second.first==Maybe ? Color::Note
@@ -954,16 +955,16 @@ namespace Engine {
 								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
 								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								//
-								if (porcelaine) { //!                                                                                                   protect
-									/**/                      push_entry( "rc"                    , wstatus_str(end.wstatus)             , Color::None , true  ) ;
-									/**/                      push_entry( "cpu time"              , ::to_string(double(end.stats.cpu  )) , Color::None , false ) ;
-									/**/                      push_entry( "elapsed in job"        , ::to_string(double(end.stats.job  )) , Color::None , false ) ;
-									/**/                      push_entry( "elapsed total"         , ::to_string(double(digest.exe_time)) , Color::None , false ) ;
-									/**/                      push_entry( "used mem"              , cat        (end.stats.mem          ) , Color::None , false ) ;
-									/**/                      push_entry( "cost"                  , ::to_string(double(job->cost()    )) , Color::None , false ) ;
-									/**/                      push_entry( "total size"            , cat        (end.total_sz           ) , Color::None , false ) ;
-									if ( end.total_z_sz     ) push_entry( "total compressed size" , cat        (end.total_z_sz         ) , Color::None , false ) ;
-									if ( verbose && +target ) push_entry( "checksum"              , ::string   (target->crc            ) , Color::None , true  ) ;
+								if (porcelaine) { //!                                                                                    color protect
+									/**/                      push_entry( "rc"                    , wstatus_str(end.wstatus)             , {} , true  ) ;
+									/**/                      push_entry( "cpu time"              , ::to_string(double(end.stats.cpu  )) , {} , false ) ;
+									/**/                      push_entry( "elapsed in job"        , ::to_string(double(end.stats.job  )) , {} , false ) ;
+									/**/                      push_entry( "elapsed total"         , ::to_string(double(digest.exe_time)) , {} , false ) ;
+									/**/                      push_entry( "used mem"              , cat        (end.stats.mem          ) , {} , false ) ;
+									/**/                      push_entry( "cost"                  , ::to_string(double(job->cost()    )) , {} , false ) ;
+									/**/                      push_entry( "total size"            , cat        (end.total_sz           ) , {} , false ) ;
+									if ( end.total_z_sz     ) push_entry( "total compressed size" , cat        (end.total_z_sz         ) , {} , false ) ;
+									if ( verbose && +target ) push_entry( "checksum"              , ::string   (target->crc            ) , {} , true  ) ;
 								} else {
 									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
 									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_unit(mem_rsrc_str):0                                                                           ;

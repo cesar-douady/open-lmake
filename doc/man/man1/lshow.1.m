@@ -127,6 +127,7 @@ Show various info about a job, as it last ran (unless stated otherwise):
 		Item(I(err))            job could not run because an error was detected before it started.
 		.RE
 	Bullet B(end date) : the date at which job ended.
+	Bullet B(os)       : the os version, release and architecture on which the job ran.
 	Bullet B(status)   : job status, as used by OpenLmake.
 		Possible values are:
 		.RS

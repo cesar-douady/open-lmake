@@ -135,6 +135,7 @@ else :
 		,	'scheduling'
 		,	'autodep'
 		,	'end date'
+		,	'os'
 		,	'status'      , 'ok'
 		,	'tmp dir'
 		,	'rc'          , 'ok'

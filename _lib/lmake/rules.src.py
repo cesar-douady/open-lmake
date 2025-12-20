@@ -22,21 +22,6 @@ _std_path        = '$STD_PATH'                          # .
 _ld_library_path = '$LD_LIBRARY_PATH'                   # .
 _lmake_lib       = _osp.dirname(_osp.dirname(__file__))
 
-# /!\ must stay in sync with src/job_exec.cc:get_os_info
-def _get_os_info() :
-	id         = ''
-	version_id = ''
-	machine    = ''
-	try :
-		for l in open('/etc/os-release') :
-			l = l.strip()
-			if   l.startswith('ID='        ) : id         = l.split('=',1)[1]
-			elif l.startswith('VERSION_ID=') : version_id = l.split('=',1)[1]
-	except ... : pass
-	try        : machine = _os.uname().machine
-	except ... : pass
-	return f'{id}/{version_id}/{machine}'
-
 class _RuleBase :
 	def __init_subclass__(cls) :
 		lmake._rules.append(cls) # list of rules
@@ -112,9 +97,6 @@ class Rule(_RuleBase) :
 #	max_runs            =   0                          # maximum number a job can be run in a single lmake command, unlimited if None or 0
 	max_stderr_len      = 100                          # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 	max_submits         =  10                          # maximum number a job can be submitted in a single lmake command, unlimited if None or 0
-	os_info             = _re.escape(_get_os_info())   # regexpr matching acceptable os_info from job execution environment
-#	os_info_file        = '/os_info'                   # custom system file to distinguish OS'es from one anothe to ensure job is executed under proper system
-	#                                                  #   defaults to : <id>/<version_id>/<machine> where <id> and <version_id> are taken from /etc/os-release and <machine> from os.uname().machine
 #	prio                = 0                            # in case of ambiguity, rules are selected with highest prio first
 	python              = (python,)                    # python used for callable cmd
 #	readdir_ok          = False                        # if set, listing a local non-ignored dir is not an error
@@ -231,55 +213,3 @@ class DirRule(Rule) :
 	target  = fr'{{Dir:.+}}/{marker}'
 	backend = 'local'                 # command is faster than any other backend overhead
 	cmd     = ''
-
-class MultiOsRule(Rule) :
-	'''
-		Base rule to distinguish and check OS on which job is executed.
-		OS is characterized by its ID and VERSION_ID as found in /etc/os-release (including " if any), as well as the output of uname -m.
-		By default, job is checked to run on the same os as the server.
-		Else, the OS information must be provided as the os_info attribute as a string of the form '<ID>/<VERSION_ID>/<MACHINE>'.
-		The actual Rule may be a python or shell rule.
-		The major consequences are in case the os changes :
-		- all jobs will be rerun
-		- the cache will not mix up jobs between the old os and new os
-
-		Examples :
-		# ensure executing os is the one of the server
-		class MyRule(MultiOsRule) :
-			target = 'multi_os_target1'
-			cmd    = 'echo multi_os_content'
-		# ensure executing os is the one provided by os_info attribute
-		class MyRule(MultiOsRule) :
-			target  = 'multi_os_target2'
-			os_info = 'ubuntu/"24.04"/x86_64'
-			cmd     = 'echo multi_os_content'
-	'''
-	virtual = True
-	def get_os_info() :
-		for l in open('/etc/os-release') :
-			if '=' not in l : continue                    # not a pertinent line
-			k,v = l.split('=',1)
-			if k=='ID'         : id         = v[:-1]      # suppress terminating newline
-			if k=='VERSION_ID' : version_id = v[:-1]      # .
-		return f'{id}/{version_id}/{_os.uname().machine}'
-	os_info = get_os_info()
-	def cmd() :
-		running_os_info = get_os_info()
-		assert os_info!=running_os_info , f'os mismatch, expected {os_info} while running on {running_os_info}'
-	cmd.shell = '''
-		OS_INFO={os_info}
-		RUNNING_OS_INFO="$(
-			awk -F= '
-				$1=="ID"         { id         = $2 }
-				$1=="VERSION_ID" { version_id = $2 }
-				END              {
-					"uname -m" | getline machine
-					printf( "%s/%s/%s\n" , id , version_id , machine )
-				}
-			' /etc/os-release
-		)"
-		[ "$OS_INFO" = "$RUNNING_OS_INFO" ] || {
-			echo "os mismatch, expected $OS_INFO while running on $RUNNING_OS_INFO"
-			exit 1
-		}
-	'''

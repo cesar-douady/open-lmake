@@ -1,8 +1,8 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr DaemonCache = 1       ; // b60c58fa529ce6c97ea4cec4d16091da
-	uint64_t    constexpr DirCache    = 3       ; // 675e97e83ef1eedf73d519b2c9499b92
-	uint64_t    constexpr Repo        = 3       ; // bef502db7c6feafaa723914aff52dcc8
+	uint64_t    constexpr DaemonCache = 2       ; // 88b77694f514646ed67df043224e51ac
+	uint64_t    constexpr DirCache    = 4       ; // 4d31df9c6cf38941b396bf34cf89e1a4
+	uint64_t    constexpr Repo        = 4       ; // 39674191c5e2b3bab7238979880f5bf3
 	uint64_t    constexpr Job         = 2       ; // 798d5f2762adfdfbf0174ebfa5cb7671
 	const char* const     Major       = "25.12" ;
 	uint64_t    constexpr Tag         = 0       ;

@@ -498,30 +498,6 @@ for ext in ('c','cc'):
 		cmd     = 'gcc -c -o {OBJ} {SRC}'
 ```
 
-### [`os_info`](unit_tests/os_info.html#:~:text=os%5Finfo%20%3D%20%27go%2Bd%5Cn%27)
-
-| Inheritance | Type    | Default                                  | Dynamic | Example                   |
-|-------------|---------|------------------------------------------|---------|---------------------------|
-| python      | `f-str` | re.escape(`<ID>/<VERSION_ID>/<machine>`) | Full    | `r'ubuntu/22\.04/x86_64'` |
-
-This attribute specifies a regexpr characterizing if the OS environment in which jobs execute are acceptable.
-When a job starts, the same information is computed on the executing host and the value must match this regexpr.
-
-In the default value above, `<ID>` and `<VERSION_ID>` are taken from the corresponding lines in `/etc/os-release` and `<machine>` is `os.uname().machine`.
-
-If `None` or `''` no check is performed.
-
-This attribute is typically used jobs are executed in various OS environment, for example when using the `chroot_dir` attribute or when jobs are dispatched using slurm or SGE.
-
-### [`os_info_file`](unit_tests/os_info.html#:~:text=os%5Finfo%5Ffile%20%3D%20os%2Egetcwd%28%29%2B%27%2FLMAKE%2Flmake%2Fos%5Finfo)
-
-| Inheritance | Type    | Default | Dynamic | Example        |
-|-------------|---------|---------|---------|----------------|
-| python      | `f-str` | `''`    | Full    | `'/my_os_tag'` |
-
-This attribute specifies a file from which to get OS information for use with the `os_info` attribute above.
-When specified, the content of this file is used instead of `<ID>/<VERSION_ID>/<machine>` as described above.
-
 ### [`prio`](unit_tests/hide.html#:~:text=prio%20%3D%201)
 
 | Inheritance | Type    | Default       | Dynamic | Example |

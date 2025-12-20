@@ -422,8 +422,6 @@ namespace Backends {
 			[[fallthrough]] ;
 			case 1 :
 				reply.interpreter             = ::move(start_cmd_attrs.interpreter ) ;
-				reply.os_info                 = ::move(start_cmd_attrs.os_info     ) ;
-				reply.os_info_file            = ::move(start_cmd_attrs.os_info_file) ;
 				reply.stderr_ok               =        start_cmd_attrs.stderr_ok     ;
 				reply.autodep_env.auto_mkdir  =        start_cmd_attrs.auto_mkdir    ;
 				reply.autodep_env.ignore_stat =        start_cmd_attrs.ignore_stat   ;

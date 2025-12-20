@@ -21,7 +21,6 @@ if __name__!='__main__' :
 	class Dut(Rule) :
 		target     = r'dut-{Autodep:\w+}-{Os:\w+}'
 		chroot_dir = '{image_root(Os)}'
-		os_info    = r'.*'                      # XXX put a more restrictive os-dependent criteria here
 		lmake_root = '{lmake_install_root(Os)}'
 		autodep    = '{Autodep}'
 		cmd        = 'echo dut'

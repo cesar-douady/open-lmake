@@ -250,8 +250,6 @@ namespace Engine {
 			Attrs::acquire_from_dct( stderr_ok              , py_dct , "stderr_ok"    ) ;
 			Attrs::acquire_env     ( env                    , py_dct , "env"          ) ;
 			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter"  ) ;
-			Attrs::acquire_from_dct( os_info                , py_dct , "os_info"      ) ;
-			Attrs::acquire_from_dct( os_info_file           , py_dct , "os_info_file" ) ;
 			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"   ) ; if (+job_space.lmake_view_s)              add_slash(job_space.lmake_view_s) ;
 			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"    ) ; if (+job_space.repo_view_s )              add_slash(job_space.repo_view_s ) ;
 			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"     ) ; if (+job_space.tmp_view_s  )              add_slash(job_space.tmp_view_s  ) ;
@@ -266,17 +264,15 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		bool       auto_mkdir   = false ;
-		bool       ignore_stat  = false ;
-		bool       readdir_ok   = false ;
-		bool       stderr_ok    = false ;
-		bool       dyn_env      = false ;
-		bool       dyn_views    = false ;
-		::vmap_ss  env          ;
-		::vector_s interpreter  ;
-		::string   os_info      ;
-		::string   os_info_file ;
-		JobSpace   job_space    ;
+		bool       auto_mkdir  = false ;
+		bool       ignore_stat = false ;
+		bool       readdir_ok  = false ;
+		bool       stderr_ok   = false ;
+		bool       dyn_env     = false ;
+		bool       dyn_views   = false ;
+		::vmap_ss  env         ;
+		::vector_s interpreter ;
+		JobSpace   job_space   ;
 		// END_OF_VERSIONING
 	} ;
 

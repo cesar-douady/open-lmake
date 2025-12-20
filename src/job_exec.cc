@@ -63,33 +63,22 @@ JobStartRpcReply get_start_info() {
 	return res ;
 }
 
-// /!\ must stay in sync with _lib/lmake/rules.src.py:_get_os_info
-::string get_os_info( RealPath& real_path , ::string const& file={} ) {
-	Trace trace("get_os_info",file) ;
-	::string res ;
-	if (+file) {
-		Pdate                 now { New }                 ;
-		RealPath::SolveReport sr  = real_path.solve(file) ;
-		for( ::string& l : sr.lnks )   g_gather.new_access( now , ::move(l      ) , {.accesses=Access::Lnk} , FileInfo(l      ) , Comment::OsInfo,CommentExt::Lnk  ) ;
-		if (sr.file_loc<=FileLoc::Dep) g_gather.new_access( now , ::move(sr.real) , {.accesses=Access::Reg} , FileInfo(sr.real) , Comment::OsInfo,CommentExt::Read ) ;
-		//
-		try                     { res = AcFd(file).read() ; }
-		catch (::string const&) {                         ; }                                                                  // report empty in case of error
-	} else {
-		::string         id             ;
-		::string         version_id     ;
-		struct ::utsname uname_info     ; if (::uname(&uname_info)!=0) uname_info.machine[0] = 0 ;                             // .
-		::string         etc_os_release ; try { etc_os_release = AcFd("/etc/os-release").read() ; } catch (::string const&) {} // .
-		for( ::string const& line : split(etc_os_release,'\n') ) {
-			size_t   pos = line.find('=')            ; if (pos==Npos) continue ;
-			::string key = strip(line.substr(0,pos)) ;
-			switch (key[0]) {
-				case 'I' : if (key=="ID"        ) id         = line.substr(pos+1) ; break ;
-				case 'V' : if (key=="VERSION_ID") version_id = line.substr(pos+1) ; break ;
-			DN}
-		}
-		res = cat(id,'/',version_id,'/',uname_info.machine) ;
+::string get_os_info() {
+	Trace trace("get_os_info") ;
+	::string         res            ;
+	::string         id             ;
+	::string         version_id     ;
+	struct ::utsname uname_info     ; if (::uname(&uname_info)!=0) uname_info.machine[0] = 0 ;                             // report empty in case of error
+	::string         etc_os_release ; try { etc_os_release = AcFd("/etc/os-release").read() ; } catch (::string const&) {} // .
+	for( ::string const& line : split(etc_os_release,'\n') ) {
+		size_t   pos = line.find('=')            ; if (pos==Npos) continue ;
+		::string key = strip(line.substr(0,pos)) ;
+		switch (key[0]) {
+			case 'I' : if (key=="ID"        ) id         = line.substr(pos+1) ; break ;
+			case 'V' : if (key=="VERSION_ID") version_id = line.substr(pos+1) ; break ;
+		DN}
 	}
+	res = cat(id,'/',version_id,'/',uname_info.machine) ;
 	trace("done",res) ;
 	return res ;
 }
@@ -188,6 +177,7 @@ int main( int argc , char* argv[] ) {
 	end_report.digest   = { .status=Status::EarlyErr } ;                   // prepare to return an error, so we can goto End anytime
 	end_report.wstatus  = 255<<8                       ;                   // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead               ;
+	end_report.os_info  = get_os_info()                ;
 	g_user_trace        = &end_report.user_trace       ;
 	g_user_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
@@ -262,21 +252,6 @@ int main( int argc , char* argv[] ) {
 			,	         end_report.phy_tmp_dir_s
 			) ;
 			RealPath real_path { g_start_info.autodep_env } ;
-			if (+g_start_info.os_info) {
-				RegExpr  os_info_re { g_start_info.os_info }                               ;
-				::string os_info    = get_os_info( real_path , g_start_info.os_info_file ) ;
-				if (!os_info_re.match(os_info)) {
-					trace("os_info_mismatch",g_start_info.os_info) ;
-					/**/                            end_report.msg_stderr.msg << "unexpected os_info ("<<os_info<<')'                                                                        ;
-					if (+g_start_info.os_info_file) end_report.msg_stderr.msg << " from file "         <<                                                   g_start_info.os_info_file        ;
-					/**/                            end_report.msg_stderr.msg << " does not match expected regexpr from "<<g_start_info.rule<<".os_info ("<<g_start_info.os_info<<')' <<'\n' ;
-					/**/                            end_report.msg_stderr.msg << "  consider :"                                                                                       <<'\n' ;
-					/**/                            end_report.msg_stderr.msg << "  - set "<<g_start_info.rule<<".os_info = r"<<mk_py_str(escape(os_info))                            <<'\n' ;
-					/**/                            end_report.msg_stderr.msg << "  - set "<<g_start_info.rule<<".os_info_file"                                                              ;
-					goto End ;
-				}
-				trace("os_info_match",g_start_info.os_info) ;
-			}
 			if (entered) {
 				for( ::string& d_s : enter_accesses ) {
 					RealPath::SolveReport sr = real_path.solve(no_slash(::move(d_s)),true/*no_follow*/) ;
