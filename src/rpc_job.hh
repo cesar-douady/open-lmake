@@ -692,14 +692,17 @@ template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& j
 	return                  os << ')'                                                    ;
 }                                                                                          // END_OF_NO_COV
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
-	if constexpr (::is_same_v<Key,::string>) { //!                       ext_ok
-		for( auto const& [t,_] : targets ) throw_unless( Disk::is_canon(t,false) , "bad target" ) ;
-		for( auto const& [d,_] : deps    ) throw_unless( Disk::is_canon(d,true ) , "bad dep"    ) ;
+	if constexpr (::is_same_v<Key,::string>) { //!                                                 ext_ok
+		for( auto const& [t,_] : targets ) throw_unless( +t && !Disk::is_abs(t) && Disk::is_canon(t,false) , "bad target" ) ;
+		for( auto const& [d,_] : deps    ) throw_unless( +d &&                     Disk::is_canon(d,true ) , "bad dep"    ) ;
 	}
 	throw_unless( status<All<Status> , "bad status" ) ;
 	if (for_cache) {
-		/**/                            throw_unless( !cache_idx1 , "bad cache_idx1" ) ;
-		for( auto const& [_,d] : deps ) throw_unless( d.is_crc    , "dep not crc"    ) ;
+		throw_unless( !cache_idx1 , "bad cache_idx1" ) ;
+		for( auto const& [_,d] : deps ) {
+			throw_unless( d.is_crc                       , "dep not crc" ) ;
+			throw_unless( !d.accesses || d.crc().valid() , "bad dep crc" ) ;
+		}
 	}
 }
 

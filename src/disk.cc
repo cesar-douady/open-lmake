@@ -251,6 +251,7 @@ namespace Disk {
 		//
 		if (file_tags[tag]   ) res.emplace_back(pfx,tag) ;
 		if (tag!=FileTag::Dir) return ;
+		if (prune(path)      ) return ;
 		//
 		path += '/' ;
 		::vector_s lst ;
@@ -272,7 +273,7 @@ namespace Disk {
 	::vmap_s<FileTag> walk( FileRef path , FileTags file_tags , ::string const& pfx , ::function<bool(::string const&)> prune ) {
 		SWEAR(+path) ;
 		::vmap_s<FileTag> res ;
-		_walk( res , path.at , ::ref(::copy(path.file)) , file_tags , ::ref(::copy(pfx)) , prune ) ;
+		_walk( res , path.at , ::ref(no_slash(path.file)) , file_tags , ::ref(::copy(pfx)) , prune ) ;
 		return res ;
 	}
 
@@ -411,8 +412,10 @@ namespace Disk {
 	FileInfo::FileInfo( FileRef path , Action action ) {
 		if (action.nfs_guard) action.nfs_guard->access(path) ;
 		FileStat st ;
-		if (+path.file) { if (::fstatat( path.at , path.file.c_str() , &st , action.no_follow?AT_SYMLINK_NOFOLLOW:0 )!=0) return ; }
-		else            { if (::fstat  ( path.at ,                     &st                                          )!=0) return ; }
+		if      (+path.file      ) { if (::fstatat( path.at , path.file.c_str() , &st , action.no_follow?AT_SYMLINK_NOFOLLOW:0 )!=0) return ; }
+		else if (path.at.fd>=0   ) { if (::fstat  ( path.at ,                     &st                                          )!=0) return ; }
+		else if (path.at==Fd::Cwd) { if (::stat   (           "."               , &st                                          )!=0) return ; }
+		else                                                                                                                         return ;
 		self = st ;
 	}
 

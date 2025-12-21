@@ -3,10 +3,13 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "py.hh" // /!\ must be included first as Python.h must be included first
+
 #include "engine.hh"
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Py   ;
 using namespace Time ;
 
 CjobNameFile  _g_job_name_file  ;
@@ -33,8 +36,8 @@ void daemon_cache_init(bool rescue) {
 	Trace trace("daemon_cache_init",STR(rescue)) ;
 	//
 	// START_OF_VERSIONING DAEMON_CACHE
-	::string dir_s     = cat(PrivateAdminDirS,"store/") ;
-	NfsGuard nfs_guard { g_config.file_sync }           ;
+	::string dir_s     = Config::s_store_dir_s() ;
+	NfsGuard nfs_guard { g_config.file_sync }    ;
 	//                                                                                        writable
 	{ ::string file=dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , true ) ; }
 	{ ::string file=dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , true ) ; }
@@ -99,6 +102,40 @@ void release_room(DiskSz sz) {
 ::string& operator+=( ::string& os , Crun      const& r  ) { os << "Crun("      ; if (+r      ) os << +r             ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , Cnode     const& n  ) { os << "Cnode("     ; if (+n      ) os << +n             ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , LruEntry  const& e  ) { os << "LruEntry("  ; if (+e.newer) os <<"N:"<< +e.newer ; if (+e.older) os <<"O:"<< +e.older ; return os << ')' ; }
+
+//
+// Config
+//
+
+::string Config::s_store_dir_s(bool for_bck) {
+	::string res = cat(PrivateAdminDirS,"store") ;
+	if (for_bck) res << ".bck" ;
+	add_slash(res) ;
+	return res ;
+}
+
+Config::Config(NewType) {
+	Trace trace("config") ;
+	//
+	::string  config_file = ADMIN_DIR_S "config.py" ;
+	AcFd      config_fd   { config_file }           ;
+	Gil       gil         ;
+	for( auto const& [key,val] : ::vmap_ss(*py_run(config_fd.read())) ) {
+		try {
+			switch (key[0]) {
+				case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>    (val) ; continue ; } break ;
+				case 'i' : if (key=="inf"      ) {                                          continue ; } break ;
+				case 'n' : if (key=="nan"      ) {                                          continue ; } break ;
+				case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >    (val) ; continue ; } break ;
+				case 's' : if (key=="size"     ) { max_sz    = from_string_with_unit(val) ; continue ; } break ;
+			DN}
+		} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
+		trace("bad_cache_key",key) ;
+		throw cat("wrong key (",key,") in ",config_file) ;
+	}
+	throw_unless( max_sz , "size must be defined as non-zero" ) ;
+	trace("done") ;
+}
 
 //
 // LruEntry
@@ -195,7 +232,10 @@ void CjobData::victimize() {
 	return { {} , CacheHitInfo::Miss } ;
 }
 
-::pair<Crun,CacheHitInfo> CjobData::insert( Hash::Crc key , Disk::DiskSz sz , Rate rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) {
+::pair<Crun,CacheHitInfo> CjobData::insert(
+	::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs
+,	Hash::Crc key , bool key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate
+) {
 	Trace trace("insert",idx(),key,sz,rate,deps.size(),dep_crcs.size()) ;
 	Crun found_runs[2] ;                                                  // first and last with same key
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
@@ -214,7 +254,7 @@ void CjobData::victimize() {
 		if (+found_runs[false/*last*/]) found_runs[true/*last*/]->victimize() ;
 		else                            found_runs[true/*last*/]->key_is_last = false ;
 	}
-	Crun run { New , key , true/*key_is_last*/ , idx() , sz , rate , deps, dep_crcs } ;
+	Crun run { New , key , key_is_last , idx() , last_access , sz , rate , deps, dep_crcs } ;
 	trace("miss") ;
 	return { run , CacheHitInfo::Miss } ;
 }
@@ -223,9 +263,9 @@ void CjobData::victimize() {
 // CrunData
 //
 
-CrunData::CrunData( Hash::Crc k , bool kil , Cjob j , Disk::DiskSz sz_ , Rate r , ::vector<Cnode> const& ds , ::vector<Hash::Crc> const& dcs )
+CrunData::CrunData( Hash::Crc k , bool kil , Cjob j , Time::Pdate la , Disk::DiskSz sz_ , Rate r , ::vector<Cnode> const& ds , ::vector<Hash::Crc> const& dcs )
 :	key         { k   }
-,	last_access { New }
+,	last_access { la  }
 ,	sz          { sz_ }
 ,	job         { j   }
 ,	deps        { ds  }

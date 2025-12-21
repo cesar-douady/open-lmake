@@ -41,8 +41,6 @@ RepairDigest repair(::string const& from_dir) {
 			// find targets
 			::vector<Target> targets ; targets.reserve(job_info.end.digest.targets.size()) ;
 			for( auto const& [tn,td] : job_info.end.digest.targets ) {
-				if ( !tn                                           ) { trace("empty target"    ,jd   ) ; goto NextJob ; }
-				if ( !is_lcl(tn)                                   ) { trace("non-local target",jd,tn) ; goto NextJob ; }
 				if ( td.crc==Crc::None && !static_phony(td.tflags) )   continue ;                                          // not a target
 				FileSig sig { tn } ;
 				if ( (td.crc==Crc::None) != !sig                 ) { trace("disk_mismatch_none" ,jd,tn) ; goto NextJob ; } // do not agree on file existence
@@ -60,7 +58,6 @@ RepairDigest repair(::string const& from_dir) {
 			::vector<Dep> deps       ; deps.reserve(job_info.end.digest.deps.size()) ;
 			job_info.update_digest() ;                                                                     // gather newer dep crcs
 			for( auto const& [dn,dd] : job_info.end.digest.deps ) {
-				if (!dn        ) { trace("empty dep",jd) ; goto NextJob ; }
 				if (!is_lcl(dn)) {
 					for( ::string const& sd_s : src_dirs_s ) if (lies_within(dn,sd_s)) goto KeepDep ;      // this could be optimized by searching the longest match in the name prefix tree
 					trace("non-local dep",jd,dn) ;
@@ -169,7 +166,7 @@ int main( int argc , char* /*argv*/[] ) {
 	{	::string msg ;
 		msg << "the repair process is starting, if something goes wrong :"                                                  <<'\n' ;
 		msg << "to restore old state,                    consider : "<<rm_admin_dir<<" ; mv "<<bck_admin_dir<<' '<<admin_dir<<'\n' ;
-		msg << "to restart the repair process,           consider : lmake_repair"                                           <<'\n' ;
+		msg << "to restart the repair process,           consider : "<<*g_exe_name                                          <<'\n' ;
 		msg << "to continue with what has been repaired, consider : rm "<<repair_mrkr<<" ; "<<rm_bck_admin_dir              <<'\n' ;
 		Fd::Stdout.write(msg) ;
 	}
@@ -184,7 +181,7 @@ int main( int argc , char* /*argv*/[] ) {
 		msg << "repo has been satisfactorily repaired : "<<digest.n_repaired<<'/'<<digest.n_processed<<" jobs"                                <<'\n' ;
 		msg <<                                                                                                                                  '\n' ;
 		msg << "to restore old state,                                      consider : "<<rm_admin_dir<<" ; mv "<<bck_admin_dir<<' '<<admin_dir<<'\n' ;
-		msg << "to restart the repair process,                             consider : "<<rm_admin_dir<<" ; lmake_repair"                      <<'\n' ;
+		msg << "to restart the repair process,                             consider : "<<rm_admin_dir<<" ; "<<*g_exe_name                     <<'\n' ;
 		msg << "to clean up after having ensured everything runs smoothly, consider : "<<rm_bck_admin_dir                                     <<'\n' ;
 		Fd::Stdout.write(msg) ;
 	}

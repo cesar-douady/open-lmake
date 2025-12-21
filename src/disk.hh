@@ -236,11 +236,12 @@ namespace Disk {
 	::string read_lnk( FileRef file , NfsGuard* =nullptr ) ;
 
 	// deep list files whose tag matches FileTags within dir with pfx in front of each entry, return a single entry {pfx} if file is not a dir (including if file does not exist)
+	// prune is called on each directory which is not traversed if return value is true
 	::vmap_s<FileTag> walk(
-		FileRef                           path
-	,	FileTags                          fts   = ~FileTags()
-	,	::string const&                   pfx   = {}
-	,	::function<bool(::string const&)> prune = [](::string const&)->bool { return false ; }
+		FileRef
+	,	FileTags                                    = ~FileTags()
+	,	::string const&                       pfx   = {}
+	,	::function<bool(::string const& dir)> prune = [](::string const&)->bool { return false ; }
 	) ;
 
 	inline ::string cwd_s() {

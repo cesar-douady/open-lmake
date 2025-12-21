@@ -38,8 +38,9 @@ namespace Engine {
 			for( auto const& [re,k] : star_ignore ) if (+re.match(path)        ) return &k          ;
 			/**/                                                                 return nullptr     ;
 		} ;
-		auto prune = [&](::string const& dir_s) {
-			::string const* key = nullptr ;
+		auto prune = [&](::string const& dir) {
+			::string const* key   = nullptr                                     ;
+			::string        dir_s = dir.starts_with("./") ? dir.substr(2) : dir ; add_slash(dir_s) ;
 			{	/**/                         if ( !dir_s                           ) goto Keep  ;
 				/**/                         if ( is_repo_root && dir_s==AdminDirS ) goto Prune ;
 				/**/                         if ( (key=ignore(dir_s))              ) goto Prune ;

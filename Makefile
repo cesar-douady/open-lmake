@@ -591,17 +591,18 @@ bin/lmake_server bin/lmake_repair _bin/ldump _bin/lkpi :
 	@$(SPLIT_DBG_CMD)
 
 bin/ldaemon_cache_server : \
-	$(LMAKE_BASIC_SAN_OBJS)                \
-	src/app$(SAN).o                        \
-	src/py$(SAN).o                         \
-	src/re$(SAN).o                         \
-	src/real_path$(SAN).o                  \
-	src/rpc_job$(SAN).o                    \
-	src/version$(SAN).o                    \
-	src/autodep/env$(SAN).o                \
-	src/caches/daemon_cache$(SAN).o        \
-	src/caches/dir_cache$(SAN).o           \
-	src/caches/daemon_cache/engine$(SAN).o \
+	$(LMAKE_BASIC_SAN_OBJS)                            \
+	src/app$(SAN).o                                    \
+	src/py$(SAN).o                                     \
+	src/re$(SAN).o                                     \
+	src/real_path$(SAN).o                              \
+	src/rpc_job$(SAN).o                                \
+	src/version$(SAN).o                                \
+	src/autodep/env$(SAN).o                            \
+	src/caches/daemon_cache$(SAN).o                    \
+	src/caches/dir_cache$(SAN).o                       \
+	src/caches/daemon_cache/engine$(SAN).o             \
+	src/caches/daemon_cache/daemon_cache_utils$(SAN).o \
 	src/caches/daemon_cache/ldaemon_cache_server$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
@@ -609,13 +610,22 @@ bin/ldaemon_cache_server : \
 	@$(SPLIT_DBG_CMD)
 
 bin/ldaemon_cache_repair : \
-	$(LMAKE_BASIC_SAN_OBJS) \
-	src/py.o                \
-	src/version.o           \
+	$(LMAKE_BASIC_SAN_OBJS)                            \
+	src/app$(SAN).o                                    \
+	src/py$(SAN).o                                     \
+	src/re$(SAN).o                                     \
+	src/real_path$(SAN).o                              \
+	src/rpc_job$(SAN).o                                \
+	src/version.o                                      \
+	src/autodep/env$(SAN).o                            \
+	src/caches/daemon_cache$(SAN).o                    \
+	src/caches/dir_cache$(SAN).o                       \
+	src/caches/daemon_cache/engine$(SAN).o             \
+	src/caches/daemon_cache/daemon_cache_utils$(SAN).o \
 	src/caches/daemon_cache/ldaemon_cache_repair$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 bin/ldir_cache_repair : \

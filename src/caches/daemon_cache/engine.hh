@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#pragma once
+
 #include "disk.hh"
 #include "hash.hh"
 #include "time.hh"
@@ -15,8 +17,12 @@
 #include "store/vector.hh"
 
 struct Config {
+	// statics
+	static ::string s_store_dir_s(bool for_bck=false) ;
+	// cxtors & casts
 	Config() = default ;
 	Config(NewType) ;
+	// data
 	FileSync     file_sync = {} ;
 	PermExt      perm_ext  = {} ;
 	Disk::DiskSz max_sz    = 0  ;
@@ -163,9 +169,12 @@ struct CjobData {
 	Cjob     idx () const ;
 	::string name() const { return _name.str() ; }
 	// services
-	::pair<Crun,CacheHitInfo> match    (                                               ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ; // updates lru related info when hit
-	::pair<Crun,CacheHitInfo> insert   ( Hash::Crc key , Disk::DiskSz sz , Rate rate , ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ; // like match, but create when miss
-	void                      victimize(                                                                                                   ) ;
+	::pair<Crun,CacheHitInfo> match( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ;     // updates lru related info when hit
+	::pair<Crun,CacheHitInfo> insert(                                                            // like match, but create when miss
+		::vector<Cnode> const& , ::vector<Hash::Crc> const&                                      // to search entry
+	,	Hash::Crc key , bool key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate // to create entry
+	) ;
+	void victimize() ;
 	// data
 	// START_OF_VERSIONING DAEMON_CACHE
 	VarIdx   n_statics = 0 ;
@@ -190,7 +199,7 @@ struct CrunData {
 	static CrunHdr const& s_c_hdr() ;
 	// cxtors & casts
 	CrunData() = default ;
-	CrunData( Hash::Crc key , bool key_is_last , Cjob job , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
+	CrunData( Hash::Crc key , bool key_is_last , Cjob job , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
 	// accesses
 	Crun     idx (    ) const ;
 	::string name(Cjob) const ;

@@ -10,59 +10,24 @@
 #include "process.hh"
 
 #include "caches/daemon_cache.hh"
+#include "daemon_cache_utils.hh"
 
 #include "engine.hh"
 
 using namespace Caches ;
 using namespace Disk   ;
 using namespace Hash   ;
-using namespace Py     ;
 
 Config g_config ;
 
 SmallIds<uint64_t> _g_upload_keys  ;
 ::vector<DiskSz>   _g_reserved_szs ; // indexed by upload_key
 
-struct CompileDigest {
-	VarIdx          n_statics = 0 ;
-	::vector<Cnode> deps      ;
-	::vector<Crc  > dep_crcs  ;
-} ;
-
-CompileDigest _compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download ) {
-	struct Dep {
-		// services
-		bool operator<(Dep const& other) const { return ::pair(bucket,+node) < ::pair(other.bucket,+other.node) ; }
-		// data
-		int   bucket = 0/*garbage*/ ;                                    // deps are sorted statics first, then existing, then non-existing
-		Cnode node   ;
-		Crc   crc    ;
-	} ;
-	CompileDigest res  ;
-	::vector<Dep> deps ;
-	for( auto const& [n,dd] : repo_deps ) {
-		Cnode node ;
-		if (for_download) { node = {       n } ; if (!node) continue ; } // if it is not known in cache, it has no impact on matching
-		else                node = { New , n } ;
-		if (dd.dflags[Dflag::Static]) { SWEAR( res.n_statics<Max<VarIdx> ) ; res.n_statics++ ; }
-		Crc crc = dd.crc() ;
-		deps.push_back({
-			.bucket = dd.dflags[Dflag::Static] ? 0 : crc!=Crc::None ? 1 : 2
-		,	.node   = node
-		,	.crc    = crc
-		}) ;
-	}
-	::sort(deps) ;
-	for( Dep const& dep : deps )                              res.deps    .push_back(dep.node) ;
-	for( Dep const& dep : deps ) { if (dep.bucket==2) break ; res.dep_crcs.push_back(dep.crc ) ; }
-	return res ;
-}
-
 DaemonCacheRpcReply download(DaemonCacheRpcReq const& crr) {
 	Trace trace("download",crr) ;
 	DaemonCacheRpcReply        res    { .proc=DaemonCacheRpcProc::Download , .file_sync=g_config.file_sync , .hit_info=CacheHitInfo::NoJob } ;
 	Cjob                       job    { crr.job }                                                                                            ; if (!job) { trace("no_job") ; return res ; }
-	CompileDigest              deps   = _compile( crr.repo_deps , true/*for_download*/ )                                                     ; SWEAR( deps.n_statics==job->n_statics , crr.job,job ) ;
+	CompileDigest              deps   = compile( crr.repo_deps , true/*for_download*/ )                                                      ; SWEAR( deps.n_statics==job->n_statics , crr.job,job ) ;
 	::pair<Crun,CacheHitInfo > digest = job->match( deps.deps , deps.dep_crcs )                                                              ;
 	//
 	/**/                                 res.hit_info = digest.second               ;
@@ -85,21 +50,6 @@ DaemonCacheRpcReply upload(DaemonCacheRpcReq const& crr) {
 	} ;
 }
 
-static DiskSz _run_sz(JobInfo info) {
-	return info.end.total_z_sz ;
-}
-
-static Rate _run_rate(JobInfo info) {
-	float r = ::ldexpf(
-		::logf( 1e9 * float(info.end.digest.exe_time) / _run_sz(info) ) // fastest throughput is 1GB/s (beyond that, cache is obviously needless)
-	,	4
-	) ;
-	if (r<0      ) r = 0        ;
-	if (r>=NRates) r = NRates-1 ;
-	Trace trace("_run_rate",Rate(r)) ;
-	return r ;
-}
-
 void commit(DaemonCacheRpcReq const& crr) {
 	Trace trace("commit",crr) ;
 	//
@@ -107,11 +57,15 @@ void commit(DaemonCacheRpcReq const& crr) {
 	_g_upload_keys.release(crr.upload_key) ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
-	NfsGuard                   nfs_guard { g_config.file_sync }                                                                              ;
-	::string                   rf        = DaemonCache::s_reserved_file(crr.upload_key)                                                      ;
-	CompileDigest              deps      = _compile( crr.info.end.digest.deps , false/*for_download*/ )                                      ;
-	Cjob                       job       { New , crr.job , deps.n_statics }                                                                  ;
-	::pair<Crun,CacheHitInfo > digest    = job->insert( crr.repo_key , _run_sz(crr.info) , _run_rate(crr.info) , deps.deps , deps.dep_crcs ) ;
+	NfsGuard      nfs_guard { g_config.file_sync }                                        ;
+	::string      rf        = DaemonCache::s_reserved_file(crr.upload_key)                ;
+	CompileDigest deps      = compile( crr.info.end.digest.deps , false/*for_download*/ ) ;
+	Cjob          job       { New , crr.job , deps.n_statics }                            ;
+	//
+	::pair<Crun,CacheHitInfo > digest = job->insert(
+		deps.deps , deps.dep_crcs                                                                                                                      // to search entry
+	,	crr.repo_key , true/*key_is_last*/ , New/*last_access*/ , crr.info.end.total_z_sz , rate(crr.info.end.total_z_sz,crr.info.end.digest.exe_time) // to create entry
+	) ;
 	//
 	if (digest.second<CacheHitInfo::Miss) {
 		unlnk( rf , {.nfs_guard=&nfs_guard} ) ;
@@ -154,29 +108,6 @@ struct CacheServer : AutoServer<CacheServer> {
 } ;
 
 static CacheServer _g_server { ServerMrkr } ;
-
-Config::Config(NewType) {
-	Trace trace("config") ;
-	//
-	::string  config_file = ADMIN_DIR_S "config.py" ;
-	AcFd      config_fd   { config_file }           ;
-	Gil       gil         ;
-	for( auto const& [key,val] : ::vmap_ss(*py_run(config_fd.read())) ) {
-		try {
-			switch (key[0]) {
-				case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>    (val) ; continue ; } break ;
-				case 'i' : if (key=="inf"      ) {                                          continue ; } break ;
-				case 'n' : if (key=="nan"      ) {                                          continue ; } break ;
-				case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >    (val) ; continue ; } break ;
-				case 's' : if (key=="size"     ) { max_sz    = from_string_with_unit(val) ; continue ; } break ;
-			DN}
-		} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
-		trace("bad_cache_key",key) ;
-		throw cat("wrong key (",key,") in ",config_file) ;
-	}
-	throw_unless( max_sz , "size must be defined as non-zero" ) ;
-	trace("done") ;
-}
 
 int main( int argc , char** argv ) {
 	app_init({

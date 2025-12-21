@@ -33,7 +33,7 @@ namespace Caches {
 		}
 		// data
 		Proc                proc        = Proc::None ;
-		Hash::Crc           repo_key    = {}         ;
+		Hash::Crc           repo_key    = {}         ; // if proc =                     Commit
 		::string            job         = {}         ; // if proc = Download |          Commit
 		::vmap_s<DepDigest> repo_deps   = {}         ; // if proc = Download |          Commit
 		Disk::DiskSz        reserved_sz = 0          ; // if proc =            Upload
