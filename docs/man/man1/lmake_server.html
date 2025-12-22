@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Mon Dec 22 22:44:14 2025 -->
+<!-- CreationDate: Mon Dec 22 22:44:15 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -13,18 +13,17 @@
        table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
        h1      { text-align: center }
 </style>
-<title>LDIR_CACHE_REPAIR</title>
+<title>LMAKE_SERVER</title>
 
 </head>
 <body>
 
-<h1 align="center">LDIR_CACHE_REPAIR</h1>
+<h1 align="center">LMAKE_SERVER</h1>
 
 <a href="#NAME">NAME</a><br>
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
 <a href="#EXIT STATUS">EXIT STATUS</a><br>
-<a href="#OPTIONS">OPTIONS</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#FILES">FILES</a><br>
 <a href="#SEE ALSO">SEE ALSO</a><br>
@@ -38,9 +37,8 @@
 </h2>
 
 
-
-<p style="margin-left:9%; margin-top: 1em">ldir_cache_repair
-- repair a <i>open-lmake</i> dir-based cache</p>
+<p style="margin-left:9%; margin-top: 1em">lmake_server -
+the server that actually executes <b>lmake</b> commands</p>
 
 <h2>SYNOPSIS
 <a name="SYNOPSIS"></a>
@@ -48,8 +46,8 @@
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>ldir_cache_repair</b>
-[<i>-n</i>|<i>--dry-run</i>] <i>dir</i></p>
+<p style="margin-left:9%; margin-top: 1em"><b>lmake_server</b>
+[<i>OPTION</i>]... [<i>FILE</i>]...</p>
 
 <h2>DESCRIPTION
 <a name="DESCRIPTION"></a>
@@ -57,64 +55,13 @@
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><i><b>ldir_cache_repair</b></i>
-is meant to repair a dir-based cache (a cache whose tag is
-<i>dir</i>). Its argument specifies the dir to repair.</p>
-
-<p style="margin-left:9%; margin-top: 1em">This may be
-usedful either because you experience incoherent behaviors
-and this is less agressive than setting up a fresh dir.</p>
-
-<p style="margin-left:9%; margin-top: 1em">Also, if for
-some management reason you want to dismiss some entries, you
-can remove any part of the cache and run this command to
-restore a coherent state. The structure of the cache dir is
-fairly simple: all the data linked to a job is under a dir
-named after the job name.</p>
-
-<p style="margin-left:9%; margin-top: 1em">When running,
-<b>ldir_cache_repair</b> generates a trace of its activity.
-These may be:</p>
-
-<table width="100%" border="0" rules="none" frame="void"
-       cellspacing="0" cellpadding="0">
-<tr valign="top" align="left">
-<td width="9%"></td>
-<td width="6%">
-
-
-<p>rm</p></td>
-<td width="3%"></td>
-<td width="82%">
-
-
-<p>Any file not necessary for running the cache is
-removed.</p> </td></tr>
-<tr valign="top" align="left">
-<td width="9%"></td>
-<td width="6%">
-
-
-<p>rmdir</p></td>
-<td width="3%"></td>
-<td width="82%">
-
-
-<p>Any empty dir, possibly resulting from the <i>rm</i>
-actions, are removed.</p></td></tr>
-</table>
-
-<p style="margin-left:9%;">erase entry</p>
-
-<p style="margin-left:18%;">Any incomplete or otherwise
-incoherent cache entry is removed.</p>
-
-<p style="margin-left:9%;">rebuild lru</p>
-
-<p style="margin-left:18%;">The book-keeping information to
-ensure proper LRU evection is rebuilt. If the LRU data is
-missing, the corresponding entry will be deemed to have been
-accessed and will be preferred candidates for eviction.</p>
+<p style="margin-left:9%; margin-top: 1em"><b>lmake_server</b>
+actually executes <b>lmake</b> commands, as well as
+<b>ldebug</b>, <b>lmark</b> and <b>lshow</b>. It takes no
+options nor arguments. Supported ones are reserved for
+internal use. It may be useful for performance reasons (for
+example if a lot of <b>lshow</b> commands are issued) or to
+ensure it runs on a dedicated host.</p>
 
 <h2>EXIT STATUS
 <a name="EXIT STATUS"></a>
@@ -122,12 +69,23 @@ accessed and will be preferred candidates for eviction.</p>
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>ldir_cache_repair</b>
-exits with a status of zero if the cache was successfully
-repaired. Else it exits with a non-zero status:</p>
+<p style="margin-left:9%; margin-top: 1em"><b>lmake_server</b>
+exits with a status of zero if all commands were executed.
+Else it exits with a non-zero status:</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>1</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>some targets could not be built</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="3%">
@@ -144,6 +102,52 @@ repaired. Else it exits with a non-zero status:</p>
 <td width="3%">
 
 
+<p><b>3</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p><i>Lmakefile.py</i> could not be read or contained an
+error</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>4</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>server could not be started</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>5</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>internal repo state was inconsistent</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>6</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>repo need to be cleaned, e.g. with <b>git clean
+-ffdx</b></p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
 <p><b>7</b></p></td>
 <td width="6%"></td>
 <td width="82%">
@@ -151,6 +155,17 @@ repaired. Else it exits with a non-zero status:</p>
 
 <p>adequate permissions were missing, typically write
 access</p> </td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="3%">
+
+
+<p><b>8</b></p></td>
+<td width="6%"></td>
+<td width="82%">
+
+
+<p>server crashed, should not occur</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="3%">
@@ -184,33 +199,9 @@ be parsed</p></td></tr>
 <td width="82%">
 
 
-<p>bad cache version, cache needs to be cleaned</p></td></tr>
+<p>bad repo version, repo need to be cleaned, e.g. with
+<b>git clean -ffdx</b></p></td></tr>
 </table>
-
-<h2>OPTIONS
-<a name="OPTIONS"></a>
-</h2>
-
-
-<p style="margin-left:9%; margin-top: 1em"><b>-n</b>,
-<b>--dry-run</b></p>
-
-<p style="margin-left:18%;">Report actions to carry out but
-do not actually perform them.</p>
-
-
-<p style="margin-left:9%; margin-top: 1em"><b>ldir_cache_repair</b>
-manages a fully coherent dir called a repo. When it starts,
-it first determines the root of the repo (cf. <b>FILES</b>
-below).</p>
-
-<p style="margin-left:9%; margin-top: 1em">Arguments and
-reports are systematically localized to the current working
-dir. For example, if you launch <b>ldir_cache_repair b</b>
-from dir <b>a</b> in your repo, the argument is file
-<i>a/b</i> from the root of the repo and reports containing
-file names (initially seen from the root of the repo) will
-be shown relative the the current working dir.</p>
 
 <h2>EXAMPLES
 <a name="EXAMPLES"></a>
@@ -218,7 +209,7 @@ be shown relative the the current working dir.</p>
 
 
 
-<p style="margin-left:9%; margin-top: 1em">ldir_cache_repair</p>
+<p style="margin-left:9%; margin-top: 1em">lmake_server</p>
 
 <h2>FILES
 <a name="FILES"></a>
@@ -231,8 +222,8 @@ searched in the current dir and in parent dirs. If a single
 one is found, this determines the root of the repo. If
 several are found, the existence of an <i>LMAKE</i> dir is
 checked. If a single one is found, this determines the root
-of the repo. In other cases, <b>ldir_cache_repair</b> will
-not start.</p>
+of the repo. In other cases, <b>lmake_server</b> will not
+start.</p>
 
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>
@@ -242,7 +233,8 @@ not start.</p>
 
 <p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
 <b>lcheck_deps</b>(1), <b>lcollect</b>(1), <b>ldebug</b>(1),
-<b>ldecode</b>(1), <b>ldepend</b>(1), <b>lencode</b>(1),
+<b>ldecode</b>(1), <b>ldepend</b>(1),
+<b>ldir_cache_repair</b>(1), <b>lencode</b>(1),
 <b>lforget</b>(1), <b>lmake</b>(1), <b>lmark</b>(1),
 <b>lmake_repair</b>(1), <b>lrun_cc</b>(1), <b>lshow</b>(1),
 <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>

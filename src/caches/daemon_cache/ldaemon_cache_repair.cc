@@ -16,6 +16,9 @@ using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
 
+enum class Key  : uint8_t { None   } ;
+enum class Flag : uint8_t { DryRun } ;
+
 struct RepairDigest {
 	CjobIdx n_repaired  = 0 ;
 	CjobIdx n_processed = 0 ;
@@ -23,14 +26,14 @@ struct RepairDigest {
 
 Config g_config ;
 
-RepairDigest repair() {
+static RepairDigest _repair(bool dry_run) {
 	struct RunEntry {
 		bool info = false ;
 		bool data = false ;
 	} ;
-	Trace trace("repair") ;
+	Trace trace("_repair",STR(dry_run)) ;
 	RepairDigest res           ;
-	AcFd         repaired_runs { cat(AdminDirS,"repaired_runs") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} } ;
+	AcFd         repaired_runs ; if (!dry_run) repaired_runs = AcFd{ cat(AdminDirS,"repaired_runs") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} } ;
 	//
 	::umap_s<RunEntry> tab       ;
 	::uset_s           to_rm     ;
@@ -68,11 +71,13 @@ RepairDigest repair() {
 			Cjob          job      { New , no_slash(dir_name_s(dir_s)) , deps.n_statics }        ;
 			Crc           repo_key = Crc::s_from_hex(repo_key_str)                               ;
 			//
-			::pair<Crun,CacheHitInfo> digest = job->insert(
-				deps.deps , deps.dep_crcs                                                                                                                // to search entry
-			,	repo_key , key_is_last , Pdate(data_stat.st_atim) , job_info.end.total_z_sz , rate(job_info.end.total_z_sz,job_info.end.digest.exe_time) // to create entry
-			) ;
-			throw_unless( digest.second>=CacheHitInfo::Miss , "conflict" ) ;
+			if (!dry_run) {
+				::pair<Crun,CacheHitInfo> digest = job->insert(
+					deps.deps , deps.dep_crcs                                                                                                                // to search entry
+				,	repo_key , key_is_last , Pdate(data_stat.st_atim) , job_info.end.total_z_sz , rate(job_info.end.total_z_sz,job_info.end.digest.exe_time) // to create entry
+				) ;
+				throw_unless( digest.second>=CacheHitInfo::Miss , "conflict" ) ;
+			}
 		} catch (::string const&) {
 			to_rm.insert(dir_s+"info") ;
 			to_rm.insert(dir_s+"data") ;
@@ -80,21 +85,35 @@ RepairDigest repair() {
 		}
 		res.n_repaired++ ;
 	}
-	unlnk( cat(PrivateAdminDirS,"reserved") , {.dir_ok=true} ) ;
-	for( ::string const& f : to_rm ) unlnk(f) ;
+	:: string reserved = cat(PrivateAdminDirS,"reserved") ;
+	if (+FileInfo(reserved)) {
+		Fd::Stdout.write(cat("rm -r ",reserved,'\n')) ;
+		if (!dry_run) unlnk( reserved , {.dir_ok=true} ) ;
+	}
+	for( ::string const& f : to_rm ) {
+		Fd::Stdout.write(cat("rm ",f,'\n')) ;
+		if (!dry_run) unlnk(f) ;
+	}
 	return res ;
 }
 
 int main( int argc , char* argv[] ) {
-	if ( argc>2                              ) exit(Rc::Usage   ,"must be called with a single optional arg"                                         ) ;
-	if ( argc==2 && ::chdir(argv[1])!=0      ) exit(Rc::System  ,"cannot chdir (",StrErr(),") to ",argv[1]                                           ) ;
+	Syntax<Key,Flag> syntax {{
+		{ Flag::DryRun , { .short_name='n' , .doc="report actions but dont execute them" } }
+	}} ;
+	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
+	if (cmd_line.args.size()<1) syntax.usage("must provide a cache dir to repair") ;
+	if (cmd_line.args.size()>1) syntax.usage("cannot repair several cache dirs"  ) ;
+	//
 	if ( FileInfo(File(ServerMrkr)).exists() ) exit(Rc::BadState,"after having ensured no ldaemon_cache_server is running, consider : rm ",ServerMrkr) ;
-	::string top_dir_s ; if (argc==2) top_dir_s = with_slash(argv[1]) ;
+	//
+	::string const& top_dir_s = with_slash(cmd_line.args[0]) ;
+	if (::chdir(top_dir_s.c_str())!=0) exit(Rc::System  ,"cannot chdir (",StrErr(),") to ",top_dir_s,rm_slash ) ;
 	//
 	app_init({
 		.chk_version  = Yes
-	,	.cd_root      = false                                                                  // we have already chdir'ed to top
-	,	.read_only_ok = false
+	,	.cd_root      = false                                                                          // we have already chdir'ed to top
+	,	.read_only_ok = cmd_line.flags[Flag::DryRun]
 	,	.root_mrkrs   = { cat(AdminDirS,"config.py") }
 	,	.version      = Version::DaemonCache
 	}) ;
@@ -107,36 +126,40 @@ int main( int argc , char* argv[] ) {
 	::string store_dir_s         = top_dir_s + lcl_store_dir_s            ;
 	::string bck_store_dir_s     = top_dir_s + lcl_bck_store_dir_s        ;
 	//
-	if (FileInfo(lcl_repair_mrkr).tag()>=FileTag::Reg) unlnk( bck_store_dir_s , {.dir_ok=true} ) ; // if last ldaemon_cache_repair was interrupted, reset unfinished state
-	//
-	if (FileInfo(bck_store_dir_s).tag()!=FileTag::Dir) {
-		try                       { rename( lcl_store_dir_s/*src*/ , lcl_bck_store_dir_s/*dst*/ ) ; }
-		catch (::string const& e) { fail_prod(e) ;                                                  }
-	} else if (FileInfo(lcl_store_dir_s).tag()==FileTag::Dir) {
-		exit( Rc::BadState
-		,	"both ",store_dir_s,rm_slash," and ",bck_store_dir_s,rm_slash," exist, consider one of :",'\n'
-		,	"\trm -r ",store_dir_s    ,rm_slash                                                      ,'\n'
-		,	"\trm -r ",bck_store_dir_s,rm_slash
-		) ;
+	if (!cmd_line.flags[Flag::DryRun]) {
+		if (FileInfo(lcl_repair_mrkr).tag()>=FileTag::Reg) unlnk( bck_store_dir_s , {.dir_ok=true} ) ; // if last ldaemon_cache_repair was interrupted, reset unfinished state
+		//
+		if (FileInfo(bck_store_dir_s).tag()!=FileTag::Dir) {
+			try                       { rename( lcl_store_dir_s/*src*/ , lcl_bck_store_dir_s/*dst*/ ) ; }
+			catch (::string const& e) { fail_prod(e) ;                                                  }
+		} else if (FileInfo(lcl_store_dir_s).tag()==FileTag::Dir) {
+			exit( Rc::BadState
+			,	"both ",store_dir_s,rm_slash," and ",bck_store_dir_s,rm_slash," exist, consider one of :",'\n'
+			,	"\trm -r ",store_dir_s    ,rm_slash                                                      ,'\n'
+			,	"\trm -r ",bck_store_dir_s,rm_slash
+			) ;
+		}
+		//
+		if ( !AcFd( lcl_repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	}
-	//
-	if ( !AcFd( lcl_repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
-	//
-	try                       { g_config = New ;                                                                         }
+	try                       { g_config = New ;                                                                             }
 	catch (::string const& e) { exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",top_dir_s,rm_slash," : ",e ) ; }
-	daemon_cache_init(false/*rescue*/) ;                                                                                                   // no need to rescue as store is fresh
-	{	::string msg ;
+	daemon_cache_init( false/*rescue*/, cmd_line.flags[Flag::DryRun] ) ;                                                                           // no need to rescue as store is fresh
+	 if (!cmd_line.flags[Flag::DryRun]) {
+	 	::string msg ;
 		msg << "the repair process is starting, if something goes wrong :"                                                                                          <<'\n' ;
 		msg << "to restore old state,                    consider : rm -rf "<<store_dir_s<<rm_slash<<" ; mv "<<bck_store_dir_s<<rm_slash<<' '<<store_dir_s<<rm_slash<<'\n' ;
 		msg << "to restart the repair process,           consider : "<<*g_exe_name                                                                                  <<'\n' ;
 		msg << "to continue with what has been repaired, consider : rm "<<repair_mrkr<<" ; rm -r "<<bck_store_dir_s<<rm_slash                                       <<'\n' ;
 		Fd::Stdout.write(msg) ;
 	}
-	//                    vvvvvvvv
-	RepairDigest digest = repair() ;
-	//                    ^^^^^^^^
+	//                    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	RepairDigest digest = _repair(cmd_line.flags[Flag::DryRun]) ;
+	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	unlnk(lcl_repair_mrkr) ;
-	{	::string msg ;
+	 if (!cmd_line.flags[Flag::DryRun]) {
+	 	::string msg ;
+		msg <<                                                                                                                                                                         '\n' ;
 		msg <<                                                                                                                                                                         '\n' ;
 		msg << "repo has been satisfactorily repaired : "<<digest.n_repaired<<'/'<<digest.n_processed<<" jobs"                                                                       <<'\n' ;
 		msg <<                                                                                                                                                                         '\n' ;

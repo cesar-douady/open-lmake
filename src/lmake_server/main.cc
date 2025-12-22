@@ -336,24 +336,21 @@ int main( int argc , char** argv ) {
 	Record::s_static_report = true           ;
 	Record::s_autodep_env(ade) ;
 	set_env("LMAKE_AUTODEP_ENV",ade) ;
-	SWEAR( !*g_startup_dir_s , *g_startup_dir_s ) ;
 	//
-	bool refresh_  = true ;
-	bool is_daemon = true ;
+	bool     refresh_      = true ;
+	bool     is_daemon     = true ;
+	::string startup_dir_s ;
 	for( int i : iota(1,argc) ) {
 		if (argv[i][0]=='-')
 			switch (argv[i][1]) {
-				case 'c' : g_startup_dir_s = new ::string{argv[i]+2} ;                    continue ;
-				case 'd' : is_daemon       = false                   ; if (argv[i][2]==0) continue ; break ;
-				case 'r' : refresh_        = false                   ; if (argv[i][2]==0) continue ; break ;
-				case 'R' : g_writable      = false                   ; if (argv[i][2]==0) continue ; break ;
-				case '-' :                                             if (argv[i][2]==0) continue ; break ;
+				case 'c' : startup_dir_s << (argv[i]+2)<<add_slash ;                    continue ;
+				case 'd' : is_daemon     =  false                  ; if (argv[i][2]==0) continue ; break ;
+				case 'r' : refresh_      =  false                  ; if (argv[i][2]==0) continue ; break ;
+				case 'R' : g_writable    =  false                  ; if (argv[i][2]==0) continue ; break ;
+				case '-' :                                           if (argv[i][2]==0) continue ; break ;
 			}
 		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax :",*g_exe_name," [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
-	if (+g_startup_dir_s) SWEAR( is_dir_name(*g_startup_dir_s) , *g_startup_dir_s ) ;
-	else                  g_startup_dir_s = new ::string ;
-	//
 	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                 //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
 	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ; // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
 	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;            // ... must be done before any thread is launched so that all threads block the signal
@@ -371,11 +368,11 @@ int main( int argc , char** argv ) {
 	//                             ^^^^^^^^^^^^^^^^^
 	::string     msg ;
 	::pair_s<Rc> rc  { {} , Rc::Ok } ;
-	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                          { Makefiles::refresh( /*out*/msg , mk_environ() , _g_server.rescue , refresh_ , *g_startup_dir_s ) ; }
-	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                                        }
-	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                                        }
+	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                          { Makefiles::refresh( /*out*/msg , mk_environ() , _g_server.rescue , refresh_ , startup_dir_s ) ; }
+	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                                     }
+	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                                     }
 	//
 	if (+msg      ) Fd::Stderr.write(with_nl(msg)) ;
 	if (+rc.second) exit( rc.second , rc.first )   ;

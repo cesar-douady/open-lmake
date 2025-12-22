@@ -32,20 +32,19 @@ static void _daemon_cache_chk() {
 	_g_crcs_file     .chk() ;
 }
 
-void daemon_cache_init(bool rescue) {
-	Trace trace("daemon_cache_init",STR(rescue)) ;
+void daemon_cache_init( bool rescue , bool read_only ) {
+	Trace trace("daemon_cache_init",STR(rescue),STR(read_only)) ;
 	//
 	// START_OF_VERSIONING DAEMON_CACHE
 	::string dir_s     = Config::s_store_dir_s() ;
 	NfsGuard nfs_guard { g_config.file_sync }    ;
-	//                                                                                        writable
-	{ ::string file=dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , true ) ; }
-	{ ::string file=dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , true ) ; }
-	{ ::string file=dir_s+"job"       ; nfs_guard.access(file) ; _g_job_file      .init( file , true ) ; }
-	{ ::string file=dir_s+"run"       ; nfs_guard.access(file) ; _g_run_file      .init( file , true ) ; }
-	{ ::string file=dir_s+"node"      ; nfs_guard.access(file) ; _g_node_file     .init( file , true ) ; }
-	{ ::string file=dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , true ) ; }
-	{ ::string file=dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , true ) ; }
+	{ ::string file=dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
+	{ ::string file=dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
+	{ ::string file=dir_s+"job"       ; nfs_guard.access(file) ; _g_job_file      .init( file , !read_only ) ; }
+	{ ::string file=dir_s+"run"       ; nfs_guard.access(file) ; _g_run_file      .init( file , !read_only ) ; }
+	{ ::string file=dir_s+"node"      ; nfs_guard.access(file) ; _g_node_file     .init( file , !read_only ) ; }
+	{ ::string file=dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
+	{ ::string file=dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 	// END_OF_VERSIONING
 	if (rescue) _daemon_cache_chk() ;
 	trace("done") ;
