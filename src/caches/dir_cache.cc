@@ -99,8 +99,8 @@ namespace Caches {
 			for( auto const& [key,val] : ::vmap_ss(dct) ) {
 				try {
 					switch (key[0]) {
-						case 'd' : if (key=="dir") { dir_s    = with_slash(val) ; continue ; } break ;
-						case 'k' : if (key=="key") { repo_key = Crc(New,val)    ; continue ; } break ;
+						case 'd' : if (key=="dir"     ) { dir_s    = with_slash(val) ; continue ; } break ;
+						case 'r' : if (key=="repo_key") { repo_key = Crc(New,val)    ; continue ; } break ;
 					DN}
 				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
 				trace("bad_repo_key",key) ;
@@ -574,16 +574,16 @@ namespace Caches {
 		return res ;
 	}
 
-	Cache::SubUploadDigest DirCache::sub_upload(Sz reserved_sz) {
-		Trace trace(CacheChnl,"DirCache::sub_upload",reserved_sz) ;
+	Cache::SubUploadDigest DirCache::sub_upload( Delay /*exe_time*/ , Sz max_sz ) {
+		Trace trace(CacheChnl,"DirCache::sub_upload",max_sz) ;
 		//
-		{	NfsGuardLock lock { file_sync , lock_file , {.perm_ext=perm_ext}} ; trace("locked") ;                  // lock for minimal time
-			_mk_room( 0 , reserved_sz , lock ) ;
+		{	NfsGuardLock lock { file_sync , lock_file , {.perm_ext=perm_ext}} ; trace("locked") ;             // lock for minimal time
+			_mk_room( 0 , max_sz , lock ) ;
 		}
-		uint64_t upload_key = ::max( random<uint64_t>() , uint64_t(1) ) ;                                          // reserve 0 for no upload_key
-		::string pfx        ( sizeof(Sz) , 0 )                          ; encode_int<Sz>(pfx.data(),reserved_sz) ;
+		uint64_t upload_key = ::max( random<uint64_t>() , uint64_t(1) ) ;                                     // reserve 0 for no upload_key
+		::string pfx        ( sizeof(Sz) , 0 )                          ; encode_int<Sz>(pfx.data(),max_sz) ;
 		SubUploadDigest res {
-			.file       = dir_s + _reserved_file(upload_key)                                                       // will be moved to permanent storage
+			.file       = dir_s + _reserved_file(upload_key)                                                  // will be moved to permanent storage
 		,	.pfx        = pfx
 		,	.upload_key = upload_key
 		,	.perm_ext   = perm_ext

@@ -38,14 +38,23 @@ CompileDigest compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download 
 	return res ;
 }
 
-Rate rate( Disk::DiskSz sz , Time::Delay exe_time ) {
+Disk::DiskSz run_sz( JobInfo const& job_info , ::string job_info_str , CompileDigest const& compile_digest ) {
+	return
+		job_info.end.total_z_sz
+	+	job_info_str.size()
+	+	sizeof(CrunData)
+	+	compile_digest.deps    .size()*sizeof(CnodeIdx)
+	+	compile_digest.dep_crcs.size()*sizeof(Crc     )
+	;
+}
+Rate rate( DaemonCache::Config const& config , Disk::DiskSz sz , Time::Delay exe_time ) {
 	float r = ::ldexpf(
-		::logf( 1e9 * float(exe_time) / sz ) // fastest throughput is 1GB/s (beyond that, cache is obviously needless)
+		::logf( config.max_rate * float(exe_time) / sz )
 	,	4
 	) ;
-	if (r<0      ) r = 0        ;
-	if (r>=NRates) r = NRates-1 ;
-	Trace trace("_run_rate",Rate(r)) ;
+	if      (r< 0     ) r = 0        ;
+	else if (r>=NRates) r = NRates-1 ;
+	Trace trace("rate",sz,exe_time,Rate(r)) ;
 	return r ;
 }
 

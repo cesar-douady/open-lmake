@@ -3,12 +3,16 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#pragma once
+
 #include "msg.hh"
+#include "time.hh"
 
 #include "rpc_job.hh"
 
 enum class DaemonCacheRpcProc : uint8_t {
 	None
+,	Config
 ,	Download
 ,	Upload
 ,	Commit
@@ -17,56 +21,74 @@ enum class DaemonCacheRpcProc : uint8_t {
 
 namespace Caches {
 
-	struct DaemonCacheRpcReq {
-		friend ::string& operator+=( ::string& , DaemonCacheRpcReq const& ) ;
+	struct DaemonCache : Cache { // PER_CACHE : inherit from Cache and provide implementation
 		using Proc = DaemonCacheRpcProc ;
-		// service
-		bool operator+() const { return +proc ; }
-		template<IsStream S> void serdes(S& s) {
-			::serdes( s , proc ) ;
-			switch (proc) {
-				case Proc::Download : ::serdes( s ,          job,repo_deps                             ) ; break ;
-				case Proc::Upload   : ::serdes( s ,                        reserved_sz                 ) ; break ;
-				case Proc::Commit   : ::serdes( s , repo_key,job,                      info,upload_key ) ; break ;
-				case Proc::Dismiss  : ::serdes( s ,                                         upload_key ) ; break ;
-			DN}
-		}
-		// data
-		Proc                proc        = Proc::None ;
-		Hash::Crc           repo_key    = {}         ; // if proc =                     Commit
-		::string            job         = {}         ; // if proc = Download |          Commit
-		::vmap_s<DepDigest> repo_deps   = {}         ; // if proc = Download |          Commit
-		Disk::DiskSz        reserved_sz = 0          ; // if proc =            Upload
-		JobInfo             info        = {}         ; // if proc =                     Commit
-		uint64_t            upload_key  = 0          ; // if proc =                     Commit | Dismiss
-	} ;
 
-	struct DaemonCacheRpcReply {
-		friend ::string& operator+=( ::string& , DaemonCacheRpcReply const& ) ;
-		using Proc = DaemonCacheRpcProc ;
-		// service
-		bool operator+() const { return +proc ; }
-		template<IsStream S> void serdes(S& s) {
-			::serdes( s , proc ) ;
-			switch (proc) {
-				case Proc::Download : ::serdes( s , file_sync,hit_info,dir_s ) ; break ;
-				case Proc::Upload   : ::serdes( s , perm_ext,upload_key      ) ; break ;
-			DF}
-		}
-		// data
-		Proc         proc       = Proc::None ;
-		PermExt      perm_ext   = {}         ; // if proc=Upload
-		FileSync     file_sync  = {}         ; // if proc=Download
-		CacheHitInfo hit_info   = {}         ; // if proc=Download
-		::string     dir_s      = {}         ; // if proc=Download, dir in which data and info files lie
-		uint64_t     upload_key = 0          ; // if proc=Upload
-	} ;
+		struct Config {
+			friend ::string& operator+=( ::string& , Config const& ) ;
+			// statics
+			static ::string s_store_dir_s(bool for_bck=false) ;
+			// cxtors & casts
+			Config() = default ;
+			Config(NewType) ;
+			// services
+			template<IsStream S> void serdes(S& s) {
+				::serdes( s , file_sync,perm_ext,max_rate,max_sz ) ;
+			}
+			// data
+			FileSync     file_sync = {}    ;
+			PermExt      perm_ext  = {}    ;
+			Disk::DiskSz max_rate  = 1<<30 ; // in B/s, maximum rate (total_sz/exe_time) above which run is not cached
+			Disk::DiskSz max_sz    = 0     ;
+		} ;
 
-	struct DaemonCache : Cache {                               // PER_CACHE : inherit from Cache and provide implementation
-		using Proc     = DaemonCacheRpcProc  ;
-		using RpcReq   = DaemonCacheRpcReq   ;
-		using RpcReply = DaemonCacheRpcReply ;
-		static constexpr uint64_t Magic = 0x604178e6d1838dce ; // any random improbable value!=0 used as a sanity check when client connect to server
+		struct RpcReq {
+			friend ::string& operator+=( ::string& , RpcReq const& ) ;
+			// service
+			bool operator+() const { return +proc ; }
+			template<IsStream S> void serdes(S& s) {
+				::serdes( s , proc ) ;
+				switch (proc) {
+					case Proc::None     :
+					case Proc::Config   :                                                                          break ;
+					case Proc::Download : ::serdes( s ,          job,repo_deps                                 ) ; break ;
+					case Proc::Upload   : ::serdes( s ,                        reserved_sz                     ) ; break ;
+					case Proc::Commit   : ::serdes( s , repo_key,job,                      job_info,upload_key ) ; break ;
+					case Proc::Dismiss  : ::serdes( s ,                                             upload_key ) ; break ;
+				DF}
+			}
+			// data
+			Proc                proc        = Proc::None ;
+			Hash::Crc           repo_key    = {}         ; // if proc =                     Commit
+			::string            job         = {}         ; // if proc = Download |          Commit
+			::vmap_s<DepDigest> repo_deps   = {}         ; // if proc = Download |          Commit
+			Disk::DiskSz        reserved_sz = 0          ; // if proc =            Upload
+			JobInfo             job_info    = {}         ; // if proc =                     Commit
+			uint64_t            upload_key  = 0          ; // if proc =                     Commit | Dismiss
+		} ;
+
+		struct RpcReply {
+			friend ::string& operator+=( ::string& , RpcReply const& ) ;
+			// service
+			bool operator+() const { return +proc ; }
+			template<IsStream S> void serdes(S& s) {
+				::serdes( s , proc ) ;
+				switch (proc) {
+					case Proc::None     :                                  break ;
+					case Proc::Config   : ::serdes( s , config         ) ; break ;
+					case Proc::Download : ::serdes( s , hit_info,dir_s ) ; break ;
+					case Proc::Upload   : ::serdes( s , upload_key     ) ; break ;
+				DF}                                                                // NO_COV
+			}
+			// data
+			Proc         proc       = Proc::None ;
+			CacheHitInfo hit_info   = {}         ;                                 // if proc=Download
+			::string     dir_s      = {}         ;                                 // if proc=Download, dir in which data and info files lie
+			uint64_t     upload_key = 0          ;                                 // if proc=Upload
+			Config       config     = {}         ;                                 // if proc==Config
+		} ;
+
+		static constexpr uint64_t Magic = 0x604178e6d1838dce ;                                             // any random improbable value!=0 used as a sanity check when client connect to server
 		// statics
 		static ::string s_reserved_file(uint64_t upload_key) {
 			return cat(AdminDirS,"reserved/",upload_key) ;
@@ -80,7 +102,7 @@ namespace Caches {
 		void      serdes( ::string_view& is                      )       override { _serdes(is) ;        } // deserialize, .
 		//
 		::pair<DownloadDigest,AcFd> sub_download( ::string const& job , MDD const&                          ) override ;
-		SubUploadDigest             sub_upload  ( Sz max_sz                                                 ) override ;
+		SubUploadDigest             sub_upload  ( Time::Delay exe_time , Sz max_sz                          ) override ;
 		void                        sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) override ;
 		void                        sub_dismiss ( uint64_t upload_key                                       ) override ;
 		//
@@ -88,9 +110,8 @@ namespace Caches {
 	private :
 		// START_OF_VERSIONING REPO
 		template<IsStream S> void _serdes(S& s) {
-			::serdes( s , dir_s    ) ;
-			::serdes( s , repo_key ) ;
-			::serdes( s , service  ) ;
+			::serdes( s , dir_s,repo_key,service ) ;
+			::serdes( s , config_                ) ;
 		}
 		// END_OF_VERSIONING
 		// data
@@ -98,10 +119,18 @@ namespace Caches {
 		::string     dir_s    ;
 		Hash::Crc    repo_key = Hash::Crc::None ;
 		KeyedService service  ;
+		Config       config_  ;
 	private :
 		ClientSockFd _fd     ;
 		IMsgBuf      _imsg   ;
 		AcFd         _dir_fd ;
 	} ;
+
+	inline ::string& operator+=( ::string& os , DaemonCache::Config const& dcc ) {
+		/**/                os <<"DaemonCache::Config("              ;
+		if (+dcc.file_sync) os <<dcc.file_sync<<','                  ;
+		if (+dcc.perm_ext ) os <<dcc.perm_ext <<','                  ;
+		return              os <<dcc.max_rate <<','<<dcc.max_sz<<')' ;
+	}
 
 }

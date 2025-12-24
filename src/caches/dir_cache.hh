@@ -49,7 +49,7 @@ namespace Caches {
 		void      serdes( ::string_view& is                      )       override { _serdes(is) ;     } // deserialize, .
 		//
 		::pair<DownloadDigest,AcFd> sub_download( ::string const& job , MDD const&                          ) override ;
-		SubUploadDigest             sub_upload  ( Sz max_sz                                                 ) override ;
+		SubUploadDigest             sub_upload  ( Time::Delay exe_time , Sz max_sz                          ) override ;
 		void                        sub_commit  ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) override ;
 		void                        sub_dismiss ( uint64_t upload_key                                       ) override ;
 		//

@@ -214,14 +214,16 @@ template<        class V         > using vmap_s   = ::vmap         <::string,V  
 /**/                               using optional_s = ::optional   <         ::string  > ;
 
 
-template<class T,size_t N> constexpr bool operator+(::array   <T,N> const&  ) { return  N                   ; }
-template<class T,class  U> constexpr bool operator+(::pair    <T,U> const& p) { return  +p.first||+p.second ; }
-template<class K,class  V>           bool operator+(::map     <K,V> const& m) { return !m.empty()           ; }
-template<class K,class  V>           bool operator+(::umap    <K,V> const& m) { return !m.empty()           ; }
-template<class K         >           bool operator+(::set     <K  > const& s) { return !s.empty()           ; }
-template<class K         >           bool operator+(::uset    <K  > const& s) { return !s.empty()           ; }
-template<class T         > constexpr bool operator+(::vector  <T  > const& v) { return !v.empty()           ; }
-template<class T         > constexpr bool operator+(::optional<T  > const& o) { return  o.has_value()       ; }
+template<class T,size_t N        > constexpr bool operator+(::array   <T,N  > const&  ) { return  N                   ; }
+template<class T,class  U        > constexpr bool operator+(::pair    <T,U  > const& p) { return  +p.first||+p.second ; }
+template<class K,class  V        >           bool operator+(::map     <K,V  > const& m) { return !m.empty()           ; }
+template<class K,class  V,class C>           bool operator+(::map     <K,V,C> const& m) { return !m.empty()           ; }
+template<class K,class  V        >           bool operator+(::umap    <K,V  > const& m) { return !m.empty()           ; }
+template<class K                 >           bool operator+(::set     <K    > const& s) { return !s.empty()           ; }
+template<class K         ,class C>           bool operator+(::set     <K  ,C> const& s) { return !s.empty()           ; }
+template<class K                 >           bool operator+(::uset    <K    > const& s) { return !s.empty()           ; }
+template<class T                 > constexpr bool operator+(::vector  <T    > const& v) { return !v.empty()           ; }
+template<class T                 > constexpr bool operator+(::optional<T    > const& o) { return  o.has_value()       ; }
 //
 inline                      bool operator+(::string const& s) { return !s.empty() ; } // empty() is not constexpr in C++20
 inline            constexpr bool operator+(::string_view   s) { return !s.empty() ; } // .

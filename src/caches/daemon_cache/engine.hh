@@ -16,22 +16,15 @@
 #include "store/prefix.hh"
 #include "store/vector.hh"
 
-struct Config {
-	// statics
-	static ::string s_store_dir_s(bool for_bck=false) ;
-	// cxtors & casts
-	Config() = default ;
-	Config(NewType) ;
-	// data
-	FileSync     file_sync = {} ;
-	PermExt      perm_ext  = {} ;
-	Disk::DiskSz max_sz    = 0  ;
-} ;
+#include "caches/daemon_cache.hh"
 
-extern Config g_config ;
+using namespace Caches ;
 
 // START_OF_VERSIONING DAEMON_CACHE
 
+// used for cache efficiency
+// rate=0 means max_rate as per config
+// +1 means job took 13.3% more time per byte of generated data
 using Rate = uint8_t ;
 
 // can be tailored to fit needs
@@ -43,15 +36,11 @@ static constexpr uint8_t NCnodeIdxBits     = 32 ;
 static constexpr uint8_t NCnodesIdxBits    = 32 ;
 static constexpr uint8_t NCcrcsIdxBits     = 32 ;
 
-// used for cache efficiency
-// rate=0 means 1GB/s (clamped if above)
-// +1 means job took 13.3% more time per byte of generated data
-// slowest rate is 1B/s (clamped if below)
-static constexpr Rate NRates = 166 ;
-
 // END_OF_VERSIONING
 
 // rest cannot be tailored
+
+static constexpr Rate NRates = Max<Rate> ; // missing highest value, but easier to code
 
 using CjobNameIdx  = Uint<NCjobNameIdxBits > ;
 using CnodeNameIdx = Uint<NCnodeNameIdxBits> ;
@@ -60,6 +49,12 @@ using CrunIdx      = Uint<NCrunIdxBits     > ;
 using CnodeIdx     = Uint<NCnodeIdxBits    > ;
 using CnodesIdx    = Uint<NCnodesIdxBits   > ;
 using CcrcsIdx     = Uint<NCcrcsIdxBits    > ;
+
+//
+// globals
+//
+
+extern DaemonCache::Config g_config ;
 
 //
 // free functions
@@ -186,8 +181,8 @@ private :
 
 struct CrunHdr {
 	// START_OF_VERSIONING DAEMON_CACHE
-	Disk::DiskSz total_sz     = 0 ;
 	LruEntry     lrus[NRates] ;
+	Disk::DiskSz total_sz     = 0  ;
 	// END_OF_VERSIONING
 } ;
 

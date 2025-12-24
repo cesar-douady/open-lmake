@@ -138,8 +138,8 @@ namespace Py {
 
 	static Ptr<Dict> _mk_glbs() {
 		Ptr<Dict> res { New } ;
-		res->set_item( "inf" , *Ptr<Float>(Infinity) ) ; // this is how non-finite floats are printed with print
-		res->set_item( "nan" , *Ptr<Float>(Nan     ) ) ; // .
+		res->set_item( "inf" , *Ptr<Float>(Inf) ) ; // this is how non-finite floats are printed with print
+		res->set_item( "nan" , *Ptr<Float>(Nan) ) ; // .
 		return res ;
 	}
 

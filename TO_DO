@@ -136,8 +136,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * in ldir_cache_repair
 	- check target crcs
 	- implement a backup with hard links to avoid taking additional space.
-* implement cache v2 :
-	- use a daemon
 ? provide a list of forbidden src dirs
 	- like src dirs, but access generates fail
 	- extend src dirs to files (allow to specify external srcs, allowed of forbidden)
@@ -214,10 +212,6 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* suppress backend configuration for commands other than lmake.
-* when cache matches (and does not hit)
-	- return deps corresponding to most recently used
-	- instead of intersection of all matching (which may generate lack of //)
 * dont upload to cache if a dep never matches
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps

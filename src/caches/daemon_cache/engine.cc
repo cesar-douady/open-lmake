@@ -12,6 +12,8 @@ using namespace Hash ;
 using namespace Py   ;
 using namespace Time ;
 
+DaemonCache::Config g_config ;
+
 CjobNameFile  _g_job_name_file  ;
 CnodeNameFile _g_node_name_file ;
 CjobFile      _g_job_file       ;
@@ -20,7 +22,76 @@ CnodeFile     _g_node_file      ;
 CnodesFile    _g_nodes_file     ;
 CcrcsFile     _g_crcs_file      ;
 
-DiskSz _g_reserved_sz = 0 ;
+static DiskSz _g_reserved_sz = 0 ;
+
+// in order to take into account exe time relative to target size, several LRU lists are stored
+// each bucket correspond to a give target_size/exe_time (a rate in B/s) with a margin of ~5% to avoid too many buckets
+// aging for entries in different buckets are proportional to its associated rate to minimize overall cpu in case of miss due to victimization
+// higher rates means easier to recompute, so vicimitization is favored
+// to avoid searching all buckets for each victimization, a sorted tab is maintained, but order changes with time, so it is regularly refreshed (at most once every second)
+
+struct RateCmp {
+	// statics
+	static void s_init() {
+		bool first_seen = false ;
+		s_lrus = CrunData::s_hdr().lrus ;
+		for( Rate r : iota(NRates) ) {
+			s_rates[r] = g_config.max_rate * ::expf(-::ldexpf(r,-4)) ;
+			if (+s_lrus[r]) {
+				if (!first_seen) { s_iota.bounds[0] = r   ; first_seen = true ; }
+				/**/               s_iota.bounds[1] = r+1 ;
+			}
+		}
+		s_refresh() ;
+	}
+	static float s_score(Rate r) {
+		return float(s_now-s_lrus[r].newer/*oldest*/->last_access) * s_rates[r] ;
+	}
+	static Pdate s_stable( Rate a , Rate b ) {                                // date until which lru_cmp is stable
+		Delay limit { - (s_score(a)-s_score(b)) / (s_rates[a]-s_rates[b]) } ;
+		if (limit<Delay()) return Pdate::Future ;                             // lru comparison will not change, valid forever
+		else               return s_now + limit ;
+	}
+	static void s_refresh() {
+		Pdate now { New } ;
+		if (now<=s_limit       ) return ;                    // order is still valid, nothing to do
+		if (now<=s_now+Delay(1)) return ;                    // ensure s_tab is not refreshed more than every second (as it is expensive) (at the expense of less precise bucket selection)
+		//
+		s_tab.clear() ;
+		s_now   = now           ;
+		s_limit = Pdate::Future ;
+		//
+		for( Rate r : s_iota ) if (+s_lrus[r]) s_tab.insert(r) ;
+		//
+		::optional<Rate> prev_r ;
+		for( Rate r : s_tab ) {
+			if (+prev_r) s_limit = ::min( s_limit , s_stable(r,*prev_r) ) ;
+			prev_r = r ;
+		}
+	}
+	static void s_insert(Rate r) {
+		auto it = s_tab.insert(r).first ;
+		/**/                    if (it !=s_tab.begin()) { auto it1 = it ; it1-- ; s_limit = ::min( s_limit , s_stable( *it1 , r    ) ) ; }
+		auto it2 = it ; it2++ ; if (it2!=s_tab.end  ())                           s_limit = ::min( s_limit , s_stable( r    , *it2 ) ) ;
+	}
+	// static data
+	static Pdate               s_now           ;             // date at which _g_lru_tab is sorted, g_lru_tab must be refreshed when modified
+	static Pdate               s_limit         ;             // date until which _g_lru_tab order is stable
+	static Iota2<Rate>         s_iota          ;             // range of rates that may have entries
+	static float               s_rates[NRates] ;             // actual rates in B/s per bucket
+	static LruEntry*           s_lrus          ;             // CrunData::s_hdr().lrus
+	static ::set<Rate,RateCmp> s_tab           ;             // ordered by decreasing score (which change as time pass)
+	// services
+	bool operator()( Rate a , Rate b ) const {               // XXX/ : cannot be a static function with gcc-11
+		return ::pair(s_score(a),a) > ::pair(s_score(b),b) ; // default to any order if scores are equal to ensure entries are not fused
+	}
+} ;
+Pdate               RateCmp::s_now           ;
+Pdate               RateCmp::s_limit         ;
+Iota2<Rate>         RateCmp::s_iota          ;
+float               RateCmp::s_rates[NRates] = {}      ;
+LruEntry*           RateCmp::s_lrus          = nullptr ;
+::set<Rate,RateCmp> RateCmp::s_tab           ;
 
 static void _daemon_cache_chk() {
 	_g_job_name_file .chk() ;
@@ -36,8 +107,8 @@ void daemon_cache_init( bool rescue , bool read_only ) {
 	Trace trace("daemon_cache_init",STR(rescue),STR(read_only)) ;
 	//
 	// START_OF_VERSIONING DAEMON_CACHE
-	::string dir_s     = Config::s_store_dir_s() ;
-	NfsGuard nfs_guard { g_config.file_sync }    ;
+	::string dir_s     = DaemonCache::Config::s_store_dir_s() ;
+	NfsGuard nfs_guard { g_config.file_sync }               ;
 	{ ::string file=dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
 	{ ::string file=dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
 	{ ::string file=dir_s+"job"       ; nfs_guard.access(file) ; _g_job_file      .init( file , !read_only ) ; }
@@ -47,6 +118,7 @@ void daemon_cache_init( bool rescue , bool read_only ) {
 	{ ::string file=dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 	// END_OF_VERSIONING
 	if (rescue) _daemon_cache_chk() ;
+	RateCmp::s_init() ;
 	trace("done") ;
 }
 
@@ -64,21 +136,13 @@ void daemon_cache_finalize() {
 
 void mk_room(DiskSz sz) {
 	CrunHdr& hdr = CrunData::s_hdr() ;
-	Pdate    now { New }             ;
 	Trace trace("mk_room",sz,hdr.total_sz,_g_reserved_sz) ;
-	while ( hdr.total_sz+_g_reserved_sz+sz > g_config.max_sz ) {
-		Crun     best_run ;
-		uint64_t merit    = 0 ;
-		for( size_t r : iota(NRates) ) {
-			Crun     run = hdr.lrus[r].newer                                    ; if (!run) continue ;
-			uint64_t m   = float(now-run->last_access) / ::expf(::ldexpf(r,-4)) ;
-			if (m>merit) {
-				merit    = m   ;
-				best_run = run ;
-			}
-		}
-		throw_unless( +best_run , "no victim found to make room" ) ;
-		DiskSz entry_sz = best_run->sz ;
+	RateCmp::s_refresh() ;
+	while ( hdr.total_sz && hdr.total_sz+_g_reserved_sz+sz>g_config.max_sz ) {
+		SWEAR( +RateCmp::s_tab ) ;                                             // if total size is non-zero, we must have entries
+		Rate   best_rate = *RateCmp::s_tab.begin()                    ;
+		Crun   best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
+		DiskSz entry_sz  = best_run->sz                               ;
 		best_run->victimize() ;
 		hdr.total_sz -= entry_sz ;
 		trace("victimize",best_run,entry_sz,hdr.total_sz) ;
@@ -102,38 +166,43 @@ void release_room(DiskSz sz) {
 ::string& operator+=( ::string& os , Cnode     const& n  ) { os << "Cnode("     ; if (+n      ) os << +n             ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , LruEntry  const& e  ) { os << "LruEntry("  ; if (+e.newer) os <<"N:"<< +e.newer ; if (+e.older) os <<"O:"<< +e.older ; return os << ')' ; }
 
-//
-// Config
-//
+namespace Caches {
 
-::string Config::s_store_dir_s(bool for_bck) {
-	::string res = cat(PrivateAdminDirS,"store") ;
-	if (for_bck) res << ".bck" ;
-	add_slash(res) ;
-	return res ;
-}
-
-Config::Config(NewType) {
-	Trace trace("config") ;
 	//
-	::string  config_file = ADMIN_DIR_S "config.py" ;
-	AcFd      config_fd   { config_file }           ;
-	Gil       gil         ;
-	for( auto const& [key,val] : ::vmap_ss(*py_run(config_fd.read())) ) {
-		try {
-			switch (key[0]) {
-				case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>    (val) ; continue ; } break ;
-				case 'i' : if (key=="inf"      ) {                                          continue ; } break ;
-				case 'n' : if (key=="nan"      ) {                                          continue ; } break ;
-				case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >    (val) ; continue ; } break ;
-				case 's' : if (key=="size"     ) { max_sz    = from_string_with_unit(val) ; continue ; } break ;
-			DN}
-		} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
-		trace("bad_cache_key",key) ;
-		throw cat("wrong key (",key,") in ",config_file) ;
+	// DaemonCache::Config
+	//
+
+	::string DaemonCache::Config::s_store_dir_s(bool for_bck) {
+		::string res = cat(PrivateAdminDirS,"store") ;
+		if (for_bck) res << ".bck" ;
+		add_slash(res) ;
+		return res ;
 	}
-	throw_unless( max_sz , "size must be defined as non-zero" ) ;
-	trace("done") ;
+
+	DaemonCache::Config::Config(NewType) {
+		Trace trace("config") ;
+		//
+		::string  config_file = ADMIN_DIR_S "config.py" ;
+		AcFd      config_fd   { config_file }           ;
+		Gil       gil         ;
+		for( auto const& [key,val] : ::vmap_ss(*py_run(config_fd.read())) ) {
+			try {
+				switch (key[0]) {
+					case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>    (val) ; continue ; } break ;
+					case 'i' : if (key=="inf"      ) {                                          continue ; } break ;
+					case 'm' : if (key=="max_rate" ) { max_rate  = from_string_with_unit(val) ; continue ; } break ;
+					case 'n' : if (key=="nan"      ) {                                          continue ; } break ;
+					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >    (val) ; continue ; } break ;
+					case 's' : if (key=="size"     ) { max_sz    = from_string_with_unit(val) ; continue ; } break ;
+				DN}
+			} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
+			trace("bad_cache_key",key) ;
+			throw cat("wrong key (",key,") in ",config_file) ;
+		}
+		throw_unless( max_sz , "size must be defined as non-zero" ) ;
+		trace("done") ;
+	}
+
 }
 
 //
@@ -142,11 +211,11 @@ Config::Config(NewType) {
 
 bool/*first*/ LruEntry::insert_top( LruEntry& hdr , Crun run , LruEntry CrunData::* lru ) {
 	bool first = !hdr.older ;
-	/**/            older                     = hdr.older/*newest*/ ;
-	/**/            newer                     = {}                  ;
-	if (+hdr.older) ((*hdr.older).*lru).newer = run                 ;
-	else            hdr.newer/*oldest*/       = run                 ;
-	/**/            hdr.older/*newest*/       = run                 ;
+	/**/       older                     = hdr.older/*newest*/ ;
+	/**/       newer                     = {}                  ;
+	if (first) hdr.newer/*oldest*/       = run                 ;
+	else       ((*hdr.older).*lru).newer = run                 ;
+	/**/       hdr.older/*newest*/       = run                 ;
 	return first ;
 }
 bool/*last*/ LruEntry::erase( LruEntry& hdr , Crun , LruEntry CrunData::* lru ) {
@@ -223,8 +292,8 @@ void CjobData::victimize() {
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
 		CacheHitInfo hit_info = r->match( deps , dep_crcs ) ;
 		switch (hit_info) {
-			case CacheHitInfo::Hit   : r->access()     ; [[fallthrough]]         ;
-			case CacheHitInfo::Match : trace(hit_info) ; return { r , hit_info } ;
+			case CacheHitInfo::Hit   : RateCmp::s_refresh() ; r->access() ; [[fallthrough]]         ;
+			case CacheHitInfo::Match : trace(hit_info) ;                    return { r , hit_info } ;
 		DN}
 	}
 	trace("miss") ;
@@ -273,8 +342,18 @@ CrunData::CrunData( Hash::Crc k , bool kil , Cjob j , Time::Pdate la , Disk::Dis
 ,	key_is_last { kil }
 {
 	Trace trace("CrunData",k,STR(kil),j,sz_,r,ds,dcs) ;
-	job_lru.insert_top( job->lru                     , idx() , &CrunData::job_lru ) ;
-	glb_lru.insert_top( CrunData::s_hdr().lrus[rate] , idx() , &CrunData::glb_lru ) ;
+	bool first = !RateCmp::s_lrus[rate] ;
+	//
+	if (first) RateCmp::s_refresh() ;
+	//
+	job_lru.insert_top( job->lru              , idx() , &CrunData::job_lru ) ;
+	glb_lru.insert_top( RateCmp::s_lrus[rate] , idx() , &CrunData::glb_lru ) ;
+	//
+	if (first) {
+		if (rate< RateCmp::s_iota.bounds[0]) RateCmp::s_iota.bounds[0] = rate   ;
+		if (rate>=RateCmp::s_iota.bounds[1]) RateCmp::s_iota.bounds[1] = rate+1 ;
+		RateCmp::s_insert(rate) ;
+	}
 }
 
 ::string& operator+=( ::string& os , CrunData const& rd ) {
@@ -294,17 +373,29 @@ CrunData::CrunData( Hash::Crc k , bool kil , Cjob j , Time::Pdate la , Disk::Dis
 
 void CrunData::access() {
 	Trace trace("access",idx()) ;
+	job_lru.mv_to_top( job->lru              , idx() , &CrunData::job_lru ) ; // manage job-local LRU
+	glb_lru.mv_to_top( RateCmp::s_lrus[rate] , idx() , &CrunData::glb_lru ) ; // manage global    LRU
+	//
 	last_access = New ;
-	job_lru.mv_to_top( job->lru                     , idx() , &CrunData::job_lru ) ; // manage job-local LRU
-	glb_lru.mv_to_top( CrunData::s_hdr().lrus[rate] , idx() , &CrunData::glb_lru ) ; // manage global    LRU
+	//
+	RateCmp::s_insert(rate) ;
 }
 
 void CrunData::victimize() {
 	Trace trace("victimize",idx()) ;
-	CrunHdr& hdr  = CrunData::s_hdr()                                            ;
-	bool     last = job_lru.erase( job->lru       , idx() , &CrunData::job_lru ) ; // manage job-local LRU
-	/**/            glb_lru.erase( hdr.lrus[rate] , idx() , &CrunData::glb_lru ) ; // manage global    LRU
+	bool last = job_lru.erase( job->lru              , idx() , &CrunData::job_lru ) ; // manage job-local LRU
+	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , idx() , &CrunData::glb_lru ) ; // manage global    LRU
+	//
+	RateCmp::s_tab.erase(rate) ;
+	if (!RateCmp::s_lrus[rate].newer/*oldest*/) {
+		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[0]  ]) RateCmp::s_iota.bounds[0]++ ;
+		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[1]-1]) RateCmp::s_iota.bounds[1]-- ;
+	} else {
+		RateCmp::s_insert(rate) ;
+	}
+	//
 	if (last) job->victimize() ;
+	CrunHdr& hdr = CrunData::s_hdr() ;
 	SWEAR( hdr.total_sz >= sz ) ;
 	hdr.total_sz -= sz ;
 	_g_nodes_file.pop(deps    ) ;

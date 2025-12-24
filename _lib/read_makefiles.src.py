@@ -101,11 +101,11 @@ if '.config.' in actions :
 				print(f'use lmake.config.backends.{tag}.domain_name if necessary'       ,file=sys.stderr)
 		git = '$GIT'                                                                                                      # value is substitued at installation configuration
 		for cache in config.get('caches',{}).values() :
-			if 'key' in cache : continue
+			if 'repo_key' in cache : continue
 			key = cwd
 			try    : key += ' '+sp.check_output((git,'rev-parse','--verify','-q','HEAD'),universal_newlines=True).strip()
 			except : pass                                                                                                 # if not under git, ignore
-			cache['key'] = key
+			cache['repo_key'] = key
 
 srcs = []
 if '.sources.' in actions :

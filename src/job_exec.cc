@@ -343,11 +343,12 @@ int main( int argc , char* argv[] ) {
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
 		::vector<FileInfo> target_fis ;
+		Delay              exe_time   = g_gather.end_date - g_gather.start_date ;
 		end_report.msg_stderr.msg += compute_crcs( digest , /*out*/target_fis , /*out*/end_report.total_sz ) ;
 		//
 		if (g_start_info.cache) {
 			try {
-				::tie(upload_key,end_report.total_z_sz) = g_start_info.cache->upload( digest.targets , target_fis , g_start_info.zlvl , &nfs_guard ) ;
+				::tie(upload_key,end_report.total_z_sz) = g_start_info.cache->upload( exe_time , digest.targets , target_fis , g_start_info.zlvl , &nfs_guard ) ;
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;
@@ -370,7 +371,7 @@ int main( int argc , char* argv[] ) {
 		JobStats stats {
 			.mem = size_t(rsrcs.ru_maxrss<<10)
 		,	.cpu = Delay(rsrcs.ru_utime) + Delay(rsrcs.ru_stime)
-		,	.job = g_gather.end_date-g_gather.start_date
+		,	.job = exe_time
 		} ;
 		end_report.digest = {
 			.upload_key     = upload_key

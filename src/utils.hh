@@ -278,8 +278,10 @@ template<::unsigned_integral I> constexpr I round_down( I n , I d ) { return    
 template<::unsigned_integral I> constexpr I round_up  ( I n , I d ) { return n ? n-1 - I((n-1)%d) + d : 0 ; }
 template<::unsigned_integral I> constexpr I div_up    ( I n , I d ) { return n ?       I(n-1)/d   + 1 : 0 ; } // (n+d-1)/d does not work when n is close to max value
 
-static constexpr double Infinity = ::numeric_limits<double>::infinity () ;
+static constexpr double Inf      = ::numeric_limits<double>::infinity () ;
 static constexpr double Nan      = ::numeric_limits<double>::quiet_NaN() ;
+static constexpr float  FloatInf = ::numeric_limits<float >::infinity () ;
+static constexpr float  FloatNan = ::numeric_limits<float >::quiet_NaN() ;
 
 //
 // mutexes

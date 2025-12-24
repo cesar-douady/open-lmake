@@ -16,6 +16,8 @@ using namespace Disk ;
 using namespace Hash ;
 using namespace Time ;
 
+using namespace Caches ;
+
 enum class Key  : uint8_t { None   } ;
 enum class Flag : uint8_t { DryRun } ;
 
@@ -23,8 +25,6 @@ struct RepairDigest {
 	CjobIdx n_repaired  = 0 ;
 	CjobIdx n_processed = 0 ;
 } ;
-
-Config g_config ;
 
 static RepairDigest _repair(bool dry_run) {
 	struct RunEntry {
@@ -55,8 +55,9 @@ static RepairDigest _repair(bool dry_run) {
 			continue ;
 		}
 		try {
-			JobInfo  job_info  = deserialize<JobInfo>(AcFd(info_file).read()) ;
-			FileStat data_stat ;                                                ::lstat( data_file.c_str() , &data_stat ) ;
+			::string job_info_str = AcFd(info_file).read()             ;
+			JobInfo  job_info     = deserialize<JobInfo>(job_info_str) ;
+			FileStat data_stat ;                                         ::lstat( data_file.c_str() , &data_stat ) ;
 			job_info.chk(true/*for_cache*/) ;
 			throw_unless( job_info.end.digest.status==Status::Ok , "bad status" ) ;
 			//
@@ -67,14 +68,15 @@ static RepairDigest _repair(bool dry_run) {
 			else                                        throw cat("unexpected run entry",dir_s,rm_slash) ;
 			repo_key_str = repo_key_str.substr( 0 , repo_key_str.rfind('-') ) ;
 			//
-			CompileDigest deps     = compile( job_info.end.digest.deps , false/*for_download*/ ) ;
-			Cjob          job      { New , no_slash(dir_name_s(dir_s)) , deps.n_statics }        ;
-			Crc           repo_key = Crc::s_from_hex(repo_key_str)                               ;
-			//
 			if (!dry_run) {
+				CompileDigest deps     = compile( job_info.end.digest.deps , false/*for_download*/ ) ;
+				DiskSz        sz       = run_sz( job_info , job_info_str , deps )                    ;
+				Cjob          job      { New , no_slash(dir_name_s(dir_s)) , deps.n_statics }        ;
+				Crc           repo_key = Crc::s_from_hex(repo_key_str)                               ;
+				//
 				::pair<Crun,CacheHitInfo> digest = job->insert(
-					deps.deps , deps.dep_crcs                                                                                                                // to search entry
-				,	repo_key , key_is_last , Pdate(data_stat.st_atim) , job_info.end.total_z_sz , rate(job_info.end.total_z_sz,job_info.end.digest.exe_time) // to create entry
+					deps.deps , deps.dep_crcs                                                                               // to search entry
+				,	repo_key , key_is_last , Pdate(data_stat.st_atim) , sz , rate(g_config,sz,job_info.end.digest.exe_time) // to create entry
 				) ;
 				throw_unless( digest.second>=CacheHitInfo::Miss , "conflict" ) ;
 			}
@@ -119,12 +121,12 @@ int main( int argc , char* argv[] ) {
 	}) ;
 	Py::init(*g_lmake_root_s) ;
 	//
-	::string lcl_repair_mrkr     = cat(AdminDirS,"repairing")             ;
-	::string lcl_store_dir_s     = Config::s_store_dir_s(               ) ;
-	::string lcl_bck_store_dir_s = Config::s_store_dir_s(true/*for_bck*/) ;
-	::string repair_mrkr         = top_dir_s + lcl_repair_mrkr            ;
-	::string store_dir_s         = top_dir_s + lcl_store_dir_s            ;
-	::string bck_store_dir_s     = top_dir_s + lcl_bck_store_dir_s        ;
+	::string lcl_repair_mrkr     = cat(AdminDirS,"repairing")                          ;
+	::string lcl_store_dir_s     = DaemonCache::Config::s_store_dir_s(               ) ;
+	::string lcl_bck_store_dir_s = DaemonCache::Config::s_store_dir_s(true/*for_bck*/) ;
+	::string repair_mrkr         = top_dir_s + lcl_repair_mrkr                         ;
+	::string store_dir_s         = top_dir_s + lcl_store_dir_s                         ;
+	::string bck_store_dir_s     = top_dir_s + lcl_bck_store_dir_s                     ;
 	//
 	if (!cmd_line.flags[Flag::DryRun]) {
 		if (FileInfo(lcl_repair_mrkr).tag()>=FileTag::Reg) unlnk( bck_store_dir_s , {.dir_ok=true} ) ; // if last ldaemon_cache_repair was interrupted, reset unfinished state

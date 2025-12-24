@@ -892,7 +892,13 @@ namespace Caches {
 		}
 	}
 
-	::pair<uint64_t/*upload_key*/,Cache::Sz/*compressed*/> Cache::upload( ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl , NfsGuard* nfs_guard ) {
+	::pair<uint64_t/*upload_key*/,Cache::Sz/*compressed*/> Cache::upload(
+		Delay                         exe_time
+	,	::vmap_s<TargetDigest> const& targets
+	,	::vector<FileInfo>     const& target_fis
+	,	Zlvl                          zlvl
+	,	NfsGuard*                     nfs_guard
+	) {
 		Trace trace(CacheChnl,"DirCache::upload",targets.size(),zlvl) ;
 		SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 		//
@@ -905,7 +911,7 @@ namespace Caches {
 		trace("size",tgts_sz) ;
 		//
 		Sz              z_max_sz   = DeflateFd::s_max_sz(tgts_sz,zlvl) ;
-		SubUploadDigest sub_digest = sub_upload(z_max_sz)              ;
+		SubUploadDigest sub_digest = sub_upload( exe_time , z_max_sz ) ;
 		//
 		trace("max_size",z_max_sz) ;
 		try {

@@ -14,11 +14,12 @@
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Time ;
 
 namespace Caches {
 
-	::string& operator+=( ::string& os , DaemonCacheRpcReq const& dcrr ) {
-		/**/                   os << "DaemonCacheRpcReq("<<dcrr.proc ;
+	::string& operator+=( ::string& os , DaemonCache::RpcReq const& dcrr ) {
+		/**/                   os << "DaemonCache::RpcReq("<<dcrr.proc ;
 		if (+dcrr.job        ) os << ','  <<dcrr.job                 ;
 		if (+dcrr.repo_deps  ) os << ",D:"<<dcrr.repo_deps.size()    ;
 		if (+dcrr.reserved_sz) os << ",S:"<<dcrr.reserved_sz         ;
@@ -26,9 +27,8 @@ namespace Caches {
 		return                 os <<')'                              ;
 	}
 
-	::string& operator+=( ::string& os , DaemonCacheRpcReply const& dcrr ) {
-		/**/                   os << "DaemonCacheRpcReply("<<dcrr.proc ;
-		if (+dcrr.perm_ext   ) os << ','<<dcrr.perm_ext                ;
+	::string& operator+=( ::string& os , DaemonCache::RpcReply const& dcrr ) {
+		/**/                   os << "DaemonCache::RpcReply("<<dcrr.proc ;
 		if (+dcrr.hit_info   ) os << ','<<dcrr.hit_info                ;
 		if (+dcrr.dir_s      ) os << ','<<dcrr.dir_s                   ;
 		if (+dcrr.upload_key ) os << ','<<dcrr.upload_key              ;
@@ -37,9 +37,12 @@ namespace Caches {
 
 	::vmap_ss DaemonCache::descr() const {
 		return {
-			{ "dir_s"    , dir_s          }
-		,	{ "repo_key" , repo_key.hex() }
-		,	{ "service"  , service.str()  }
+			{ "dir_s"     ,                     dir_s                   }
+		,	{ "file_sync" , snake_str          (config_.file_sync)      }
+		,	{ "max_rate"  , to_string_with_unit(config_.max_rate )      }
+		,	{ "perm_ext"  , snake_str          (config_.perm_ext )      }
+		,	{ "repo_key"  ,                     repo_key         .hex() }
+		,	{ "service"   ,                     service          .str() }
 		} ;
 	}
 
@@ -53,10 +56,10 @@ namespace Caches {
 			for( auto const& [key,val] : dct ) {
 				try {
 					switch (key[0]) {
-						case 'd' : if (key=="dir") { dir_s    = with_slash(val) ; continue ; } break ; // dir is necessary to access cache
-						case 'k' : if (key=="key") { repo_key = Crc(New   ,val) ; continue ; } break ; // cannot be shared as it identifies repo
+						case 'd' : if (key=="dir"     ) { dir_s    = with_slash(val) ; continue ; } break ; // dir is necessary to access cache
+						case 'r' : if (key=="repo_key") { repo_key = Crc(New   ,val) ; continue ; } break ; // cannot be shared as it identifies repo
 					DN}
-				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry "    ,key,": ",val) ; }
+				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key,": ",val) ; }
 				trace("bad_repo_key",key) ;
 				throw cat("wrong key (",key,") in lmake.config") ;
 			}
@@ -67,6 +70,10 @@ namespace Caches {
 			catch (::pair_s<Rc> const& e) { throw e.first ;                                                                                           }
 			service = _fd.service()                                 ;
 			_dir_fd = AcFd( dir_s , {.flags=O_RDONLY|O_DIRECTORY} ) ;
+			//
+			OMsgBuf( RpcReq{.proc=Proc::Config} ).send(_fd) ;
+			auto reply = _imsg.receive<RpcReply>( _fd , Maybe/*once*/ , {}/*key*/ ) ; SWEAR( reply.proc==Proc::Config , reply ) ;
+			config_ = reply.config ;
 		}
 	#endif
 
@@ -77,7 +84,7 @@ namespace Caches {
 	::pair<Cache::DownloadDigest,AcFd> DaemonCache::sub_download( ::string const& job , MDD const& repo_deps ) {
 		OMsgBuf( RpcReq{ .proc=Proc::Download , .job=job , .repo_deps=repo_deps } ).send(_fd) ;
 		auto     reply     = _imsg.receive<RpcReply>( _fd , Maybe/*once*/ ) ;
-		NfsGuard nfs_guard { reply.file_sync }                              ;
+		NfsGuard nfs_guard { config_.file_sync }                            ;
 		if (reply.hit_info>=CacheHitInfo::Miss) return { DownloadDigest{.hit_info=reply.hit_info} , AcFd() } ;                                             // XXX/ : gcc 11&12 require explicit types
 		return {
 			DownloadDigest{ .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(AcFd({_dir_fd,reply.dir_s+"info"},{.nfs_guard=&nfs_guard}).read()) } // .
@@ -85,23 +92,24 @@ namespace Caches {
 		} ;
 	}
 
-	Cache::SubUploadDigest DaemonCache::sub_upload(Sz reserved_sz) {
+	Cache::SubUploadDigest DaemonCache::sub_upload( Delay exe_time , Sz max_sz ) {
+		float        rate      = max_sz/float(exe_time)              ; if (rate>config_.max_rate) return {} ; // job is too easy to reproduce, no interest to cache
 		ClientSockFd fd        { service }                           ;
-		::string     magic_str = fd.read(sizeof(Magic))              ; throw_unless( magic_str.size()==sizeof(Magic) , "bad_answer_sz" ) ; // ... it is probably not working properly
+		::string     magic_str = fd.read(sizeof(Magic))              ; throw_unless( magic_str.size()==sizeof(Magic) , "bad_answer_sz" ) ;
 		uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0]) ; throw_unless( magic_          ==Magic         , "bad_answer"    ) ;
 		//
-		OMsgBuf( RpcReq{ .proc=Proc::Upload , .reserved_sz=reserved_sz } ).send(fd) ;
+		OMsgBuf( RpcReq{ .proc=Proc::Upload , .reserved_sz=max_sz } ).send(fd) ;
 		auto reply = _imsg.receive<RpcReply>( fd , Maybe/*once*/ ) ;
 		//
 		return {
 			.file       = dir_s + s_reserved_file(reply.upload_key)
 		,	.upload_key = reply.upload_key
-		,	.perm_ext   = reply.perm_ext
+		,	.perm_ext   = config_.perm_ext
 		} ;
 	}
 
 	void DaemonCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
-		OMsgBuf( RpcReq{ .proc=Proc::Commit , .repo_key=repo_key , .job=job , .info=::move(job_info) , .upload_key=upload_key } ).send(_fd) ;
+		OMsgBuf( RpcReq{ .proc=Proc::Commit , .repo_key=repo_key , .job=job , .job_info=::move(job_info) , .upload_key=upload_key } ).send(_fd) ;
 	}
 
 	void DaemonCache::sub_dismiss(uint64_t upload_key) {
