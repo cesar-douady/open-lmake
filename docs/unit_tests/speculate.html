@@ -106,6 +106,11 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="kn">import</span> <span class="nn">lmake</span>
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
 
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">caches</span><span class="o">.</span><span class="n">my_cache</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;tag&#39;</span> <span class="p">:</span> <span class="s1">&#39;daemon&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;dir&#39;</span> <span class="p">:</span> <span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="o">+</span><span class="s1">&#39;/CACHE&#39;</span>
+    <span class="p">}</span>
+
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
     <span class="p">,</span>   <span class="s1">&#39;src&#39;</span>
@@ -113,6 +118,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="k">class</span> <span class="nc">Bad</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;bad&#39;</span>
+        <span class="n">cach</span>   <span class="o">=</span> <span class="s1">&#39;my_cache&#39;</span>
         <span class="n">dep</span>    <span class="o">=</span> <span class="s1">&#39;src&#39;</span>
         <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;exit 1&#39;</span>
 

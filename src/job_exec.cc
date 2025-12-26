@@ -23,15 +23,16 @@ using namespace Hash   ;
 using namespace Re     ;
 using namespace Time   ;
 
-::vector<UserTraceEntry>* g_user_trace    = nullptr      ;
-Gather                    g_gather        ;
-JobIdx                    g_job           = 0/*garbage*/ ;
-SeqId                     g_seq_id        = 0/*garbage*/ ;
-ServerSockFd              g_server_fd     ;
-KeyedService              g_service_start ;
-KeyedService              g_service_mngt  ;
-KeyedService              g_service_end   ;
-JobStartRpcReply          g_start_info    ;
+::vector<UserTraceEntry>* g_user_trace      = nullptr      ;
+Gather                    g_gather          ;
+JobIdx                    g_job             = 0/*garbage*/ ;
+::string                  g_phy_repo_root_s ;
+SeqId                     g_seq_id          = 0/*garbage*/ ;
+ServerSockFd              g_server_fd       ;
+KeyedService              g_service_start   ;
+KeyedService              g_service_mngt    ;
+KeyedService              g_service_end     ;
+JobStartRpcReply          g_start_info      ;
 
 JobStartRpcReply get_start_info() {
 	g_server_fd = { 0/*backlog*/ } ;                                       // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
@@ -87,28 +88,29 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 	static Atomic<NodeIdx> crc_idx = 0 ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc_thread_func",tgts->size(),crcs->size()) ;
-	NodeIdx cnt = 0 ;                                                      // cnt is for trace only
+	NodeIdx cnt = 0 ;                                                       // cnt is for trace only
 	*sz = 0 ;
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
-		NodeIdx                 ti     = (*crcs)[ci] ;
-		::pair_s<TargetDigest>& e      = (*tgts)[ti] ;
-		Pdate                   before = New         ;
-		FileInfo                fi     ;
+		NodeIdx         ti     = (*crcs)[ci]        ;
+		::string const& tn     = (*tgts)[ti].first  ;
+		TargetDigest  & td     = (*tgts)[ti].second ;
+		Pdate           before = New                ;
+		FileInfo        fi     ;
 		try {
-			//             vvvvvvvvvvvvvvvvvvvvvvvvvv
-			e.second.crc = Crc( e.first , /*out*/fi ) ;
-			//             ^^^^^^^^^^^^^^^^^^^^^^^^^^
-		} catch (::string const& e) {                                      // START_OF_NO_COV defensive programming
+			//       vvvvvvvvvvvvvvvvvvvvv
+			td.crc = Crc( tn , /*out*/fi ) ;
+			//       ^^^^^^^^^^^^^^^^^^^^^
+		} catch (::string const& e) {                                       // START_OF_NO_COV defensive programming
 			Lock lock{*msg_mutex} ;
-			*msg <<add_nl<< "while computing checksum for "<<e<<" : "<<e ;
-		}                                                                  // END_OF_NO_COV
-		e.second.sig       = fi.sig() ;
+			*msg <<add_nl<< "while computing checksum for "<<tn<<" : "<<e ;
+		}                                                                   // END_OF_NO_COV
+		td.sig             = fi.sig() ;
 		(*target_fis)[ti]  = fi       ;
 		*sz               += fi.sz    ;
-		trace("crc_date",ci,before,Pdate(New)-before,e.second.crc,fi,e.first) ;
-		if (!e.second.crc.valid()) {
+		trace("crc_date",ci,before,Pdate(New)-before,td.crc,fi,tn) ;
+		if (!td.crc.valid()) {
 			Lock lock{*msg_mutex} ;
-			*msg <<add_nl<< "cannot compute checksum for "<<e.first ;
+			*msg <<add_nl<< "cannot compute checksum for "<<tn ;
 		}
 	}
 	trace("done",cnt) ;
@@ -136,46 +138,45 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 
 int main( int argc , char* argv[] ) {
 	Pdate    start_overhead  { New }        ;
-	uint64_t upload_key      = 0            ;                              // key used to identify temporary data uploaded to the cache
-	::string phy_repo_root_s ;
+	uint64_t upload_key      = 0            ;                                // key used to identify temporary data uploaded to the cache
 	SeqId    trace_id        = 0/*garbage*/ ;
 	//
-	swear_prod(argc==8,argc) ;                                             // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
-	try { g_service_start = {                   argv[1],true/*name_ok*/} ; } catch (::string const& e) { exit(Rc::Fail,"cannot connect to server : ",e) ; }
-	/**/  g_service_mngt  = {                   argv[2]}                 ;
-	/**/  g_service_end   = {                   argv[3]}                 ;
-	/**/  g_seq_id        = from_string<SeqId >(argv[4])                 ;
-	/**/  g_job           = from_string<JobIdx>(argv[5])                 ;
-	/**/  phy_repo_root_s =                     argv[6]                  ; // passed early so we can chdir and trace early
-	/**/  trace_id        = from_string<SeqId >(argv[7])                 ;
+	swear_prod(argc==8,argc) ;                                               // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
+	try { g_service_start   = {                   argv[1],true/*name_ok*/} ; } catch (::string const& e) { exit(Rc::Fail,"cannot connect to server : ",e) ; }
+	/**/  g_service_mngt    = {                   argv[2]}                 ;
+	/**/  g_service_end     = {                   argv[3]}                 ;
+	/**/  g_seq_id          = from_string<SeqId >(argv[4])                 ;
+	/**/  g_job             = from_string<JobIdx>(argv[5])                 ;
+	/**/  g_phy_repo_root_s =                     argv[6]                  ; // passed early so we can chdir and trace early
+	/**/  trace_id          = from_string<SeqId >(argv[7])                 ;
 	//
-	g_trace_file = new ::string{cat(phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
+	g_trace_file = new ::string{cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
-	end_report.digest   = { .status=Status::EarlyErr } ;                   // prepare to return an error, so we can goto End anytime
-	end_report.wstatus  = 255<<8                       ;                   // prepare to return an error, so we can goto End anytime
+	end_report.digest   = { .status=Status::EarlyErr } ;                     // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                       ;                     // prepare to return an error, so we can goto End anytime
 	end_report.end_date = start_overhead               ;
 	end_report.os_info  = get_os_info()                ;
 	g_user_trace        = &end_report.user_trace       ;
 	g_user_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
-	if (::chdir(phy_repo_root_s.c_str())!=0) {                                                               // START_OF_NO_COV defensive programming
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                      // if !g_start_info, server ask us to give up
-		end_report.msg_stderr.msg << "cannot chdir to root : "<<phy_repo_root_s<<rm_slash ;
+	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                                               // START_OF_NO_COV defensive programming
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                        // if !g_start_info, server ask us to give up
+		end_report.msg_stderr.msg << "cannot chdir to root : "<<g_phy_repo_root_s<<rm_slash ;
 		goto End ;
-	}                                                                                                        // END_OF_NO_COV
-	g_user_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(phy_repo_root_s) ) ;
-	Trace::s_sz = 10<<20 ;                                                                                   // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                                  // necessary to capture it using signalfd
-	repo_app_init({ .chk_version=No , .trace=Yes }) ;                                                        // dont check version for perf, but trace nevertheless
+	}                                                                                                          // END_OF_NO_COV
+	g_user_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(g_phy_repo_root_s) ) ;
+	Trace::s_sz = 10<<20 ;                                                                                     // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                                    // necessary to capture it using signalfd
+	repo_app_init({ .chk_version=No , .trace=Yes }) ;                                                          // dont check version for perf, but trace nevertheless
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                      // if !g_start_info, server ask us to give up
-		try                       { g_start_info.mk_canon( phy_repo_root_s ) ;  }
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }                            // NO_COV defensive programming
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                        // if !g_start_info, server ask us to give up
+		try                       { g_start_info.mk_canon( g_phy_repo_root_s ) ; }
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;  }                             // NO_COV defensive programming
 		//
 		NfsGuard   nfs_guard    { g_start_info.autodep_env.file_sync } ;
 		bool       incremental  = false/*garbage*/                     ;
@@ -197,7 +198,7 @@ int main( int argc , char* argv[] ) {
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
 			if ( it==g_start_info.env.end() || +it->second ) {                         // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
 				if (g_start_info.keep_tmp) {
-					end_report.phy_tmp_dir_s << phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
+					end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 				} else {
 					// use seq id instead of small id to make tmp dir to ensure that even if user mistakenly record tmp dir name, there no chance of porosity between jobs
 					// as with small id, by the time the (bad) old tmp dir is referenced by a new job, it may be in use by another job
@@ -206,7 +207,7 @@ int main( int argc , char* argv[] ) {
 					else if (!it->second                        ) {}
 					else if (it->second!=PassMrkr               ) end_report.phy_tmp_dir_s << it->second       <<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
 					else if (has_env("TMPDIR",false/*empty_ok*/)) end_report.phy_tmp_dir_s << get_env("TMPDIR")<<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
-					if      (!end_report.phy_tmp_dir_s          ) end_report.phy_tmp_dir_s << phy_repo_root_s<<AdminDirS<<"auto_tmp/"            <<g_seq_id<<'/' ;
+					if      (!end_report.phy_tmp_dir_s          ) end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"auto_tmp/"          <<g_seq_id<<'/' ;
 					else if (!is_abs(end_report.phy_tmp_dir_s)) {
 						end_report.msg_stderr.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
 						goto End ;
@@ -226,7 +227,7 @@ int main( int argc , char* argv[] ) {
 			,	/*.  */  g_gather.first_pid
 			,	/*.  */  repo_root_s
 			,	/*inout*/*g_user_trace
-			,	         phy_repo_root_s
+			,	         g_phy_repo_root_s
 			,	         end_report.phy_tmp_dir_s
 			) ;
 			RealPath real_path { g_start_info.autodep_env } ;
@@ -244,7 +245,7 @@ int main( int argc , char* argv[] ) {
 				}
 				g_user_trace->emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 			}
-			g_start_info.update_env( /*inout*/cmd_env , phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
+			g_start_info.update_env( /*inout*/cmd_env , g_phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
 		} catch (::string const& e) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;

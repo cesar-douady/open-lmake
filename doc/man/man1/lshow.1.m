@@ -58,12 +58,16 @@ Unless I(--quiet), each line is composed of 5 or 6 fields separated by spaces :
 		Item(B(L))
 		dep has been accessed as a symbolic link.
 		Note that this is implied when accessing a file while following symbolic links (which is the usual case).
+		Note also that this flag is positioned with C(stat,2) as link size is accessible from the returned struct.
 		Item(B(R))
 		dep has been accessed as a regular file.
+		Note that this flag is positioned with C(stat,2) as file size is accessible from the returned struct.
 		Item(B(T))
 		dep has been sensed for existence.
 		Note that this is only semantically meaningful in absence of other accesses.
 		As a rule of thumb, this flag is positioned with C(stat,2) but not with C(open,2) nor C(readlink,2).
+		Item(B(E))
+		dep status has been sensed, typically with a call to B(depend(verbose=True)) or B(ldepend --verbose).
 		.RE
 	Bullet Checksum : the checksum of the dep if I(--verbose), i.e. the checksum that must match the one of the underlying file or the job will be rerun.
 	Bullet Key : the key if the dep is static, else blank.

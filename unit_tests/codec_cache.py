@@ -38,8 +38,8 @@ else :
 
 	import ut
 
-#	for cache_tag in ('dir','daemon') :
-	for cache_tag in ('dir',) :
+	for cache_tag in ('dir','daemon') :
+#	for cache_tag in ('daemon',) :
 		print(f'cache_tag={cache_tag!r}',file=open('step.py','w'))
 		bck = f'bck_{cache_tag}'
 
@@ -53,6 +53,10 @@ else :
 			'\tcode2\tctx\tval2\n'    # lines are out of order to generate refresh line
 		+	'\tcode1\tctx\tval1\n'
 		)
+
+#		ut.lmake( 'dut11' , reformat=1 , new=1 , done=1 )
+#		os.system(f'lshow -dv dut11 ; mkdir {bck}_1 ; mv LMAKE {bck}_1')
+#		ut.lmake( 'dut11' )
 
 		ut.lmake( 'dut11' , 'dut22' , reformat=1 , new=1 , done=2 )
 

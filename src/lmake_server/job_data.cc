@@ -796,13 +796,13 @@ namespace Engine {
 		else     { disk_node_name = node_name+".tmp"             ; if (!is_clean) unlnk(node_name) ; }
 		AcFd( disk_node_name , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=nfs_guard} ).write( code_val ) ; // ensure node_name is always correct when it exists as there is no read lock
 		//
-		nd.set_buildable()                                             ;
-		nd.set_crc_date( Crc(New,code_val) , FileSig(disk_node_name) ) ;
+		nd.set_buildable()                                                          ;
+		nd.set_crc_date( Crc(New,code_val,No/*is_lnk*/) , FileSig(disk_node_name) ) ;
 		nd.polluted      = {}                                                    ;
 		nd.actual_job    = job                                                   ;
 		nd.actual_tflags = { Tflag::Incremental , Tflag::Phony , Tflag::Target } ;
 		//
-		if (!tmp) rename( disk_node_name/*src*/ , node_name/*dst*/ , {.nfs_guard=nfs_guard} ) ;                       // .
+		if (!tmp) rename( disk_node_name/*src*/ , node_name/*dst*/ , {.nfs_guard=nfs_guard} ) ;
 	} ;
 	static void _erase( Codec::CodecFile const& codec_file , NfsGuard* nfs_guard ) {
 		::string  node_name = codec_file.name()    ;

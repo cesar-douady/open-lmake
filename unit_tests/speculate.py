@@ -8,6 +8,11 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
+	lmake.config.caches.my_cache = {
+		'tag' : 'daemon'
+	,	'dir' : lmake.repo_root+'/CACHE'
+	}
+
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'src'
@@ -15,6 +20,7 @@ if __name__!='__main__' :
 
 	class Bad(Rule) :
 		target = 'bad'
+		cach   = 'my_cache'
 		dep    = 'src'
 		cmd    = 'exit 1'
 

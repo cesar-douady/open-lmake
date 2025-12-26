@@ -286,7 +286,6 @@ X manage HUGE pages in store
 ****************************************************************************************************
 
 * add links to examples for dep/target flags
-* document lmake_server (now that it is in bin instead of _bin)
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 
@@ -295,6 +294,7 @@ X manage HUGE pages in store
 ****************************************************************************************************
 
 - test chroot action overwrite
+- improve cache test coverage
 * test codec errors
 	- including non existent codec files
 * test system_tag

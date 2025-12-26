@@ -916,7 +916,7 @@ namespace Caches {
 		trace("max_size",z_max_sz) ;
 		try {
 			AcFd      fd      { sub_digest.file , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.perm_ext=sub_digest.perm_ext,.nfs_guard=nfs_guard} } ; if (+sub_digest.pfx) fd.write(sub_digest.pfx) ;
-			DeflateFd data_fd { ::move(fd) , zlvl }                                                                                                ;
+			DeflateFd data_fd { ::move(fd) , zlvl                                                                                                } ;
 			OMsgBuf(hdr).send( data_fd , {}/*key*/ ) ;
 			//
 			for( NodeIdx ti : iota(targets.size()) ) {
@@ -925,27 +925,26 @@ namespace Caches {
 				FileTag                       tag   = entry.second.sig.tag() ;
 				Sz                            sz    = target_fis[ti].sz      ;
 				switch (tag) {
-					case FileTag::Lnk   : { trace("lnk_from"  ,tn,sz) ; ::string l = read_lnk(tn) ; throw_unless(l.size()==sz,"cannot readlink ",tn) ; data_fd.write(l) ; goto ChkSig ; }
-					case FileTag::Empty :   trace("empty_from",tn   ) ;                                                                                                   break       ;
-					case FileTag::Reg   :
-					case FileTag::Exe   :
+					case FileTag::Lnk : {
+						trace("lnk_from",tn,sz) ;
+						::string l = read_lnk(tn) ; throw_unless( l.size()==sz                      , "cannot readlink ",tn ) ;
+						data_fd.write(l) ;          throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable "       ,tn ) ; // ensure cache entry is reliable by checking file *after* copy
+					}
+					break ;
+					case FileTag::Reg :
+					case FileTag::Exe :
 						if (sz) {
 							trace("read_from",tn,sz) ;
 							data_fd.send_from( AcFd(tn,{.flags=O_RDONLY|O_NOFOLLOW}) , sz ) ;
-							goto ChkSig ;
-						} else {
-							trace("empty_from",tn) ;
-							break ;
+							throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;                                // ensure cache entry is reliable by checking file *after* copy
 						}
-					break ;
+					[[fallthrough]] ;                                                                                           // empty executable is not tagged as Empty
+					case FileTag::Empty : trace("empty_from",tn) ; break ;
 				DN}
-				continue ;
-			ChkSig :                                                                  // ensure cache entry is reliable by checking file *after* copy
-				throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;
 			}
-			data_fd.flush() ;                                                         // update data_fd.sz
+			data_fd.flush() ;                                                                                                   // update data_fd.sz
 			trace("done",z_max_sz,data_fd.z_sz) ;
-			return { sub_digest.upload_key , data_fd.z_sz==tgts_sz?0:data_fd.z_sz } ; // dont report compressed size of no compression
+			return { sub_digest.upload_key , data_fd.z_sz==tgts_sz?0:data_fd.z_sz } ;                                           // dont report compressed size of no compression
 		} catch (::string const& e) {
 			sub_dismiss(sub_digest.upload_key) ;
 			trace("failed") ;
@@ -966,7 +965,7 @@ namespace Caches {
 		job_info.update_digest() ;                   // ensure cache has latest crc available
 		// check deps
 		for( auto const& [dn,dd] : job_info.end.digest.deps )
-			if (!dd.is_crc) {
+			if ( !dd.is_crc || dd.never_match() ) {
 				trace("not_a_crc_dep",dn,dd) ;
 				sub_dismiss(upload_key) ;
 				trace("throw2") ;

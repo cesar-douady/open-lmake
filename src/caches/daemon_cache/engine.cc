@@ -5,6 +5,8 @@
 
 #include "py.hh" // /!\ must be included first as Python.h must be included first
 
+#include "daemon_cache_utils.hh"
+
 #include "engine.hh"
 
 using namespace Disk ;
@@ -47,15 +49,15 @@ struct RateCmp {
 	static float s_score(Rate r) {
 		return float(s_now-s_lrus[r].newer/*oldest*/->last_access) * s_rates[r] ;
 	}
-	static Pdate s_stable( Rate a , Rate b ) {                                // date until which lru_cmp is stable
-		Delay limit { - (s_score(a)-s_score(b)) / (s_rates[a]-s_rates[b]) } ;
-		if (limit<Delay()) return Pdate::Future ;                             // lru comparison will not change, valid forever
-		else               return s_now + limit ;
+	static Pdate s_stable( Rate a , Rate b ) {                                                                                                 // date until which lru_cmp is stable
+		float delta_score = s_score(a) - s_score(b) ; if (  delta_score==0                    ) return Pdate::Future                         ; // ordered by rates in that case
+		float delta_rate  = s_rates[a] - s_rates[b] ; if ( (delta_score> 0) == (delta_rate>0) ) return Pdate::Future                         ;
+		/**/                                                                                    return s_now - Delay(delta_score/delta_rate) ;
 	}
 	static void s_refresh() {
 		Pdate now { New } ;
-		if (now<=s_limit       ) return ;                    // order is still valid, nothing to do
-		if (now<=s_now+Delay(1)) return ;                    // ensure s_tab is not refreshed more than every second (as it is expensive) (at the expense of less precise bucket selection)
+		if (now<=s_limit       ) return ;        // order is still valid, nothing to do
+		if (now<=s_now+Delay(1)) return ;        // ensure s_tab is not refreshed more than every second (as it is expensive) (at the expense of less precise bucket selection)
 		//
 		s_tab.clear() ;
 		s_now   = now           ;
@@ -75,15 +77,15 @@ struct RateCmp {
 		auto it2 = it ; it2++ ; if (it2!=s_tab.end  ())                           s_limit = ::min( s_limit , s_stable( r    , *it2 ) ) ;
 	}
 	// static data
-	static Pdate               s_now           ;             // date at which _g_lru_tab is sorted, g_lru_tab must be refreshed when modified
-	static Pdate               s_limit         ;             // date until which _g_lru_tab order is stable
-	static Iota2<Rate>         s_iota          ;             // range of rates that may have entries
-	static float               s_rates[NRates] ;             // actual rates in B/s per bucket
-	static LruEntry*           s_lrus          ;             // CrunData::s_hdr().lrus
-	static ::set<Rate,RateCmp> s_tab           ;             // ordered by decreasing score (which change as time pass)
+	static Pdate               s_now           ; // date at which _g_lru_tab is sorted, g_lru_tab must be refreshed when modified
+	static Pdate               s_limit         ; // date until which _g_lru_tab order is stable
+	static Iota2<Rate>         s_iota          ; // range of rates that may have entries
+	static float               s_rates[NRates] ; // actual rates in B/s per bucket
+	static LruEntry*           s_lrus          ; // CrunData::s_hdr().lrus
+	static ::set<Rate,RateCmp> s_tab           ; // ordered by decreasing score (which change as time pass)
 	// services
-	bool operator()( Rate a , Rate b ) const {               // XXX/ : cannot be a static function with gcc-11
-		return ::pair(s_score(a),a) > ::pair(s_score(b),b) ; // default to any order if scores are equal to ensure entries are not fused
+	bool operator()( Rate a , Rate b ) const {                                 // XXX/ : cannot be a static function with gcc-11
+		return ::pair(s_score(a),s_rates[a]) > ::pair(s_score(b),s_rates[b]) ; // default to s_rates order so as to improve s_stable()
 	}
 } ;
 Pdate               RateCmp::s_now           ;
@@ -182,18 +184,18 @@ namespace Caches {
 	DaemonCache::Config::Config(NewType) {
 		Trace trace("config") ;
 		//
-		::string  config_file = ADMIN_DIR_S "config.py" ;
-		AcFd      config_fd   { config_file }           ;
-		Gil       gil         ;
+		::string config_file = ADMIN_DIR_S "config.py" ;
+		AcFd     config_fd   { config_file }           ;
+		Gil      gil         ;
 		for( auto const& [key,val] : ::vmap_ss(*py_run(config_fd.read())) ) {
 			try {
 				switch (key[0]) {
-					case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>    (val) ; continue ; } break ;
-					case 'i' : if (key=="inf"      ) {                                          continue ; } break ;
-					case 'm' : if (key=="max_rate" ) { max_rate  = from_string_with_unit(val) ; continue ; } break ;
-					case 'n' : if (key=="nan"      ) {                                          continue ; } break ;
-					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >    (val) ; continue ; } break ;
-					case 's' : if (key=="size"     ) { max_sz    = from_string_with_unit(val) ; continue ; } break ;
+					case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>    (val) ;                                                        continue ; } break ;
+					case 'i' : if (key=="inf"      ) {                                                                                                 continue ; } break ;
+					case 'm' : if (key=="max_rate" ) { max_rate  = from_string_with_unit(val) ; throw_unless(max_rate>0,"max rate must be positive") ; continue ; } break ;
+					case 'n' : if (key=="nan"      ) {                                                                                                 continue ; } break ;
+					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt>     (val) ;                                                        continue ; } break ;
+					case 's' : if (key=="size"     ) { max_sz    = from_string_with_unit(val) ;                                                        continue ; } break ;
 				DN}
 			} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
 			trace("bad_cache_key",key) ;
@@ -404,12 +406,12 @@ void CrunData::victimize() {
 }
 
 CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc> const& dep_crcs_ ) const {
-	Trace trace("match",idx(),deps_.size(),"in",deps.size(),"and",dep_crcs_.size(),"in",dep_crcs.size()) ;
-	//
 	VarIdx              n_statics     = job->n_statics    ;
 	CacheHitInfo        res           = CacheHitInfo::Hit ;
 	::span<Cnode const> deps_view     = deps    .view()   ;
 	::span<Crc   const> dep_crcs_view = dep_crcs.view()   ;
+	//
+	Trace trace("match",idx(),n_statics,deps_.size(),"in",deps_view.size(),"and",dep_crcs_.size(),"in",dep_crcs_view.size()) ;
 	//
 	SWEAR( n_statics<=dep_crcs_    .size() && dep_crcs_    .size()<=deps_    .size() , n_statics,deps_    ,dep_crcs_     ) ;
 	SWEAR( n_statics<=dep_crcs_view.size() && dep_crcs_view.size()<=deps_view.size() , n_statics,deps_view,dep_crcs_view ) ;
@@ -424,12 +426,14 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 	for( NodeIdx i : iota(n_statics,dep_crcs_view.size()) ) {
 		while ( j1<dep_crcs_.size() && +deps_[j1]< +deps_view[i] ) j1++ ;
 		if    ( j1<dep_crcs_.size() &&  deps_[j1]== deps_view[i] ) {
-			if (dep_crcs_view[i]!=dep_crcs_[j1])                   { trace("miss2",i,j1   ) ; return CacheHitInfo::Miss ; }     // found with a different crc
+			if (!crc_ok(dep_crcs_view[i],dep_crcs_[j1])) { trace("miss2",i,j1) ; return CacheHitInfo::Miss ; }                  // found with a different crc
 			j1++ ;                                                                                                              // fast path : j1 is consumed
 		} else {
 			while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
-			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) { trace("miss3",i,   j2) ; return CacheHitInfo::Miss ; }     // found without crc while expecting one
-			else                                                   { trace("match",i,j1,j2) ; res = CacheHitInfo::Match ; }     // not found
+			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) {
+				if (!crc_ok(dep_crcs_view[i],Crc::None)) { trace("miss3",i,j2) ; return CacheHitInfo::Miss ; }                  // found without crc while expecting one
+				j2++ ;                                                                                                          // fast path : j1 is consumed
+			} else { trace("match",i,j1,j2) ; res = CacheHitInfo::Match ; }                                                     // not found
 		}
 	}
 	// then search for non-existing deps
@@ -446,7 +450,8 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 		for( NodeIdx i : iota(dep_crcs_view.size(),deps_view.size()) ) {
 			while ( j1<dep_crcs_.size() && +deps_[j1]< +deps_view[i] ) j1++ ;
 			if    ( j1<dep_crcs_.size() &&  deps_[j1]== deps_view[i] ) {
-				/**/                                                      trace("miss4",i,j1   ) ; return CacheHitInfo::Miss ;  // found with crc while expecting none
+				if (!crc_ok(Crc::None,dep_crcs_[j1])) { trace("miss4",i,j1   ) ; return CacheHitInfo::Miss ; }                  // found with crc while expecting none
+				j1++ ;                                                                                                          // fast path : j1 is consumed
 			} else {
 				while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
 				if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                   // fast path : j2 is consumed

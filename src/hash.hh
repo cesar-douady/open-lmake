@@ -39,7 +39,7 @@ namespace Hash {
 		using Val = uint64_t ;
 		static constexpr uint8_t NChkBits = 8 ;                                                                   // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
-		static constexpr Val ChkMsk = ~lsb_msk<Val>(NChkBits) ;
+		static constexpr Val ChkMsk = Val(-1)>>NChkBits ;                                                         // lsb's are used for various manipulations
 		//
 		static const Crc Unknown ;
 		static const Crc Lnk     ;

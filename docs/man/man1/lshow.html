@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sat Dec 20 17:54:17 2025 -->
+<!-- CreationDate: Fri Dec 26 12:55:30 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -442,7 +442,9 @@ kind of accesses is either a letter if done, or a - if not
 <p style="margin-top: 1em">dep has been accessed as a
 symbolic link. Note that this is implied when accessing a
 file while following symbolic links (which is the usual
-case).</p> </td></tr>
+case). Note also that this flag is positioned with
+<b>stat</b>(2) as link size is accessible from the returned
+struct.</p> </td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="10%">
@@ -453,7 +455,9 @@ case).</p> </td></tr>
 <td width="64%">
 
 
-<p>dep has been accessed as a regular file.</p></td></tr>
+<p>dep has been accessed as a regular file. Note that this
+flag is positioned with <b>stat</b>(2) as file size is
+accessible from the returned struct.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="10%">
@@ -469,6 +473,18 @@ only semantically meaningful in absence of other accesses.
 As a rule of thumb, this flag is positioned with
 <b>stat</b>(2) but not with <b>open</b>(2) nor
 <b>readlink</b>(2).</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="10%">
+
+
+<p><b>E</b></p></td>
+<td width="8%"></td>
+<td width="64%">
+
+
+<p>dep status has been sensed, typically with a call to
+<b>depend(verbose=True)</b> or <b>ldepend --verbose</b>.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="10%">

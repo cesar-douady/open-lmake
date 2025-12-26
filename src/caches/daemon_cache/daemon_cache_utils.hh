@@ -19,6 +19,8 @@ struct CompileDigest {
 
 CompileDigest compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download ) ;
 
+bool crc_ok( Hash::Crc cache_crc , Hash::Crc repo_crc ) ;
+
 Disk::DiskSz run_sz( JobInfo const& job_info , ::string job_info_str , CompileDigest const& compile_digest ) ;
 
 Rate rate( DaemonCache::Config const& , Disk::DiskSz , Time::Delay ) ;

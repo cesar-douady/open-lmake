@@ -36,7 +36,7 @@ static constexpr ::amap<Access,char,N<Access>> AccessChars = {{
 	{ Access::Lnk  , 'L' }
 ,	{ Access::Reg  , 'R' }
 ,	{ Access::Stat , 'T' }
-,	{ Access::Err  , 'K' }
+,	{ Access::Err  , 'E' }
 }} ;
 static_assert(chk_enum_tab(AccessChars)) ;
 using Accesses = BitMap<Access> ;                                                     // distinguish files as soon as they can be distinguished by one of the liste Access'es
