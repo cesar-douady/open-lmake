@@ -1387,6 +1387,22 @@ This means:</p>
 <p>When a job is executed, its results are stored in the cache.
 If space is needed (all caches are constrained in size), any other entry can be replaced.
 The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.</p>
+<h3 id="check_abs_paths"><a class="header" href="#check_abs_paths"><a href="file:///home/cdy/open-lmake/docs/unit_tests/check_abs_paths.html#:~:text=Bad%28Rule%29%20%3A-,check%5Fabs%5Fpaths%20%3D%20True"><code>check_abs_paths</code></a></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>This attribute specifies whether absolute paths towards the repo are acceptable in targets.</p>
+<p>If true, the physical absolute path of the repo is search in targets and an error is generated if found.</p>
+<p>This is particularly useful if the <code>cache</code> attribute is set to avoid the absolute path of a repo to appear as target in another repo.
+There are 2 drawbacks though:</p>
+<ul>
+<li>Such absolute path may appear by chance in a (typically binary) target such as a jpeg file.</li>
+<li>There is performance cost due to searching the pattern.</li>
+</ul>
+<p>If such an error occurs and modifying <code>cmd</code> to avoid generating such absolute paths is not feasible or too difficult,
+it is possible to use the <code>repo_view</code> attribute so that the physical absolute path of the repo will naturally be replaced by its view.
+Note however that such absolute path may come from a dep in which case it is the rule that generated it in the first place that must have the <code>repo_view</code> attribute set.</p>
 <h3 id="cmd"><a class="header" href="#cmd"><a href="unit_tests/basics.html#:~:text=class%20CatSh,f%2Eread%28%29%2Cend%3D%27%27%29"><code>cmd</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'gcc -c -o {OBJ} {SRC}'</code></td></tr>

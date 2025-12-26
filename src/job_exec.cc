@@ -85,10 +85,12 @@ JobStartRpcReply get_start_info() {
 }
 
 void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , ::vector<FileInfo>* target_fis , size_t* sz ) {
-	static Atomic<NodeIdx> crc_idx = 0 ;
+	static Atomic<NodeIdx> crc_idx         = 0     ;
+	static Atomic<bool   > abs_path_warned = false ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc_thread_func",tgts->size(),crcs->size()) ;
-	NodeIdx cnt = 0 ;                                                       // cnt is for trace only
+	NodeIdx  cnt           = 0                                                              ; // cnt is for trace only
+	::string phy_repo_root = g_start_info.chk_abs_paths ? no_slash(g_phy_repo_root_s) : ""s ;
 	*sz = 0 ;
 	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
 		NodeIdx         ti     = (*crcs)[ci]        ;
@@ -96,14 +98,26 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 		TargetDigest  & td     = (*tgts)[ti].second ;
 		Pdate           before = New                ;
 		FileInfo        fi     ;
+		if ( g_start_info.chk_abs_paths && AcFd(tn).read().find(phy_repo_root)!=Npos ) {
+			Lock lock{*msg_mutex} ;
+			*msg <<add_nl<< "absolute path of repo ("<<phy_repo_root<<") found in target "<<tn ;
+			bool warned = abs_path_warned.exchange(true) ;
+			if (!warned) {
+				/**/                    *msg <<"\n\tconsider :"                                                                                  ;
+				/**/                    *msg <<"\n\t  - "<<g_start_info.rule<<".cmd             = <script that generates no such absolute path>" ;
+				/**/                    *msg <<"\n\t  - "<<g_start_info.rule<<".repo_view       = '/repo'"                                       ;
+				if (g_start_info.cache) *msg <<"\n\t  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache= None"   ;
+				else                    *msg <<"\n\t  - "<<g_start_info.rule<<".check_abs_paths = False"                                         ;
+			}
+		}
 		try {
 			//       vvvvvvvvvvvvvvvvvvvvv
 			td.crc = Crc( tn , /*out*/fi ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^
-		} catch (::string const& e) {                                       // START_OF_NO_COV defensive programming
+		} catch (::string const& e) {                                                         // START_OF_NO_COV defensive programming
 			Lock lock{*msg_mutex} ;
-			*msg <<add_nl<< "while computing checksum for "<<tn<<" : "<<e ;
-		}                                                                   // END_OF_NO_COV
+			*msg <<add_nl<< "cannot compute checksum ("<<e<<") for "<<tn ;
+		}                                                                                     // END_OF_NO_COV
 		td.sig             = fi.sig() ;
 		(*target_fis)[ti]  = fi       ;
 		*sz               += fi.sz    ;
@@ -269,7 +283,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.network_delay    =        g_start_info.network_delay      ;
 		g_gather.nice             =        g_start_info.nice               ;
 		g_gather.no_tmp           =       !end_report.phy_tmp_dir_s        ;
-		g_gather.rule             = ::move(g_start_info.rule             ) ;
+		g_gather.rule             =        g_start_info.rule               ;
 		g_gather.seq_id           =        g_seq_id                        ;
 		g_gather.server_master_fd = ::move(g_server_fd                   ) ;
 		g_gather.service_mngt     =        g_service_mngt                  ;
@@ -344,8 +358,10 @@ int main( int argc , char* argv[] ) {
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
 		::vector<FileInfo> target_fis ;
-		Delay              exe_time   = g_gather.end_date - g_gather.start_date ;
-		end_report.msg_stderr.msg += compute_crcs( digest , /*out*/target_fis , /*out*/end_report.total_sz ) ;
+		Delay              exe_time   = g_gather.end_date - g_gather.start_date                                 ;
+		::string           crc_msg    = compute_crcs( digest , /*out*/target_fis , /*out*/end_report.total_sz ) ;
+		if ( status==Status::Ok && +crc_msg ) status = Status::Err ;
+		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
 		if (g_start_info.cache) {
 			try {

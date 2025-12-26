@@ -924,6 +924,7 @@ namespace Engine {
 								if ( start.autodep_env.readdir_ok) push_entry( "readdir_ok"    , "true"                                  ) ;
 								if ( start.autodep_env.auto_mkdir) push_entry( "auto_mkdir"    , "true"                                  ) ;
 								/**/                               push_entry( "autodep"       , snake_str(start.method)                 ) ;
+								if ( start.chk_abs_paths         ) push_entry( "chk_abs_paths" , "true"                                  ) ;
 								if (+start.timeout               ) push_entry( "timeout"       , start.timeout.short_str()               ) ;
 								if ( start.use_script            ) push_entry( "use_script"    , "true"                                  ) ;
 								//

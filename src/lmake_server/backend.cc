@@ -403,11 +403,12 @@ namespace Backends {
 			[[fallthrough]] ;
 			case 3 :
 			case 2 :
-				reply.chroot_info.dir_s = start_rsrcs_attrs.chroot_dir_s ; if (+reply.chroot_info) reply.chroot_info.action = start_rsrcs_attrs.chroot_action ;
-				reply.phy_lmake_root_s  = start_rsrcs_attrs.lmake_root_s ;
-				reply.method            = start_rsrcs_attrs.method       ;
-				reply.timeout           = start_rsrcs_attrs.timeout      ;
-				reply.use_script        = start_rsrcs_attrs.use_script   ;
+				reply.chk_abs_paths     = start_rsrcs_attrs.chk_abs_paths ;
+				reply.chroot_info.dir_s = start_rsrcs_attrs.chroot_dir_s  ; if (+reply.chroot_info) reply.chroot_info.action = start_rsrcs_attrs.chroot_action ;
+				reply.phy_lmake_root_s  = start_rsrcs_attrs.lmake_root_s  ;
+				reply.method            = start_rsrcs_attrs.method        ;
+				reply.timeout           = start_rsrcs_attrs.timeout       ;
+				reply.use_script        = start_rsrcs_attrs.use_script    ;
 				//
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 				//

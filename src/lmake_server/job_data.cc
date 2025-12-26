@@ -1013,8 +1013,8 @@ namespace Engine {
 			} catch (::string const& e) {
 				trace("cache_download_throw",e) ;
 				cache_hit_info = CacheHitInfo::BadDownload ;
-				req->audit_job ( Color::Warning , "bad_cache_download" , job , true/*at_end*/ ) ;
-				req->audit_info( Color::Note    , e , 1/*lvl*/                                ) ;
+				req->audit_job ( Color::Warning , "bad_cache_download" , job ) ;
+				req->audit_info( Color::Note    , e , 1/*lvl*/               ) ;
 			}
 			cache_hit_info = cache_digest.hit_info ;
 			trace("hit",cache_hit_info) ;

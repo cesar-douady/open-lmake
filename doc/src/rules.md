@@ -103,6 +103,26 @@ When a job is executed, its results are stored in the cache.
 If space is needed (all caches are constrained in size), any other entry can be replaced.
 The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.
 
+### [`check_abs_paths`](file:///home/cdy/open-lmake/docs/unit_tests/check_abs_paths.html#:~:text=Bad%28Rule%29%20%3A-,check%5Fabs%5Fpaths%20%3D%20True)
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+This attribute specifies whether absolute paths towards the repo are acceptable in targets.
+
+If true, the physical absolute path of the repo is search in targets and an error is generated if found.
+
+This is particularly useful if the `cache` attribute is set to avoid the absolute path of a repo to appear as target in another repo.
+There are 2 drawbacks though:
+
+- Such absolute path may appear by chance in a (typically binary) target such as a jpeg file.
+- There is performance cost due to searching the pattern.
+
+If such an error occurs and modifying `cmd` to avoid generating such absolute paths is not feasible or too difficult,
+it is possible to use the `repo_view` attribute so that the physical absolute path of the repo will naturally be replaced by its view.
+Note however that such absolute path may come from a dep in which case it is the rule that generated it in the first place that must have the `repo_view` attribute set.
+
 ### [`cmd`](unit_tests/basics.html#:~:text=class%20CatSh,f%2Eread%28%29%2Cend%3D%27%27%29)
 
 | Inheritance | Type     | Default     | Dynamic | Example                                                            |

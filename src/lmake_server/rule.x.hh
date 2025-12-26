@@ -282,6 +282,7 @@ namespace Engine {
 		void update( Py::Dict const& py_dct ) {
 			dyn_env = false ;                                                                            // update solves dynamic val
 			Attrs::acquire_from_dct( method        , py_dct , "autodep"                              ) ;
+			Attrs::acquire_from_dct( chk_abs_paths , py_dct , "check_abs_paths"                      ) ;
 			Attrs::acquire_from_dct( use_script    , py_dct , "use_script"                           ) ;
 			Attrs::acquire_from_dct( timeout       , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
 			Attrs::acquire_from_dct( chroot_dir_s  , py_dct , "chroot_dir"                           ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
@@ -297,6 +298,7 @@ namespace Engine {
 		// START_OF_VERSIONING REPO
 		bool          dyn_env       = false               ;
 		AutodepMethod method        = AutodepMethod::Dflt ;
+		bool          chk_abs_paths = false               ;
 		bool          use_script    = false               ;
 		Time::Delay   timeout       ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
 		::string      chroot_dir_s  ;

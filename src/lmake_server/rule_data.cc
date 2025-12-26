@@ -743,6 +743,7 @@ namespace Engine {
 			if (+start_cmd_attrs       .spec.job_space.repo_view_s     ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs       .spec.job_space.repo_view_s  ) ) ;
 			if (+start_ancillary_attrs .spec.start_delay               ) entries.emplace_back( "start_delay"         ,             start_ancillary_attrs .spec.start_delay.short_str()  ) ;
 			if ( start_cmd_attrs       .spec.stderr_ok                 ) entries.emplace_back( "stderr_ok"           , cat        (start_cmd_attrs       .spec.stderr_ok              ) ) ;
+			if ( start_rsrcs_attrs     .spec.chk_abs_paths             ) entries.emplace_back( "check_abs_paths"     , cat        (start_rsrcs_attrs     .spec.chk_abs_paths          ) ) ;
 			if (+start_rsrcs_attrs     .spec.timeout                   ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs     .spec.timeout.short_str()      ) ;
 			if (+start_cmd_attrs       .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs       .spec.job_space.tmp_view_s   ) ) ;
 			if ( start_rsrcs_attrs     .spec.use_script                ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs     .spec.use_script             ) ) ;

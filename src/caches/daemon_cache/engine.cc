@@ -142,12 +142,9 @@ void mk_room(DiskSz sz) {
 	RateCmp::s_refresh() ;
 	while ( hdr.total_sz && hdr.total_sz+_g_reserved_sz+sz>g_config.max_sz ) {
 		SWEAR( +RateCmp::s_tab ) ;                                             // if total size is non-zero, we must have entries
-		Rate   best_rate = *RateCmp::s_tab.begin()                    ;
-		Crun   best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
-		DiskSz entry_sz  = best_run->sz                               ;
+		Rate best_rate = *RateCmp::s_tab.begin()                    ;
+		Crun best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
 		best_run->victimize() ;
-		hdr.total_sz -= entry_sz ;
-		trace("victimize",best_run,entry_sz,hdr.total_sz) ;
 	}
 	_g_reserved_sz += sz ;
 	trace("done",sz,hdr.total_sz,_g_reserved_sz) ;
@@ -320,9 +317,9 @@ void CjobData::victimize() {
 			case CacheHitInfo::Match : trace(hit_info) ; return { r , hit_info } ;
 		DN}
 	}
-	if (+found_runs[true/*last*/]) {
-		if (+found_runs[false/*last*/]) found_runs[true/*last*/]->victimize() ;
-		else                            found_runs[true/*last*/]->key_is_last = false ;
+	if (+found_runs[true/*last*/]) { //!           last
+		if (+found_runs[false/*last*/]) found_runs[true]->victimize() ;
+		else                            found_runs[true]->key_is_last = false ;
 	}
 	Crun run { New , key , key_is_last , idx() , last_access , sz , rate , deps, dep_crcs } ;
 	trace("miss") ;
@@ -343,8 +340,10 @@ CrunData::CrunData( Hash::Crc k , bool kil , Cjob j , Time::Pdate la , Disk::Dis
 ,	rate        { r   }
 ,	key_is_last { kil }
 {
-	Trace trace("CrunData",k,STR(kil),j,sz_,r,ds,dcs) ;
+	CrunHdr& hdr = CrunData::s_hdr() ;
+	Trace trace("CrunData",key,STR(key_is_last),job,sz,rate,hdr.total_sz,ds,dcs) ;
 	bool first = !RateCmp::s_lrus[rate] ;
+	hdr.total_sz += sz ;
 	//
 	if (first) RateCmp::s_refresh() ;
 	//
@@ -384,7 +383,8 @@ void CrunData::access() {
 }
 
 void CrunData::victimize() {
-	Trace trace("victimize",idx()) ;
+	CrunHdr& hdr = CrunData::s_hdr() ;
+	Trace trace("victimize",idx(),hdr.total_sz,sz) ;
 	bool last = job_lru.erase( job->lru              , idx() , &CrunData::job_lru ) ; // manage job-local LRU
 	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , idx() , &CrunData::glb_lru ) ; // manage global    LRU
 	//
@@ -397,8 +397,7 @@ void CrunData::victimize() {
 	}
 	//
 	if (last) job->victimize() ;
-	CrunHdr& hdr = CrunData::s_hdr() ;
-	SWEAR( hdr.total_sz >= sz ) ;
+	SWEAR( hdr.total_sz >= sz , hdr.total_sz,sz,idx() ) ;
 	hdr.total_sz -= sz ;
 	_g_nodes_file.pop(deps    ) ;
 	_g_crcs_file .pop(dep_crcs) ;

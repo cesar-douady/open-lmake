@@ -31,6 +31,7 @@ StdAttrs = { #!               type   dynamic
 ,	'auto_mkdir'          : ( bool  , True  )
 ,	'backend'             : ( str   , True  )
 ,	'cache'               : ( str   , True  )
+,	'check_abs_paths'     : ( bool  , True  )
 ,	'chroot_dir'          : ( str   , True  )
 ,	'chroot_action'       : ( str   , True  )
 ,	'cmd'                 : ( str   , True  ) # when it is a str, such str may be dynamic, i.e. it may be a full f-string
@@ -539,6 +540,7 @@ class Handle :
 	def handle_start_rsrcs(self) :
 		self._init()
 		self._handle_val('autodep'                               )
+		self._handle_val('check_abs_paths'                       )
 		self._handle_val('chroot_dir'                            )
 		self._handle_val('chroot_action'                         )
 		self._handle_val('env'       ,rep_key='environ_resources')

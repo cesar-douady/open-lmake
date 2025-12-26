@@ -887,6 +887,7 @@ struct JobStartRpcReply {                                                // NOLI
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , autodep_env                       ) ;
 		::serdes( s , cache_idx1                        ) ;
+		::serdes( s , chk_abs_paths                     ) ;
 		::serdes( s , chroot_info                       ) ;
 		::serdes( s , cmd                               ) ;
 		::serdes( s , ddate_prec                        ) ;
@@ -942,6 +943,7 @@ struct JobStartRpcReply {                                                // NOLI
 	AutodepEnv                              autodep_env       ;
 	Caches::Cache*                          cache             = nullptr             ;
 	CacheIdx                                cache_idx1        ;                       // to be repeated in JobEndRpcReq to ensure it is available when processing
+	bool                                    chk_abs_paths     = false               ;
 	ChrootInfo                              chroot_info       ;
 	::string                                cmd               ;
 	Time::Delay                             ddate_prec        ;

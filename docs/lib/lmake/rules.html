@@ -164,6 +164,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">class</span> <span class="nc">Rule</span><span class="p">(</span><span class="n">_RuleBase</span><span class="p">)</span> <span class="p">:</span>
 <span class="c1">#   auto_mkdir          = False                        # auto mkdir dir in case of chdir</span>
 <span class="c1">#   backend             = &#39;local&#39;                      # may be set anywhere in the inheritance hierarchy if execution must be remote</span>
+<span class="c1">#   check_abs_paths     = False                        # check that absolute paths inside the repo are not stored in targets</span>
 <span class="c1">#   chroot_dir          = &#39;/&#39;                          # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)</span>
 <span class="c1">#   chroot_action       = None                         # action to handle user when chroot to chroot_dir, one of : None or &#39;none&#39;, &#39;overwrite&#39;, &#39;merge&#39;</span>
 <span class="c1">#   cache               = None                         # cache used to store results for this rule. None means no caching</span>
@@ -209,7 +210,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="c1">#                                                  #   physical tmp dir is :</span>
     <span class="c1">#                                                  #   -      a private sub-dir in $TMPDIR if provided in the environment</span>
     <span class="c1">#                                                  #   - else a private sub-dir in the LMAKE dir</span>
-<span class="c1">#   use_script          = False                        #   use a script to run job rather than calling interpreter with -c</span>
+<span class="c1">#   use_script          = False                        # use a script to run job rather than calling interpreter with -c</span>
 <span class="c1">#   autodep             = &#39;ld_audit&#39;                   # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace</span>
     <span class="n">resources</span> <span class="o">=</span> <span class="p">{</span>                                      <span class="c1"># used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps</span>
         <span class="s1">&#39;cpu&#39;</span> <span class="p">:</span> <span class="mi">1</span>                                      <span class="c1"># number of cpu&#39;s to allocate to job</span>

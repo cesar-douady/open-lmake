@@ -66,6 +66,7 @@ class _RuleBase :
 class Rule(_RuleBase) :
 #	auto_mkdir          = False                        # auto mkdir dir in case of chdir
 #	backend             = 'local'                      # may be set anywhere in the inheritance hierarchy if execution must be remote
+#	check_abs_paths     = False                        # check that absolute paths inside the repo are not stored in targets
 #	chroot_dir          = '/'                          # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)
 #	chroot_action       = None                         # action to handle user when chroot to chroot_dir, one of : None or 'none', 'overwrite', 'merge'
 #	cache               = None                         # cache used to store results for this rule. None means no caching
@@ -111,7 +112,7 @@ class Rule(_RuleBase) :
 	#                                                  #   physical tmp dir is :
 	#                                                  #   -      a private sub-dir in $TMPDIR if provided in the environment
 	#                                                  #   - else a private sub-dir in the LMAKE dir
-#	use_script          = False                        #   use a script to run job rather than calling interpreter with -c
+#	use_script          = False                        # use a script to run job rather than calling interpreter with -c
 #	autodep             = 'ld_audit'                   # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace
 	resources = {                                      # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
 		'cpu' : 1                                      # number of cpu's to allocate to job

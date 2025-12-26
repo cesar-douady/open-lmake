@@ -101,28 +101,44 @@ If I(--porcelaine), the output is generated as as B(dict), much like B(os.enviro
 Item(B(-i),B(--info))
 Show various info about a job, as it last ran (unless stated otherwise):
 	.RS
-	Bullet B(rule)          : the rule name.
-	Bullet B(job)           : the job name.
-	Bullet B(ids)           : the job-id (unique for each job), the small-id (unique among jobs running simultaneously) and the seq-id (unique in a repo).
-	Bullet B(required by)   : the job that last necessitated job to run.
-	Bullet B(reason)        : the reason why job ran.
-	Bullet B(host)          : the host on which job ran.
-	Bullet B(scheduling)    : the ETA of the lmake command, a B(-), the duration from start-of-job to end-of-lmake command along the longest dep path as estimated at run time (known as the pressure).
+	Bullet B(rule)               : the rule name.
+	Bullet B(job)                : the job name.
+	Bullet B(ids)                : the job-id (unique for each job), the small-id (unique among jobs running simultaneously) and the seq-id (unique in a repo).
+	Bullet B(required by)        : the job that last necessitated job to run.
+	Bullet B(reason)             : the reason why job ran.
+	Bullet B(host)               : the host on which job ran.
+	Bullet B(os)                 : the os version, release and architecture on which the job ran.
+	Bullet B(scheduling)         : the ETA of the lmake command, a B(-), the duration from start-of-job to end-of-lmake command along the longest dep path as estimated at run time
+		(known as the pressure)  .
 		Jobs are scheduled by giving higher priority to nearer ETA, then to higher pressure.
-	Bullet B(chroot_dir)    : the chroot dir in which job ran.
-	Bullet B(chroot_action) : the chroot action used to run job.
-	Bullet B(lmake_root)    : the open-lmake installation dir used by the job.
-	Bullet B(lmake_view)    : the name under which the lmake installation dir was seen by job.
-	Bullet B(readdir_ok)    : true if C(readdir,3) is allowed on local not B(ignore)d nor B(incremental) dirs.
-	Bullet B(repo_view)     : the name under which the repo root dir was seen by job.
-	Bullet B(tmp_view)      : the name under which the tmp dir was seen by job.
-	Bullet B(sub_repo)      : the sub-repo in which rule was defined.
-	Bullet B(auto_mkdir)    : true if C(chdir,2) to a non-existent triggered an automatic C(mkdir,2) for the C(chdir,2) to succeed.
-	Bullet B(autodep)       : the autodep method used.
-	Bullet B(timeout)       : the timeout after which job would have/has been killed.
-	Bullet B(use_script)    : true if a script was used to launch job (rather than directly using the I(-c) option to the interpreter).
-	bullet B(backend)       : the backend used to launch job.
-	Bullet B(run status)    : whether job could be run last time the need arose (note: if not ok it is later than when job last ran).
+	Bullet B(cpu time)           : user+system cpu time of job, as reported by C(getrusage,2) with children.
+	Bullet B(cost)               : elapsed time in job divided by the average number of jobs running in parallel.
+		This value is used to compute the ETA of the lmake command.
+	bullet B(used mem)           : max RSS, as reported by C(getrusage,2) with children.
+	Bullet B(elapsed in job)     : elapsed time in job, excluding overhead.
+	Bullet B(elapsed total)      : elapsed time in job, including overhead.
+	Bullet B(end date)           : the date at which job ended.
+	Bullet B(total targets size) : the sum of the sizes of all targets.
+	Bullet B(compressed size)    : the sum of the sizes of all targets after compression as stored in cache.
+	Bullet B(chroot_dir)         : the chroot dir in which job ran.
+	Bullet B(chroot_action)      : the chroot action used to run job.
+	Bullet B(lmake_root)         : the open-lmake installation dir used by the job.
+	Bullet B(lmake_view)         : the name under which the lmake installation dir was seen by job.
+	Bullet B(repo_view)          : the name under which the repo root dir was seen by job.
+	Bullet B(physical tmp dir)   : the tmp dir on disk when viewed by job under another name.
+	Bullet B(tmp dir)            : the tmp dir on disk when viewed by job under the same name.
+	Bullet B(tmp_view)           : the name under which the tmp dir was seen by job.
+	Bullet B(views)              : the view map as specified in the I(views) rule attribute.
+	Bullet B(sub_repo)           : the sub-repo in which rule was defined.
+	Bullet B(auto_mkdir)         : true if C(chdir,2) to a non-existent triggered an automatic C(mkdir,2) for the C(chdir,2) to succeed.
+	Bullet B(autodep)            : the autodep method used.
+	bullet B(backend)            : the backend used to launch job.
+	bullet B(check_abs_paths)    : true if absolute paths inside the repo are checked (generate and error if found in targets).
+	Bullet B(readdir_ok)         : true if C(readdir,3) is allowed on local not B(ignore)d nor B(incremental) dirs.
+	Bullet B(timeout)            : the timeout after which job would have/has been killed.
+	Bullet B(use_script)         : true if a script was used to launch job (rather than directly using the I(-c) option to the interpreter).
+	Bullet B(checksum)           : the checksum of the target if I(--verbose) and not I(--job).
+	Bullet B(run status)         : whether job could be run last time the need arose (note: if not ok it is later than when job last ran).
 		Possible values are:
 		.RS
 		Item(I(ok))             job could run.
@@ -130,8 +146,6 @@ Show various info about a job, as it last ran (unless stated otherwise):
 		Item(I(missing_static)) job could not run because a static dep was missing.
 		Item(I(err))            job could not run because an error was detected before it started.
 		.RE
-	Bullet B(end date) : the date at which job ended.
-	Bullet B(os)       : the os version, release and architecture on which the job ran.
 	Bullet B(status)   : job status, as used by OpenLmake.
 		Possible values are:
 		.RS
@@ -150,8 +164,6 @@ Show various info about a job, as it last ran (unless stated otherwise):
 		Item(I(submit_loop))    job needs to rerun but was already submitted too many times
 		Item(I(err))            job execution ended in error
 		.RE
-	Bullet B(physical tmp dir) : the tmp dir on disk when viewed by job under another name.
-	Bullet B(tmp dir)          : the tmp dir on disk when viewed by job under the same name.
 	Bullet B(rc)               : the return code of the job.
 		Possible values are:
 		.RS
@@ -161,18 +173,8 @@ Show various info about a job, as it last ran (unless stated otherwise):
 		Item(I(exit <n> (could be signal<s>))) exited with code <n> which is possibly generated by the shell in response to a process killed by signal <s>.
 		Item(I(signal <s>))                    killed with signal <s>.
 		.RE
-	Bullet B(cpu time)           : user+system cpu time of job, as reported by C(getrusage,2) with children.
-	Bullet B(elapsed in job)     : elapsed time in job, excluding overhead.
-	Bullet B(elapsed total)      : elapsed time in job, including overhead.
-	bullet B(used mem)           : max RSS, as reported by C(getrusage,2) with children.
-	Bullet B(cost)               : elapsed time in job divided by the average number of jobs running in parallel.
-		This value is used to compute the ETA of the lmake command.
-	Bullet B(total targets size) : the sum of the sizes of all targets.
-	Bullet B(compressed size)    : the sum of the sizes of all targets after compression as stored in cache.
-	Bullet B(checksum)           : the checksum of the target if I(--verbose) and not I(--job).
 	Bullet B(start message)      : a message emitted at job start time.
 	Bullet B(message)            : a message emitted at job end time.
-	Bullet B(views)              : the view map as specified in the I(views) rule attribute.
 	Bullet B(resources)          : the job resources.
 		In some cases, the atual allocated resources is different from the required resources, in which case both values are shown.
 	.RE

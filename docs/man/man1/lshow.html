@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Fri Dec 26 12:55:30 2025 -->
+<!-- CreationDate: Fri Dec 26 16:11:02 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -667,11 +667,109 @@ to run.</p></td></tr>
 <td width="73%">
 
 
+<p><b>os</b> : the os version, release and architecture on
+which the job ran.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
 <p><b>scheduling</b> : the ETA of the lmake command, a
 <b>-</b>, the duration from start-of-job to end-of-lmake
 command along the longest dep path as estimated at run time
-(known as the pressure). Jobs are scheduled by giving higher
-priority to nearer ETA, then to higher pressure.</p></td></tr>
+(known as the pressure) . Jobs are scheduled by giving
+higher priority to nearer ETA, then to higher pressure.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>cpu time</b> : user+system cpu time of job, as
+reported by <b>getrusage</b>(2) with children.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>cost</b> : elapsed time in job divided by the average
+number of jobs running in parallel. This value is used to
+compute the ETA of the lmake command. bullet <b>used mem</b>
+: max RSS, as reported by <b>getrusage</b>(2) with
+children.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>elapsed in job</b> : elapsed time in job, excluding
+overhead.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>elapsed total</b> : elapsed time in job, including
+overhead.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>end date</b> : the date at which job ended.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>total targets size</b> : the sum of the sizes of all
+targets.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>compressed size</b> : the sum of the sizes of all
+targets after compression as stored in cache.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -729,18 +827,6 @@ installation dir was seen by job.</p></td></tr>
 <td width="73%">
 
 
-<p><b>readdir_ok</b> : true if <b>readdir</b>(3) is allowed
-on local not <b>ignore</b>d nor <b>incremental</b> dirs.</p></td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
 <p><b>repo_view</b> : the name under which the repo root
 dir was seen by job.</p></td></tr>
 <tr valign="top" align="left">
@@ -753,8 +839,44 @@ dir was seen by job.</p></td></tr>
 <td width="73%">
 
 
+<p><b>physical tmp dir</b> : the tmp dir on disk when
+viewed by job under another name.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>tmp dir</b> : the tmp dir on disk when viewed by job
+under the same name.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
 <p><b>tmp_view</b> : the name under which the tmp dir was
 seen by job.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>views</b> : the view map as specified in the
+<i>views</i> rule attribute.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -790,7 +912,23 @@ non-existent triggered an automatic <b>mkdir</b>(2) for the
 <td width="73%">
 
 
-<p><b>autodep</b> : the autodep method used.</p></td></tr>
+<p><b>autodep</b> : the autodep method used. bullet
+<b>backend</b> : the backend used to launch job. bullet
+<b>check_abs_paths</b> : true if absolute paths inside the
+repo are checked (generate and error if found in
+targets).</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>readdir_ok</b> : true if <b>readdir</b>(3) is allowed
+on local not <b>ignore</b>d nor <b>incremental</b> dirs.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -815,8 +953,19 @@ have/has been killed.</p></td></tr>
 
 <p><b>use_script</b> : true if a script was used to launch
 job (rather than directly using the <i>-c</i> option to the
-interpreter). bullet <b>backend</b> : the backend used to
-launch job.</p></td></tr>
+interpreter).</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>checksum</b> : the checksum of the target if
+<i>--verbose</i> and not <i>--job</i>.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -881,43 +1030,19 @@ it started.</p></td></tr>
 </td></tr>
 </table>
 
-<p style="margin-left:27%; margin-top: 1em"><b>end date</b>
-: the date at which job ended.</p>
+<p style="margin-left:27%; margin-top: 1em"><b>status</b> :
+job status, as used by <i>open-lmake</i>. Possible values
+are:</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
 <tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
+<td width="27%"></td>
+<td width="4%">
 
 
-<p style="margin-top: 1em">&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p style="margin-top: 1em"><b>os</b> : the os version,
-release and architecture on which the job ran.</p></td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p><b>status</b> : job status, as used by
-<i>open-lmake</i>. Possible values are:</p></td></tr>
-</table>
-
-<p style="margin-left:27%;"><i>new</i></p>
-
-<table width="100%" border="0" rules="none" frame="void"
-       cellspacing="0" cellpadding="0">
-<tr valign="top" align="left">
-<td width="36%"></td>
+<p style="margin-top: 1em"><i>new</i></p></td>
+<td width="5%"></td>
 <td width="22%">
 
 
@@ -1036,44 +1161,18 @@ already submitted too many times</p>
 </td></tr>
 </table>
 
-<p style="margin-left:27%; margin-top: 1em"><b>physical tmp
-dir</b> : the tmp dir on disk when viewed by job under
-another name.</p>
+<p style="margin-left:27%; margin-top: 1em"><b>rc</b> : the
+return code of the job. Possible values are:</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
 <tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
+<td width="27%"></td>
+<td width="2%">
 
 
-<p style="margin-top: 1em">&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p style="margin-top: 1em"><b>tmp dir</b> : the tmp dir on
-disk when viewed by job under the same name.</p></td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p><b>rc</b> : the return code of the job. Possible values
-are:</p> </td></tr>
-</table>
-
-<p style="margin-left:27%;"><i>ok</i></p>
-
-<table width="100%" border="0" rules="none" frame="void"
-       cellspacing="0" cellpadding="0">
-<tr valign="top" align="left">
-<td width="36%"></td>
+<p style="margin-top: 1em"><i>ok</i></p></td>
+<td width="7%"></td>
 <td width="64%">
 
 
@@ -1116,92 +1215,6 @@ process killed by signal &lt;s&gt;.</p>
 <td width="73%">
 
 
-<p><b>cpu time</b> : user+system cpu time of job, as
-reported by <b>getrusage</b>(2) with children.</p></td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p><b>elapsed in job</b> : elapsed time in job, excluding
-overhead.</p> </td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p><b>elapsed total</b> : elapsed time in job, including
-overhead. bullet <b>used mem</b> : max RSS, as reported by
-<b>getrusage</b>(2) with children.</p></td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p><b>cost</b> : elapsed time in job divided by the average
-number of jobs running in parallel. This value is used to
-compute the ETA of the lmake command.</p></td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p><b>total targets size</b> : the sum of the sizes of all
-targets.</p> </td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p><b>compressed size</b> : the sum of the sizes of all
-targets after compression as stored in cache.</p></td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p><b>checksum</b> : the checksum of the target if
-<i>--verbose</i> and not <i>--job</i>.</p></td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
 <p><b>start message</b> : a message emitted at job start
 time.</p> </td></tr>
 <tr valign="top" align="left">
@@ -1215,18 +1228,6 @@ time.</p> </td></tr>
 
 
 <p><b>message</b> : a message emitted at job end time.</p></td></tr>
-<tr valign="top" align="left">
-<td width="18%"></td>
-<td width="1%">
-
-
-<p>&bull;</p></td>
-<td width="8%"></td>
-<td width="73%">
-
-
-<p><b>views</b> : the view map as specified in the
-<i>views</i> rule attribute.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">

@@ -157,12 +157,12 @@ ByName :
 		char     buf[HOST_NAME_MAX+1] ;
 		SockAddr sa                   { a }                                                                                                              ;
 		int      rc                   = ::getnameinfo( &sa.as_sockaddr() , sizeof(sa) , buf , sizeof(buf) , nullptr/*serv*/ , 0/*servlen*/ , NI_NOFQDN ) ;
-		if (rc) {
-			it = s_tab.emplace(a,s_addr_str(a)).first ;
-		} else {
-			::string host = &buf[0] ; if ( size_t p=host.find('.') ; p!=Npos ) host.resize(p) ;
-			it = s_tab.emplace(a,::move(host)).first ;
+		::string host                 = s_addr_str(a)                                                                                                    ;
+		if ( rc==0 && host!=buf ) {
+			host = buf ;
+			if ( size_t p=host.find('.') ; p!=Npos ) host.resize(p) ;
 		}
+		it = s_tab.emplace(a,::move(host)).first ;
 	}
 	return it->second ;
 }
