@@ -96,9 +96,9 @@ namespace Time {
 	struct Delay : TimeBase<int64_t> {
 		using Base = TimeBase<int64_t> ;
 		friend ::string& operator+=( ::string& , Delay const ) ;
-		friend Date  ;
-		friend Ddate ;
-		friend Pdate ;
+		friend Date        ;
+		friend Ddate       ;
+		friend Pdate       ;
 		friend CoarseDelay ;
 		static constexpr size_t ShortStrSz = 6 ;
 		static const     Delay  Lowest     ;

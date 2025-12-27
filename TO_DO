@@ -25,8 +25,6 @@ items (also used in XXX comments) :
 	- lmake step B
 		- needs step A
 	===>>> X not built
-* speculative time may be negative
-	- seems to be linked to cache
 ? seen once : server blocked
 	- seems to be while taking GIL
 
@@ -128,11 +126,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* add flags to chroot_dir
+? add flags to chroot_dir
 	- implement action merge
-* in ldir_cache_repair
-	- check target crcs
-	- implement a backup with hard links to avoid taking additional space.
 ? provide a list of forbidden src dirs
 	- like src dirs, but access generates fail
 	- extend src dirs to files (allow to specify external srcs, allowed of forbidden)
@@ -196,6 +191,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ? add a new autodep mechanism based on syscall user dispatch
 	? cf man 2 prctl, PR_SET_SYSCALL_USER_DISPATCH
 	? seems to be highly architecture dependent, is it worth ?
+X in ldir_cache_repair
+	- check target crcs
+	- implement a backup with hard links to avoid taking additional space.
+	- ldir_cache is obsolete and will be suppressed
 M implement fuse as an autodep method
 	- does not seem doable because read foo/bar first does a lookup(foo)
 M port to Darwin
@@ -209,7 +208,11 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* dont upload to cache if a dep never matches
+* communicate with daemon-cache using Cnode/Cjob rather than file names/job names
+	- easier to code when cache is not a plugin
+	- maintain a map mapping Node->Cnode and Job->Cjob in lmake_server
+	- avoid searching through names on both sides
+	- communicate using Cnode/Cjob if known, else with names
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case

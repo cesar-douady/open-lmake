@@ -359,6 +359,8 @@ namespace Engine {
 		Job              & asking_job()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
 		Job         const& asking_job() const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
 		//
+		CoarseDelay phy_exe_time() const { return cache_hit_info==CacheHitInfo::Hit ? CoarseDelay() : exe_time() ; }
+		//
 		Job      idx () const { return Job::s_idx(self) ; }
 		Rule     rule() const { return rule_crc->rule   ; }                                                                       // thread-safe
 		::string name() const {
@@ -419,9 +421,9 @@ namespace Engine {
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			if ( speculate==No && ri.reported && ri.done() ) {
-				if      (err()                ) { audit_end(ri,false/*with_stats*/,"was_") ; req->stats.move( JobReport::Speculative , JobReport::Failed , exe_time() ) ; }
-				else if (ri.modified_speculate)                                              req->stats.move( JobReport::Speculative , JobReport::Done   , exe_time() ) ;
-				else                                                                         req->stats.move( JobReport::Speculative , JobReport::Steady , exe_time() ) ;
+				if      (err()                ) { audit_end(ri,false/*with_stats*/,"was_") ; req->stats.move( JobReport::Speculative , JobReport::Failed , phy_exe_time() ) ; }
+				else if (ri.modified_speculate)                                              req->stats.move( JobReport::Speculative , JobReport::Done   , phy_exe_time() ) ;
+				else                                                                         req->stats.move( JobReport::Speculative , JobReport::Steady , phy_exe_time() ) ;
 			}
 			_propag_speculate(ri) ;
 		}

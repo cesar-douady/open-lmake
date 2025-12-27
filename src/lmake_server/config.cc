@@ -131,14 +131,12 @@ namespace Engine {
 				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
 					fields[1] = py_key.as_a<Str>() ; throw_unless( +fields[1] , "cache key cannot be empty" ) ;
 					//
-					::pair<CacheTag,::vmap_ss>& c         = caches.emplace_back( fields[1] , ::pair<CacheTag,::vmap_ss>() ).second ;
-					bool                        found_tag = false                                                                  ;
+					::pair<CacheTag,::vmap_ss>& c = caches.emplace_back( fields[1] , ::pair(CacheTag::Daemon,::vmap_ss()) ).second ;
 					for( auto const& [py_k,py_v] : py_val.as_a<Dict>() ) {
 						::string k = py_k.as_a<Str>() ;
-						if (k=="tag") { c.first = mk_enum<CacheTag>(py_v.as_a<Str>()) ; found_tag = true ; }
-						else            c.second.emplace_back(k,*py_v.str()) ;
+						if (k=="tag") c.first = mk_enum<CacheTag>(py_v.as_a<Str>()) ;
+						else          c.second.emplace_back(k,*py_v.str()) ;
 					}
-					throw_unless( found_tag , "tag not found" ) ;
 				}
 				fields.pop_back() ;
 			}

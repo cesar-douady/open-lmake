@@ -65,12 +65,12 @@ By default, no cache is configured.
 #### [`caches.*.tag`](unit_tests/cache.html#:~:text=%27tag%27%20%3A%20%27dir) : Static (-)
 
 This attribute specifies the method used by open-lmake to cache values.
-In the current version, only 2 tags may be used:
 
-| Tag                                    | Description                                                                                         |
-|----------------------------------------|-----------------------------------------------------------------------------------------------------|
-| `'none'`                               | fake cache that cache nothing                                                                       |
-| [`'dir'`](cache.html#:~:text=DirCache) | [a cache working without daemon, data are stored in a shared dir](cache.html#:~:text=configuration) |
+| Tag                                          | Default  | Description                                                                                         |
+|----------------------------------------------|----------|-----------------------------------------------------------------------------------------------------|
+| `'none'`                                     |          | fake cache that caches nothing                                                                      |
+| [`'dir'`](cache.html#:~:text=DirCache)       |          | [a cache working without daemon, data are stored in a shared dir](cache.html#:~:text=configuration) |
+| [`'daemon'`](cache.html#:~:text=DaemonCache) | X        | [a cache working with a daemon, data are stored in a shared dir](cache.html#:~:text=configuration)  |
 
 ### [`collect`](unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D%20lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D) : Dynamic
 

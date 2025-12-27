@@ -18,10 +18,8 @@ if __name__!='__main__' :
 
 	from step import z_lvl,cache_tag
 
-	lmake.config.caches.my_cache = {
-		'tag' : cache_tag
-	,	'dir' : lmake.repo_root+'/CACHE'
-	}
+	if cache_tag : lmake.config.caches.my_cache = { 'tag':cache_tag , 'dir':lmake.repo_root+'/CACHE' }
+	else         : lmake.config.caches.my_cache = {                   'dir':lmake.repo_root+'/CACHE' } # defaults to tag='daemon'
 
 	class Auto(Rule) :
 		target = r'auto{:\d}'
@@ -76,7 +74,7 @@ else :
 
 	import ut
 
-	for cache_tag in ('dir','daemon') :
+	for cache_tag in ('dir','') :
 		for z_lvl in (0,5) :
 			print(f'cache_tag={cache_tag!r} ; z_lvl={z_lvl}',file=open('step.py','w'))
 			bck = f'bck_{cache_tag}_{z_lvl}'
@@ -110,7 +108,7 @@ else :
 			ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check all is ok with dirs and empty files (mkdir.dut still exists ...
 			os.system(f'mkdir {bck}_2 ; mv LMAKE auto1 auto1.hide hello+auto1.hide {bck}_2')                           # ... and is unlinked)
 
-			assert os.system(f'rm -rf CACHE/auto1 ; l{cache_tag}_cache_repair CACHE')==0
+			assert os.system(f"rm -rf CACHE/auto1 ; l{cache_tag or 'daemon'}_cache_repair CACHE")==0
 			ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 , unlinked=1                 , new=2 )
 			ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 )
 			os.system(f'mkdir {bck}_3 ; mv LMAKE CACHE *auto1* mkdir* {bck}_3')
