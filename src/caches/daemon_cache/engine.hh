@@ -60,10 +60,10 @@ extern DaemonCache::Config g_config ;
 // free functions
 //
 
-void daemon_cache_init    ( bool rescue , bool read_only=false ) ;
-void daemon_cache_finalize(                                    ) ;
-void mk_room              ( Disk::DiskSz                       ) ;
-void release_room         ( Disk::DiskSz                       ) ;
+void       daemon_cache_init    ( bool rescue , bool read_only=false ) ;
+void       daemon_cache_finalize(                                    ) ;
+bool/*ok*/ mk_room              ( Disk::DiskSz                       ) ;
+void       release_room         ( Disk::DiskSz                       ) ;
 
 //
 // structs

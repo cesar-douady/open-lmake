@@ -21,7 +21,7 @@ enum class DaemonCacheRpcProc : uint8_t {
 
 namespace Caches {
 
-	struct DaemonCache : Cache { // PER_CACHE : inherit from Cache and provide implementation
+	struct DaemonCache : Cache {          // PER_CACHE : inherit from Cache and provide implementation
 		using Proc = DaemonCacheRpcProc ;
 
 		struct Config {
@@ -74,18 +74,19 @@ namespace Caches {
 			template<IsStream S> void serdes(S& s) {
 				::serdes( s , proc ) ;
 				switch (proc) {
-					case Proc::None     :                                  break ;
-					case Proc::Config   : ::serdes( s , config         ) ; break ;
-					case Proc::Download : ::serdes( s , hit_info,dir_s ) ; break ;
-					case Proc::Upload   : ::serdes( s , upload_key     ) ; break ;
-				DF}                                                                // NO_COV
+					case Proc::None     :                                    break ;
+					case Proc::Config   : ::serdes( s , config           ) ; break ;
+					case Proc::Download : ::serdes( s , hit_info  ,dir_s ) ; break ;
+					case Proc::Upload   : ::serdes( s , upload_key,msg   ) ; break ;
+				DF}                                                                  // NO_COV
 			}
 			// data
 			Proc         proc       = Proc::None ;
-			CacheHitInfo hit_info   = {}         ;                                 // if proc=Download
-			::string     dir_s      = {}         ;                                 // if proc=Download, dir in which data and info files lie
-			uint64_t     upload_key = 0          ;                                 // if proc=Upload
-			Config       config     = {}         ;                                 // if proc==Config
+			CacheHitInfo hit_info   = {}         ;                                   // if proc=Download
+			::string     dir_s      = {}         ;                                   // if proc=Download, dir in which data and info files lie
+			uint64_t     upload_key = 0          ;                                   // if proc=Upload
+			::string     msg        = {}         ;                                   // if proc=Upload and upload_key=0
+			Config       config     = {}         ;                                   // if proc==Config
 		} ;
 
 		static constexpr uint64_t Magic = 0x604178e6d1838dce ;                                             // any random improbable value!=0 used as a sanity check when client connect to server

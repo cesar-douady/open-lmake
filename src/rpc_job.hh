@@ -730,9 +730,13 @@ namespace Caches {
 		} ;
 		struct SubUploadDigest {
 			friend ::string& operator+=( ::string& , SubUploadDigest const& ) ;
-			::string file       ;
+			// services
+			bool operator+() const { return upload_key ; }
+			// data
+			::string file       = {} ;
 			::string pfx        = {} ;                                                                      // to be written to file before data
 			uint64_t upload_key = 0  ;
+			::string msg        = {} ;
 			PermExt  perm_ext   = {} ;
 		} ;
 		// statics

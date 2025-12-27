@@ -369,7 +369,7 @@ int main( int argc , char* argv[] ) {
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;
-				end_report.msg_stderr.msg <<"cannot cache : "<<e<<'\n' ;
+				end_report.msg_stderr.msg <<"cannot upload to cache : "<<e<<'\n' ;
 			}
 			CommentExts ces ; if (!upload_key) ces |= CommentExt::Err ;
 			g_user_trace->emplace_back( New/*date*/ , Comment::UploadedToCache , ces , cat(g_start_info.cache->tag(),':',g_start_info.zlvl) ) ;

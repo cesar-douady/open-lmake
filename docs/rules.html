@@ -255,7 +255,7 @@ This means:</p>
 <p>When a job is executed, its results are stored in the cache.
 If space is needed (all caches are constrained in size), any other entry can be replaced.
 The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.</p>
-<h3 id="check_abs_paths"><a class="header" href="#check_abs_paths"><a href="file:///home/cdy/open-lmake/docs/unit_tests/check_abs_paths.html#:~:text=Bad%28Rule%29%20%3A-,check%5Fabs%5Fpaths%20%3D%20True"><code>check_abs_paths</code></a></a></h3>
+<h3 id="check_abs_paths"><a class="header" href="#check_abs_paths"><a href="unit_tests/check_abs_paths.html#:~:text=Bad%28Rule%29%20%3A-,check%5Fabs%5Fpaths%20%3D%20True"><code>check_abs_paths</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
 </tbody></table>
@@ -380,12 +380,12 @@ Hence they lack the initial <code>f</code> in front of the string.</p>
 Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple</code>'s.</p>
 <div class="table-wrapper"><table><thead><tr><th>CamelCase</th><th>snake_case</th><th>Default</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>Essential</code></td><td><code>essential</code></td><td>Yes</td><td>This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.</td></tr>
-<tr><td><code>Critical</code></td><td><code>critical</code></td><td>No</td><td>This dep is <a href="critical_deps.html">critical</a>.</td></tr>
-<tr><td><code>IgnoreError</code></td><td><code>ignore_error</code></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
-<tr><td><code>ReaddirOk</code></td><td><code>readdir_ok</code></td><td>No</td><td>This dep may be read as a dir (using <code>readdir</code> (3)) without error.</td></tr>
+<tr><td><code>Critical</code></td><td><a href="unit_tests/critical.html#:~:text=%27critical"><code>critical</code></a></td><td>No</td><td>This dep is <a href="critical_deps.html">critical</a>.</td></tr>
+<tr><td><code>IgnoreError</code></td><td><a href="unit_tests/ignore_err.html#:~:text=%27IgnoreError"><code>ignore_error</code></a></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
+<tr><td><code>ReaddirOk</code></td><td><a href="unit_tests/wine.html#:~:text=%27readdir%5Fok"><code>readdir_ok</code></a></td><td>No</td><td>This dep may be read as a dir (using <code>readdir</code> (3)) without error.</td></tr>
 <tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
 <tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
-<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. <a href="experimental_subrepos.html">subrepos</a>.</td></tr>
+<tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. <a href="experimental_subrepos.html">subrepos</a>).</td></tr>
 </tbody></table>
 </div>
 <p>Flag order and dep order are not significative.</p>
@@ -721,12 +721,12 @@ If a regular expression requires unbalanced <code>{}</code>, it must be put in a
 Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple</code>'s.</p>
 <div class="table-wrapper"><table><thead><tr><th>CamelCase</th><th>snake_case</th><th>Default</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>Essential</code></td><td><code>essential</code></td><td>Yes</td><td>This target will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.</td></tr>
-<tr><td><code>Incremental</code></td><td><code>incremental</code></td><td>No</td><td>Previous content may be used to produce these targets.  Cf note (1).</td></tr>
+<tr><td><code>Incremental</code></td><td><a href="unit_tests/incremental.html#:~:text=%27incremental"><code>incremental</code></a></td><td>No</td><td>Previous content may be used to produce these targets.  Cf note (1).</td></tr>
 <tr><td><code>Optional</code></td><td><code>optional</code></td><td>No</td><td>If this target is not generated, it is not deemed to be produced by the job. Cf note (2).</td></tr>
-<tr><td><code>Phony</code></td><td><code>phony</code></td><td>No</td><td>Accept that this target is not generated, in which case it is deemed generated even not physically on disk. Cf note (3).</td></tr>
-<tr><td><code>SourceOk</code></td><td><code>source_ok</code></td><td>No</td><td>Do not generate an error if target is actually a source</td></tr>
+<tr><td><code>Phony</code></td><td><a href="unit_tests/regression.html#:~:text=%27phony"><code>phony</code></a></td><td>No</td><td>Accept that this target is not generated, in which case it is deemed generated even not physically on disk. Cf note (3).</td></tr>
+<tr><td><code>SourceOk</code></td><td><a href="unit_tests/regression.html#:~:text=%27source%5Fok"><code>source_ok</code></a></td><td>No</td><td>Do not generate an error if target is actually a source</td></tr>
 <tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
-<tr><td><code>NoWarning</code></td><td><code>no_warning</code></td><td>No</td><td>Warning is not reported if a target is either uniquified or unlinked before job execution while generated by another job.</td></tr>
+<tr><td><code>NoWarning</code></td><td><a href="unit_tests/repo.html#:~:text=%27no%5Fwarning"><code>no_warning</code></a></td><td>No</td><td>Warning is not reported if a target is uniquified or unlinked before job execution while generated by another job.</td></tr>
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Target pattern is interpreted relative to the root dir of the repo, else it is relative to the <code>cwd</code> of the rule.</td></tr>
 </tbody></table>
 </div>

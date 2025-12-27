@@ -914,6 +914,8 @@ namespace Caches {
 		SubUploadDigest sub_digest = sub_upload( exe_time , z_max_sz ) ;
 		//
 		trace("max_size",z_max_sz) ;
+		//
+		throw_unless( +sub_digest , sub_digest.msg ) ;
 		try {
 			AcFd      fd      { sub_digest.file , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.perm_ext=sub_digest.perm_ext,.nfs_guard=nfs_guard} } ; if (+sub_digest.pfx) fd.write(sub_digest.pfx) ;
 			DeflateFd data_fd { ::move(fd) , zlvl                                                                                                } ;

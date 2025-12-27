@@ -36,15 +36,12 @@ DaemonCache::RpcReply download(DaemonCache::RpcReq const& crr) {
 
 DaemonCache::RpcReply upload(DaemonCache::RpcReq const& crr) {
 	Trace trace("upload",crr) ;
+	//
+	if (!mk_room(crr.reserved_sz)) return {.proc=DaemonCache::Proc::Upload} ; // no upload possible
+	//
 	uint64_t upload_key = _g_upload_keys.acquire() ;
-	//
-	mk_room(crr.reserved_sz) ;
 	grow(_g_reserved_szs,upload_key) = crr.reserved_sz ;
-	//
-	return {
-		.proc       = DaemonCache::Proc::Upload
-	,	.upload_key = upload_key
-	} ;
+	return { .proc=DaemonCache::Proc::Upload , .upload_key = upload_key } ;
 }
 
 void commit(DaemonCache::RpcReq const& crr) {

@@ -103,7 +103,7 @@ When a job is executed, its results are stored in the cache.
 If space is needed (all caches are constrained in size), any other entry can be replaced.
 The cache replacement policy (described in its own section, in the config chapter) tries to identify entries that are likely to be useless in the future.
 
-### [`check_abs_paths`](file:///home/cdy/open-lmake/docs/unit_tests/check_abs_paths.html#:~:text=Bad%28Rule%29%20%3A-,check%5Fabs%5Fpaths%20%3D%20True)
+### [`check_abs_paths`](unit_tests/check_abs_paths.html#:~:text=Bad%28Rule%29%20%3A-,check%5Fabs%5Fpaths%20%3D%20True)
 
 | Inheritance | Type   | Default | Dynamic | Example |
 |-------------|--------|---------|---------|---------|
@@ -257,15 +257,15 @@ Alternatively, values can also be `list` or `tuple` whose first item is as descr
 The flags may be any combination of the following flags, optionally preceded by - to turn it off.
 Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
 
-| CamelCase     | snake\_case    | Default | Description                                                                                                                     |
-|---------------|----------------|---------|---------------------------------------------------------------------------------------------------------------------------------|
-| `Essential`   | `essential`    | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.                             |
-| `Critical`    | `critical`     | No      | This dep is [critical](critical_deps.html).                                                                                     |
-| `IgnoreError` | `ignore_error` | No      | This dep may be in error, job will be launched anyway.                                                                          |
-| `ReaddirOk`   | `readdir_ok`   | No      | This dep may be read as a dir (using `readdir` (3)) without error.                                                              |
-| `Required`    | `required`     | No      | This dep is deemed to be read, even if not actually read by the job.                                                            |
-| `NoStar`      | `no_star`      | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                                                       |
-| `Top`         | `top`          | No      | Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. [subrepos](experimental_subrepos.html ). |
+| CamelCase     | snake\_case                                                         | Default | Description                                                                                                                     |
+|---------------|---------------------------------------------------------------------|---------|-----------------------------------------------------------------------------------------------------|
+| `Essential`   | `essential`                                                         | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect. |
+| `Critical`    | [`critical`](unit_tests/critical.html#:~:text=%27critical)          | No      | This dep is [critical](critical_deps.html).                                                         |
+| `IgnoreError` | [`ignore_error`](unit_tests/ignore_err.html#:~:text=%27IgnoreError) | No      | This dep may be in error, job will be launched anyway.                                              |
+| `ReaddirOk`   | [`readdir_ok`](unit_tests/wine.html#:~:text=%27readdir%5Fok)        | No      | This dep may be read as a dir (using `readdir` (3)) without error.                                  |
+| `Required`    | `required`                                                          | No      | This dep is deemed to be read, even if not actually read by the job.                                |
+| `NoStar`      | `no_star`                                                           | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                           |
+| `Top`         | `top`                                        | No | Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. [subrepos](experimental_subrepos.html)). |
 
 Flag order and dep order are not significative.
 
@@ -705,16 +705,16 @@ The flags may be any combination of the following flags, optionally preceded by 
 Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
 
 
-| CamelCase     | snake\_case   | Default | Description                                                                                                               |
-|---------------|---------------|---------|---------------------------------------------------------------------------------------------------------------------------|
-| `Essential`   | `essential`   | Yes     | This target will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.                    |
-| `Incremental` | `incremental` | No      | Previous content may be used to produce these targets.  Cf note (1).                                                      |
-| `Optional`    | `optional`    | No      | If this target is not generated, it is not deemed to be produced by the job. Cf note (2).                                 |
-| `Phony`       | `phony`       | No      | Accept that this target is not generated, in which case it is deemed generated even not physically on disk. Cf note (3).  |
-| `SourceOk`    | `source_ok`   | No      | Do not generate an error if target is actually a source                                                                   |
-| `NoStar`      | `no_star`     | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                                                 |
-| `NoWarning`   | `no_warning`  | No      | Warning is not reported if a target is either uniquified or unlinked before job execution while generated by another job. |
-| `Top`         | `top`         | No      | Target pattern is interpreted relative to the root dir of the repo, else it is relative to the `cwd` of the rule.         |
+| CamelCase   | snake\_case                                                 | Default | Description                                                                                                    |
+|-------------|-------------------------------------------------------------|---------|----------------------------------------------------------------------------------------------------------------|
+| `Essential` |   `essential`                                               | Yes     | This target will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.         |
+| `Incremental` | [`incremental`](unit_tests/incremental.html#:~:text=%27incremental) | No | Previous content may be used to produce these targets.  Cf note (1).                                      |
+| `Optional`  |   `optional`                                                | No      | If this target is not generated, it is not deemed to be produced by the job. Cf note (2).                      |
+| `Phony`     | [`phony`](unit_tests/regression.html#:~:text=%27phony) | No | Accept that this target is not generated, in which case it is deemed generated even not physically on disk. Cf note (3). |
+| `SourceOk`  | [`source_ok`](unit_tests/regression.html#:~:text=%27source%5Fok) | No  | Do not generate an error if target is actually a source                                                       |
+| `NoStar`    |  `no_star`                                                       | Yes | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                                     |
+| `NoWarning` | [`no_warning`](unit_tests/repo.html#:~:text=%27no%5Fwarning) | No | Warning is not reported if a target is uniquified or unlinked before job execution while generated by another job. |
+| `Top`       |  `top`                                                       | No | Target pattern is interpreted relative to the root dir of the repo, else it is relative to the `cwd` of the rule.  |
 
 All targets must have the same set of static stems (i.e. stems with no `*` in its name).
 

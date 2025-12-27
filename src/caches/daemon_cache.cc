@@ -101,11 +101,8 @@ namespace Caches {
 		OMsgBuf( RpcReq{ .proc=Proc::Upload , .reserved_sz=max_sz } ).send(fd) ;
 		auto reply = _imsg.receive<RpcReply>( fd , Maybe/*once*/ ) ;
 		//
-		return {
-			.file       = dir_s + s_reserved_file(reply.upload_key)
-		,	.upload_key = reply.upload_key
-		,	.perm_ext   = config_.perm_ext
-		} ;
+		if (reply.upload_key) return { .file=dir_s+s_reserved_file(reply.upload_key) , .upload_key=reply.upload_key , .perm_ext=config_.perm_ext } ;
+		else                  return { .msg=reply.msg                                                                                            } ;
 	}
 
 	void DaemonCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {

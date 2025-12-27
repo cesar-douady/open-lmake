@@ -136,9 +136,12 @@ void daemon_cache_finalize() {
 	nfs_guard.change(dir_s+"crcs"     ) ;
 }
 
-void mk_room(DiskSz sz) {
+bool/*ok*/ mk_room(DiskSz sz) {
 	CrunHdr& hdr = CrunData::s_hdr() ;
 	Trace trace("mk_room",sz,hdr.total_sz,_g_reserved_sz) ;
+	//
+	if (_g_reserved_sz+sz>g_config.max_sz) { trace("not_done") ; return false/*ok*/ ; }
+	//
 	RateCmp::s_refresh() ;
 	while ( hdr.total_sz && hdr.total_sz+_g_reserved_sz+sz>g_config.max_sz ) {
 		SWEAR( +RateCmp::s_tab ) ;                                             // if total size is non-zero, we must have entries
@@ -148,6 +151,7 @@ void mk_room(DiskSz sz) {
 	}
 	_g_reserved_sz += sz ;
 	trace("done",sz,hdr.total_sz,_g_reserved_sz) ;
+	return true/*ok*/ ;
 }
 
 void release_room(DiskSz sz) {
