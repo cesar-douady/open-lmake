@@ -55,7 +55,6 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* in lshow -d, show codec files in more user-friendly way
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly
@@ -209,7 +208,7 @@ M port to Darwin
 ****************************************************************************************************
 
 * communicate with daemon-cache using Cnode/Cjob rather than file names/job names
-	- easier to code when cache is not a plugin
+	- easier to code when cache is no more a plugin (i.e. when dir-cache is abandoned)
 	- maintain a map mapping Node->Cnode and Job->Cjob in lmake_server
 	- avoid searching through names on both sides
 	- communicate using Cnode/Cjob if known, else with names

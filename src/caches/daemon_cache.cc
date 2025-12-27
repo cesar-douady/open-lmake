@@ -83,12 +83,16 @@ namespace Caches {
 
 	::pair<Cache::DownloadDigest,AcFd> DaemonCache::sub_download( ::string const& job , MDD const& repo_deps ) {
 		OMsgBuf( RpcReq{ .proc=Proc::Download , .job=job , .repo_deps=repo_deps } ).send(_fd) ;
-		auto     reply     = _imsg.receive<RpcReply>( _fd , Maybe/*once*/ ) ;
-		NfsGuard nfs_guard { config_.file_sync }                            ;
-		if (reply.hit_info>=CacheHitInfo::Miss) return { DownloadDigest{.hit_info=reply.hit_info} , AcFd() } ;                                             // XXX/ : gcc 11&12 require explicit types
+		auto reply = _imsg.receive<RpcReply>( _fd , Maybe/*once*/ ) ;
+		//
+		if (reply.hit_info>=CacheHitInfo::Miss) return { DownloadDigest{.hit_info=reply.hit_info} , AcFd() } ; // XXX/ : gcc 11&12 require explicit types
+		//
+		NfsGuard nfs_guard { config_.file_sync                                      } ;
+		AcFd     info_fd   { {_dir_fd,reply.dir_s+"info"} , {.nfs_guard=&nfs_guard} } ;                        // open as soon as possible as entry could disappear
+		AcFd     data_fd   { {_dir_fd,reply.dir_s+"data"} , {.nfs_guard=&nfs_guard} } ;                        // .
 		return {
-			DownloadDigest{ .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(AcFd({_dir_fd,reply.dir_s+"info"},{.nfs_guard=&nfs_guard}).read()) } // .
-		,	                                                                          AcFd({_dir_fd,reply.dir_s+"data"},{.nfs_guard=&nfs_guard})
+			DownloadDigest{ .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }        // XXX/ : gcc 11&12 require explicit types
+		,	::move(data_fd)
 		} ;
 	}
 

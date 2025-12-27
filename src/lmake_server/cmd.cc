@@ -249,13 +249,15 @@ namespace Engine {
 	}
 
 	static Color _node_color( Node n , Bool3 hide=Maybe ) {
-		if ( hide==Yes                                 ) return Color::HiddenNote                          ;
-		if ( n->ok()==No                               ) return Color::Err                                 ;
-		if ( n->crc==Crc::None                         ) return hide==No ? Color::None : Color::HiddenNote ;
-		n->set_buildable() ;                                                                                 // for has_file() and is_src_anti()
-		if (  n->has_file()==No                        ) return Color::Warning                             ;
-		if ( !n->is_src_anti() && !n->has_actual_job() ) return Color::Warning                             ;
-		/**/                                             return {}                                         ;
+		if ( hide==Yes                     ) return Color::HiddenNote                          ;
+		if ( n->ok()==No                   ) return Color::Err                                 ;
+		if ( n->crc==Crc::None             ) return hide==No ? Color::None : Color::HiddenNote ;
+		n->set_buildable() ;
+		if ( n->buildable==Buildable::Codec) return {}                                         ;
+		if ( n->is_src_anti()              ) return {}                                         ;
+		if ( n->has_file()==No             ) return Color::Warning                             ;
+		if (!n->has_actual_job()           ) return Color::Warning                             ;
+		/**/                                 return {}                                         ;
 	}
 
 	static Color _job_color( Job j , bool hide=false ) {
@@ -271,24 +273,24 @@ namespace Engine {
 	static void _audit_node( Fd fd , ReqOptions const& ro , bool verbose , Bool3 hide , ::string const& pfx , Node node , DepDepth lvl=0 ) {
 		Color color = _node_color( node , hide ) ;
 		//
-		if ( verbose || color!=Color::HiddenNote ) {
-			if (+pfx) audit( fd , ro , color , pfx+' '+mk_file(node->name()) , false/*as_is*/ , lvl ) ;
-			else      audit( fd , ro , color ,         mk_file(node->name()) , false/*as_is*/ , lvl ) ;
+		if ( verbose || color!=Color::HiddenNote ) { //!                       as_is
+			if (+pfx) audit( fd , ro , color , pfx+' '+mk_file(node->name()) , false , lvl ) ;
+			else      audit( fd , ro , color ,         mk_file(node->name()) , false , lvl ) ;
 		}
 	}
 
 	static void _audit_job( Fd fd , ReqOptions const& ro , bool hide , Job job , ::string pfx={} , ::string const& comment={} , ::string const& sfx={} , DepDepth lvl=0 ) {
-		Color color      = _job_color( job , hide )      ;
-		Rule  rule       = job->rule()                   ;
-		bool  porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+		Color    color      = _job_color( job , hide )      ;
+		Rule     rule       = job->rule()                   ;
+		bool     porcelaine = ro.flags[ReqFlag::Porcelaine] ;
 		::string l          ;
-		if (+pfx) l << pfx <<' ' ;
+		if (+pfx) l << pfx<<' ' ;
 		if (porcelaine) {
-			l <<"( "<< mk_py_str(+rule?rule->name:""s) <<" , "<< mk_py_str(job->name()) <<" , "<< mk_py_str(comment) <<" )" ;
+			l << "( "<<mk_py_str(+rule?rule->name:""s)<<" , "<<mk_py_str(job->name())<<" , "<<mk_py_str(comment)<<" )" ;
 		} else {
-			if (+rule   ) l << rule->user_name() <<' ' ;
-			/**/          l << mk_file(job->name())    ;
-			if (+comment) l <<" ("<< comment <<')'     ;
+			if (+rule   ) l <<      rule->user_name()    <<' ' ;
+			/**/          l <<      mk_file(job->name())       ;
+			if (+comment) l <<' '<< '('<<comment<<')'          ;
 		}
 		if (+sfx) l <<' '<< sfx ;
 		audit( fd , ro , color , l , porcelaine/*as_is*/ , lvl ) ;
@@ -301,14 +303,14 @@ namespace Engine {
 		size_t            wk         = 0                             ;
 		size_t            wf         = 0                             ;
 		::umap_ss         rev_map    ;
-		::vector<Color  > dep_colors ;                                       // indexed before filtering
-		::vector<NodeIdx> dep_groups ;                                       // indexed after  filtering, deps in given group are parallel
+		::vector<Color  > dep_colors ;                                                                                   // indexed before filtering
+		::vector<NodeIdx> dep_groups ;                                                                                   // indexed after  filtering, deps in given group are parallel
 		NodeIdx           dep_group  = 0                             ;
 		::vmap_s<RegExpr> res        ;
 		if (+rule) {
 			Rule::RuleMatch m = job->rule_match() ;
-			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {       // this cannot fail as we already have the job
-				if (rev_map.try_emplace(d.txt,k).second) {                   // in case of multiple matches, retain first
+			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {                                                   // this cannot fail as we already have the job
+				if (rev_map.try_emplace(d.txt,k).second) {                                                               // in case of multiple matches, retain first
 					if (porcelaine) wk = ::max( wk , mk_py_str(k).size() ) ;
 					else            wk = ::max( wk ,           k .size() ) ;
 				}
@@ -317,17 +319,14 @@ namespace Engine {
 			VarIdx            i             = 0                 ;
 			for( MatchKind mk : iota(All<MatchKind>) )
 				for( VarIdx mi : rule->matches_iotas[true/*star*/][+mk] ) {
-					if (mk!=MatchKind::Target) {                             // deps cannot be found in targets, but they can in side_targets
-						::string const& k = rule->matches[mi].first ;
-						if (porcelaine) wk = ::max( wk , mk_py_str(k).size() ) ;
-						else            wk = ::max( wk ,           k .size() ) ;
-						res.emplace_back( k , RegExpr(star_patterns[i]) ) ;
-					}
+					if (mk!=MatchKind::Target) res.emplace_back( rule->matches[mi].first , RegExpr(star_patterns[i]) ) ; // deps cannot be found in targets, but they can in side_targets
 					i++ ;
 				}
 		}
 		for( Dep const& d : job->deps ) {
 			Color c = _node_color( d , (Maybe&!d.dflags[Dflag::Required])|hide ) ;
+			if ( !d.up_to_date()                      ) c = ::max( c , Color::Warning ) ;
+			if ( d.is_crc && d.crc()==Crc::None && !c ) c = Color::HiddenNote           ;
 			dep_colors.push_back(c) ;
 			if ( !d.parallel                      ) dep_group++ ;
 			if ( !verbose && c==Color::HiddenNote ) continue ;
@@ -335,29 +334,40 @@ namespace Engine {
 			if (porcelaine) wc = ::max( wc , mk_py_str(d.crc_str()).size() ) ;
 			else            wc = ::max( wc ,           d.crc_str() .size() ) ;
 			if (porcelaine) wf = ::max( wf , mk_py_str(d->name()  ).size() ) ;
+			::string        dn = d->name() ;
+			::string const* dk = nullptr   ;
+			if (d.dflags[Dflag::Static])                                                       dk = &rev_map.at(dn) ;
+			else                           for ( auto const& [k,e] : res ) if (+e.match(dn)) { dk = &k              ; break ; }
+			if (dk) {
+				if (porcelaine) wk = ::max( wk , mk_py_str(*dk).size() ) ;
+				else            wk = ::max( wk ,            dk->size() ) ;
+			} else {
+				if (porcelaine) wk = ::max( wk , size_t(4/*None*/) ) ;
+			}
 		}
-		NodeIdx di1          = 0 ;                                           // before filtering
-		NodeIdx di2          = 0 ;                                           // after  filtering
+		NodeIdx di1          = 0 ;                                                                                       // before filtering
+		NodeIdx di2          = 0 ;                                                                                       // after  filtering
 		NodeIdx n_dep_groups = 0 ;
 		if (porcelaine) audit( fd , ro , "(" , true/*as_is*/ , lvl ) ;
 		for( Dep const& dep : job->deps ) {
 			Color c = dep_colors[di1++] ;
 			if ( !verbose && c==Color::HiddenNote ) continue ;
-			NodeIdx    dep_group   = dep_groups[di2]                                                       ;
-			bool       start_group = di2  ==0                 || dep_group!=dep_groups[di2-1]              ;
-			bool       end_group   = di2+1==dep_groups.size() || dep_group!=dep_groups[di2+1]              ;
-			auto       it          = dep.dflags[Dflag::Static] ? rev_map.find(dep->name()) : rev_map.end() ;
-			::string   dep_key     ;
+			NodeIdx         dep_group   = dep_groups[di2]                                          ;
+			bool            start_group = di2  ==0                 || dep_group!=dep_groups[di2-1] ;
+			bool            end_group   = di2+1==dep_groups.size() || dep_group!=dep_groups[di2+1] ;
+			::string        dep_name    = dep->name()                                              ;
+			::string const* dep_key     = nullptr                                                  ;
+			::string        dep_str     ;
 			di2++ ;
-			if (it!=rev_map.end())                                                              dep_key = it->second ;
-			else                   for ( auto const& [k,e] : res ) if (+e.match(dep->name())) { dep_key = k          ; break ; }
+			if (dep.dflags[Dflag::Static])                                                           dep_key = &rev_map.at(dep_name) ;
+			else                           for ( auto const& [k,e] : res ) if (+e.match(dep_name)) { dep_key = &k                    ; break ; }
 			if (porcelaine) {
-				::string     dep_str = "( " ;
-				/**/         dep_str <<              mk_py_str(dep.dflags_str  ())     ;
+				/**/         dep_str <<"( " <<       mk_py_str(dep.dflags_str  ())     ;
 				/**/         dep_str <<" , "<<       mk_py_str(dep.accesses_str())     ;
-				if (verbose) dep_str <<" , "<< widen(mk_py_str(dep.crc_str()     ),wc) ;
-				/**/         dep_str <<" , "<< widen(mk_py_str(dep_key           ),wk) ;
-				/**/         dep_str <<" , "<< widen(mk_py_str(dep->name()       ),wf) ;
+				if (verbose) dep_str <<" , "<< widen(mk_py_str(dep.crc_str     ()),wc) ;
+				if (dep_key) dep_str <<" , "<< widen(mk_py_str(*dep_key          ),wk) ;
+				else         dep_str <<" , "<< widen("None"                       ,wk) ;
+				/**/         dep_str <<" , "<< widen(mk_py_str(dep_name          ),wf) ;
 				/**/         dep_str <<" )"                                            ;
 				//                                                                                                       as_is
 				if      (  start_group &&  end_group ) audit( fd , ro , cat(n_dep_groups?',':' '," { ",dep_str," }"   ) , true , lvl ) ;
@@ -365,18 +375,17 @@ namespace Engine {
 				else if ( !start_group && !end_group ) audit( fd , ro , cat(' '                 ," , ",dep_str        ) , true , lvl ) ;
 				else                                   audit( fd , ro , cat(' '                 ," , ",dep_str,"\n  }") , true , lvl ) ;
 			} else {
-				if ( !c && !dep.up_to_date() ) c = Color::Warning ;
+				using namespace Codec ;
 				//
-				::string                               dep_str =       dep.dflags_str  ()      ;
-				/**/                                   dep_str <<' '<< dep.accesses_str()      ;
-				if      ( verbose                    ) dep_str <<' '<< widen(dep.crc_str(),wc) ;
-				/**/                                   dep_str <<' '<< widen(dep_key      ,wk) ;
-				/**/                                   dep_str <<' '                           ;
-				if      (  start_group &&  end_group ) dep_str <<      ' '                     ;
-				else if (  start_group && !end_group ) dep_str <<      '/'                     ;
-				else if ( !start_group && !end_group ) dep_str <<      '|'                     ;
-				else                                   dep_str <<      '\\'                    ;
-				/**/                                   dep_str <<' '<< mk_file(dep->name())    ;
+				/**/                                                                   dep_str <<            dep.dflags_str  ()                                                                    ;
+				/**/                                                                   dep_str <<' '<<       dep.accesses_str()                                                                    ;
+				if      ( verbose                                                    ) dep_str <<' '<< widen(dep.crc_str     (),wc)                                                                ;
+				if      ( dep_key                                                    ) dep_str <<' '<< widen(*dep_key          ,wk)                                                                ;
+				else                                                                   dep_str <<' '<< widen(""                ,wk)                                                                ;
+				/**/                                                                   dep_str <<' '<< "|\\/ "[2*start_group+end_group]                                                            ;
+				if      (                           !CodecFile::s_is_codec(dep_name) ) dep_str <<' '<< mk_file(dep_name)                                                                           ;
+				else if ( CodecFile cdf{dep_name} ; cdf.is_encode()                  ) dep_str <<' '<< "encode : file="<<cdf.file<<" , context="<<cdf.ctx<<" , val_checksum="<<cdf.val_crc().hex() ;
+				else                                                                   dep_str <<' '<< "decode : file="<<cdf.file<<" , context="<<cdf.ctx<<" , code="        <<cdf.code   ()       ;
 				audit( fd , ro , c , dep_str , false/*as_is*/ , lvl ) ;
 			}
 			n_dep_groups += end_group ;
@@ -924,7 +933,6 @@ namespace Engine {
 								if ( start.autodep_env.readdir_ok) push_entry( "readdir_ok"    , "true"                                  ) ;
 								if ( start.autodep_env.auto_mkdir) push_entry( "auto_mkdir"    , "true"                                  ) ;
 								/**/                               push_entry( "autodep"       , snake_str(start.method)                 ) ;
-								if ( start.chk_abs_paths         ) push_entry( "chk_abs_paths" , "true"                                  ) ;
 								if (+start.timeout               ) push_entry( "timeout"       , start.timeout.short_str()               ) ;
 								if ( start.use_script            ) push_entry( "use_script"    , "true"                                  ) ;
 								//

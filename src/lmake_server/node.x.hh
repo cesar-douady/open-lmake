@@ -26,9 +26,9 @@ enum class Buildable : uint8_t {
 } ;
 // END_OF_VERSIONING
 struct BuildableAttrsEntry {
-	Bool3 has_file ;
+	Bool3 has_file    ;
 	bool  is_src_anti ;
-	Bool3 has_job  ;             // if Maybe, there is a rule but no job
+	Bool3 has_job     ;          // if Maybe, there is a rule but no job
 } ;
 static constexpr ::amap<Buildable,BuildableAttrsEntry,N<Buildable>> BuildableAttrs {{
 	//                         has_file is_src_anti has_job
