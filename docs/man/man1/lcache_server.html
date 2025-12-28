@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sun Dec 28 14:44:25 2025 -->
+<!-- CreationDate: Sun Dec 28 18:34:36 2025 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -13,12 +13,12 @@
        table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
        h1      { text-align: center }
 </style>
-<title>LDAEMON_CACHE_SERVER</title>
+<title>LCACHE_SERVER</title>
 
 </head>
 <body>
 
-<h1 align="center">LDAEMON_CACHE_SERVER</h1>
+<h1 align="center">LCACHE_SERVER</h1>
 
 <a href="#NAME">NAME</a><br>
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
@@ -37,9 +37,8 @@
 </h2>
 
 
-
-<p style="margin-left:9%; margin-top: 1em">ldaemon_cache_server
-- the server that actually executes requests to daemon-based
+<p style="margin-left:9%; margin-top: 1em">lcache_server -
+the server that actually executes requests to daemon-based
 caches</p>
 
 <h2>SYNOPSIS
@@ -48,7 +47,7 @@ caches</p>
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>ldaemon_cache_server</b>
+<p style="margin-left:9%; margin-top: 1em"><b>lcache_server</b>
 [<i>OPTION</i>]... [<i>FILE</i>]...</p>
 
 <h2>DESCRIPTION
@@ -57,7 +56,7 @@ caches</p>
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>ldaemon_cache_server</b>
+<p style="margin-left:9%; margin-top: 1em"><b>lcache_server</b>
 actually executes requests to daemon-based caches. It takes
 no options and a single argument which is the dir containing
 the cached data and meta-data. Supported options are
@@ -188,7 +187,7 @@ reinitialized</p> </td></tr>
 
 
 
-<p style="margin-left:9%; margin-top: 1em">lmake_daemon_cache_server</p>
+<p style="margin-left:9%; margin-top: 1em">lcache_server</p>
 
 <h2>FILES
 <a name="FILES"></a>
@@ -201,8 +200,8 @@ searched in the current dir and in parent dirs. If a single
 one is found, this determines the root of the repo. If
 several are found, the existence of an <i>LMAKE</i> dir is
 checked. If a single one is found, this determines the root
-of the repo. In other cases, <b>ldaemon_cache_server</b>
-will not start.</p>
+of the repo. In other cases, <b>lcache_server</b> will not
+start.</p>
 
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>
@@ -211,11 +210,11 @@ will not start.</p>
 
 
 <p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
-<b>lcheck_deps</b>(1), <b>lcollect</b>(1), <b>ldebug</b>(1),
-<b>ldecode</b>(1), <b>ldepend</b>(1),
-<b>ldir_cache_repair</b>(1), <b>lencode</b>(1),
-<b>lforget</b>(1), <b>lmake</b>(1), <b>lmark</b>(1),
-<b>lmake_repair</b>(1), <b>lrun_cc</b>(1), <b>lshow</b>(1),
+<b>lcache_repair</b>(1), <b>lcheck_deps</b>(1),
+<b>lcollect</b>(1), <b>ldebug</b>(1), <b>ldecode</b>(1),
+<b>ldepend</b>(1), <b>lencode</b>(1), <b>lforget</b>(1),
+<b>lmake</b>(1), <b>lmark</b>(1), <b>lmake_repair</b>(1),
+<b>lmake_server</b>(1), <b>lrun_cc</b>(1), <b>lshow</b>(1),
 <b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
 
 <p style="margin-left:9%; margin-top: 1em">The python

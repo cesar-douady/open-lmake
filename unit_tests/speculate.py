@@ -8,10 +8,7 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
-	lmake.config.caches.my_cache = {
-		'tag' : 'daemon'
-	,	'dir' : lmake.repo_root+'/CACHE'
-	}
+	lmake.config.caches.my_cache = { 'dir':lmake.repo_root+'/CACHE' }
 
 	lmake.manifest = (
 		'Lmakefile.py'

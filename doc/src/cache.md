@@ -5,11 +5,9 @@
 
 # Cache
 
-## DaemonCache
-
-This cache is based on a shared dir controlled by a daemon.
+The cache is based on a shared dir controlled by a daemon.
 The daemon is started automatically when needed and dies as soon as it becomes useless.
-It is also possible to run it manually with the `ldaemon_cache_server` command.
+It is also possible to run it manually with the `lcache_server` command.
 
 It must be initialized with a file `LMAKE/config.py` defining some variables:
 
@@ -29,9 +27,9 @@ perm     = 'group'
 size     = '1.5T'
 ```
 
-### configuration
+## configuration
 
-In `Lmakefile.py`, `lmake.config.caches.<this_cache>` may be set to access a DirCache with the following attributes:
+In `Lmakefile.py`, `lmake.config.caches.<this_cache>` may be set to access a cache with the following attributes:
 
 | Attribute   |           | Possible values                     | Description                            |
 |-------------|-----------|-------------------------------------|----------------------------------------|
@@ -51,7 +49,7 @@ Such jobs may have run before or after the commit, hence they are:
 By keeping both, we get a reasonable compromize between pollution avoidance and anticipation of use by other users.
 
 
-### Permissions
+## Permissions
 
 For all users accessing the cache:
 
@@ -74,85 +72,7 @@ Similarly, to allow all users to have read/write access to all created dirs and 
 - The best approach is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
 - Alternatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
 
-### Coherence
-
-Some file systems, such as NFS, lack coherence.
-In that case, precautions must be taken to ensure coherence.
-
-This can be achieved by setting the `file_sync` variable in `LMAKE/config.py` to:
-
-| Value     | Recommanded for  | Default | Comment                                                                        |
-|-----------|------------------|---------|--------------------------------------------------------------------------------|
-| `'none'`  | local disk, CEPH |         | no precaution, file system is coherent                                         |
-| `'dir'`   | NFS              | X       | enclosing dir (recursively) is open before any read and closed after any write |
-| `'sync'`  |                  |         | `fsync` is called after any modification                                       |
-
-## DirCache
-
-This cache is based on a shared dir and requires no daemon.
-
-It must be initialized with a file `LMAKE/config.py` defining some variables:
-
-| Variable    | Default      | Possible values                                                     | Comment                                                                             |
-|-------------|--------------|---------------------------------------------------------------------|-------------------------------------------------------------------------------------|
-| `file_sync` | 'dir'        | `'none'`, `'dir'`, `'sync'`                                         | the method used to ensure consistent access to the file system containing the cache |
-| `perm`      | 'none'       | `'none'`, `'group'`, `'other'`                                      | the permissions to use when creating files in the cache, overriding current umask   |
-| `size`      | \<required\> | any `int` or a `str` composed of a number followed by a unit suffix | the overall size the cache is allowed to occupy                                     |
-
-Unit suffixes can be `k`, `M`, `G` or `T` (powers of 1024).
-
-For example `LMAKE/config.py` can contain:
-```
-perm = 'group'
-size = '1.5T'
-```
-
-### configuration
-
-In `Lmakefile.py`, `lmake.config.caches.<this_cache>` may be set to access a DirCache with the following attributes:
-
-| Attribute   |           | Possible values                     | Description                            |
-|-------------|-----------|-------------------------------------|----------------------------------------|
-| `dir`       | required  | a `str` containing an absolute path | the root dir of the cache              |
-| `repo_key`  | see below | a `str`                             | an identifier to avoid cache pollution |
-
-By default, the `repo_key` is made after the absolute root of the repo and the current git sha1 if repo is controlled by git.
-No more than 2 entries can be stored for any job with a given `repo_key`, the first time and the last time the `repo_key` is used.
-
-To avoid cache pollution when a repo evolves rapidly (which is typical during active development), the number of stored states must be limited as the cache is typically useless locally.
-However, when a repo is pushed, best is that the cache retains the jobs corresponding to what is pushed so that other users can download the results.
-Such jobs may have run before or after the commit, hence they are:
-
-- the last job of the previous commit sha1
-- or the first job of the current commit sha1
-
-By keeping both, we get a reasonable compromize between pollution avoidance and anticipation of use by other users.
-
-
-### Permissions
-
-For all users accessing the cache:
-
-- Its root dir and its `LMAKE` dir must have read/write access (including if only download is done to maintain the LRU state).
-- The `LMAKE/config.py` must have read access.
-
-If the group to use for access permission is not the default group of the users:
-
-- the root dir must have this group, e.g. with `chgrp -hR <group> <cache_dir>`.
-- its setgid bit must be set, e.g. with `chmod g+s <cache_dir> <cache_dir>/LMAKE` (this allows the group to propagate as sub-dirs are created)
-- the operation above may have to be done recursively if the cache dir is already populated
-
-To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:
-
-- Best is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
-- Alternatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
-
-Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:
-
-- Best is to the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
-- Alternatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
-
-### Coherence
+## Coherence
 
 Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.

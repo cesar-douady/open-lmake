@@ -113,10 +113,8 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="kn">from</span> <span class="nn">step</span> <span class="kn">import</span> <span class="n">cache_tag</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">caches</span><span class="o">.</span><span class="n">my_cache</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;tag&#39;</span> <span class="p">:</span> <span class="n">cache_tag</span>
-    <span class="p">,</span>   <span class="s1">&#39;dir&#39;</span> <span class="p">:</span> <span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="o">+</span><span class="s1">&#39;/CACHE&#39;</span>
-    <span class="p">}</span>
+    <span class="k">if</span> <span class="n">cache_tag</span> <span class="p">:</span> <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">caches</span><span class="o">.</span><span class="n">my_cache</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;tag&#39;</span><span class="p">:</span><span class="n">cache_tag</span> <span class="p">,</span> <span class="s1">&#39;dir&#39;</span><span class="p">:</span><span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="o">+</span><span class="s1">&#39;/CACHE&#39;</span> <span class="p">}</span>
+    <span class="k">else</span>         <span class="p">:</span> <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">caches</span><span class="o">.</span><span class="n">my_cache</span> <span class="o">=</span> <span class="p">{</span>                   <span class="s1">&#39;dir&#39;</span><span class="p">:</span><span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="o">+</span><span class="s1">&#39;/CACHE&#39;</span> <span class="p">}</span> <span class="c1"># defaults to tag=&#39;daemon&#39;</span>
 
     <span class="k">class</span> <span class="nc">Stable</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;stable{D:\d+}&#39;</span>
@@ -134,7 +132,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="k">for</span> <span class="n">cache_tag</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;dir&#39;</span><span class="p">,</span><span class="s1">&#39;daemon&#39;</span><span class="p">)</span> <span class="p">:</span>
+    <span class="k">for</span> <span class="n">cache_tag</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;dir&#39;</span><span class="p">,</span><span class="s1">&#39;&#39;</span><span class="p">)</span> <span class="p">:</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;cache_tag=</span><span class="si">{</span><span class="n">cache_tag</span><span class="si">!r}</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
         <span class="n">bck</span> <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;bck_</span><span class="si">{</span><span class="n">cache_tag</span><span class="si">}</span><span class="s1">&#39;</span>
 

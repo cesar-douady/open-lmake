@@ -243,8 +243,8 @@ LMAKE_SERVER_BIN_FILES := \
 	bin/lmark                    \
 	bin/lmake_repair             \
 	bin/ldir_cache_repair        \
-	bin/ldaemon_cache_server     \
-	bin/ldaemon_cache_repair     \
+	bin/lcache_server            \
+	bin/lcache_repair            \
 	bin/lmake_server             \
 	bin/lrun_cc                  \
 	bin/lshow                    \
@@ -590,7 +590,7 @@ bin/lmake_server bin/lmake_repair _bin/ldump _bin/lkpi :
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-bin/ldaemon_cache_server : \
+bin/lcache_server : \
 	$(LMAKE_BASIC_SAN_OBJS)                            \
 	src/app$(SAN).o                                    \
 	src/py$(SAN).o                                     \
@@ -609,7 +609,7 @@ bin/ldaemon_cache_server : \
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-bin/ldaemon_cache_repair : \
+bin/lcache_repair : \
 	$(LMAKE_BASIC_SAN_OBJS)                            \
 	src/app$(SAN).o                                    \
 	src/py$(SAN).o                                     \

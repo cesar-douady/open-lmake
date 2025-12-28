@@ -108,7 +108,7 @@ else :
 			ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check all is ok with dirs and empty files (mkdir.dut still exists ...
 			os.system(f'mkdir {bck}_2 ; mv LMAKE auto1 auto1.hide hello+auto1.hide {bck}_2')                           # ... and is unlinked)
 
-			assert os.system(f"rm -rf CACHE/auto1 ; l{cache_tag or 'daemon'}_cache_repair CACHE")==0
+			assert os.system(f"rm -rf CACHE/auto1 ; l{cache_tag}{'_' if cache_tag else ''}cache_repair CACHE")==0
 			ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 , unlinked=1                 , new=2 )
 			ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 )
 			os.system(f'mkdir {bck}_3 ; mv LMAKE CACHE *auto1* mkdir* {bck}_3')

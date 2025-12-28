@@ -286,12 +286,6 @@ By the way, the execution is lighter and code is not heavier.
 	- use `src/lmake_server/backends/local.cc` as a template
 	- run `git grep PER_BACKEND` to see all parts that must be modified
 
-* to add a cache:
-	- make files `src/lmake_server/caches/<your_cache>.hh` & `.cc`
-		- and git add them
-	- use `src/lmake_server/caches/dir_cache.hh` & `.cc` as a template
-	- run `git grep PER_CACHE` to see all parts that must be modified
-
 * to add a command handled by the server:
 	- make a file `src/<your_command>.cc`
 		- and `git add` it

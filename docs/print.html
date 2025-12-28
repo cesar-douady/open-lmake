@@ -179,7 +179,7 @@ But special attention has been devoted in its design to ensure that it is never 
 In case of any adverse event (lmake crashes or spurious system reboot),
 open-lmake automatically recovers potentially corrupted states in a safe way to avoid having to remake the whole project because a few files are corrupted.
 In extreme cases, there is a <code>lmake_repair</code> command that can recover all safe parts of a damaged repository.
-Similarly the <code>ldaemon_cache_repair</code> command is able to recover a damaged (or manually manipulated) cache dir.</p>
+Similarly the <code>lcache_repair</code> command is able to recover a damaged (or manually manipulated) cache dirs.</p>
 <p>Note that open-lmake does not only recover from its own flees, but also a lot of experience is embedded into it to work around system bugs.
 This includes for example NFS peculiar notion of close-to-open consistency (which does not apply to the dir containing the file) or jobs spuriously disappearing or starting twice.</p>
 <p>By efficient, we mean that jobs are run in parallel, optionally using a batcher such as SGE or slurm, managing limited resources as declared in <code>Lmakefile.py</code>.
@@ -1130,18 +1130,10 @@ It can be specified as a <code>int</code> or a <code>str</code> representing a n
 <p>This is the disk size in the temporary dir necessary for each job.
 It can be specified as a <code>int</code> or a <code>str</code> representing a number followed by a <a href="https://en.wikipedia.org/wiki/Metric_prefix">standard suffix</a> (but uses powers of 1024).</p>
 <p>Internally, the granularity is forced to MB.</p>
-<h3 id="caches--static"><a class="header" href="#caches--static"><a href="unit_tests/cache.html#:~:text=lmake%2Econfig%2Ecaches%2Emy%5Fcache%20%3D%20%7B%20%27tag%27%20%3A%20%27dir%27%20%2C%20%27dir%27%20%3A%20lmake%2Erepo%5Froot%2B%27%2FCACHE%27%20%2C%20%27perm%27%20%3A%20%27group%27%20%7D"><code>caches</code></a> : Static</a></h3>
+<h3 id="caches--static"><a class="header" href="#caches--static"><a href="unit_tests/cache.html"><code>caches</code></a> : Static</a></h3>
 <p>This attribute is a <a href="lmake_module.html#:~:text=class%20pdict"><code>pdict</code></a> with one entry for each cache.</p>
 <p>Caches are named with an arbitrary <code>str</code> and are referenced in rules <a href="unit_tests/cache.html#:~:text=cache%20%3D%20%27my%5Fcache">using this name</a>.</p>
 <p>By default, no cache is configured.</p>
-<h4 id="cachestag--static--"><a class="header" href="#cachestag--static--"><a href="unit_tests/cache.html#:~:text=%27tag%27%20%3A%20%27dir"><code>caches.*.tag</code></a> : Static (-)</a></h4>
-<p>This attribute specifies the method used by open-lmake to cache values.</p>
-<div class="table-wrapper"><table><thead><tr><th>Tag</th><th>Default</th><th>Description</th></tr></thead><tbody>
-<tr><td><code>'none'</code></td><td></td><td>fake cache that caches nothing</td></tr>
-<tr><td><a href="cache.html#:~:text=DirCache"><code>'dir'</code></a></td><td></td><td><a href="cache.html#:~:text=configuration">a cache working without daemon, data are stored in a shared dir</a></td></tr>
-<tr><td><a href="cache.html#:~:text=DaemonCache"><code>'daemon'</code></a></td><td>X</td><td><a href="cache.html#:~:text=configuration">a cache working with a daemon, data are stored in a shared dir</a></td></tr>
-</tbody></table>
-</div>
 <h3 id="collect--dynamic"><a class="header" href="#collect--dynamic"><a href="unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D%20lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D"><code>collect</code></a> : Dynamic</a></h3>
 <p>This attribute specifies files and dirs to be ignored (and hence kept) when <code>lcollect</code> is run.
 Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.</p>
@@ -2703,10 +2695,9 @@ video mode is set to normal (dark text on light background), else it is set to r
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="cache-1"><a class="header" href="#cache-1">Cache</a></h1>
-<h2 id="daemoncache"><a class="header" href="#daemoncache">DaemonCache</a></h2>
-<p>This cache is based on a shared dir controlled by a daemon.
+<p>The cache is based on a shared dir controlled by a daemon.
 The daemon is started automatically when needed and dies as soon as it becomes useless.
-It is also possible to run it manually with the <code>ldaemon_cache_server</code> command.</p>
+It is also possible to run it manually with the <code>lcache_server</code> command.</p>
 <p>It must be initialized with a file <code>LMAKE/config.py</code> defining some variables:</p>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Possible values</th><th>Comment</th></tr></thead><tbody>
 <tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
@@ -2721,8 +2712,8 @@ It is also possible to run it manually with the <code>ldaemon_cache_server</code
 perm     = 'group'
 size     = '1.5T'
 </code></pre>
-<h3 id="configuration-3"><a class="header" href="#configuration-3">configuration</a></h3>
-<p>In <code>Lmakefile.py</code>, <code>lmake.config.caches.&lt;this_cache&gt;</code> may be set to access a DirCache with the following attributes:</p>
+<h2 id="configuration-3"><a class="header" href="#configuration-3">configuration</a></h2>
+<p>In <code>Lmakefile.py</code>, <code>lmake.config.caches.&lt;this_cache&gt;</code> may be set to access a cache with the following attributes:</p>
 <div class="table-wrapper"><table><thead><tr><th>Attribute</th><th></th><th>Possible values</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>dir</code></td><td>required</td><td>a <code>str</code> containing an absolute path</td><td>the root dir of the cache</td></tr>
 <tr><td><code>repo_key</code></td><td>see below</td><td>a <code>str</code></td><td>an identifier to avoid cache pollution</td></tr>
@@ -2738,7 +2729,7 @@ Such jobs may have run before or after the commit, hence they are:</p>
 <li>or the first job of the current commit sha1</li>
 </ul>
 <p>By keeping both, we get a reasonable compromize between pollution avoidance and anticipation of use by other users.</p>
-<h3 id="permissions"><a class="header" href="#permissions">Permissions</a></h3>
+<h2 id="permissions"><a class="header" href="#permissions">Permissions</a></h2>
 <p>For all users accessing the cache:</p>
 <ul>
 <li>Its root dir and its <code>LMAKE</code> dir must have read/write access (including if only download is done to maintain the LRU state).</li>
@@ -2760,70 +2751,7 @@ Such jobs may have run before or after the commit, hence they are:</p>
 <li>The best approach is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
 <li>Alternatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
-<h3 id="coherence"><a class="header" href="#coherence">Coherence</a></h3>
-<p>Some file systems, such as NFS, lack coherence.
-In that case, precautions must be taken to ensure coherence.</p>
-<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to:</p>
-<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
-<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
-<tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
-</tbody></table>
-</div>
-<h2 id="dircache"><a class="header" href="#dircache">DirCache</a></h2>
-<p>This cache is based on a shared dir and requires no daemon.</p>
-<p>It must be initialized with a file <code>LMAKE/config.py</code> defining some variables:</p>
-<div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Possible values</th><th>Comment</th></tr></thead><tbody>
-<tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
-<tr><td><code>perm</code></td><td>'none'</td><td><code>'none'</code>, <code>'group'</code>, <code>'other'</code></td><td>the permissions to use when creating files in the cache, overriding current umask</td></tr>
-<tr><td><code>size</code></td><td>&lt;required&gt;</td><td>any <code>int</code> or a <code>str</code> composed of a number followed by a unit suffix</td><td>the overall size the cache is allowed to occupy</td></tr>
-</tbody></table>
-</div>
-<p>Unit suffixes can be <code>k</code>, <code>M</code>, <code>G</code> or <code>T</code> (powers of 1024).</p>
-<p>For example <code>LMAKE/config.py</code> can contain:</p>
-<pre><code>perm = 'group'
-size = '1.5T'
-</code></pre>
-<h3 id="configuration-4"><a class="header" href="#configuration-4">configuration</a></h3>
-<p>In <code>Lmakefile.py</code>, <code>lmake.config.caches.&lt;this_cache&gt;</code> may be set to access a DirCache with the following attributes:</p>
-<div class="table-wrapper"><table><thead><tr><th>Attribute</th><th></th><th>Possible values</th><th>Description</th></tr></thead><tbody>
-<tr><td><code>dir</code></td><td>required</td><td>a <code>str</code> containing an absolute path</td><td>the root dir of the cache</td></tr>
-<tr><td><code>repo_key</code></td><td>see below</td><td>a <code>str</code></td><td>an identifier to avoid cache pollution</td></tr>
-</tbody></table>
-</div>
-<p>By default, the <code>repo_key</code> is made after the absolute root of the repo and the current git sha1 if repo is controlled by git.
-No more than 2 entries can be stored for any job with a given <code>repo_key</code>, the first time and the last time the <code>repo_key</code> is used.</p>
-<p>To avoid cache pollution when a repo evolves rapidly (which is typical during active development), the number of stored states must be limited as the cache is typically useless locally.
-However, when a repo is pushed, best is that the cache retains the jobs corresponding to what is pushed so that other users can download the results.
-Such jobs may have run before or after the commit, hence they are:</p>
-<ul>
-<li>the last job of the previous commit sha1</li>
-<li>or the first job of the current commit sha1</li>
-</ul>
-<p>By keeping both, we get a reasonable compromize between pollution avoidance and anticipation of use by other users.</p>
-<h3 id="permissions-1"><a class="header" href="#permissions-1">Permissions</a></h3>
-<p>For all users accessing the cache:</p>
-<ul>
-<li>Its root dir and its <code>LMAKE</code> dir must have read/write access (including if only download is done to maintain the LRU state).</li>
-<li>The <code>LMAKE/config.py</code> must have read access.</li>
-</ul>
-<p>If the group to use for access permission is not the default group of the users:</p>
-<ul>
-<li>the root dir must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
-<li>its setgid bit must be set, e.g. with <code>chmod g+s &lt;cache_dir&gt; &lt;cache_dir&gt;/LMAKE</code> (this allows the group to propagate as sub-dirs are created)</li>
-<li>the operation above may have to be done recursively if the cache dir is already populated</li>
-</ul>
-<p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
-<ul>
-<li>Best is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
-<li>Alternatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
-</ul>
-<p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
-<ul>
-<li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
-<li>Alternatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
-</ul>
-<h3 id="coherence-1"><a class="header" href="#coherence-1">Coherence</a></h3>
+<h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.</p>
 <p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to:</p>
@@ -2922,7 +2850,7 @@ Such a dir must lie within a source dir and must contain a file <code>LMAKE/conf
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
 <li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
-<h2 id="permissions-2"><a class="header" href="#permissions-2">Permissions</a></h2>
+<h2 id="permissions-1"><a class="header" href="#permissions-1">Permissions</a></h2>
 <p>For all users accessing the association table:</p>
 <ul>
 <li>Its root dir and its <code>LMAKE</code> dir must have read/write access (read-only access is enough to only decode).</li>
@@ -2944,7 +2872,7 @@ Such a dir must lie within a source dir and must contain a file <code>LMAKE/conf
 <li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
 <li>Alternatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
-<h2 id="coherence-2"><a class="header" href="#coherence-2">Coherence</a></h2>
+<h2 id="coherence-1"><a class="header" href="#coherence-1">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.</p>
 <p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to:</p>
@@ -3043,15 +2971,14 @@ This has no semantic impact as these jobs will be considered out-of-date and wil
 They are:</p>
 <div class="table-wrapper"><table><thead><tr><th>Command</th><th>Short description</th></tr></thead><tbody>
 <tr><td><a href="man/man1/lautodep.html"><code>lautodep</code></a></td><td>run a script in an execution environmeent while recording accesses</td></tr>
+<tr><td><a href="man/man1/lcache_repair.html"><code>lcache_repair</code></a></td><td>repair a broken daemon_cache</td></tr>
+<tr><td><a href="man/man1/lcache_server.html"><code>lcache_server</code></a></td><td>server that actually executes daemon_cache requests</td></tr>
 <tr><td><a href="man/man1/lcollect.html"><code>lcollect</code></a></td><td>remove obsolete files and dirs</td></tr>
-<tr><td><a href="man/man1/ldaemon_cache_repair.html"><code>ldaemon_cache_repair</code></a></td><td>repair a broken daemon_cache</td></tr>
-<tr><td><a href="man/man1/ldaemon_cache_server.html"><code>ldaemon_cache_server</code></a></td><td>server that actually executes daemon_cache requests</td></tr>
 <tr><td><a href="man/man1/ldebug.html"><code>ldebug</code></a></td><td>run a job in a debug environement</td></tr>
-<tr><td><a href="man/man1/ldir_cache_repair.html"><code>ldir_cache_repair</code></a></td><td>repair a broken dir_cache</td></tr>
 <tr><td><a href="man/man1/lforget.html"><code>lforget</code></a></td><td>forget history of a job</td></tr>
 <tr><td><a href="man/man1/lmake.html"><code>lmake</code></a></td><td>run necessary jobs to ensure a target is up-to-date</td></tr>
 <tr><td><a href="man/man1/lmake_repair.html"><code>lmake_repair</code></a></td><td>repair a broken repo</td></tr>
-<tr><td><a href="man/man1/lmake_server.html"><code>lmake_server</code></a></td><td>start a server process that actually executes commands</td></tr>
+<tr><td><a href="man/man1/lmake_server.html"><code>lmake_server</code></a></td><td>server that actually executes lmake commands</td></tr>
 <tr><td><a href="man/man1/lmark.html"><code>lmark</code></a></td><td>mark a job to alter its behavior w.r.t. <code>lmake</code></td></tr>
 <tr><td><a href="man/man1/lshow.html"><code>lshow</code></a></td><td>show various informations of a job</td></tr>
 <tr><td><a href="man/man1/xxhsum.html"><code>xxhsum</code></a></td><td>compute a checksum on a file</td></tr>

@@ -19,10 +19,7 @@ if __name__!='__main__' :
 	,	'mandelbrot.zip'
 	)
 
-	lmake.config.caches.my_cache = {
-		'tag' : 'daemon'
-	,	'dir' : lmake.repo_root+'/CACHE'
-	}
+	lmake.config.caches.my_cache = { 'dir':lmake.repo_root+'/CACHE' }
 
 	class Unzip(Rule) :
 		targets     = { 'FILE' : r'mandelbrot/{*:.*}' }

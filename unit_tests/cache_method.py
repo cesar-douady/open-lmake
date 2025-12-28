@@ -15,10 +15,8 @@ if __name__!='__main__' :
 
 	from step import cache_tag
 
-	lmake.config.caches.my_cache = {
-		'tag' : cache_tag
-	,	'dir' : lmake.repo_root+'/CACHE'
-	}
+	if cache_tag : lmake.config.caches.my_cache = { 'tag':cache_tag , 'dir':lmake.repo_root+'/CACHE' }
+	else         : lmake.config.caches.my_cache = {                   'dir':lmake.repo_root+'/CACHE' } # defaults to tag='daemon'
 
 	class Stable(Rule) :
 		target = r'stable{D:\d+}'
@@ -36,7 +34,7 @@ else :
 
 	import ut
 
-	for cache_tag in ('dir','daemon') :
+	for cache_tag in ('dir','') :
 		print(f'cache_tag={cache_tag!r}',file=open('step.py','w'))
 		bck = f'bck_{cache_tag}'
 

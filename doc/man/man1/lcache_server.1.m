@@ -5,11 +5,11 @@ Comment(
 	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 )
 
-Header(ldaemon_cache_server,the server that actually executes requests to daemon-based caches)
+Header(lcache_server,the server that actually executes requests to daemon-based caches)
 
 .SH DESCRIPTION
 .LP
-B(ldaemon_cache_server) actually executes requests to daemon-based caches.
+B(lcache_server) actually executes requests to daemon-based caches.
 
 It takes no options and a single argument which is the dir containing the cached data and meta-data.
 Supported options are reserved for internal use.
@@ -33,7 +33,7 @@ Item(B(12)) bad cache version, dir need to be cleaned and reinitialized
 
 .SH EXAMPLES
 .LP
-V(lmake_daemon_cache_server)
+V(lcache_server)
 
 .SH FILES
 CommonFiles

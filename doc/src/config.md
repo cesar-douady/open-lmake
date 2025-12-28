@@ -54,23 +54,13 @@ It can be specified as a `int` or a `str` representing a number followed by a [s
 
 Internally, the granularity is forced to MB.
 
-### [`caches`](unit_tests/cache.html#:~:text=lmake%2Econfig%2Ecaches%2Emy%5Fcache%20%3D%20%7B%20%27tag%27%20%3A%20%27dir%27%20%2C%20%27dir%27%20%3A%20lmake%2Erepo%5Froot%2B%27%2FCACHE%27%20%2C%20%27perm%27%20%3A%20%27group%27%20%7D) : Static
+### [`caches`](unit_tests/cache.html) : Static
 
 This attribute is a [`pdict`](lmake_module.html#:~:text=class%20pdict) with one entry for each cache.
 
 Caches are named with an arbitrary `str` and are referenced in rules [using this name](unit_tests/cache.html#:~:text=cache%20%3D%20%27my%5Fcache).
 
 By default, no cache is configured.
-
-#### [`caches.*.tag`](unit_tests/cache.html#:~:text=%27tag%27%20%3A%20%27dir) : Static (-)
-
-This attribute specifies the method used by open-lmake to cache values.
-
-| Tag                                          | Default  | Description                                                                                         |
-|----------------------------------------------|----------|-----------------------------------------------------------------------------------------------------|
-| `'none'`                                     |          | fake cache that caches nothing                                                                      |
-| [`'dir'`](cache.html#:~:text=DirCache)       |          | [a cache working without daemon, data are stored in a shared dir](cache.html#:~:text=configuration) |
-| [`'daemon'`](cache.html#:~:text=DaemonCache) | X        | [a cache working with a daemon, data are stored in a shared dir](cache.html#:~:text=configuration)  |
 
 ### [`collect`](unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D%20lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D) : Dynamic
 

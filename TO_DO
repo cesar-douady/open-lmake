@@ -284,6 +284,7 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
+* make a tutorial
 * give an example of Rule using the paths attribute
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...

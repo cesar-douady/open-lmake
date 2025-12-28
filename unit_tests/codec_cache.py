@@ -12,10 +12,8 @@ if __name__!='__main__' :
 
 	from step import cache_tag
 
-	lmake.config.caches.my_cache = {
-		'tag' : cache_tag
-	,	'dir' : lmake.repo_root+'/CACHE'
-	}
+	if cache_tag : lmake.config.caches.my_cache = { 'tag':cache_tag , 'dir':lmake.repo_root+'/CACHE' }
+	else         : lmake.config.caches.my_cache = {                   'dir':lmake.repo_root+'/CACHE' } # defaults to tag='daemon'
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -38,10 +36,9 @@ else :
 
 	import ut
 
-	for cache_tag in ('dir','daemon') :
-#	for cache_tag in ('daemon',) :
+	for cache_tag in ('dir','') :
 		print(f'cache_tag={cache_tag!r}',file=open('step.py','w'))
-		bck = f'bck_{cache_tag}'
+		bck = f"bck{'_' if cache_tag else ''}{cache_tag}"
 
 		os.makedirs('CACHE/LMAKE',exist_ok=True)
 		print(textwrap.dedent('''
@@ -53,10 +50,6 @@ else :
 			'\tcode2\tctx\tval2\n'    # lines are out of order to generate refresh line
 		+	'\tcode1\tctx\tval1\n'
 		)
-
-#		ut.lmake( 'dut11' , reformat=1 , new=1 , done=1 )
-#		os.system(f'lshow -dv dut11 ; mkdir {bck}_1 ; mv LMAKE {bck}_1')
-#		ut.lmake( 'dut11' )
 
 		ut.lmake( 'dut11' , 'dut22' , reformat=1 , new=1 , done=2 )
 

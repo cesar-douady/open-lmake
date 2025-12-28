@@ -174,15 +174,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="c1">#   )</span>
     <span class="p">)</span>
 <span class="p">,</span>   <span class="n">caches</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>                                               <span class="c1"># PER_CACHE : provide an explanation for each cache method</span>
-    <span class="c1">#   dir_cache = pdict(                                        # when rule specifies cache = &#39;dir_cache&#39;, this cache is selected</span>
-    <span class="c1">#       tag       = &#39;dir&#39;                                     # specify the caching method, must be one of the supported methods</span>
-    <span class="c1">#   ,   key       = &#39;&lt;repo_root&gt;/&lt;git-sha1&gt;&#39;                  # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag</span>
-    <span class="c1">#   ,   dir       = &#39;/cache_dir&#39;                              # the directory in which cached results are stored</span>
-    <span class="c1">#   ,   file_sync = &#39;dir&#39;                                     # synchronization method used to ensure consistent accesses to the cache, possible values are &#39;none&#39;, &#39;dir&#39;(default) and &#39;sync&#39;</span>
-    <span class="c1">#   ,   perm      = &#39;group&#39;                                   # access permission (on top of umask) to cache. possible values are &#39;none&#39;, &#39;group&#39; and &#39;other&#39;</span>
-    <span class="c1">#   )</span>
-    <span class="c1">#,  daemon_cache = pdict(                                     # when rule specifies cache = &#39;daemon_cache&#39;, this cache is selected</span>
-    <span class="c1">#       tag = &#39;daemon&#39;                                        # specify the caching method, must be one of the supported methods</span>
+    <span class="c1">#,  my_cache = pdict(                                         # when rule specifies cache = &#39;my_cache&#39;, this cache is selected</span>
     <span class="c1">#   ,   key = &#39;&lt;repo_root&gt;/&lt;git-sha1&gt;&#39;                        # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag</span>
     <span class="c1">#   ,   dir = &#39;/cache_dir&#39;                                    # the directory in which cached results are stored</span>
     <span class="c1">#   )</span>
