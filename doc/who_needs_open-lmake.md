@@ -6,7 +6,7 @@
 
 # Who needs open-lmake?
 
-If you experience any of the following time-wasting situations:
+If you find yourself stuck in any of these time-wasting scenarios:
 
 - Your computer executes some stuff you are sure or almost sure (say 99%) is useless.
 - You use a single computer although you have access to a compute farm.
@@ -16,7 +16,7 @@ If you experience any of the following time-wasting situations:
 - You navigate through your fancy workspace and each step is like a criminal investigation because you don't have the necessary forward & backward pointers (w.r.t your flow).
 - What works in your colleague & friend's repository does not work in yours or vice versa.
 - What worked last week is broken today.
-- You forgot how to use this script you wrote last week because since then, your mind was overloaded with 1000 other stuff.
+- You forgot how to use this script you wrote last week because since then, your mind was overloaded with so much other stuff.
 - You need to use this complex tool (e.g. a CAD tool) about which only the specialist has the know-how, and unluckily, he is on vacation this week.
 - You have to wait while your repository is busy because your flow is running (e.g. compilation is on-going, unit tests are running, ...)
   and you know if you edit source files at the same time, nothing good will happen.
@@ -33,4 +33,4 @@ In other cases (e.g. you use CAD tools, you write embedded code, the complexity 
 you need a more generic tool and open-lmake is an excellent choice.
 
 In particular, if you already use `make` today and are frustrated by its poor static dependency paradigm and lack of versatility, and if you are tired typing `make clean` every so often,
-then converting your code base to open-lmake will be 1) easy and 2) a breath of fresh air (in a large par due to its [automatic dependency mechanism](src/autodep.md).
+then converting your code base to open-lmake will be 1) easy and 2) a breath of fresh air (in a large par due to its automatic dependency mechanism (aka [autodep](src/autodep.md).

@@ -11,7 +11,7 @@
 - `examples`         : contains abundantly commented examples
 - `ext`              : contains all code coming from external sources
 - `_lib`             : contains all python code
-- `lmake_env`        : contains an open-lmake repo that allow to build open-lmake (not fully functional) under open-lmake (used as an example/unit test)
+- `lmake_env`        : contains an open-lmake repo that allows building open-lmake (not fully functional) under open-lmake (used as an example/unit test)
 - `museum`           : contains dead code that could come back to life in a near or far future
 - `src`              : contains all C++ source files
 - `src/lmake_server` : contains all C++ source files that are specific to `lmake_server`
@@ -41,12 +41,12 @@
 - `np_` : non-portable
 - `::`  : standard library or a few exceptions defined in `src/utils.hh` which, in my mind, should have been part of the STL, e.g. `::vmap` (a vector of pairs)
 
-Names are suffixed with \_ if needed to suppress ambiguities.
+Names are suffixed with `_` if needed to disambiguate.
 Several prefixes can be used, for example a private static variable will start with `_s_`.
 
 ## Abbreviations
 - general rules:
-	- words are abbreviated depending on their use and span: the shorter the span and the heavier the usage , the more they are abbreviated
+	- words are abbreviated based on their scope and usage frequency: the shorter the scope and the more frequent the usage, the more they are abbreviated
 	- words may be abbreviated by their beginning, such as env for environ
 	- words may be abbreviated using only consons such as src for source
 	- these may be combined as in dst for destination
@@ -181,21 +181,21 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 
 ## The heart of the algorithm is composed of
 - for static considerations (i.e. does not depend on Req):
-	- `Node::set_buildable`: analyse a Node and determine if it can be made (3-way answer: No, Yes, Maybe)
+	- `Node::set_buildable`: analyze a Node and determine if it can be built (3-way answer: No, Yes, Maybe)
 		- calls `Job::Job` on Job candidates (down-hill recursion)
 	- `Job::Job` for the plain case: construct a Job if its dependances have a chance to be makable
 		 - calls `Node::set_buildable` on static deps (down-hill recursion)
 - for dynamic considerations (i.e. depends on Req):
-	- `Node::make`  : analyse a Node, calling Job::make on job candidates that can produce it
+	- `Node::make`  : analyze a Node, calling Job::make on job candidates that can produce it
 		- calls `Job::make` on Job candidates (down-hill recursion)
 		- calls `Job::make` on Job's waiting for it as a dep (up-hill recursion)
-	- `Job::make`   : analyse a Job, looking at deps and calling submit if necessary, and waking up dependents if up to date
+	- `Job::make`   : analyze a Job, looking at deps and calling submit if necessary, and waking up dependents if up to date
 		- calls `Node::make` on all deps (down-hill recursion)
 		- calls `Job::submit`
 		- calls `Node::make` on targets just made up-to-date (up-hill recursion)
 	- `Job::submit` : submit a Job
 		- launch job execution which will eventually trigger a call to Job::end when done
-	- `Job::end`    : analyse a Job at end of execution, calling make to analyse the result
+	- `Job::end`    : analyze a Job at end of execution, calling make to analyze the result
 		- calls `Job::make` to analyze execution and ensure everything is ok (or re-submit if there is any reason to do so)
 
 ## State
@@ -219,7 +219,7 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 - persistent states are associated with Rule's, Job's, Node's but not Req's
 
 ## Traces
-- when `lmake` is executed, a trace of activity is generated for debug purpose (if compiled with `$LMAKE_FLAGS` including `T`)
+- when `lmake` is executed, a trace of activity is generated for debug purpose (if compiled with `$LMAKE_FLAGS`  that includes `T`)
 - this is true for all executables (`lmake`, `lmake_server`, `lautodep`, ...)
 - traces are located in:
 	- `LMAKE/lmake/local_admin/trace/<executable>`
@@ -269,16 +269,16 @@ By the way, the execution is lighter and code is not heavier.
 # Modification
 
 * before pushing any modification:
-	- run make without argument to check nothing unrelated to your modifications is broken
+	- run `make` without argument to check nothing unrelated to your modifications is broken
 
 * to add a slurm version
 	- in slurm source tree, type `./configure`
 	- copy minimal info from slurm source tree to ext/slurm/<version>:
 		- file `slurm/slurm.h` together with included files, as of today, they are `slurm/slurm_errno.h` and `slurm/slurm_version.h`
 		- file `META`
-	- git add `ext/slurm/<version>`
+	- `git add ext/slurm/<version>`
 	- <version> may be a prefix, e.g. `24.11` works for all `24.11.x`
-	- git clean and remake
+	- `git clean` and `make` (a mere `make` may not be sufficient)
 
 * to add a backend:
 	- make a file `src/lmake_server/backends/<your_backend>.cc`

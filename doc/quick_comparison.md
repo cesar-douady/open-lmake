@@ -5,24 +5,24 @@
 
 # Quick comparison
 
-|                                          | make        | ninja            | bazel            | CMake            | open-lmake        | Comment                                                   |
-|------------------------------------------|-------------|------------------|------------------|------------------|-------------------|-----------------------------------------------------------|
-| [Automatic dependencies](src/autodep.md) | ❌          | ❌               | ❌               | ❌               | ✅                |                                                           |
-| Concurrent builds                        | ❌          | ❌               | ❌ (locked)      | ❌               | ✅                | can safely launch `build a & build b` ?                   |
-| Concurrent source edition                | ❌          | ❌               | ❌               | ❌               | ✅                | is it safe to edit a source while building ?              |
-| symbolic link support                    | ❌          | ❌               | ❌               | ❌               | ✅                | can you use symbolic links and while staying consistent ? |
-| `unzip` like job support                 | ❌          | ❌               | ❌               | ❌               | ✅                | can the list of targets be content dependent ?            |
-| Multiple target                          | ❌          | ✅               | ✅               | ❌               | ✅                | can a single job have several targets ?                   |
-| Self-tracking                            | ❌          | ➖ commands only | ✅               | ➖ can detect    | ✅                | handle modifications of the config file ?                 |
-| Scalability                              | ➖ <100.000 | ✅ >100.000      | ✅ >1.000.000    | ❓ not a backend | ✅ >1.000.000     | cf. [benchmarks](benchmark.md)                            |
-| content based                            | ❌          | ❌               | ✅               | ❌               | ✅                | rebuild only if dependencies content change ?             |
-| Matching                                 | ➖ single % | ❌               | ❌               | ❌               | ✅ full regexpr   |                                                           |
-| User friendly DSL                        | ❌ specific | ✅ very simple   | ➖ python subset | ❌ specific      | ✅ python         |                                                           |
-| Remote job execution                     | ❌          | ❌               | ✅               | ❌               | ✅ slurm or SGE   |                                                           |
-| inter-user cache                         | ❌          | ❌               | ✅ (no abs path) | ❌               | ✅ (experimental) | can you reuse the result of another user ?                |
-| job isolation                            | ❌          | ❌               | ✅ (container)   | ❌               | ✅ (autodep)      |                                                           |
-| large recommanded rule set               | ➖          | ❌               | ✅               | ✅               | ❌                |                                                           |
-| portable (Windows, mac, Linux)           | ✅          | ✅               | ✅               | ✅               | ❌ (linux only)   |                                                           |
+|                                       | make        | ninja            | bazel            | CMake            | open-lmake        | Comment                                                   |
+|---------------------------------------|-------------|------------------|------------------|------------------|-------------------|-----------------------------------------------------------|
+| Automatic dependencies                | ❌          | ❌               | ❌               | ❌               | ✅                | aka [autodep](src/autodep.md)                             |
+| Concurrent instances in the same repo | ❌          | ❌               | ❌ (locked)      | ❌               | ✅                | can safely launch `build a & build b` ?                   |
+| Safe source editing during build      | ❌          | ❌               | ❌               | ❌               | ✅                | is it safe to edit a source while building ?              |
+| symbolic link support                 | ❌          | ❌               | ❌               | ❌               | ✅                | can you use symbolic links and while staying consistent ? |
+| `unzip` like job support              | ❌          | ❌               | ❌               | ❌               | ✅                | can the list of targets be content dependent ?            |
+| Multiple target                       | ❌          | ✅               | ✅               | ❌               | ✅                | can a single job have several targets ?                   |
+| Self-tracking                         | ❌          | ➖ commands only | ✅               | ➖ can detect    | ✅                | handle modifications of the config file ?                 |
+| Scalability                           | ➖ <100.000 | ✅ >100.000      | ✅ >1.000.000    | ❓ not a backend | ✅ >1.000.000     | cf. [benchmarks](benchmark.md)                            |
+| content based                         | ❌          | ❌               | ✅               | ❌               | ✅                | rebuild only if dependencies content change ?             |
+| Matching                              | ➖ single % | ❌               | ❌               | ❌               | ✅ full regexpr   |                                                           |
+| User friendly DSL                     | ❌ specific | ✅ very simple   | ➖ python subset | ❌ specific      | ✅ python         |                                                           |
+| Remote job execution                  | ❌          | ❌               | ✅               | ❌               | ✅ slurm or SGE   |                                                           |
+| inter-user cache                      | ❌          | ❌               | ✅ (no abs path) | ❌               | ✅ (experimental) | can you reuse the result of another user ?                |
+| job isolation                         | ❌          | ❌               | ✅ (container)   | ❌               | ✅ (autodep)      |                                                           |
+| large recommanded rule set            | ➖          | ❌               | ✅               | ✅               | ❌                |                                                           |
+| portable (Windows, mac, Linux)        | ✅          | ✅               | ✅               | ✅               | ❌ (linux only)   |                                                           |
 
 # `make`
 
@@ -42,6 +42,17 @@ Open-lmake handles all such cases:
 - It is self-tracking, i.e. it handles correctly the modifications of its configuration.
 - It automatically tracks dependencies, leaving no room to the recipe to access files without open-lmake being aware of it.
 - It checks dependencies at the end of each job to ensure they were stable througout the whole execution.
+
+## Timestamp-checksum coupling
+
+When computing checksums - as open-lmake dependency tracking is content based rather than timestamp based - open-lmake checks file timestamp before and after such computation.
+This ensures that the checksum is reliable: if the timestamp changed while the checksum was being computed, the checksum is deemed unreliable and will be recomputed upon need.
+When, at future time, the checksum of a file is needed - typically to be compared to the checksum used during the last run of a job -
+the timestamp is compared to the recorded timestamp associated with the checksum.
+The checksum is recomputed in the event the timestamps do not match (using equality, not before/after order).
+This way, the frequent case is fast: no checksum is recomputed, but the exceptional case is managed to ensure fearlessness.
+
+Checksums use XXH64, a modern, extremely fast (memory speed) and robust (>63 bits of entropy, though not crypto-secure) package.
 
 ## The dependencies nightmare
 
@@ -141,7 +152,7 @@ However, imagine the following scenario:
 - foo.c contains `#include "my_lib.h"`
 - it turns out `my_lib.h` lies in `dir2`.
 - `gcc -M` generates a dependency on `dir2/my_lib.h`
-- you do a `git pull` and somebody else has created `dir1/my_lib.h`
+- you do a `git pull` and a new file `dir1/my_lib.h` is created
 - you build `foo.o`
 
 In that case, there is a dependency to `dir2/my_lib.h`, but not to `dir1/my_lib.h`.
@@ -149,11 +160,11 @@ Build systems relying on such use of `gcc -M` (including `bazel` as this part is
 This is in contradiction with `bazel` advertising "speed through correctness".
 
 Open-lmake correctly maintains a dependency to `dir1/my_lib.h`, in addition to `dir2/my_lib.h`.
-More precisely, it maintains a dependency to "`dir1/my_lib.h` must not exist nor be buildable". If this statement does not hold, `foo.o` is rebuilt, as expected.
+More precisely, it tracks the non-existence (or "negative dep") of `dir1/my_lib.h`. If this statement does not hold, `foo.o` is rebuilt, as expected.
 
 # CMake
 
-CMake is front-end tool only.
+CMake is a front-end tool only.
 It generates configurations for `make` ou `ninja`.
 
 In addition to flaws inherited from its backends (cf. above), CMake syntax is rather obscure and it is difficult to debug.

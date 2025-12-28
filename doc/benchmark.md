@@ -7,12 +7,12 @@
 # Benchmarks
 
 The goal of this benchmark is to compare major build systems with open-lmake.
-Considered build systems are `make`, `ninja`, `bazel` and open-lmake.
+The build systems evaluated are `make`, `ninja`, `bazel` and open-lmake.
 CMake is not run because it uses either `make` or `ninja` as backend.
 
 In addition, a simple `bash` script running jobs statically parallelized.
 Of course, for this script, the notion of no-op build is meaningless.
-Its main purpose is to serv as a reference.
+Its main purpose is to serve as a reference.
 
 ## Benchmark environment
 
@@ -62,7 +62,7 @@ For `bazel`, this is done either by hand or by a generator.
 However, I have not measured these phases for other build systems.
 
 This flat organization is painless for `make`, `ninja` and open-lmake, but is contrary to `bazel`'s spirit.
-And to some extent, this is not unreasonnable: nobody puts 100k source files flat in a dir.
+And to some extent, this is not unreasonnable: in practice, projects rarely store 100k source files in a single flat dir.
 As a consequence, the partial no-op rebuild would be typically much faster with `bazel` because it would only explore the necessary sub-dirs.
 This is key for `bazel`'s scalability.
 
@@ -91,7 +91,7 @@ Full no-op rebuild takes about 7s where he mentioned around 70s.
 
 `bazel` manages a cache.
 Open-lmake manages deps (the cache is not turned on).
-Also, content based up-to-date analyzis requires frequent checksum computation.
+Also, content based up-to-date analysis requires frequent checksum computation.
 It is normal that such full builds go slightly slower than those without book-keeping (`bash`, `make` and `ninja`).  
 As long as these overheads stay reasonable in this extreme case, which they are, this is a pretty good trade-off in view of the value brought by such features.
 This benchmark is extreme in this regard because source files are mostly empty, so that the overhead dominates the measurements.  

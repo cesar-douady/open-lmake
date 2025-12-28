@@ -97,7 +97,7 @@ Open-lmake does the following:
 	- Up-to-date analysis is content based rather than date based, so that when a target is remade identically to its previous content, dependent jobs are not rebuilt.
 	- Strings are interned, their values are only used to import (e.g. when tracking dependencies) and export (e.g. for reports or job execution).
 	- Can launch about 1000 jobs per second if connected to an adequate slurm-based farm and about 300 on the local host.
-	- Globally, performances are about the same as `ninja` while providing much better guarantees.
+	- Globally, performance is on par with `ninja` while providing much better semantic and guarantees.
 - Extremely memory efficient:
 	- Keeping the state of all dependencies is inherently very expensive.
 	- Thorough efforts have been made to keep this book keeping-minimal.

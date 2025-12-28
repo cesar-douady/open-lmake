@@ -12,7 +12,7 @@ It means trusting a tool without having to understand every detail of its inner 
 ### A few examples
 
 - **`diff` is fearless**  
-  Its detailed algorithm is fairly complex but one generally does not have to worry about it: it outputs diffs, period.
+  While its underlying algorithm is fairly complex, users do not need to worry about it: it outputs a diff, period.
 
 - **Rust advocates "fearless concurrency"**  
   When programming in C/C++ in a multi-thread context, a cautious engineer knows they have to take care of locks, pay special attention to any shared data, etc. C/C++ is **fearful** in this regard.
@@ -39,7 +39,7 @@ The example of Excel is interesting because it pretty much resembles a build sys
 - More complex cases (e.g., the `INDIRECT()` function) break even further.
 - ...
 
-In short, such a tool would be completely unusable without frequent presses of the 'Recompute All' button to be safe.
+In short, such a tool would be completely unusable without frequent presses of the 'Recompute All' button to ensure correctness.
 
 To some extent, the same is true for most build systems (including all major ones): there are numerous situations where they fail to recompute what they should.
 
