@@ -158,9 +158,9 @@
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="execution"><a class="header" href="#execution">Execution</a></h1>
 <h2 id="handling-an-access"><a class="header" href="#handling-an-access">Handling an access</a></h2>
-<p>At first glance, recognizing a target from a dep when a job runs seems pretty easy when the accesses to the disk can be traced : reading a file is a dep, writing to it is a target.
+<p>At first glance, recognizing a target from a dep when a job runs seems pretty easy when the accesses to the disk can be traced: reading a file is a dep, writing to it is a target.
 And this is what is done informally, but there are a lot of corner cases.</p>
-<p>The specification devised hereinafter has been carefully thought to allow open-lmake to run adequate jobs to reach a stable state from any starting point.
+<p>The specification described below has been carefully designed to allow open-lmake to run adequate jobs to reach a stable state from any starting point.
 More specifically, think of the following sequence:</p>
 <pre><code class="language-bash">git clean -ffdx
 lmake foo
@@ -172,7 +172,7 @@ lmake foo
 git clean -ffdx
 lmake foo
 </code></pre>
-<p>This what stable state means : the content of <code>foo</code> is independent of the history and only depends on the rules and the content of sources, both being managed through <code>git</code> in this example.</p>
+<p>This is what stable state means: the content of <code>foo</code> is independent of the history and only depends on the rules and the content of sources, both being managed through <code>git</code> in this example.</p>
 <p>In this specification, dirs are ignored (i.e. the presence or content of a dir has no impact) and symbolic links are similar to regular files whose content is the link itself.</p>
 <h3 id="reading-and-writing-files"><a class="header" href="#reading-and-writing-files">Reading and writing files</a></h3>
 <p>The first point is to precisely know what reading and writing mean.</p>
@@ -276,14 +276,18 @@ In case a target is also a dep, it is automatically flagged as <code>incremental
 <p>Open-lmake tries to minimize the execution of jobs, but may sometimes miss a point and execute a job superfluously.
 This may include erasing a file that has no associated production rule.
 Unless a file is a dep of no job, open-lmake may rebuild it at any time, even when not strictly necessary.</p>
-<p>In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a valuable user-generated content.
+<p>In the case open-lmake determines that a file may have actually been written manually outside its control, it prevents overwriting a potentially valuable user-generated content.
 In that case, open-lmake quarantines the file under the <a href="meta_data.html#:~:text=LMAKE%2Fquarantine">LMAKE/quarantine</a> dir with its original name.
 This quarantine mechanism, which is not necessary for open-lmake processing but is a facility for the user, is best effort.
-There are cases where open-lmake cannot anticipate such an overwrite.</p>
+There are cases where open-lmake cannot anticipate such an overwrite (for example if a job writes to a target while it dit not during the previous run,
+open-lmake could not anticipate this would occur).</p>
+<p>A typical case is when source files are auto-generated.
+The user may mistakenly fix the generated file, thinking they are fixing a source.
+In that case, open-lmake will detect this case and regenerate this file so as to ensure reproducibility, thus potentially overwriting valuable content.</p>
 <h2 id="tmp-dir"><a class="header" href="#tmp-dir">tmp dir</a></h2>
 <p>The physical dir is:</p>
 <ul>
-<li>If <code>$TMPDIR</code> is set to empty, there is no tmp dir.</li>
+<li>If <code>$TMPDIR</code> is set to an empty string, there is no tmp dir.</li>
 <li>If open-lmake is supposed to keep this dir after job execution, it is a dir under <code>LMAKE/tmp</code>, determined by open-lmake (its precise value is reported by <code>lshow -i</code>).</li>
 <li>Else if <code>$TMPDIR</code> is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-dir within it.</li>
 <li>Else, a dir determined by open-lmake lying in the <code>LMAKE</code> dir.</li>
@@ -291,7 +295,7 @@ There are cases where open-lmake cannot anticipate such an overwrite.</p>
 <p>Unless open-lmake is instructed to keep this dir, it is erased at the end of the job execution.</p>
 <p>At execution time:</p>
 <ul>
-<li>If <code>$TMPDIR</code> is set to empty, it is suppressed from the environment and if the job uses the default tmp dir (usually <code>/tmp</code>), an error is generated.</li>
+<li>If <code>$TMPDIR</code> was set to an empty string, it is removed from the environment and if the job uses the default tmp dir (usually <code>/tmp</code>), an error is generated.</li>
 <li>Else <code>$TMPDIR</code> is set so that the job can use it to access the tmp dir.</li>
 </ul>
 

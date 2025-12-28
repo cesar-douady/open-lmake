@@ -273,11 +273,9 @@ you can make a Debian package:</p>
 </ul>
 <p>This will simplify the user experience but is not required.</p>
 <h1 id="apparmor"><a class="header" href="#apparmor">AppArmor</a></h1>
-<blockquote>
-<p>AppArmor is known to need tuning on Ubuntu24.04 only.</p>
-</blockquote>
+<p>AppArmor tuning is currently only known to be required on Ubuntu starting at 24.04.</p>
 <p>In order to implement namespace related features (the <code>lmake_view</code>, <code>repo_view</code>, <code>tmp_view</code>, <code>views</code> and <code>chroot</code> rule attributes), and if your system is configured with AppArmor,
-adequate rights must be provided.</p>
+sufficient permissions must be granted.</p>
 <p>In that case, do the following :</p>
 <ul>
 <li>create a file <code>/etc/apparmor.d/open-lmake</code> with the following content :
@@ -288,7 +286,7 @@ adequate rights must be provided.</p>
 	}
 </code></pre>
 </li>
-<li>activate it with <code>sudo aa-apparamor_parser -r /etc/apparamor.d/open-lmake</code></li>
+<li>activate it with <code>sudo aa-apparmor_parser -r /etc/apparamor.d/open-lmake</code></li>
 </ul>
 <h1 id="rationale"><a class="header" href="#rationale">Rationale</a></h1>
 <p>Because of its unique features (auto-dep, views, ...), open-lmake is necessarily tighly coupled to the underlying OS.

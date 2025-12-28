@@ -44,10 +44,10 @@ def get_src(*args,no_imports=None,ctx=(),force=False,root=None) :
 	'''
 		get a source text that reproduce args :
 		- args must be composed of named objects such as functions or classes or dicts mapping names to values
-		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
+		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module filenames
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
 		- if force is true, args are guaranteed to be imported by value (i.e. they are not imported). Dependencies can be imported, though
-		- if root is provided, source file name debug info are reported relative to this directory
+		- if root is provided, source filename debug info are reported relative to this directory
 		The return value is a pdict where :
 			- src        : the source text that reproduces args
 			- names      : the dict of accessed names, value is False if free (found in a set context), True if it has a value and None if no value found
@@ -67,7 +67,7 @@ def get_expr(expr,*,no_imports=None,ctx=(),force=False,call_callables=False) :
 	'''
 		get an expression text that reproduce expr :
 		- expr can be any object
-		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module file names
+		- no_imports is a set of module names that must not be imported in the resulting source or a regexpr of module filenames
 		- ctx is a list of dict or set to get indirect values from. If found in a set, no value is generated
 		- if force is true, args are guaranteed to be inlined (i.e. they are not imported). Dependencies can be imported, though
 		The return value is a pdict where :

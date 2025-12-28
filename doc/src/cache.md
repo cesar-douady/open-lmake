@@ -9,7 +9,7 @@
 
 This cache is based on a shared dir controlled by a daemon.
 The daemon is started automatically when needed and dies as soon as it becomes useless.
-Is is also possible to run it manually with the `ldaemon_cache_server` command.
+It is also possible to run it manually with the `ldaemon_cache_server` command.
 
 It must be initialized with a file `LMAKE/config.py` defining some variables:
 
@@ -66,13 +66,13 @@ If the group to use for access permission is not the default group of the users:
 
 To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:
 
-- Best is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
-- Altenatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+- The best approach is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
+- Alternatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
 
 Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:
 
-- Best is to the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
-- Altenatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+- The best approach is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
+- Alternatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
 
 ### Coherence
 
@@ -145,12 +145,12 @@ If the group to use for access permission is not the default group of the users:
 To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:
 
 - Best is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
-- Altenatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+- Alternatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
 
 Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:
 
 - Best is to the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
-- Altenatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+- Alternatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
 
 ### Coherence
 

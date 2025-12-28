@@ -166,7 +166,7 @@
 <code>'local'</code> is always present.</p>
 <h3 id="check_version-major--minor0-"><a class="header" href="#check_version-major--minor0-"><code>check_version( major , minor=0 )</code></a></h3>
 <p>This function is used to check that the expected version is compatible with the actual version.</p>
-<p>This function must be called right after having imported the <code>lmake</code> module as in the future, it may adapt itself to the required version when this function is called.
+<p>This function must be called immediately after importing the <code>lmake</code> module as in the future, it may adapt itself to the required version when this function is called.
 For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.</p>
 <h3 id="repo_root"><a class="header" href="#repo_root"><code>repo_root</code></a></h3>
 <p>The root dir of the (sub)-repo.</p>
@@ -273,7 +273,7 @@ However, the <code>ignore</code> flag only applies to deps following this call.<
 <li>If not <code>no_star</code>,  accept regexpr based flags (e.g. calls to this function with <code>regexpr=True</code>).</li>
 <li>If <code>ignore</code>,       deps are ignored altogether, even if further accessed (but previous accesses are kept).</li>
 </ul>
-<p>Flags accumulate and are never reset.</p>
+<p>During job execution, flags accumulate and are never reset.</p>
 <p>Notes:</p>
 <ul>
 <li>
@@ -415,16 +415,15 @@ However, the <code>ignore</code> flag only applies to targets following this cal
 <li>(1):
 The same functionality is provided with the <code>ltarget</code> executable.</li>
 </ul>
-<h3 id="xxhsum-text--is_linkfalse-"><a class="header" href="#xxhsum-text--is_linkfalse-"><code>xxhsum( text , is_link=False )</code></a></h3>
+<h3 id="xxhsumtext"><a class="header" href="#xxhsumtext"><code>xxhsum(text)</code></a></h3>
 <p>Return a checksum of provided text.</p>
-<p>It is a 16-digit hex value with no suffix.</p>
-<p>Note : the empty string lead to 0000000000000000 so as to be easily recognizable.</p>
-<p>Note : this checksum is not the same as the checksum of a file with same content.</p>
-<p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
+<p>It is a 16-digit hex value with no suffix as a <code>str</code>.</p>
+<p>Note: this checksum is not the same as the checksum of a file with same content.</p>
+<p>Note: this checksum is <strong>not</strong> crypto-robust.</p>
 <p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
 <h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><a href="unit_tests/xxh.html#:~:text=crc%5Fpy%20%3D%20lmake%2Exxhsum%5Ffile%28%27Lmakefile%2Epy%27%29"><code>xxhsum_file(file)</code></a></a></h3>
 <p>Return a checksum of provided file.</p>
-<p>The checksum is :</p>
+<p>The checksum is a <code>str</code> containing:</p>
 <ul>
 <li>none                                         if file does not exist, is a dir or a special file</li>
 <li>empty-R                                      if file is empty</li>

@@ -319,7 +319,7 @@ namespace Engine::Persistent {
 	using SfxFile      = Store::SinglePrefixFile< '='   , void     , PsfxIdx         , NPsfxIdxBits     , char    , PsfxIdx     , true /*Reverse*/ > ; // map sfxes to root of pfxes
 	using PfxFile      = Store::MultiPrefixFile < '='   , void     , PsfxIdx         , NPsfxIdxBits     , char    , RuleTgts    , false/*Reverse*/ > ;
 
-	static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire file name)
+	static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire filename)
 
 	// END_OF_VERSIONING
 

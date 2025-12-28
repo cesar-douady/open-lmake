@@ -10,7 +10,7 @@ Each attribute is characterized by a few flags:
 - How inheritance is handled:
   - None: (ignore values from base classes)
   - python: (normal python processing)
-  - Combine: (Combine inherited values and currently defined one).
+  - Combine: (Combine inherited values with the currently defined one).
 - The type.
 - The default value.
 - Whether it can be defined dynamically from job to job:
@@ -18,14 +18,21 @@ Each attribute is characterized by a few flags:
   - Simple: globals include module globals, user attributes, stems and targets, no file access allowed.
   - Full:   globals include module globals, user attributes, stems, targets, deps and resources, file accesses become deps.
 
-When targets are allowed in dynamic values, the `targets` variable is also defined as the `dict` of the targets.
-Also, if `target` was used to redirect stdout, the `target` variable contains said file name.
+When targets are allowed in dynamic values, the `targets` variable is also available as a `dict` of the targets.
+Also, if `target` was used to redirect stdout, the `target` variable contains said filename.
 
-Similarly, when deps are allowed in dynamic values, the `deps` variable is also defined as the `dict` of the deps.
-Also, if `dep` was used to redirect stdin, the `dep` variable contains said file name.
+Similarly, when deps are allowed in dynamic values, the `deps` variable is also available as the `dict` of the deps.
+Also, if `dep` was used to redirect stdin, the `dep` variable contains said filename.
 
 When a type is mentioned as `f-str`, it means that although written as plain `str`, they are dynamically interpreted as python f-strings, as for dynamic values.
 This is actually a form of dynamic value.
+
+Note on `f-str`: typically, the necessary variables (such as stems) are not available when python reads the rule, so such attributes cannot be actual python f-strings,
+but the python f-string syntax is powerful and intuitive to mention variable parts.
+For example for the attribute `cmd`:
+
+- correct: `cmd = 'gcc -o {DST} {SRC}'`
+- incorrect: `cmd = f'gcc -o {DST} {SRC}'`
 
 # Dynamic attribute execution
 
@@ -775,7 +782,7 @@ This attribute commands an implementation detail.
 
 If false, jobs are run by launching the interpreter followed by `-c` and the command text.
 
-If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said file name.
+If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said filename.
 
 If the size of the command text is too large to fit in the command line, this attribute is silently forced to true.
 
@@ -789,7 +796,7 @@ This attribute is typically use with interpreters that do not implement the `-c`
 
 This attribute defines a mapping from logical views to physical dirs.
 
-Accesses to logical views are mapped to their corresponding physical (non-recursively) location before any chroot if asked to do so.
+Accesses to logical views are mapped to their corresponding physical location (non-recursively) before any chroot if requested.
 Views and physical locations must be dirs.
 
 Both logical views and physical locations may be local to the repo, within tmp dir or external, but it is not possible to map a local location to an external view (cf. [namespaces](namespaces.html)).
@@ -811,5 +818,5 @@ Physical description may be :
 |-------------|--------|---------|---------|---------|
 | None        | `bool` | `False` | No      | `True`  |
 
-When this attribute is true, this `class` is not a rule even if it has the required target & cmd attributes.
+When this attribute is true, this `class` is not considered as a rule even though it possesses the required attributes.
 In that case, it is only used as a base class to define other rules.

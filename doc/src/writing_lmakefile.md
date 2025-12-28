@@ -18,16 +18,16 @@ When reading `Lmakefile.py`, open-lmake:
 	- if there is a callable with this name, call it
 	- if there is a sub-module with this name, import it
 
-The advantage of declaring a function or a sub-module for each section is that in case something is modified, only the impacted section is re-read.
+The advantage of declaring a function or a sub-module for each section is that if something is modified, only the impacted section is re-read.
 
 ## The config
 
 The config is determined by setting the variable `lmake.config`.
-Because it is predefined with all default values, it is simpler to only define fields.
+Since it is predefined with default values, you only need to define the specific fields you wish to override.
 A typical `Lmakefile.py` will then contain lines such as:
 
 ``` python
-lmake.config.path_max = 500 # default is 400
+lmake.config.path_max = 500 # default is 200
 ```
 
 [lib/lmake/config_.py](lib/lmake/config_.html) can be used as a handy helper as it contains all the fields with a short comment.
@@ -136,11 +136,9 @@ The chosen method has been designed to walk through the MRO at class creation ti
 - Define a set of attributes to be handled through combination. This set is defined by the attribute `combine`, itself being handled by combination.
 - Combined attribute are handled by updating/appending rather than replacing when walking through MRO in reverse order.
 - Entries with a value None are suppressed as update never suppress a given entry.
-  Similarly, values inserted in a set prefixed with a `'-'` remove the corresponding value from the `set`.
+  Similarly, values inserted in a set prefixed with a `'-'` remove the corresponding values from the `set`.
 
 Because this mechanism walks through the MRO, the diamond rule is enforced.
-
-`dict`'s and `list`'s are ordered so that the most specific information appear first, as if classes are searched in MRO.
 
 Combined attributes may only be `dict`, `set` and `list`:
 
@@ -151,7 +149,7 @@ Combined attributes may only be `dict`, `set` and `list`:
 
 Some environment variables contain paths, such as `$PATH`.
 
-When such an entry appears in a rule, its value is searched for occurrences of the special marker `...` surrounded by separators (the start and end of the strings are deemed to be separators)
+When such an entry appears in a rule, its value is searched for occurrences of the special marker `...` surrounded by separators (the start and end of the strings are treated as separators)
 And each such occurrence is replaced by the inherited value.
 
 This makes it particularly useful to manage paths as it allows any intermediate base `class` to add its own entries, before or after the original ones.

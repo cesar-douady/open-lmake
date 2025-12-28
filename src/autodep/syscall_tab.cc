@@ -310,7 +310,7 @@ static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 			s_tab[i] = SyscallDescr __VA_ARGS__ ;                           \
 		}                                                                   \
 	}
-	// entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a file name known to require no processing
+	// entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a filename known to require no processing
 	//                                    entry           <At   ,FlagArg   > , exit           filter comment
 	FILL_ENTRY( SYS_access            , { _entry_access   <false,FlagNever > , nullptr        , 1  , Comment::access            } ) ;
 	FILL_ENTRY( SYS_faccessat         , { _entry_access   <true ,3         > , nullptr        , 2  , Comment::faccessat         } ) ;

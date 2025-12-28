@@ -80,7 +80,7 @@ Such logs are kept for a number of days given in `lmake.config.console.history_d
 ### `LMAKE/quarantine`
 
 This dir contains all files that have been quarantined.
-A file is quantantined when open-lmake decides it must be unlinked and it contains manual modifications, i.e. modifications made outside the control of open-lmake.
+A file is quanrantined when open-lmake decides it must be unlinked and it contains manual modifications, i.e. modifications made outside the control of open-lmake.
 In that case, in order to be sure that no user work is lost, the file is quarantined in this dir rather than unlinked.
 
 ### `LMAKE/rules`

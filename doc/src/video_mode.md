@@ -5,7 +5,7 @@
 
 # Video mode
 
-If lmake is connected to a terminal, then the terminal foreground and background colors are probed and if the brightness of the background color is less than that of the foreground color,
-video mode is set to normal, else it is set to reverse.
+If lmake is connected to a terminal, then the terminal foreground and background colors are probed and if the brightness of the background color is greater than that of the foreground color,
+video mode is set to normal (dark text on light background), else it is set to reverse (light text on dark background).
 
 In that case, lmake output is colored and the (configurable) color set is chosen depending on video mode.

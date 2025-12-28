@@ -642,7 +642,7 @@ bool              _crash_busy  = false ;
 				try                       { sp.line      = from_string<size_t>(sp.file+col+1,true/*empty_ok*/) ; }
 				catch (::string const& e) { sp.line      = 0                                                   ; }
 			}
-			_beautify(sp.file) ;                                                   // system files may contain a lot of .., making long file names, and alignment makes all lines very long
+			_beautify(sp.file) ;                                                   // system files may contain a lot of .., making long filenames, and alignment makes all lines very long
 		}
 	Return :
 		::close(c2p.read) ;

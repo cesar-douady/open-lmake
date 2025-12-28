@@ -306,6 +306,10 @@ Yet, defining test suites this way is very comfortable.</li>
 <tr><td>a <code>cmd</code> in <code>Lmakefile.py</code></td><td>run all jobs using corresponding rule and all depending jobs</td><td>depending jobs are only executed if file actually changes</td></tr>
 </tbody></table>
 </div>
+<p>Notes:</p>
+<ul>
+<li>there is no need for building dependencies (which .h are included where). These are determined automatically while the compiler runs by spying disk accesses.</li>
+</ul>
 <h2 id="further-notes"><a class="header" href="#further-notes">Further notes</a></h2>
 <h3 id="use-of-the-critical-attribute"><a class="header" href="#use-of-the-critical-attribute">Use of the <code>critical</code> attribute</a></h3>
 <p>Some deps can be declared <code>critical</code>.

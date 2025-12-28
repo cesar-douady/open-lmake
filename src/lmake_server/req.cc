@@ -401,7 +401,7 @@ namespace Engine {
 			::string lcl_log_dir_s = "outputs/"+day+'/' ;
 			::string lcl_log_file  ;
 			::string log_file      ;
-			for( int i=0 ;; i++ ) {                                                              // try increasing resolution in file name until no conflict
+			for( int i=0 ;; i++ ) {                                                              // try increasing resolution in filename until no conflict
 				lcl_log_file = lcl_log_dir_s+now.str(i,true/*in_day*/) ;
 				log_file     = AdminDirS+lcl_log_file                  ;
 				if (FileInfo(log_file).tag()==FileTag::None) break ;                             // else conflict => try higher resolution

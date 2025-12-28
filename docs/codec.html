@@ -157,7 +157,7 @@
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="encoding-and-decoding"><a class="header" href="#encoding-and-decoding">Encoding and decoding</a></h1>
-<p>In some situations with heavily parameterized generated files, file names can become very long.
+<p>In projects with heavily parameterized files, filenames can become extremely long.
 Think of the mere compilation of a C++ file <code>foo.c</code>.
 You may want to specify:</p>
 <ul>
@@ -172,8 +172,8 @@ You may want to specify:</p>
 <p>You may want to be able to generate any combination so as, for example, compare the output of any 2 of them for validation purpose.
 You easily end up with an object file with a name such as <code>foo.O3.NDEBUG.TRACE_LEVEL=1.sanitize=address.32.o</code>.
 Already 50 characters or so.
-In a real projects, file names can easily be 200, 300, 400 characters long.</p>
-<p>As long as the file name, with adequate shorthands such as using <code>TL</code> instead of <code>TRACE_LEVEL</code> fits within a few hundreds of characters, the situation is heavy but manageable.
+In a real projects, filenames can easily be 200, 300, 400 characters long.</p>
+<p>As long as the filename, with adequate shorthands such as using <code>TL</code> instead of <code>TRACE_LEVEL</code> fits within a few hundreds of characters, the situation is heavy but manageable.
 But if you need, say 3000 characters to specify a file, then it becomes completely impractical.</p>
 <p>When the configuration can be devised in advance, in a stable way, an efficient alternative is to create a file to contain it, which becomes a configuration name,
 and just specify the configuration name in the generated file.</p>
@@ -257,12 +257,12 @@ Such a dir must lie within a source dir and must contain a file <code>LMAKE/conf
 <p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
 <li>Best is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;root_dir&gt;</code></li>
-<li>Altenatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>Alternatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
 <p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
 <li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
-<li>Altenatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>Alternatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
 <h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.

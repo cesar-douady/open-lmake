@@ -160,7 +160,7 @@
 <h2 id="daemoncache"><a class="header" href="#daemoncache">DaemonCache</a></h2>
 <p>This cache is based on a shared dir controlled by a daemon.
 The daemon is started automatically when needed and dies as soon as it becomes useless.
-Is is also possible to run it manually with the <code>ldaemon_cache_server</code> command.</p>
+It is also possible to run it manually with the <code>ldaemon_cache_server</code> command.</p>
 <p>It must be initialized with a file <code>LMAKE/config.py</code> defining some variables:</p>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Possible values</th><th>Comment</th></tr></thead><tbody>
 <tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
@@ -206,13 +206,13 @@ Such jobs may have run before or after the commit, hence they are:</p>
 </ul>
 <p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
-<li>Best is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
-<li>Altenatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>The best approach is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
+<li>Alternatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
 <p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
-<li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
-<li>Altenatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>The best approach is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
+<li>Alternatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
 <h3 id="coherence"><a class="header" href="#coherence">Coherence</a></h3>
 <p>Some file systems, such as NFS, lack coherence.
@@ -270,12 +270,12 @@ Such jobs may have run before or after the commit, hence they are:</p>
 <p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
 <li>Best is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
-<li>Altenatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>Alternatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
 <p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
 <ul>
 <li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
-<li>Altenatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
+<li>Alternatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
 </ul>
 <h3 id="coherence-1"><a class="header" href="#coherence-1">Coherence</a></h3>
 <p>Some file systems, such as NFS, lack coherence.

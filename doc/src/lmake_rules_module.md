@@ -17,6 +17,8 @@ A class becomes a rule when:
 - it has a `target` or `targets` attribute
 - it has a `cmd` attribute
 
+Note that deps are optional.
+
 ### [`class AntiRule`](unit_tests/rust.html#:~:text=class%20AntiRustRust%28AntiRule%29%20%3A%20target%20%3D%20r%27%7B%3A%2E%2A%7D%2Ers%2Ers)
 
 Base class for anti-rules.
@@ -64,7 +66,7 @@ By default `$HOME` points to the root of the repo, which permits to put various 
 
 ### [`class Py2Rule(Rule)`](unit_tests/python2.html#:~:text=class%20Cat%28Py2Rule%29%20%3A), `class Py3Rule(Rule)` and [`class PyRule(Rule)`](unit_tests/basics.html#:~:text=class%20CatPy%28Cat%2CPyRule%29%20%3A)
 
-These classes may be used as base class for rules that execute python code doing imports.
+These classes may be used as base classes for rules that execute python code doing imports.
 
 It manages `.pyc` files.
 Also, it provides deps to module source files although python may optimize such accesses and miss deps on dynamically generated modules.
@@ -76,7 +78,7 @@ PyRule is an alias for Py3Rule.
 
 ### [`class RustRule(Rule)`](unit_tests/rust.html#:~:text=class%20RunRust%28RustRule%29%20%3A)
 
-This class may be used as a base class to execute executable written in rust.
+This class may be used as a base class to execute executables written in rust.
 
 Rust uses a special link mechanism which defeats the default `ld_audit` autodep mechanism.
 This base class merely sets the autodep method to `ld_preload` which works around this problem.

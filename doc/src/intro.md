@@ -175,6 +175,10 @@ Once this has been done, what needs to be executed depends on what has been modi
 | a test suite file         | run modified/new tests                                               |                                                           |
 | a `cmd` in `Lmakefile.py` | run all jobs using corresponding rule and all depending jobs         | depending jobs are only executed if file actually changes |
 
+Notes:
+
+- there is no need for building dependencies (which .h are included where). These are determined automatically while the compiler runs by spying disk accesses.
+
 ## Further notes
 
 ### Use of the `critical` attribute

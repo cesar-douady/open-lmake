@@ -284,7 +284,7 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
-* add links to examples for dep/target flags
+* give an example of Rule using the paths attribute
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 
@@ -292,8 +292,8 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
-- test chroot action overwrite
-- improve cache test coverage
+* test chroot action overwrite
+* improve cache test coverage
 * test codec errors
 	- including non existent codec files
 * test system_tag

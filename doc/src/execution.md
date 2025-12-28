@@ -7,10 +7,10 @@
 
 ## Handling an access
 
-At first glance, recognizing a target from a dep when a job runs seems pretty easy when the accesses to the disk can be traced : reading a file is a dep, writing to it is a target.
+At first glance, recognizing a target from a dep when a job runs seems pretty easy when the accesses to the disk can be traced: reading a file is a dep, writing to it is a target.
 And this is what is done informally, but there are a lot of corner cases.
 
-The specification devised hereinafter has been carefully thought to allow open-lmake to run adequate jobs to reach a stable state from any starting point.
+The specification described below has been carefully designed to allow open-lmake to run adequate jobs to reach a stable state from any starting point.
 More specifically, think of the following sequence:
 
 ```bash
@@ -28,7 +28,7 @@ git clean -ffdx
 lmake foo
 ```
 
-This what stable state means : the content of `foo` is independent of the history and only depends on the rules and the content of sources, both being managed through `git` in this example.
+This is what stable state means: the content of `foo` is independent of the history and only depends on the rules and the content of sources, both being managed through `git` in this example.
 
 In this specification, dirs are ignored (i.e. the presence or content of a dir has no impact) and symbolic links are similar to regular files whose content is the link itself.
 
@@ -158,16 +158,21 @@ Open-lmake tries to minimize the execution of jobs, but may sometimes miss a poi
 This may include erasing a file that has no associated production rule.
 Unless a file is a dep of no job, open-lmake may rebuild it at any time, even when not strictly necessary.
 
-In the case open-lmake determines that a file may have actually been written manually outside its control, it fears to overwrite a valuable user-generated content.
+In the case open-lmake determines that a file may have actually been written manually outside its control, it prevents overwriting a potentially valuable user-generated content.
 In that case, open-lmake quarantines the file under the [LMAKE/quarantine](meta_data.html#:~:text=LMAKE%2Fquarantine) dir with its original name.
 This quarantine mechanism, which is not necessary for open-lmake processing but is a facility for the user, is best effort.
-There are cases where open-lmake cannot anticipate such an overwrite.
+There are cases where open-lmake cannot anticipate such an overwrite (for example if a job writes to a target while it dit not during the previous run,
+open-lmake could not anticipate this would occur).
+
+A typical case is when source files are auto-generated.
+The user may mistakenly fix the generated file, thinking they are fixing a source.
+In that case, open-lmake will detect this case and regenerate this file so as to ensure reproducibility, thus potentially overwriting valuable content.
 
 ## tmp dir
 
 The physical dir is:
 
-- If `$TMPDIR` is set to empty, there is no tmp dir.
+- If `$TMPDIR` is set to an empty string, there is no tmp dir.
 - If open-lmake is supposed to keep this dir after job execution, it is a dir under `LMAKE/tmp`, determined by open-lmake (its precise value is reported by `lshow -i`).
 - Else if `$TMPDIR` is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-dir within it.
 - Else, a dir determined by open-lmake lying in the `LMAKE` dir.
@@ -177,5 +182,5 @@ Unless open-lmake is instructed to keep this dir, it is erased at the end of the
 
 At execution time:
 
-- If `$TMPDIR` is set to empty, it is suppressed from the environment and if the job uses the default tmp dir (usually `/tmp`), an error is generated.
+- If `$TMPDIR` was set to an empty string, it is removed from the environment and if the job uses the default tmp dir (usually `/tmp`), an error is generated.
 - Else `$TMPDIR` is set so that the job can use it to access the tmp dir.

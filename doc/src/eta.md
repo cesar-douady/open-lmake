@@ -9,8 +9,8 @@ An ETA estimation is made possible because the execution time for each job is re
 (if a job ends in error, it may very well have been much faster and the previous execution time is probably a better estimate than this one).
 When a job has never run successfully, an ETE is used instead of its actual execution time by taking a moving average of all the jobs of the same rule.
 
-This being given, a precise ETA would require a fake execution of the jobs yet to be run which can take all deps and resources into account.
-But this is way too expensive, so a faster process must be done, even at the expense of precision.
+That said, a precise ETA would require a fake execution of the jobs yet to be run which can take all deps and resources into account.
+However this is way too computationally expensive, so a faster process must be done, even at the expense of precision.
 
 In all cases, the ETA assumes that no new hidden deps are discovered and that no file is steady so that all jobs currently remaining will actually be executed.
 

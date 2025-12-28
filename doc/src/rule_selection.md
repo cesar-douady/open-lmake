@@ -12,23 +12,23 @@ A file is deemed buildable if the rule selection process leads to a job that gen
 
 ### Name length
 
-First, the length of the target name is checked agains `lmake.config.path_max`.
+First, the length of the target name is checked against `lmake.config.path_max`.
 If the target name is longer, then the process stops here and the file is not buildable.
 
 ### Sources
 
-The second step is to check target agains sources and source dirs.
+The second step is to check target against sources and source dirs.
 
 If the target is listed as a source it is deemed buildable.
 No execution is associated, though, the file modifications made by the user are tracked instead.
 
-If the target is within a dir listed as a source dir (i.e. appears ending with a `/` in the manifest), it is deemed buildable if it exists.
+If the target is within a dir listed as a source dir (i.e. appears with a trailing `/` in the manifest), it is deemed buildable if it exists.
 If it does not exist, it is not buildable.
 In both cases, the process stops here.
 
 ### Up-hill dir
 
-The third step is to see if a up-hill dir (i.e. one of the dir along the dir path leading to the file) is (recursively) buildable.
+The third step is to check if an up-hill dir (i.e. one of the dir along the dir path leading to the file) is (recursively) buildable.
 
 If it is the case, the rule selection process stops here and the file is not buildable.
 
@@ -54,7 +54,7 @@ For a given rule, the file is matched against each target in turn.
 Static targets are tried first in user order, then star targets in user order, and matching stops at the first match.
 Target order is made of `targets` and `target` entries in reversed MRO order (i.e. higher classes in the python class hierarchy are considered first),
 
-If a target matches, the matching defines the value of the static stems (i.e. the stems that appear without a `*`).
+If a target matches, the match defines the value of the static stems (i.e. the stems that appear without a `*`).
 Else, the rule does not apply.
 
 #### Check static deps
@@ -70,7 +70,7 @@ Static deps are then analyzed to see if the are (recursively) buildable, and if 
 
 After these 2 previous steps have been done for the rules of a group, the applicable rules are analyzed the following way:
 
-- If no rule apply, next group is analyzed.
+- If no rule applies, the next group is analyzed.
 - If the file matches several rules as a sure target (i.e. a static target and all static deps are sure),
   the file is deemed buildable, but if required to run, no job will be executed and the file will be in error.
 - If the file matches some rules as a non-sure target (i.e. a star target or a dep is not sure), the corresponding jobs are run.

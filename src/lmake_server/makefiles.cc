@@ -46,7 +46,7 @@ namespace Engine::Makefiles {
 	// dep file line format :
 	// - first dep is special, marked with *, and provide lmake_root
 	// - first char is file existence (+) or non-existence (!)
-	// - then file name
+	// - then filename
 	// dep check is satisfied if each dep :
 	// - has a date before dep_file's date (if first char is +)
 	// - does not exist                    (if first char is !)

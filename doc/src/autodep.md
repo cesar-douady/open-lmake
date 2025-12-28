@@ -18,7 +18,7 @@ Not all methods are supported on all systems, though.
 This consists in spying all calls the the `libc`.
 Several mechanisms can be used to do so.
 
-All of them consist in diverting the calls to the `libc` that access files (typically `open`, but there are about a hundred of them) to a piggy-back code
+All of them consist in diverting the calls to the `libc` that access files (typically `open`, but there are about a hundred of them) to a wrapper code
 that records the access before handling over to the real `libc`.
 They differ in the methods used to divert these calls to the autodep code.
 
@@ -64,7 +64,7 @@ In one case, we have seen a commercial tool reading `/proc/self/status` to detec
 Curiously, it did not detect `$LD_PRELOAD`...
 
 The major drawback is performance wise: the impact is more significant as there is a context switch at each system call.
-`BPF` is used, if available, to decrease the number of useless context switches, but it does not allow to filter out on file name, so it is impossible to have an early ignore of system files.
+`BPF` is used, if available, to decrease the number of useless context switches, but it does not allow to filter out on filename, so it is impossible to have an early ignore of system files.
 
 ## What to do with accesses
 
@@ -115,6 +115,6 @@ For example, a `.c` may have changed, including a `#include` directive.
 In case there are 2 deps `d1` and `d2`, and `d1` was just discovered, it may be out-of date and the job ran with a bad content for `d1`.
 
 Most of the time, this is harmless, but sometimes, it may happen that `d2` is not necessary any more (because old `d1` content had `#include "d2"` and new one does not).
-In that case, this job must be rerun with the new content of `d1`, even if `d2` is in error, as `d2` might disappaer as de dep.
+In that case, this job must be rerun with the new content of `d1`, even if `d2` is in error, as `d2` might disappear as a dep.
 
 This may only occurs if `d2` was accessed **after** `d1` was accessed. If `d2` was accessed before `d1`, it is safe to say the job cannot run because `d2` is in error: it will never disappear.

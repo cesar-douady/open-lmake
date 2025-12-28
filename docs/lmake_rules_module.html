@@ -166,6 +166,7 @@
 <li>it has a <code>target</code> or <code>targets</code> attribute</li>
 <li>it has a <code>cmd</code> attribute</li>
 </ul>
+<p>Note that deps are optional.</p>
 <h3 id="class-antirule"><a class="header" href="#class-antirule"><a href="unit_tests/rust.html#:~:text=class%20AntiRustRust%28AntiRule%29%20%3A%20target%20%3D%20r%27%7B%3A%2E%2A%7D%2Ers%2Ers"><code>class AntiRule</code></a></a></h3>
 <p>Base class for anti-rules.</p>
 <p>A class becomes an anti-rule when:</p>
@@ -197,14 +198,14 @@ It is meant to be a practical way to do trials without having to work out all th
 This is a way to ensure that various tools behave the same way as if they were run for the first time.
 By default <code>$HOME</code> points to the root of the repo, which permits to put various init code there.</p>
 <h3 id="class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><a class="header" href="#class-py2rulerule-class-py3rulerule-and-class-pyrulerule"><a href="unit_tests/python2.html#:~:text=class%20Cat%28Py2Rule%29%20%3A"><code>class Py2Rule(Rule)</code></a>, <code>class Py3Rule(Rule)</code> and <a href="unit_tests/basics.html#:~:text=class%20CatPy%28Cat%2CPyRule%29%20%3A"><code>class PyRule(Rule)</code></a></a></h3>
-<p>These classes may be used as base class for rules that execute python code doing imports.</p>
+<p>These classes may be used as base classes for rules that execute python code doing imports.</p>
 <p>It manages <code>.pyc</code> files.
 Also, it provides deps to module source files although python may optimize such accesses and miss deps on dynamically generated modules.</p>
 <p>If <code>cmd</code> is not a function, and python is called, this last feature is provided if <code>lmake.import_machinery.fix_import</code> is called.</p>
 <p>Py2Rule is used for python2, Py3Rule is used for python3.
 PyRule is an alias for Py3Rule.</p>
 <h3 id="class-rustrulerule"><a class="header" href="#class-rustrulerule"><a href="unit_tests/rust.html#:~:text=class%20RunRust%28RustRule%29%20%3A"><code>class RustRule(Rule)</code></a></a></h3>
-<p>This class may be used as a base class to execute executable written in rust.</p>
+<p>This class may be used as a base class to execute executables written in rust.</p>
 <p>Rust uses a special link mechanism which defeats the default <code>ld_audit</code> autodep mechanism.
 This base class merely sets the autodep method to <code>ld_preload</code> which works around this problem.</p>
 <h3 id="class-tracerulerule"><a class="header" href="#class-tracerulerule"><a href="unit_tests/trace_exec.html#:~:text=class%20Dut%28TraceRule%29%20%3A"><code>class TraceRule(Rule)</code></a></a></h3>

@@ -163,9 +163,9 @@
 <p>Most commands (<code>ldebug</code>, <code>lforget</code>, <code>lmake</code>, <code>lmark</code> and <code>lshow</code>) do not execute directly but instead connect to a server, or launch one if none already run.</p>
 <p>The reason is that although several of these commands can run at the same time (including several times the same one, in particular several <code>lmake</code>), they all must run in the same process to
 stay coherent.</p>
-<p>Among these commands, all of them except <code>lmake</code> run mostly instantaneously. So the serverr mostly exist to be able to run any of these commands while one or several instances of <code>lmake</code> are
+<p>Among these commands, all of them except <code>lmake</code> run mostly instantaneously. So the server mostly exists to be able to run any of these commands while one or several instances of <code>lmake</code> are
 already running.</p>
-<p>The (unique) server is created automatically when necessary and dies as soon as no more needed.
+<p>The (unique) server is created automatically when necessary and dies as soon as it is no longer needed.
 So under normal situations, one does not have to even be aware of the existence of such a server.</p>
 <p>Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (<code>&lt;installation dir&gt;/bin/lmake_server</code>)
 leads to improved performances by avoiding to relaunch a server for each command.

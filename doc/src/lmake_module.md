@@ -21,7 +21,7 @@ The `tuple` of implemented backends.
 
 This function is used to check that the expected version is compatible with the actual version.
 
-This function must be called right after having imported the `lmake` module as in the future, it may adapt itself to the required version when this function is called.
+This function must be called immediately after importing the `lmake` module as in the future, it may adapt itself to the required version when this function is called.
 For example, some default values may be modified and if they are used before this function is called, a wrong (native) value may be provided instead of the correct (adjusted to required version) one.
 
 ### `repo_root`
@@ -168,7 +168,7 @@ For `critical`, `essential`, `ignore`, `ignore_error`, `readdir_ok`, `required` 
 - If not `no_star`,  accept regexpr based flags (e.g. calls to this function with `regexpr=True`).
 - If `ignore`,       deps are ignored altogether, even if further accessed (but previous accesses are kept).
 
-Flags accumulate and are never reset.
+During job execution, flags accumulate and are never reset.
 
 Notes:
 
@@ -342,17 +342,15 @@ Notes:
 - (1):
 	The same functionality is provided with the `ltarget` executable.
 
-### `xxhsum( text , is_link=False )`
+### `xxhsum(text)`
 
 Return a checksum of provided text.
 
-It is a 16-digit hex value with no suffix.
+It is a 16-digit hex value with no suffix as a `str`.
 
-Note : the empty string lead to 0000000000000000 so as to be easily recognizable.
+Note: this checksum is not the same as the checksum of a file with same content.
 
-Note : this checksum is not the same as the checksum of a file with same content.
-
-Note : this checksum is **not** crypto-robust.
+Note: this checksum is **not** crypto-robust.
 
 Cf. *xxhsum(1)* for a description of the algorithm.
 
@@ -360,7 +358,7 @@ Cf. *xxhsum(1)* for a description of the algorithm.
 
 Return a checksum of provided file.
 
-The checksum is :
+The checksum is a `str` containing:
 
 - none                                         if file does not exist, is a dir or a special file
 - empty-R                                      if file is empty

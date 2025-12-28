@@ -104,10 +104,10 @@ This will simplify the user experience but is not required.
 
 # AppArmor
 
-> AppArmor is known to need tuning on Ubuntu24.04 only.
+AppArmor tuning is currently only known to be required on Ubuntu starting at 24.04.
 
 In order to implement namespace related features (the `lmake_view`, `repo_view`, `tmp_view`, `views` and `chroot` rule attributes), and if your system is configured with AppArmor,
-adequate rights must be provided.
+sufficient permissions must be granted.
 
 In that case, do the following :
 - create a file `/etc/apparmor.d/open-lmake` with the following content :
@@ -118,7 +118,7 @@ In that case, do the following :
 			userns,
 		}
 	```
-- activate it with `sudo aa-apparamor_parser -r /etc/apparamor.d/open-lmake`
+- activate it with `sudo aa-apparmor_parser -r /etc/apparamor.d/open-lmake`
 
 # Rationale
 

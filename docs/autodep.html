@@ -165,7 +165,7 @@ Not all methods are supported on all systems, though.</p>
 <h3 id="spying-methods-based-on-libc-calls"><a class="header" href="#spying-methods-based-on-libc-calls">Spying methods based on <code>libc</code> calls</a></h3>
 <p>This consists in spying all calls the the <code>libc</code>.
 Several mechanisms can be used to do so.</p>
-<p>All of them consist in diverting the calls to the <code>libc</code> that access files (typically <code>open</code>, but there are about a hundred of them) to a piggy-back code
+<p>All of them consist in diverting the calls to the <code>libc</code> that access files (typically <code>open</code>, but there are about a hundred of them) to a wrapper code
 that records the access before handling over to the real <code>libc</code>.
 They differ in the methods used to divert these calls to the autodep code.</p>
 <p>This class of methods is fast as there is no need to switch context at each access.
@@ -195,7 +195,7 @@ A special implementation has been devised to handle this case, but is too fragil
 In one case, we have seen a commercial tool reading <code>/proc/self/status</code> to detect such a <code>ptrace</code>ing process, and it stopped, thinking it was being reverse engineered.
 Curiously, it did not detect <code>$LD_PRELOAD</code>...</p>
 <p>The major drawback is performance wise: the impact is more significant as there is a context switch at each system call.
-<code>BPF</code> is used, if available, to decrease the number of useless context switches, but it does not allow to filter out on file name, so it is impossible to have an early ignore of system files.</p>
+<code>BPF</code> is used, if available, to decrease the number of useless context switches, but it does not allow to filter out on filename, so it is impossible to have an early ignore of system files.</p>
 <h2 id="what-to-do-with-accesses"><a class="header" href="#what-to-do-with-accesses">What to do with accesses</a></h2>
 <p>There are 2 questions to solve :</p>
 <ul>
@@ -235,7 +235,7 @@ It is the one of the previous run, which had different file contents.
 For example, a <code>.c</code> may have changed, including a <code>#include</code> directive.
 In case there are 2 deps <code>d1</code> and <code>d2</code>, and <code>d1</code> was just discovered, it may be out-of date and the job ran with a bad content for <code>d1</code>.</p>
 <p>Most of the time, this is harmless, but sometimes, it may happen that <code>d2</code> is not necessary any more (because old <code>d1</code> content had <code>#include "d2"</code> and new one does not).
-In that case, this job must be rerun with the new content of <code>d1</code>, even if <code>d2</code> is in error, as <code>d2</code> might disappaer as de dep.</p>
+In that case, this job must be rerun with the new content of <code>d1</code>, even if <code>d2</code> is in error, as <code>d2</code> might disappear as a dep.</p>
 <p>This may only occurs if <code>d2</code> was accessed <strong>after</strong> <code>d1</code> was accessed. If <code>d2</code> was accessed before <code>d1</code>, it is safe to say the job cannot run because <code>d2</code> is in error: it will never disappear.</p>
 
                     </main>

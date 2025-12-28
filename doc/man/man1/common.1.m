@@ -31,7 +31,7 @@ define(`ClientGeneralities',`
 	.LP
 	Arguments and reports are systematically localized to the current working dir.
 	For example, if you launch B(Name b) from dir B(a) in your repo, the argument is file I(a/b) from the root of the repo
-	and reports containing file names (initially seen from the root of the repo) will be shown relative the the current working dir.
+	and reports containing filenames (initially seen from the root of the repo) will be shown relative the the current working dir.
 	ifelse(`$1',color,`
 		.LP
 		If launched from a terminal, output is colored.

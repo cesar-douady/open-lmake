@@ -5,7 +5,7 @@
 
 # Backends
 
-Backends are in charge of actually launching jobs when the open-lmake engine has identified that it had to be run.
+Backends are responsible for launching jobs when the open-lmake engine has identified that it had to be run.
 It is also in charge of :
 
 - Killing jobs when the open-lmake engine has identified it had to be so.
@@ -22,7 +22,7 @@ A backend has to take decisions of 2 kinds:
 Each backend is autonomous in its decisions and has its own algorithm to take them.
 However, generally speaking, they more or less work by following the following principles:
 
-- For the first question, the backend maintain a pool of available resources and a job is eligible if its required resources can fit in the pool.
+- For the first question, the backend maintains a pool of available resources and a job is eligible if its required resources can fit in the pool.
 When launched, the required resources are subtracted from the pool and when terminated, they are returned to it.
 - For the second question, each job has an associated pressure provided by the open-lmake engine and the backend actually launches the eligible job with the highest pressure.
 

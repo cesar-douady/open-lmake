@@ -41,7 +41,7 @@ namespace Disk {
 		} ;
 		for(; p!=path.data()+path.size() ; p++ ) {
 			char c = *p ;
-			throw_if( c==0 , "file contains nul char : ",path ) ; // file names are not supposed to contain any nul char, cannot canonicalize
+			throw_if( c==0 , "file contains nul char : ",path ) ; // filenames are not supposed to contain any nul char, cannot canonicalize
 			if ( c=='/' && !handle_slash() ) return false ;
 		}
 		return path.back()=='/' || has_sfx || handle_slash() ;
@@ -79,7 +79,7 @@ namespace Disk {
 			res.resize(pos) ;                                                           // parent dir is plain (not ..), suppress it
 		} ;
 		for( char c : path ) {
-			throw_if( c=='\0' , "file contains nul char : ",path ) ;                    // file names are not supposed to contain any nul char, cannot canonicalize
+			throw_if( c=='\0' , "file contains nul char : ",path ) ;                    // filenames are not supposed to contain any nul char, cannot canonicalize
 			handle(c) ;
 		}
 		if (path.back()!='/') {

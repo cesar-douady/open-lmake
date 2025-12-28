@@ -161,11 +161,11 @@
 Semantically, whether a dep is critical or not has no impact on the content of the files built by open-lmake.</p>
 <p>During dep analysis, when a dep (call it <code>dep1</code>) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:</p>
 <ul>
-<li>One possibility is to anticipate that the modification of <code>dep1</code> has no impact on the list of following deps.
+<li>One possibility is to assume that modifying <code>dep1</code> will have no impact on the list of following deps.
 With such an anticipation, open-lmake will keep the following deps, i.e. when ensuring that deps are up-to-date before launching a job, open-lmake will launch all necessary jobs to rebuild
 all deps in parallel, even if the deps have been explicitly declared parallel.</li>
 <li>Another possivility is to anticipate that such a modification of <code>dep1</code> will drastically change the list of following deps.
-With such an anticipation, as soone as open-lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of <code>dep1</code> is meaningless.</li>
+With such an anticipation, as soon as open-lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of <code>dep1</code> is meaningless.</li>
 </ul>
 <p>The first strategy is speculative: launch everything you hear about, and we will see later what is useful.
 The second strategy is conservative: build only what is certain to be required.</p>
@@ -180,7 +180,7 @@ The second strategy is conservative: build only what is certain to be required.<
 <p>In such a situation, the rule building <code>test_suite.rpts</code> typically has <code>test_suite.lst</code> as a static dep but the actual reports <code>test1.rpt</code> and <code>test2.rpt</code> are
 hidden deps, i.e. automatically discovered when building <code>test_suite.rpts</code>.</p>
 <p>Suppose now that you make a modification that makes <code>test2.rpt</code> very heavy to generate. Knowing that, you change your test suite so list a lighter <code>test3.rpt</code> instead.
-The succession of jobs would then be the following:</p>
+The sequence of jobs would then be the following:</p>
 <ul>
 <li><code>test1.rpt</code> and <code>test2.rpt</code> are rebuilt as they are out-of-date after your modification.</li>
 <li><code>test_suite.rpts</code> is rebuilt to collate theses reports.</li>
@@ -208,7 +208,7 @@ Such a flag can either be passed when declaring static deps in a rule, or dynami
 This is optional, just to generate parallel deps instead of automatic sequential deps (but if done, it must be before actually reading the reports).</li>
 <li>Collate reports listed in <code>test_suite.lst</code>.</li>
 </ul>
-<p>And the succession of job would be:</p>
+<p>And the sequence of jobs would be:</p>
 <ul>
 <li><code>test_suite.rpts</code> is rebuilt before analyzing <code>test1.rpt</code> and <code>test2.rpt</code> because <code>test_suite.lst</code> has changed.</li>
 <li>Open-lmake sees that <code>test3.rpt</code> is needed instead of <code>test2.rpt</code>.</li>

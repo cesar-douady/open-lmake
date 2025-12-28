@@ -21,6 +21,6 @@ In that case, sources are adequately set to track `git` updates.
 ### `auto_sources(**kwds)`
 
 This function tries to find sources by calling `manifest_sources` and `git_sources` in turn, untill one succeeds.
-Arguments are passed as pertinent.
+Relevant arguments are forwarded to underlying functions.
 
 In absence of source declaration, this function is called with no argument to determine the sources.

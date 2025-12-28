@@ -159,7 +159,7 @@
 <h1 id="namespaces"><a class="header" href="#namespaces">Namespaces</a></h1>
 <p>Namespaces are used to isolate jobs.
 This is used to provide the semantic for the <code>chroot_dir</code>, <code>repo_view</code>, <code>tmp_view</code> and <code>views</code> attributes.</p>
-<p>In that case, pid's are also isolated which allow reliable job end : when the top-level process exits, the namespaces are destroyed and no other process can survive.
+<p>In that case, pid's are also isolated which allows for a reliable job end: when the top-level process exits, the namespaces are destroyed and no residual process can survive.
 This guarantees that no daemon is left behind, uncontrolled.</p>
 <p>Note that this is true even when <code>chroot_dir</code> is <code>'/'</code>, which otherwise provides no other effect by itself.</p>
 <p>Namespaces can be used in the following situations :</p>
@@ -168,17 +168,17 @@ This guarantees that no daemon is left behind, uncontrolled.</p>
 However, some jobs may use and record absolute paths.
 In that case, the cache will be inefficient as the result in a repo is not identical to the one in another repo.
 This is current practice, in particular in the EDA tools community (which may be rather heavy and where caching is mostly desirable).
-Using the <code>repo_view</code> attribute is a good way to work around this obstacle.</li>
+Using the <code>repo_view</code> attribute is an effective way to circumvent this obstacle.</li>
 <li>Open-lmake tracks all deps inside the reposity and listed source dirs. But it does not track external deps, typically the system (e.g.the <code>/usr</code> dir).
 However, the <code>chroot_dir</code> attribute is part of the command definition and a job will be considered out of date if its value is modified.
 Hence, this can be used as a marker representing the whole system to ensure jobs are rerun upon system updates.</li>
-<li>some softwares (e.g. EDA tools) are designed to operate on a dir rather than dealing with input files/dirs and output files/dirs.
+<li>some software packagess (e.g. EDA tools) are designed to operate on a dir rather than dealing with distinct input and output files/dirs.
 This goes against reentrancy and thus reliability, repeatability, parallelism etc.
 This problem can be solved with symbolic links if they are allowed.
 In all cases, it can be solved by using the <code>tmp_view</code> and copying data back and forth between the repo and the tmp dir.
 Or, more efficient, it can be solved by adequately mapping a logical steady file or dir to a per job physical file or dir (respectively).</li>
 </ul>
-<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot(2)</a>, the user and group databases become the one specified in this chroot dir.
+<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot(2)</a>, the user and group databases become those specified in the chroot dir.
 It may not contain entries for the current user, or the network service may not be available in this environment.
 In that case, some actions can be carried out by open-lmake to restore names for the user and its group using the <code>chroot_action</code> rule attribute.
 Supported actions are:</p>

@@ -5,7 +5,7 @@
 
 # Encoding and decoding
 
-In some situations with heavily parameterized generated files, file names can become very long.
+In projects with heavily parameterized files, filenames can become extremely long.
 Think of the mere compilation of a C++ file `foo.c`.
 You may want to specify:
 
@@ -20,9 +20,9 @@ You may want to specify:
 You may want to be able to generate any combination so as, for example, compare the output of any 2 of them for validation purpose.
 You easily end up with an object file with a name such as `foo.O3.NDEBUG.TRACE_LEVEL=1.sanitize=address.32.o`.
 Already 50 characters or so.
-In a real projects, file names can easily be 200, 300, 400 characters long.
+In a real projects, filenames can easily be 200, 300, 400 characters long.
 
-As long as the file name, with adequate shorthands such as using `TL` instead of `TRACE_LEVEL` fits within a few hundreds of characters, the situation is heavy but manageable.
+As long as the filename, with adequate shorthands such as using `TL` instead of `TRACE_LEVEL` fits within a few hundreds of characters, the situation is heavy but manageable.
 But if you need, say 3000 characters to specify a file, then it becomes completely impractical.
 
 When the configuration can be devised in advance, in a stable way, an efficient alternative is to create a file to contain it, which becomes a configuration name,
@@ -113,12 +113,12 @@ If the group to use for access permission is not the default group of the users:
 To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:
 
 - Best is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <root_dir>`
-- Altenatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+- Alternatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
 
 Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:
 
 - Best is to the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
-- Altenatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+- Alternatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
 
 ## Coherence
 

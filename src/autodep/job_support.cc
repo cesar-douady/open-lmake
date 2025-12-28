@@ -23,7 +23,7 @@ using Proc = JobExecProc ;
 namespace JobSupport {
 
 	static void _chk_files(::vector_s const& files) {
-		for( ::string const& f : files ) throw_unless( f.size()<=PATH_MAX , "file name too long (",f.size()," characters)" ) ;
+		for( ::string const& f : files ) throw_unless( f.size()<=PATH_MAX , "filename too long (",f.size()," characters)" ) ;
 	}
 
 	::pair<::vector<VerboseInfo>,bool/*ok*/> depend( ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr , bool direct , bool verbose ) {

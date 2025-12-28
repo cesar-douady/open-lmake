@@ -16,10 +16,10 @@ Most commands (`ldebug`, `lforget`, `lmake`, `lmark` and `lshow`) do not execute
 The reason is that although several of these commands can run at the same time (including several times the same one, in particular several `lmake`), they all must run in the same process to
 stay coherent.
 
-Among these commands, all of them except `lmake` run mostly instantaneously. So the serverr mostly exist to be able to run any of these commands while one or several instances of `lmake` are
+Among these commands, all of them except `lmake` run mostly instantaneously. So the server mostly exists to be able to run any of these commands while one or several instances of `lmake` are
 already running.
 
-The (unique) server is created automatically when necessary and dies as soon as no more needed.
+The (unique) server is created automatically when necessary and dies as soon as it is no longer needed.
 So under normal situations, one does not have to even be aware of the existence of such a server.
 
 Although the server has been carefully coded to have a very low start overhead, it may happen in rare circumstances, though, that pre-launching a server (`<installation dir>/bin/lmake_server`)

@@ -1642,7 +1642,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	) ;
 	if (entered) {
 		// find a good starting pid
-		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique file names as temporary file instead of using TMPDIR, which is quite common
+		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique filenames as temporary file instead of using TMPDIR, which is quite common
 		// to do that we spread pid's among the availale range by setting the first pid used by jos as apart from each other as possible
 		// call phi the golden number and NPids the number of available pids
 		// spreading is maximized by using phi*NPids as an elementary spacing and id (small_id) as an index modulo NPids

@@ -163,7 +163,7 @@
 <ul>
 <li>None: (ignore values from base classes)</li>
 <li>python: (normal python processing)</li>
-<li>Combine: (Combine inherited values and currently defined one).</li>
+<li>Combine: (Combine inherited values with the currently defined one).</li>
 </ul>
 </li>
 <li>The type.</li>
@@ -176,12 +176,19 @@
 </ul>
 </li>
 </ul>
-<p>When targets are allowed in dynamic values, the <code>targets</code> variable is also defined as the <code>dict</code> of the targets.
-Also, if <code>target</code> was used to redirect stdout, the <code>target</code> variable contains said file name.</p>
-<p>Similarly, when deps are allowed in dynamic values, the <code>deps</code> variable is also defined as the <code>dict</code> of the deps.
-Also, if <code>dep</code> was used to redirect stdin, the <code>dep</code> variable contains said file name.</p>
+<p>When targets are allowed in dynamic values, the <code>targets</code> variable is also available as a <code>dict</code> of the targets.
+Also, if <code>target</code> was used to redirect stdout, the <code>target</code> variable contains said filename.</p>
+<p>Similarly, when deps are allowed in dynamic values, the <code>deps</code> variable is also available as the <code>dict</code> of the deps.
+Also, if <code>dep</code> was used to redirect stdin, the <code>dep</code> variable contains said filename.</p>
 <p>When a type is mentioned as <code>f-str</code>, it means that although written as plain <code>str</code>, they are dynamically interpreted as python f-strings, as for dynamic values.
 This is actually a form of dynamic value.</p>
+<p>Note on <code>f-str</code>: typically, the necessary variables (such as stems) are not available when python reads the rule, so such attributes cannot be actual python f-strings,
+but the python f-string syntax is powerful and intuitive to mention variable parts.
+For example for the attribute <code>cmd</code>:</p>
+<ul>
+<li>correct: <code>cmd = 'gcc -o {DST} {SRC}'</code></li>
+<li>incorrect: <code>cmd = f'gcc -o {DST} {SRC}'</code></li>
+</ul>
 <h1 id="dynamic-attribute-execution"><a class="header" href="#dynamic-attribute-execution">Dynamic attribute execution</a></h1>
 <p>If the value of an attribute (other than <code>cmd</code>) is dynamic, it is interpreted within open-lmake, not as a separate process as for the execution of cmd.
 This means:</p>
@@ -778,7 +785,7 @@ If view already exists, it must be (preferably empty) dir, else it must be a top
 </div>
 <p>This attribute commands an implementation detail.</p>
 <p>If false, jobs are run by launching the interpreter followed by <code>-c</code> and the command text.</p>
-<p>If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said file name.</p>
+<p>If true, jobs are run by creating a temporary file containing the command text, then by launching the interpreter followed by said filename.</p>
 <p>If the size of the command text is too large to fit in the command line, this attribute is silently forced to true.</p>
 <p>This attribute is typically use with interpreters that do not implement the <code>-c</code> option.</p>
 <h3 id="views"><a class="header" href="#views"><a href="unit_tests/overlay.html#:~:text=views%20%3D%20%7B%20%27read%5Fwrite%27%20%3A%20%7B%27upper%27%3A%27write%27%2C%27lower%27%3A%27read%27%7D%20%7D%20%23%20mount%20read%5Fwrite%20as%20write%20on%20top%20of%20read"><code>views</code></a></a></h3>
@@ -787,7 +794,7 @@ If view already exists, it must be (preferably empty) dir, else it must be a top
 </tbody></table>
 </div>
 <p>This attribute defines a mapping from logical views to physical dirs.</p>
-<p>Accesses to logical views are mapped to their corresponding physical (non-recursively) location before any chroot if asked to do so.
+<p>Accesses to logical views are mapped to their corresponding physical location (non-recursively) before any chroot if requested.
 Views and physical locations must be dirs.</p>
 <p>Both logical views and physical locations may be local to the repo, within tmp dir or external, but it is not possible to map a local location to an external view (cf. <a href="namespaces.html">namespaces</a>).</p>
 <p>Dirs in the repo or tmp are created as needed.
@@ -805,7 +812,7 @@ Such <code>copy_up</code> items are provided relative to the root of the view.</
 <tr><td>None</td><td><code>bool</code></td><td><code>False</code></td><td>No</td><td><code>True</code></td></tr>
 </tbody></table>
 </div>
-<p>When this attribute is true, this <code>class</code> is not a rule even if it has the required target &amp; cmd attributes.
+<p>When this attribute is true, this <code>class</code> is not considered as a rule even though it possesses the required attributes.
 In that case, it is only used as a base class to define other rules.</p>
 
                     </main>

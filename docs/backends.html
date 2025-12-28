@@ -157,7 +157,7 @@
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="backends"><a class="header" href="#backends">Backends</a></h1>
-<p>Backends are in charge of actually launching jobs when the open-lmake engine has identified that it had to be run.
+<p>Backends are responsible for launching jobs when the open-lmake engine has identified that it had to be run.
 It is also in charge of :</p>
 <ul>
 <li>Killing jobs when the open-lmake engine has identified it had to be so.</li>
@@ -174,7 +174,7 @@ But the job needs some resources to run and these resources may already be busy 
 <p>Each backend is autonomous in its decisions and has its own algorithm to take them.
 However, generally speaking, they more or less work by following the following principles:</p>
 <ul>
-<li>For the first question, the backend maintain a pool of available resources and a job is eligible if its required resources can fit in the pool.
+<li>For the first question, the backend maintains a pool of available resources and a job is eligible if its required resources can fit in the pool.
 When launched, the required resources are subtracted from the pool and when terminated, they are returned to it.</li>
 <li>For the second question, each job has an associated pressure provided by the open-lmake engine and the backend actually launches the eligible job with the highest pressure.</li>
 </ul>

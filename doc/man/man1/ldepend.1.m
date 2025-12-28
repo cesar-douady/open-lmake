@@ -49,7 +49,7 @@ Item(B(-v),B(--verbose))
 	.RS
 	Item(I(status))   B(ok) if dep is built ok, B(error) if dep is built in error, B(-) if dep is no built or if B(--ignore_error) was not passed
 	Item(I(checksum)) The checksum of the dep (cf C(xxhsum,1)) if B(--read) was passed, else B(-).
-	Item(I(file))     The file name
+	Item(I(file))     The filename
 	.RE
 	.IP
 Item(B(-R),B(--read))            Report an actual read. Default is to only alter flags.

@@ -10,11 +10,11 @@ Semantically, whether a dep is critical or not has no impact on the content of t
 
 During dep analysis, when a dep (call it `dep1`) has been used and turns out to be out-of-date, open-lmake must choose between 2 strategies regarding the deps that follow:
 
-- One possibility is to anticipate that the modification of `dep1` has no impact on the list of following deps.
+- One possibility is to assume that modifying `dep1` will have no impact on the list of following deps.
   With such an anticipation, open-lmake will keep the following deps, i.e. when ensuring that deps are up-to-date before launching a job, open-lmake will launch all necessary jobs to rebuild
   all deps in parallel, even if the deps have been explicitly declared parallel.
 - Another possivility is to anticipate that such a modification of `dep1` will drastically change the list of following deps.
-  With such an anticipation, as soone as open-lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of `dep1` is meaningless.
+  With such an anticipation, as soon as open-lmake sees a modified dep, it will stop its analysis as the following deps, acquired with an out-of-date content of `dep1` is meaningless.
 
 The first strategy is speculative: launch everything you hear about, and we will see later what is useful.
 The second strategy is conservative: build only what is certain to be required.
@@ -33,7 +33,7 @@ In such a situation, the rule building `test_suite.rpts` typically has `test_sui
 hidden deps, i.e. automatically discovered when building `test_suite.rpts`.
 
 Suppose now that you make a modification that makes `test2.rpt` very heavy to generate. Knowing that, you change your test suite so list a lighter `test3.rpt` instead.
-The succession of jobs would then be the following:
+The sequence of jobs would then be the following:
 
 - `test1.rpt` and `test2.rpt` are rebuilt as they are out-of-date after your modification.
 - `test_suite.rpts` is rebuilt to collate theses reports.
@@ -63,7 +63,7 @@ The collating rule would look like:
   This is optional, just to generate parallel deps instead of automatic sequential deps (but if done, it must be before actually reading the reports).
 - Collate reports listed in `test_suite.lst`.
 
-And the succession of job would be:
+And the sequence of jobs would be:
 
 - `test_suite.rpts` is rebuilt before analyzing `test1.rpt` and `test2.rpt` because `test_suite.lst` has changed.
 - Open-lmake sees that `test3.rpt` is needed instead of `test2.rpt`.

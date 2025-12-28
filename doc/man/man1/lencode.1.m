@@ -64,8 +64,8 @@ Item(B(11)) bad usage : command line options and arguments coul not be parsed
 Item((1))
 	The same functionality is provided with the B(lmake.encode) python function.
 Item((2))
-	B(lencode) and C(ldecode) are useful tools when the flow implies file names whose names are impractical.
-	This is a way to transform long file names into much shorter ones by keeping an association file to retrieve long info from short codes.
+	B(lencode) and C(ldecode) are useful tools when the flow implies files whose names are impractical.
+	This is a way to transform long filenames into much shorter ones by keeping an association file to retrieve long info from short codes.
 Item((3))
 	Using this functionality may imply C(git) conflicts on the association file when several users independently create associations in their repos.
 	This is fully dealt with and the only thing left to the user is to accept the resolution of the conflict B(without any action).

@@ -173,12 +173,12 @@
 </ul>
 </li>
 </ul>
-<p>The advantage of declaring a function or a sub-module for each section is that in case something is modified, only the impacted section is re-read.</p>
+<p>The advantage of declaring a function or a sub-module for each section is that if something is modified, only the impacted section is re-read.</p>
 <h2 id="the-config"><a class="header" href="#the-config">The config</a></h2>
 <p>The config is determined by setting the variable <code>lmake.config</code>.
-Because it is predefined with all default values, it is simpler to only define fields.
+Since it is predefined with default values, you only need to define the specific fields you wish to override.
 A typical <code>Lmakefile.py</code> will then contain lines such as:</p>
-<pre><code class="language-python">lmake.config.path_max = 500 # default is 400
+<pre><code class="language-python">lmake.config.path_max = 500 # default is 200
 </code></pre>
 <p><a href="lib/lmake/config_.html">lib/lmake/config_.py</a> can be used as a handy helper as it contains all the fields with a short comment.</p>
 <h2 id="the-sources"><a class="header" href="#the-sources">The sources</a></h2>
@@ -265,10 +265,9 @@ but that would defeat the practical possibility to use multiple inheritance by s
 <li>Define a set of attributes to be handled through combination. This set is defined by the attribute <code>combine</code>, itself being handled by combination.</li>
 <li>Combined attribute are handled by updating/appending rather than replacing when walking through MRO in reverse order.</li>
 <li>Entries with a value None are suppressed as update never suppress a given entry.
-Similarly, values inserted in a set prefixed with a <code>'-'</code> remove the corresponding value from the <code>set</code>.</li>
+Similarly, values inserted in a set prefixed with a <code>'-'</code> remove the corresponding values from the <code>set</code>.</li>
 </ul>
 <p>Because this mechanism walks through the MRO, the diamond rule is enforced.</p>
-<p><code>dict</code>'s and <code>list</code>'s are ordered so that the most specific information appear first, as if classes are searched in MRO.</p>
 <p>Combined attributes may only be <code>dict</code>, <code>set</code> and <code>list</code>:</p>
 <ul>
 <li><code>dict</code>'s and <code>set</code>'s are <code>update</code>d, <code>list</code>'s are <code>append</code>ed.</li>
@@ -276,7 +275,7 @@ Similarly, values inserted in a set prefixed with a <code>'-'</code> remove the 
 </ul>
 <h4 id="paths"><a class="header" href="#paths">paths</a></h4>
 <p>Some environment variables contain paths, such as <code>$PATH</code>.</p>
-<p>When such an entry appears in a rule, its value is searched for occurrences of the special marker <code>...</code> surrounded by separators (the start and end of the strings are deemed to be separators)
+<p>When such an entry appears in a rule, its value is searched for occurrences of the special marker <code>...</code> surrounded by separators (the start and end of the strings are treated as separators)
 And each such occurrence is replaced by the inherited value.</p>
 <p>This makes it particularly useful to manage paths as it allows any intermediate base <code>class</code> to add its own entries, before or after the original ones.</p>
 <p>For example, to add the dir <code>/mypath</code> after the inherited path, one would define the attribute <code>environ</code> as <code>{'PATH':'...:/mypath'}</code>.

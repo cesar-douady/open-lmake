@@ -89,7 +89,7 @@ Consider 2 cases:
 
 In the first case, it is very difficult to devise a flow to avoid such compilation.
 A possibility would be to split the compilation process into 2 parts, the first one filtering out comments,
-this has generally adverse consequences (such as line numbers being altered or source file name being difficult to trace).
+this has generally adverse consequences (such as line numbers being altered or source filename being difficult to trace).
 
 In the second case, the solution is probably pretty trivial : just suppress the contemplated include/import line.
 

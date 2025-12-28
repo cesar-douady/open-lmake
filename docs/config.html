@@ -157,7 +157,7 @@
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="config-fields"><a class="header" href="#config-fields">Config fields</a></h1>
-<p>Depending on when each field can be modified, they are said:</p>
+<p>Depending on when each field can be modified, they are categorized as follows:</p>
 <div class="table-wrapper"><table><thead><tr><th>Tag</th><th>Description</th></tr></thead><tbody>
 <tr><td>Clean</td><td>Requires a fresh repo to change this value.</td></tr>
 <tr><td>Static</td><td>Requires that no <code>lmake</code> is running to change this value.</td></tr>
@@ -201,13 +201,13 @@ It can be specified as a <code>int</code> or a <code>str</code> representing a n
 </tbody></table>
 </div>
 <h3 id="collect--dynamic"><a class="header" href="#collect--dynamic"><a href="unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D%20lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D"><code>collect</code></a> : Dynamic</a></h3>
-<p>This attributes specifies files and dirs to be ignored (and hence kept) when <code>lcollect</code> is run.
+<p>This attribute specifies files and dirs to be ignored (and hence kept) when <code>lcollect</code> is run.
 Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.</p>
 <p>By default, no files are ignored when <code>lcollect</code> is run.</p>
 <h4 id="collectstems--dynamic"><a class="header" href="#collectstems--dynamic"><a href="unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D"><code>collect.stems</code></a> : Dynamic</a></h4>
-<p>This attributes provides a <code>dict</code> as the <code>stems</code> <code>Rule</code> attribute.</p>
+<p>This attribute provides a <code>dict</code> as the <code>stems</code> <code>Rule</code> attribute.</p>
 <h4 id="collectignore--dynamic"><a class="header" href="#collectignore--dynamic"><a href="unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D"><code>collect.ignore</code></a> : Dynamic</a></h4>
-<p>This attributes provides a <code>dict</code> as the <code>targets</code> <code>Rule</code> attribute.
+<p>This attribute provides a <code>dict</code> as the <code>targets</code> <code>Rule</code> attribute.
 However, contrarily to <code>Rule</code>s, several targets can be provided as a <code>list</code>/<code>tuple</code> for each key, and no flags can be passed in.</p>
 <h3 id="colors--dynamic-reasonably-readable"><a class="header" href="#colors--dynamic-reasonably-readable"><a href="lib/lmake/config_.html#:~:text=%2C%20colors,50%5D%20%5D%20%23%20red%20%29"><code>colors</code></a> : Dynamic (reasonably readable)</a></h3>
 <p>Open-lmake generate colorized output if it is connected to a terminal (and if it understands the color escape sequences) (cf. <a href="video_mode.html">video-mode</a>).</p>
@@ -331,18 +331,18 @@ To ensure config is reloaded when elements change, this attribute, which must be
 <p>This is a sub-configuration for all attributes pertaining to the optional tracing facility of open-lmake.</p>
 <p>For tracing to be active, it must be <a href="install.html#:~:text=T%20controls%20%2DDTRACE%20%28default%3A%20traces%20are%20disabled%20%29">compiled in</a>,
 which is off by default as performances can be severly degraded.</p>
-<h4 id="tracechannels--static-all"><a class="header" href="#tracechannels--static-all"><a href="unit_tests/cache.html#:~:text=lmake%2Econfig%2Etrace%2Echannels%20%3D%20%28%27cache%27%2C%29"><code>trace.channels</code></a> : Static (all)</a></h4>
+<h4 id="tracechannels--static-all-available-channels"><a class="header" href="#tracechannels--static-all-available-channels"><a href="unit_tests/cache.html#:~:text=lmake%2Econfig%2Etrace%2Echannels%20%3D%20%28%27cache%27%2C%29"><code>trace.channels</code></a> : Static (all available channels)</a></h4>
 <p>The execution trace open-lmake generates is split into channels to better control what to trace.</p>
-<p>This attributes contains a <code>list</code> or <code>tuple</code> of the channels to trace.</p>
+<p>This attribute contains a <code>list</code> or <code>tuple</code> of the channels to trace.</p>
 <h4 id="tracen_jobs--static-1000"><a class="header" href="#tracen_jobs--static-1000"><a href="unit_tests/stress_codec.html#:~:text=lmake%2Econfig%2Etrace%2En%5Fjobs%20%3D%2020000%20%23%20ensure%20we%20keep%20all%20traces%20for%20analysis"><code>trace.n_jobs</code></a> : Static (<code>1000</code>)</a></h4>
 <p>While open-lmake runs, it generates execution traces for all jobs.</p>
-<p>This attributes contains the overall number of such traces that are kept.</p>
+<p>This attribute contains the overall number of such traces that are kept.</p>
 <h4 id="tracesize--static-100m"><a class="header" href="#tracesize--static-100m"><a href="unit_tests/stress_codec.html#:~:text=lmake%2Econfig%2Etrace%2Esize%20%3D%201%3C%3C30"><code>trace.size</code></a> : Static (<code>'100M'</code>)</a></h4>
-<p>While open-lmake runs, it may generate an execution trace recording a lot of internal events meant for debugging purpose of itself (not for user usage).
+<p>While open-lmake runs, it may generate an execution trace recording a lot of internal events intended for internal debugging purpose of itself (not for user usage).
 Interpretation of the trace must be done in conjunction of open-lmake sources.</p>
 <p>The trace is handled as a ring buffer, storing only the last events when the size overflows.
 The larger the trace, the more probable the root cause of a potential problem is still recorded, but the more space it takes on disk.</p>
-<p>This attributes contains the maximum size this trace can hold (open-lmake keeps the 5 last traces in case the root cause lies in a previous run).</p>
+<p>This attribute contains the maximum size this trace can hold (open-lmake keeps the 5 last traces in case the root cause lies in a previous run).</p>
 
                     </main>
 

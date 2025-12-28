@@ -264,7 +264,7 @@ template<bool IsFile> static Ptr<Str> xxhsum( Tuple const& py_args , Dict const&
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
-		if (key!=Ft) throw cat("unexpected keyword arg ",Ft) ;
+		if (key!=Ft) throw cat("unexpected keyword arg ",key) ;
 		throw_unless( !ft , "arg ",Ft," passed both as positional and keyword" ) ;
 		ft     = *py_val.str() ;
 	}

@@ -161,17 +161,17 @@
 This rule selection process works in several steps described below.</p>
 <p>A file is deemed buildable if the rule selection process leads to a job that generates the file.</p>
 <h3 id="name-length"><a class="header" href="#name-length">Name length</a></h3>
-<p>First, the length of the target name is checked agains <code>lmake.config.path_max</code>.
+<p>First, the length of the target name is checked against <code>lmake.config.path_max</code>.
 If the target name is longer, then the process stops here and the file is not buildable.</p>
 <h3 id="sources"><a class="header" href="#sources">Sources</a></h3>
-<p>The second step is to check target agains sources and source dirs.</p>
+<p>The second step is to check target against sources and source dirs.</p>
 <p>If the target is listed as a source it is deemed buildable.
 No execution is associated, though, the file modifications made by the user are tracked instead.</p>
-<p>If the target is within a dir listed as a source dir (i.e. appears ending with a <code>/</code> in the manifest), it is deemed buildable if it exists.
+<p>If the target is within a dir listed as a source dir (i.e. appears with a trailing <code>/</code> in the manifest), it is deemed buildable if it exists.
 If it does not exist, it is not buildable.
 In both cases, the process stops here.</p>
 <h3 id="up-hill-dir"><a class="header" href="#up-hill-dir">Up-hill dir</a></h3>
-<p>The third step is to see if a up-hill dir (i.e. one of the dir along the dir path leading to the file) is (recursively) buildable.</p>
+<p>The third step is to check if an up-hill dir (i.e. one of the dir along the dir path leading to the file) is (recursively) buildable.</p>
 <p>If it is the case, the rule selection process stops here and the file is not buildable.</p>
 <h3 id="antirule-and-sourcerule"><a class="header" href="#antirule-and-sourcerule"><code>AntiRule</code> and <code>SourceRule</code></a></h3>
 <p>The following step is to match the target against <code>AntiRule</code>'s and <code>SourceRule</code>'s (ordered by their <code>prio</code> attribute, high values are considered first).
@@ -186,7 +186,7 @@ Groups are ordered with higher <code>prio</code> first.</p>
 <p>For a given rule, the file is matched against each target in turn.
 Static targets are tried first in user order, then star targets in user order, and matching stops at the first match.
 Target order is made of <code>targets</code> and <code>target</code> entries in reversed MRO order (i.e. higher classes in the python class hierarchy are considered first),</p>
-<p>If a target matches, the matching defines the value of the static stems (i.e. the stems that appear without a <code>*</code>).
+<p>If a target matches, the match defines the value of the static stems (i.e. the stems that appear without a <code>*</code>).
 Else, the rule does not apply.</p>
 <h4 id="check-static-deps"><a class="header" href="#check-static-deps">Check static deps</a></h4>
 <p>The definition of the static stems allow to compute :</p>
@@ -198,7 +198,7 @@ Else, the rule does not apply.</p>
 <h4 id="group-recap"><a class="header" href="#group-recap">Group recap</a></h4>
 <p>After these 2 previous steps have been done for the rules of a group, the applicable rules are analyzed the following way:</p>
 <ul>
-<li>If no rule apply, next group is analyzed.</li>
+<li>If no rule applies, the next group is analyzed.</li>
 <li>If the file matches several rules as a sure target (i.e. a static target and all static deps are sure),
 the file is deemed buildable, but if required to run, no job will be executed and the file will be in error.</li>
 <li>If the file matches some rules as a non-sure target (i.e. a star target or a dep is not sure), the corresponding jobs are run.

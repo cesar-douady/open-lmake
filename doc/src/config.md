@@ -5,7 +5,7 @@
 
 # Config fields
 
-Depending on when each field can be modified, they are said:
+Depending on when each field can be modified, they are categorized as follows:
 
 | Tag     | Description                                                                                                            |
 |---------|------------------------------------------------------------------------------------------------------------------------|
@@ -74,18 +74,18 @@ This attribute specifies the method used by open-lmake to cache values.
 
 ### [`collect`](unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D%20lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D) : Dynamic
 
-This attributes specifies files and dirs to be ignored (and hence kept) when `lcollect` is run.
+This attribute specifies files and dirs to be ignored (and hence kept) when `lcollect` is run.
 Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.
 
 By default, no files are ignored when `lcollect` is run.
 
 #### [`collect.stems`](unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D) : Dynamic
 
-This attributes provides a `dict` as the `stems` `Rule` attribute.
+This attribute provides a `dict` as the `stems` `Rule` attribute.
 
 #### [`collect.ignore`](unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D) : Dynamic
 
-This attributes provides a `dict` as the `targets` `Rule` attribute.
+This attribute provides a `dict` as the `targets` `Rule` attribute.
 However, contrarily to `Rule`s, several targets can be provided as a `list`/`tuple` for each key, and no flags can be passed in.
 
 ### [`colors`](lib/lmake/config_.html#:~:text=%2C%20colors,50%5D%20%5D%20%23%20red%20%29) : Dynamic (reasonably readable)
@@ -269,24 +269,24 @@ This is a sub-configuration for all attributes pertaining to the optional tracin
 For tracing to be active, it must be [compiled in](install.html#:~:text=T%20controls%20%2DDTRACE%20%28default%3A%20traces%20are%20disabled%20%29),
 which is off by default as performances can be severly degraded.
 
-#### [`trace.channels`](unit_tests/cache.html#:~:text=lmake%2Econfig%2Etrace%2Echannels%20%3D%20%28%27cache%27%2C%29) : Static (all)
+#### [`trace.channels`](unit_tests/cache.html#:~:text=lmake%2Econfig%2Etrace%2Echannels%20%3D%20%28%27cache%27%2C%29) : Static (all available channels)
 
 The execution trace open-lmake generates is split into channels to better control what to trace.
 
-This attributes contains a `list` or `tuple` of the channels to trace.
+This attribute contains a `list` or `tuple` of the channels to trace.
 
 #### [`trace.n_jobs`](unit_tests/stress_codec.html#:~:text=lmake%2Econfig%2Etrace%2En%5Fjobs%20%3D%2020000%20%23%20ensure%20we%20keep%20all%20traces%20for%20analysis) : Static (`1000`)
 
 While open-lmake runs, it generates execution traces for all jobs.
 
-This attributes contains the overall number of such traces that are kept.
+This attribute contains the overall number of such traces that are kept.
 
 #### [`trace.size`](unit_tests/stress_codec.html#:~:text=lmake%2Econfig%2Etrace%2Esize%20%3D%201%3C%3C30) : Static (`'100M'`)
 
-While open-lmake runs, it may generate an execution trace recording a lot of internal events meant for debugging purpose of itself (not for user usage).
+While open-lmake runs, it may generate an execution trace recording a lot of internal events intended for internal debugging purpose of itself (not for user usage).
 Interpretation of the trace must be done in conjunction of open-lmake sources.
 
 The trace is handled as a ring buffer, storing only the last events when the size overflows.
 The larger the trace, the more probable the root cause of a potential problem is still recorded, but the more space it takes on disk.
 
-This attributes contains the maximum size this trace can hold (open-lmake keeps the 5 last traces in case the root cause lies in a previous run).
+This attribute contains the maximum size this trace can hold (open-lmake keeps the 5 last traces in case the root cause lies in a previous run).
