@@ -227,21 +227,26 @@ struct CnodeData {
 	// accesses
 	Cnode    idx () const ;
 	::string name() const { return _name.str() ; }
+	// services
+	void victimize() ;
 	// data
 	// START_OF_VERSIONING DAEMON_CACHE
+	CjobIdx ref_cnt = 0 ;
 private :
 	CnodeName _name ;
 	// END_OF_VERSIONING
 } ;
 
+// START_OF_VERSIONING DAEMON_CACHE
 //                                           ThreadKey header    index       n_index_bits        key    data        misc
 using CjobNameFile  = Store::SinglePrefixFile< '='   , void    , CjobName  , NCjobNameIdxBits  , char , Cjob                     > ;
 using CnodeNameFile = Store::SinglePrefixFile< '='   , void    , CnodeName , NCnodeNameIdxBits , char , Cnode                    > ;
 using CjobFile      = Store::AllocFile       < '='   , void    , Cjob      , NCjobIdxBits      ,        CjobData                 > ;
 using CrunFile      = Store::AllocFile       < '='   , CrunHdr , Crun      , NCrunIdxBits      ,        CrunData                 > ;
-using CnodeFile     = Store::StructFile      < '='   , void    , Cnode     , NCnodeIdxBits     ,        CnodeData                > ;
+using CnodeFile     = Store::AllocFile       < '='   , void    , Cnode     , NCnodeIdxBits     ,        CnodeData                > ;
 using CnodesFile    = Store::VectorFile      < '='   , void    , Cnodes    , NCnodesIdxBits    ,        Cnode     , CnodeIdx , 4 > ;
 using CcrcsFile     = Store::VectorFile      < '='   , void    , Ccrcs     , NCcrcsIdxBits     ,        Hash::Crc , CnodeIdx , 4 > ;
+// END_OF_VERSIONING
 
 extern CjobNameFile  _g_job_name_file  ;
 extern CnodeNameFile _g_node_name_file ;

@@ -269,7 +269,7 @@ Cnode::Cnode(::string const& name_) {
 Cnode::Cnode( NewType , ::string const& name_ ) {
 	CnodeName nn = _g_node_name_file.insert(name_) ;
 	Cnode&    n  = _g_node_name_file.at(nn)        ;
-	if (!n) n = _g_node_file.emplace_back(nn) ;
+	if (!n) n = _g_node_file.emplace(nn) ;
 	self = n ;
 	SWEAR( +self , name_ ) ;
 }
@@ -359,6 +359,8 @@ CrunData::CrunData( Hash::Crc k , bool kil , Cjob j , Time::Pdate la , Disk::Dis
 		if (rate>=RateCmp::s_iota.bounds[1]) RateCmp::s_iota.bounds[1] = rate+1 ;
 		RateCmp::s_insert(rate) ;
 	}
+	//
+	for( Cnode d : ds ) d->ref_cnt++ ;
 }
 
 ::string& operator+=( ::string& os , CrunData const& rd ) {
@@ -398,6 +400,11 @@ void CrunData::victimize() {
 		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[1]-1]) RateCmp::s_iota.bounds[1]-- ;
 	} else {
 		RateCmp::s_insert(rate) ;
+	}
+	//
+	for( Cnode d : deps ) {
+		d->ref_cnt-- ;
+		if (!d->ref_cnt) d->victimize() ;
 	}
 	//
 	if (last) job->victimize() ;
@@ -464,4 +471,9 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 	}
 	trace(res) ;
 	return res ;
+}
+
+void CnodeData::victimize() {
+	_g_node_name_file.pop(_name) ;
+	_g_node_file     .pop(idx()) ;
 }

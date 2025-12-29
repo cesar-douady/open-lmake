@@ -107,7 +107,7 @@ int main( int argc , char* argv[] ) {
 	if (cmd_line.args.size()<1) syntax.usage("must provide a cache dir to repair") ;
 	if (cmd_line.args.size()>1) syntax.usage("cannot repair several cache dirs"  ) ;
 	//
-	if ( FileInfo(File(ServerMrkr)).exists() ) exit(Rc::BadState,"after having ensured no ldaemon_cache_server is running, consider : rm ",ServerMrkr) ;
+	if ( FileInfo(File(ServerMrkr)).exists() ) exit(Rc::BadState,"after having ensured no lcache_server is running, consider : rm ",ServerMrkr) ;
 	//
 	::string const& top_dir_s = with_slash(cmd_line.args[0]) ;
 	if (::chdir(top_dir_s.c_str())!=0) exit(Rc::System  ,"cannot chdir (",StrErr(),") to ",top_dir_s,rm_slash ) ;
@@ -129,7 +129,7 @@ int main( int argc , char* argv[] ) {
 	::string bck_store_dir_s     = top_dir_s + lcl_bck_store_dir_s                     ;
 	//
 	if (!cmd_line.flags[Flag::DryRun]) {
-		if (FileInfo(lcl_repair_mrkr).tag()>=FileTag::Reg) unlnk( bck_store_dir_s , {.dir_ok=true} ) ; // if last ldaemon_cache_repair was interrupted, reset unfinished state
+		if (FileInfo(lcl_repair_mrkr).tag()>=FileTag::Reg) unlnk( bck_store_dir_s , {.dir_ok=true} ) ; // if last lcache_repair was interrupted, reset unfinished state
 		//
 		if (FileInfo(bck_store_dir_s).tag()!=FileTag::Dir) {
 			try                       { rename( lcl_store_dir_s/*src*/ , lcl_bck_store_dir_s/*dst*/ ) ; }

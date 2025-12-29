@@ -65,7 +65,7 @@ namespace Caches {
 			}
 			throw_unless(       +dir_s  , "dir must be specified for daemon_cache") ;
 			throw_unless( is_abs(dir_s) , "dir must be absolute for daemon_cache" ) ;
-			::vector_s daemon_cmd_line = { *g_lmake_root_s+"bin/ldaemon_cache_server" , "-d"/*no_daemon*/ } ;
+			::vector_s daemon_cmd_line = { *g_lmake_root_s+"bin/lcache_server" , "-d"/*no_daemon*/ } ;
 			try                           { _fd = connect_to_server( true/*try_old*/ , Magic , ::move(daemon_cmd_line) , ServerMrkr , dir_s ).first ; }
 			catch (::pair_s<Rc> const& e) { throw e.first ;                                                                                           }
 			service = _fd.service()                                 ;
