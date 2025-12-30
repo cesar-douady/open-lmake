@@ -24,6 +24,8 @@ Also, if `target` was used to redirect stdout, the `target` variable contains sa
 Similarly, when deps are allowed in dynamic values, the `deps` variable is also available as the `dict` of the deps.
 Also, if `dep` was used to redirect stdin, the `dep` variable contains said filename.
 
+Note that environment variables are not accessible while computing dynamic attributes as they are themselves dynamic.
+
 When a type is mentioned as `f-str`, it means that although written as plain `str`, they are dynamically interpreted as python f-strings, as for dynamic values.
 This is actually a form of dynamic value.
 
@@ -306,17 +308,23 @@ This is typically used to access some environment variables set by `slurm`.
 
 If a value contains one of the following strings, they are replaced by their corresponding definitions:
 
-| Key                       | Replacement                                                   | Comment                                                                                    |
-|---------------------------|---------------------------------------------------------------|--------------------------------------------------------------------------------------------|
-| `$LMAKE_ROOT`             | The root dir of the open-lmake package                        | Dont store in targets as this may require cleaning repo if open-lmake installation changes |
-| `$PHYSICAL_REPO_ROOT`     | The physical dir of the subrepo                               | Dont store in targets as this may interact with cached results                             |
-| `$PHYSICAL_TMPDIR`        | The physical dir of the tmp dir                               | Dont store in targets as this may interact with cached results                             |
-| `$PHYSICAL_TOP_REPO_ROOT` | The physical dir of the top-level repo                        | Dont store in targets as this may interact with cached results                             |
-| `$REPO_ROOT`              | The absolute dir of the subrepo as seen by job                |                                                                                            |
-| `$SEQUENCE_ID`            | A unique value for each job execution (at least 1)            | This value must be semantically considered as a random value                               |
-| `$SMALL_ID`               | A unique value among simultaneously running jobs (at least 1) | This value must be semantically considered as a random value                               |
-| `$TMPDIR`                 | The absolute dir of the tmp dir, as seen by the job           |                                                                                            |
-| `$TOP_REPO_ROOT`          | The absolute dir of the top-level repo, as seen by the job    |                                                                                            |
+| Key                        | Replacement                                                                   | Comment                                                                                 |
+|----------------------------|-------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------|
+| `$LMAKE_ROOT`              | The root dir of the open-lmake package                                     | Dont store in targets as this may require cleaning repo if open-lmake installation changes |
+| `$PHYSICAL_REPO_ROOT`      | The physical dir of the subrepo                                               | Dont store in targets as this may interact with cached results                          |
+| `$PHYSICAL_TMPDIR`         | The physical dir of the tmp dir                                               | Dont store in targets as this may interact with cached results                          |
+| `$PHYSICAL_TOP_REPO_ROOT`  | The physical dir of the top-level repo                                        | Dont store in targets as this may interact with cached results                          |
+| `$PYTHON`                  | The full absolute path to the standard python (as provided at build time)     |                                                                                         |
+| `$PYTHON_LD_LIBRARY_PATH`  | The necessary `$LD_LIBRARY_PATH` to ensure standard python works as expected  |                                                                                         |
+| `$PYTHON2`                 | The full absolute path to the standard python2 (as provided at build time)    |                                                                                         |
+| `$PYTHON2_LD_LIBRARY_PATH` | The necessary `$LD_LIBRARY_PATH` to ensure standard python2 works as expected |                                                                                         |
+| `$REPO_ROOT`               | The absolute dir of the subrepo as seen by job                                |                                                                                         |
+| `$SEQUENCE_ID`             | A unique value for each job execution (at least 1)                            | This value must be semantically considered as a random value                            |
+| `$SHELL`                   | `/bin/bash`                                                                   | Not really useful, by symmetry with python                                              |
+| `$STD_PATH`                | The standard path as provided by bash when $PATH is not set                   | Typically used in the definintion of `$PATH`                                            |
+| `$SMALL_ID`                | A unique value among simultaneously running jobs (at least 1)                 | This value must be semantically considered as a random value                            |
+| `$TMPDIR`                  | The absolute dir of the tmp dir, as seen by the job                           |                                                                                         |
+| `$TOP_REPO_ROOT`           | The absolute dir of the top-level repo, as seen by the job                    |                                                                                         |
 
 By default the following environment variables are defined :
 
@@ -554,6 +562,8 @@ In particular, python2.7 and all revisions of python3 are fully supported.
 
 If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.
 
+The first item (the executable path) undergoes the same interpretation of $ keywords as described in [`environ`](#environ).
+
 ### [`readdir_ok`](unit_tests/wine.html#:~:text=readdir%5Fok%20%3D%20True)
 
 | Inheritance | Type   | Default | Dynamic | Example |
@@ -611,6 +621,8 @@ At the end of the supplied executable and arguments, `'-c'` and the actual scrip
 In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding `-c`.
 
 If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.
+
+The first item (the executable path) undergoes the same interpretation of $ keywords as described in [`environ`](#environ).
 
 ### [`side_deps`](unit_tests/ignore.html#:~:text=side%5Fdeps%20%3D%20%7B%20%27BAD%27%20%3A%20%28%27bad%5Fdep%27%2C%27ignore%27%29%20%7D)
 

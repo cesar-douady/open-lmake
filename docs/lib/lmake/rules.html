@@ -113,12 +113,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="kn">import</span> <span class="nn">lmake</span>
 <span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">autodeps</span><span class="p">,</span><span class="n">pdict</span>
 
-<span class="n">shell</span>            <span class="o">=</span> <span class="s1">&#39;/bin/bash&#39;</span>                                                    <span class="c1"># substituted at installation time</span>
-<span class="n">python2</span>          <span class="o">=</span> <span class="s1">&#39;/home/cdy/python/Python-2.7.18-install/bin/python2&#39;</span>           <span class="c1"># .</span>
-<span class="n">python</span>           <span class="o">=</span> <span class="s1">&#39;/usr/bin/python3&#39;</span>                                             <span class="c1"># .</span>
-<span class="n">_std_path</span>        <span class="o">=</span> <span class="s1">&#39;/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin&#39;</span> <span class="c1"># .</span>
-<span class="n">_ld_library_path</span> <span class="o">=</span> <span class="s1">&#39;/home/cdy/python/Python-2.7.18-install/lib&#39;</span>                   <span class="c1"># .</span>
-<span class="n">_lmake_lib</span>       <span class="o">=</span> <span class="n">_osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">_osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
+<span class="n">_lmake_lib</span> <span class="o">=</span> <span class="n">_osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">_osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 
 <span class="k">class</span> <span class="nc">_RuleBase</span> <span class="p">:</span>
     <span class="k">def</span> <span class="nf">__init_subclass__</span><span class="p">(</span><span class="bp">cls</span><span class="p">)</span> <span class="p">:</span>
@@ -162,71 +157,70 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">side_deps</span>    <span class="o">=</span> <span class="p">{}</span>            <span class="c1"># .</span>
 
 <span class="k">class</span> <span class="nc">Rule</span><span class="p">(</span><span class="n">_RuleBase</span><span class="p">)</span> <span class="p">:</span>
-<span class="c1">#   auto_mkdir          = False                        # auto mkdir dir in case of chdir</span>
-<span class="c1">#   backend             = &#39;local&#39;                      # may be set anywhere in the inheritance hierarchy if execution must be remote</span>
-<span class="c1">#   check_abs_paths     = False                        # check that absolute paths inside the repo are not stored in targets</span>
-<span class="c1">#   chroot_dir          = &#39;/&#39;                          # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)</span>
-<span class="c1">#   chroot_action       = None                         # action to handle user when chroot to chroot_dir, one of : None or &#39;none&#39;, &#39;overwrite&#39;, &#39;merge&#39;</span>
-<span class="c1">#   cache               = None                         # cache used to store results for this rule. None means no caching</span>
-<span class="c1">#   cmd                                                # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions</span>
-<span class="c1">#   compression         = None                         # compression to use when caching :</span>
-    <span class="c1">#                                                  # - if None  : no compression</span>
-    <span class="c1">#                                                  # - if a str : the compression method : zlib or zstd, level defaults to 1</span>
-    <span class="c1">#                                                  # - if a int : the compression level : a int between 0 (no compression) and 9 (best and slowest), method defaults zstd if supported, else zlib</span>
-    <span class="c1">#                                                  # - if a tuple : (method,level), as described above</span>
-<span class="c1">#   cwd                 = &#39;&#39;                           # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir</span>
-    <span class="c1">#                                                  #   defaults to the nearest root dir of the module in which the rule is defined</span>
-    <span class="n">deps</span>                <span class="o">=</span> <span class="p">{}</span>                           <span class="c1"># patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {&#39;SRC&#39;:&#39;{File}.c&#39;}</span>
-    <span class="c1">#                                                  #   deps may have flags (use - to reset), e.g. {&#39;TOOL&#39;:(&#39;tool&#39;,&#39;Critical&#39;,&#39;-Essential&#39;)}, flags may be :</span>
-    <span class="c1">#                                                  #   flag        | default | description</span>
-    <span class="c1">#                                                  #   ------------+---------+--------------------------------------------------------------------------------------------</span>
-    <span class="c1">#                                                  #   Essential   | x       | show in graphic flow</span>
-    <span class="c1">#                                                  #   Critical    |         | following deps are ignored if this dep is modified</span>
-    <span class="c1">#                                                  #   IgnoreError |         | accept dep even if generated in error</span>
-<span class="c1">#   dep                                                # syntactic sugar for deps = {&#39;&lt;stdin&gt;&#39;:&lt;value&gt;} (except that it is allowed)</span>
-<span class="c1">#   ete                 = 0                            # Estimated Time Enroute, initial guess for job exec time (in s)</span>
-<span class="c1">#   force               = False                        # if set, jobs are never up-to-date, they are rebuilt every time they are needed</span>
-<span class="c1">#   keep_tmp            = False                        # keep tmp dir after job execution</span>
-    <span class="n">kill_sigs</span>           <span class="o">=</span> <span class="p">(</span><span class="n">_signal</span><span class="o">.</span><span class="n">SIGKILL</span><span class="p">,)</span>           <span class="c1"># signals to use to kill jobs (send them in turn followed by SIGKILL), 1s apart, until job dies</span>
-    <span class="c1">#                                                  #   0&#39;s may be used to set a larger delay between 2 trials)</span>
-<span class="c1">#   lmake_root          = &#39;/my/installs/open-lmake&#39;    # absolute path of the open-lmake installation dir to be used by job (default is current installation dir)</span>
-    <span class="c1">#                                                  #   dir is first searched in chroot_dir then in the native root</span>
-<span class="c1">#   lmake_view          = &#39;/lmake&#39;                     # absolute path under which the open-lmake installation dir is seen (if None, empty, or absent, no bind mount is done)</span>
-    <span class="n">max_retries_on_lost</span> <span class="o">=</span>   <span class="mi">1</span>                          <span class="c1"># max number of retries in case of job lost. 1 is a reasonable value</span>
-<span class="c1">#   max_runs            =   0                          # maximum number a job can be run in a single lmake command, unlimited if None or 0</span>
-    <span class="n">max_stderr_len</span>      <span class="o">=</span> <span class="mi">100</span>                          <span class="c1"># maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise</span>
-    <span class="n">max_submits</span>         <span class="o">=</span>  <span class="mi">10</span>                          <span class="c1"># maximum number a job can be submitted in a single lmake command, unlimited if None or 0</span>
-<span class="c1">#   prio                = 0                            # in case of ambiguity, rules are selected with highest prio first</span>
-    <span class="n">python</span>              <span class="o">=</span> <span class="p">(</span><span class="n">python</span><span class="p">,)</span>                    <span class="c1"># python used for callable cmd</span>
-<span class="c1">#   readdir_ok          = False                        # if set, listing a local non-ignored dir is not an error</span>
-<span class="c1">#   repo_view           = &#39;/repo&#39;                      # absolute path under which the root dir of the repo is seen (if None, empty, or absent, no bind mount is done)</span>
-    <span class="n">shell</span>               <span class="o">=</span> <span class="p">(</span><span class="n">shell</span><span class="p">,)</span>                     <span class="c1"># shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)</span>
-    <span class="n">start_delay</span>         <span class="o">=</span> <span class="mi">3</span>                            <span class="c1"># delay before sending a start message if job is not done by then, 3 is a reasonable compromise</span>
-<span class="c1">#   stderr_ok           = False                        # if set, writing to stderr is not an error but a warning</span>
-<span class="c1">#   timeout             = None                         # timeout allocated to job execution (in s), must be None or an int</span>
-<span class="c1">#   tmp_view            = &#39;/tmp&#39;                       # view under which tmp dir is seen, may be :</span>
-    <span class="c1">#                                                  #   - not specified, &#39;&#39; or None : do not mount tmp dir</span>
-    <span class="c1">#                                                  #   - str                       : must be an absolute path which tmp dir is mounted on.</span>
-    <span class="c1">#                                                  #   physical tmp dir is :</span>
-    <span class="c1">#                                                  #   -      a private sub-dir in $TMPDIR if provided in the environment</span>
-    <span class="c1">#                                                  #   - else a private sub-dir in the LMAKE dir</span>
-<span class="c1">#   use_script          = False                        # use a script to run job rather than calling interpreter with -c</span>
-<span class="c1">#   autodep             = &#39;ld_audit&#39;                   # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace</span>
-    <span class="n">resources</span> <span class="o">=</span> <span class="p">{</span>                                      <span class="c1"># used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps</span>
-        <span class="s1">&#39;cpu&#39;</span> <span class="p">:</span> <span class="mi">1</span>                                      <span class="c1"># number of cpu&#39;s to allocate to job</span>
-<span class="c1">#   ,   &#39;mem&#39; : &#39;100M&#39;                                 # memory to allocate to job</span>
-<span class="c1">#   ,   &#39;tmp&#39; : &#39;1G&#39;                                   # temporary disk space to allocate to job</span>
-    <span class="p">}</span>                                                  <span class="c1"># follow the same syntax as deps</span>
-    <span class="n">environ</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>                                   <span class="c1"># job execution environment, handled as part of cmd (trigger rebuild upon modification)</span>
-        <span class="n">HOME</span> <span class="o">=</span> <span class="s1">&#39;$REPO_ROOT&#39;</span>                            <span class="c1"># favor repeatability by hiding use home dir some tools use at start up time</span>
-    <span class="p">,</span>   <span class="n">PATH</span> <span class="o">=</span> <span class="s1">&#39;:&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">((</span><span class="s1">&#39;$LMAKE_ROOT/bin&#39;</span><span class="p">,</span><span class="n">_std_path</span><span class="p">))</span>
+<span class="c1">#   auto_mkdir          = False                     # auto mkdir dir in case of chdir</span>
+<span class="c1">#   backend             = &#39;local&#39;                   # may be set anywhere in the inheritance hierarchy if execution must be remote</span>
+<span class="c1">#   check_abs_paths     = False                     # check that absolute paths inside the repo are not stored in targets</span>
+<span class="c1">#   chroot_dir          = &#39;/&#39;                       # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)</span>
+<span class="c1">#   chroot_action       = None                      # action to handle user when chroot to chroot_dir, one of : None or &#39;none&#39;, &#39;overwrite&#39;, &#39;merge&#39;</span>
+<span class="c1">#   cache               = None                      # cache used to store results for this rule. None means no caching</span>
+<span class="c1">#   cmd                                             # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions</span>
+<span class="c1">#   compression         = None                      # compression to use when caching :</span>
+    <span class="c1">#                                               # - if None  : no compression</span>
+    <span class="c1">#                                               # - if a str : the compression method : zlib or zstd, level defaults to 1</span>
+    <span class="c1">#                                               # - if a int : the compression level : a int between 0 (no compression) and 9 (best and slowest), method defaults zstd if supported, else zlib</span>
+    <span class="c1">#                                               # - if a tuple : (method,level), as described above</span>
+<span class="c1">#   cwd                 = &#39;&#39;                        # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir</span>
+    <span class="c1">#                                               #   defaults to the nearest root dir of the module in which the rule is defined</span>
+    <span class="n">deps</span>                <span class="o">=</span> <span class="p">{}</span>                        <span class="c1"># patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {&#39;SRC&#39;:&#39;{File}.c&#39;}</span>
+    <span class="c1">#                                               #   deps may have flags (use - to reset), e.g. {&#39;TOOL&#39;:(&#39;tool&#39;,&#39;Critical&#39;,&#39;-Essential&#39;)}, flags may be :</span>
+    <span class="c1">#                                               #   flag        | default | description</span>
+    <span class="c1">#                                               #   ------------+---------+--------------------------------------------------------------------------------------------</span>
+    <span class="c1">#                                               #   Essential   | x       | show in graphic flow</span>
+    <span class="c1">#                                               #   Critical    |         | following deps are ignored if this dep is modified</span>
+    <span class="c1">#                                               #   IgnoreError |         | accept dep even if generated in error</span>
+<span class="c1">#   dep                                             # syntactic sugar for deps = {&#39;&lt;stdin&gt;&#39;:&lt;value&gt;} (except that it is allowed)</span>
+<span class="c1">#   ete                 = 0                         # Estimated Time Enroute, initial guess for job exec time (in s)</span>
+<span class="c1">#   force               = False                     # if set, jobs are never up-to-date, they are rebuilt every time they are needed</span>
+<span class="c1">#   keep_tmp            = False                     # keep tmp dir after job execution</span>
+    <span class="n">kill_sigs</span>           <span class="o">=</span> <span class="p">(</span><span class="n">_signal</span><span class="o">.</span><span class="n">SIGKILL</span><span class="p">,)</span>        <span class="c1"># signals to use to kill jobs (send them in turn followed by SIGKILL), 1s apart, until job dies</span>
+    <span class="c1">#                                               #   0&#39;s may be used to set a larger delay between 2 trials)</span>
+<span class="c1">#   lmake_root          = &#39;/my/installs/open-lmake&#39; # absolute path of the open-lmake installation dir to be used by job (default is current installation dir)</span>
+    <span class="c1">#                                               #   dir is first searched in chroot_dir then in the native root</span>
+<span class="c1">#   lmake_view          = &#39;/lmake&#39;                  # absolute path under which the open-lmake installation dir is seen (if None, empty, or absent, no bind mount is done)</span>
+    <span class="n">max_retries_on_lost</span> <span class="o">=</span>   <span class="mi">1</span>                       <span class="c1"># max number of retries in case of job lost. 1 is a reasonable value</span>
+<span class="c1">#   max_runs            =   0                       # maximum number a job can be run in a single lmake command, unlimited if None or 0</span>
+    <span class="n">max_stderr_len</span>      <span class="o">=</span> <span class="mi">100</span>                       <span class="c1"># maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise</span>
+    <span class="n">max_submits</span>         <span class="o">=</span>  <span class="mi">10</span>                       <span class="c1"># maximum number a job can be submitted in a single lmake command, unlimited if None or 0</span>
+<span class="c1">#   prio                = 0                         # in case of ambiguity, rules are selected with highest prio first</span>
+    <span class="n">python</span>              <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;$PYTHON&#39;</span><span class="p">,)</span>              <span class="c1"># python used for callable cmd</span>
+<span class="c1">#   readdir_ok          = False                     # if set, listing a local non-ignored dir is not an error</span>
+<span class="c1">#   repo_view           = &#39;/repo&#39;                   # absolute path under which the root dir of the repo is seen (if None, empty, or absent, no bind mount is done)</span>
+    <span class="n">shell</span>               <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;$SHELL&#39;</span><span class="p">,)</span>               <span class="c1"># shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)</span>
+    <span class="n">start_delay</span>         <span class="o">=</span> <span class="mi">3</span>                         <span class="c1"># delay before sending a start message if job is not done by then, 3 is a reasonable compromise</span>
+<span class="c1">#   stderr_ok           = False                     # if set, writing to stderr is not an error but a warning</span>
+<span class="c1">#   timeout             = None                      # timeout allocated to job execution (in s), must be None or an int</span>
+<span class="c1">#   tmp_view            = &#39;/tmp&#39;                    # view under which tmp dir is seen, may be :</span>
+    <span class="c1">#                                               #   - not specified, &#39;&#39; or None : do not mount tmp dir</span>
+    <span class="c1">#                                               #   - str                       : must be an absolute path which tmp dir is mounted on.</span>
+    <span class="c1">#                                               #   physical tmp dir is :</span>
+    <span class="c1">#                                               #   -      a private sub-dir in $TMPDIR if provided in the environment</span>
+    <span class="c1">#                                               #   - else a private sub-dir in the LMAKE dir</span>
+<span class="c1">#   use_script          = False                     # use a script to run job rather than calling interpreter with -c</span>
+<span class="c1">#   autodep             = &#39;ld_audit&#39;                # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace</span>
+    <span class="n">resources</span> <span class="o">=</span> <span class="p">{</span>                                   <span class="c1"># used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps</span>
+        <span class="s1">&#39;cpu&#39;</span> <span class="p">:</span> <span class="mi">1</span>                                   <span class="c1"># number of cpu&#39;s to allocate to job</span>
+<span class="c1">#   ,   &#39;mem&#39; : &#39;100M&#39;                              # memory to allocate to job</span>
+<span class="c1">#   ,   &#39;tmp&#39; : &#39;1G&#39;                                # temporary disk space to allocate to job</span>
+    <span class="p">}</span>                                               <span class="c1"># follow the same syntax as deps</span>
+    <span class="n">environ</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>                                <span class="c1"># job execution environment, handled as part of cmd (trigger rebuild upon modification)</span>
+        <span class="n">HOME</span> <span class="o">=</span> <span class="s1">&#39;$REPO_ROOT&#39;</span>                         <span class="c1"># favor repeatability by hiding use home dir some tools use at start up time</span>
+    <span class="p">,</span>   <span class="n">PATH</span> <span class="o">=</span> <span class="s1">&#39;$LMAKE_ROOT/bin:$STD_PATH&#39;</span>
     <span class="p">)</span>
-    <span class="n">environ_resources</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">()</span>                        <span class="c1"># job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)</span>
-    <span class="n">environ_ancillary</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>                         <span class="c1"># job execution environment, does not trigger rebuild upon modification</span>
-        <span class="n">UID</span>  <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">_os</span><span class="o">.</span><span class="n">getuid</span><span class="p">())</span>                       <span class="c1"># this may be necessary by some tools and usually does not lead to user specific configuration</span>
-    <span class="p">,</span>   <span class="n">USER</span> <span class="o">=</span> <span class="n">_pwd</span><span class="o">.</span><span class="n">getpwuid</span><span class="p">(</span><span class="n">_os</span><span class="o">.</span><span class="n">getuid</span><span class="p">())</span><span class="o">.</span><span class="n">pw_name</span>     <span class="c1"># .</span>
+    <span class="n">environ_resources</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">()</span>                     <span class="c1"># job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)</span>
+    <span class="n">environ_ancillary</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>                      <span class="c1"># job execution environment, does not trigger rebuild upon modification</span>
+        <span class="n">UID</span>  <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">_os</span><span class="o">.</span><span class="n">getuid</span><span class="p">())</span>                    <span class="c1"># this may be necessary by some tools and usually does not lead to user specific configuration</span>
+    <span class="p">,</span>   <span class="n">USER</span> <span class="o">=</span> <span class="n">_pwd</span><span class="o">.</span><span class="n">getpwuid</span><span class="p">(</span><span class="n">_os</span><span class="o">.</span><span class="n">getuid</span><span class="p">())</span><span class="o">.</span><span class="n">pw_name</span>  <span class="c1"># .</span>
     <span class="p">)</span>
-    <span class="k">if</span> <span class="n">_ld_library_path</span> <span class="p">:</span> <span class="n">environ</span><span class="p">[</span><span class="s1">&#39;LD_LIBRARY_PATH&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">_ld_library_path</span>
 
 <span class="k">class</span> <span class="nc">AntiRule</span><span class="p">(</span><span class="n">_RuleBase</span><span class="p">)</span> <span class="p">:</span>
     <span class="n">__special__</span> <span class="o">=</span> <span class="s1">&#39;anti&#39;</span>       <span class="c1"># AntiRule&#39;s are not executed, but defined at high enough prio, prevent other rules from being selected</span>
@@ -257,13 +251,12 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="s1">&#39;base rule that handle pyc creation when importing modules in python&#39;</span>
     <span class="c1"># python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file</span>
     <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;__PYC__&#39;</span> <span class="p">:</span> <span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;{*:(?:.+/)?}{*:\w+}.pyc&#39;</span> <span class="p">,</span> <span class="s1">&#39;ignore&#39;</span><span class="p">,</span><span class="s1">&#39;top&#39;</span> <span class="p">)</span> <span class="p">}</span>
-    <span class="n">python</span>       <span class="o">=</span> <span class="n">python2</span>
+    <span class="n">python</span>       <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;$PYTHON2&#39;</span><span class="p">,)</span>
+    <span class="n">environ</span>      <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span> <span class="n">LD_LIBRARY_PATH</span><span class="o">=</span><span class="s1">&#39;$PYTHON2_LD_LIBRARY_PATH&#39;</span> <span class="p">)</span>
     <span class="c1"># this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance</span>
     <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
         <span class="kn">import</span> <span class="nn">sys</span>
         <span class="k">assert</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">major</span><span class="o">==</span><span class="mi">2</span> <span class="p">,</span> <span class="s1">&#39;cannot use Py2Rule with python</span><span class="si">%d</span><span class="s1">.</span><span class="si">%d</span><span class="s1">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">major</span><span class="p">,</span><span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">minor</span><span class="p">)</span>
-        <span class="k">try</span>                <span class="p">:</span> <span class="kn">import</span> <span class="nn">lmake</span>
-        <span class="k">except</span> <span class="ne">ImportError</span> <span class="p">:</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">_lmake_lib</span><span class="p">,)</span>
         <span class="kn">from</span> <span class="nn">lmake.import_machinery</span> <span class="kn">import</span> <span class="n">fix_import</span>
         <span class="n">fix_import</span><span class="p">()</span>
     <span class="n">cmd</span><span class="o">.</span><span class="n">shell</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>       <span class="c1"># support shell cmd&#39;s that may launch python as a subprocess XXX! : manage to execute fix_import()</span>
@@ -274,12 +267,11 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="s1">&#39;__PYC__&#39;</span>     <span class="p">:</span> <span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc&#39;</span>         <span class="p">,</span> <span class="s1">&#39;incremental&#39;</span><span class="p">,</span><span class="s1">&#39;top&#39;</span> <span class="p">)</span>
     <span class="p">,</span>   <span class="s1">&#39;__PYC_TMP__&#39;</span> <span class="p">:</span> <span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc.{*:\d+}&#39;</span> <span class="p">,</span> <span class="s1">&#39;ignore&#39;</span>     <span class="p">,</span><span class="s1">&#39;top&#39;</span> <span class="p">)</span> <span class="c1"># these are temporary files guaranteed unique by python</span>
     <span class="p">}</span>
+    <span class="n">environ</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span> <span class="n">LD_LIBRARY_PATH</span><span class="o">=</span><span class="s1">&#39;$PYTHON_LD_LIBRARY_PATH&#39;</span> <span class="p">)</span>
     <span class="c1"># this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance</span>
     <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
         <span class="kn">import</span> <span class="nn">sys</span>
         <span class="k">assert</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">major</span><span class="o">==</span><span class="mi">3</span> <span class="p">,</span> <span class="s1">&#39;cannot use Py3Rule with python</span><span class="si">%d</span><span class="s1">.</span><span class="si">%d</span><span class="s1">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">major</span><span class="p">,</span><span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">minor</span><span class="p">)</span>
-        <span class="k">try</span>                <span class="p">:</span> <span class="kn">import</span> <span class="nn">lmake</span>
-        <span class="k">except</span> <span class="ne">ImportError</span> <span class="p">:</span> <span class="n">sys</span><span class="o">.</span><span class="n">path</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">_lmake_lib</span><span class="p">,)</span>
         <span class="kn">from</span> <span class="nn">lmake.import_machinery</span> <span class="kn">import</span> <span class="n">fix_import</span>
         <span class="n">fix_import</span><span class="p">()</span>                                  <span class="c1"># deps/targets to pyc files are ignored, so nothing to do</span>
     <span class="n">cmd</span><span class="o">.</span><span class="n">shell</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>                                    <span class="c1"># support shell cmd&#39;s that may launch python as a subprocess XXX! : manage to execute fix_import()</span>

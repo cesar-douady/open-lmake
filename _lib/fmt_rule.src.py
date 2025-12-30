@@ -488,8 +488,8 @@ class Handle :
 			i = attrs[interpreter]
 			if not callable(i) :
 				i0 = i[0]
-				if not callable(i0) and self._is_simple_fstr(i0) :
-					special_deps[interpreter] = ( i0 , '-essential' )             # interpreter is only set as a static dep if it is simple enough as user may want to access files to determine it
+				if not callable(i0) and self._is_simple_fstr(i0) and '$' not in i0 : # a $ may be interpreted by job_exec as in $SHELL or $PYTHON
+					special_deps[interpreter] = ( i0 , '-essential' )                # interpreter is only set as a static dep if it is simple enough as user may want to access files to determine it
 		if special_deps :
 			if callable(attrs.deps) : attrs.deps = serialize.based_dict(attrs.deps,special_deps)
 			else                    : attrs.deps.update(special_deps)
@@ -498,13 +498,13 @@ class Handle :
 		if 'deps' in self.dyn_val    : self.dyn_val    = self.dyn_val   ['deps']
 		if 'deps' in self.static_val : self.static_val = self.static_val['deps']
 		if callable(self.dyn_val) :
-			assert not self.static_val                                            # there must be no static val when deps are full dynamic
-			self.static_val  = None                                               # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
+			assert not self.static_val                                               # there must be no static val when deps are full dynamic
+			self.static_val  = None                                                  # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
 		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
 		if self.rule_rep.deps_attrs and self.rule_rep.deps_attrs.get('static') :
-			self.per_job.update(k for k in attrs.deps.keys() if k.isidentifier()) # special cases are not accessible from f-string's
+			self.per_job.update(k for k in attrs.deps.keys() if k.isidentifier())    # special cases are not accessible from f-string's
 
 	def handle_submit_rsrcs(self) :
 		self._init()

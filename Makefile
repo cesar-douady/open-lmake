@@ -49,9 +49,10 @@ sys_config.log : _bin/sys_config sys_config.env
 	PATH=$$(env -i bash -c 'echo $$PATH')      ; \
 	unset CXX GCOV PYTHON2 PYTHON3 LMAKE_FLAGS ; \
 	. ./sys_config.env                         ; \
-	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
+	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.py) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
 sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h   : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
+sys_config.py  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.sum : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.err : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 
@@ -387,9 +388,11 @@ src/version.cc.stamp : _bin/version version.src src/version.hh version.checked
 	fi
 src/version.cc : src/version.cc.stamp ;
 
-_lib/version.py : _bin/version src/version.hh src/version.cc
+_lib/version.py : _bin/version src/version.hh src/version.cc sys_config.py
 	@echo convert version to py to $@
-	@PYTHON=$(PYTHON) HAS_LD_AUDIT=$(HAS_LD_AUDIT) ./$< cc_to_py src/version.hh src/version.cc >$@
+	@PYTHON=$(PYTHON) ./$< cc_to_py src/version.hh src/version.cc > $@
+	@echo '#'                                                     >>$@
+	@cat sys_config.py                                            >>$@
 
 #
 # LMAKE
@@ -402,16 +405,11 @@ lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk _bin/align_comments
 	@echo customize $< to $@
 	@mkdir -p $(@D)
 	@	sed \
-			-e 's!\$$BASH!$(BASH)!'                          \
-			-e 's!\$$GIT!$(GIT)!'                            \
-			-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'          \
-			-e 's!\$$LD_LIBRARY_PATH!$(PY_LD_LIBRARY_PATH)!' \
-			-e 's!\$$PYTHON2!$(PYTHON2)!'                    \
-			-e 's!\$$PYTHON!$(PYTHON)!'                      \
-			-e 's!\$$STD_PATH!$(STD_PATH)!'                  \
-			-e 's!\$$TAG!$(TAG)!'                            \
-			-e 's!\$$VERSION!$(VERSION)!'                    \
-			$<                                               \
+			-e 's!\$$GIT!$(GIT)!'                      \
+			-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'    \
+			-e 's!\$$TAG!$(TAG)!'                      \
+			-e 's!\$$VERSION!$(VERSION)!'              \
+			$<                                         \
 	|	_bin/align_comments 4 200 '#' >$@
 # for other files, just copy
 lib/% : _lib/%

@@ -10,7 +10,6 @@ if __name__!='__main__' :
 	import os
 
 	from lmake.rules import Rule,PyRule
-	from lmake.rules import python as system_python
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -74,7 +73,7 @@ if __name__!='__main__' :
 		}
 		def python() :
 			if step==1 : raise RuntimeError
-			return (system_python,)
+			return ('$PYTHON',)
 		def cmd() :
 			print(open(deps['FIRST' ]).read(),end='')
 			print(open(deps['SECOND']).read(),end='')

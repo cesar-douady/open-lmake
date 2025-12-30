@@ -8,6 +8,8 @@
 #include "basic_utils.hh"
 #include "enum.hh"
 
+static constexpr char Bash[] = "/bin/bash" ;
+
 // used to disambiguate some calls
 enum class NewType  : uint8_t { New  } ; static constexpr NewType  New  = NewType ::New  ;
 enum class DfltType : uint8_t { Dflt } ; static constexpr DfltType Dflt = DfltType::Dflt ;

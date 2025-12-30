@@ -81,7 +81,7 @@ else :
 	top_repo_root = repo_root = _os.getcwd()
 
 autodeps = ()
-if "$HAS_LD_AUDIT" : autodeps += ('ld_audit'  ,                              )
+if "$HAS_LD_AUDIT" : autodeps += ('ld_audit'  ,                              ) # $HAS_LD_AUDIT is substituted at build time
 if True            : autodeps += ('ld_preload','ld_preload_jemalloc','ptrace')
 
 backends = ('local','sge','slurm')

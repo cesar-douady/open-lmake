@@ -97,11 +97,12 @@ static const ::uset_s SpecialWords {
 ,	"ulimit"  , "umask"     , "unalias"  , "unset"   , "until"
 ,	"while"
 } ;
-static const ::vector_s SpecialVars {
+static const ::uset_s SpecialVars {
 	"BASH_ALIASES"
 ,	"BASH_ENV"
 ,	"BASHOPTS"
 ,	"ENV"
+,	"EXECIGNORE"
 ,	"IFS"
 ,	"SHELLOPTS"
 } ;
@@ -130,12 +131,11 @@ static bool is_special( char c , int esc_lvl , bool first=false ) {
 		default  :            return false ;
 	}
 }
-bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::map_ss const& cmd_env ) {
-	if (cmd_line.size()!=1) goto Complex ;                                                                              // options passed to bash
-	if (cmd_line[0]!=BASH ) goto Complex ;                                                                              // not standard bash
-	//
-	for( ::string const& v : SpecialVars )
-		if (cmd_env.contains(v)) goto Complex ;                                                                         // complex environment
+bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::string const& std_shell , ::vmap_ss const& cmd_env ) {
+	::string const* path = &StdPath ;
+	/**/                                 if (cmd_line.size()!=1     ) goto Complex ;                                    // options passed to bash
+	/**/                                 if (cmd_line[0]!=std_shell ) goto Complex ;                                    // not standard bash
+	for( auto const& [k,v] : cmd_env ) { if (SpecialVars.contains(k)) goto Complex ; if (k=="PATH") path=&v ; }
 	{
 		::vector_s simple_cmd_line { {} }        ;
 		State      state           = State::None ;
@@ -207,14 +207,10 @@ bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&&
 		if (!simple_cmd_line  )   goto Complex ;                                                  // no command
 		if (special_cmd()     )   goto Complex ;                                                  // complex syntax
 		if (!slash_seen) {                                                                        // search PATH
-			if (cmd_env.contains("EXECIGNORE")) goto Complex ;                                    // complex environment
-			auto            it       = cmd_env.find("PATH")                     ;
-			::string const& path     = it==cmd_env.end() ? StdPath : it->second ;
-			::vector_s      path_vec = split(path,':')                          ;
-			for( ::string& p : split(path,':') ) {
-				::string candidate = with_slash(::move(p)) + simple_cmd_line[0] ;
-				if (FileInfo(candidate).tag()==FileTag::Exe) {
-					simple_cmd_line[0] = ::move(candidate) ;
+			for( ::string& p : split(*path,':') ) {
+				p << add_slash << simple_cmd_line[0] ;
+				if (FileInfo(p).tag()==FileTag::Exe) {
+					simple_cmd_line[0] = ::move(p) ;
 					goto CmdFound ;
 				}
 			}
@@ -1089,26 +1085,12 @@ void _prepare_user( ::string const& dir_s , ChrootInfo const& chroot_info , uid_
 		break ;
 	DF}
 }
-template<bool IsFile,class T> static bool/*match*/ _handle_var( ::string& v/*inout*/ , size_t& d /*inout*/, const char* key , T const& val ) {
-	size_t len   = ::strlen(key)    ;
-	bool   brace = v[d+1/*$*/]=='{' ;
-	size_t start = d+1/*$*/+brace   ; //!              match
-	if ( substr_view(v,start,len)!=key        ) return false ;
-	if (  brace && v[start+len]!='}'          ) return false ;
-	if ( !brace && is_word_char(v[start+len]) ) return false ;
-	::string pfx = v.substr(0,d) ;
-	if constexpr (IsFile) pfx += no_slash(val) ;
-	else                  pfx +=          val  ;
-	d = pfx.size()                                   ;
-	v = ::move(pfx) + substr_view(v,start+len+brace) ;
-	return true/*match*/ ;
-}
 bool JobSpace::enter(
-	::vector_s&              /*out*/   report
-,	::string  &              /*.  */   repo_root_s
+	::vector_s&              /*out  */ report
+,	::string  &              /*.    */ repo_root_s
 ,	::vector<UserTraceEntry>&/*inout*/ user_trace
 ,	SmallId                            small_id
-,	::string   const&                  phy_lmake_root_s , bool chk_lmake_root
+,	::string   const&                  phy_lmake_root_s
 ,	::string   const&                  phy_repo_root_s
 ,	::string   const&                  phy_tmp_dir_s    , bool keep_tmp
 ,	ChrootInfo const&                  chroot_info
@@ -1118,36 +1100,6 @@ bool JobSpace::enter(
 ) {
 	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s,STR(is_ld_audit)) ;
 	//
-	if (chk_lmake_root) {
-		uint64_t v_job = 0 ;
-		::string v_str ;
-		try {
-			v_str = AcFd(phy_lmake_root_s+"_lib/version.py").read() ;
-			size_t pos = v_str.find("job") ; throw_unless(pos!=Npos) ;                 // although it is a py file, syntax is guaranteed dead simple as it is our automaticly generated file
-			pos = v_str.find('=',pos) ;      throw_unless(pos!=Npos) ;
-			pos++ ;
-			while (v_str[pos]==' ') pos++ ;
-			v_job = from_string<uint64_t>( substr_view(v_str,pos) , true/*empty_ok*/ ) ;
-			throw_unless(v_job==Version::Job) ;
-		} catch (::string const&) {
-			::string   msg ;
-			/**/       msg << "cannot execute job with incompatible lmake root "<<phy_lmake_root_s<<rm_slash ;
-			if (v_job) msg << " (job version "<<v_job<<"!="<<Version::Job<<')'                               ;
-			else       msg << " (expected job version "<<Version::Job<<" not found)"                         ;
-			throw      msg ;
-		}
-		if (is_ld_audit)
-			try {
-				size_t pos = v_str.find("has_ld_audit") ; throw_unless(pos!=Npos) ;    // although it is a py file, syntax is guaranteed dead simple as it is our automaticly generated file
-				pos = v_str.find('=',pos) ;               throw_unless(pos!=Npos) ;
-				pos++ ;
-				while (v_str[pos]==' ') pos++ ;
-				throw_unless(substr_view(v_str,pos).starts_with("True")) ;
-			} catch (::string const&) {
-				throw "cannot execute job with lmake root not supporting ld_audit as autodep method"s ;
-			}
-	}
-	//
 	repo_root_s = repo_view_s | phy_repo_root_s ;
 	if ( !self && !chroot_info.dir_s ) {
 		if (+sub_repo_s) _chdir(sub_repo_s) ;
@@ -1155,7 +1107,7 @@ bool JobSpace::enter(
 		return false/*entered*/ ;
 	}
 	//
-	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ; // dont use no_slash to properly manage the '/' case
+	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ;                                                 // dont use no_slash to properly manage the '/' case
 	//
 	mk_canon( phy_repo_root_s , sub_repo_s , +chroot_dir ) ;
 	//
@@ -1166,7 +1118,7 @@ bool JobSpace::enter(
 	SWEAR( +phy_repo_root_s  ) ;
 	if (+tmp_view_s) throw_unless( +phy_tmp_dir_s , "no physical dir for tmp view ",no_slash(tmp_view_s) ) ;
 	//
-	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                              ; // account for initial and terminal /
+	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                              ;            // account for initial and terminal /
 	FileNameIdx src_dir_depth = ::max<FileNameIdx>( src_dirs_s , [](::string const& sd_s) { return uphill_lvl(sd_s) ; } ) ;
 	if (src_dir_depth>=repo_depth)
 		for( ::string const& sd_s : src_dirs_s )
@@ -1596,21 +1548,56 @@ void JobStartRpcReply::mk_canon( ::string const& phy_repo_root_s ) {
 	job_space.mk_canon( phy_repo_root_s , autodep_env.sub_repo_s , +chroot_info.dir_s ) ;
 }
 
+void JobStartRpcReply::_mk_lmake_version() {
+	if (!lmake_version.is_remote) {
+		lmake_version.std_path            = STD_PATH            ;
+		lmake_version.python              = PYTHON              ;
+		lmake_version.py_ld_library_path  = PY_LD_LIBRARY_PATH  ;
+		lmake_version.python2             = PYTHON2             ;
+		lmake_version.py2_ld_library_path = PY2_LD_LIBRARY_PATH ;
+		return ;
+	}
+	try {
+		[[maybe_unused]] bool has_ld_audit = false ;
+		uint64_t              v_job        = 0     ;
+		for( ::string const& line : AcFd(phy_lmake_root_s+"_lib/version.py",{.err_ok=true}).read_lines() ) {
+			if (line[0]=='#') continue ;
+			size_t   pos = line.find('=')                ; if (pos==Npos) continue ;
+			::string key = strip(line.substr(0    ,pos)) ;
+			::string val = strip(line.substr(pos+1    )) ;
+			switch (key[0]) {
+				case 'h' : if (key=="has_ld_audit"       ) has_ld_audit                      = (val=="True")              ; break ;
+				case 'j' : if (key=="job"                ) v_job                             = from_string<uint64_t>(val) ; break ;
+				case 'p' : if (key=="py_ld_library_path" ) lmake_version.py_ld_library_path  = val.substr(1,val.size()-2) ;         // suppress quotes
+				else       if (key=="py2_ld_library_path") lmake_version.py2_ld_library_path = val.substr(1,val.size()-2) ;         // .
+				else       if (key=="python"             ) lmake_version.python              = val.substr(1,val.size()-2) ;         // .
+				else       if (key=="python2"            ) lmake_version.python2             = val.substr(1,val.size()-2) ;         // .
+				break ;
+				case 's' : if (key=="std_path"           ) lmake_version.std_path            = val.substr(1,val.size()-2) ; break ; // .
+			DN}
+		}
+		throw_unless( v_job                   , "expected job version ",Version::Job," not found" ) ;
+		throw_unless( v_job==Version::Job     , "job version ",v_job,"!=",Version::Job            ) ;
+		throw_unless( +lmake_version.python   , "python not found"                                ) ;
+		throw_unless( +lmake_version.std_path , "default PATH not found"                          ) ;
+		#if HAS_LD_AUDIT
+			if (method==AutodepMethod::LdAudit) throw_unless( has_ld_audit , "ld_audit is not supported as autodep method" ) ;
+		#endif
+	} catch (::string const& e) {
+		throw cat("cannot execute job with incompatible lmake root (",e,") : ",phy_lmake_root_s,rm_slash) ;
+	}
+}
+
 bool/*entered*/ JobStartRpcReply::enter(
-		::vector_s&              /*out*/   accesses
-	,	::map_ss  &              /*.  */   cmd_env
-	,	::vmap_ss &              /*.  */   dyn_env
-	,	pid_t     &              /*.  */   first_pid
-	,	::string  &              /*.  */   repo_root_s
+		::vector_s&              /*out  */ accesses
+	,	pid_t     &              /*.    */ first_pid
+	,	::string  &              /*.    */ repo_root_s
 	,	::vector<UserTraceEntry>&/*inout*/ user_trace
 	,	::string const&                    phy_repo_root_s
 	,	::string const&                    phy_tmp_dir_s
 ) {
 	Trace trace("JobStartRpcReply::enter",phy_repo_root_s,phy_tmp_dir_s) ;
-	//
-	for( auto& [k,v] : env )
-		if      (v!=PassMrkr)                                                         cmd_env[k] = ::move(v ) ;
-		else if (has_env(k) ) { ::string ev=get_env(k) ; dyn_env.emplace_back(k,ev) ; cmd_env[k] = ::move(ev) ; } // if special illegal value, use value from environment (typically from slurm)
+	_mk_lmake_version() ;
 	//
 	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s ;
 	autodep_env.tmp_dir_s   = job_space.tmp_view_s  | phy_tmp_dir_s   ;
@@ -1627,7 +1614,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	/*.  */  repo_root_s
 	,	/*inout*/user_trace
 	,	         small_id
-	,	         phy_lmake_root_s       , chk_lmake_root
+	,	         phy_lmake_root_s
 	,	         phy_repo_root_s
 	,	         phy_tmp_dir_s          , keep_tmp
 	,	         chroot_info
@@ -1654,49 +1641,73 @@ bool/*entered*/ JobStartRpcReply::enter(
 		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ;       // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
 		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;         // DeltaPid on 64 bits to avoid rare overflow in multiplication
 	}
-	trace("done",accesses,cmd_env,dyn_env,first_pid,repo_root_s) ;
+	trace("done",accesses,first_pid,repo_root_s) ;
 	return entered ;
 }
 
-void JobStartRpcReply::update_env(
-	::map_ss        &/*inout*/ env
-,	::string   const&          phy_repo_root_s
-,	::string   const&          phy_tmp_dir_s
-,	SeqId                      seq_id
-) const {
-	bool has_tmp_dir = +phy_tmp_dir_s ;
-	::string const& lmake_root_s = job_space.lmake_view_s | phy_lmake_root_s ;
-	::string const& repo_root_s  = job_space.repo_view_s  | phy_repo_root_s  ;
-	::string const& tmp_dir_s    = job_space.tmp_view_s   | phy_tmp_dir_s    ;
+template<bool NoSlash,class T> static bool/*match*/ _handle_var( ::string& s/*inout*/ , size_t& d /*inout*/, const char* key , T const& val , bool brace ) {
+	size_t len   = ::strlen(key)  ;
+	size_t start = d+1/*$*/+brace ; //!                             match
+	/**/         if (!substr_view(s,start).starts_with(key)) return false ;
+	if (brace) { if (             s[start+len]!='}'        ) return false ; }
+	else       { if (is_word_char(s[start+len])            ) return false ; }
 	//
-	if (has_tmp_dir) env["TMPDIR"] = no_slash(tmp_dir_s) ;
-	else             env.erase("TMPDIR") ;
-	if (PY_LD_LIBRARY_PATH[0]!=0) {
-		auto [it,inserted] = env.try_emplace("LD_LIBRARY_PATH",PY_LD_LIBRARY_PATH) ;
-		if (!inserted) {
-			if (+it->second) it->second << ':'                ;
-			/**/             it->second << PY_LD_LIBRARY_PATH ;
-		}
+	::string v = val ; if constexpr (NoSlash) rm_slash(v) ;
+	s.replace( d , 1/*$*/+brace+len+brace , v ) ;
+	d += v.size() ;
+	return true/*match*/ ;
+}
+void JobStartRpcReply::update_val( ::string&/*inout*/ v , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId seq_id ) const {
+	for( size_t d=0 ;; d++ ) {
+		d = v.find('$',d) ;
+		if (d==Npos) break ;
+		bool brace = v[d+1/*$*/]=='{' ;
+		size_t k = d+1/*$*/+brace ;
+		switch (v[k]) { //!       NoSlash inout inout
+			case 'L' : _handle_var<true >( v   , d  , "LMAKE_ROOT" , job_space.lmake_view_s|phy_lmake_root_s                       , brace ) ; break ;
+			case 'R' : _handle_var<true >( v   , d  , "REPO_ROOT" , (job_space.repo_view_s|phy_repo_root_s)+autodep_env.sub_repo_s , brace ) ; break ;
+			case 'P' :
+				switch (v[k+1/*P*/]) { //!                            NoSlash inout inout
+					case 'H' :                             _handle_var<true >( v   , d  , "PHYSICAL_LMAKE_ROOT"     , phy_lmake_root_s                        , brace )
+					||                                     _handle_var<true >( v   , d  , "PHYSICAL_REPO_ROOT"      , phy_repo_root_s +autodep_env.sub_repo_s , brace )
+					||         ( +phy_tmp_dir_s         && _handle_var<true >( v   , d  , "PHYSICAL_TMPDIR"         , phy_tmp_dir_s                           , brace ) )
+					||                                     _handle_var<true >( v   , d  , "PHYSICAL_TOP_REPO_ROOT"  , phy_repo_root_s                         , brace )   ; break ;
+					case 'Y' :                             _handle_var<false>( v   , d  , "PYTHON"                  , lmake_version.python                    , brace )
+					||                                     _handle_var<false>( v   , d  , "PYTHON_LD_LIBRARY_PATH"  , lmake_version.py_ld_library_path        , brace )
+					||         ( +lmake_version.python2 && _handle_var<false>( v   , d  , "PYTHON2"                 , lmake_version.python2                   , brace ) )
+					||         ( +lmake_version.python2 && _handle_var<false>( v   , d  , "PYTHON2_LD_LIBRARY_PATH" , lmake_version.py2_ld_library_path       , brace ) ) ; break ;
+				DN}
+			break ;
+			case 'S' :
+				switch (v[k+1/*S*/]) { //!NoSlash inout inout
+					case 'E' : _handle_var<false>( v   , d  , "SEQUENCE_ID" , cat(seq_id  )          , brace ) ; break ;
+					case 'H' : _handle_var<false>( v   , d  , "SHELL"       , Bash                   , brace ) ; break ;
+					case 'M' : _handle_var<false>( v   , d  , "SMALL_ID"    , cat(small_id)          , brace ) ; break ;
+					case 'T' : _handle_var<false>( v   , d  , "STD_PATH"    , lmake_version.std_path , brace ) ; break ;
+				DN}
+			break ;
+			case 'T' :
+				switch (v[k+1/*T*/]) { //!                  NoSlash inout inout
+					case 'M' : +phy_tmp_dir_s && _handle_var<true >( v   , d  , "TMPDIR"        , job_space.tmp_view_s |phy_tmp_dir_s   , brace ) ; break ;
+					case 'O' :                   _handle_var<true >( v   , d  , "TOP_REPO_ROOT" , job_space.repo_view_s|phy_repo_root_s , brace ) ; break ;
+				DN}
+			break ;
+		DN}
 	}
+}
+
+void JobStartRpcReply::update_env( ::vmap_ss&/*out*/  dyn_env , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId seq_id ) {
+	::string const& tmp_dir_s    = job_space.tmp_view_s | phy_tmp_dir_s ;
+	bool            seen_tmp_dir = !phy_tmp_dir_s                       ;
+	//
+	if (!phy_tmp_dir_s) ::erase_if( env , [](::pair_ss const& k_v) { return k_v.first=="TMPDIR" ; } ) ;
 	for( auto& [k,v] : env ) {
-		for( size_t d=0 ;; d++ ) {
-			d = v.find('$',d) ;
-			if (d==Npos) break ;
-			switch (v[d+1/*$*/]) {
-				//                                     IsFile inout inout
-				case 'L' :                  _handle_var<true >( v  , d  , "LMAKE_ROOT"             , lmake_root_s                            )   ; break ;
-				case 'P' :                  _handle_var<true >( v  , d  , "PHYSICAL_LMAKE_ROOT"    , phy_lmake_root_s                        )
-				||                          _handle_var<true >( v  , d  , "PHYSICAL_REPO_ROOT"     , phy_repo_root_s +autodep_env.sub_repo_s )
-				||         ( has_tmp_dir && _handle_var<true >( v  , d  , "PHYSICAL_TMPDIR"        , phy_tmp_dir_s                           ) )
-				||                          _handle_var<true >( v  , d  , "PHYSICAL_TOP_REPO_ROOT" , phy_repo_root_s                         )   ; break ;
-				case 'R' :                  _handle_var<true >( v  , d  , "REPO_ROOT"              , repo_root_s     +autodep_env.sub_repo_s )   ; break ;
-				case 'S' :                  _handle_var<false>( v  , d  , "SEQUENCE_ID"            , seq_id                                  )
-				||                          _handle_var<false>( v  , d  , "SMALL_ID"               , small_id                                )   ; break ;
-				case 'T' : ( has_tmp_dir && _handle_var<true >( v  , d  , "TMPDIR"                 , tmp_dir_s                               ) )
-				||                          _handle_var<true >( v  , d  , "TOP_REPO_ROOT"          , repo_root_s                             )   ; break ;
-			DN}
-		}
+		if      ( +phy_tmp_dir_s && k=="TMPDIR" ) { seen_tmp_dir = true ; v = no_slash(tmp_dir_s) ;                        }
+		if      ( v!=PassMrkr                   )   update_val( v , phy_repo_root_s , phy_tmp_dir_s , seq_id ) ;
+		else if ( has_env(k)                    ) { ::string ev=get_env(k) ; dyn_env.emplace_back(k,ev) ; v = ::move(ev) ; } // use value from environment (typically from slurm)
 	}
+	if (!seen_tmp_dir) env.emplace_back( "TMPDIR" , no_slash(tmp_dir_s) )                      ;
+	if (+interpreter ) update_val( interpreter[0] , phy_repo_root_s , phy_tmp_dir_s , seq_id ) ;
 }
 
 void JobStartRpcReply::exit() {

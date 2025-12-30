@@ -108,7 +108,6 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="kn">import</span> <span class="nn">os</span>
 
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
-    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">python</span> <span class="k">as</span> <span class="n">system_python</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
@@ -172,7 +171,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="p">}</span>
         <span class="k">def</span> <span class="nf">python</span><span class="p">()</span> <span class="p">:</span>
             <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">1</span> <span class="p">:</span> <span class="k">raise</span> <span class="ne">RuntimeError</span>
-            <span class="k">return</span> <span class="p">(</span><span class="n">system_python</span><span class="p">,)</span>
+            <span class="k">return</span> <span class="p">(</span><span class="s1">&#39;$PYTHON&#39;</span><span class="p">,)</span>
         <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">deps</span><span class="p">[</span><span class="s1">&#39;FIRST&#39;</span> <span class="p">])</span><span class="o">.</span><span class="n">read</span><span class="p">(),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
             <span class="nb">print</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">deps</span><span class="p">[</span><span class="s1">&#39;SECOND&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">read</span><span class="p">(),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>

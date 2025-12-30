@@ -31,7 +31,6 @@ if __name__!='__main__' :
 			'FIRST'  : '{File1}'
 		,	'SECOND' : '{File2}'
 		}
-		python = (lmake.user_environ['PYTHON2'],)
 		def cmd() :
 			lmake.depend('a_dep'   ,read=True)
 			lmake.depend('a_no_dep'          )

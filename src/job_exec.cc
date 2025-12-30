@@ -54,31 +54,35 @@ JobStartRpcReply get_start_info() {
 		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ; // .
 	}
 	if (+g_lmake_root_s) {
-		if (+res.phy_lmake_root_s) res.chk_lmake_root   = true            ;     // if using a different lmake, we must check compatibility
-		else                       res.phy_lmake_root_s = *g_lmake_root_s ;
+		try {
+			if (!res.phy_lmake_root_s) res.phy_lmake_root_s        = *g_lmake_root_s ;
+			else                       res.lmake_version.is_remote = true            ; // if using a different lmake, we must check compatibility and extract system info
+		} catch (::string const& e) {
+			exit(Rc::Fail,e) ;
+		}
 	}
 	g_user_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
 	return res ;
 }
 
-::string g_to_unlnk ;                                                                                                   // XXX/ : suppress when CentOS7 bug is fixed
-::vector_s cmd_line( ::map_ss const& cmd_env , ::string const& repo_root_s ) {
+::string g_to_unlnk ;                                                                         // XXX/ : suppress when CentOS7 bug is fixed
+::vector_s cmd_line(::string const& repo_root_s) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
 	if (g_start_info.use_script) {
 		// XXX/ : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
-	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ;                                       // correct code
+	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ;             // correct code
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
 		AcFd( cmd_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( g_start_info.cmd ) ;
-		::vector_s res = ::move(g_start_info.interpreter) ; res.reserve(res.size()+1) ;                                 // avoid copying as interpreter is used only here
-		res.push_back(mk_glb(cmd_file,repo_root_s)) ;                                                                   // provide absolute script so as to support cwd
-		g_to_unlnk = ::move(cmd_file) ;                                                                                 // XXX/ : suppress when CentOS7 bug is fixed
+		::vector_s res = ::move(g_start_info.interpreter) ; res.reserve(res.size()+1) ;       // avoid copying as interpreter is used only here
+		res.push_back(mk_glb(cmd_file,repo_root_s)) ;                                         // provide absolute script so as to support cwd
+		g_to_unlnk = ::move(cmd_file) ;                                                       // XXX/ : suppress when CentOS7 bug is fixed
 		Trace("cmd_line","use_script",res) ;
 		return res ;
 	} else {
 		// large commands are forced use_script=true in server
-		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;                                          // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		bool is_simple = mk_simple_cmd_line( /*inout*/g_start_info.interpreter , ::move(g_start_info.cmd) , cmd_env ) ; // interpreter becomes full cmd line
+		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;                // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+		bool is_simple = mk_simple_cmd_line( /*inout*/g_start_info.interpreter , ::move(g_start_info.cmd) , Bash , g_start_info.env ) ; // interpreter becomes full cmd line
 		Trace("cmd_line",STR(is_simple),g_start_info.interpreter) ;
 		return ::move(g_start_info.interpreter) ;
 	}
@@ -230,14 +234,11 @@ int main( int argc , char* argv[] ) {
 			}
 		}
 		//
-		::map_ss   cmd_env        ;
 		::vector_s enter_accesses ;
 		::string   repo_root_s    ;
 		try {
 			bool entered = g_start_info.enter(
 				/*out*/  enter_accesses
-			,	/*.  */  cmd_env
-			,	/*.  */  end_report.dyn_env
 			,	/*.  */  g_gather.first_pid
 			,	/*.  */  repo_root_s
 			,	/*inout*/*g_user_trace
@@ -259,7 +260,7 @@ int main( int argc , char* argv[] ) {
 				}
 				g_user_trace->emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 			}
-			g_start_info.update_env( /*inout*/cmd_env , g_phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
+			g_start_info.update_env( /*out*/end_report.dyn_env , g_phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
 		} catch (::string const& e) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;
@@ -269,6 +270,7 @@ int main( int argc , char* argv[] ) {
 		g_start_info.autodep_env.views_s          = g_start_info.job_space.flat_phys_s()                                    ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//
+		::map_ss cmd_env = mk_map(g_start_info.env) ;
 		g_gather.addr             =        g_server_fd.addr(false/*peer*/) ;
 		g_gather.as_session       =        true                            ;
 		g_gather.autodep_env      = ::move(g_start_info.autodep_env      ) ;
@@ -340,7 +342,7 @@ int main( int argc , char* argv[] ) {
 			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ;  // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}
-		g_gather.cmd_line = cmd_line( cmd_env , repo_root_s ) ;
+		g_gather.cmd_line = cmd_line(repo_root_s) ;
 		Status status ;
 		try { //!    vvvvvvvvvvvvvvvvvvvvv
 			status = g_gather.exec_child() ;

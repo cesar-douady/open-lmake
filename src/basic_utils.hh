@@ -381,12 +381,12 @@ inline constexpr bool is_space(char c) {
 	return Tab[uint8_t(c)] ;
 }
 
-inline ::string strip(::string const& txt) {
-	size_t start = 0          ;
-	size_t end   = txt.size() ;
-	while ( start<end && is_space(txt[start])) start++ ;
-	while ( start<end && is_space(txt[end-1])) end  -- ;
-	return txt.substr(start,end-start) ;
+inline ::string strip(::string&& txt) {
+	size_t start = 0 ;
+	while ( start<txt.size() && is_space(txt[start])) start++        ;
+	while ( start<txt.size() && is_space(txt.back())) txt.pop_back() ;
+	if (start) return ::move(txt).substr(start) ;
+	else       return ::move(txt)               ;
 }
 
 // split into space separated words

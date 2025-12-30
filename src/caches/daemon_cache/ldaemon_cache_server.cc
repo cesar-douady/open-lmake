@@ -100,7 +100,7 @@ struct CacheServer : AutoServer<CacheServer> {
 			case Proc::Upload   : OMsgBuf( upload  (crr)                                              ).send( fd , {} ) ; return true  ; // from job_exec
 			case Proc::Commit   :          commit  (crr)                                                                ; return false ; // from lmake_server
 			case Proc::Dismiss  :          dismiss (crr)                                                                ; return false ; // .
-		DF}
+		DF}                                                                                                                              // NO_COV
 	}
 } ;
 

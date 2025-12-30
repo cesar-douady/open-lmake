@@ -16,7 +16,8 @@ lmake_root        = osp.dirname(lmake_private_lib)
 lmake_lib         = lmake_root+'/lib'
 
 # normal python behavior : put script dir as first entry, then PYTHONPATH
-assert sys.path[0:2]==[lmake_private_lib,lmake_lib],f'unexpected sys.path : {sys.path} does not start with {[lmake_private_lib,lmake_lib]}'
+assert sys.path[0]==lmake_private_lib,f'unexpected sys.path : {sys.path} does not start with {lmake_private_lib}'
+assert lmake_lib in sys.path         ,f'unexpected sys.path : {sys.path} does not contain {lmake_lib}'
 
 if len(sys.argv)!=5 :
 	print('usage : python read_makefiles.py <out_file> <user_environ> .(<actions>.)* sub_repos_s',file=sys.stderr)
@@ -99,7 +100,7 @@ if '.config.' in actions :
 				del be['interface']                                                                                       # XXX> suppress when compatibility with v25.07 is no more necessary
 				print(f'lmake.config.backends.{tag}.interface is deprecated and ignored',file=sys.stderr)
 				print(f'use lmake.config.backends.{tag}.domain_name if necessary'       ,file=sys.stderr)
-		git = '$GIT'                                                                                                      # value is substitued at installation configuration
+		git = '$GIT'                                                                                                      # substitued at build time
 		for cache in config.get('caches',{}).values() :
 			if 'repo_key' in cache : continue
 			key = cwd

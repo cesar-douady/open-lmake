@@ -55,16 +55,16 @@ namespace Caches {
 					case Proc::Upload   : ::serdes( s ,                        reserved_sz                     ) ; break ;
 					case Proc::Commit   : ::serdes( s , repo_key,job,                      job_info,upload_key ) ; break ;
 					case Proc::Dismiss  : ::serdes( s ,                                             upload_key ) ; break ;
-				DF}
+				DF}                                                                                                        // NO_COV
 			}
 			// data
 			Proc                proc        = Proc::None ;
-			Hash::Crc           repo_key    = {}         ; // if proc =                     Commit
-			::string            job         = {}         ; // if proc = Download |          Commit
-			::vmap_s<DepDigest> repo_deps   = {}         ; // if proc = Download |          Commit
-			Disk::DiskSz        reserved_sz = 0          ; // if proc =            Upload
-			JobInfo             job_info    = {}         ; // if proc =                     Commit
-			uint64_t            upload_key  = 0          ; // if proc =                     Commit | Dismiss
+			Hash::Crc           repo_key    = {}         ;                                                                 // if proc =                     Commit
+			::string            job         = {}         ;                                                                 // if proc = Download |          Commit
+			::vmap_s<DepDigest> repo_deps   = {}         ;                                                                 // if proc = Download |          Commit
+			Disk::DiskSz        reserved_sz = 0          ;                                                                 // if proc =            Upload
+			JobInfo             job_info    = {}         ;                                                                 // if proc =                     Commit
+			uint64_t            upload_key  = 0          ;                                                                 // if proc =                     Commit | Dismiss
 		} ;
 
 		struct RpcReply {

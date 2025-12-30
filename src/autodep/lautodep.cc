@@ -124,7 +124,6 @@ int main( int argc , char* argv[] ) {
 	JobStartRpcReply jsrr        ;
 	JobSpace  &      job_space   = jsrr.job_space   ;
 	AutodepEnv&      autodep_env = jsrr.autodep_env ;
-	::map_ss         cmd_env     ;
 	Gather           gather      ;
 	//
 	try {
@@ -164,24 +163,26 @@ int main( int argc , char* argv[] ) {
 			if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) jsrr.chroot_info.group  = gr->gr_name ; }
 		}
 		//
+		jsrr.lmake_version.is_remote = cmd_line.flags[CmdFlag::LmakeRoot] ;
+		jsrr.interpreter             = ::move(cmd_line.args)              ;
 		jsrr.enter(
 			/*out  */::ref(::vector_s())
-		,	/*.    */cmd_env
-		,	/*.    */::ref(::vmap_ss               ())/*dyn_env*/
 		,	/*.    */gather.first_pid
 		,	/*.    */::ref(::string                ())/*repo_root_s*/
 		,	/*inout*/::ref(::vector<UserTraceEntry>())
 		,	         *g_repo_root_s
 		,	         with_slash(tmp_dir)
 		) ;
+		jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ; // updateg jsrr.env and jsrr.interpreter
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
-	Status status ;
+	Status   status  ;
+	::map_ss cmd_env = mk_map(jsrr.env) ;
 	try {
 		BlockedSig blocked{{SIGINT}} ;
 		gather.autodep_env  = ::move(autodep_env)                            ;
-		gather.cmd_line     = cmd_line.args                                  ;
+		gather.cmd_line     = jsrr.interpreter                               ;
 		gather.env          = &cmd_env                                       ;
 		gather.lmake_root_s = job_space.lmake_view_s | jsrr.phy_lmake_root_s ;
 		gather.method       = jsrr.method                                    ;

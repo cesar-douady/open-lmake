@@ -178,35 +178,32 @@ void Child::spawn() {
 	if (stderr==PipeFd) { _c2pe.open() ; _c2pe.no_std() ; }
 	//
 	// /!\ memory for environment must be allocated before calling clone
-	::vector_s            env_str_vector ;                                                                                   // ensure actual env strings (of the form name=val) lifetime
-	::vector<const char*> env_vector     ;
-	if (env) {
-		size_t n_env = env->size() + (add_env?add_env->size():0) ;
-		env_str_vector.reserve(n_env  ) ;
-		env_vector    .reserve(n_env+1) ;                                                                                    // account for the sentinel
-		/**/         for( auto const& [k,v] : *env           ) env_str_vector.push_back(cat(k,'=',v)) ;
-		if (add_env) for( auto const& [k,v] : *add_env       ) env_str_vector.push_back(cat(k,'=',v)) ;
-		/**/         for( ::string const& e : env_str_vector ) env_vector    .push_back(e.c_str()   ) ;
-		/**/                                                   env_vector    .push_back(nullptr     ) ;                      // sentinel
-		_child_env = env_vector.data() ;
-	} else if (add_env) {
-		size_t n_env = add_env->size() ; for( char** e=environ ; *e ; e++ ) n_env++ ;
-		env_str_vector.reserve(add_env->size()) ;
-		env_vector    .reserve(n_env+1        ) ;                                                                            // +1 for the sentinel
-		for( auto const& [k,v] : *add_env ) env_str_vector.push_back(cat(k,'=',v)) ;
-		for( char** e=environ ; *e ; e++  ) env_vector    .push_back(*e          ) ;
-		for( ::string e : env_str_vector  ) env_vector    .push_back(e.c_str()   ) ;
-		/**/                                env_vector    .push_back(nullptr     ) ;                                         // sentinel
-		_child_env = env_vector.data() ;
+	::vector_s            env_str_vec ;                                                                                      // ensure actual env strings (of the form name=val) lifetime
+	::vector<const char*> env_vec     ;
+	if ( env || add_env ) {
+		env_str_vec.reserve( (env?env->size():  0) + (add_env?add_env->size():0)                 ) ;                         // a little bit too large in case of key conflict, no harm
+		env_vec    .reserve( (env?env->size():100) + (add_env?add_env->size():0) + 1/*sentinel*/ ) ;                         // rough approximation if !env, better than nothing
+		//
+		if (add_env) {
+			if (env) for( auto const& [k,v] : *env     ) { if (                                  !(      add_env->contains(k                ) ) ) env_str_vec.push_back(k+'='+v) ; }
+			else     for( char** e=environ ; *e ; e++  ) { if ( const char* p=::strchr(*e,'=') ; !( p && add_env->contains({*e,size_t(p-*e)}) ) ) env_vec    .push_back(*e     ) ; }
+			/**/     for( auto const& [k,v] : *add_env )                                                                                          env_str_vec.push_back(k+'='+v) ;
+		} else {
+			if (env) for( auto const& [k,v] : *env     ) {                                                                                        env_str_vec.push_back(k+'='+v) ; }
+			else     for( char** e=environ ; *e ; e++  ) {                                                                                        env_vec    .push_back(*e     ) ; }
+		}
+		//
+		for( ::string const& e : env_str_vec ) env_vec.push_back(e.c_str()          ) ;
+		/**/                                   env_vec.push_back(nullptr/*sentinel*/) ;
+		_child_env = env_vec.data() ;
 	} else {
 		_child_env = const_cast<const char**>(environ) ;
 	}
-	//
 	// /!\ memory for args must be allocated before calling clone
-	::vector<const char*> cmd_line_vector ; cmd_line_vector.reserve(cmd_line.size()+1) ;                                     // account for sentinel
-	for( ::string const& c : cmd_line ) cmd_line_vector.push_back(c.c_str()) ;
-	/**/                                cmd_line_vector.push_back(nullptr  ) ;                                               // sentinel
-	_child_args = cmd_line_vector.data() ;
+	::vector<const char*> cmd_line_vec ; cmd_line_vec.reserve(cmd_line.size()+1) ;                                           // account for sentinel
+	for( ::string const& c : cmd_line ) cmd_line_vec.push_back(c.c_str()) ;
+	/**/                                cmd_line_vec.push_back(nullptr  ) ;                                                  // sentinel
+	_child_args = cmd_line_vec.data() ;
 	//
 	if (first_pid) {
 		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                               ; // we need a trampoline stack if we launch a grand-child

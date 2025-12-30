@@ -269,12 +269,12 @@ namespace Engine {
 	}
 
 	bool/*keep*/ Rule::s_qualify_dep( ::string const& key , ::string const& dep ) {
-		auto bad = [&] ( ::string const& msg , ::string const& consider={} ) {
+		auto bad = [&][[noreturn]]( ::string const& msg , ::string const& consider={} ) {
 			::string e = cat("dep ",key,' ',msg,+dep?" : ":"",dep) ;
 			if ( +consider && consider!=dep ) e <<", consider : "<< consider ;
 			throw e ;
 		} ;
-		if (!dep                         ) bad( "is empty"                         ) ;
+		if (!dep                         ) bad( "is empty"                         ) ;                        // ... in which case actual interpreter is unpredictable, dont make it static
 		if (!is_canon(dep,true/*ext_ok*/)) bad( "is not canonical" , mk_canon(dep) ) ;
 		if (dep.back()=='/'              ) bad( "ends with /"      , no_slash(dep) ) ;
 		if (is_lcl(dep)                  ) return true/*keep*/ ;
@@ -302,9 +302,8 @@ namespace Engine {
 			if ( !is_abs(dep) &&  abs_sd ) bad( cat("must be absolute inside source dir ",sd_s) , abs_dep ) ;
 			return true/*keep*/ ;
 		}
-		if ( key=="python" || key=="shell" ) return false/*keep*/ ;                                           // accept external dep for interpreter (but ignore it)
-		bad( "is outside repo and all source dirs" , "suppress dep" ) ;
-		return false/*garbage*/ ;                                                                             // NO_COV, to please compiler
+		if ( key=="python" || key=="shell" ) return false/*keep*/ ;
+		else                                 bad( "is outside repo and all source dirs" , "suppress dep" ) ;  // accept external dep for interpreter (but ignore it)
 	}
 
 	static void _mk_flags( ::string const& key , Sequence const& py_seq , uint8_t n_skip , MatchFlags&/*inout*/ flags , bool dep_only ) {
@@ -460,8 +459,8 @@ namespace Engine {
 				bool     keep       = false/*garbage*/                                                                   ;
 				::string parsed_dep = _subst_fstr( dep , var_idxs , /*inout*/n_unnamed , /*out*/&keep/*keep_for_deps*/ ) ;
 				if (!keep) {
-					if ( key=="python" || key=="shell" ) continue             ;                          // accept external dep for interpreter (but ignore it)
-					else                                 throw "is external"s ;
+					throw_unless( key=="python" || key=="shell" , "is external" ) ;
+					continue ;                                                                           // accept external dep for interpreter (but ignore it)
 				}
 				//
 				if (n_unnamed) {

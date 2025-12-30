@@ -419,18 +419,14 @@ Status Gather::exec_child() {
 }
 
 Status Gather::_exec_child() {
-	//
 	using Event = Epoll<Kind>::Event ;
 	Trace trace("exec_child",STR(as_session),method,autodep_env,cmd_line) ;
-	//
-	if (env) { trace("env",*env) ; swear_prod( !env->contains("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ; }
-	else                           swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	//
 	bool                        has_server     = +service_mngt  ;
 	ServerSockFd                job_master_fd  { 0/*backlog*/ } ;
 	AcFd                        fast_report_fd ;                        // always open, never waited for
 	AcFd                        child_fd       ;
-	Epoll<Kind>                 epoll          { New }          ;
+	Epoll<Kind>                 epoll          { New          } ;
 	Status                      status         = Status::New    ;
 	::map<PD,::pair<Fd,Jerr>>   delayed_jerrs  ;                        // events that analyze deps and targets are delayed until all accesses are processed to ensure complete info
 	size_t                      live_out_pos   = 0              ;

@@ -5,6 +5,8 @@
 
 #include "core.hh" // /!\ must be first to include Python.h first
 
+#include <pwd.h>
+
 #include "process.hh"
 #include "rpc_client.hh"
 #include "rpc_job_exec.hh"
@@ -97,7 +99,7 @@ static LmakeServer  _g_server    { ServerMrkr } ;
 static Atomic<bool> _g_done      = false        ;
 static bool         _g_seen_make = false        ;
 
-::string _os_compat(::string const& os_id) {
+static ::string _os_compat(::string const& os_id) {
 	::string res = os_id ;
 	switch (res[0]) {
 		case 'c' : if (res.starts_with("centos/"       )) res = "rhel"+res.substr(res.find('/')) ; break ; // centos       is inter-operable with rhel
@@ -327,9 +329,12 @@ static bool/*interrupted*/ _engine_loop() {
 int main( int argc , char** argv ) {
 	//
 	Trace::s_backup_trace = true                                                    ;
-	g_writable            = !repo_app_init({ .chk_version=Maybe , .cd_root=false }) ;                                              // server is always launched at root
-	if (Record::s_is_simple(*g_repo_root_s)) exit(Rc::Usage,"cannot use lmake inside system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
+	g_writable            = !repo_app_init({ .chk_version=Maybe , .cd_root=false }) ;                                                // server is always launched at root
+	if (Record::s_is_simple(*g_repo_root_s)) exit(Rc::Usage,"cannot use lmake inside a system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
 	_chk_os() ;
+	::umap_ss user_env = mk_environ() ;
+	if (user_env.contains("LMAKE_AUTODEP_ENV")) exit(Rc::Usage,"cannot run lmake under lmake") ;
+	Makefiles::clean_env() ;                                                                     // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
 	AutodepEnv ade ;
 	ade.repo_root_s         = *g_repo_root_s ;
@@ -368,11 +373,11 @@ int main( int argc , char** argv ) {
 	//                             ^^^^^^^^^^^^^^^^^
 	::string     msg ;
 	::pair_s<Rc> rc  { {} , Rc::Ok } ;
-	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                          { Makefiles::refresh( /*out*/msg , mk_environ() , _g_server.rescue , refresh_ , startup_dir_s ) ; }
-	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                                     }
-	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                                     }
+	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                          { Makefiles::refresh( /*out*/msg , user_env , _g_server.rescue , refresh_ , startup_dir_s ) ; }
+	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                                 }
+	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                                 }
 	//
 	if (+msg      ) Fd::Stderr.write(with_nl(msg)) ;
 	if (+rc.second) exit( rc.second , rc.first )   ;

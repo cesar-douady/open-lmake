@@ -34,9 +34,23 @@ namespace Engine::Makefiles {
 	static constexpr const char* EnvironFile  = ADMIN_DIR_S "environ"  ; // provided to user, contains only variables used in Lmakefile.py
 	static constexpr const char* ManifestFile = ADMIN_DIR_S "manifest" ; // provided to user, contains the list of source files
 
-	static ::map_ss _g_env          ;
 	static ::string _g_tmp_dir_s    = cat(AdminDirS,"lmakefile_tmp/") ;
 	static ::string _g_user_env_str ;
+
+	// ensure env is clean for dynamic execution
+	void clean_env() {
+		::clearenv() ;
+		::string repo_root = no_slash(*g_repo_root_s) ;
+		uid_t    uid       = ::getuid()               ;
+		set_env( "HOME"            ,     repo_root                        ) ;
+		set_env( "LD_LIBRARY_PATH" ,     PY_LD_LIBRARY_PATH               ) ;
+		set_env( "PATH"            , cat(*g_lmake_root_s,"bin:",STD_PATH) ) ;
+		set_env( "PWD"             ,     repo_root                        ) ;
+		set_env( "PYTHONPATH"      , cat(*g_lmake_root_s,"lib:"         ) ) ;
+		set_env( "SHLVL"           ,     "1"                              ) ;
+		set_env( "UID"             , cat(uid                            ) ) ;
+		set_env( "USER"            ,     ::getpwuid(uid)->pw_name       ) ;
+	}
 
 	static ::string _deps_file( Action action , bool new_=false ) {
 		if (new_) return cat(PrivateAdminDirS,action,"_new_deps") ;
@@ -46,7 +60,7 @@ namespace Engine::Makefiles {
 	// dep file line format :
 	// - first dep is special, marked with *, and provide lmake_root
 	// - first char is file existence (+) or non-existence (!)
-	// - then filename
+	// - then file name
 	// dep check is satisfied if each dep :
 	// - has a date before dep_file's date (if first char is +)
 	// - does not exist                    (if first char is !)
@@ -168,13 +182,12 @@ namespace Engine::Makefiles {
 		Gather   gather    ;
 		::string tmp_dir_s = cat(_g_tmp_dir_s,action,'/')            ;
 		//
-		_g_env["TMPDIR"] = no_slash(*g_repo_root_s+tmp_dir_s) ;
+		set_env( "TMPDIR" , no_slash(*g_repo_root_s+tmp_dir_s) ) ;
 		mk_dir_empty_s(tmp_dir_s) ;                                 // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
 		//
 		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                     ;
 		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                            ;
 		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , cat('.',action,".top.") , sub_repos } ;
-		gather.env                     = &_g_env                                                                                                                   ;
 		gather.lmake_root_s            = *g_lmake_root_s                                                                                                           ;
 		gather.child_stdin             = Child::NoneFd                                                                                                             ;
 		gather.child_stdout            = Child::PipeFd                                                                                                             ;
@@ -190,6 +203,7 @@ namespace Engine::Makefiles {
 				else             throw ::pair( cat("cannot read ",action                           ) , Rc::BadMakefile ) ;
 			}
 		}
+		del_env("TMPDIR") ;
 		//
 		deps.files.reserve(gather.accesses.size()) ;
 		::string   deps_str = AcFd(data_file).read() ;
@@ -307,14 +321,7 @@ namespace Engine::Makefiles {
 				for( auto const& [k,v] : user_env )
 					_g_user_env_str << first(""," , ")<< mk_py_str(k) <<":"<< mk_py_str(v) ;
 				_g_user_env_str << " }" ;
-			}
-			/**/                          _g_env["HOME"           ] = no_slash(*g_repo_root_s)      ;
-			if (PY_LD_LIBRARY_PATH[0]!=0) _g_env["LD_LIBRARY_PATH"] = PY_LD_LIBRARY_PATH            ;
-			/**/                          _g_env["PATH"           ] = STD_PATH                      ;
-			/**/                          _g_env["UID"            ] = to_string(getuid())           ;
-			/**/                          _g_env["USER"           ] = ::getpwuid(getuid())->pw_name ;
-			/**/                          _g_env["PYTHONPATH"     ] = *g_lmake_root_s+"lib"         ;
-			//                                     mod
+			} //!                                  mod
 			AcFd( EnvironFile  , {O_RDONLY|O_CREAT,0666} ) ;                                       // these are sources, they must exist
 			AcFd( ManifestFile , {O_RDONLY|O_CREAT,0666} ) ;                                       // .
 		}
@@ -364,7 +371,7 @@ namespace Engine::Makefiles {
 		Bool3/*done*/ rules_digest = _refresh_rules_srcs<Action::Rules>( /*out*/msg , /*out*/rules , /*out*/rules_deps , changed_rules , py_info , user_env , startup_dir_s ) ; // Maybe means not split
 		bool          new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                                                ;
 		if (new_rules) //!                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try                           { invalidate |= Persistent::new_rules( ::move(rules) ) ;                               }
+			try                           { invalidate |= Persistent::new_rules( ::move(rules) ) ;                            }
 			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string     const& e) { throw         cat("cannot ",dynamically,"update rules : ",e      )              ; }
 			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dynamically,"update rules : ",e.first) , e.second ) ; }

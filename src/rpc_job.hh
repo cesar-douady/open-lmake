@@ -352,9 +352,9 @@ void quarantine( ::string const& file , NfsGuard* =nullptr ) ;
 // mk_simple_cmd_line
 //
 
-// replace call to BASH by direct execution if a single command can be identified
+// replace call to bash by direct execution if a single command can be identified
 // cmd_line initially contains interpreter and finally contains the enire cmd line
-bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::map_ss const& cmd_env ) ;
+bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::string const& std_shell , ::vmap_ss const& cmd_env ) ;
 
 struct FileAction {
 	friend ::string& operator+=( ::string& , FileAction const& ) ;
@@ -818,11 +818,11 @@ struct JobSpace {
 		::serdes( s , views                               ) ;
 	}
 	bool/*entered*/ enter(
-		::vector_s&              /*out*/   accesses
-	,	::string  &              /*.  */   repo_root_s
+		::vector_s&              /*out  */ accesses
+	,	::string  &              /*.    */ repo_root_s
 	,	::vector<UserTraceEntry>&/*inout*/
 	,	SmallId
-	,	::string   const&                  phy_lmake_root_s , bool chk_lmake_root
+	,	::string   const&                  phy_lmake_root_s
 	,	::string   const&                  phy_repo_root_s
 	,	::string   const&                  phy_tmp_dir_s    , bool keep_tmp
 	,	ChrootInfo const&                  chroot_info
@@ -885,6 +885,14 @@ struct JobStartRpcReply {                                                // NOLI
 	friend ::string& operator+=( ::string& , JobStartRpcReply const& ) ;
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
+	struct LmakeVersion {
+		bool     is_remote           = false ;
+		::string std_path            ;
+		::string python              ;
+		::string py_ld_library_path  ;
+		::string python2             ;
+		::string py2_ld_library_path ;
+	} ;
 	// accesses
 	bool operator+() const { return +interpreter ; }                     // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
@@ -924,25 +932,22 @@ struct JobStartRpcReply {                                                // NOLI
 	}
 	void            mk_canon( ::string const& phy_repo_root_s ) ;
 	bool/*entered*/ enter   (
-		::vector_s&              /*out*/   accesses
-	,	::map_ss  &              /*.  */   cmd_env
-	,	::vmap_ss &              /*.  */   dyn_env
-	,	pid_t     &              /*.  */   first_pid
-	,	::string  &              /*.  */   repo_dir_s
+		::vector_s&              /*out  */ accesses
+	,	pid_t     &              /*.    */ first_pid
+	,	::string  &              /*.    */ repo_dir_s
 	,	::vector<UserTraceEntry>&/*inout*/
 	,	::string const&                    phy_repo_root_s
 	,	::string const&                    phy_tmp_dir_s
 	) ;
-	void update_env(
-		::map_ss      &/*inout*/ env
-	,	::string const&          phy_repo_root_s
-	,	::string const&          phy_tmp_dir_s
-	,	SeqId=0
-	) const ;
-	void exit() ;
-	void cache_cleanup() ;
-	void chk(bool for_cache=false) const ;
+	void update_val   ( ::string&/*inout*/ v       , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId=0 ) const ;
+	void update_env   ( ::vmap_ss&/*out*/  dyn_env , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId=0 )       ;
+	void exit         (                                                                                                        )       ;
+	void cache_cleanup(                                                                                                        )       ;
+	void chk          ( bool for_cache=false                                                                                   ) const ;
+private :
+	void _mk_lmake_version() ;
 	// data
+public :
 	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
 	AutodepEnv                              autodep_env       ;
 	Caches::Cache*                          cache             = nullptr             ;
@@ -975,7 +980,7 @@ struct JobStartRpcReply {                                                // NOLI
 	bool                                    use_script        = false               ;
 	Zlvl                                    zlvl              {}                    ;
 	// END_OF_VERSIONING
-	bool                                    chk_lmake_root    = false               ; // not transported
+	LmakeVersion lmake_version ; // not transported
 private :
 	::string _tmp_dir_s ;                                                             // for use in exit (autodep.tmp_dir_s may be moved)
 } ;

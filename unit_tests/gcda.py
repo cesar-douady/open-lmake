@@ -37,14 +37,14 @@ if __name__!='__main__' :
 			'MAIN' : 'hello_world.o'
 		,	'SO'   : 'hello_world.so'
 		}
-		autodep = 'ld_preload'                                                                                                   # clang seems to be hostile to ld_audit
-		cmd = f"PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -fprofile-arcs -o {{EXE}} {{' '.join((f'./{{f}}' for k,f in deps.items()))}}"
+		autodep = 'ld_preload'                                                                                                       # clang seems to be hostile to ld_audit
+		cmd     = f"PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -fprofile-arcs -o {{EXE}} {{' '.join((f'./{{f}}' for k,f in deps.items()))}}"
 
 	class So(Rule) :
 		targets = { 'SO' : 'hello_world.so' }
 		deps    = {
-			'H'  : 'hello.o'
-		,	'W'  : 'world.o'
+			'H' : 'hello.o'
+		,	'W' : 'world.o'
 		}
 		cmd = f"PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -fprofile-arcs -o {{SO}} -shared {{' '.join((f for k,f in deps.items()))}}"
 

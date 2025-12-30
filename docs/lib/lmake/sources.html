@@ -133,7 +133,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">srcs</span> <span class="o">+=</span> <span class="n">std_sources</span><span class="p">()</span>
     <span class="k">return</span> <span class="n">srcs</span>
 
-<span class="n">_git</span> <span class="o">=</span> <span class="s1">&#39;/usr/bin/git&#39;</span>                                                                                                     <span class="c1"># value is substitued at installation configuration</span>
+<span class="n">_git</span> <span class="o">=</span> <span class="s1">&#39;/usr/bin/git&#39;</span>                                                                                                     <span class="c1"># substitued at installation build time</span>
 <span class="k">def</span> <span class="nf">git_sources</span><span class="p">(</span> <span class="n">recurse</span><span class="o">=</span><span class="kc">True</span> <span class="p">,</span> <span class="n">ignore_missing_submodules</span><span class="o">=</span><span class="kc">False</span> <span class="p">,</span> <span class="o">**</span><span class="n">kwds</span> <span class="p">)</span> <span class="p">:</span>
 <span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">        gather git controled files.</span>

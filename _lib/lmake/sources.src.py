@@ -35,7 +35,7 @@ def manifest_sources(manifest='Manifest',**kwds) :
 	srcs += std_sources()
 	return srcs
 
-_git = '$GIT'                                                                                                             # value is substitued at installation configuration
+_git = '$GIT'                                                                                                             # substitued at installation build time
 def git_sources( recurse=True , ignore_missing_submodules=False , **kwds ) :
 	'''
 		gather git controled files.

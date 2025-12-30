@@ -7,8 +7,9 @@
 
 MK_FILE=$( realpath ${1:-/dev/null})
 H_FILE=$(  realpath ${2:-/dev/null})
-SUM_FILE=$(realpath ${3:-/dev/null})
-ERR_FILE=$(realpath ${4:-/dev/null})
+PY_FILE=$( realpath ${3:-/dev/null})
+SUM_FILE=$(realpath ${4:-/dev/null})
+ERR_FILE=$(realpath ${5:-/dev/null})
 
 trial_dir=${MK_FILE%.*}.trial
 
@@ -16,6 +17,7 @@ source /etc/os-release # define ID and VERSION_ID
 
 echo SYS_CONFIG_OK := 0 >$MK_FILE  # this will be overwritten at the end, when auto-config has gone through
                         >$H_FILE   # useless, for sanity only
+                        >$PY_FILE  # .
                         >$SUM_FILE # empty file as from now on, we append to it
                         >$ERR_FILE # .
 
@@ -142,9 +144,9 @@ config_python() {
 config_python "$PYTHON2" 2 || { echo "no python2 support ($msg)" >>$SUM_FILE ; PYTHON2= ; }                                                # python2 is optional
 config_python "$PYTHON"  3 || { echo                      $msg   >>$ERR_FILE ; exit 1   ; }                                                # python3 is compulsory
 #
-if   [ "$PY2_LIB_DIR" -a "$PY3_LIB_DIR" ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR:$PY2_LIB_DIR
-elif [ "$PY2_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY2_LIB_DIR
-elif [ "$PY3_LIB_DIR"                   ] ; then PY_LD_LIBRARY_PATH=$PY3_LIB_DIR
+if   [ "$PY2_LIB_DIR" -a "$PY3_LIB_DIR" ] ; then PY23_LIB_DIR=$PY3_LIB_DIR:$PY2_LIB_DIR
+elif [ "$PY2_LIB_DIR"                   ] ; then PY23_LIB_DIR=$PY2_LIB_DIR
+elif [ "$PY3_LIB_DIR"                   ] ; then PY23_LIB_DIR=$PY3_LIB_DIR
 fi
 
 #
@@ -484,7 +486,7 @@ cat >$MK_FILE <<-EOF
 	PY3_INCLUDEPY             := $PY3_INCLUDEPY
 	PY3_LIB_BASE              := $PY3_LIB_BASE
 	PY3_LIB_DIR               := $PY3_LIB_DIR
-	PY_LD_LIBRARY_PATH        := $PY_LD_LIBRARY_PATH
+	PY23_LIB_DIR              := $PY23_LIB_DIR
 	PYTHON                    := $PYTHON
 	PYTHON2                   := $PYTHON2
 	SPLIT_DBG                 := ${SPLIT_DBG#0}
@@ -495,19 +497,18 @@ EOF
 
 if [ "$LD_SO_LIB_32" ] ; then
 	case $HAS_STACKTRACE$HAS_STACKTRACE_32 in
-		00) HAS_STACKTRACE_CUR=0                           >>$H_FILE ;;
-		01) HAS_STACKTRACE_CUR='(__i386__||__arm__)'       >>$H_FILE ;;
-		10) HAS_STACKTRACE_CUR='(__x86_64__||__aarch64__)' >>$H_FILE ;;
-		11) HAS_STACKTRACE_CUR=1                           >>$H_FILE ;;
+		00) HAS_STACKTRACE_H=0                                      ;;
+		01) HAS_STACKTRACE_H='(__i386__||__arm__||__s390__)'        ;;
+		10) HAS_STACKTRACE_H='(__x86_64__||__aarch64__||__s390x__)' ;;
+		11) HAS_STACKTRACE_H=1                                      ;;
 	esac
 else
-	HAS_STACKTRACE_CUR=$HAS_STACKTRACE
+	HAS_STACKTRACE_H=$HAS_STACKTRACE
 fi
 cat >$H_FILE <<-EOF
 	#pragma once
 	//
 	#define ADDR2LINE                   "$ADDR2LINE"
-	#define BASH                        "/bin/bash"
 	#define HAS_32                      $HAS_32
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
@@ -516,7 +517,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_PCRE_ENDANCHORED        $HAS_PCRE_ENDANCHORED
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
-	#define HAS_STACKTRACE              $HAS_STACKTRACE_CUR
+	#define HAS_STACKTRACE              $HAS_STACKTRACE_H
 	#define HAS_ZLIB                    $HAS_ZLIB
 	#define HAS_ZSTD                    $HAS_ZSTD
 	#define LD_SO_LIB                   "$LD_SO_LIB"
@@ -525,11 +526,25 @@ cat >$H_FILE <<-EOF
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define OS_ID                       "$OS_ID"
-	#define PY_LD_LIBRARY_PATH          "$PY_LD_LIBRARY_PATH"
+	#define PY_LD_LIBRARY_PATH          "$PY3_LIB_DIR"
+	#define PY2_LD_LIBRARY_PATH         "$PY2_LIB_DIR"
 	#define PYTHON                      "$PYTHON"
+	#define PYTHON2                     "$PYTHON2"
 	#define STACK_GROWS_DOWNWARD        $STACK_GROWS_DOWNWARD
 	#define STD_LIBRARY_PATH            "$STD_LIBRARY_PATH"
 	#define STD_LIBRARY_PATH_32         "$STD_LIBRARY_PATH_32"
 	#define STD_PATH                    "$STD_PATH"
 	#define USE_LIBC_START_MAIN         $USE_LIBC_START_MAIN
 EOF
+
+case $HAS_LD_AUDIT in
+	0) HAS_LD_AUDIT_PY=False ;;
+	1) HAS_LD_AUDIT_PY=True  ;;
+esac
+>$PY_FILE
+true               && echo "has_ld_audit        = $HAS_LD_AUDIT_PY" >>$PY_FILE
+true               && echo "python              = '$PYTHON'"        >>$PY_FILE
+[ "$PYTHON2"     ] && echo "python2             = '$PYTHON2'"       >>$PY_FILE
+[ "$PY3_LIB_DIR" ] && echo "py_ld_library_path  = '$PY3_LIB_DIR'"   >>$PY_FILE
+[ "$PY2_LIB_DIR" ] && echo "py2_ld_library_path = '$PY2_LIB_DIR'"   >>$PY_FILE
+true               && echo "std_path            = '$STD_PATH'"      >>$PY_FILE

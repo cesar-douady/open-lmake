@@ -47,10 +47,12 @@ namespace Store {
 			return mantissa<<exp ;
 		}
 
-		template<class H,class I,uint8_t Mantissa=0> struct Hdr {
+		template<class H,class I,uint8_t Mantissa=0,bool HasTrash=false> struct Hdr {
 			static constexpr size_t NFree = bucket<Mantissa>(lsb_msk(8*sizeof(I)))+1 ; // number of necessary slot is highest possible index + 1
-			NoVoid<H>        hdr  ;
-			::array<I,NFree> free ;
+			NoVoid<H>                 hdr        ;
+			::array<I,NFree         > free       = {} ;
+			::array<I,NFree*HasTrash> trash      = {} ;
+			::array<I,NFree*HasTrash> trash_last = {} ;                                 // last entry in trash list
 		} ;
 		template<class I,class D> struct Data {
 			static_assert( sizeof(D)>=sizeof(I) ) ;                                    // else waste memory
@@ -63,11 +65,11 @@ namespace Store {
 		} ;
 
 	}
-	template<char ThreadKey,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0> struct AllocFile //!      Multi
-	:	                 StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true >   // if !Mantissa, Multi is useless but easier to code
-	{	using Base     = StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true > ;
-		using BaseHdr  =                         Alloc::Hdr<Hdr_,Idx_,Mantissa> ;
-		using BaseData =                                                                            Alloc::Data<Idx_,Data_> ;
+	template<char ThreadKey,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0,bool HasTrash=false> struct AllocFile //!      Multi
+	:	                 StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa,HasTrash> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true >    // if !Mantissa, Multi is useless but easier to code
+	{	using Base     = StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa,HasTrash> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true > ;
+		using BaseHdr  =                         Alloc::Hdr<Hdr_,Idx_,Mantissa,HasTrash> ;
+		using BaseData =                                                                                     Alloc::Data<Idx_,Data_> ;
 		//
 		using Hdr   = Hdr_              ;
 		using Idx   = Idx_              ;
@@ -152,15 +154,21 @@ namespace Store {
 		}
 		Lst lst() const requires(!Multi) { return Lst(self) ; }
 	private :
-		Idx const& _free(Sz bucket) const { SWEAR(bucket<Base::Hdr::NFree) ; return Base::hdr().free[bucket] ; }
-		Idx      & _free(Sz bucket)       { SWEAR(bucket<Base::Hdr::NFree) ; return Base::hdr().free[bucket] ; }
+		Idx const& _free      (Sz bucket) const                    { SWEAR(bucket<Base::Hdr::NFree) ; return                                             Base::hdr().free[bucket] ; }
+		Idx      & _free      (Sz bucket)                          { SWEAR(bucket<Base::Hdr::NFree) ; return                                             Base::hdr().free[bucket] ; }
+		Idx const& _trash     (Sz bucket) const                    { SWEAR(bucket<Base::Hdr::NFree) ; return HasTrash ? Base::hdr().trash     [bucket] : Base::hdr().free[bucket] ; }
+		Idx      & _trash     (Sz bucket)                          { SWEAR(bucket<Base::Hdr::NFree) ; return HasTrash ? Base::hdr().trash     [bucket] : Base::hdr().free[bucket] ; }
+		Idx const& _trash_last(Sz bucket) const requires(HasTrash) { SWEAR(bucket<Base::Hdr::NFree) ; return            Base::hdr().trash_last[bucket]                            ; }
+		Idx      & _trash_last(Sz bucket)       requires(HasTrash) { SWEAR(bucket<Base::Hdr::NFree) ; return            Base::hdr().trash_last[bucket]                            ; }
 		// services
 	public :
 		void clear() {
 			Base::clear() ;
-			for( Idx& f : Base::hdr().free ) f = 0 ;
+			for( Idx& e : Base::hdr().free  ) e = 0 ;
+			for( Idx& e : Base::hdr().trash ) e = 0 ;
 		}
-		void chk() const ;
+		void chk        () const                    ;
+		void empty_trash()       requires(HasTrash) ;
 		//
 		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi && !HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ;                   return res ; }
 		template<class... A> Idx emplace( Sz sz , A&&... args ) requires(  Multi &&  HasDataSz ) { Idx res = _emplace(sz,::forward<A>(args)...) ; _chk_sz(res,sz) ; return res ; }
@@ -224,25 +232,44 @@ namespace Store {
 		}
 		void _dealloc( Idx idx , Sz bucket ) {
 			chk_writable() ;
-			Idx& free = _free(bucket) ;
-			Base::at(idx).nxt = free ;
-			fence() ;                                                                                                          // ensure free list is always consistent
-			free = idx ;
+			Idx& trash = _trash(bucket) ;
+			Base::at(idx).nxt = trash ;
+			fence() ;                                                                                                          // ensure trash list is always consistent
+			if constexpr (HasTrash) { if (!trash) _trash_last(bucket) = idx ; }
+			/**/                                  trash               = idx ;
 		}
 	} ;
-	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa> void AllocFile<ThreadKey,Hdr,Idx,NIdxBits,Data,Mantissa>::chk() const {
-		Base::chk() ;
-		::vector<bool> free_map ;
-		free_map.resize(size()) ;
-		for( Sz bucket  : iota<Sz>(BaseHdr::NFree) ) {
-			Sz sz = _s_sz(bucket) ;
-			for( Idx idx=_free(bucket) ; +idx ; idx=Base::at(idx).nxt ) {
-				throw_unless( static_cast<Sz>(+idx+_s_sz(bucket))<=size() , "free list out of range at ",idx ) ;
-				for( Sz i : iota(sz) ) {
-					SWEAR(!free_map[+idx+i]) ;
-					free_map[+idx+i] = true ;
-				}
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa,bool HasTrash>
+		void AllocFile<ThreadKey,Hdr,Idx,NIdxBits,Data,Mantissa,HasTrash>::empty_trash() requires(HasTrash) {
+			for( Sz bucket : iota<Sz>(BaseHdr::NFree) ) {
+				Idx& trash      = _trash     (bucket) ; if (!trash) continue ;
+				Idx& free       = _free      (bucket) ;
+				Idx& trash_last = _trash_last(bucket) ; SWEAR( !Base::at(trash_last).nxt , bucket,trash_last ) ;
+				//
+				Base::at(trash_last).nxt = free  ;                                                                             // insert trash in front of free list
+				free                     = trash ;                                                                             // .
+				trash                    = 0     ;                                                                             // empty trash
+				trash_last               = 0     ;                                                                             // defensive programming : avoid leaving meaningless info
 			}
+		}
+	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa,bool HasTrash> void AllocFile<ThreadKey,Hdr,Idx,NIdxBits,Data,Mantissa,HasTrash>::chk() const {
+		Base::chk() ;
+		//
+		::vector<bool> free_map ; free_map.resize(size()) ;
+		//
+		for( Sz bucket : iota<Sz>(BaseHdr::NFree) ) {
+			Sz sz = _s_sz(bucket) ;
+			auto do_chk = [&](Idx free) {
+				for( Idx idx=free ; +idx ; idx=Base::at(idx).nxt ) {
+					SWEAR( static_cast<Sz>(+idx+_s_sz(bucket))<=size() , idx ) ;
+					for( Sz i : iota(sz) ) {
+						SWEAR( !free_map[+idx+i] , idx,i ) ;
+						free_map[+idx+i] = true ;
+					}
+				}
+			} ;
+			/**/          do_chk(_free (bucket)) ;
+			if (HasTrash) do_chk(_trash(bucket)) ;
 		}
 	}
 

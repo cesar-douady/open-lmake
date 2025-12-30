@@ -127,9 +127,10 @@ int main( int argc , char* /*argv*/[] ) {
 	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,"lmakerepair must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
 	if (FileInfo(File(ServerMrkr)).exists()) exit(Rc::BadState,"after having ensured no lmake_server is running, consider : rm ",ServerMrkr     ) ;
 	//
-	if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) unlnk(admin_dir,{.dir_ok=true}) ; // if last lmake_repair was interrupted, admin_dir contains no useful information
 	if (FileInfo(bck_admin_dir_s).tag()==FileTag::Dir) {
-		if (FileInfo(admin_dir_s).tag()==FileTag::Dir) {
+		if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) {
+			unlnk( admin_dir , {.dir_ok=true} ) ;               // if last lmake_repair was interrupted, admin_dir contains no useful information
+		} else if (FileInfo(admin_dir_s).tag()==FileTag::Dir) {
 			mk_lad() ;
 			exit(Rc::BadState,"both ",admin_dir," and ",bck_admin_dir," exist, consider one of :\n\t",rm_admin_dir,"\n\t",rm_bck_admin_dir) ;
 		}
@@ -140,6 +141,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	g_trace_file = New ;
 	block_sigs({SIGCHLD}) ;
+	Makefiles::clean_env() ;                                    // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
 	AutodepEnv ade ;
 	ade.repo_root_s         = *g_repo_root_s ;

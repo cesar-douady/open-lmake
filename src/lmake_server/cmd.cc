@@ -475,15 +475,14 @@ namespace Engine {
 		//
 		res << ",\tcmd =\n" << mk_py_str(jsrr.cmd) <<'\n' ;
 		//
-		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env     = _mk_env(job_info) ;
-		::map_ss                                    env_map = mk_map(env.first) ;
+		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
 		//
-		jsrr.update_env( /*inout*/env_map , *g_repo_root_s , tmp_dir_s ) ;
+		if (+jsrr.interpreter) jsrr.update_val( jsrr.interpreter[0] , *g_repo_root_s , tmp_dir_s ) ;
 		//
-		if (+env_map) {
+		if (+env.first) {
 			res << ",\tenv = {" ;
 			First first ;
-			for( auto const& [k,v] : env_map ) res << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
+			for( auto const& [k,v] : env.first ) res << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
 			res << "}\n" ;
 		}
 		if (+env.second) {
@@ -497,7 +496,7 @@ namespace Engine {
 			for( ::string const& c : jsrr.interpreter ) res << first("",",") << mk_py_str(c) ;
 			res << first("",",","") << ")\n" ;
 		}
-		if ( mk_simple_cmd_line( jsrr.interpreter , ::move(jsrr.cmd) , env_map ) ) {           // jsrr.interpreter is now the entire cmd line
+		if ( mk_simple_cmd_line( jsrr.interpreter , ::move(jsrr.cmd) , Bash , env.first ) ) {  // jsrr.interpreter is now the entire cmd line
 			res << ",\tsimple_cmd_line = (" ;
 			First first ;
 			for( ::string const& c : jsrr.interpreter ) res << first("",",") << mk_py_str(c) ; // .

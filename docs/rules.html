@@ -180,6 +180,7 @@
 Also, if <code>target</code> was used to redirect stdout, the <code>target</code> variable contains said filename.</p>
 <p>Similarly, when deps are allowed in dynamic values, the <code>deps</code> variable is also available as the <code>dict</code> of the deps.
 Also, if <code>dep</code> was used to redirect stdin, the <code>dep</code> variable contains said filename.</p>
+<p>Note that environment variables are not accessible while computing dynamic attributes as they are themselves dynamic.</p>
 <p>When a type is mentioned as <code>f-str</code>, it means that although written as plain <code>str</code>, they are dynamically interpreted as python f-strings, as for dynamic values.
 This is actually a form of dynamic value.</p>
 <p>Note on <code>f-str</code>: typically, the necessary variables (such as stems) are not available when python reads the rule, so such attributes cannot be actual python f-strings,
@@ -424,8 +425,14 @@ This is typically used to access some environment variables set by <code>slurm</
 <tr><td><code>$PHYSICAL_REPO_ROOT</code></td><td>The physical dir of the subrepo</td><td>Dont store in targets as this may interact with cached results</td></tr>
 <tr><td><code>$PHYSICAL_TMPDIR</code></td><td>The physical dir of the tmp dir</td><td>Dont store in targets as this may interact with cached results</td></tr>
 <tr><td><code>$PHYSICAL_TOP_REPO_ROOT</code></td><td>The physical dir of the top-level repo</td><td>Dont store in targets as this may interact with cached results</td></tr>
+<tr><td><code>$PYTHON</code></td><td>The full absolute path to the standard python (as provided at build time)</td><td></td></tr>
+<tr><td><code>$PYTHON_LD_LIBRARY_PATH</code></td><td>The necessary <code>$LD_LIBRARY_PATH</code> to ensure standard python works as expected</td><td></td></tr>
+<tr><td><code>$PYTHON2</code></td><td>The full absolute path to the standard python2 (as provided at build time)</td><td></td></tr>
+<tr><td><code>$PYTHON2_LD_LIBRARY_PATH</code></td><td>The necessary <code>$LD_LIBRARY_PATH</code> to ensure standard python2 works as expected</td><td></td></tr>
 <tr><td><code>$REPO_ROOT</code></td><td>The absolute dir of the subrepo as seen by job</td><td></td></tr>
 <tr><td><code>$SEQUENCE_ID</code></td><td>A unique value for each job execution (at least 1)</td><td>This value must be semantically considered as a random value</td></tr>
+<tr><td><code>$SHELL</code></td><td><code>/bin/bash</code></td><td>Not really useful, by symmetry with python</td></tr>
+<tr><td><code>$STD_PATH</code></td><td>The standard path as provided by bash when $PATH is not set</td><td>Typically used in the definintion of <code>$PATH</code></td></tr>
 <tr><td><code>$SMALL_ID</code></td><td>A unique value among simultaneously running jobs (at least 1)</td><td>This value must be semantically considered as a random value</td></tr>
 <tr><td><code>$TMPDIR</code></td><td>The absolute dir of the tmp dir, as seen by the job</td><td></td></tr>
 <tr><td><code>$TOP_REPO_ROOT</code></td><td>The absolute dir of the top-level repo, as seen by the job</td><td></td></tr>
@@ -605,6 +612,7 @@ In the latter case, a file that contains the script is created and its name is p
 <p>Open-lmake uses python3.6+ to read <code>Lmakefile.py</code>, but that being done, any interpreter can be used to execute <code>cmd</code>.
 In particular, python2.7 and all revisions of python3 are fully supported.</p>
 <p>If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.</p>
+<p>The first item (the executable path) undergoes the same interpretation of $ keywords as described in <a href="#environ"><code>environ</code></a>.</p>
 <h3 id="readdir_ok"><a class="header" href="#readdir_ok"><a href="unit_tests/wine.html#:~:text=readdir%5Fok%20%3D%20True"><code>readdir_ok</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
@@ -645,6 +653,7 @@ These may be cpu availability, memory, commercial tool licenses, access to dedic
 <p>At the end of the supplied executable and arguments, <code>'-c'</code> and the actual script is appended, unless the <code>use_script</code> attribut is set.
 In the latter case, a file that contains the script is created and its name is passed as the last argument without a preceding <code>-c</code>.</p>
 <p>If simple enough (i.e. if it can be recognized as a static dep), it is made a static dep if it is within the repo.</p>
+<p>The first item (the executable path) undergoes the same interpretation of $ keywords as described in <a href="#environ"><code>environ</code></a>.</p>
 <h3 id="side_deps"><a class="header" href="#side_deps"><a href="unit_tests/ignore.html#:~:text=side%5Fdeps%20%3D%20%7B%20%27BAD%27%20%3A%20%28%27bad%5Fdep%27%2C%27ignore%27%29%20%7D"><code>side_deps</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>No</td><td></td></tr>
