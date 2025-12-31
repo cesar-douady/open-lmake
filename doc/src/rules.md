@@ -24,7 +24,19 @@ Also, if `target` was used to redirect stdout, the `target` variable contains sa
 Similarly, when deps are allowed in dynamic values, the `deps` variable is also available as the `dict` of the deps.
 Also, if `dep` was used to redirect stdin, the `dep` variable contains said filename.
 
-Note that environment variables are not accessible while computing dynamic attributes as they are themselves dynamic.
+Note that environment variables, as defined in the rule, are not accessible while computing dynamic attributes as they are themselves dynamic.
+If accessed, the environment is standard and contains:
+
+| variable           | value                                                                       |
+|--------------------|-----------------------------------------------------------------------------|
+| `$HOME`            | the root of the repo                                                        |
+| `$LD_LIBRARY_PATH` | a suitable value to execute python, as determined when open-lmake was built |
+| `$PATH`            | the standard path as set by `/bin/bash` when called with `$PATH` unset      |
+| `$PWD`             | the root of the repo                                                        |
+| `$PYTHONPATH`      | open-lmake lib dir so that you can for example execute `import lmake`       |
+| `$SHLVL`           | `1`                                                                         |
+| `$UID`             | the user id of the calling process                                          |
+| `$USER`            | the user name associated with `$UID`                                        |
 
 When a type is mentioned as `f-str`, it means that although written as plain `str`, they are dynamically interpreted as python f-strings, as for dynamic values.
 This is actually a form of dynamic value.

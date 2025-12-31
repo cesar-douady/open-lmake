@@ -1576,15 +1576,15 @@ void JobStartRpcReply::_mk_lmake_version() {
 				case 's' : if (key=="std_path"           ) lmake_version.std_path            = val.substr(1,val.size()-2) ; break ; // .
 			DN}
 		}
-		throw_unless( v_job                   , "expected job version ",Version::Job," not found" ) ;
-		throw_unless( v_job==Version::Job     , "job version ",v_job,"!=",Version::Job            ) ;
-		throw_unless( +lmake_version.python   , "python not found"                                ) ;
-		throw_unless( +lmake_version.std_path , "default PATH not found"                          ) ;
+		throw_unless( v_job                   , "expected version ",Version::Job," (for jobs) not found" ) ;
+		throw_unless( v_job==Version::Job     , "version ",v_job,"!=",Version::Job," (for jobs)"         ) ;
+		throw_unless( +lmake_version.python   , "python path not found"                                  ) ;
+		throw_unless( +lmake_version.std_path , "standard PATH not found"                                ) ;
 		#if HAS_LD_AUDIT
 			if (method==AutodepMethod::LdAudit) throw_unless( has_ld_audit , "ld_audit is not supported as autodep method" ) ;
 		#endif
 	} catch (::string const& e) {
-		throw cat("cannot execute job with incompatible lmake root (",e,") : ",phy_lmake_root_s,rm_slash) ;
+		throw cat("cannot execute job with incompatible open-lmake (",e,") as per file _lib/version.py in root dir ",phy_lmake_root_s,rm_slash) ;
 	}
 }
 

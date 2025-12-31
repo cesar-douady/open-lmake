@@ -232,7 +232,8 @@ LMAKE_SERVER_PY_FILES := \
 
 LMAKE_SERVER_BIN_FILES := \
 	_bin/align_comments          \
-	_bin/ldump                   \
+	_bin/lmake_dump              \
+	_bin/lcache_dump             \
 	_bin/ldump_job               \
 	_bin/lkpi                    \
 	_bin/find_cc_ld_library_path \
@@ -572,23 +573,7 @@ SERVER_SAN_OBJS := \
 	src/lmake_server/rule_data$(SAN).o \
 	src/lmake_server/store$(SAN).o
 
-bin/lmake_server : \
-	$(SERVER_SAN_OBJS)  \
-	$(BACKEND_SAN_OBJS) \
-	src/lmake_server/main$(SAN).o
-
-bin/lmake_repair : $(SERVER_SAN_OBJS) $(BACKEND_SAN_OBJS) src/lmake_repair$(SAN).o # lmake_repair must be aware of existing backends
-_bin/ldump       : $(SERVER_SAN_OBJS)                     src/ldump$(SAN).o
-_bin/lkpi        : $(SERVER_SAN_OBJS)                     src/lkpi$(SAN).o
-
-LMAKE_DBG_FILES += bin/lmake_server bin/lmake_repair _bin/ldump _bin/lkpi
-bin/lmake_server bin/lmake_repair _bin/ldump _bin/lkpi :
-	@mkdir -p $(@D)
-	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
-	@$(SPLIT_DBG_CMD)
-
-bin/lcache_server : \
+CACHE_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)                            \
 	src/app$(SAN).o                                    \
 	src/py$(SAN).o                                     \
@@ -600,8 +585,26 @@ bin/lcache_server : \
 	src/caches/daemon_cache$(SAN).o                    \
 	src/caches/dir_cache$(SAN).o                       \
 	src/caches/daemon_cache/engine$(SAN).o             \
-	src/caches/daemon_cache/daemon_cache_utils$(SAN).o \
-	src/caches/daemon_cache/ldaemon_cache_server$(SAN).o
+	src/caches/daemon_cache/daemon_cache_utils$(SAN).o
+
+bin/lmake_server : \
+	$(SERVER_SAN_OBJS)  \
+	$(BACKEND_SAN_OBJS) \
+	src/lmake_server/main$(SAN).o
+
+bin/lmake_repair : $(SERVER_SAN_OBJS) $(BACKEND_SAN_OBJS) src/lmake_repair$(SAN).o # lmake_repair must be aware of existing backends
+_bin/lmake_dump  : $(SERVER_SAN_OBJS)                     src/lmake_dump$(SAN).o
+_bin/lcache_dump : $(CACHE_SAN_OBJS)                      src/lcache_dump$(SAN).o
+_bin/lkpi        : $(SERVER_SAN_OBJS)                     src/lkpi$(SAN).o
+
+LMAKE_DBG_FILES += bin/lmake_server bin/lmake_repair _bin/lmake_dump _bin/lcache_dump _bin/lkpi
+bin/lmake_server bin/lmake_repair _bin/lmake_dump _bin/lcache_dump _bin/lkpi :
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(SPLIT_DBG_CMD)
+
+bin/lcache_server : $(CACHE_SAN_OBJS) src/caches/daemon_cache/ldaemon_cache_server$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)

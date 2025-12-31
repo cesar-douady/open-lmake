@@ -305,7 +305,7 @@ class TarLmake(BaseRule) :
 	,	'LD_PRELOAD_JEMALLOC' : '_lib/ld_preload_jemalloc.so'
 	,	'AUTODEP'             : '_bin/lautodep'
 	,	'JOB_EXEC'            : '_bin/job_exec'
-	,	'LDUMP'               : '_bin/ldump'
+	,	'LMAKE_DUMP'          : '_bin/lmake_dump'
 	,	'LDUMP_JOB'           : '_bin/ldump_job'
 	,	'LMAKE_SERVER'        : 'bin/lmake_server'
 	,	'LIB_UTILS'           : 'lib/lmake/utils.py'
@@ -494,8 +494,8 @@ class LinkLmakeRepairExe(LinkLmakeServerExe) :
 		'MAIN' : 'src/lmake_repair.o' # lmake_repair is a server with another main
 	}
 
-class LinkLdumpExe(LinkAutodep,LinkAppExe) :
-	targets = { 'TARGET' : '_bin/ldump' }
+class LinkLMakeDumpExe(LinkAutodep,LinkAppExe) :
+	targets = { 'TARGET' : '_bin/lmake_dump' }
 	deps = {
 		'RPC_CLIENT'   : 'src/rpc_client.o'
 	,	'RPC_JOB'      : 'src/rpc_job.o'
@@ -512,7 +512,7 @@ class LinkLdumpExe(LinkAutodep,LinkAppExe) :
 	,	'RULE'         : 'src/lmake_server/rule.o'
 	,	'RULE_DATA'    : 'src/lmake_server/rule_data.o'
 	,	'STORE'        : 'src/lmake_server/store.o'
-	,	'MAIN'         : 'src/ldump.o'
+	,	'MAIN'         : 'src/lmake_dump.o'
 	}
 	need_compress = True
 

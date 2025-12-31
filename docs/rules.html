@@ -180,7 +180,19 @@
 Also, if <code>target</code> was used to redirect stdout, the <code>target</code> variable contains said filename.</p>
 <p>Similarly, when deps are allowed in dynamic values, the <code>deps</code> variable is also available as the <code>dict</code> of the deps.
 Also, if <code>dep</code> was used to redirect stdin, the <code>dep</code> variable contains said filename.</p>
-<p>Note that environment variables are not accessible while computing dynamic attributes as they are themselves dynamic.</p>
+<p>Note that environment variables, as defined in the rule, are not accessible while computing dynamic attributes as they are themselves dynamic.
+If accessed, the environment is standard and contains:</p>
+<div class="table-wrapper"><table><thead><tr><th>variable</th><th>value</th></tr></thead><tbody>
+<tr><td><code>$HOME</code></td><td>the root of the repo</td></tr>
+<tr><td><code>$LD_LIBRARY_PATH</code></td><td>a suitable value to execute python, as determined when open-lmake was built</td></tr>
+<tr><td><code>$PATH</code></td><td>the standard path as set by <code>/bin/bash</code> when called with <code>$PATH</code> unset</td></tr>
+<tr><td><code>$PWD</code></td><td>the root of the repo</td></tr>
+<tr><td><code>$PYTHONPATH</code></td><td>open-lmake lib dir so that you can for example execute <code>import lmake</code></td></tr>
+<tr><td><code>$SHLVL</code></td><td><code>1</code></td></tr>
+<tr><td><code>$UID</code></td><td>the user id of the calling process</td></tr>
+<tr><td><code>$USER</code></td><td>the user name associated with <code>$UID</code></td></tr>
+</tbody></table>
+</div>
 <p>When a type is mentioned as <code>f-str</code>, it means that although written as plain <code>str</code>, they are dynamically interpreted as python f-strings, as for dynamic values.
 This is actually a form of dynamic value.</p>
 <p>Note on <code>f-str</code>: typically, the necessary variables (such as stems) are not available when python reads the rule, so such attributes cannot be actual python f-strings,

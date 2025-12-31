@@ -59,8 +59,8 @@ void commit(DaemonCache::RpcReq const& crr) {
 	DiskSz        sz           = run_sz( crr.job_info , job_info_str , deps )                    ;
 	//
 	::pair<Crun,CacheHitInfo > digest = job->insert(
-		deps.deps , deps.dep_crcs                                                                                         // to search entry
-	,	crr.repo_key , true/*key_is_last*/ , New/*last_access*/ , sz , rate(g_config,sz,crr.job_info.end.digest.exe_time) // to create entry
+		deps.deps , deps.dep_crcs                                                                                            // to search entry
+	,	crr.repo_key , true/*key_is_last*/ , New/*last_access*/ , sz , to_rate(g_config,sz,crr.job_info.end.digest.exe_time) // to create entry
 	) ;
 	//
 	if (digest.second<CacheHitInfo::Miss) {

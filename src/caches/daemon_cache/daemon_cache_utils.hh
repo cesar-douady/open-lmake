@@ -23,4 +23,9 @@ bool crc_ok( Hash::Crc cache_crc , Hash::Crc repo_crc ) ;
 
 Disk::DiskSz run_sz( JobInfo const& job_info , ::string job_info_str , CompileDigest const& compile_digest ) ;
 
-Rate rate( DaemonCache::Config const& , Disk::DiskSz , Time::Delay ) ;
+float from_rate( DaemonCache::Config const& , Rate  ) ;
+Rate  to_rate  ( DaemonCache::Config const& , float ) ;
+
+inline Rate to_rate( DaemonCache::Config const& config , Disk::DiskSz sz , Time::Delay exe_time ) {
+	return to_rate( config , sz/float(exe_time) ) ;
+}

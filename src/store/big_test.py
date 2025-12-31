@@ -59,5 +59,5 @@ print('done')
 
 # check db
 print(f'checking lmake store ...',end='',flush=True)
-sp.run(('ldump',),check=True,stdout=sp.DEVNULL)
+sp.run(('lmake_dump',),check=True,stdout=sp.DEVNULL)
 print(' done')

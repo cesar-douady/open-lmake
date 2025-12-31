@@ -38,7 +38,7 @@ struct RateCmp {
 		bool first_seen = false ;
 		s_lrus = CrunData::s_hdr().lrus ;
 		for( Rate r : iota(NRates) ) {
-			s_rates[r] = g_config.max_rate * ::expf(-::ldexpf(r,-4)) ;
+			s_rates[r] = from_rate( g_config , r ) ;
 			if (+s_lrus[r]) {
 				if (!first_seen) { s_iota.bounds[0] = r   ; first_seen = true ; }
 				/**/               s_iota.bounds[1] = r+1 ;
@@ -164,9 +164,9 @@ void release_room(DiskSz sz) {
 
 ::string& operator+=( ::string& os , CjobName  const& jn ) { os << "CjobName("  ; if (+jn     ) os << +jn            ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , CnodeName const& nn ) { os << "CnodeName(" ; if (+nn     ) os << +nn            ;                                      return os << ')' ; }
-::string& operator+=( ::string& os , Cjob      const& j  ) { os << "Cjob("      ; if (+j      ) os << +j             ;                                      return os << ')' ; }
-::string& operator+=( ::string& os , Crun      const& r  ) { os << "Crun("      ; if (+r      ) os << +r             ;                                      return os << ')' ; }
-::string& operator+=( ::string& os , Cnode     const& n  ) { os << "Cnode("     ; if (+n      ) os << +n             ;                                      return os << ')' ; }
+::string& operator+=( ::string& os , Cjob      const& j  ) { os << "CJ("        ; if (+j      ) os << +j             ;                                      return os << ')' ; }
+::string& operator+=( ::string& os , Crun      const& r  ) { os << "CR("        ; if (+r      ) os << +r             ;                                      return os << ')' ; }
+::string& operator+=( ::string& os , Cnode     const& n  ) { os << "CN("        ; if (+n      ) os << +n             ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , LruEntry  const& e  ) { os << "LruEntry("  ; if (+e.newer) os <<"N:"<< +e.newer ; if (+e.older) os <<"O:"<< +e.older ; return os << ')' ; }
 
 namespace Caches {

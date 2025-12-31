@@ -75,8 +75,8 @@ static RepairDigest _repair(bool dry_run) {
 				Crc           repo_key = Crc::s_from_hex(repo_key_str)                               ;
 				//
 				::pair<Crun,CacheHitInfo> digest = job->insert(
-					deps.deps , deps.dep_crcs                                                                               // to search entry
-				,	repo_key , key_is_last , Pdate(data_stat.st_atim) , sz , rate(g_config,sz,job_info.end.digest.exe_time) // to create entry
+					deps.deps , deps.dep_crcs                                                                                  // to search entry
+				,	repo_key , key_is_last , Pdate(data_stat.st_atim) , sz , to_rate(g_config,sz,job_info.end.digest.exe_time) // to create entry
 				) ;
 				throw_unless( digest.second>=CacheHitInfo::Miss , "conflict" ) ;
 			}

@@ -703,7 +703,11 @@ namespace Engine {
 					if (job_name_==matches[mi].second.pattern) { job_name_ = "<targets."+matches[mi].first+'>' ; break ; }
 		}
 		if (is_plain()) {
-			{	First first ;
+			if (!(
+				start_cmd_attrs.spec.interpreter.size() == 1
+			&&	start_cmd_attrs.spec.interpreter[0]     == (is_python?"$PYTHON":"$SHELL")
+			)) {
+				First first ;
 				for( ::string const& c : start_cmd_attrs.spec.interpreter ) interpreter<<first(""," ")<<c ;
 			}
 			{	First           first ;

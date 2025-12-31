@@ -91,14 +91,20 @@ Disk::DiskSz run_sz( JobInfo const& job_info , ::string job_info_str , CompileDi
 	+	compile_digest.dep_crcs.size()*sizeof(Crc     )
 	;
 }
-Rate rate( DaemonCache::Config const& config , Disk::DiskSz sz , Time::Delay exe_time ) {
+
+float from_rate( DaemonCache::Config const& config , Rate rate ) {
+	return config.max_rate * ::expf(-::ldexpf(rate,-4)) ;
+}
+
+Rate to_rate( DaemonCache::Config const& config , float rate ) {
 	float r = ::ldexpf(
-		::logf( config.max_rate * float(exe_time) / sz )
+		::logf( config.max_rate / rate )
 	,	4
 	) ;
 	if      (r< 0     ) r = 0        ;
 	else if (r>=NRates) r = NRates-1 ;
-	Trace trace("rate",sz,exe_time,Rate(r)) ;
-	return r ;
+	Rate res = r ;
+	Trace trace("rate",rate,res) ;
+	return res ;
 }
 

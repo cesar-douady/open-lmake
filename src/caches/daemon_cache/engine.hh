@@ -97,6 +97,7 @@ struct CnodeName : Idxed<CnodeNameIdx> {
 struct Cjob : Idxed<CjobIdx> {
 	using Base = Idxed<CjobIdx> ;
 	friend ::string& operator+=( ::string& , Cjob const& ) ;
+	// statics
 	// cxtors & casts
 	using Base::Base ;
 	Cjob(           ::string const& name                    ) ; // make empty if not found
@@ -255,6 +256,11 @@ extern CrunFile      _g_run_file       ;
 extern CnodeFile     _g_node_file      ;
 extern CnodesFile    _g_nodes_file     ;
 extern CcrcsFile     _g_crcs_file      ;
+
+template<class T> auto lst() ;
+template<> inline auto lst<Cjob >() { return _g_job_file .lst() ; }
+template<> inline auto lst<Crun >() { return _g_run_file .lst() ; }
+template<> inline auto lst<Cnode>() { return _g_node_file.lst() ; }
 
 namespace Vector {
 	template<> struct Descr<Cnodes> { static constexpr CnodesFile& file = _g_nodes_file ; } ;

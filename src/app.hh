@@ -54,7 +54,7 @@ struct FlagSpec {
 template<UEnum Key,UEnum Flag> struct Syntax {
 	static constexpr bool HasNone = requires() {Key::None;} ;
 	static ::string s_version_str() {
-		return cat("version ",Version::Major," (DaemonCache:",Version::DaemonCache,"DirCache:",Version::DirCache,",Repo:",Version::Repo,",Job:",Version::Job,')') ;
+		return cat("version ",Version::Major," (cache:",Version::DaemonCache,",job:",Version::Job,",repo:",Version::Repo,')') ;
 	}
 	// cxtors & casts
 	Syntax() = default ;

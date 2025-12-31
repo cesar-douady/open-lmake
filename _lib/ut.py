@@ -15,13 +15,13 @@ from lmake import pdict
 
 class Ut :
 	idx = 0
-	def __init__( self , *args , rc=0 , no_ldump=False , fast_exit=False , host_len=None , **kwds ) :
+	def __init__( self , *args , rc=0 , no_dump=False , fast_exit=False , host_len=None , **kwds ) :
 		self.__class__.idx += 1
 		self.stdout = f'tok.{self.idx}'
 		kwds.setdefault('start',...)
 		#
 		self.rc        = rc
-		self.no_ldump  = no_ldump
+		self.no_dump   = no_dump
 		self.fast_exit = fast_exit
 		self.host_len  = host_len
 		self.kwds      = kwds
@@ -33,9 +33,9 @@ class Ut :
 		print( '+ ' + ' '.join(cmd)                                             )
 		self.proc = sp.Popen( cmd , universal_newlines=True , stdin=None , stdout=open(self.stdout,'w') )
 		sys.stdout.flush()
-	def __call__( self , rc=0 , no_ldump=False , fast_exit=True , **kwds ) :
+	def __call__( self , rc=0 , no_dump=False , fast_exit=True , **kwds ) :
 		if rc        : self.rc        = rc
-		if no_ldump  : self.no_ldump  = no_ldump
+		if no_dump   : self.no_dump   = no_dump
 		if fast_exit : self.fast_exit = fast_exit
 		if kwds      : self.kwds.update(kwds)
 		self.proc.wait()
@@ -45,7 +45,7 @@ class Ut :
 		sys.stdout.flush(      )
 		#
 		if self.proc.returncode!=self.rc : raise RuntimeError(f'bad return code {self.proc.returncode} != {self.rc}')
-		if not self.no_ldump             : sp.run( ('ldump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )
+		if not self.no_dump              : sp.run( ('lmake_dump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )
 		#
 		if not self.fast_exit and osp.exists('LMAKE/server') :
 			time_out = 10
@@ -84,8 +84,8 @@ class Ut :
 		#
 		return res
 
-def lmake( *args , rc=0 , no_ldump=False , wait=True , **kwds ) :
-	proc = Ut( *args , rc=rc , no_ldump=no_ldump , **kwds )
+def lmake( *args , rc=0 , no_dump=False , wait=True , **kwds ) :
+	proc = Ut( *args , rc=rc , no_dump=no_dump , **kwds )
 	if wait : return proc()
 	else    : return proc
 

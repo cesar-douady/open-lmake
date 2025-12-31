@@ -67,10 +67,10 @@ else :
 	import ut
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( rc=8 , no_ldump=True )         # just reading makefile produces an error
+	ut.lmake( rc=8 , no_dump=True )          # just reading makefile produces an error
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'bad_target2' , new=1 , early_rerun=1 , failed=1 , rc=1 , no_ldump=True ) # cannot find step as sys.path only contains external dirs
+	ut.lmake( 'bad_target2' , new=1 , early_rerun=1 , failed=1 , rc=1 , no_dump=True ) # cannot find step as sys.path only contains external dirs
 
 	print('step=3',file=open('step.py','w'))
 	ut.lmake( 'bad_target1' , early_rerun=1 , failed=1 , rc=1 )

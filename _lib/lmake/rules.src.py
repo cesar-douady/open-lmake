@@ -84,7 +84,7 @@ class Rule(_RuleBase) :
 #	ete                 = 0                         # Estimated Time Enroute, initial guess for job exec time (in s)
 #	force               = False                     # if set, jobs are never up-to-date, they are rebuilt every time they are needed
 #	keep_tmp            = False                     # keep tmp dir after job execution
-	kill_sigs           = (_signal.SIGKILL,)        # signals to use to kill jobs (send them in turn followed by SIGKILL), 1s apart, until job dies
+	kill_sigs           = ()                        # signals to use to kill jobs (send them in turn followed by SIGKILL), 1 second apart, until job dies
 	#                                               #   0's may be used to set a larger delay between 2 trials)
 #	lmake_root          = '/my/installs/open-lmake' # absolute path of the open-lmake installation dir to be used by job (default is current installation dir)
 	#                                               #   dir is first searched in chroot_dir then in the native root

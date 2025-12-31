@@ -10,7 +10,7 @@
 using namespace Engine ;
 
 static void _out( ::string const& jn , ::string const& r , ::string const& n ) {
-	Fd::Stdout.write( widen(jn,13) +" : "+ widen(r,13) +" : "+ mk_printable(n) +'\n' ) ;
+	Fd::Stdout.write(cat(widen(jn,13)," : ",widen(r,13)," : ",mk_printable(n),'\n')) ;
 }
 
 int main( int argc , char* /*argv*/[] ) {
