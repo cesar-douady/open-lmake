@@ -41,7 +41,7 @@ namespace Caches {
 		,	{ "file_sync" , snake_str          (config_.file_sync)      }
 		,	{ "max_rate"  , to_string_with_unit(config_.max_rate )      }
 		,	{ "perm_ext"  , snake_str          (config_.perm_ext )      }
-		,	{ "repo_key"  ,                     repo_key         .hex() }
+		,	{ "repo_key"  ,                     repo_key                }
 		,	{ "service"   ,                     service          .str() }
 		} ;
 	}
@@ -57,7 +57,7 @@ namespace Caches {
 				try {
 					switch (key[0]) {
 						case 'd' : if (key=="dir"     ) { dir_s    = with_slash(val) ; continue ; } break ; // dir is necessary to access cache
-						case 'r' : if (key=="repo_key") { repo_key = Crc(New   ,val) ; continue ; } break ; // cannot be shared as it identifies repo
+						case 'r' : if (key=="repo_key") { repo_key =            val  ; continue ; } break ; // cannot be shared as it identifies repo
 					DN}
 				} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key,": ",val) ; }
 				trace("bad_repo_key",key) ;
@@ -71,7 +71,7 @@ namespace Caches {
 			service = _fd.service()                                 ;
 			_dir_fd = AcFd( dir_s , {.flags=O_RDONLY|O_DIRECTORY} ) ;
 			//
-			OMsgBuf( RpcReq{.proc=Proc::Config} ).send(_fd) ;
+			OMsgBuf( RpcReq{ .proc=Proc::Config , .repo_key=repo_key } ).send(_fd) ;
 			auto reply = _imsg.receive<RpcReply>( _fd , Maybe/*once*/ , {}/*key*/ ) ; SWEAR( reply.proc==Proc::Config , reply ) ;
 			config_ = reply.config ;
 		}
@@ -110,7 +110,7 @@ namespace Caches {
 	}
 
 	void DaemonCache::sub_commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
-		OMsgBuf( RpcReq{ .proc=Proc::Commit , .repo_key=repo_key , .job=job , .job_info=::move(job_info) , .upload_key=upload_key } ).send(_fd) ;
+		OMsgBuf( RpcReq{ .proc=Proc::Commit , .job=job , .job_info=::move(job_info) , .upload_key=upload_key } ).send(_fd) ;
 	}
 
 	void DaemonCache::sub_dismiss(uint64_t upload_key) {

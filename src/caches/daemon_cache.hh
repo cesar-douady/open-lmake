@@ -36,10 +36,11 @@ namespace Caches {
 				::serdes( s , file_sync,perm_ext,max_rate,max_sz ) ;
 			}
 			// data
-			FileSync     file_sync = {}    ;
-			PermExt      perm_ext  = {}    ;
-			Disk::DiskSz max_rate  = 1<<30 ; // in B/s, maximum rate (total_sz/exe_time) above which run is not cached
-			Disk::DiskSz max_sz    = 0     ;
+			FileSync     file_sync        = {}    ;
+			PermExt      perm_ext         = {}    ;
+			Disk::DiskSz max_rate         = 1<<30 ; // in B/s, maximum rate (total_sz/exe_time) above which run is not cached
+			Disk::DiskSz max_sz           = 0     ;
+			uint16_t     max_runs_per_job = 100   ;
 		} ;
 
 		struct RpcReq {
@@ -50,21 +51,21 @@ namespace Caches {
 				::serdes( s , proc ) ;
 				switch (proc) {
 					case Proc::None     :
-					case Proc::Config   :                                                                          break ;
-					case Proc::Download : ::serdes( s ,          job,repo_deps                                 ) ; break ;
-					case Proc::Upload   : ::serdes( s ,                        reserved_sz                     ) ; break ;
-					case Proc::Commit   : ::serdes( s , repo_key,job,                      job_info,upload_key ) ; break ;
-					case Proc::Dismiss  : ::serdes( s ,                                             upload_key ) ; break ;
-				DF}                                                                                                        // NO_COV
+					case Proc::Config   : ::serdes( s , repo_key                         ) ; break ;
+					case Proc::Download : ::serdes( s , job        ,repo_deps            ) ; break ;
+					case Proc::Upload   : ::serdes( s , reserved_sz                      ) ; break ;
+					case Proc::Commit   : ::serdes( s , job        ,job_info ,upload_key ) ; break ;
+					case Proc::Dismiss  : ::serdes( s ,                       upload_key ) ; break ;
+				DF}                                                                                  // NO_COV
 			}
 			// data
 			Proc                proc        = Proc::None ;
-			Hash::Crc           repo_key    = {}         ;                                                                 // if proc =                     Commit
-			::string            job         = {}         ;                                                                 // if proc = Download |          Commit
-			::vmap_s<DepDigest> repo_deps   = {}         ;                                                                 // if proc = Download |          Commit
-			Disk::DiskSz        reserved_sz = 0          ;                                                                 // if proc =            Upload
-			JobInfo             job_info    = {}         ;                                                                 // if proc =                     Commit
-			uint64_t            upload_key  = 0          ;                                                                 // if proc =                     Commit | Dismiss
+			::string            repo_key    = {}         ;                                           // if proc =                     Config
+			::string            job         = {}         ;                                           // if proc = Download |          Commit
+			::vmap_s<DepDigest> repo_deps   = {}         ;                                           // if proc = Download |          Commit
+			Disk::DiskSz        reserved_sz = 0          ;                                           // if proc =            Upload
+			JobInfo             job_info    = {}         ;                                           // if proc =                     Commit
+			uint64_t            upload_key  = 0          ;                                           // if proc =                     Commit | Dismiss
 		} ;
 
 		struct RpcReply {
@@ -75,7 +76,7 @@ namespace Caches {
 				::serdes( s , proc ) ;
 				switch (proc) {
 					case Proc::None     :                                    break ;
-					case Proc::Config   : ::serdes( s , config           ) ; break ;
+					case Proc::Config   : ::serdes( s , config    ,gen   ) ; break ;
 					case Proc::Download : ::serdes( s , hit_info  ,dir_s ) ; break ;
 					case Proc::Upload   : ::serdes( s , upload_key,msg   ) ; break ;
 				DF}                                                                  // NO_COV
@@ -87,6 +88,7 @@ namespace Caches {
 			uint64_t     upload_key = 0          ;                                   // if proc=Upload
 			::string     msg        = {}         ;                                   // if proc=Upload and upload_key=0
 			Config       config     = {}         ;                                   // if proc==Config
+			uint64_t     gen        = {}         ;                                   // if proc==Config
 		} ;
 
 		static constexpr uint64_t Magic = 0x604178e6d1838dce ;                                             // any random improbable value!=0 used as a sanity check when client connect to server
@@ -118,7 +120,7 @@ namespace Caches {
 		// data
 	public :
 		::string     dir_s    ;
-		Hash::Crc    repo_key = Hash::Crc::None ;
+		::string     repo_key ;
 		KeyedService service  ;
 		Config       config_  ;
 	private :

@@ -14,8 +14,10 @@ using namespace Hash ;
 using namespace Py   ;
 using namespace Time ;
 
-DaemonCache::Config g_config ;
+DaemonCache::Config g_config      ;
+DiskSz              g_reserved_sz = 0 ;
 
+CkeyFile      _g_key_file       ;
 CjobNameFile  _g_job_name_file  ;
 CnodeNameFile _g_node_name_file ;
 CjobFile      _g_job_file       ;
@@ -23,8 +25,6 @@ CrunFile      _g_run_file       ;
 CnodeFile     _g_node_file      ;
 CnodesFile    _g_nodes_file     ;
 CcrcsFile     _g_crcs_file      ;
-
-static DiskSz _g_reserved_sz = 0 ;
 
 // in order to take into account exe time relative to target size, several LRU lists are stored
 // each bucket correspond to a give target_size/exe_time (a rate in B/s) with a margin of ~5% to avoid too many buckets
@@ -111,6 +111,7 @@ void daemon_cache_init( bool rescue , bool read_only ) {
 	// START_OF_VERSIONING DAEMON_CACHE
 	::string dir_s     = DaemonCache::Config::s_store_dir_s() ;
 	NfsGuard nfs_guard { g_config.file_sync }               ;
+	{ ::string file=dir_s+"key"       ; nfs_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
 	{ ::string file=dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
 	{ ::string file=dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
 	{ ::string file=dir_s+"job"       ; nfs_guard.access(file) ; _g_job_file      .init( file , !read_only ) ; }
@@ -121,12 +122,20 @@ void daemon_cache_init( bool rescue , bool read_only ) {
 	// END_OF_VERSIONING
 	if (rescue) _daemon_cache_chk() ;
 	RateCmp::s_init() ;
+	//
+	CnodeHdr& hdr = CnodeData::s_hdr() ;
+	if ( hdr.n_trash > (CnodeData::s_size()>>3) ) {
+		hdr.gen++ ;                                 // if we empty trash, we can reuse old Cnode and we must tell clients
+		CnodeData::s_empty_trash() ;
+		hdr.n_trash = 0 ;
+	}
 	trace("done") ;
 }
 
 void daemon_cache_finalize() {
 	::string dir_s = cat(PrivateAdminDirS,"store/") ;
 	NfsGuard nfs_guard { g_config.file_sync } ;
+	nfs_guard.change(dir_s+"key"      ) ;
 	nfs_guard.change(dir_s+"job_name" ) ;
 	nfs_guard.change(dir_s+"node_name") ;
 	nfs_guard.change(dir_s+"job"      ) ;
@@ -136,32 +145,24 @@ void daemon_cache_finalize() {
 	nfs_guard.change(dir_s+"crcs"     ) ;
 }
 
-bool/*ok*/ mk_room(DiskSz sz) {
+bool/*ok*/ mk_room( DiskSz sz , Cjob keep_job ) {
 	CrunHdr& hdr = CrunData::s_hdr() ;
-	Trace trace("mk_room",sz,hdr.total_sz,_g_reserved_sz) ;
+	Trace trace("mk_room",sz,hdr.total_sz,g_reserved_sz) ;
 	//
-	if (_g_reserved_sz+sz>g_config.max_sz) { trace("not_done") ; return false/*ok*/ ; }
+	if (g_reserved_sz+sz>g_config.max_sz) { trace("not_done") ; return false/*ok*/ ; }
 	//
 	RateCmp::s_refresh() ;
-	while ( hdr.total_sz && hdr.total_sz+_g_reserved_sz+sz>g_config.max_sz ) {
-		SWEAR( +RateCmp::s_tab ) ;                                             // if total size is non-zero, we must have entries
+	while ( hdr.total_sz && hdr.total_sz+g_reserved_sz+sz>g_config.max_sz ) {
+		SWEAR( +RateCmp::s_tab ) ;                                            // if total size is non-zero, we must have entries
 		Rate best_rate = *RateCmp::s_tab.begin()                    ;
 		Crun best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
-		best_run->victimize() ;
+		best_run->victimize(best_run->job!=keep_job) ;
 	}
-	_g_reserved_sz += sz ;
-	trace("done",sz,hdr.total_sz,_g_reserved_sz) ;
+	trace("done",sz,hdr.total_sz) ;
 	return true/*ok*/ ;
 }
 
-void release_room(DiskSz sz) {
-	CrunHdr& hdr = CrunData::s_hdr() ;
-	Trace trace("release_room",sz,hdr.total_sz,_g_reserved_sz) ;
-	SWEAR( _g_reserved_sz>=sz , _g_reserved_sz,sz ) ;
-	_g_reserved_sz -= sz ;
-	SWEAR( hdr.total_sz+_g_reserved_sz <= g_config.max_sz , hdr.total_sz,_g_reserved_sz,g_config.max_sz ) ;
-}
-
+::string& operator+=( ::string& os , Ckey      const& k  ) { os << "Ckey("      ; if (+k      ) os << +k             ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , CjobName  const& jn ) { os << "CjobName("  ; if (+jn     ) os << +jn            ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , CnodeName const& nn ) { os << "CnodeName(" ; if (+nn     ) os << +nn            ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , Cjob      const& j  ) { os << "CJ("        ; if (+j      ) os << +j             ;                                      return os << ')' ; }
@@ -191,12 +192,13 @@ namespace Caches {
 		for( auto const& [key,val] : ::vmap_ss(*py_run(config_fd.read())) ) {
 			try {
 				switch (key[0]) {
-					case 'f' : if (key=="file_sync") { file_sync = mk_enum<FileSync>    (val) ;                                                        continue ; } break ;
-					case 'i' : if (key=="inf"      ) {                                                                                                 continue ; } break ;
-					case 'm' : if (key=="max_rate" ) { max_rate  = from_string_with_unit(val) ; throw_unless(max_rate>0,"max rate must be positive") ; continue ; } break ;
-					case 'n' : if (key=="nan"      ) {                                                                                                 continue ; } break ;
-					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt>     (val) ;                                                        continue ; } break ;
-					case 's' : if (key=="size"     ) { max_sz    = from_string_with_unit(val) ;                                                        continue ; } break ;
+					case 'f' : if (key=="file_sync"       ) { file_sync        = mk_enum<FileSync>    (val) ;                                                            continue ; } break ;
+					case 'i' : if (key=="inf"             ) {                                                                                                            continue ; } break ;
+					case 'm' : if (key=="max_rate"        ) { max_rate         = from_string_with_unit(val) ; throw_unless(max_rate        >0,key," must be positive") ; continue ; }
+					/**/       if (key=="max_runs_per_job") { max_runs_per_job = from_string<uint16_t>(val) ; throw_unless(max_runs_per_job>0,key," must be positive") ; continue ; } break ;
+					case 'n' : if (key=="nan"             ) {                                                                                                            continue ; } break ;
+					case 'p' : if (key=="perm"            ) { perm_ext         = mk_enum<PermExt>     (val) ;                                                            continue ; } break ;
+					case 's' : if (key=="size"            ) { max_sz           = from_string_with_unit(val) ;                                                            continue ; } break ;
 				DN}
 			} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
 			trace("bad_cache_key",key) ;
@@ -209,32 +211,14 @@ namespace Caches {
 }
 
 //
-// LruEntry
+// Ckey
 //
 
-bool/*first*/ LruEntry::insert_top( LruEntry& hdr , Crun run , LruEntry CrunData::* lru ) {
-	bool first = !hdr.older ;
-	/**/       older                     = hdr.older/*newest*/ ;
-	/**/       newer                     = {}                  ;
-	if (first) hdr.newer/*oldest*/       = run                 ;
-	else       ((*hdr.older).*lru).newer = run                 ;
-	/**/       hdr.older/*newest*/       = run                 ;
-	return first ;
-}
-bool/*last*/ LruEntry::erase( LruEntry& hdr , Crun , LruEntry CrunData::* lru ) {
-	bool last = true ;
-	if (+older) { ((*older).*lru).newer = newer ; last = false ; }
-	else          hdr.newer/*oldest*/   = newer ;
-	if (+newer) { ((*newer).*lru).older = older ; last = false ; }
-	else          hdr.older/*newest*/   = older ;
-	older = {} ;
-	newer = {} ;
-	return last ;
-}
-void LruEntry::mv_to_top( LruEntry& hdr , Crun run , LruEntry CrunData::* lru ) {
-	if (!newer) return ;                                                          // fast path : nothing to do if already mru
-	erase     ( hdr , run , lru ) ;
-	insert_top( hdr , run , lru ) ;
+Ckey::Ckey(           ::string const& name ) { self = _g_key_file.search(name) ; }
+Ckey::Ckey( NewType , ::string const& name ) { self = _g_key_file.insert(name) ; }
+
+void Ckey::victimize() {
+	_g_key_file.pop(self) ;
 }
 
 //
@@ -275,6 +259,45 @@ Cnode::Cnode( NewType , ::string const& name_ ) {
 }
 
 //
+// LruEntry
+//
+
+bool/*first*/ LruEntry::insert_top( LruEntry& hdr , Crun run , LruEntry CrunData::* lru ) {
+	bool first = !hdr.older ;
+	/**/       older                     = hdr.older/*newest*/ ;
+	/**/       newer                     = {}                  ;
+	if (first) hdr.newer/*oldest*/       = run                 ;
+	else       ((*hdr.older).*lru).newer = run                 ;
+	/**/       hdr.older/*newest*/       = run                 ;
+	return first ;
+}
+bool/*last*/ LruEntry::erase( LruEntry& hdr , Crun , LruEntry CrunData::* lru ) {
+	bool last = true ;
+	if (+older) { ((*older).*lru).newer = newer ; last = false ; }
+	else          hdr.newer/*oldest*/   = newer ;
+	if (+newer) { ((*newer).*lru).older = older ; last = false ; }
+	else          hdr.older/*newest*/   = older ;
+	older = {} ;
+	newer = {} ;
+	return last ;
+}
+void LruEntry::mv_to_top( LruEntry& hdr , Crun run , LruEntry CrunData::* lru ) {
+	if (!newer) return ;                                                          // fast path : nothing to do if already mru
+	erase     ( hdr , run , lru ) ;
+	insert_top( hdr , run , lru ) ;
+}
+
+//
+// CkeyData
+//
+
+::string& operator+=( ::string& os , CkeyData const& kd ) {
+	/**/            os << "CkeyData(" ;
+	if (kd.ref_cnt) os << kd.ref_cnt  ;
+	return          os << ')'         ;
+}
+
+//
 // CjobData
 //
 
@@ -285,7 +308,8 @@ Cnode::Cnode( NewType , ::string const& name_ ) {
 }
 
 void CjobData::victimize() {
-	SWEAR( !lru , idx() ) ;
+	SWEAR( !lru    , idx() ) ;
+	SWEAR( !n_runs , idx() ) ;
 	_g_job_name_file.pop(_name) ;
 	_g_job_file     .pop(idx()) ;
 }
@@ -305,10 +329,10 @@ void CjobData::victimize() {
 
 ::pair<Crun,CacheHitInfo> CjobData::insert(
 	::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs
-,	Hash::Crc key , bool key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate
+,	Ckey key , bool key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate
 ) {
 	Trace trace("insert",idx(),key,sz,rate,deps.size(),dep_crcs.size()) ;
-	Crun found_runs[2] ;                                                  // first and last with same key
+	Crun found_runs[2] ;                                                                     // first and last with same key
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
 		CrunData& rd = *r ;
 		if (rd.key==key) {
@@ -322,9 +346,11 @@ void CjobData::victimize() {
 		DN}
 	}
 	if (+found_runs[true/*last*/]) { //!           last
-		if (+found_runs[false/*last*/]) found_runs[true]->victimize() ;
+		if (+found_runs[false/*last*/]) found_runs[true]->victimize(false/*victimize_job*/) ;
 		else                            found_runs[true]->key_is_last = false ;
 	}
+	while (n_runs>=g_config.max_runs_per_job) lru.newer->victimize(false/*victimize_job*/) ; // maybe several pass in case.max_runs_per_job has been reduced
+	mk_room( sz , idx() ) ;
 	Crun run { New , key , key_is_last , idx() , last_access , sz , rate , deps, dep_crcs } ;
 	trace("miss") ;
 	return { run , CacheHitInfo::Miss } ;
@@ -334,17 +360,17 @@ void CjobData::victimize() {
 // CrunData
 //
 
-CrunData::CrunData( Hash::Crc k , bool kil , Cjob j , Time::Pdate la , Disk::DiskSz sz_ , Rate r , ::vector<Cnode> const& ds , ::vector<Hash::Crc> const& dcs )
-:	key         { k   }
-,	last_access { la  }
+CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r , ::vector<Cnode> const& ds , ::vector<Hash::Crc> const& dcs ) :
+	last_access { la  }
 ,	sz          { sz_ }
 ,	job         { j   }
 ,	deps        { ds  }
 ,	dep_crcs    { dcs }
 ,	rate        { r   }
+,	key         { k   }
 ,	key_is_last { kil }
 {
-	CrunHdr& hdr = CrunData::s_hdr() ;
+	CrunHdr& hdr = s_hdr() ;
 	Trace trace("CrunData",key,STR(key_is_last),job,sz,rate,hdr.total_sz,ds,dcs) ;
 	bool first = !RateCmp::s_lrus[rate] ;
 	hdr.total_sz += sz ;
@@ -360,7 +386,9 @@ CrunData::CrunData( Hash::Crc k , bool kil , Cjob j , Time::Pdate la , Disk::Dis
 		RateCmp::s_insert(rate) ;
 	}
 	//
-	for( Cnode d : ds ) d->ref_cnt++ ;
+	/**/                                                   key.inc()     ;
+	SWEAR( job->n_runs<g_config.max_runs_per_job , job ) ; job->n_runs++ ;
+	for( Cnode d : ds ) d->inc() ;
 }
 
 ::string& operator+=( ::string& os , CrunData const& rd ) {
@@ -371,10 +399,10 @@ CrunData::CrunData( Hash::Crc k , bool kil , Cjob j , Time::Pdate la , Disk::Dis
 }
 
 ::string CrunData::name(Cjob job) const {
-	::string         res =  job->name()         ;
-	/**/             res << '/'<<key.hex()<<'-' ;
-	if (key_is_last) res << "last"              ;
-	else             res << "first"             ;
+	::string         res =  job->name()    ;
+	/**/             res << '/'<<+key<<'-' ;
+	if (key_is_last) res << "last"         ;
+	else             res << "first"        ;
 	return res ;
 }
 
@@ -388,8 +416,8 @@ void CrunData::access() {
 	RateCmp::s_insert(rate) ;
 }
 
-void CrunData::victimize() {
-	CrunHdr& hdr = CrunData::s_hdr() ;
+void CrunData::victimize(bool victimize_job) {
+	CrunHdr& hdr = s_hdr() ;
 	Trace trace("victimize",idx(),hdr.total_sz,sz) ;
 	bool last = job_lru.erase( job->lru              , idx() , &CrunData::job_lru ) ; // manage job-local LRU
 	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , idx() , &CrunData::glb_lru ) ; // manage global    LRU
@@ -402,12 +430,10 @@ void CrunData::victimize() {
 		RateCmp::s_insert(rate) ;
 	}
 	//
-	for( Cnode d : deps ) {
-		d->ref_cnt-- ;
-		if (!d->ref_cnt) d->victimize() ;
-	}
-	//
-	if (last) job->victimize() ;
+	/**/                           key.dec()     ;
+	SWEAR( job->n_runs>0 , job ) ; job->n_runs-- ;
+	for( Cnode d : deps ) d->dec() ;
+	if ( victimize_job && last ) job->victimize() ;
 	SWEAR( hdr.total_sz >= sz , hdr.total_sz,sz,idx() ) ;
 	hdr.total_sz -= sz ;
 	_g_nodes_file.pop(deps    ) ;
@@ -473,7 +499,18 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 	return res ;
 }
 
+//
+// CnodeData
+//
+
+::string& operator+=( ::string& os , CnodeData const& nd ) {
+	/**/            os << "CnodeData(" ;
+	if (nd.ref_cnt) os << nd.ref_cnt  ;
+	return          os << ')'         ;
+}
+
 void CnodeData::victimize() {
+	s_hdr().n_trash++ ;
 	_g_node_name_file.pop(_name) ;
 	_g_node_file     .pop(idx()) ;
 }

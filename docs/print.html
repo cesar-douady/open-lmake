@@ -2722,7 +2722,8 @@ It is also possible to run it manually with the <code>lcache_server</code> comma
 <p>It must be initialized with a file <code>LMAKE/config.py</code> defining some variables:</p>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Possible values</th><th>Comment</th></tr></thead><tbody>
 <tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
-<tr><td><code>max_rate</code></td><td>'1G'</td><td>any <code>int</code> or a <code>str</code> composed of a number followed by a unit suffix</td><td>the maximum rate in B/s above which entries are not recorded in the cache</td></tr>
+<tr><td><code>max_rate</code></td><td>'1G'</td><td>any positive <code>int</code> or <code>str</code> composed of a number followed by a unit suffix</td><td>the maximum rate in B/s above which entries are not recorded in the cache</td></tr>
+<tr><td><code>max_runs_per_job</code></td><td>100</td><td>any positive <code>int</code></td><td>the maximum number of runs kept for a given job</td></tr>
 <tr><td><code>perm</code></td><td>'none'</td><td><code>'none'</code>, <code>'group'</code>, <code>'other'</code></td><td>the permissions to use when creating files in the cache, overriding current umask</td></tr>
 <tr><td><code>size</code></td><td>&lt;required&gt;</td><td>any <code>int</code> or a <code>str</code> composed of a number followed by a unit suffix</td><td>the overall size the cache is allowed to occupy</td></tr>
 </tbody></table>
@@ -2742,14 +2743,39 @@ size     = '1.5T'
 </div>
 <p>By default, the <code>repo_key</code> is made after the absolute root of the repo and the current git sha1 if repo is controlled by git.
 No more than 2 entries can be stored for any job with a given <code>repo_key</code>, the first time and the last time the <code>repo_key</code> is used.</p>
-<p>To avoid cache pollution when a repo evolves rapidly (which is typical during active development), the number of stored states must be limited as the cache is typically useless locally.
-However, when a repo is pushed, best is that the cache retains the jobs corresponding to what is pushed so that other users can download the results.
-Such jobs may have run before or after the commit, hence they are:</p>
+<h2 id="execution-2"><a class="header" href="#execution-2">execution</a></h2>
+<p>A job is defined as a particular instance of a rule characterized by the rule and the non-star stems.
+For example, if a rule produces has <code>target = {File1}+{File2}</code>, a job may be characterized by the rule and <code>File1</code>=<code>hello</code> and <code>File2</code>=<code>world</code> leading to target <code>hello+world</code>.</p>
+<p>A run is defined as a particular instance of a job characterized by the content of the deps.
+For example, for the example job above, a particular run would be if file <code>hello</code> contains <code>hi</code> and file <code>world</code> contains <code>John</code> if these files are the (only) deps.</p>
+<p>The cache caches results (i.e. targets and all associated meta-data) of runs.
+Runs are uploaded when executed in a repo and the rule mentions it in its <code>cache</code> attribute (and upload is autorized).</p>
+<p>Because the cache has a maximum size, after an intial phase during which it fills up, it must make room each time a new run must be stored.
+Hence, there must be a cache replacement policy.</p>
+<h3 id="cache-replacement-policy"><a class="header" href="#cache-replacement-policy">cache replacement policy</a></h3>
+<p>There are several factors that are taken into account when deciding which run to victimize from the cache to make room.</p>
+<h4 id="1-at-most-2-runs-are-kept-from-a-given-repo-a-given-commit-eg-the-git-commit-hash"><a class="header" href="#1-at-most-2-runs-are-kept-from-a-given-repo-a-given-commit-eg-the-git-commit-hash">1/ At most 2 runs are kept from a given repo a given commit (e.g. the git commit hash).</a></h4>
+<p>To avoid cache pollution in case a repo evolves rapidly (which is typical during active development), the number of stored runs from this repo must be limited
+as the cache is typically useless locally.
+However, when a repo is pushed (using e.g. <code>git push</code>), best is that the cache retains the runs corresponding to what is pushed so that other users can download the results.
+Such runs may have been executed before or after the commit (using e.g. <code>git commit</code>), hence they are:</p>
 <ul>
 <li>the last job of the previous commit sha1</li>
 <li>or the first job of the current commit sha1</li>
 </ul>
 <p>By keeping both, we get a reasonable compromize between pollution avoidance and anticipation of use by other users.</p>
+<h4 id="2-at-most-max_runs_per_job-runs-are-kept-for-a-given-job"><a class="header" href="#2-at-most-max_runs_per_job-runs-are-kept-for-a-given-job">2/ At most <code>max_runs_per_job</code> runs are kept for a given job.</a></h4>
+<p>The reason is two-fold.</p>
+<p>First, if there are, say, 50 users using the cache, there is not real reason to keep more than 100 runs for a given job.
+If more than this many runs have been uploaded, Probably that the older ones are now useless.</p>
+<p>Second, the cache must frequently walk through all the runs of a given job (a direct key look-up cannot be used as deps are not always known when the cache is consulted for download).
+Limiting the maximum number of runs for a given job guarantees that the cache will keep a high performance level.</p>
+<h4 id="3-a-special-lru-mechanism-is-used"><a class="header" href="#3-a-special-lru-mechanism-is-used">3/ A special LRU mechanism is used</a></h4>
+<p>While LRU (Least Recently Used) is known to provide a good heuristic for cache replacement policy, it must be taken into account that the cost of computing a given run varies from one another.
+For example is a user spent 1 hour to compute 1MB of data for a given run and another spent 2 hours to compute a result of the same size, it is wise make efforts to keep the second one longer
+as this MB will avoid a higher cost in case it is hit.</p>
+<p>The special LRU used in the cache ressembles a classical LRU except that the aging speed is proportional to the ratio between size and cpu time to generate it.
+This is a natural extension of the classical LRU algorithm devised for cases where size and cost are fixed for all cache entries.</p>
 <h2 id="permissions"><a class="header" href="#permissions">Permissions</a></h2>
 <p>For all users accessing the cache:</p>
 <ul>

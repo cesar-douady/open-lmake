@@ -20,9 +20,29 @@ using namespace Hash   ;
 
 SmallIds<uint64_t> _g_upload_keys  ;
 ::vector<DiskSz>   _g_reserved_szs ; // indexed by upload_key
+::umap<Fd,Ckey>    _g_key_tab      ;
 
-DaemonCache::RpcReply download(DaemonCache::RpcReq const& crr) {
-	Trace trace("download",crr) ;
+static void _release_room(DiskSz sz) {
+	CrunHdr& hdr = CrunData::s_hdr() ;
+	Trace trace("_release_room",sz,hdr.total_sz,g_reserved_sz) ;
+	SWEAR( g_reserved_sz>=sz , g_reserved_sz,sz ) ;
+	g_reserved_sz -= sz ;
+	SWEAR( hdr.total_sz+g_reserved_sz <= g_config.max_sz , hdr.total_sz,g_reserved_sz,g_config.max_sz ) ;
+}
+
+static DaemonCache::RpcReply _config( Fd fd , DaemonCache::RpcReq const& crr ) {
+	Trace trace("_config",fd,crr) ;
+	Ckey key      { New , crr.repo_key }                      ;
+	bool inserted = _g_key_tab.try_emplace( fd , key ).second ; SWEAR( inserted , fd,crr ) ;
+	// ensure lcache_repair can retrieve repo keys
+	if (!key->ref_cnt) AcFd(cat(PrivateAdminDirS,"repo_keys"),{.flags=O_WRONLY|O_APPEND|O_CREAT,.mod=0666,.perm_ext=g_config.perm_ext}).write(cat(+key,' ',crr.repo_key,'\n')) ;
+	//
+	key.inc() ;
+	return { .proc=DaemonCache::Proc::Config , .config=g_config , .gen=CnodeData::s_hdr().gen } ;
+}
+
+static DaemonCache::RpcReply _download(DaemonCache::RpcReq const& crr) {
+	Trace trace("_download",crr) ;
 	DaemonCache::RpcReply      res    { .proc=DaemonCache::Proc::Download , .hit_info=CacheHitInfo::NoJob } ;
 	Cjob                       job    { crr.job }                                                           ; if (!job) { trace("no_job") ; return res ; }
 	CompileDigest              deps   = compile( crr.repo_deps , true/*for_download*/ )                     ; SWEAR( deps.n_statics==job->n_statics , crr.job,job ) ;
@@ -34,21 +54,22 @@ DaemonCache::RpcReply download(DaemonCache::RpcReq const& crr) {
 	return res ;
 }
 
-DaemonCache::RpcReply upload(DaemonCache::RpcReq const& crr) {
-	Trace trace("upload",crr) ;
+static DaemonCache::RpcReply _upload(DaemonCache::RpcReq const& crr) {
+	Trace trace("_upload",crr) ;
 	//
 	if (!mk_room(crr.reserved_sz)) return {.proc=DaemonCache::Proc::Upload} ; // no upload possible
 	//
 	uint64_t upload_key = _g_upload_keys.acquire() ;
-	grow(_g_reserved_szs,upload_key) = crr.reserved_sz ;
+	g_reserved_sz                    += crr.reserved_sz ;
+	grow(_g_reserved_szs,upload_key)  = crr.reserved_sz ;
 	return { .proc=DaemonCache::Proc::Upload , .upload_key = upload_key } ;
 }
 
-void commit(DaemonCache::RpcReq const& crr) {
-	Trace trace("commit",crr) ;
+static void _commit( Fd fd , DaemonCache::RpcReq const& crr ) {
+	Trace trace("_commit",crr) ;
 	//
-	release_room(_g_reserved_szs[crr.upload_key]) ;
-	_g_upload_keys.release(crr.upload_key) ;
+	_release_room(_g_reserved_szs[crr.upload_key]) ;
+	_g_upload_keys.release(crr.upload_key)         ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
 	NfsGuard      nfs_guard    { g_config.file_sync }                                            ;
@@ -59,8 +80,8 @@ void commit(DaemonCache::RpcReq const& crr) {
 	DiskSz        sz           = run_sz( crr.job_info , job_info_str , deps )                    ;
 	//
 	::pair<Crun,CacheHitInfo > digest = job->insert(
-		deps.deps , deps.dep_crcs                                                                                            // to search entry
-	,	crr.repo_key , true/*key_is_last*/ , New/*last_access*/ , sz , to_rate(g_config,sz,crr.job_info.end.digest.exe_time) // to create entry
+		deps.deps , deps.dep_crcs                                                                                                 // to search entry
+	,	_g_key_tab.at(fd) , true/*key_is_last*/ , New/*last_access*/ , sz , to_rate(g_config,sz,crr.job_info.end.digest.exe_time) // to create entry
 	) ;
 	//
 	if (digest.second<CacheHitInfo::Miss) {
@@ -73,10 +94,10 @@ void commit(DaemonCache::RpcReq const& crr) {
 	}
 }
 
-void dismiss(DaemonCache::RpcReq const& crr) {
+static void _dismiss(DaemonCache::RpcReq const& crr) {
 	Trace trace("dismiss",crr) ;
 	unlnk(DaemonCache::s_reserved_file(crr.upload_key)) ;
-	release_room(_g_reserved_szs[crr.upload_key])       ;
+	_release_room(_g_reserved_szs[crr.upload_key])      ;
 	//
 	_g_upload_keys.release(crr.upload_key) ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
@@ -87,20 +108,24 @@ struct CacheServer : AutoServer<CacheServer> {
 	using RpcReq   = DaemonCache::RpcReq   ;
 	using RpcReply = DaemonCache::RpcReply ;
 	using Item     = RpcReq                ;
-	static constexpr uint64_t Magic = DaemonCache::Magic ; // any random improbable value!=0 used as a sanity check when client connect to server
+	static constexpr uint64_t Magic = DaemonCache::Magic ;                                      // any random improbable value!=0 used as a sanity check when client connect to server
 	// cxtors & casts
 	using AutoServer<CacheServer>::AutoServer ;
 	// injection
 	bool/*done*/ process_item( Fd fd , RpcReq const& crr ) {
 		Trace trace("process_item",fd,crr) ;
-		switch (crr.proc) { //!                                                                                   key            done
-			case Proc::None     :                                                                                         return true  ;
-			case Proc::Config   : OMsgBuf( DaemonCache::RpcReply{.proc=Proc::Config,.config=g_config} ).send( fd , {} ) ; return false ; // from lmake_server
-			case Proc::Download : OMsgBuf( download(crr)                                              ).send( fd , {} ) ; return false ; // from lmake_server
-			case Proc::Upload   : OMsgBuf( upload  (crr)                                              ).send( fd , {} ) ; return true  ; // from job_exec
-			case Proc::Commit   :          commit  (crr)                                                                ; return false ; // from lmake_server
-			case Proc::Dismiss  :          dismiss (crr)                                                                ; return false ; // .
-		DF}                                                                                                                              // NO_COV
+		switch (crr.proc) { //!                                          key            done
+			case Proc::None     :                                                return true  ;
+			case Proc::Config   : OMsgBuf( _config  (fd,crr) ).send( fd , {} ) ; return false ; // from lmake_server
+			case Proc::Download : OMsgBuf( _download(   crr) ).send( fd , {} ) ; return false ; // from lmake_server
+			case Proc::Upload   : OMsgBuf( _upload  (   crr) ).send( fd , {} ) ; return true  ; // from job_exec
+			case Proc::Commit   :          _commit  (fd,crr)                   ; return false ; // from lmake_server
+			case Proc::Dismiss  :          _dismiss (   crr)                   ; return false ; // .
+		DF}                                                                                     // NO_COV
+	}
+	void end_connection(Fd fd) {
+		auto it = _g_key_tab.find(fd) ;
+		if (it!=_g_key_tab.end()) it->second.dec() ;
 	}
 } ;
 

@@ -28,6 +28,7 @@ using namespace Caches ;
 using Rate = uint8_t ;
 
 // can be tailored to fit needs
+static constexpr uint8_t NCkeyIdxBits      = 32 ;
 static constexpr uint8_t NCjobNameIdxBits  = 32 ;
 static constexpr uint8_t NCnodeNameIdxBits = 32 ;
 static constexpr uint8_t NCjobIdxBits      = 32 ;
@@ -42,6 +43,7 @@ static constexpr uint8_t NCcrcsIdxBits     = 32 ;
 
 static constexpr Rate NRates = Max<Rate> ; // missing highest value, but easier to code
 
+using CkeyIdx      = Uint<NCkeyIdxBits     > ;
 using CjobNameIdx  = Uint<NCjobNameIdxBits > ;
 using CnodeNameIdx = Uint<NCnodeNameIdxBits> ;
 using CjobIdx      = Uint<NCjobIdxBits     > ;
@@ -50,11 +52,21 @@ using CnodeIdx     = Uint<NCnodeIdxBits    > ;
 using CnodesIdx    = Uint<NCnodesIdxBits   > ;
 using CcrcsIdx     = Uint<NCcrcsIdxBits    > ;
 
+struct Ckey      ;
+struct Cjob      ;
+struct Crun      ;
+struct Cnode     ;
+struct CkeyData  ;
+struct CjobData  ;
+struct CrunData  ;
+struct CnodeData ;
+
 //
 // globals
 //
 
-extern DaemonCache::Config g_config ;
+extern DaemonCache::Config g_config      ;
+extern Disk::DiskSz        g_reserved_sz ;
 
 //
 // free functions
@@ -62,19 +74,31 @@ extern DaemonCache::Config g_config ;
 
 void       daemon_cache_init    ( bool rescue , bool read_only=false ) ;
 void       daemon_cache_finalize(                                    ) ;
+bool/*ok*/ mk_room              ( Disk::DiskSz , Cjob keep_job       ) ;
 bool/*ok*/ mk_room              ( Disk::DiskSz                       ) ;
-void       release_room         ( Disk::DiskSz                       ) ;
 
 //
 // structs
 //
 
-struct Cjob  ;
-struct Crun  ;
-struct Cnode ;
-struct CjobData  ;
-struct CrunData  ;
-struct CnodeData ;
+struct Ckey : Idxed<CkeyIdx> {
+	using Base = Idxed<CkeyIdx> ;
+	friend ::string& operator+=( ::string& , Ckey const& ) ;
+	// cxtors & casts
+	using Base::Base ;
+	Ckey(           ::string const& ) ; // make empty if not found
+	Ckey( NewType , ::string const& ) ; // create new if not found
+	// accesses
+	CkeyData const& operator* () const ;
+	CkeyData      & operator* ()       ;
+	CkeyData const* operator->() const { return &*self ; }
+	CkeyData      * operator->()       { return &*self ; }
+	::string str() const ;
+	// services
+	void inc      () ;
+	void dec      () ;
+	void victimize() ;
+} ;
 
 struct CjobName : Idxed<CjobNameIdx> {
 	using Base = Idxed<CjobNameIdx> ;
@@ -155,6 +179,17 @@ struct LruEntry {
 } ;
 // END_OF_VERSIONING
 
+struct CkeyData {
+	friend struct Ckey ;
+	friend ::string& operator+=( ::string& , CkeyData const& ) ;
+	// services
+	bool operator==(CkeyData const&) const = default ;
+	// data
+	// START_OF_VERSIONING DAEMON_CACHE
+	CrunIdx ref_cnt = 0 ;
+	// END_OF_VERSIONING
+} ;
+
 struct CjobData {
 	friend struct Cjob ;
 	friend ::string& operator+=( ::string& , CjobData const& ) ;
@@ -165,16 +200,17 @@ struct CjobData {
 	Cjob     idx () const ;
 	::string name() const { return _name.str() ; }
 	// services
-	::pair<Crun,CacheHitInfo> match( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ;     // updates lru related info when hit
-	::pair<Crun,CacheHitInfo> insert(                                                            // like match, but create when miss
-		::vector<Cnode> const& , ::vector<Hash::Crc> const&                                      // to search entry
-	,	Hash::Crc key , bool key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate // to create entry
+	::pair<Crun,CacheHitInfo> match( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ; // updates lru related info when hit
+	::pair<Crun,CacheHitInfo> insert(                                                        // like match, but create when miss
+		::vector<Cnode> const& , ::vector<Hash::Crc> const&                                  // to search entry
+	,	Ckey key , bool key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate  // to create entry
 	) ;
 	void victimize() ;
 	// data
 	// START_OF_VERSIONING DAEMON_CACHE
-	VarIdx   n_statics = 0 ;
 	LruEntry lru       ;
+	uint16_t n_runs    = 0 ;
+	VarIdx   n_statics = 0 ;
 private :
 	CjobName _name ;
 	// END_OF_VERSIONING
@@ -195,17 +231,16 @@ struct CrunData {
 	static CrunHdr const& s_c_hdr() ;
 	// cxtors & casts
 	CrunData() = default ;
-	CrunData( Hash::Crc key , bool key_is_last , Cjob job , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
+	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
 	// accesses
 	Crun     idx (    ) const ;
 	::string name(Cjob) const ;
 	// services
 	void         access   (                                                     )       ; // move to top in LRU (both job and glb)
-	void         victimize(                                                     )       ;
+	void         victimize( bool victimize_job=true                             )       ; // if victimize_job, victimize job if last run
 	CacheHitInfo match    ( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) const ;
 	// data
 	// START_OF_VERSIONING DAEMON_CACHE
-	Hash::Crc    key         ;                                                            // identifies origin (repo+git_sha1)
 	Time::Pdate  last_access ;
 	Disk::DiskSz sz          = 0                ;                                         // size occupied by run
 	LruEntry     glb_lru     ;                                                            // global LRU within rate
@@ -214,14 +249,25 @@ struct CrunData {
 	Cnodes       deps        ;                                                            // owned sorted by (is_static,existing,idx)
 	Ccrcs        dep_crcs    ;                                                            // owned crcs for static and existing deps
 	Rate         rate        ;
+	Ckey         key         ;                                                            // identifies origin (repo+git_sha1)
 	bool         key_is_last = false/*garbage*/ ;                                         // 2 runs may be stored for each key : the first and the last
 	// END_OF_VERSIONING
 } ;
 static_assert( sizeof(CrunData)==56 ) ;
 
+struct CnodeHdr {
+	CnodeIdx n_trash = 0 ; // number of nodes in trash
+	uint64_t gen     = 0 ; // generation, incremented when nodes are recycled
+} ;
+
 struct CnodeData {
 	friend struct Cnode ;
 	friend ::string& operator+=( ::string& , CnodeData const& ) ;
+	// statics
+	static CnodeHdr      & s_hdr        () ;
+	static CnodeHdr const& s_c_hdr      () ;
+	static CnodeIdx        s_size       () ;
+	static void            s_empty_trash() ;
 	// cxtors & casts
 	CnodeData() = default ;
 	CnodeData(CnodeName n) : _name{n} {}
@@ -229,6 +275,8 @@ struct CnodeData {
 	Cnode    idx () const ;
 	::string name() const { return _name.str() ; }
 	// services
+	void inc      () {                  ref_cnt++ ;                             }
+	void dec      () { SWEAR(ref_cnt) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }
 	void victimize() ;
 	// data
 	// START_OF_VERSIONING DAEMON_CACHE
@@ -239,16 +287,18 @@ private :
 } ;
 
 // START_OF_VERSIONING DAEMON_CACHE
-//                                           ThreadKey header    index       n_index_bits        key    data        misc
-using CjobNameFile  = Store::SinglePrefixFile< '='   , void    , CjobName  , NCjobNameIdxBits  , char , Cjob                     > ;
-using CnodeNameFile = Store::SinglePrefixFile< '='   , void    , CnodeName , NCnodeNameIdxBits , char , Cnode                    > ;
-using CjobFile      = Store::AllocFile       < '='   , void    , Cjob      , NCjobIdxBits      ,        CjobData                 > ;
-using CrunFile      = Store::AllocFile       < '='   , CrunHdr , Crun      , NCrunIdxBits      ,        CrunData                 > ;
-using CnodeFile     = Store::AllocFile       < '='   , void    , Cnode     , NCnodeIdxBits     ,        CnodeData                > ;
-using CnodesFile    = Store::VectorFile      < '='   , void    , Cnodes    , NCnodesIdxBits    ,        Cnode     , CnodeIdx , 4 > ;
-using CcrcsFile     = Store::VectorFile      < '='   , void    , Ccrcs     , NCcrcsIdxBits     ,        Hash::Crc , CnodeIdx , 4 > ;
+//                                           ThreadKey header     index       n_index_bits        key    data        misc
+using CkeyFile      = Store::SinglePrefixFile< '='   , void     , Ckey      , NCkeyIdxBits      , char , CkeyData                                     > ;
+using CjobNameFile  = Store::SinglePrefixFile< '='   , void     , CjobName  , NCjobNameIdxBits  , char , Cjob                                         > ;
+using CnodeNameFile = Store::SinglePrefixFile< '='   , void     , CnodeName , NCnodeNameIdxBits , char , Cnode                                        > ;
+using CjobFile      = Store::AllocFile       < '='   , void     , Cjob      , NCjobIdxBits      ,        CjobData                                     > ;
+using CrunFile      = Store::AllocFile       < '='   , CrunHdr  , Crun      , NCrunIdxBits      ,        CrunData                                     > ;
+using CnodeFile     = Store::AllocFile       < '='   , CnodeHdr , Cnode     , NCnodeIdxBits     ,        CnodeData , 0/*Mantissa*/ , true/*HasTrash*/ > ;
+using CnodesFile    = Store::VectorFile      < '='   , void     , Cnodes    , NCnodesIdxBits    ,        Cnode     , CnodeIdx      , 4   /*MinSz   */ > ;
+using CcrcsFile     = Store::VectorFile      < '='   , void     , Ccrcs     , NCcrcsIdxBits     ,        Hash::Crc , CnodeIdx      , 4   /*.       */ > ;
 // END_OF_VERSIONING
 
+extern CkeyFile      _g_key_file       ;
 extern CjobNameFile  _g_job_name_file  ;
 extern CnodeNameFile _g_node_name_file ;
 extern CjobFile      _g_job_file       ;
@@ -258,6 +308,7 @@ extern CnodesFile    _g_nodes_file     ;
 extern CcrcsFile     _g_crcs_file      ;
 
 template<class T> auto lst() ;
+template<> inline auto lst<Ckey >() { return _g_key_file .lst() ; }
 template<> inline auto lst<Cjob >() { return _g_job_file .lst() ; }
 template<> inline auto lst<Crun >() { return _g_run_file .lst() ; }
 template<> inline auto lst<Cnode>() { return _g_node_file.lst() ; }
@@ -271,12 +322,14 @@ namespace Vector {
 // implementation
 //
 
-inline CrunHdr      & CrunData::s_hdr  () { return _g_run_file.hdr  () ; }
-inline CrunHdr const& CrunData::s_c_hdr() { return _g_run_file.c_hdr() ; }
+inline bool/*ok*/ mk_room( Disk::DiskSz sz ) { return mk_room(sz,{}) ; }
 
+inline ::string Ckey     ::str() const { return _g_key_file      .str_key(self) ; }
 inline ::string CjobName ::str() const { return _g_job_name_file .str_key(self) ; }
 inline ::string CnodeName::str() const { return _g_node_name_file.str_key(self) ; }
 
+inline CkeyData  const& Ckey ::operator*() const { return _g_key_file .c_at(self) ; }
+inline CkeyData       & Ckey ::operator*()       { return _g_key_file .at  (self) ; }
 inline CjobData  const& Cjob ::operator*() const { return _g_job_file .c_at(self) ; }
 inline CjobData       & Cjob ::operator*()       { return _g_job_file .at  (self) ; }
 inline CrunData  const& Crun ::operator*() const { return _g_run_file .c_at(self) ; }
@@ -284,10 +337,21 @@ inline CrunData       & Crun ::operator*()       { return _g_run_file .at  (self
 inline CnodeData const& Cnode::operator*() const { return _g_node_file.c_at(self) ; }
 inline CnodeData      & Cnode::operator*()       { return _g_node_file.at  (self) ; }
 
-inline Cjob  CjobData ::idx() const { return _g_job_file .idx(self) ; }
-inline Crun  CrunData ::idx() const { return _g_run_file .idx(self) ; }
-inline Cnode CnodeData::idx() const { return _g_node_file.idx(self) ; }
+inline void Ckey::inc() { CrunIdx& ref_cnt = self->ref_cnt ;                  ref_cnt++ ;                             }
+inline void Ckey::dec() { CrunIdx& ref_cnt = self->ref_cnt ; SWEAR(ref_cnt) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }
 
 template<class... A> Crun::Crun( NewType , A&&... args ) {
 	self = _g_run_file.emplace(::forward<A>(args)...) ;
 }
+
+inline CrunHdr       & CrunData ::s_hdr  () { return _g_run_file .hdr  () ; }
+inline CrunHdr  const& CrunData ::s_c_hdr() { return _g_run_file .c_hdr() ; }
+inline CnodeHdr      & CnodeData::s_hdr  () { return _g_node_file.hdr  () ; }
+inline CnodeHdr const& CnodeData::s_c_hdr() { return _g_node_file.c_hdr() ; }
+
+inline Cjob  CjobData ::idx() const { return _g_job_file .idx(self) ; }
+inline Crun  CrunData ::idx() const { return _g_run_file .idx(self) ; }
+inline Cnode CnodeData::idx() const { return _g_node_file.idx(self) ; }
+
+inline CnodeIdx CnodeData::s_size       () { return _g_node_file.size       () ; }
+inline void     CnodeData::s_empty_trash() { return _g_node_file.empty_trash() ; }
