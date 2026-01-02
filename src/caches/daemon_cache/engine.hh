@@ -20,38 +20,6 @@
 
 using namespace Caches ;
 
-// START_OF_VERSIONING DAEMON_CACHE
-
-// used for cache efficiency
-// rate=0 means max_rate as per config
-// +1 means job took 13.3% more time per byte of generated data
-using Rate = uint8_t ;
-
-// can be tailored to fit needs
-static constexpr uint8_t NCkeyIdxBits      = 32 ;
-static constexpr uint8_t NCjobNameIdxBits  = 32 ;
-static constexpr uint8_t NCnodeNameIdxBits = 32 ;
-static constexpr uint8_t NCjobIdxBits      = 32 ;
-static constexpr uint8_t NCrunIdxBits      = 32 ;
-static constexpr uint8_t NCnodeIdxBits     = 32 ;
-static constexpr uint8_t NCnodesIdxBits    = 32 ;
-static constexpr uint8_t NCcrcsIdxBits     = 32 ;
-
-// END_OF_VERSIONING
-
-// rest cannot be tailored
-
-static constexpr Rate NRates = Max<Rate> ; // missing highest value, but easier to code
-
-using CkeyIdx      = Uint<NCkeyIdxBits     > ;
-using CjobNameIdx  = Uint<NCjobNameIdxBits > ;
-using CnodeNameIdx = Uint<NCnodeNameIdxBits> ;
-using CjobIdx      = Uint<NCjobIdxBits     > ;
-using CrunIdx      = Uint<NCrunIdxBits     > ;
-using CnodeIdx     = Uint<NCnodeIdxBits    > ;
-using CnodesIdx    = Uint<NCnodesIdxBits   > ;
-using CcrcsIdx     = Uint<NCcrcsIdxBits    > ;
-
 struct Ckey      ;
 struct Cjob      ;
 struct Crun      ;
@@ -234,7 +202,7 @@ struct CrunData {
 	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
 	// accesses
 	Crun     idx (    ) const ;
-	::string name(Cjob) const ;
+	::string name(Cjob) const { return DaemonCache::s_run_dir( job->name() , +key , key_is_last ) ; }
 	// services
 	void         access   (                                                     )       ; // move to top in LRU (both job and glb)
 	void         victimize( bool victimize_job=true                             )       ; // if victimize_job, victimize job if last run
@@ -248,9 +216,9 @@ struct CrunData {
 	Cjob         job         ;
 	Cnodes       deps        ;                                                            // owned sorted by (is_static,existing,idx)
 	Ccrcs        dep_crcs    ;                                                            // owned crcs for static and existing deps
-	Rate         rate        ;
 	Ckey         key         ;                                                            // identifies origin (repo+git_sha1)
-	bool         key_is_last = false/*garbage*/ ;                                         // 2 runs may be stored for each key : the first and the last
+	Rate         rate        = 0    /*garbage*/ ;
+	bool         key_is_last = false/*.      */ ;                                         // 2 runs may be stored for each key : the first and the last
 	// END_OF_VERSIONING
 } ;
 static_assert( sizeof(CrunData)==56 ) ;

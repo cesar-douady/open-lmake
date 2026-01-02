@@ -12,7 +12,7 @@ using namespace Time ;
 static constexpr Crc::Val CrcOrNone = 1<< NBits<CrcSpecial>    ;
 static constexpr Crc::Val CrcErr    = 1<<(NBits<CrcSpecial>+1) ;
 
-CompileDigest compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download ) {
+CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool for_download ) {
 	struct Dep {
 		// services
 		bool operator<(Dep const& other) const { return ::pair(bucket,+node) < ::pair(other.bucket,+other.node) ; }
@@ -31,8 +31,9 @@ CompileDigest compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download 
 		else if (!a                      )   continue ;                                               // dep was not accessed, ignore but keep static deps as they must not depend on run
 		//
 		Cnode node ;
-		if (for_download) { node = {       n } ; if (!node) continue ; }                              // if it is not known in cache, it has no impact on matching
-		else                node = { New , n } ;
+		if (n.is_id()   )   node = {       n.id   } ;
+		if (for_download) { node = {       n.name } ; if (!node) continue ; }                           // if it is not known in cache, it has no impact on matching
+		else                node = { New , n.name } ;
 		//
 		Crc crc = dd.crc() ;
 		if (!for_download)                                                                            // Crc::Unknown means any existing file

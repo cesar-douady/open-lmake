@@ -35,7 +35,7 @@ static RepairDigest _repair(bool dry_run) {
 	RepairDigest             res            ;
 	AcFd                     repaired_runs  ; if (!dry_run) repaired_runs = AcFd{ cat(AdminDirS,"repaired_runs") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} } ;
 	::umap<CkeyIdx,::string> old_keys       ;
-	::map <CkeyIdx,::string> new_keys       ;                                                                                 // ordered to generate a nicer repo_keys file
+	::map <CkeyIdx,::string> new_keys       ;                                                                                             // ordered to generate a nicer repo_keys file
 	::string                 repo_keys_file = cat(PrivateAdminDirS,"repo_keys") ;
 	for( ::string const& line : AcFd(repo_keys_file,{.err_ok=true}).read_lines() ) {
 		size_t pos = line.find(' ') ;
@@ -76,18 +76,18 @@ static RepairDigest _repair(bool dry_run) {
 			old_key_str = old_key_str.substr( 0 , old_key_str.rfind('-') ) ;
 			//
 			if (!dry_run) {
-				CompileDigest deps    = compile( job_info.end.digest.deps , false/*for_download*/ ) ;
-				DiskSz        sz      = run_sz( job_info , job_info_str , deps )                    ;
-				CkeyIdx       old_key = from_string<CkeyIdx>(old_key_str)                           ;
-				auto          it      = old_keys.find(old_key)                                      ;
-				::string      repo    = cat("repaired-",old_key)                                    ;                         // if key is unknown, invent a repo
-				Ckey          new_key { New , it==old_keys.end()?repo:it->second           }        ;                         // if key is unknown, invent a repo
-				Cjob          job     { New , no_slash(dir_name_s(dir_s)) , deps.n_statics }        ;
+				CompileDigest deps    = compile( mk_vmap<StrId<CnodeIdx>,DepDigest>(job_info.end.digest.deps) , false/*for_download*/ ) ;
+				DiskSz        sz      = run_sz( job_info , job_info_str , deps )                                                        ;
+				CkeyIdx       old_key = from_string<CkeyIdx>(old_key_str)                                                               ;
+				auto          it      = old_keys.find(old_key)                                                                          ;
+				::string      repo    = cat("repaired-",old_key)                                                                        ; // if key is unknown, invent a repo
+				Ckey          new_key { New , it==old_keys.end()?repo:it->second           }                                            ; // if key is unknown, invent a repo
+				Cjob          job     { New , no_slash(dir_name_s(dir_s)) , deps.n_statics }                                            ;
 				//
-				if (!new_key->ref_cnt) new_keys[+new_key] = repo ;                                                             // record new association
+				if (!new_key->ref_cnt) new_keys[+new_key] = repo ;                                                                        // record new association
 				::pair<Crun,CacheHitInfo> digest = job->insert(
-					deps.deps , deps.dep_crcs                                                                                 // to search entry
-				,	new_key , key_is_last , Pdate(data_stat.st_atim) , sz , to_rate(g_config,sz,job_info.end.digest.exe_time) // to create entry
+					deps.deps , deps.dep_crcs                                                                                             // to search entry
+				,	new_key , key_is_last , Pdate(data_stat.st_atim) , sz , to_rate(g_config,sz,job_info.end.digest.exe_time)             // to create entry
 				) ;
 				throw_unless( digest.second>=CacheHitInfo::Miss , "conflict" ) ;
 			}
@@ -107,7 +107,7 @@ static RepairDigest _repair(bool dry_run) {
 		Fd::Stdout.write(cat("rm ",f,'\n')) ;
 		if (!dry_run) unlnk(f) ;
 	}
-	try { rename( repo_keys_file , repo_keys_file+".bck" ) ; } catch (::string const&) {}                                     // no harm if file did not exist
+	try { rename( repo_keys_file , repo_keys_file+".bck" ) ; } catch (::string const&) {}                                                 // no harm if file did not exist
 	AcFd repo_keys_fd { repo_keys_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=g_config.perm_ext} } ;
 	for( auto const& [k,r] : new_keys ) repo_keys_fd.write(cat(+k,' ',r,'\n')) ;
 	return res ;

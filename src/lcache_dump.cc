@@ -69,7 +69,7 @@ int main( int argc , char** ) {
 		,	' '   , widen(cat                           (r->deps    .size()                        ),6   ,true)
 		,	'('   , widen(cat                           (r->dep_crcs.size()                        ),3   ,true)
 		,	')'
-		,	" : " , cat(r->key,'-',r->key_is_last?"last":"fist")
+		,	" : " , cat(r->key,'-',"FL"[r->key_is_last])
 		,'\n')) ;
 	//
 	Fd::Stdout.write("# id          :  ref_count : name\n") ;

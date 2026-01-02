@@ -17,7 +17,7 @@ struct CompileDigest {
 	::vector<Hash::Crc> dep_crcs  ;
 } ;
 
-CompileDigest compile( ::vmap_s<DepDigest> const& repo_deps , bool for_download ) ;
+CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool for_download ) ;
 
 bool crc_ok( Hash::Crc cache_crc , Hash::Crc repo_crc ) ;
 

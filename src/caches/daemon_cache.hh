@@ -21,6 +21,60 @@ enum class DaemonCacheRpcProc : uint8_t {
 
 namespace Caches {
 
+	// START_OF_VERSIONING DAEMON_CACHE
+
+	// used for cache efficiency
+	// rate=0 means max_rate as per config
+	// +1 means job took 13.3% more time per byte of generated data
+	using Rate = uint8_t ;
+
+	// can be tailored to fit needs
+	static constexpr uint8_t NCkeyIdxBits      = 32 ;
+	static constexpr uint8_t NCjobNameIdxBits  = 32 ;
+	static constexpr uint8_t NCnodeNameIdxBits = 32 ;
+	static constexpr uint8_t NCjobIdxBits      = 32 ;
+	static constexpr uint8_t NCrunIdxBits      = 32 ;
+	static constexpr uint8_t NCnodeIdxBits     = 32 ;
+	static constexpr uint8_t NCnodesIdxBits    = 32 ;
+	static constexpr uint8_t NCcrcsIdxBits     = 32 ;
+
+	// END_OF_VERSIONING
+
+	// rest cannot be tailored
+
+	static constexpr Rate NRates = Max<Rate> ; // missing highest value, but easier to code
+
+	using CkeyIdx      = Uint<NCkeyIdxBits     > ;
+	using CjobNameIdx  = Uint<NCjobNameIdxBits > ;
+	using CnodeNameIdx = Uint<NCnodeNameIdxBits> ;
+	using CjobIdx      = Uint<NCjobIdxBits     > ;
+	using CrunIdx      = Uint<NCrunIdxBits     > ;
+	using CnodeIdx     = Uint<NCnodeIdxBits    > ;
+	using CnodesIdx    = Uint<NCnodesIdxBits   > ;
+	using CcrcsIdx     = Uint<NCcrcsIdxBits    > ;
+
+	template<class I> struct StrId {
+		StrId() = default ;
+		StrId(::string const& n) : name{n} {}
+		StrId(I               i) : id  {i} {}
+		// accesses
+		bool operator+() const { return +name || +id ; }
+		bool is_name  () const { return +name        ; }
+		bool is_id    () const { return          +id ; }
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , name,id ) ;
+		}
+		// data
+		::string name ;
+		I        id   = {} ;
+	} ;
+	template<class I> ::string& operator+=( ::string& os , StrId<I> const& si ) {
+		if      (si.is_name()) return os << si.name ;
+		else if (si.is_id  ()) return os << si.id   ;
+		else                   return os << "()"    ;
+	}
+
 	struct DaemonCache : Cache {          // PER_CACHE : inherit from Cache and provide implementation
 		using Proc = DaemonCacheRpcProc ;
 
@@ -45,8 +99,9 @@ namespace Caches {
 
 		struct RpcReq {
 			friend ::string& operator+=( ::string& , RpcReq const& ) ;
-			// service
+			// accesses
 			bool operator+() const { return +proc ; }
+			// service
 			template<IsStream S> void serdes(S& s) {
 				::serdes( s , proc ) ;
 				switch (proc) {
@@ -59,42 +114,52 @@ namespace Caches {
 				DF}                                                                                  // NO_COV
 			}
 			// data
-			Proc                proc        = Proc::None ;
-			::string            repo_key    = {}         ;                                           // if proc =                     Config
-			::string            job         = {}         ;                                           // if proc = Download |          Commit
-			::vmap_s<DepDigest> repo_deps   = {}         ;                                           // if proc = Download |          Commit
-			Disk::DiskSz        reserved_sz = 0          ;                                           // if proc =            Upload
-			JobInfo             job_info    = {}         ;                                           // if proc =                     Commit
-			uint64_t            upload_key  = 0          ;                                           // if proc =                     Commit | Dismiss
+			Proc                              proc        = Proc::None ;
+			::string                          repo_key    = {}         ;                             // if proc = Config
+			StrId<CjobIdx>                    job         = {}         ;                             // if proc = Download | Commit
+			::vmap<StrId<CnodeIdx>,DepDigest> repo_deps   = {}         ;                             // if proc = Download | Commit
+			Disk::DiskSz                      reserved_sz = 0          ;                             // if proc =            Upload
+			JobInfo                           job_info    = {}         ;                             // if proc =            Commit
+			uint64_t                          upload_key  = 0          ;                             // if proc =            Commit | Dismiss
 		} ;
 
 		struct RpcReply {
 			friend ::string& operator+=( ::string& , RpcReply const& ) ;
-			// service
+			// accesses
 			bool operator+() const { return +proc ; }
+			// service
 			template<IsStream S> void serdes(S& s) {
 				::serdes( s , proc ) ;
 				switch (proc) {
-					case Proc::None     :                                    break ;
-					case Proc::Config   : ::serdes( s , config    ,gen   ) ; break ;
-					case Proc::Download : ::serdes( s , hit_info  ,dir_s ) ; break ;
-					case Proc::Upload   : ::serdes( s , upload_key,msg   ) ; break ;
-				DF}                                                                  // NO_COV
+					case Proc::None     :                                                      break ;
+					case Proc::Config   : ::serdes( s , config    ,gen                     ) ; break ;
+					case Proc::Download : ::serdes( s , hit_info  ,key,key_is_last,dep_ids ) ; break ;
+					case Proc::Upload   : ::serdes( s , upload_key,msg                     ) ; break ;
+				DF}                                                                                    // NO_COV
 			}
 			// data
-			Proc         proc       = Proc::None ;
-			CacheHitInfo hit_info   = {}         ;                                   // if proc=Download
-			::string     dir_s      = {}         ;                                   // if proc=Download, dir in which data and info files lie
-			uint64_t     upload_key = 0          ;                                   // if proc=Upload
-			::string     msg        = {}         ;                                   // if proc=Upload and upload_key=0
-			Config       config     = {}         ;                                   // if proc==Config
-			uint64_t     gen        = {}         ;                                   // if proc==Config
+			Proc               proc        = Proc::None ;
+			Config             config      = {}         ;                                              // if proc = Config
+			uint64_t           gen         = {}         ;                                              // if proc = Config
+			CacheHitInfo       hit_info    = {}         ;                                              // if proc = Download
+			CkeyIdx            key         = 0          ;                                              // if proc = Download
+			bool               key_is_last = false      ;                                              // if proc = Download
+			::vector<CnodeIdx> dep_ids     = {}         ;                                              // if proc = Download, idx of correspding deps in Req that were passed by name
+			uint64_t           upload_key  = 0          ;                                              // if proc = Upload
+			::string           msg         = {}         ;                                              // if proc = Upload and upload_key=0
 		} ;
 
 		static constexpr uint64_t Magic = 0x604178e6d1838dce ;                                             // any random improbable value!=0 used as a sanity check when client connect to server
 		// statics
 		static ::string s_reserved_file(uint64_t upload_key) {
 			return cat(AdminDirS,"reserved/",upload_key) ;
+		}
+		static ::string s_run_dir( ::string const& job , CkeyIdx key , bool key_is_last ) {
+			::string         res =  job            ;
+			/**/             res << '/'<<+key<<'-' ;
+			if (key_is_last) res << "last"         ;
+			else             res << "first"        ;
+			return res ;
 		}
 		// services
 		void      config( ::vmap_ss const& , bool may_init=false )       override ;

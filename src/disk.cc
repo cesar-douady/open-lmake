@@ -118,13 +118,16 @@ namespace Disk {
 		return cat(d_s,p) ;
 	}
 
-	bool lies_within( ::string const& file , ::string const& dir_s ) {
-		if ( !dir_s                                               ) return is_lcl(file)                           ;
-		if ( !dir_s.starts_with("../") || !dir_s.ends_with("../") ) return file.starts_with(dir_s)                ; // else dir_s is a series of ../ as it is canonic
-		if ( file[0]=='/'                                         ) return false                                  ; // absolute file does not lie within relative dir_s
-		if ( !file.starts_with(dir_s)                             ) return true                                   ; // must contain at least as many .. to escape from dir_s
-		::string_view sv = substr_view(file,dir_s.size()) ;
-		/**/                                                        return !( sv.starts_with("../") || sv==".." ) ; // check if we have an additional ..
+	bool lies_within( ::string const& file , ::string const& dir ) {
+		::string_view d ;
+		if (is_dir_name(dir)) { if (!dir    ) return is_lcl(file) && file!="." ; d = substr_view(dir,0,dir.size()-1) ; }
+		else                  { if (dir==".") return is_lcl(file) && file!="." ; d = dir                             ; }
+		//
+		if ( !d.ends_with("/..") && d!=".." ) return file.starts_with(d) && file[d.size()]=='/' ; // else dir_s is a series of .. as it is canonic
+		if ( file[0]=='/'                   ) return false                                      ; // absolute file does not lie within relative dir_s
+		if ( !file.starts_with(d)           ) return true                                       ; // must contain at least as many .. to escape from dir_s
+		::string_view sv = substr_view(file,d.size()) ;
+		/**/                                  return !sv.starts_with("/../") && sv!="/.."       ; // check if we have an additional ..
 	}
 
 	::string mk_file( ::string const& f , FileDisplay fd , Bool3 exists ) {

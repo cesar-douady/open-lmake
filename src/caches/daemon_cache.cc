@@ -28,11 +28,11 @@ namespace Caches {
 	}
 
 	::string& operator+=( ::string& os , DaemonCache::RpcReply const& dcrr ) {
-		/**/                   os << "DaemonCache::RpcReply("<<dcrr.proc ;
-		if (+dcrr.hit_info   ) os << ','<<dcrr.hit_info                ;
-		if (+dcrr.dir_s      ) os << ','<<dcrr.dir_s                   ;
-		if (+dcrr.upload_key ) os << ','<<dcrr.upload_key              ;
-		return                 os <<')'                                ;
+		/**/                   os << "DaemonCache::RpcReply("<<dcrr.proc        ;
+		if (+dcrr.hit_info   ) os << ','<<dcrr.hit_info                         ;
+		if (+dcrr.key        ) os << ','<<dcrr.key<<'-'<<"FL"[dcrr.key_is_last] ;
+		if (+dcrr.upload_key ) os << ','<<dcrr.upload_key                       ;
+		return                 os <<')'                                         ;
 	}
 
 	::vmap_ss DaemonCache::descr() const {
@@ -82,14 +82,15 @@ namespace Caches {
 	}
 
 	::pair<Cache::DownloadDigest,AcFd> DaemonCache::sub_download( ::string const& job , MDD const& repo_deps ) {
-		OMsgBuf( RpcReq{ .proc=Proc::Download , .job=job , .repo_deps=repo_deps } ).send(_fd) ;
+		OMsgBuf( RpcReq{ .proc=Proc::Download , .job=job , .repo_deps=mk_vmap<StrId<CnodeIdx>,DepDigest>(repo_deps) } ).send(_fd) ;
 		auto reply = _imsg.receive<RpcReply>( _fd , Maybe/*once*/ ) ;
 		//
 		if (reply.hit_info>=CacheHitInfo::Miss) return { DownloadDigest{.hit_info=reply.hit_info} , AcFd() } ; // XXX/ : gcc 11&12 require explicit types
 		//
-		NfsGuard nfs_guard { config_.file_sync                                      } ;
-		AcFd     info_fd   { {_dir_fd,reply.dir_s+"info"} , {.nfs_guard=&nfs_guard} } ;                        // open as soon as possible as entry could disappear
-		AcFd     data_fd   { {_dir_fd,reply.dir_s+"data"} , {.nfs_guard=&nfs_guard} } ;                        // .
+		::string run_dir   = s_run_dir(job,reply.key,reply.key_is_last)            ;
+		NfsGuard nfs_guard { config_.file_sync                                   } ;
+		AcFd     info_fd   { {_dir_fd,run_dir+"/info"} , {.nfs_guard=&nfs_guard} } ;                        // open as soon as possible as entry could disappear
+		AcFd     data_fd   { {_dir_fd,run_dir+"/data"} , {.nfs_guard=&nfs_guard} } ;                        // .
 		return {
 			DownloadDigest{ .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }        // XXX/ : gcc 11&12 require explicit types
 		,	::move(data_fd)

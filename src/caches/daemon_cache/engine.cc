@@ -366,8 +366,8 @@ CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r 
 ,	job         { j   }
 ,	deps        { ds  }
 ,	dep_crcs    { dcs }
-,	rate        { r   }
 ,	key         { k   }
+,	rate        { r   }
 ,	key_is_last { kil }
 {
 	CrunHdr& hdr = s_hdr() ;
@@ -396,14 +396,6 @@ CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r 
 	if (+rd.key_is_last) os << ",last"             ;
 	else                 os << ",first"            ;
 	return               os << ')'                 ;
-}
-
-::string CrunData::name(Cjob job) const {
-	::string         res =  job->name()    ;
-	/**/             res << '/'<<+key<<'-' ;
-	if (key_is_last) res << "last"         ;
-	else             res << "first"        ;
-	return res ;
 }
 
 void CrunData::access() {

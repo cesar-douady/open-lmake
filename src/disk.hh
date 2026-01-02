@@ -108,7 +108,7 @@ namespace Disk {
 	//
 	inline ::string mk_rel( ::string const& file  , ::string const& ref_dir_s ) { if (is_abs(file)==is_abs(ref_dir_s)) return mk_lcl(file ,ref_dir_s) ; else return file  ; }
 
-	bool lies_within( ::string const& file , ::string const& dir_s ) ; // assumes canonic args
+	bool lies_within( ::string const& file , ::string const& dir ) ; // assumes canonic args
 
 	// manage localization to user startup dir
 	// the principle is to add a marker when file is generated, then this marker is recognized and file is localized when display

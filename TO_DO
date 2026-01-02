@@ -83,6 +83,12 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * clean up FileInfo and FileSig and FileTag
 	- mimic Crc : !x means x has not been computed, not that file does not exist
 	- define equivalent when seen from lmake, == staying strict equality
+* clean up Crc
+	- mimic Crc in cache
+	- accept 3 flags (8 possibilities) : RegOk LnkOk, NoneOk in addition to valid Crc
+	- put an orthogonal Err : set if err was sensed and set
+	- then suppress accesses from deps
+	- compress dep as soon as crc not needed (i.e. not a true Crc) and flags are identical
 * unify classes Gather and JobStartRpcReply
 * share most fields between StartCmdAttrs and JobSpace
 * check files are conformant to config.link_support

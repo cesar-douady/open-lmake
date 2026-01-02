@@ -153,8 +153,8 @@ namespace Engine::Makefiles {
 		for( ::string const& d : deps.files ) {
 			SWEAR(+d) ;
 			deps_str << ( FileInfo(d).exists() ? '+' : '!' ) ;
-			if ( is_abs(d) && ::any_of( glb_sds_s , [&](auto const& sd_s_a) { return !sd_s_a.second && lies_within(with_slash(d),sd_s_a.first) ; } ) ) deps_str << mk_rel(d,*g_repo_root_s) ;
-			else                                                                                                                                       deps_str <<        d                 ;
+			if ( is_abs(d) && ::any_of( glb_sds_s , [&](auto const& sd_s_a) { return !sd_s_a.second && lies_within(d,sd_s_a.first) ; } ) ) deps_str << mk_rel(d,*g_repo_root_s) ;
+			else                                                                                                                           deps_str <<        d                 ;
 			deps_str <<'\n' ;
 		}
 		for( auto const& [key,val] : deps.user_env ) {

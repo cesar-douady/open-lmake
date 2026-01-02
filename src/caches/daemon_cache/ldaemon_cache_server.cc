@@ -44,12 +44,15 @@ static DaemonCache::RpcReply _config( Fd fd , DaemonCache::RpcReq const& crr ) {
 static DaemonCache::RpcReply _download(DaemonCache::RpcReq const& crr) {
 	Trace trace("_download",crr) ;
 	DaemonCache::RpcReply      res    { .proc=DaemonCache::Proc::Download , .hit_info=CacheHitInfo::NoJob } ;
-	Cjob                       job    { crr.job }                                                           ; if (!job) { trace("no_job") ; return res ; }
+	Cjob                       job    = crr.job.is_name() ? Cjob(crr.job.name) : Cjob(crr.job.id)           ; if (!job) { trace("no_job") ; return res ; }
 	CompileDigest              deps   = compile( crr.repo_deps , true/*for_download*/ )                     ; SWEAR( deps.n_statics==job->n_statics , crr.job,job ) ;
 	::pair<Crun,CacheHitInfo > digest = job->match( deps.deps , deps.dep_crcs )                             ;
 	//
-	/**/                                 res.hit_info = digest.second               ;
-	if (res.hit_info<CacheHitInfo::Miss) res.dir_s    = digest.first->name(job)+'/' ;
+	res.hit_info = digest.second ;
+	if (res.hit_info<CacheHitInfo::Miss) {
+		res.key         = +digest.first->key         ;
+		res.key_is_last =  digest.first->key_is_last ;
+	}
 	trace(res.hit_info) ;
 	return res ;
 }
@@ -72,12 +75,12 @@ static void _commit( Fd fd , DaemonCache::RpcReq const& crr ) {
 	_g_upload_keys.release(crr.upload_key)         ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
-	NfsGuard      nfs_guard    { g_config.file_sync }                                            ;
-	::string      rf           = DaemonCache::s_reserved_file(crr.upload_key)                    ;
-	CompileDigest deps         = compile( crr.job_info.end.digest.deps , false/*for_download*/ ) ;
-	Cjob          job          { New , crr.job , deps.n_statics }                                ;
-	::string      job_info_str = serialize(crr.job_info)                                         ;
-	DiskSz        sz           = run_sz( crr.job_info , job_info_str , deps )                    ;
+	NfsGuard      nfs_guard    { g_config.file_sync }                                                                                ;
+	::string      rf           = DaemonCache::s_reserved_file(crr.upload_key)                                                        ;
+	CompileDigest deps         = compile( mk_vmap<StrId<CnodeIdx>,DepDigest>(crr.job_info.end.digest.deps) , false/*for_download*/ ) ;
+	Cjob          job          = crr.job.is_id() ? Cjob(crr.job.id) : Cjob( New , crr.job.name , deps.n_statics )                    ; SWEAR( job->n_statics==deps.n_statics , job,deps.n_statics ) ;
+	::string      job_info_str = serialize(crr.job_info)                                                                             ;
+	DiskSz        sz           = run_sz( crr.job_info , job_info_str , deps )                                                        ;
 	//
 	::pair<Crun,CacheHitInfo > digest = job->insert(
 		deps.deps , deps.dep_crcs                                                                                                 // to search entry
