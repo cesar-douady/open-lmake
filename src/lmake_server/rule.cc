@@ -1,5 +1,5 @@
 // This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023-2025 Doliam
+// Copyright (c) 2023-2026 Doliam
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -69,7 +69,7 @@ namespace Engine {
 							}
 						}
 						if ( !inside                  ) continue ;                                              // dont keep dep because of this source dir if not inside it
-						if (  is_abs(fstr) && !abs_sd ) throw cat("must be relative inside source dir ",sd_s,rm_slash,", consider : ",mk_rel(fstr,*g_repo_root_s)) ;
+						if (  is_abs(fstr) && !abs_sd ) throw cat("must be relative inside source dir ",sd_s,rm_slash,", consider : ",mk_lcl(fstr,*g_repo_root_s)) ;
 						if ( !is_abs(fstr) &&  abs_sd ) throw cat("must be absolute inside source dir ",sd_s,rm_slash,", consider : ",mk_glb(fstr,*g_repo_root_s)) ;
 					}
 					*keep_for_deps = true ;

@@ -1,5 +1,5 @@
 // This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023-2025 Doliam
+// Copyright (c) 2023-2026 Doliam
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -265,12 +265,12 @@ namespace Backdoor {
 		::optional<RegExpr> re        ;           if ( +regexpr                           ) re        = *regexpr                      ;
 		//
 		for( ::string& f : r.report_sync({ .proc=JobExecProc::List , .sync=Yes , .comment=Comment::List , .digest{.write=write} , .date=New }).files ) {
-			::string abs_f = mk_glb( ::move(f) , repo_root_s ) ;
+			::string abs_f = mk_glb( f , repo_root_s ) ;
 			//
 			if ( +dir && !abs_f.starts_with(*abs_dir_s) ) continue ;
 			//
 			::string& user_f = abs_f ;                                          // reuse storage
-			if ( +lcl_cwd_s && !is_abs(f) ) user_f = mk_rel( f , *lcl_cwd_s ) ; // else keep abs_f as is
+			if ( +lcl_cwd_s && !is_abs(f) ) user_f = mk_lcl( f , *lcl_cwd_s ) ; // else keep abs_f as is
 			//
 			if ( +regexpr && !re->match(user_f) ) continue ;
 			//
@@ -310,7 +310,7 @@ namespace Backdoor {
 		::string                     abs_cwd_s   = cwd_s()                                                                                 ;
 		//
 		r.send_report() ;
-		if ( abs_cwd_s.starts_with(repo_root_s) && !is_abs(dir_s) ) return mk_rel( dir_s , mk_lcl(abs_cwd_s,repo_root_s) ) ;
+		if ( abs_cwd_s.starts_with(repo_root_s) && !is_abs(dir_s) ) return mk_lcl( dir_s , mk_lcl(abs_cwd_s,repo_root_s) ) ;
 		else                                                        return abs_dir_s                                       ;
 	}
 

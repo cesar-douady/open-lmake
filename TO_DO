@@ -1,5 +1,5 @@
 * This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-* Copyright (c) 2023-2025 Doliam
+* Copyright (c) 2023-2026 Doliam
 * This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 * This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -32,7 +32,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* lcache_dump
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -80,19 +79,25 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* clean up FileInfo and FileSig and FileTag
-	- mimic Crc : !x means x has not been computed, not that file does not exist
-	- define equivalent when seen from lmake, == staying strict equality
 * clean up Crc
 	- mimic Crc in cache
-	- accept 3 flags (8 possibilities) : RegOk LnkOk, NoneOk in addition to valid Crc
-	- put an orthogonal Err : set if err was sensed and set
+	- accept 3 special flags (8 possibilities) : RegOk LnkOk, NoneOk in addition to valid Crc
+	- encode to maximize entropy ( reg >> lnk >> err cases )
+	- 0 means impossible
+	- special-no err : 000000RLN
+	- special-err ok : 000011RLN
+	- special-err    : 000111RLN
+	- reg    -no err : Xxxxx0xxx , X!=0 (map 0 to 1 if it occurs)
+	- lnk    -no err : Xxxx01xxx
+	- reg    -err ok : Xx0011xxx
+	- lnk    -err ok : X01011xxx
+	- reg    -err    : Xx0111xxx
+	- lnk    -err    : X01111xxx
+	- special case for empty reg and awkward (represented as reg) (both with and without exec bit)
+	- is_reg, is_lnk, is_none -> Bool3
+	- contains -> bool
 	- then suppress accesses from deps
-	- compress dep as soon as crc not needed (i.e. not a true Crc) and flags are identical
-* unify classes Gather and JobStartRpcReply
-* share most fields between StartCmdAttrs and JobSpace
-* check files are conformant to config.link_support
-	- each time it is mostly free (objective of this config is improved perf)
+	- compress dep as soon as crc is special and identical
 * forbid accesses to files :
 	- /dev/random
 	- /dev/urandom
@@ -111,7 +116,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- while suspended, consider resources to be freed
 	- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 	- then resume participates to allocation competition
-? protect against getpwnam, getpwsuid and the like
+? check files are conformant to config.link_support
+	- can only reasonably be done for none, is it worth ?
+	- each time it is mostly free (objective of this config is improved perf)
+? protect against getpwnam, getpwuid and the like
 	- consider masking home dir with an adequate mount
 		- if repo is in home dir, generate a sub-mount if repo_view is not used
 	- or forbid or overwrite the pw_dir field

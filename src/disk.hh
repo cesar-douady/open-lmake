@@ -1,5 +1,5 @@
 // This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023-2025 Doliam
+// Copyright (c) 2023-2026 Doliam
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -86,19 +86,20 @@ namespace Disk {
 		if (DoBase) { if (slash==Npos) return file ; else return file.substr(slash+1        ) ; }
 		else        { if (slash==Npos) return {}   ; else return file.substr(0      ,slash+1) ; }
 	}
-	inline ::string dir_name_s( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<false>(file,n) ; } // INVARIANT : dir_name_s(file,n)+base_name(file,n)==file
-	inline ::string base_name ( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<true >(file,n) ; } // .
+	inline ::string dir_name_s( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<false>(file,n) ; }           // INVARIANT : dir_name_s(file,n)+base_name(file,n)==file
+	inline ::string base_name ( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<true >(file,n) ; }           // .
 
-	inline bool is_abs(::string const& file ) { return file [0]=='/' ; }
+	inline bool is_abs(::string const& file) { return          file[0]=='/' ; }
+	inline bool is_abs(::string_view   file) { return +file && file[0]=='/' ; } // string_view's have no guaranteed terminating null
 	//
 	inline bool is_lcl(::string const& file ) {
 		return !( is_abs(file) || file.starts_with("../") || file==".." ) ;
 	}
-	inline size_t uphill_lvl(::string const& dir_s) {
-		size_t l ;
-		for( l=0 ;; l++ ) {
-			if ( substr_view(dir_s,3*l,3)=="../" ) continue ;
-			if ( substr_view(dir_s,3*l  )==".."  ) l++ ;
+	inline size_t uphill_lvl(::string const& dir) {
+		for( size_t l=0 ;; l++ ) {
+			::string_view sv = substr_view( dir , 3*l ) ;
+			if (sv.starts_with("../")) continue ;
+			if (sv==".."             ) l++ ;
 			return l ;
 		}
 	}
@@ -106,7 +107,10 @@ namespace Disk {
 	::string mk_lcl( ::string const& path , ::string const& dir_s ) ; // return file (passed as from dir_s origin) as seen from dir_s
 	::string mk_glb( ::string const& path , ::string const& dir_s ) ; // return file (passed as from dir_s       ) as seen from dir_s origin
 	//
-	inline ::string mk_rel( ::string const& file  , ::string const& ref_dir_s ) { if (is_abs(file)==is_abs(ref_dir_s)) return mk_lcl(file ,ref_dir_s) ; else return file  ; }
+	inline ::string mk_rel( ::string const& file  , ::string const& ref_dir_s ) {
+		if (is_abs(file)==is_abs(ref_dir_s)) return mk_lcl(file,ref_dir_s) ;
+		else                                 return        file            ;
+	}
 
 	bool lies_within( ::string const& file , ::string const& dir ) ; // assumes canonic args
 
@@ -175,7 +179,7 @@ namespace Disk {
 		// accesses
 	public :
 		bool operator==(FileSig const& fs) const {
-			if( !self && !fs ) return true          ;          // consider Dir and None as identical
+			if( !self && !fs ) return true          ; // consider Dir and None as identical
 			else               return _val==fs._val ;
 		}
 		//
@@ -184,7 +188,7 @@ namespace Disk {
 		bool    exists   () const { return tag()>=FileTag::Target                ; }
 		// data
 	private :
-		uint64_t _val = 0 ;                                    // by default, no file
+		uint64_t _val = 0 ;                           // by default, no file
 	} ;
 
 	inline FileSig FileInfo::sig() const { return FileSig(self) ; }

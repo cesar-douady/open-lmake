@@ -1,5 +1,5 @@
 // This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023-2025 Doliam
+// Copyright (c) 2023-2026 Doliam
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -115,12 +115,12 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 	::string_view tmp_dir_s = +_env->tmp_dir_s ? ::string_view(_env->tmp_dir_s) : ::string_view(P_tmpdir "/") ;
 	//
 	SolveReport res           ;
-	::vector_s& lnks          = res.lnks                        ;
-	::string  & real          = res.real                        ;         // canonical (link free, absolute, no ., .. nor empty component), empty instead of '/'
+	::vector_s& lnks          = res.lnks          ;
+	::string  & real          = res.real          ;                       // canonical (link free, absolute, no ., .. nor empty component), empty instead of '/'
 	::string    local_file[2] ;                                           // ping-pong used to keep a copy of input file if we must modify it (avoid upfront copy as it is rarely necessary)
-	bool        ping          = false/*garbage*/                ;         // ping-pong state
-	bool        exists        = true                            ;         // if false, we have seen a non-existent component and there cannot be symlinks within it
-	size_t      pos           = +file.file && file.file[0]=='/' ;
+	bool        ping          = false/*garbage*/  ;                       // ping-pong state
+	bool        exists        = true              ;                       // if false, we have seen a non-existent component and there cannot be symlinks within it
+	size_t      pos           = is_abs(file.file) ;
 	if (!pos) {                                                           // file is relative, meaning relative to at
 		if (file.at==Fd::Cwd) {
 			if (pid) real = read_lnk(cat("/proc/",pid,"/cwd")) ;

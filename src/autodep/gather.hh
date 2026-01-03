@@ -1,5 +1,5 @@
 // This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023-2025 Doliam
+// Copyright (c) 2023-2026 Doliam
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -178,16 +178,14 @@ public :
 	::vmap_s<AccessInfo>                      accesses         ;
 	in_addr_t                                 addr             = 0                   ; // local addr to which we can be contacted by running job
 	bool                                      as_session       = false               ; // if true <=> process is launched in its own group
-	::vector_s                                cmd_line         ;
+	AutodepEnv                                autodep_env      ;
 	Fd                                        child_stdin      = Fd::Stdin           ;
 	Fd                                        child_stderr     = Fd::Stderr          ;
 	Fd                                        child_stdout     = Fd::Stdout          ;
+	::vector_s                                cmd_line         ;
 	Time::Delay                               ddate_prec       ;
-	uint8_t                                   nice             = 0                   ;
-	AutodepEnv                                autodep_env      ;
 	PD                                        end_date         ;
 	::map_ss const*                           env              = nullptr             ;
-	::vector<UserTraceEntry>*                 user_trace       = nullptr             ;
 	pid_t                                     first_pid        = 0                   ;
 	uset_s                                    guards           ;                       // dir creation/deletion that must be guarded against NFS
 	JobIdx                                    job              = 0                   ;
@@ -197,6 +195,7 @@ public :
 	AutodepMethod                             method           = AutodepMethod::Dflt ;
 	::string                                  msg              ;                       // contains error messages not from job
 	Time::Delay                               network_delay    = Time::Delay(1)      ; // 1s is reasonable when nothing is said
+	uint8_t                                   nice             = 0                   ;
 	bool                                      no_tmp           = false               ; // if true <=> no tmp access is allowed
 	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> pattern_flags    ;                       // apply flags to matching accesses
 	pid_t                                     pid              = -1                  ; // pid to kill
@@ -212,12 +211,13 @@ public :
 	::string                                  stderr           ;                       // contains child stderr if child_stderr==Pipe
 	::string                                  stdout           ;                       // contains child stdout if child_stdout==Pipe
 	Time::Delay                               timeout          ;
+	::vector<UserTraceEntry>*                 user_trace       = nullptr             ;
 	Atomic<int>                               wstatus          = 0                   ;
 private :
 	::map_ss     _add_env              ;
 	Child        _child                ;
 	size_t       _n_server_req_pending = 0 ;
 	NodeIdx      _parallel_id          = 0 ;                                           // id to identify parallel deps
-	BitMap<Kind> _wait                 ;                                               // events we are waiting for
 	::jthread    _ptrace_thread        ;
+	BitMap<Kind> _wait                 ;                                               // events we are waiting for
 } ;

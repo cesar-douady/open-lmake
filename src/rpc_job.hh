@@ -1,5 +1,5 @@
 // This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023-2025 Doliam
+// Copyright (c) 2023-2026 Doliam
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -949,36 +949,36 @@ private :
 	// data
 public :
 	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
-	AutodepEnv                              autodep_env       ;
-	Caches::Cache*                          cache             = nullptr             ;
-	CacheIdx                                cache_idx1        ;                       // to be repeated in JobEndRpcReq to ensure it is available when processing
-	bool                                    chk_abs_paths     = false               ;
-	ChrootInfo                              chroot_info       ;
-	::string                                cmd               ;
-	Time::Delay                             ddate_prec        ;
-	::vmap_s<::pair<DepDigest,ExtraDflags>> deps              ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
-	::vmap_ss                               env               ;
-	::vector_s                              interpreter       ;                       // actual interpreter used to execute cmd
-	JobSpace                                job_space         ;
-	bool                                    keep_tmp          = false               ;
-	::string                                key               ;                       // key used to uniquely identify repo
-	::vector<uint8_t>                       kill_sigs         ;
-	bool                                    live_out          = false               ;
-	AutodepMethod                           method            = AutodepMethod::Dflt ;
-	Time::Delay                             network_delay     ;
-	uint8_t                                 nice              = 0                   ;
-	::string                                phy_lmake_root_s  ;
-	::vmap_s<FileAction>                    pre_actions       ;
-	::string                                rule              ;                       // rule name
-	SmallId                                 small_id          = 0                   ;
-	::vmap<Re::Pattern,MatchFlags>          star_matches      ;                       // maps regexprs to flags
-	::vmap_s<MatchFlags>                    static_matches    ;                       // maps individual files to flags
-	bool                                    stderr_ok         = false               ;
-	::string                                stdin             ;
-	::string                                stdout            ;
-	Time::Delay                             timeout           ;
-	bool                                    use_script        = false               ;
-	Zlvl                                    zlvl              {}                    ;
+	AutodepEnv                              autodep_env      ;
+	Caches::Cache*                          cache            = nullptr             ;
+	CacheIdx                                cache_idx1       ;                       // to be repeated in JobEndRpcReq to ensure it is available when processing
+	bool                                    chk_abs_paths    = false               ;
+	ChrootInfo                              chroot_info      ;
+	::string                                cmd              ;
+	Time::Delay                             ddate_prec       ;
+	::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
+	::vmap_ss                               env              ;
+	::vector_s                              interpreter      ;                       // actual interpreter used to execute cmd
+	JobSpace                                job_space        ;
+	bool                                    keep_tmp         = false               ;
+	::string                                key              ;                       // key used to uniquely identify repo
+	::vector<uint8_t>                       kill_sigs        ;
+	bool                                    live_out         = false               ;
+	AutodepMethod                           method           = AutodepMethod::Dflt ;
+	Time::Delay                             network_delay    ;
+	uint8_t                                 nice             = 0                   ;
+	::string                                phy_lmake_root_s ;
+	::vmap_s<FileAction>                    pre_actions      ;
+	::string                                rule             ;                       // rule name
+	SmallId                                 small_id         = 0                   ;
+	::vmap<Re::Pattern,MatchFlags>          star_matches     ;                       // maps regexprs to flags
+	::vmap_s<MatchFlags>                    static_matches   ;                       // maps individual files to flags
+	bool                                    stderr_ok        = false               ;
+	::string                                stdin            ;
+	::string                                stdout           ;
+	Time::Delay                             timeout          ;
+	bool                                    use_script       = false               ;
+	Zlvl                                    zlvl             {}                    ;
 	// END_OF_VERSIONING
 	LmakeVersion lmake_version ; // not transported
 private :

@@ -1,5 +1,5 @@
 // This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023-2025 Doliam
+// Copyright (c) 2023-2026 Doliam
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -153,7 +153,7 @@ namespace Engine::Makefiles {
 		for( ::string const& d : deps.files ) {
 			SWEAR(+d) ;
 			deps_str << ( FileInfo(d).exists() ? '+' : '!' ) ;
-			if ( is_abs(d) && ::any_of( glb_sds_s , [&](auto const& sd_s_a) { return !sd_s_a.second && lies_within(d,sd_s_a.first) ; } ) ) deps_str << mk_rel(d,*g_repo_root_s) ;
+			if ( is_abs(d) && ::any_of( glb_sds_s , [&](auto const& sd_s_a) { return !sd_s_a.second && lies_within(d,sd_s_a.first) ; } ) ) deps_str << mk_lcl(d,*g_repo_root_s) ;
 			else                                                                                                                           deps_str <<        d                 ;
 			deps_str <<'\n' ;
 		}
