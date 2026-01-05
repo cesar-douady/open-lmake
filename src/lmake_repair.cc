@@ -26,7 +26,9 @@ RepairDigest repair(::string const& from_dir) {
 	RepairDigest res           ;
 	AcFd         repaired_jobs { cat(AdminDirS,"repaired_jobs") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} } ;
 	//
-	::umap<Crc,Rule> rule_tab ; rule_tab.reserve(Rule::s_rules->size()) ; for( Rule r : Persistent::rule_lst() ) rule_tab[r->crc->cmd] = r ; SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
+	::umap<Crc,Rule> rule_tab ; rule_tab.reserve(Rule::s_rules->size()) ;
+	for( Rule r : Persistent::rule_lst() ) { trace("rule",r->crc->cmd,r->name) ; rule_tab[r->crc->cmd] = r ; }
+	SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
 	//
 	for( auto const& [jd,_] : walk(from_dir,TargetTags,from_dir) ) {
 		{	JobInfo job_info { jd } ;
@@ -123,13 +125,13 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	repo_app_init({.read_only_ok=false}) ;
 	//
-	if (argc!=1                            ) exit(Rc::Usage   ,"must be called without arg"                                                     ) ;
-	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,"lmakerepair must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
-	if (FileInfo(File(ServerMrkr)).exists()) exit(Rc::BadState,"after having ensured no lmake_server is running, consider : rm ",ServerMrkr     ) ;
+	if (argc!=1                            ) exit(Rc::Usage   ,"must be called without arg"                                                      ) ;
+	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
+	if (FileInfo(File(ServerMrkr)).exists()) exit(Rc::BadState,"after having ensured no lmake_server is running, consider : rm ",ServerMrkr      ) ;
 	//
 	if (FileInfo(bck_admin_dir_s).tag()==FileTag::Dir) {
 		if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) {
-			unlnk( admin_dir , {.dir_ok=true} ) ;               // if last lmake_repair was interrupted, admin_dir contains no useful information
+			unlnk( admin_dir , {.dir_ok=true} ) ;                        // if last lmake_repair was interrupted, admin_dir contains no useful information
 		} else if (FileInfo(admin_dir_s).tag()==FileTag::Dir) {
 			mk_lad() ;
 			exit(Rc::BadState,"both ",admin_dir," and ",bck_admin_dir," exist, consider one of :\n\t",rm_admin_dir,"\n\t",rm_bck_admin_dir) ;
@@ -141,7 +143,7 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	g_trace_file = New ;
 	block_sigs({SIGCHLD}) ;
-	Makefiles::clean_env() ;                                    // before Py::init() as it records the environment to make it available in os.environ
+	::umap_ss user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ; // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
 	AutodepEnv ade ;
 	ade.repo_root_s         = *g_repo_root_s ;
@@ -159,8 +161,8 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	// make a fresh local admin dir
 	{	::string msg ;
-		try                       { Makefiles::refresh(/*out*/msg,mk_environ(),false/*rescue*/,true/*refresh*/,*g_startup_dir_s) ; if (+msg) Fd::Stderr.write(with_nl(msg)) ;                        }
-		catch (::string const& e) {                                                                                                if (+msg) Fd::Stderr.write(with_nl(msg)) ; exit(Rc::BadState,e) ; }
+		try                       { Makefiles::refresh(/*out*/msg,user_env,false/*rescue*/,true/*refresh*/,*g_startup_dir_s) ; if (+msg) Fd::Stderr.write(with_nl(msg)) ;                        }
+		catch (::string const& e) {                                                                                            if (+msg) Fd::Stderr.write(with_nl(msg)) ; exit(Rc::BadState,e) ; }
 	}
 	//
 	mk_lad() ;

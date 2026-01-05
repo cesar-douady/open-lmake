@@ -8,15 +8,10 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
-	lmake.manifest = (
-		'Lmakefile.py'
-	,	'step.py'
-	)
+	lmake.manifest = ('Lmakefile.py',)
 
-	from step import cache_tag
 
-	if cache_tag : lmake.config.caches.my_cache = { 'tag':cache_tag , 'dir':lmake.repo_root+'/CACHE' }
-	else         : lmake.config.caches.my_cache = {                   'dir':lmake.repo_root+'/CACHE' } # defaults to tag='daemon'
+	lmake.config.caches.my_cache = { 'dir':lmake.repo_root+'/CACHE' }
 
 	class Stable(Rule) :
 		target = r'stable{D:\d+}'
@@ -34,27 +29,23 @@ else :
 
 	import ut
 
-	for cache_tag in ('dir','') :
-		print(f'cache_tag={cache_tag!r}',file=open('step.py','w'))
-		bck = f'bck_{cache_tag}'
+	# cache dir must be writable by all users having access to the cache
+	# use setfacl(1) with adequate rights in the default ACL, e.g. :
+	# os.system('setfacl -m d:g::rw,d:o::r CACHE')
+	os.makedirs('CACHE/LMAKE')
+	print('size=1<<20',file=open('CACHE/LMAKE/config.py','w'))
 
-		# cache dir must be writable by all users having access to the cache
-		# use setfacl(1) with adequate rights in the default ACL, e.g. :
-		# os.system('setfacl -m d:g::rw,d:o::r CACHE')
-		os.makedirs('CACHE/LMAKE')
-		print('size=1<<20',file=open('CACHE/LMAKE/config.py','w'))
+	ut.lmake( '-cnone'     , 'stable1'  , 'stable2'  , 'stable3'  , 'stable4'  , 'unstable1'  , 'unstable2'  , 'unstable3'  , 'unstable4'  , done=8 )
+	ut.lmake( '-cdownload' , 'stable5'  , 'stable6'  , 'stable7'  , 'stable8'  , 'unstable5'  , 'unstable6'  , 'unstable7'  , 'unstable8'  , done=8 )
+	ut.lmake( '-cupload'   , 'stable9'  , 'stable10' , 'stable11' , 'stable12' , 'unstable9'  , 'unstable10' , 'unstable11' , 'unstable12' , done=8 )
+	ut.lmake( '-cplain'    , 'stable13' , 'stable14' , 'stable15' , 'stable16' , 'unstable13' , 'unstable14' , 'unstable15' , 'unstable16' , done=8 )
 
-		ut.lmake( '-cnone'     , 'stable1'  , 'stable2'  , 'stable3'  , 'stable4'  , 'unstable1'  , 'unstable2'  , 'unstable3'  , 'unstable4'  , done=8 )
-		ut.lmake( '-cdownload' , 'stable5'  , 'stable6'  , 'stable7'  , 'stable8'  , 'unstable5'  , 'unstable6'  , 'unstable7'  , 'unstable8'  , done=8 )
-		ut.lmake( '-cupload'   , 'stable9'  , 'stable10' , 'stable11' , 'stable12' , 'unstable9'  , 'unstable10' , 'unstable11' , 'unstable12' , done=8 )
-		ut.lmake( '-cplain'    , 'stable13' , 'stable14' , 'stable15' , 'stable16' , 'unstable13' , 'unstable14' , 'unstable15' , 'unstable16' , done=8 )
+	os.system(f'mkdir bck_1 ; mv LMAKE bck_1 ; rm -f *stable*')
 
-		os.system(f'mkdir {bck}_1 ; mv LMAKE {bck}_1 ; rm -f *stable*')
+	cnt = ut.lmake( '-cnone'     , 'stable1' , 'stable5' , 'stable9'  , 'stable13' , 'unstable1' , 'unstable5' , 'unstable9'  , 'unstable13' , hit_done=0 , done=8                       )
+	cnt = ut.lmake( '-cdownload' , 'stable2' , 'stable6' , 'stable10' , 'stable14' , 'unstable2' , 'unstable6' , 'unstable10' , 'unstable14' , hit_done=4 , done=4                       )
+	cnt = ut.lmake( '-cupload'   , 'stable3' , 'stable7' , 'stable11' , 'stable15' , 'unstable3' , 'unstable7' , 'unstable11' , 'unstable15' , hit_done=0 , done=8 , no_cache_upload=... )
+	assert cnt.no_cache_upload in (0,2)
+	cnt = ut.lmake( '-cplain'    , 'stable4' , 'stable8' , 'stable12' , 'stable16' , 'unstable4' , 'unstable8' , 'unstable12' , 'unstable16' , hit_done=4 , done=4                       )
 
-		cnt = ut.lmake( '-cnone'     , 'stable1' , 'stable5' , 'stable9'  , 'stable13' , 'unstable1' , 'unstable5' , 'unstable9'  , 'unstable13' , hit_done=0 , done=8                       )
-		cnt = ut.lmake( '-cdownload' , 'stable2' , 'stable6' , 'stable10' , 'stable14' , 'unstable2' , 'unstable6' , 'unstable10' , 'unstable14' , hit_done=4 , done=4                       )
-		cnt = ut.lmake( '-cupload'   , 'stable3' , 'stable7' , 'stable11' , 'stable15' , 'unstable3' , 'unstable7' , 'unstable11' , 'unstable15' , hit_done=0 , done=8 , no_cache_upload=... )
-		assert cnt.no_cache_upload in (0,2)
-		cnt = ut.lmake( '-cplain'    , 'stable4' , 'stable8' , 'stable12' , 'stable16' , 'unstable4' , 'unstable8' , 'unstable12' , 'unstable16' , hit_done=4 , done=4                       )
-
-		os.system(f'mkdir {bck}_2 ; mv CACHE LMAKE *stable* {bck}_2')
+	os.system(f'mkdir bck_2 ; mv CACHE LMAKE *stable* bck_2')

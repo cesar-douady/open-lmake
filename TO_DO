@@ -205,10 +205,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ? add a new autodep mechanism based on syscall user dispatch
 	? cf man 2 prctl, PR_SET_SYSCALL_USER_DISPATCH
 	? seems to be highly architecture dependent, is it worth ?
-X in ldir_cache_repair
-	- check target crcs
-	- implement a backup with hard links to avoid taking additional space.
-	- ldir_cache is obsolete and will be suppressed
 M implement fuse as an autodep method
 	- does not seem doable because read foo/bar first does a lookup(foo)
 M port to Darwin
@@ -223,7 +219,7 @@ M port to Darwin
 ****************************************************************************************************
 
 * communicate with daemon-cache using Cnode/Cjob rather than file names/job names
-	- easier to code when cache is no more a plugin (i.e. when dir-cache is abandoned)
+	- easier to code when cache is no more a plugin
 	- maintain a map mapping Node->Cnode and Job->Cjob in lmake_server
 	- avoid searching through names on both sides
 	- communicate using Cnode/Cjob if known, else with names

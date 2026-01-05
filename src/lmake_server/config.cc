@@ -131,12 +131,8 @@ namespace Engine {
 				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
 					fields[1] = py_key.as_a<Str>() ; throw_unless( +fields[1] , "cache key cannot be empty" ) ;
 					//
-					::pair<CacheTag,::vmap_ss>& c = caches.emplace_back( fields[1] , ::pair(CacheTag::Daemon,::vmap_ss()) ).second ;
-					for( auto const& [py_k,py_v] : py_val.as_a<Dict>() ) {
-						::string k = py_k.as_a<Str>() ;
-						if (k=="tag") c.first = mk_enum<CacheTag>(py_v.as_a<Str>()) ;
-						else          c.second.emplace_back(k,*py_v.str()) ;
-					}
+					::vmap_ss& c = caches.emplace_back( fields[1] , ::vmap_ss() ).second ;
+					for( auto const& [py_k,py_v] : py_val.as_a<Dict>() ) c.emplace_back( py_k.as_a<Str>() , *py_v.str() ) ;
 				}
 				fields.pop_back() ;
 			}
@@ -335,11 +331,10 @@ namespace Engine {
 		//
 		if (+caches) {
 			res << "\tcaches :\n" ;
-			for( auto const& [key,tag_cache] : caches ) {
-				size_t w = ::max<size_t>( tag_cache.second , [](auto const& k_v) { return k_v.first.size() ; } , 3/*tag*/ ) ;
-				res <<"\t\t"<<key<<" :\n" ;
-				/**/                                        res <<"\t\t\t"<< widen("tag",w) <<" : "<< tag_cache.first <<'\n' ;
-				for( auto const& [k,v] : tag_cache.second ) res <<"\t\t\t"<< widen(k    ,w) <<" : "<< v               <<'\n' ;
+			for( auto const& [key,cache] : caches ) {
+				size_t w = ::max<size_t>( cache , [](auto const& k_v) { return k_v.first.size() ; } ) ;
+				/**/                             res << "\t\t"<<key<<" :\n"                  ;
+				for( auto const& [k,v] : cache ) res << "\t\t\t"<<widen(k,w)<<" : "<<v<<'\n' ;
 			}
 		}
 		if (+sub_repos_s) {

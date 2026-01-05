@@ -16,12 +16,6 @@
 
 #include "rpc_job_common.hh"
 
-enum class CacheTag : uint8_t { // PER_CACHE : add a tag for each cache method
-	None
-,	Daemon
-,	Dir
-} ;
-
 // START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
 // PER_AUTODEP_METHOD : add entry here
 // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
@@ -719,7 +713,6 @@ namespace Caches {
 
 	struct Cache {
 		using Sz  = Disk::DiskSz        ;
-		using Tag = CacheTag            ;
 		using MDD = ::vmap_s<DepDigest> ;
 		static constexpr Channel CacheChnl = Channel::Cache ;
 		struct DownloadDigest ;
@@ -740,8 +733,8 @@ namespace Caches {
 			PermExt  perm_ext   = {} ;
 		} ;
 		// statics
-		static Cache* s_new   (Tag                                        ) ;
-		static void   s_config(::vmap_s<::pair<CacheTag,::vmap_ss>> const&) ;
+		static Cache* s_new   (                          ) ;
+		static void   s_config(::vmap_s<::vmap_ss> const&) ;
 		// static data
 		static ::vector<Cache*> s_tab ;
 		// cxtors & casts
@@ -757,7 +750,6 @@ namespace Caches {
 		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false )       {}
 		virtual ::vmap_ss descr (                                            ) const { return {}        ; }
 		virtual void      repair( bool /*dry_run*/                           )       {}
-		virtual Tag       tag   (                                            )       { return Tag::None ; }
 		virtual void      serdes( ::string     &                             )       {}                     // serialize
 		virtual void      serdes( ::string_view&                             )       {}                     // deserialize
 		//
@@ -897,38 +889,38 @@ struct JobStartRpcReply {                                                // NOLI
 	bool operator+() const { return +interpreter ; }                     // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes( s , autodep_env                       ) ;
-		::serdes( s , cache_idx1                        ) ;
-		::serdes( s , chk_abs_paths                     ) ;
-		::serdes( s , chroot_info                       ) ;
-		::serdes( s , cmd                               ) ;
-		::serdes( s , ddate_prec                        ) ;
-		::serdes( s , deps                              ) ;
-		::serdes( s , env                               ) ;
-		::serdes( s , interpreter                       ) ;
-		::serdes( s , job_space                         ) ;
-		::serdes( s , keep_tmp                          ) ;
-		::serdes( s , key                               ) ;
-		::serdes( s , kill_sigs                         ) ;
-		::serdes( s , live_out                          ) ;
-		::serdes( s , method                            ) ;
-		::serdes( s , network_delay                     ) ;
-		::serdes( s , nice                              ) ;
-		::serdes( s , phy_lmake_root_s                  ) ;
-		::serdes( s , pre_actions                       ) ;
-		::serdes( s , rule                              ) ;
-		::serdes( s , small_id                          ) ;
-		::serdes( s , star_matches     , static_matches ) ;
-		::serdes( s , stderr_ok                         ) ;
-		::serdes( s , stdin            , stdout         ) ;
-		::serdes( s , timeout                           ) ;
-		::serdes( s , use_script                        ) ;
-		::serdes( s , zlvl                              ) ;
+		::serdes( s , autodep_env                   ) ;
+		::serdes( s , cache_idx1                    ) ;
+		::serdes( s , chk_abs_paths                 ) ;
+		::serdes( s , chroot_info                   ) ;
+		::serdes( s , cmd                           ) ;
+		::serdes( s , ddate_prec                    ) ;
+		::serdes( s , deps                          ) ;
+		::serdes( s , env                           ) ;
+		::serdes( s , interpreter                   ) ;
+		::serdes( s , job_space                     ) ;
+		::serdes( s , keep_tmp                      ) ;
+		::serdes( s , key                           ) ;
+		::serdes( s , kill_sigs                     ) ;
+		::serdes( s , live_out                      ) ;
+		::serdes( s , method                        ) ;
+		::serdes( s , network_delay                 ) ;
+		::serdes( s , nice                          ) ;
+		::serdes( s , phy_lmake_root_s              ) ;
+		::serdes( s , pre_actions                   ) ;
+		::serdes( s , rule                          ) ;
+		::serdes( s , small_id                      ) ;
+		::serdes( s , star_matches , static_matches ) ;
+		::serdes( s , stderr_ok                     ) ;
+		::serdes( s , stdin        , stdout         ) ;
+		::serdes( s , timeout                       ) ;
+		::serdes( s , use_script                    ) ;
+		::serdes( s , zlvl                          ) ;
 		//
-		CacheTag tag ;
-		if (IsIStream<S>) {                                               ::serdes(s,tag)  ; if (+tag) cache = Caches::Cache::s_new(tag) ; }
-		else              { tag = cache ? cache->tag() : CacheTag::None ; ::serdes(s,tag)  ;                                               }
-		if (+tag        )                                                 cache->serdes(s) ;
+		bool has_cache = cache ;
+		::serdes(s,has_cache) ;
+		if (IsIStream<S>) cache = has_cache ? Caches::Cache::s_new() : nullptr ;
+		if (has_cache   ) cache->serdes(s) ;
 	}
 	void            mk_canon( ::string const& phy_repo_root_s ) ;
 	bool/*entered*/ enter   (

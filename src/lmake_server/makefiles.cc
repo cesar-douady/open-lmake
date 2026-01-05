@@ -37,8 +37,9 @@ namespace Engine::Makefiles {
 	static ::string _g_tmp_dir_s    = cat(AdminDirS,"lmakefile_tmp/") ;
 	static ::string _g_user_env_str ;
 
-	// ensure env is clean for dynamic execution
-	void clean_env() {
+	::umap_ss clean_env(bool under_lmake_ok) {
+		::umap_ss res = mk_environ() ;
+		if ( !under_lmake_ok && res.contains("LMAKE_AUTODEP_ENV") ) exit(Rc::Usage,"cannot run lmake under lmake") ;
 		::clearenv() ;
 		::string repo_root = no_slash(*g_repo_root_s) ;
 		uid_t    uid       = ::getuid()               ;
@@ -50,6 +51,7 @@ namespace Engine::Makefiles {
 		set_env( "SHLVL"           ,     "1"                              ) ;
 		set_env( "UID"             , cat(uid                            ) ) ;
 		set_env( "USER"            ,     ::getpwuid(uid)->pw_name       ) ;
+		return res ;
 	}
 
 	static ::string _deps_file( Action action , bool new_=false ) {

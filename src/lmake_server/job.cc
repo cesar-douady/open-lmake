@@ -1,5 +1,5 @@
 // This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
-// Copyright (c) 2023-2026 Doliam
+// Copyright (c) 2023-2025 Doliam
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -660,7 +660,7 @@ namespace Engine {
 			,	digest.exe_time
 			,	is_retry(job_reason.tag)
 			) ;
-			end_digest.can_upload &= maybe_done ;                      // if job is not done, cache entry will be overwritten (with dir_cache at least) when actually rerun
+			end_digest.can_upload &= maybe_done ;                      // if job is not done, cache entry will be overwritten when actually rerun
 			must_wakeup.push_back(done) ;
 			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=end_digest.msg_stderr.msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
 			trace("req_after",ri,job_reason,STR(done),STR(maybe_done)) ;

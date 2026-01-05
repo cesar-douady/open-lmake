@@ -332,9 +332,7 @@ int main( int argc , char** argv ) {
 	g_writable            = !repo_app_init({ .chk_version=Maybe , .cd_root=false }) ;                                                // server is always launched at root
 	if (Record::s_is_simple(*g_repo_root_s)) exit(Rc::Usage,"cannot use lmake inside a system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
 	_chk_os() ;
-	::umap_ss user_env = mk_environ() ;
-	if (user_env.contains("LMAKE_AUTODEP_ENV")) exit(Rc::Usage,"cannot run lmake under lmake") ;
-	Makefiles::clean_env() ;                                                                     // before Py::init() as it records the environment to make it available in os.environ
+	::umap_ss user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ;
 	Py::init(*g_lmake_root_s) ;
 	AutodepEnv ade ;
 	ade.repo_root_s         = *g_repo_root_s ;

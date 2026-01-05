@@ -31,8 +31,7 @@ else :
 	backend = 'local'
 
 config.caches.my_cache = {
-	'tag' : 'daemon'
-,	'dir' : osp.dirname(repo_root)+'/lmake_env-cache'
+	'dir' : osp.dirname(repo_root)+'/lmake_env-cache'
 }
 
 config.console.date_precision = 2
@@ -432,8 +431,7 @@ class LinkAutodep(LinkPython,LinkAutodepEnv) :
 	,	'PTRACE'       : 'src/autodep/ptrace.o'
 	,	'RECORD'       : 'src/autodep/record.o'
 	,	'SYSCALL'      : 'src/autodep/syscall_tab.o'
-	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o' # PER_CACHE : add entries
-	,	'DIR_CACHE'    : 'src/caches/dir_cache.o'    # .
+	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o'
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
 	,	'RPC_CLIENT'   : None
 	}
@@ -454,10 +452,8 @@ class LinkAutodepExe(LinkAutodep,LinkAppExe) :
 class LinkJobExecExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/job_exec'  }
 	deps    = {
-		'DAEMON_CACHE'       : None                              # PER_CACHE : add entries
-	,	'DIR_CACHE'          : None                              # .
-	,	'DAEMON_CACHE_LIGHT' : 'src/caches/daemon_cache-light.o' # .
-	,	'DIR_CACHE_LIGHT'    : 'src/caches/dir_cache-light.o'    # .
+		'DAEMON_CACHE'       : None
+	,	'DAEMON_CACHE_LIGHT' : 'src/caches/daemon_cache-light.o'
 	,	'MAIN'               : 'src/job_exec.o'
 	}
 
@@ -466,8 +462,7 @@ class LinkLmakeServerExe(LinkAutodep,LinkAppExe) :
 	deps = {
 		'RPC_CLIENT'   : 'src/rpc_client.o'
 	,	'RPC_JOB'      : 'src/rpc_job.o'                     # lmake_repair must be aware of existing backends
-	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o'         # PER_CACHE : add entries
-	,	'DIR_CACHE'    : 'src/caches/dir_cache.o'            # .
+	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o'
 	,	'LD'           : 'src/autodep/ld_server.o'
 	,	'BE'           : 'src/lmake_server/backend.o'
 	,	'BE_LOCAL'     : 'src/lmake_server/backends/local.o'
@@ -499,8 +494,7 @@ class LinkLMakeDumpExe(LinkAutodep,LinkAppExe) :
 	deps = {
 		'RPC_CLIENT'   : 'src/rpc_client.o'
 	,	'RPC_JOB'      : 'src/rpc_job.o'
-	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o' # PER_CACHE : add entries
-	,	'DIR_CACHE'    : 'src/caches/dir_cache.o'    # .
+	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o'
 	,	'LD'           : 'src/autodep/ld_server.o'
 	,	'BE'           : 'src/lmake_server/backend.o'
 	,	'GLOBAL'       : 'src/lmake_server/global.o'
@@ -521,8 +515,7 @@ class LinkLdumpJobExe(LinkPython,LinkAppExe,LinkAutodepEnv) :
 	deps = {
 		'RPC_JOB'      : 'src/rpc_job.o'
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
-	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o' # PER_CACHE : add entries
-	,	'DIR_CACHE'    : 'src/caches/dir_cache.o'
+	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o'
 	,	'MAIN'         : 'src/ldump_job.o'
 	}
 	need_compress = True

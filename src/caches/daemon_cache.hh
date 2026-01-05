@@ -75,7 +75,7 @@ namespace Caches {
 		else                   return os << "()"    ;
 	}
 
-	struct DaemonCache : Cache {          // PER_CACHE : inherit from Cache and provide implementation
+	struct DaemonCache : Cache {
 		using Proc = DaemonCacheRpcProc ;
 
 		struct Config {
@@ -165,9 +165,8 @@ namespace Caches {
 		void      config( ::vmap_ss const& , bool may_init=false )       override ;
 		::vmap_ss descr (                                        ) const override ;
 		void      repair( bool dry_run                           )       override ;
-		Tag       tag   (                                        )       override { return Tag::Daemon ; }
-		void      serdes( ::string     & os                      )       override { _serdes(os) ;        } // serialize  , cannot be a template as it is a virtual method
-		void      serdes( ::string_view& is                      )       override { _serdes(is) ;        } // deserialize, .
+		void      serdes( ::string     & os                      )       override { _serdes(os) ; } // serialize  , cannot be a template as it is a virtual method
+		void      serdes( ::string_view& is                      )       override { _serdes(is) ; } // deserialize, .
 		//
 		::pair<DownloadDigest,AcFd> sub_download( ::string const& job , MDD const&                          ) override ;
 		SubUploadDigest             sub_upload  ( Time::Delay exe_time , Sz max_sz                          ) override ;

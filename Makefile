@@ -244,7 +244,6 @@ LMAKE_SERVER_BIN_FILES := \
 	bin/lmake                    \
 	bin/lmark                    \
 	bin/lmake_repair             \
-	bin/ldir_cache_repair        \
 	bin/lcache_server            \
 	bin/lcache_repair            \
 	bin/lmake_server             \
@@ -534,8 +533,7 @@ SERVER_COMMON_SAN_OBJS := \
 	src/rpc_job_exec$(SAN).o        \
 	src/version$(SAN).o             \
 	src/autodep/env$(SAN).o         \
-	src/caches/daemon_cache$(SAN).o \
-	src/caches/dir_cache$(SAN).o
+	src/caches/daemon_cache$(SAN).o
 
 BACKEND_SAN_OBJS := \
 	src/lmake_server/backends/local$(SAN).o  \
@@ -583,7 +581,6 @@ CACHE_SAN_OBJS := \
 	src/version$(SAN).o                                \
 	src/autodep/env$(SAN).o                            \
 	src/caches/daemon_cache$(SAN).o                    \
-	src/caches/dir_cache$(SAN).o                       \
 	src/caches/daemon_cache/engine$(SAN).o             \
 	src/caches/daemon_cache/daemon_cache_utils$(SAN).o
 
@@ -620,19 +617,9 @@ bin/lcache_repair : \
 	src/version.o                                      \
 	src/autodep/env$(SAN).o                            \
 	src/caches/daemon_cache$(SAN).o                    \
-	src/caches/dir_cache$(SAN).o                       \
 	src/caches/daemon_cache/engine$(SAN).o             \
 	src/caches/daemon_cache/daemon_cache_utils$(SAN).o \
 	src/caches/daemon_cache/ldaemon_cache_repair$(SAN).o
-	@mkdir -p $(@D)
-	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
-	@$(SPLIT_DBG_CMD)
-
-bin/ldir_cache_repair : \
-	$(SERVER_COMMON_SAN_OBJS) \
-	src/version.o             \
-	src/ldir_cache_repair$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
@@ -725,8 +712,7 @@ REMOTE_OBJS  := \
 #	src/autodep/gather$(SAN).o      \
 #	src/autodep/ptrace$(SAN).o      \
 #	src/autodep/record$(SAN).o      \
-#	src/caches/daemon_cache$(SAN).o \
-#	src/caches/dir_cache$(SAN).o
+#	src/caches/daemon_cache$(SAN).o
 
 #_bin/job_exec : $(JOB_EXEC_SAN_OBJS)                src/job_exec$(SAN).o
 #bin/lautodep  : $(JOB_EXEC_SAN_OBJS) src/py$(SAN).o src/autodep/lautodep$(SAN).o
@@ -747,8 +733,7 @@ JOB_EXEC_OBJS := \
 	src/autodep/gather.o            \
 	src/autodep/ptrace.o            \
 	src/autodep/record.o            \
-	src/caches/daemon_cache-light.o \
-	src/caches/dir_cache-light.o
+	src/caches/daemon_cache-light.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS)          src/job_exec.o
 bin/lautodep  : $(JOB_EXEC_OBJS) src/py.o src/autodep/lautodep.o

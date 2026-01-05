@@ -15,7 +15,6 @@
 #include "time.hh"
 #include "trace.hh"
 #include "version.hh"
-#include "caches/dir_cache.hh"    // PER_CACHE : add include line for each cache method
 #include "caches/daemon_cache.hh"
 
 #include "rpc_job.hh"
@@ -792,21 +791,17 @@ namespace Caches {
 
 	::vector<Cache*> Cache::s_tab ;
 
-	Cache* Cache::s_new(Tag tag) {
-		switch (tag) {
-			case Tag::None   : return nullptr         ; // base class Cache actually caches nothing
-			case Tag::Dir    : return new DirCache    ; // PER_CACHE : add a case for each cache method
-			case Tag::Daemon : return new DaemonCache ; // .
-		DF}                                             // NO_COV
+	Cache* Cache::s_new() {
+		return new DaemonCache ;
 	}
 
-	void Cache::s_config( ::vmap_s<::pair<CacheTag,::vmap_ss>> const& caches ) {
+	void Cache::s_config( ::vmap_s<::vmap_ss> const& caches ) {
 		Trace trace("Cache::s_config",caches.size()) ;
-		for( auto const& [k,tag_cache] : caches ) {
-			trace(k,tag_cache) ;
-			Cache*& c = s_tab.emplace_back(s_new(tag_cache.first)) ;
+		for( auto const& [k,cache] : caches ) {
+			trace(k,cache) ;
+			Cache*& c = s_tab.emplace_back(s_new()) ;
 			try {
-				if (c) c->config( tag_cache.second , true/*may_init*/ ) ;
+				if (c) c->config( cache , true/*may_init*/ ) ;
 			} catch (::string const& e) {
 				trace("no_config",e) ;
 				Fd::Stderr.write(cat("ignore cache ",k," (cannot configure) : ",e,add_nl)) ;
@@ -895,7 +890,7 @@ namespace Caches {
 	,	Zlvl                          zlvl
 	,	NfsGuard*                     nfs_guard
 	) {
-		Trace trace(CacheChnl,"DirCache::upload",targets.size(),zlvl) ;
+		Trace trace(CacheChnl,"Cache::upload",targets.size(),zlvl) ;
 		SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 		//
 		Sz  tgts_sz  = 0 ;

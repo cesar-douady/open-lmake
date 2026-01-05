@@ -16,10 +16,9 @@ if __name__!='__main__' :
 	,	'mkdir.dut.ref'
 	)
 
-	from step import z_lvl,cache_tag
+	from step import z_lvl
 
-	if cache_tag : lmake.config.caches.my_cache = { 'tag':cache_tag , 'dir':lmake.repo_root+'/CACHE' }
-	else         : lmake.config.caches.my_cache = {                   'dir':lmake.repo_root+'/CACHE' } # defaults to tag='daemon'
+	lmake.config.caches.my_cache = { 'dir':lmake.repo_root+'/CACHE' }
 
 	class Auto(Rule) :
 		target = r'auto{:\d}'
@@ -74,45 +73,44 @@ else :
 
 	import ut
 
-	for cache_tag in ('dir','') :
-		for z_lvl in (0,5) :
-			print(f'cache_tag={cache_tag!r} ; z_lvl={z_lvl}',file=open('step.py','w'))
-			bck = f'bck_{cache_tag}_{z_lvl}'
+	for z_lvl in (0,5) :
+		print(f'z_lvl={z_lvl}',file=open('step.py','w'))
+		bck = f'bck_{z_lvl}'
 
-			print('hello'       ,file=open('hello'               ,'w'))
-			print('hello\n#auto',file=open('hello+auto1.hide.ref','w'))
-			print('mkdir'       ,file=open('mkdir.dut.ref'       ,'w'))
+		print('hello'       ,file=open('hello'               ,'w'))
+		print('hello\n#auto',file=open('hello+auto1.hide.ref','w'))
+		print('mkdir'       ,file=open('mkdir.dut.ref'       ,'w'))
 
-			# cache my_cache must be writable by all users having access to the cache
-			# use setfacl(1) with adequate rights in the default ACL, e.g. :
-			# os.system('setfacl -m d:g::rw,d:o::r CACHE')
-			os.makedirs('CACHE/LMAKE')
-			os.chmod('CACHE'      ,0o775)
-			os.chmod('CACHE/LMAKE',0o775)
-			print(textwrap.dedent('''
-				size = 1<<20
-				perm = 'group'
-			''')[1:],file=open('CACHE/LMAKE/config.py','w'))
+		# cache my_cache must be writable by all users having access to the cache
+		# use setfacl(1) with adequate rights in the default ACL, e.g. :
+		# os.system('setfacl -m d:g::rw,d:o::r CACHE')
+		os.makedirs('CACHE/LMAKE')
+		os.chmod('CACHE'      ,0o775)
+		os.chmod('CACHE/LMAKE',0o775)
+		print(textwrap.dedent('''
+			size = 1<<20
+			perm = 'group'
+		''')[1:],file=open('CACHE/LMAKE/config.py','w'))
 
-			ut.lmake( 'hello+auto1.hide.ok' , done=4 , may_rerun=1 , new=2 ) # check target is out of date
-			ut.lmake( 'hello+auto1.hide.ok' , done=0                       ) # check target is up to date
-			ut.lmake( 'mkdir.dut.ok'        , done=2 ,               new=1 ) # check everything is ok with dirs and empty files
+		ut.lmake( 'hello+auto1.hide.ok' , done=4 , may_rerun=1 , new=2 ) # check target is out of date
+		ut.lmake( 'hello+auto1.hide.ok' , done=0                       ) # check target is up to date
+		ut.lmake( 'mkdir.dut.ok'        , done=2 ,               new=1 ) # check everything is ok with dirs and empty files
 
-			os.system('find CACHE -type f -ls')
-			os.system(f'mkdir {bck}_1 ; mv LMAKE auto1 auto1.hide hello+auto1.hide {bck}_1')
+		os.system('find CACHE -type f -ls')
+		os.system(f'mkdir {bck}_1 ; mv LMAKE auto1 auto1.hide hello+auto1.hide {bck}_1')
 
-			print('hello2'       ,file=open('hello'               ,'w'))
-			print('hello2\n#auto',file=open('hello+auto1.hide.ref','w'))
+		print('hello2'       ,file=open('hello'               ,'w'))
+		print('hello2\n#auto',file=open('hello+auto1.hide.ref','w'))
 
-			ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 , unlinked=1                 , new=2 ) # check cache hit on common part (except auto1), and miss when hello is dep
-			ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check all is ok with dirs and empty files (mkdir.dut still exists ...
-			os.system(f'mkdir {bck}_2 ; mv LMAKE auto1 auto1.hide hello+auto1.hide {bck}_2')                           # ... and is unlinked)
+		ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 , unlinked=1                 , new=2 ) # check cache hit on common part (except auto1), and miss when hello is dep
+		ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 ) # check all is ok with dirs and empty files (mkdir.dut still exists ...
+		os.system(f'mkdir {bck}_2 ; mv LMAKE auto1 auto1.hide hello+auto1.hide {bck}_2')                           # ... and is unlinked)
 
-			assert os.system(f"rm -rf CACHE/auto1 ; l{cache_tag}{'_' if cache_tag else ''}cache_repair CACHE")==0
-			ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 , unlinked=1                 , new=2 )
-			ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 )
-			os.system(f'mkdir {bck}_3 ; mv LMAKE CACHE *auto1* mkdir* {bck}_3')
+		assert os.system(f"rm -rf CACHE/auto1 ; lcache_repair CACHE")==0
+		ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 , unlinked=1                 , new=2 )
+		ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_rerun=1 , hit_done=1 , unlinked=1 , quarantined=1 , new=1 )
+		os.system(f'mkdir {bck}_3 ; mv LMAKE CACHE *auto1* mkdir* {bck}_3')
 
-		bck = f'bck_{cache_tag}'
+		bck = f'bck'
 		ut.lmake( 'hello+auto1.hide' , done=3 , may_rerun=1 , new=1 ) # check no crash with no cache
 		os.system(f'mkdir {bck}_3 ; mv LMAKE *auto1* {bck}_3')
