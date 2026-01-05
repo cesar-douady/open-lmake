@@ -153,7 +153,7 @@
                 <div id="content" class="content">
                     <main>
                         <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
-<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- Copyright (c) 2023-2026 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="rule-attributes"><a class="header" href="#rule-attributes">Rule attributes</a></h1>
@@ -336,20 +336,18 @@ For such a base class, the solution is to define <code>cmd</code> as a function 
 <p>If several definitions exist along the MRO, They must all be <code>str</code>'s and they are run successively in reverse MRO in the same process.
 So, it is possible for a first definition to define an environment variable that is used in a subsequent one.</p>
 <p>As for other attributes that may be dynamic, <code>cmd</code> is interpreted as an f-string.</p>
-<h3 id="chroot_action"><a class="header" href="#chroot_action"><code>chroot_action</code></a></h3>
+<h3 id="chroot_actions"><a class="header" href="#chroot_actions"><code>chroot_actions</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>f-str</code></td><td><code>None</code></td><td>Full</td><td><code>'overwrite'</code></td></tr>
+<tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>()</code></td><td>Full</td><td><code>('resolv_conf',)</code></td></tr>
 </tbody></table>
 </div>
-<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot(2)</a>, the user and group databases become the one specified in this chroot dir.
-It may not contain entries for the current user, or the network service may not be available in this environment.
-In that case, some actions can be carried out by open-lmake to restore names for the user and its group using the <code>chroot_action</code> rule attribute.</p>
-<p>This attribute specifies which action to carry out.
-Supported actions are:</p>
+<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot(2)</a>, there may be some actions to carry out to make a sound execution environment.
+This attribute lists these actions.
+It is a <code>list</code> or <code>tuple</code> composed of the following elements:</p>
 <ul>
-<li><code>'none'</code> or <code>None</code>: do nothing.</li>
-<li><code>'overwrite'</code>     : user name and its associated group name are transported from the native namespace, while losing entries for other users and groups.
-This is light performance wise and can be used without fear for performance.</li>
+<li><code>user_name</code>: files <code>/etc/passwd</code> and <code>/etc/group</code> are prepared to ensure <code>root</code> and the calling user have proper names.
+Also, <code>/etc/nsswitch.conf</code> is updated to ensure these files are actually accessed.</li>
+<li><code>resolv_conf</code>: file <code>/etc/resolv.conf</code> is copied from native filesystem to chroot'ed filesystem.</li>
 </ul>
 <h3 id="chroot_dir"><a class="header" href="#chroot_dir"><a href="unit_tests/chroot.html#:~:text=chroot%5Fdir%20%3D%20%27%7Bimage%5Froot%28Os%29%7D%27"><code>chroot_dir</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>

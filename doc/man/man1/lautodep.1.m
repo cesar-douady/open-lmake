@@ -40,8 +40,9 @@ Mimic setting the rule attribute B(auto_mkdir)=I(True).
 Item(B(-c) I(abs_dir),B(--chroot-dir)=I(abs_dir))
 Mimic setting the rule attribute B(chroot_dir)=I(abs_dir).
 
-Item(B(-C) I(action),B(--chroot-action)=I(action))
-Mimic setting the rule attribute B(chroot_action)=I(action).
+Item(B(-C) I(actions),B(--chroot-actions)=I(actions))
+Mimic setting the rule attribute B(chroot_actions)=I(actions).
+I(actions) is a comma separated list of actions.
 
 Item(B(-d) I(dir),B(--cwd)=I(dir))
 Mimic setting the rule attribute B(cwd)=I(dir).

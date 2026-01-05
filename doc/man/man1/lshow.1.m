@@ -121,7 +121,7 @@ Show various info about a job, as it last ran (unless stated otherwise):
 	Bullet B(total targets size) : the sum of the sizes of all targets.
 	Bullet B(compressed size)    : the sum of the sizes of all targets after compression as stored in cache.
 	Bullet B(chroot_dir)         : the chroot dir in which job ran.
-	Bullet B(chroot_action)      : the chroot action used to run job.
+	Bullet B(chroot_actions)     : the chroot actions carried out to run job.
 	Bullet B(lmake_root)         : the open-lmake installation dir used by the job.
 	Bullet B(lmake_view)         : the name under which the lmake installation dir was seen by job.
 	Bullet B(repo_view)          : the name under which the repo root dir was seen by job.

@@ -199,22 +199,19 @@ So, it is possible for a first definition to define an environment variable that
 
 As for other attributes that may be dynamic, `cmd` is interpreted as an f-string.
 
-### `chroot_action`
+### `chroot_actions`
 
-| Inheritance | Type    | Default | Dynamic | Example       |
-|-------------|---------|---------|---------|---------------|
-| python      | `f-str` | `None`  | Full    | `'overwrite'` |
+| Inheritance | Type              | Default | Dynamic | Example            |
+|-------------|-------------------|---------|---------|--------------------|
+| python      | `list` or `tuple` | `()`    | Full    | `('resolv_conf',)` |
 
-When entering a `chroot_dir` with [chroot(2)](https://man7.org/linux/man-pages/man2/chroot.2.html), the user and group databases become the one specified in this chroot dir.
-It may not contain entries for the current user, or the network service may not be available in this environment.
-In that case, some actions can be carried out by open-lmake to restore names for the user and its group using the `chroot_action` rule attribute.
+When entering a `chroot_dir` with [chroot(2)](https://man7.org/linux/man-pages/man2/chroot.2.html), there may be some actions to carry out to make a sound execution environment.
+This attribute lists these actions.
+It is a `list` or `tuple` composed of the following elements:
 
-This attribute specifies which action to carry out.
-Supported actions are:
-
-- `'none'` or `None`: do nothing.
-- `'overwrite'`     : user name and its associated group name are transported from the native namespace, while losing entries for other users and groups.
-This is light performance wise and can be used without fear for performance.
+- `user_name`: files `/etc/passwd` and `/etc/group` are prepared to ensure `root` and the calling user have proper names.
+  Also, `/etc/nsswitch.conf` is updated to ensure these files are actually accessed.
+- `resolv_conf`: file `/etc/resolv.conf` is copied from native filesystem to chroot'ed filesystem.
 
 ### [`chroot_dir`](unit_tests/chroot.html#:~:text=chroot%5Fdir%20%3D%20%27%7Bimage%5Froot%28Os%29%7D%27)
 

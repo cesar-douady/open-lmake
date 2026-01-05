@@ -732,7 +732,7 @@ namespace Engine {
 			if (+submit_ancillary_attrs.spec.cache_name                ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs.spec.cache_name               ) ;
 			if ( start_rsrcs_attrs     .spec.chk_abs_paths             ) entries.emplace_back( "check_abs_paths"     , cat        (start_rsrcs_attrs     .spec.chk_abs_paths          ) ) ;
 			if (+start_rsrcs_attrs     .spec.chroot_dir_s              ) entries.emplace_back( "chroot_dir"          , no_slash   (start_rsrcs_attrs     .spec.chroot_dir_s           ) ) ;
-			if (+start_rsrcs_attrs     .spec.chroot_action             ) entries.emplace_back( "chroot_action"       , snake      (start_rsrcs_attrs     .spec.chroot_action          ) ) ;
+			if (+start_rsrcs_attrs     .spec.chroot_actions            ) entries.emplace_back( "chroot_actions"      , cat        (start_rsrcs_attrs     .spec.chroot_actions         ) ) ;
 			if (+start_ancillary_attrs .spec.zlvl                      ) entries.emplace_back( "compression"         , cat        (start_ancillary_attrs .spec.zlvl                   ) ) ;
 			if ( force                                                 ) entries.emplace_back( "force"               , cat        (force                                              ) ) ;
 			if (+interpreter                                           ) entries.emplace_back( "interpreter"         ,             interpreter                                          ) ;

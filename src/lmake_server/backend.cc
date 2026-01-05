@@ -404,7 +404,7 @@ namespace Backends {
 			case 3 :
 			case 2 :
 				reply.chk_abs_paths     = start_rsrcs_attrs.chk_abs_paths ;
-				reply.chroot_info.dir_s = start_rsrcs_attrs.chroot_dir_s  ; if (+reply.chroot_info) reply.chroot_info.action = start_rsrcs_attrs.chroot_action ;
+				reply.chroot_info.dir_s = start_rsrcs_attrs.chroot_dir_s  ; if (+reply.chroot_info.dir_s) reply.chroot_info.actions = start_rsrcs_attrs.chroot_actions ;
 				reply.phy_lmake_root_s  = start_rsrcs_attrs.lmake_root_s  ;
 				reply.method            = start_rsrcs_attrs.method        ;
 				reply.timeout           = start_rsrcs_attrs.timeout       ;
@@ -412,7 +412,7 @@ namespace Backends {
 				//
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 				//
-				if (+reply.chroot_info.action) {
+				if (+reply.chroot_info.actions[ChrootAction::UserName]) {
 					static ::string s_user  = []()->const char* { if ( uid_t uid=::getuid() ) { if ( struct passwd* pw=::getpwuid(uid) ) return pw->pw_name ; } ; return "" ; }() ;
 					static ::string s_group = []()->const char* { if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) return gr->gr_name ; } ; return "" ; }() ;
 					if (!s_user ) { start_msg_err.msg <<add_nl<< "cannot find user name for " <<::getuid() ; step = ::min(step,4) ; }

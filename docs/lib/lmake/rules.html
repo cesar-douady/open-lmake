@@ -97,7 +97,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <h2></h2>
 
 <div class="highlight"><pre><span></span><span class="c1"># This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)</span>
-<span class="c1"># Copyright (c) 2023-2025 Doliam</span>
+<span class="c1"># Copyright (c) 2023-2026 Doliam</span>
 <span class="c1"># This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).</span>
 <span class="c1"># This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.</span>
 
@@ -161,7 +161,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1">#   backend             = &#39;local&#39;                   # may be set anywhere in the inheritance hierarchy if execution must be remote</span>
 <span class="c1">#   check_abs_paths     = False                     # check that absolute paths inside the repo are not stored in targets</span>
 <span class="c1">#   chroot_dir          = &#39;/&#39;                       # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)</span>
-<span class="c1">#   chroot_action       = None                      # action to handle user when chroot to chroot_dir, one of : None or &#39;none&#39;, &#39;overwrite&#39;, &#39;merge&#39;</span>
+<span class="c1">#   chroot_actions      = ()                        # actions to carry out when chroot to chroot_dir, a list/tuple of : &#39;user_name&#39;, &#39;resolve_conf&#39;</span>
 <span class="c1">#   cache               = None                      # cache used to store results for this rule. None means no caching</span>
 <span class="c1">#   cmd                                             # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions</span>
 <span class="c1">#   compression         = None                      # compression to use when caching :</span>

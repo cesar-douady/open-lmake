@@ -377,14 +377,13 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 // ChrootInfo
 //
 
-::string& operator+=( ::string& os , ChrootInfo const& ci ) { // START_OF_NO_COV
-	os <<"ChrootInfo(" ;
-	if (+ci.dir_s) {
-		/**/            os << ci.dir_s                                        ;
-		if (+ci.action) os <<','<< ci.action <<','<< ci.user <<','<< ci.group ;
-	}
-	return os <<')' ;
-}                                                             // END_OF_NO_COV
+::string& operator+=( ::string& os , ChrootInfo const& ci ) {                    // START_OF_NO_COV
+	/**/                                     os << "ChrootInfo("               ;
+	if (+ci.dir_s                          ) os << ci.dir_s                    ;
+	if (+ci.actions                        ) os << ','<<ci.actions             ;
+	if (+ci.actions[ChrootAction::UserName]) os << ','<<ci.user<<','<<ci.group ;
+	return                                   os << ')'                         ;
+}                                                                                // END_OF_NO_COV
 
 //
 // JobReason
@@ -1067,18 +1066,18 @@ void JobSpace::chk() const {
 }
 
 void _prepare_user( ::string const& dir_s , ChrootInfo const& chroot_info , uid_t uid , gid_t gid ) {
-	switch (chroot_info.action) {
-		case ChrootAction::Overwrite : {
-			::string passwd = "root:*:0:0:::\n" ; if (uid!=0) passwd << chroot_info.user  <<":*:"<< uid <<':'<< gid <<":::\n" ;        // cf format man 5 passwd
-			::string group  = "root:*:0:\n"     ; if (gid!=0) group  << chroot_info.group <<":*:"<< gid             <<":\n"   ;        // cf format man 5 group
-			AcFd( dir_s+"etc/nsswitch.conf" , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ).write( "passwd: files\ngroup: files\n" ) ; // ensure we access files
-			AcFd( dir_s+"etc/passwd"        , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ).write( passwd                          ) ;
-			AcFd( dir_s+"etc/group"         , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ).write( group                           ) ;
-		} break ;
-		case ChrootAction::Merge :
-			throw "merge chroot_user method not implemented yet"s ;
-		break ;
-	DF}
+	if (!chroot_info.actions) return ;                                                                                             // fast path
+	//
+	if (chroot_info.actions[ChrootAction::UserName]) {
+		::string passwd = "root:*:0:0:::\n" ; if (uid!=0) passwd << chroot_info.user  <<":*:"<< uid <<':'<< gid <<":::\n" ;        // cf format man 5 passwd
+		::string group  = "root:*:0:\n"     ; if (gid!=0) group  << chroot_info.group <<":*:"<< gid             <<":\n"   ;        // cf format man 5 group
+		AcFd( dir_s+"etc/nsswitch.conf" , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ).write( "passwd: files\ngroup: files\n" ) ; // ensure we access files
+		AcFd( dir_s+"etc/passwd"        , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ).write( passwd                          ) ;
+		AcFd( dir_s+"etc/group"         , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ).write( group                           ) ;
+	}
+	if (chroot_info.actions[ChrootAction::ResolvConf]) {
+		try { AcFd( dir_s+"etc/resolv.conf" , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ).write( AcFd("/etc/resolv.conf").read() ) ; } catch (::string const&) {}
+	}
 }
 bool JobSpace::enter(
 	::vector_s&              /*out  */ report
@@ -1102,7 +1101,7 @@ bool JobSpace::enter(
 		return false/*entered*/ ;
 	}
 	//
-	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ;                                                 // dont use no_slash to properly manage the '/' case
+	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ;                                             // dont use no_slash to properly manage the '/' case
 	//
 	mk_canon( phy_repo_root_s , sub_repo_s , +chroot_dir ) ;
 	//
@@ -1113,7 +1112,7 @@ bool JobSpace::enter(
 	SWEAR( +phy_repo_root_s  ) ;
 	if (+tmp_view_s) throw_unless( +phy_tmp_dir_s , "no physical dir for tmp view ",no_slash(tmp_view_s) ) ;
 	//
-	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                              ;            // account for initial and terminal /
+	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                              ;        // account for initial and terminal /
 	FileNameIdx src_dir_depth = ::max<FileNameIdx>( src_dirs_s , [](::string const& sd_s) { return uphill_lvl(sd_s) ; } ) ;
 	if (src_dir_depth>=repo_depth)
 		for( ::string const& sd_s : src_dirs_s )
@@ -1194,7 +1193,7 @@ bool JobSpace::enter(
 			for( ::string const& v_s  : creat_views_s )                   { trace("mkdir",v_s         ) ; mk_dir_s(upper+v_s         ) ; }
 			for( ::string const& sd_s : src_dirs_s    ) if (is_abs(sd_s)) { trace("mkdir",sd_s        ) ; mk_dir_s(upper+sd_s        ) ; }
 			//
-			if (+chroot_info.action) _prepare_user( upper_s , chroot_info , uid , gid ) ;
+			_prepare_user( upper_s , chroot_info , uid , gid ) ;
 			//
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			_mount_overlay( root_s , {upper_s,chroot_dir} , work_dir_s+"work/" , user_trace ) ;

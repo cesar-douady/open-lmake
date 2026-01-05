@@ -153,7 +153,7 @@
                 <div id="content" class="content">
                     <main>
                         <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
-<!-- Copyright (c) 2023-2025 Doliam-->
+<!-- Copyright (c) 2023-2026 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="namespaces"><a class="header" href="#namespaces">Namespaces</a></h1>
@@ -180,12 +180,9 @@ Or, more efficient, it can be solved by adequately mapping a logical steady file
 </ul>
 <p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot(2)</a>, the user and group databases become those specified in the chroot dir.
 It may not contain entries for the current user, or the network service may not be available in this environment.
-In that case, some actions can be carried out by open-lmake to restore names for the user and its group using the <code>chroot_action</code> rule attribute.
-Supported actions are:</p>
-<ul>
-<li><code>overwrite</code>: user name and its associated group name are transported from the native namespace, while losing entries for other users and groups.
-This is light performance wise and can be used without fear for performance.</li>
-</ul>
+In that case, some root and the calling user names can be restored by open-lmake by including <code>user_name</code> in the <code>chroot_actions</code> rule attribute.</p>
+<p>Also the file <code>/etc/resolv.conf</code> may need to be copied from the native filesystem.
+This can be achieved by including <code>resovl_conf</code> in the <code>chroot_actions</code> rule attribute.</p>
 
                     </main>
 

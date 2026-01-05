@@ -63,7 +63,7 @@ class Rule(_RuleBase) :
 #	backend             = 'local'                   # may be set anywhere in the inheritance hierarchy if execution must be remote
 #	check_abs_paths     = False                     # check that absolute paths inside the repo are not stored in targets
 #	chroot_dir          = '/'                       # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)
-#	chroot_action       = None                      # action to handle user when chroot to chroot_dir, one of : None or 'none', 'overwrite', 'merge'
+#	chroot_actions      = ()                        # actions to carry out when chroot to chroot_dir, a list/tuple of : 'user_name', 'resolve_conf'
 #	cache               = None                      # cache used to store results for this rule. None means no caching
 #	cmd                                             # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
 #	compression         = None                      # compression to use when caching :

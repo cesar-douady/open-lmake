@@ -70,10 +70,10 @@ static_assert(chk_enum_tab(CacheHitInfoStrs)) ;
 
 // START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
 enum class ChrootAction : uint8_t {
-	None                            // no action
-,	Overwrite                       // user and root and their groups have a name, existing ones are not preserved
-,	Merge                           // user          and their group  have a name, existing ones are     preserved
+	ResolvConf                      // /etc/resolv.conf is copied from native env to chroot'ed env
+,	UserName                        // user and root and their groups have a name, existing ones are not preserved
 } ;
+using ChrootActions = BitMap<ChrootAction> ;
 
 // START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
 enum class FileActionTag : uint8_t {
@@ -368,17 +368,17 @@ struct ChrootInfo {
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , dir_s ) ;
 		if (+dir_s) {
-			/**/         ::serdes( s , action     ) ;
-			if (+action) ::serdes( s , user,group ) ;
+			/**/                                  ::serdes( s , actions    ) ;
+			if (+actions[ChrootAction::UserName]) ::serdes( s , user,group ) ;
 		}
 	}
 	// accesses
 	bool operator+() const { return +dir_s ; }
 	// data
-	::string     dir_s  ;      // absolute dir which job must chroot to before execution (empty if unused)
-	ChrootAction action = {} ; // valid if +dir_s
-	::string     user   ;      // valid if +dir_s and +action, user  name to transport in namespace
-	::string     group  ;      // .                          , group name to transport in namespace
+	::string      dir_s   ;      // absolute dir which job must chroot to before execution (empty if unused)
+	ChrootActions actions = {} ; // valid if +dir_s
+	::string      user    ;      // valid if +dir_s and +action, user  name to transport in namespace
+	::string      group   ;      // .                          , group name to transport in namespace
 } ;
 
 struct AccDflags {
@@ -727,7 +727,7 @@ namespace Caches {
 			bool operator+() const { return upload_key ; }
 			// data
 			::string file       = {} ;
-			::string pfx        = {} ;                                                                      // to be written to file before data
+			::string pfx        = {} ;                                                  // to be written to file before data
 			uint64_t upload_key = 0  ;
 			::string msg        = {} ;
 			PermExt  perm_ext   = {} ;
@@ -750,8 +750,8 @@ namespace Caches {
 		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false )       {}
 		virtual ::vmap_ss descr (                                            ) const { return {}        ; }
 		virtual void      repair( bool /*dry_run*/                           )       {}
-		virtual void      serdes( ::string     &                             )       {}                     // serialize
-		virtual void      serdes( ::string_view&                             )       {}                     // deserialize
+		virtual void      serdes( ::string     &                             )       {} // serialize
+		virtual void      serdes( ::string_view&                             )       {} // deserialize
 		//
 		virtual ::pair<DownloadDigest,AcFd> sub_download( ::string const& /*job*/ , MDD const&                          ) ;
 		virtual SubUploadDigest             sub_upload  ( Time::Delay /*exe_time*/ , Sz /*max_sz*/                      ) { return {} ; }
@@ -972,9 +972,9 @@ public :
 	bool                                    use_script       = false               ;
 	Zlvl                                    zlvl             {}                    ;
 	// END_OF_VERSIONING
-	LmakeVersion lmake_version ; // not transported
+	LmakeVersion lmake_version ;                                                     // not transported
 private :
-	::string _tmp_dir_s ;                                                             // for use in exit (autodep.tmp_dir_s may be moved)
+	::string _tmp_dir_s ;                                                            // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
 struct JobEndRpcReq : JobRpcReq {

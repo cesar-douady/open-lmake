@@ -452,26 +452,26 @@ namespace Engine {
 		//
 		::string res = "script = gen_script(\n" ;
 		//
-		/**/                          res <<  "\tautodep_method = " << mk_py_str(snake   (jsrr.method            )) << '\n' ;
-		if (ade.auto_mkdir          ) res << ",\tauto_mkdir     = " << mk_py_str(         ade.auto_mkdir          ) << '\n' ;
-		if (+jsrr.chroot_info.dir_s ) res << ",\tchroot_dir     = " << mk_py_str(no_slash(jsrr.chroot_info.dir_s )) << '\n' ;
-		if (+jsrr.chroot_info.action) res << ",\tchroot_action  = " << mk_py_str(snake   (jsrr.chroot_info.action)) << '\n' ;
-		/**/                          res << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s              )) << '\n' ;
-		/**/                          res << ",\tis_python      = " << mk_py_str(         job->rule()->is_python  ) << '\n' ;
-		/**/                          res << ",\tkey            = " << mk_py_str(         key                     ) << '\n' ;
-		/**/                          res << ",\tjob            = " <<                    +job                      << '\n' ;
-		/**/                          res << ",\tlink_support   = " << mk_py_str(snake   (ade.lnk_support        )) << '\n' ;
-		if (+jsrr.phy_lmake_root_s  ) res << ",\tlmake_root     = " << mk_py_str(no_slash(jsrr.phy_lmake_root_s  )) << '\n' ;
-		if (+job_space.lmake_view_s ) res << ",\tlmake_view     = " << mk_py_str(no_slash(job_space.lmake_view_s )) << '\n' ;
-		/**/                          res << ",\tname           = " << mk_py_str(         job->name()             ) << '\n' ;
-		if (ade.readdir_ok          ) res << ",\treaddir_ok     = " << mk_py_str(         ade.readdir_ok          ) << '\n' ;
-		/**/                          res << ",\trepo_root      = " << mk_py_str(no_slash(*g_repo_root_s         )) << '\n' ;
-		if (+job_space.repo_view_s  ) res << ",\trepo_view      = " << mk_py_str(no_slash(job_space.repo_view_s  )) << '\n' ;
-		if (+jsrr.stdout            ) res << ",\tstdin          = " << mk_py_str(         jsrr.stdin              ) << '\n' ;
-		if (+jsrr.stdin             ) res << ",\tstdout         = " << mk_py_str(         jsrr.stdout             ) << '\n' ;
-		if (+ade.sub_repo_s         ) res << ",\tsub_repo       = " << mk_py_str(no_slash(ade.sub_repo_s         )) << '\n' ;
-		/**/                          res << ",\ttmp_dir        = " << mk_py_str(no_slash(tmp_dir_s              )) << '\n' ;
-		if (+job_space.tmp_view_s   ) res << ",\ttmp_view       = " << mk_py_str(no_slash(job_space.tmp_view_s   )) << '\n' ;
+		/**/                           res <<  "\tautodep_method = " << mk_py_str(snake   (jsrr.method             )) << '\n' ;
+		if (ade.auto_mkdir           ) res << ",\tauto_mkdir     = " << mk_py_str(         ade.auto_mkdir           ) << '\n' ;
+		if (+jsrr.chroot_info.dir_s  ) res << ",\tchroot_dir     = " << mk_py_str(no_slash(jsrr.chroot_info.dir_s  )) << '\n' ;
+		if (+jsrr.chroot_info.actions) res << ",\tchroot_actions = " << mk_py_str(cat     (jsrr.chroot_info.actions)) << '\n' ;
+		/**/                           res << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s               )) << '\n' ;
+		/**/                           res << ",\tis_python      = " << mk_py_str(         job->rule()->is_python   ) << '\n' ;
+		/**/                           res << ",\tkey            = " << mk_py_str(         key                      ) << '\n' ;
+		/**/                           res << ",\tjob            = " <<                    +job                       << '\n' ;
+		/**/                           res << ",\tlink_support   = " << mk_py_str(snake   (ade.lnk_support         )) << '\n' ;
+		if (+jsrr.phy_lmake_root_s   ) res << ",\tlmake_root     = " << mk_py_str(no_slash(jsrr.phy_lmake_root_s   )) << '\n' ;
+		if (+job_space.lmake_view_s  ) res << ",\tlmake_view     = " << mk_py_str(no_slash(job_space.lmake_view_s  )) << '\n' ;
+		/**/                           res << ",\tname           = " << mk_py_str(         job->name()              ) << '\n' ;
+		if (ade.readdir_ok           ) res << ",\treaddir_ok     = " << mk_py_str(         ade.readdir_ok           ) << '\n' ;
+		/**/                           res << ",\trepo_root      = " << mk_py_str(no_slash(*g_repo_root_s          )) << '\n' ;
+		if (+job_space.repo_view_s   ) res << ",\trepo_view      = " << mk_py_str(no_slash(job_space.repo_view_s   )) << '\n' ;
+		if (+jsrr.stdout             ) res << ",\tstdin          = " << mk_py_str(         jsrr.stdin               ) << '\n' ;
+		if (+jsrr.stdin              ) res << ",\tstdout         = " << mk_py_str(         jsrr.stdout              ) << '\n' ;
+		if (+ade.sub_repo_s          ) res << ",\tsub_repo       = " << mk_py_str(no_slash(ade.sub_repo_s          )) << '\n' ;
+		/**/                           res << ",\ttmp_dir        = " << mk_py_str(no_slash(tmp_dir_s               )) << '\n' ;
+		if (+job_space.tmp_view_s    ) res << ",\ttmp_view       = " << mk_py_str(no_slash(job_space.tmp_view_s    )) << '\n' ;
 		//
 		res << ",\tcmd =\n" << mk_py_str(jsrr.cmd) <<'\n' ;
 		//
@@ -922,18 +922,18 @@ namespace Engine {
 									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                                ) ;
 								}
 								//
-								if (+start.chroot_info.dir_s     ) push_entry( "chroot_dir"    , no_slash (start.chroot_info.dir_s     ) ) ;
-								if (+start.chroot_info.action    ) push_entry( "chroot_action" , snake_str(start.chroot_info.action    ) ) ;
-								if (+start.phy_lmake_root_s      ) push_entry( "lmake_root"    , no_slash (start.phy_lmake_root_s      ) ) ;
-								if (+start.job_space.lmake_view_s) push_entry( "lmake_view"    , no_slash (start.job_space.lmake_view_s) ) ;
-								if (+start.job_space.repo_view_s ) push_entry( "repo_view"     , no_slash (start.job_space.repo_view_s ) ) ;
-								if (+start.job_space.tmp_view_s  ) push_entry( "tmp_view"      , no_slash (start.job_space.tmp_view_s  ) ) ;
-								if (+start.autodep_env.sub_repo_s) push_entry( "sub_repo"      , no_slash (start.autodep_env.sub_repo_s) ) ;
-								if ( start.autodep_env.readdir_ok) push_entry( "readdir_ok"    , "true"                                  ) ;
-								if ( start.autodep_env.auto_mkdir) push_entry( "auto_mkdir"    , "true"                                  ) ;
-								/**/                               push_entry( "autodep"       , snake_str(start.method)                 ) ;
-								if (+start.timeout               ) push_entry( "timeout"       , start.timeout.short_str()               ) ;
-								if ( start.use_script            ) push_entry( "use_script"    , "true"                                  ) ;
+								if (+start.chroot_info.dir_s     ) push_entry( "chroot_dir"     , no_slash (start.chroot_info.dir_s     ) ) ;
+								if (+start.chroot_info.actions   ) push_entry( "chroot_actions" , cat      (start.chroot_info.actions   ) ) ;
+								if (+start.phy_lmake_root_s      ) push_entry( "lmake_root"     , no_slash (start.phy_lmake_root_s      ) ) ;
+								if (+start.job_space.lmake_view_s) push_entry( "lmake_view"     , no_slash (start.job_space.lmake_view_s) ) ;
+								if (+start.job_space.repo_view_s ) push_entry( "repo_view"      , no_slash (start.job_space.repo_view_s ) ) ;
+								if (+start.job_space.tmp_view_s  ) push_entry( "tmp_view"       , no_slash (start.job_space.tmp_view_s  ) ) ;
+								if (+start.autodep_env.sub_repo_s) push_entry( "sub_repo"       , no_slash (start.autodep_env.sub_repo_s) ) ;
+								if ( start.autodep_env.readdir_ok) push_entry( "readdir_ok"     , "true"                                  ) ;
+								if ( start.autodep_env.auto_mkdir) push_entry( "auto_mkdir"     , "true"                                  ) ;
+								/**/                               push_entry( "autodep"        , snake_str(start.method)                 ) ;
+								if (+start.timeout               ) push_entry( "timeout"        , start.timeout.short_str()               ) ;
+								if ( start.use_script            ) push_entry( "use_script"     , "true"                                  ) ;
 								//
 								if      (job->backend==BackendTag::Local  ) SWEAR(sa.used_backend==BackendTag::Local) ;
 								else if (job->backend==BackendTag::Unknown) push_entry( "backend" , snake_str(sa.used_backend)                                         ) ;

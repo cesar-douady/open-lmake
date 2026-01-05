@@ -150,6 +150,7 @@ namespace Engine {
 		/**/                   bool/*updated*/ acquire( Zlvl               & dst , Py::Object const* py_src                                                      ) ;
 		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>         ) ;
 		template<UEnum      E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src                                                      ) ;
+		template<UEnum      E> bool/*updated*/ acquire( BitMap<E>          & dst , Py::Object const* py_src                                                      ) ;
 		//
 		template<        bool Env=false>                                         bool/*updated*/ acquire( ::string     & dst , Py::Object const* py_src ) ;
 		template<class T,bool Env=false> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vector<T  >& dst , Py::Object const* py_src ) ;
@@ -280,31 +281,31 @@ namespace Engine {
 	struct StartRsrcsAttrs {
 		static constexpr const char* Msg = "execution resources attributes" ;
 		void update( Py::Dict const& py_dct ) {
-			dyn_env = false ;                                                                            // update solves dynamic val
-			Attrs::acquire_from_dct( method        , py_dct , "autodep"                              ) ;
-			Attrs::acquire_from_dct( chk_abs_paths , py_dct , "check_abs_paths"                      ) ;
-			Attrs::acquire_from_dct( use_script    , py_dct , "use_script"                           ) ;
-			Attrs::acquire_from_dct( timeout       , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( chroot_dir_s  , py_dct , "chroot_dir"                           ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
-			Attrs::acquire_from_dct( chroot_action , py_dct , "chroot_action"                        ) ;
-			Attrs::acquire_from_dct( lmake_root_s  , py_dct , "lmake_root"                           ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
-			Attrs::acquire_env     ( env           , py_dct , "env"                                  ) ;
-			::sort(env) ;                                                                                // stabilize rsrcs crc
+			dyn_env = false ;                                                                             // update solves dynamic val
+			Attrs::acquire_from_dct( method         , py_dct , "autodep"                              ) ;
+			Attrs::acquire_from_dct( chk_abs_paths  , py_dct , "check_abs_paths"                      ) ;
+			Attrs::acquire_from_dct( use_script     , py_dct , "use_script"                           ) ;
+			Attrs::acquire_from_dct( timeout        , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( chroot_dir_s   , py_dct , "chroot_dir"                           ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
+			Attrs::acquire_from_dct( chroot_actions , py_dct , "chroot_actions"                       ) ;
+			Attrs::acquire_from_dct( lmake_root_s   , py_dct , "lmake_root"                           ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
+			Attrs::acquire_env     ( env            , py_dct , "env"                                  ) ;
+			::sort(env) ;                                                                                 // stabilize rsrcs crc
 		}
 		void mk_dyn(::uset_s const& dyn_keys) {
 			if (dyn_keys.contains("env")) dyn_env = true ;
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		bool          dyn_env       = false               ;
-		AutodepMethod method        = AutodepMethod::Dflt ;
-		bool          chk_abs_paths = false               ;
-		bool          use_script    = false               ;
-		Time::Delay   timeout       ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
-		::string      chroot_dir_s  ;
-		ChrootAction  chroot_action = {}                  ;
-		::string      lmake_root_s  ;
-		::vmap_ss     env           ;
+		bool          dyn_env        = false               ;
+		AutodepMethod method         = AutodepMethod::Dflt ;
+		bool          chk_abs_paths  = false               ;
+		bool          use_script     = false               ;
+		Time::Delay   timeout        ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
+		::string      chroot_dir_s   ;
+		ChrootActions chroot_actions ;
+		::string      lmake_root_s   ;
+		::vmap_ss     env            ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -717,7 +718,7 @@ namespace Engine {
 		}
 
 		template<UEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src ) {
-			if (!py_src          ) {                 return false/*updated*/ ; }
+			if (!py_src          ) return false/*updated*/ ;
 			if (*py_src==Py::None) {
 				if constexpr (requires(){E::Dflt;}) dst = E::Dflt ;
 				else                                dst = {}      ;
@@ -725,6 +726,16 @@ namespace Engine {
 			}
 			//
 			dst = mk_enum<E>(py_src->as_a<Py::Str>()) ;
+			return true ;
+		}
+
+		template<UEnum E> bool/*updated*/ acquire( BitMap<E>& dst , Py::Object const* py_src ) {
+			if (!py_src          )              return false/*updated*/ ;
+			if (*py_src==Py::None) { dst = {} ; return true /*.      */ ; }
+			//
+			if (py_src->is_a<Py::Str>()          )                                                                             dst  = mk_enum<E>(py_src->as_a<Py::Str>()) ;
+			else if (py_src->is_a<Py::Sequence>()) { dst = {} ; for( Py::Object const& py_val : py_src->as_a<Py::Sequence>() ) dst |= mk_enum<E>(py_val. as_a<Py::Str>()) ; }
+			else                                     throw cat("type error : ",py_src->type_name()," is not a str nor a list/tuple") ;
 			return true ;
 		}
 

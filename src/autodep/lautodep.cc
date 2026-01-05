@@ -24,7 +24,7 @@ enum class CmdFlag : uint8_t {
 	AutoMkdir
 ,	AutodepMethod
 ,	ChrootDir
-,	ChrootAction
+,	ChrootActions
 ,	Cwd
 ,	Env
 ,	KeepTmp
@@ -101,23 +101,23 @@ int main( int argc , char* argv[] ) {
 	//
 	Syntax<CmdKey,CmdFlag> syntax {{
 		// PER_AUTODEP_METHOD : complete doc on line below
-		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                       } }
-	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                   } }
-	,	{ CmdFlag::ChrootAction  , { .short_name='C' , .has_arg=true  , .doc="action to handle user when chroot, can be one of None or 'none', 'overwrite', 'merge'"                     } }
-	,	{ CmdFlag::Cwd           , { .short_name='d' , .has_arg=true  , .doc="current working directory in which to execute job"                                                         } }
-	,	{ CmdFlag::ReaddirOk     , { .short_name='D' , .has_arg=false , .doc="allow reading local non-ignored dirs"                                                                      } }
-	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                       } }
-	,	{ CmdFlag::KeepTmp       , { .short_name='k' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                        } }
-	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                           } }
-	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                      } }
-	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                      } }
-	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                      } }
-	,	{ CmdFlag::LmakeRoot     , { .short_name='r' , .has_arg=true  , .doc="open-lmake installation dir to use"                                                                        } }
-	,	{ CmdFlag::RepoView      , { .short_name='R' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                               } }
-	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                    } }
-	,	{ CmdFlag::TmpDir        , { .short_name='t' , .has_arg=true  , .doc="physical tmp dir"                                                                                          } }
-	,	{ CmdFlag::TmpView       , { .short_name='T' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                          } }
-	,	{ CmdFlag::Views         , { .short_name='V' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}" } }
+		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                         } }
+	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                     } }
+	,	{ CmdFlag::ChrootActions , { .short_name='C' , .has_arg=true  , .doc="list of actions (comma separated) to carry out when chroot, actions are among 'user_name' and 'resolv_conf'" } }
+	,	{ CmdFlag::Cwd           , { .short_name='d' , .has_arg=true  , .doc="current working directory in which to execute job"                                                           } }
+	,	{ CmdFlag::ReaddirOk     , { .short_name='D' , .has_arg=false , .doc="allow reading local non-ignored dirs"                                                                        } }
+	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                         } }
+	,	{ CmdFlag::KeepTmp       , { .short_name='k' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                          } }
+	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                             } }
+	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                        } }
+	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                        } }
+	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                        } }
+	,	{ CmdFlag::LmakeRoot     , { .short_name='r' , .has_arg=true  , .doc="open-lmake installation dir to use"                                                                          } }
+	,	{ CmdFlag::RepoView      , { .short_name='R' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                                 } }
+	,	{ CmdFlag::SourceDirs    , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                      } }
+	,	{ CmdFlag::TmpDir        , { .short_name='t' , .has_arg=true  , .doc="physical tmp dir"                                                                                            } }
+	,	{ CmdFlag::TmpView       , { .short_name='T' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                            } }
+	,	{ CmdFlag::Views         , { .short_name='V' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}"   } }
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
 	//
@@ -130,20 +130,20 @@ int main( int argc , char* argv[] ) {
 		::string tmp_dir      = cmd_line.flags[CmdFlag::TmpDir] ? cmd_line.flag_args[+CmdFlag::TmpDir] : get_env("TMPDIR") ;
 		::string lmake_root_s = *g_lmake_root_s                                                                            ;
 		// is_abs considers empty as relative, which is ok even without terminating /
-		throw_if( !cmd_line.args                                                                          , "no exe to launch"                                                       ) ;
-		throw_if(  cmd_line.flags[CmdFlag::ChrootDir] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
-		throw_if(  cmd_line.flags[CmdFlag::LmakeRoot] && !is_abs(cmd_line.flag_args[+CmdFlag::LmakeRoot]) , "lmake root must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeRoot] ) ;
-		throw_if(  cmd_line.flags[CmdFlag::LmakeView] && !is_abs(cmd_line.flag_args[+CmdFlag::LmakeView]) , "lmake view must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeView] ) ;
-		throw_if(  cmd_line.flags[CmdFlag::RepoView ] && !is_abs(cmd_line.flag_args[+CmdFlag::RepoView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RepoView ] ) ;
-		throw_if(  cmd_line.flags[CmdFlag::TmpView  ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
-		throw_if( !tmp_dir                                                                                , "tmp dir must be specified"                                              ) ;
-		throw_if(                                        !is_abs(tmp_dir                                ) , "tmp dir must be absolute : "   ,tmp_dir                                 ) ;
+		throw_if( !cmd_line.args                                                                              , "no exe to launch"                                                       ) ;
+		throw_if(  cmd_line.flags[CmdFlag::ChrootActions] && !cmd_line.flags[CmdFlag::ChrootDir]              , "chroot dir must be specified with chroot actions"                       ) ;
+		throw_if(  cmd_line.flags[CmdFlag::ChrootDir    ] && !is_abs(cmd_line.flag_args[+CmdFlag::ChrootDir]) , "chroot dir must be absolute : ",cmd_line.flag_args[+CmdFlag::ChrootDir] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::LmakeRoot    ] && !is_abs(cmd_line.flag_args[+CmdFlag::LmakeRoot]) , "lmake root must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeRoot] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::LmakeView    ] && !is_abs(cmd_line.flag_args[+CmdFlag::LmakeView]) , "lmake view must be absolute : ",cmd_line.flag_args[+CmdFlag::LmakeView] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::RepoView     ] && !is_abs(cmd_line.flag_args[+CmdFlag::RepoView ]) , "root view must be absolute : " ,cmd_line.flag_args[+CmdFlag::RepoView ] ) ;
+		throw_if(  cmd_line.flags[CmdFlag::TmpView      ] && !is_abs(cmd_line.flag_args[+CmdFlag::TmpView  ]) , "tmp view must be absolute : "  ,cmd_line.flag_args[+CmdFlag::TmpView  ] ) ;
+		throw_if( !tmp_dir                                                                                    , "tmp dir must be specified"                                              ) ;
+		throw_if(                                        !is_abs(tmp_dir                                    ) , "tmp dir must be absolute : "   ,tmp_dir                                 ) ;
 		//
 		/**/                                        jsrr.keep_tmp           =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
 		/**/                                        jsrr.key                =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method             = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
 		if (cmd_line.flags[CmdFlag::ChrootDir    ]) jsrr.chroot_info.dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
-		if (cmd_line.flags[CmdFlag::ChrootAction ]) jsrr.chroot_info.action = mk_enum<ChrootAction >(cmd_line.flag_args[+CmdFlag::ChrootAction ]) ;
 		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.phy_lmake_root_s   = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
 		else                                        jsrr.phy_lmake_root_s   =                        *g_lmake_root_s                              ;
 		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s  = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
@@ -158,7 +158,9 @@ int main( int argc , char* argv[] ) {
 		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
 		//
-		if (+jsrr.chroot_info.action) {
+		if (cmd_line.flags[CmdFlag::ChrootActions])
+			for( ::string const& a : split(cmd_line.flag_args[+CmdFlag::ChrootActions],',') ) jsrr.chroot_info.actions |= mk_enum<ChrootAction>(a) ;
+		if (+jsrr.chroot_info.actions[ChrootAction::UserName]) {
 			if ( uid_t uid=::getuid() ) { if ( struct passwd* pw=::getpwuid(uid) ) jsrr.chroot_info.user   = pw->pw_name ; }
 			if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) jsrr.chroot_info.group  = gr->gr_name ; }
 		}
