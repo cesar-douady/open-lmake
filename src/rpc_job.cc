@@ -1168,7 +1168,7 @@ bool JobSpace::enter(
 	uid_t uid = ::geteuid() ;                                                                                 // must be done before unshare that invents a new user
 	gid_t gid = ::getegid() ;                                                                                 // .
 	//
-	trace("creat",STR(creat),uid,gid,lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s) ;
+	trace("creat",STR(_force_creat),STR(creat_lmake),STR(creat_repo),STR(creat_tmp),::getuid(),uid,gid,lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s) ;
 	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	throw_unless( ::unshare(CLONE_NEWUSER|CLONE_NEWNS)==0 , "cannot create namespace : ",StrErr() ) ;
 	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -1185,13 +1185,13 @@ bool JobSpace::enter(
 		if (+chroot_dir) {                                                                                    // ... (ignore errors as dir may not exist)
 			::string upper   = work_dir_s+"upper" ;
 			::string root    = work_dir_s+"root"  ;
-			::string upper_s = with_slash(upper)  ; mk_dir_s(upper_s) ;
-			::string root_s  = with_slash(root )  ; mk_dir_s(root_s ) ;
-			if (creat_lmake)                                              { trace("mkdir",lmake_root_s) ; mk_dir_s(upper+lmake_root_s) ; }
-			if (creat_repo )                                              { trace("mkdir",repo_super_s) ; mk_dir_s(upper+repo_super_s) ; }
-			if (creat_tmp  )                                              { trace("mkdir",tmp_dir_s   ) ; mk_dir_s(upper+tmp_dir_s   ) ; }
-			for( ::string const& v_s  : creat_views_s )                   { trace("mkdir",v_s         ) ; mk_dir_s(upper+v_s         ) ; }
-			for( ::string const& sd_s : src_dirs_s    ) if (is_abs(sd_s)) { trace("mkdir",sd_s        ) ; mk_dir_s(upper+sd_s        ) ; }
+			::string upper_s = with_slash(upper)  ; trace("mkdir1",upper_s) ; mk_dir_s(upper_s) ;
+			::string root_s  = with_slash(root )  ; trace("mkdir2",root_s ) ; mk_dir_s(root_s ) ;
+			if (creat_lmake)                                              { trace("mkdir3",lmake_root_s) ; mk_dir_s(upper+lmake_root_s) ; }
+			if (creat_repo )                                              { trace("mkdir4",repo_super_s) ; mk_dir_s(upper+repo_super_s) ; }
+			if (creat_tmp  )                                              { trace("mkdir5",tmp_dir_s   ) ; mk_dir_s(upper+tmp_dir_s   ) ; }
+			for( ::string const& v_s  : creat_views_s )                   { trace("mkdir6",v_s         ) ; mk_dir_s(upper+v_s         ) ; }
+			for( ::string const& sd_s : src_dirs_s    ) if (is_abs(sd_s)) { trace("mkdir7",sd_s        ) ; mk_dir_s(upper+sd_s        ) ; }
 			//
 			_prepare_user( upper_s , chroot_info , uid , gid ) ;
 			//
@@ -1203,8 +1203,8 @@ bool JobSpace::enter(
 			chroot_dir = work_dir_s+"root" ;
 			//
 			::vector_s top_lvls = lst_dir_s("/"s) ;
+			trace("top_lvls",chroot_dir,top_lvls) ;
 			mk_dir_s(with_slash(chroot_dir)) ;
-			trace("top_lvls",top_lvls) ;
 			for( ::string const& f : top_lvls ) {
 				::string src_f       = "/"   + f             ;
 				::string src_f_s     = src_f + "/"           ;
@@ -1216,7 +1216,7 @@ bool JobSpace::enter(
 				||	( bind_tmp   &&                                                 src_f_s==tmp_dir_s    )
 				||	::any_of( views , [&](::pair_s<ViewDescr> const& vs_d) { return src_f_s==vs_d.first ; } ) // views are always bound
 				) {
-					trace("mkdir",private_f_s) ;
+					trace("mkdir8",private_f_s) ;
 					mk_dir_s(private_f_s) ;
 					continue ;                                                                                // these will be mounted below
 				}
@@ -1234,7 +1234,7 @@ bool JobSpace::enter(
 					/**/                                                   msg << " must be a top level dir or already exist (not yet implemented) : "<<d_s<<rm_slash ;
 					throw msg ;
 				}
-				trace("mkdir",d_s) ;
+				trace("mkdir9",d_s) ;
 				mk_dir_s(chroot_dir+d_s) ;
 			} ;
 			if (creat_lmake)                           do_view( "lmake_view" , lmake_root_s                 ) ;
@@ -1251,6 +1251,7 @@ bool JobSpace::enter(
 	auto mk_entry = [&]( ::string const& dir_s , ::string const& abs_dir_s , bool path_is_lcl ) {
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
 		if (path_is_lcl) report.emplace_back(no_slash(dir_s)) ;
+		trace("mkdir10",abs_dir_s) ;
 		mk_dir_s(abs_dir_s) ;
 	} ;
 	//
@@ -1313,11 +1314,11 @@ bool JobSpace::enter(
 		}
 	}
 	if (+chroot_dir) {
-		if (!dev_sys_mapped) { //!                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			{ ::string d_s = chroot_dir+"/dev/"  ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/" , user_trace ) ; }
-			{ ::string d_s = chroot_dir+"/sys/"  ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/" , user_trace ) ; }
-			{ ::string d_s = chroot_dir+"/proc/" ; mk_dir_s(d_s) ;                                             }
-		}//!                                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if (!dev_sys_mapped) { //!                                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			{ ::string d_s = chroot_dir+"/dev/"  ; trace("mkdir11",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/" , user_trace ) ; }
+			{ ::string d_s = chroot_dir+"/sys/"  ; trace("mkdir12",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/" , user_trace ) ; }
+			{ ::string d_s = chroot_dir+"/proc/" ; trace("mkdir13",d_s) ; mk_dir_s(d_s) ;                                             }
+		} //!                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//vvvvvvvvvvvvvvvvv
 		_chroot(chroot_dir) ;
 		//^^^^^^^^^^^^^^^^^
