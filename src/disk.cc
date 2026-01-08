@@ -430,7 +430,7 @@ namespace Disk {
 		return os<< "FileSig(" << to_hex(sig._val>>NBits<FileTag>) <<':'<< sig.tag() <<')' ;
 	}                                                                                        // END_OF_NO_COV
 
-	// START_OF_VERSIONING DAEMON_CACHE DIR_CACHE REPO
+	// START_OF_VERSIONING CACHE REPO
 	FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
 		switch (fi.tag()) {
 			case FileTag::None    :

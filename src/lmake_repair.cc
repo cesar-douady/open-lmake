@@ -12,8 +12,7 @@
 
 #include "lmake_server/makefiles.hh"
 
-using namespace Disk ;
-
+using namespace Disk   ;
 using namespace Engine ;
 
 struct RepairDigest {
@@ -85,8 +84,8 @@ RepairDigest repair(::string const& from_dir) {
 				t->actual_tflags = t.tflags ;
 			}
 			// adjust job_info
-			job_info.start.pre_start.job            = +job ;
-			job_info.start.submit_attrs.reason.node = 0    ;                                               // reason node is stored as a idx, not a name, cannot restore it
+			job_info.start.pre_start.job           = +job ;
+			job_info.start.submit_info.reason.node = 0    ;                                                // reason node is stored as a idx, not a name, cannot restore it
 			// restore job_data
 			job.record(job_info) ;
 			::string jn = job->name() ;

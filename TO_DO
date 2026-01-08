@@ -16,6 +16,7 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* lmake -v does not seem to work with SGE
 * bug Thomas
 	- lmake step A
 		-> needs X

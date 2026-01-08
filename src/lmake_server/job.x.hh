@@ -14,6 +14,16 @@ enum class AncillaryTag : uint8_t {
 ,	KeepTmp
 } ;
 
+// START_OF_VERSIONING REPO CACHE
+enum class JobInfoKind : uint8_t {
+	None
+,	Start
+,	End
+,	DepCrcs
+} ;
+// END_OF_VERSIONING
+using JobInfoKinds = BitMap<JobInfoKind> ;
+
 enum class JobMakeAction : uint8_t {
 	Wakeup                           // waited nodes are available
 ,	Status                           // target crcs are available
@@ -57,6 +67,9 @@ enum class SpecialStep : uint8_t { // ordered by increasing importance
 
 namespace Engine {
 
+	struct SubmitInfo ;
+	struct JobInfo    ;
+	struct JobInfo1   ;
 	struct Job        ;
 	struct JobExec    ;
 	struct JobTgt     ;
@@ -71,24 +84,6 @@ namespace Engine {
 
 namespace Engine {
 
-	struct JobInfo1
-	:	             ::variant< ::monostate/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ >
-	{	using Base = ::variant< ::monostate/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ > ;
-		using Kind = JobInfoKind ;
-		// cxtors & casts
-		using Base::variant ; // necessary for clang++-14
-		// accesses
-		/**/             Kind kind() const { return Kind(index()) ; }
-		template<Kind K> bool is_a() const { return index()==+K   ; }
-		//
-		JobInfoStart                      const& start   () const { return ::get<JobInfoStart                     >(self) ; }
-		JobInfoStart                           & start   ()       { return ::get<JobInfoStart                     >(self) ; }
-		JobEndRpcReq                      const& end     () const { return ::get<JobEndRpcReq                     >(self) ; }
-		JobEndRpcReq                           & end     ()       { return ::get<JobEndRpcReq                     >(self) ; }
-		::vector<::pair<Crc,bool/*err*/>> const& dep_crcs() const { return ::get<::vector<::pair<Crc,bool/*err*/>>>(self) ; }
-		::vector<::pair<Crc,bool/*err*/>>      & dep_crcs()       { return ::get<::vector<::pair<Crc,bool/*err*/>>>(self) ; }
-	} ;
-
 	struct Job : JobBase {
 		friend ::string& operator+=( ::string& , Job const ) ;
 		friend struct JobData ;
@@ -99,14 +94,7 @@ namespace Engine {
 		using MakeAction = JobMakeAction ;
 		using Step       = JobStep       ;
 		// statics
-		static void s_init() {
-			s_record_thread.open('J',
-				[](::pair<Job,JobInfo1> const& jji)->void {
-					Trace trace("s_record_thread",jji.first,jji.second.kind()) ;
-					jji.first.record(jji.second) ;
-				}
-			) ;
-		}
+		static void s_init() ;
 		// static data
 		static QueueThread<::pair<Job,JobInfo1>,true/*Flush*/,true/*QueueAccess*/> s_record_thread ;
 		// cxtors & casts
@@ -199,9 +187,9 @@ namespace Engine {
 		void            give_up    ( Req={} , bool report=true   )       ; // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
-		JobReport audit_end( ReqInfo&    , bool with_stats , ::string const& pfx    , MsgStderr const&           , uint16_t max_stderr_len=0 , Delay exe_time={} , bool retry=false ) const ;
-		JobReport audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx={} , ::string const& stderr={}  , uint16_t max_stderr_len=0 , Delay exe_time={} , bool retry=false ) const {
-			return audit_end( ri , with_stats , pfx , MsgStderr{.stderr=stderr} , max_stderr_len , exe_time , retry ) ;
+		JobReport audit_end( ReqInfo&    , bool with_stats , ::string const& pfx    , MsgStderr const&           , Delay exe_time={} , bool retry=false ) const ;
+		JobReport audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx={} , ::string const& stderr={}  , Delay exe_time={} , bool retry=false ) const {
+			return audit_end( ri , with_stats , pfx , MsgStderr{.stderr=stderr} , exe_time , retry ) ;
 		}
 		size_t hash() const {
 			Hash::Fnv fnv ;                                                // good enough
@@ -213,11 +201,13 @@ namespace Engine {
 			return +fnv ;
 		}
 		// data
-		in_addr_t   host       = 0 ;
-		CoarseDelay cost       ;                                           // exec time / average number of running job during execution
-		Tokens1     tokens1    = 0 ;
-		Pdate       start_date ;
-		Pdate       end_date   ;                                           // if no end_date, job is stil on going
+		CacheIdx    cache_idx1     = 0 ;                                   // 0 means no cache
+		Tokens1     tokens1        = 0 ;
+		uint16_t    max_stderr_len = 0 ;
+		in_addr_t   host           = 0 ;
+		CoarseDelay cost           ;                                       // exec time / average number of running job during execution
+		Pdate       start_date     ;
+		Pdate       end_date       ;                                       // if no end_date, job is stil on going
 	} ;
 
 }
@@ -303,6 +293,103 @@ namespace Engine {
 		bool             miss_live_out     :1 = false ;                //          1 bit , live_out info has not been sent to user
 	private :
 		Step _step:NBits<Step> = {} ;                                  //          3 bits
+	} ;
+
+	//
+	// JobInfo
+	//
+
+	struct SubmitInfo {
+		friend ::string& operator+=( ::string& , SubmitInfo const& ) ;
+		// services
+		SubmitInfo& operator|=(SubmitInfo const& si) {
+			// cache, deps and tag are independent of req but may not always be present
+			if (!cache_idx1  ) cache_idx1    =                si.cache_idx1   ; else if (+si.cache_idx1  ) SWEAR( cache_idx1  ==si.cache_idx1   , cache_idx1  ,si.cache_idx1   ) ;
+			if (!deps        ) deps          =                si.deps         ; else if (+si.deps        ) SWEAR( deps        ==si.deps         , deps        ,si.deps         ) ;
+			/**/               live_out     |=                si.live_out     ;
+			/**/               nice          = ::min(nice    ,si.nice     )   ;
+			/**/               pressure      = ::max(pressure,si.pressure )   ;
+			/**/               reason       |=                si.reason       ;
+			/**/               tokens1       = ::max(tokens1 ,si.tokens1  )   ;
+			if (!used_backend) used_backend  =                si.used_backend ; else if (+si.used_backend) SWEAR( used_backend==si.used_backend , used_backend,si.used_backend ) ;
+			return self ;
+		}
+		SubmitInfo operator|(SubmitInfo const& si) const {
+			SubmitInfo res = self ;
+			res |= si ;
+			return res ;
+		}
+		void cache_cleanup() ;
+		void chk(bool for_cache=false) const ;
+		// data
+		// START_OF_VERSIONING REPO CACHE
+		CacheIdx            cache_idx1   = 0     ; // 0 means no cache
+		::vmap_s<DepDigest> deps         = {}    ;
+		bool                live_out     = false ;
+		uint8_t             nice         = -1    ; // -1 means not specified
+		Time::CoarseDelay   pressure     = {}    ;
+		JobReason           reason       = {}    ;
+		Tokens1             tokens1      = 0     ;
+		BackendTag          used_backend = {}    ; // tag actually used (possibly made local because asked tag is not available)
+		// END_OF_VERSIONING
+	} ;
+
+	struct JobInfoStart {
+		friend ::string& operator+=( ::string& , JobInfoStart const& ) ;
+		// accesses
+		bool operator+() const { return +pre_start ; }
+		// services
+		void cache_cleanup() ;                 // clean up info before uploading to cache
+		void chk(bool for_cache=false) const ;
+		// data
+		// START_OF_VERSIONING REPO CACHE
+		Hash::Crc        rule_crc_cmd = {} ;
+		::vector_s       stems        = {} ;
+		Time::Pdate      eta          = {} ;
+		SubmitInfo       submit_info  = {} ;
+		::vmap_ss        rsrcs        = {} ;
+		JobStartRpcReq   pre_start    = {} ;
+		JobStartRpcReply start        = {} ;
+		// END_OF_VERSIONING
+	} ;
+
+	struct JobInfo {
+		JobInfo() = default ;
+		JobInfo( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) { fill_from(ancillary_file,need) ; }
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , start,end,dep_crcs ) ;
+		}
+		void fill_from( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) ;
+		//
+		void update_digest(                    ) ;         // update crc in digest from dep_crcs
+		void cache_cleanup(                    ) ;         // clean up info before uploading to cache
+		void chk          (bool for_cache=false) const ;
+		// data
+		// START_OF_VERSIONING REPO CACHE
+		JobInfoStart                            start    ;
+		JobEndRpcReq                            end      ;
+		::vector<::pair<Hash::Crc,bool/*err*/>> dep_crcs ; // optional, if not provided in end.digest.deps
+		// END_OF_VERSIONING
+	} ;
+	::string cache_repo_cmp( JobInfo const& info_cache , JobInfo const& info_repo ) ;
+
+	struct JobInfo1
+	:	             ::variant< ::monostate/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ >
+	{	using Base = ::variant< ::monostate/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ > ;
+		using Kind = JobInfoKind ;
+		// cxtors & casts
+		using Base::variant ; // necessary for clang++-14
+		// accesses
+		/**/             Kind kind() const { return Kind(index()) ; }
+		template<Kind K> bool is_a() const { return index()==+K   ; }
+		//
+		JobInfoStart                      const& start   () const { return ::get<JobInfoStart                     >(self) ; }
+		JobInfoStart                           & start   ()       { return ::get<JobInfoStart                     >(self) ; }
+		JobEndRpcReq                      const& end     () const { return ::get<JobEndRpcReq                     >(self) ; }
+		JobEndRpcReq                           & end     ()       { return ::get<JobEndRpcReq                     >(self) ; }
+		::vector<::pair<Crc,bool/*err*/>> const& dep_crcs() const { return ::get<::vector<::pair<Crc,bool/*err*/>>>(self) ; }
+		::vector<::pair<Crc,bool/*err*/>>      & dep_crcs()       { return ::get<::vector<::pair<Crc,bool/*err*/>>>(self) ; }
 	} ;
 
 }
@@ -508,6 +595,15 @@ namespace Engine {
 		return +self && self->is_plain(frozen_ok) ;
 	}
 
+	inline void Job::s_init() {
+		s_record_thread.open('J',
+			[](::pair<Job,JobInfo1> const& jji)->void {
+				Trace trace("s_record_thread",jji.first,jji.second.kind()) ;
+				jji.first.record(jji.second) ;
+			}
+		) ;
+	}
+
 	//
 	// JobTgt
 	//
@@ -561,7 +657,7 @@ namespace Engine {
 		return Rule::RuleMatch(idx()) ;
 	}
 
-	inline void JobData::estimate_stats() {                                                        // can be called any time, but only record on first time, so cost stays stable during job execution
+	inline void JobData::estimate_stats() {                                                       // can be called any time, but only record on first time, so cost stays stable during job execution
 		if (_reliable_stats!=No) return ;
 		if (!has_targets()     ) return ;
 		Rule r = rule() ;
@@ -569,7 +665,7 @@ namespace Engine {
 		cost    ()      = r->cost()   ;
 		_reliable_stats = Maybe       ;
 	}
-	inline void JobData::estimate_stats( Tokens1 tokens1 ) {                                       // only called before submit, so cost stays stable during job execution
+	inline void JobData::estimate_stats( Tokens1 tokens1 ) {                                      // only called before submit, so cost stays stable during job execution
 		if (_reliable_stats==Yes) return ;
 		if (!has_targets()      ) return ;
 		Rule r = rule() ;
@@ -597,7 +693,9 @@ namespace Engine {
 	}
 
 	template<class... A> void JobData::audit_end(A&&... args) const {
-		JobExec(idx(),New).audit_end(::forward<A>(args)...) ;
+		JobExec je { idx() , New } ;
+		je.max_stderr_len = rule()->start_ancillary_attrs.spec.max_stderr_len ; // in case it is not dynamic
+		je.audit_end(::forward<A>(args)...) ;
 	}
 
 	inline bool JobData::sure() const {

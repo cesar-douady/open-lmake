@@ -38,12 +38,10 @@ pid_t  get_ppid (pid_t pid) ;
 mode_t get_umask(         ) ;
 
 struct Child {
-	static constexpr size_t StackSz = 16<<10 ;                       // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k
+	static constexpr size_t StackSz = 16<<10 ; // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k
 	static constexpr Fd     NoneFd  { -1 }   ;
 	static constexpr Fd     PipeFd  { -2 }   ;
-	static constexpr Fd     JoinFd  { -3 }   ;                       // used on sderr to join to stdout
-	// statics
-	[[noreturn]] static int _s_do_child_trampoline(void* self_) { reinterpret_cast<Child*>(self_)->_do_child_trampoline() ; }
+	static constexpr Fd     JoinFd  { -3 }   ; // used on sderr to join to stdout
 	// cxtors & casts
 	~Child() {
 		swear_prod(pid==0,"bad pid",pid) ;
@@ -73,9 +71,7 @@ struct Child {
 	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
 	bool         is_alive(       ) const { return ::kill(pid,0/*sig*/)==0                      ; }
 private :
-	[[noreturn]] void _do_child           (                      ) ;
-	[[noreturn]] void _do_child_trampoline(                      ) ; // used when creating a new pid namespace : we need an intermediate process as the init process
-	[[noreturn]] void _exit               ( Rc , const char* msg ) ;
+	[[noreturn]] void _exit( Rc , const char* msg , const char* msg_dir_s=nullptr ) ;
 	//data
 public :
 	// spawn parameters
@@ -84,9 +80,8 @@ public :
 	::vector_s      cmd_line           = {}         ;
 	::string        cwd_s              = {}         ;
 	::map_ss const* env                = nullptr    ;
-	pid_t           first_pid          = 0          ;
 	uint8_t         nice               = 0          ;
-	int/*rc*/       (*pre_exec)(void*) = nullptr    ;                // if no cmd_line, this is the entire function exec'ed as child returning the exit status
+	int/*rc*/       (*pre_exec)(void*) = nullptr    ;                                     // if no cmd_line, this is the entire function exec'ed as child returning the exit status
 	void*           pre_exec_arg       = nullptr    ;
 	Fd              stderr             = Fd::Stderr ;
 	Fd              stdin              = Fd::Stdin  ;
@@ -97,8 +92,8 @@ public :
 	Pipe         _p2c        = {}      ;
 	Pipe         _c2po       = {}      ;
 	Pipe         _c2pe       = {}      ;
-	const char** _child_args = nullptr ;                             // all memory must be allocated before clone/fork/vfork is called
-	const char** _child_env  = nullptr ;                             // .
+	const char** _child_args = nullptr ;                                                  // all memory must be allocated before clone/fork/vfork is called
+	const char** _child_env  = nullptr ;                                                  // .
 } ;
 
 struct AutoServerBase {

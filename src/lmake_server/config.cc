@@ -7,12 +7,11 @@
 
 #include "re.hh"
 
-using namespace Caches ;
-using namespace Disk   ;
-using namespace Hash   ;
-using namespace Py     ;
-using namespace Re     ;
-using namespace Time   ;
+using namespace Disk ;
+using namespace Hash ;
+using namespace Py   ;
+using namespace Re   ;
+using namespace Time ;
 
 namespace Engine {
 

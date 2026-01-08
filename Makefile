@@ -492,9 +492,8 @@ COMPILE_O = $(COMPILE) -c -frtti -fPIC
 		$< 2>/dev/null || :
 
 SLURM_SRCS := $(patsubst ext/slurm/%/slurm/slurm.h,src/lmake_server/backends/slurm_api-%.cc,$(filter ext/slurm/%/slurm/slurm.h,$(SRCS)))
-CACHE_SRCS := $(patsubst %.cc,%-light.cc,$(filter src/caches/%.cc,$(SRCS)))
 #
-DEP_SRCS   := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(SLURM_SRCS) $(CACHE_SRCS)
+DEP_SRCS   := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(SLURM_SRCS)
 include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
 
 #
@@ -507,14 +506,6 @@ src/lmake_server/backends/slurm_api-%.cc : ext/slurm/%/META
 	@{	awk '/API_CURRENT/ {api_current=$$2} ; /API_AGE/ {api_age=$$2} ; END {printf("#define SLURM_API_VERSION_NUMBER %d\n",api_current-api_age)}' $< ; \
 		echo '#include "slurm_api.x.cc"'                                                                                                               ; \
 	} >$@
-
-#
-# cache
-#
-
-src/caches/%-light.cc :
-	@echo generate $@
-	@{ echo '#define CACHE_LIGHT 1' ; echo '#include "$(@:src/caches/%-light.cc=%.cc)"' ; } >$@
 
 #
 # lmake
@@ -532,8 +523,9 @@ SERVER_COMMON_SAN_OBJS := \
 	src/rpc_job$(SAN).o             \
 	src/rpc_job_exec$(SAN).o        \
 	src/version$(SAN).o             \
+	src/zfd$(SAN).o                 \
 	src/autodep/env$(SAN).o         \
-	src/caches/daemon_cache$(SAN).o
+	src/cache/rpc_cache$(SAN).o
 
 BACKEND_SAN_OBJS := \
 	src/lmake_server/backends/local$(SAN).o  \
@@ -559,6 +551,7 @@ SERVER_SAN_OBJS := \
 	src/autodep/record$(SAN).o         \
 	src/autodep/syscall_tab$(SAN).o    \
 	src/lmake_server/backend$(SAN).o   \
+	src/lmake_server/cache$(SAN).o     \
 	src/lmake_server/cmd$(SAN).o       \
 	src/lmake_server/global$(SAN).o    \
 	src/lmake_server/config$(SAN).o    \
@@ -572,17 +565,18 @@ SERVER_SAN_OBJS := \
 	src/lmake_server/store$(SAN).o
 
 CACHE_SAN_OBJS := \
-	$(LMAKE_BASIC_SAN_OBJS)                            \
-	src/app$(SAN).o                                    \
-	src/py$(SAN).o                                     \
-	src/re$(SAN).o                                     \
-	src/real_path$(SAN).o                              \
-	src/rpc_job$(SAN).o                                \
-	src/version$(SAN).o                                \
-	src/autodep/env$(SAN).o                            \
-	src/caches/daemon_cache$(SAN).o                    \
-	src/caches/daemon_cache/engine$(SAN).o             \
-	src/caches/daemon_cache/daemon_cache_utils$(SAN).o
+	$(LMAKE_BASIC_SAN_OBJS)       \
+	src/app$(SAN).o               \
+	src/py$(SAN).o                \
+	src/re$(SAN).o                \
+	src/real_path$(SAN).o         \
+	src/rpc_job$(SAN).o           \
+	src/version$(SAN).o           \
+	src/zfd$(SAN).o               \
+	src/autodep/env$(SAN).o       \
+	src/cache/rpc_cache$(SAN).o   \
+	src/cache/engine$(SAN).o      \
+	src/cache/cache_utils$(SAN).o
 
 bin/lmake_server : \
 	$(SERVER_SAN_OBJS)  \
@@ -591,7 +585,7 @@ bin/lmake_server : \
 
 bin/lmake_repair : $(SERVER_SAN_OBJS) $(BACKEND_SAN_OBJS) src/lmake_repair$(SAN).o # lmake_repair must be aware of existing backends
 _bin/lmake_dump  : $(SERVER_SAN_OBJS)                     src/lmake_dump$(SAN).o
-_bin/lcache_dump : $(CACHE_SAN_OBJS)                      src/lcache_dump$(SAN).o
+_bin/lcache_dump : $(CACHE_SAN_OBJS)                      src/cache/lcache_dump$(SAN).o
 _bin/lkpi        : $(SERVER_SAN_OBJS)                     src/lkpi$(SAN).o
 
 LMAKE_DBG_FILES += bin/lmake_server bin/lmake_repair _bin/lmake_dump _bin/lcache_dump _bin/lkpi
@@ -601,28 +595,20 @@ bin/lmake_server bin/lmake_repair _bin/lmake_dump _bin/lcache_dump _bin/lkpi :
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-bin/lcache_server : $(CACHE_SAN_OBJS) src/caches/daemon_cache/ldaemon_cache_server$(SAN).o
+bin/lcache_server : $(CACHE_SAN_OBJS) src/cache/lcache_server$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 bin/lcache_repair : \
-	$(LMAKE_BASIC_SAN_OBJS)                            \
-	src/app$(SAN).o                                    \
-	src/py$(SAN).o                                     \
-	src/re$(SAN).o                                     \
-	src/real_path$(SAN).o                              \
-	src/rpc_job$(SAN).o                                \
-	src/version.o                                      \
-	src/autodep/env$(SAN).o                            \
-	src/caches/daemon_cache$(SAN).o                    \
-	src/caches/daemon_cache/engine$(SAN).o             \
-	src/caches/daemon_cache/daemon_cache_utils$(SAN).o \
-	src/caches/daemon_cache/ldaemon_cache_repair$(SAN).o
+	$(SERVER_SAN_OBJS)              \
+	src/cache/engine$(SAN).o        \
+	src/cache/cache_utils$(SAN).o   \
+	src/cache/lcache_repair$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 bin/lcollect : $(CLIENT_SAN_OBJS) src/lcollect$(SAN).o
@@ -647,10 +633,10 @@ bin/ldebug :
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/ldump_job
-_bin/ldump_job : $(SERVER_COMMON_SAN_OBJS) src/ldump_job$(SAN).o
+_bin/ldump_job : $(SERVER_SAN_OBJS) src/ldump_job$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/align_comments
@@ -704,15 +690,16 @@ REMOTE_OBJS  := \
 
 # XXX! : make job_exec compatible with SAN
 #JOB_EXEC_SAN_OBJS := \
-#	$(AUTODEP_SAN_OBJS)             \
-#	src/app$(SAN).o                 \
-#	src/non_portable$(SAN).o        \
-#	src/re$(SAN).o                  \
-#	src/rpc_job$(SAN).o             \
-#	src/autodep/gather$(SAN).o      \
-#	src/autodep/ptrace$(SAN).o      \
-#	src/autodep/record$(SAN).o      \
-#	src/caches/daemon_cache$(SAN).o
+#	$(AUTODEP_SAN_OBJS)         \
+#	src/app$(SAN).o             \
+#	src/non_portable$(SAN).o    \
+#	src/re$(SAN).o              \
+#	src/rpc_job$(SAN).o         \
+#	src/zfd$(SAN).o             \
+#	src/autodep/gather$(SAN).o  \
+#	src/autodep/ptrace$(SAN).o  \
+#	src/autodep/record$(SAN).o  \
+#	src/cache/rpc_cache$(SAN).o
 
 #_bin/job_exec : $(JOB_EXEC_SAN_OBJS)                src/job_exec$(SAN).o
 #bin/lautodep  : $(JOB_EXEC_SAN_OBJS) src/py$(SAN).o src/autodep/lautodep$(SAN).o
@@ -725,15 +712,16 @@ REMOTE_OBJS  := \
 #	@$(SPLIT_DBG_CMD)
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)                 \
-	src/app.o                       \
-	src/non_portable.o              \
-	src/re.o                        \
-	src/rpc_job.o                   \
-	src/autodep/gather.o            \
-	src/autodep/ptrace.o            \
-	src/autodep/record.o            \
-	src/caches/daemon_cache-light.o
+	$(AUTODEP_OBJS)       \
+	src/app.o             \
+	src/non_portable.o    \
+	src/re.o              \
+	src/rpc_job.o         \
+	src/zfd.o             \
+	src/autodep/gather.o  \
+	src/autodep/ptrace.o  \
+	src/autodep/record.o  \
+	src/cache/rpc_cache.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS)          src/job_exec.o
 bin/lautodep  : $(JOB_EXEC_OBJS) src/py.o src/autodep/lautodep.o

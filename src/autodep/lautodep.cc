@@ -169,7 +169,6 @@ int main( int argc , char* argv[] ) {
 		jsrr.interpreter             = ::move(cmd_line.args)              ;
 		jsrr.enter(
 			/*out  */::ref(::vector_s())
-		,	/*.    */gather.first_pid
 		,	/*.    */::ref(::string                ())/*repo_root_s*/
 		,	/*inout*/::ref(::vector<UserTraceEntry>())
 		,	         *g_repo_root_s

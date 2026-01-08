@@ -186,7 +186,6 @@ public :
 	Time::Delay                               ddate_prec       ;
 	PD                                        end_date         ;
 	::map_ss const*                           env              = nullptr             ;
-	pid_t                                     first_pid        = 0                   ;
 	uset_s                                    guards           ;                       // dir creation/deletion that must be guarded against NFS
 	JobIdx                                    job              = 0                   ;
 	::vector<uint8_t>                         kill_sigs        ;                       // signals used to kill job

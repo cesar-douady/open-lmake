@@ -16,9 +16,9 @@
 #include "store/prefix.hh"
 #include "store/vector.hh"
 
-#include "caches/daemon_cache.hh"
+#include "cache/rpc_cache.hh"
 
-using namespace Caches ;
+using namespace Cache ;
 
 struct Ckey      ;
 struct Cjob      ;
@@ -33,17 +33,18 @@ struct CnodeData ;
 // globals
 //
 
-extern DaemonCache::Config g_config      ;
-extern Disk::DiskSz        g_reserved_sz ;
+extern CacheConfig  g_cache_config ;
+extern Disk::DiskSz g_reserved_sz  ;
 
 //
 // free functions
 //
 
-void       daemon_cache_init    ( bool rescue , bool read_only=false ) ;
-void       daemon_cache_finalize(                                    ) ;
-bool/*ok*/ mk_room              ( Disk::DiskSz , Cjob keep_job       ) ;
-bool/*ok*/ mk_room              ( Disk::DiskSz                       ) ;
+::string   store_dir_s   ( bool for_bck=false                 ) ;
+void       cache_init    ( bool rescue , bool read_only=false ) ;
+void       cache_finalize(                                    ) ;
+bool/*ok*/ mk_room       ( Disk::DiskSz , Cjob keep_job       ) ;
+bool/*ok*/ mk_room       ( Disk::DiskSz                       ) ;
 
 //
 // structs
@@ -132,7 +133,7 @@ struct DaemonCacheMrkr {} ;
 using Cnodes = Vector::Simple<CnodesIdx,Cnode    ,DaemonCacheMrkr> ;
 using Ccrcs  = Vector::Simple<CcrcsIdx ,Hash::Crc,DaemonCacheMrkr> ;
 
-// START_OF_VERSIONING DAEMON_CACHE
+// START_OF_VERSIONING CACHE
 struct LruEntry {
 	friend ::string& operator+=( ::string& , LruEntry const& ) ;
 	// accesses
@@ -153,7 +154,7 @@ struct CkeyData {
 	// services
 	bool operator==(CkeyData const&) const = default ;
 	// data
-	// START_OF_VERSIONING DAEMON_CACHE
+	// START_OF_VERSIONING CACHE
 	CrunIdx ref_cnt = 0 ;
 	// END_OF_VERSIONING
 } ;
@@ -175,7 +176,7 @@ struct CjobData {
 	) ;
 	void victimize() ;
 	// data
-	// START_OF_VERSIONING DAEMON_CACHE
+	// START_OF_VERSIONING CACHE
 	LruEntry lru       ;
 	uint16_t n_runs    = 0 ;
 	VarIdx   n_statics = 0 ;
@@ -185,7 +186,7 @@ private :
 } ;
 
 struct CrunHdr {
-	// START_OF_VERSIONING DAEMON_CACHE
+	// START_OF_VERSIONING CACHE
 	LruEntry     lrus[NRates] ;
 	Disk::DiskSz total_sz     = 0  ;
 	// END_OF_VERSIONING
@@ -202,13 +203,13 @@ struct CrunData {
 	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
 	// accesses
 	Crun     idx (    ) const ;
-	::string name(Cjob) const { return DaemonCache::s_run_dir( job->name() , +key , key_is_last ) ; }
+	::string name(Cjob) const { return run_dir( job->name() , +key , key_is_last ) ; }
 	// services
 	void         access   (                                                     )       ; // move to top in LRU (both job and glb)
 	void         victimize( bool victimize_job=true                             )       ; // if victimize_job, victimize job if last run
 	CacheHitInfo match    ( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) const ;
 	// data
-	// START_OF_VERSIONING DAEMON_CACHE
+	// START_OF_VERSIONING CACHE
 	Time::Pdate  last_access ;
 	Disk::DiskSz sz          = 0                ;                                         // size occupied by run
 	LruEntry     glb_lru     ;                                                            // global LRU within rate
@@ -247,14 +248,14 @@ struct CnodeData {
 	void dec      () { SWEAR(ref_cnt) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }
 	void victimize() ;
 	// data
-	// START_OF_VERSIONING DAEMON_CACHE
+	// START_OF_VERSIONING CACHE
 	CjobIdx ref_cnt = 0 ;
 private :
 	CnodeName _name ;
 	// END_OF_VERSIONING
 } ;
 
-// START_OF_VERSIONING DAEMON_CACHE
+// START_OF_VERSIONING CACHE
 //                                           ThreadKey header     index       n_index_bits        key    data        misc
 using CkeyFile      = Store::SinglePrefixFile< '='   , void     , Ckey      , NCkeyIdxBits      , char , CkeyData                                     > ;
 using CjobNameFile  = Store::SinglePrefixFile< '='   , void     , CjobName  , NCjobNameIdxBits  , char , Cjob                                         > ;

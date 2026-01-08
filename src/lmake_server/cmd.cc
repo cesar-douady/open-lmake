@@ -911,15 +911,15 @@ namespace Engine {
 							if (job->cache_hit_info!=CacheHitInfo::NoCache) push_entry( "cache hit info" , CacheHitInfoStrs[+job->cache_hit_info].second ) ;
 							if (+start) {
 								JobInfoStart const& rs       = job_info.start          ;
-								SubmitAttrs  const& sa       = rs.submit_attrs         ;
-								::string            pressure = sa.pressure.short_str() ;
+								SubmitInfo   const& si       = rs.submit_info          ;
+								::string            pressure = si.pressure.short_str() ;
 								//
-								if (+sa.reason            ) push_entry( "reason" , localize(reason_str(sa.reason),su)     ) ;
+								if (+si.reason            ) push_entry( "reason" , localize(reason_str(si.reason),su)     ) ;
 								if (pre_start.service.addr) push_entry( "host"   , SockFd::s_host(pre_start.service.addr) ) ;
 								//
 								if (+rs.eta) {
-									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(sa.pressure))+" )"      , Color::None,false/*protect*/ ) ;
-									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   sa.pressure.short_str()                                ) ;
+									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(si.pressure))+" )"      , Color::None,false/*protect*/ ) ;
+									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   si.pressure.short_str()                                ) ;
 								}
 								//
 								if (+start.chroot_info.dir_s     ) push_entry( "chroot_dir"     , no_slash (start.chroot_info.dir_s     ) ) ;
@@ -935,10 +935,10 @@ namespace Engine {
 								if (+start.timeout               ) push_entry( "timeout"        , start.timeout.short_str()               ) ;
 								if ( start.use_script            ) push_entry( "use_script"     , "true"                                  ) ;
 								//
-								if      (job->backend==BackendTag::Local  ) SWEAR(sa.used_backend==BackendTag::Local) ;
-								else if (job->backend==BackendTag::Unknown) push_entry( "backend" , snake_str(sa.used_backend)                                         ) ;
-								else if (sa.used_backend==job->backend    ) push_entry( "backend" , snake_str(job->backend   )                                         ) ;
-								else                                        push_entry( "backend" , snake_str(job->backend   )+" -> "+sa.used_backend , Color::Warning ) ;
+								if      (job->backend==BackendTag::Local  ) SWEAR(si.used_backend==BackendTag::Local) ;
+								else if (job->backend==BackendTag::Unknown) push_entry( "backend" , snake_str(si.used_backend)                                         ) ;
+								else if (si.used_backend==job->backend    ) push_entry( "backend" , snake_str(job->backend   )                                         ) ;
+								else                                        push_entry( "backend" , snake_str(job->backend   )+" -> "+si.used_backend , Color::Warning ) ;
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;

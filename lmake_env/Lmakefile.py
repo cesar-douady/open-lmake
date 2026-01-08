@@ -426,12 +426,13 @@ class LinkAutodep(LinkPython,LinkAutodepEnv) :
 	deps = {
 		'REAL_PATH'    : 'src/real_path.o'
 	,	'RPC_JOB'      : 'src/rpc_job.o'
+	,	'ZFD'          : 'src/zfd.o'
 	,	'BACKDOOR'     : 'src/autodep/backdoor.o'
 	,	'GATHER'       : 'src/autodep/gather.o'
 	,	'PTRACE'       : 'src/autodep/ptrace.o'
 	,	'RECORD'       : 'src/autodep/record.o'
 	,	'SYSCALL'      : 'src/autodep/syscall_tab.o'
-	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o'
+	,	'RPC_CACHE'    : 'src/cache/rpc_cache.o'
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
 	,	'RPC_CLIENT'   : None
 	}
@@ -452,34 +453,36 @@ class LinkAutodepExe(LinkAutodep,LinkAppExe) :
 class LinkJobExecExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/job_exec'  }
 	deps    = {
-		'DAEMON_CACHE'       : None
-	,	'DAEMON_CACHE_LIGHT' : 'src/caches/daemon_cache-light.o'
-	,	'MAIN'               : 'src/job_exec.o'
+		'CACHE'     : None
+	,	'RPC_CACHE' : 'src/cache/rpc_cache.o'
+	,	'MAIN'      : 'src/job_exec.o'
 	}
 
 class LinkLmakeServerExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : 'bin/lmake_server' }
 	deps = {
-		'RPC_CLIENT'   : 'src/rpc_client.o'
-	,	'RPC_JOB'      : 'src/rpc_job.o'                     # lmake_repair must be aware of existing backends
-	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o'
-	,	'LD'           : 'src/autodep/ld_server.o'
-	,	'BE'           : 'src/lmake_server/backend.o'
-	,	'BE_LOCAL'     : 'src/lmake_server/backends/local.o'
-	#,	'BE_SLURM'     : 'src/lmake_server/backends/slurm.o' # XXX : add slurm compilation
-	#,	'BE_SGE'       : 'src/lmake_server/backends/sge.o'   # XXX : add sge compilation
-	,	'CMD'          : 'src/lmake_server/cmd.o'
-	,	'GLOBAL'       : 'src/lmake_server/global.o'
-	,	'CONFIG'       : 'src/lmake_server/config.o'
-	,	'JOB'          : 'src/lmake_server/job.o'
-	,	'JOB_DATA'     : 'src/lmake_server/job_data.o'
-	,	'MAKEFILES'    : 'src/lmake_server/makefiles.o'
-	,	'NODE'         : 'src/lmake_server/node.o'
-	,	'REQ'          : 'src/lmake_server/req.o'
-	,	'RULE'         : 'src/lmake_server/rule.o'
-	,	'RULE_DATA'    : 'src/lmake_server/rule_data.o'
-	,	'STORE'        : 'src/lmake_server/store.o'
-	,	'MAIN'         : 'src/lmake_server/main.o'
+		'RPC_CLIENT' : 'src/rpc_client.o'
+	,	'RPC_JOB'    : 'src/rpc_job.o'                     # lmake_repair must be aware of existing backends
+	,	'ZFD'        : 'src/zfd.o'
+	,	'LD'         : 'src/autodep/ld_server.o'
+	,	'RPC_CACHE'  : 'src/cache/rpc_cache.o'
+	,	'BE'         : 'src/lmake_server/backend.o'
+	,	'BE_LOCAL'   : 'src/lmake_server/backends/local.o'
+	#,	'BE_SLURM'   : 'src/lmake_server/backends/slurm.o' # XXX : add slurm compilation
+	#,	'BE_SGE'     : 'src/lmake_server/backends/sge.o'   # XXX : add sge compilation
+	,	'CMD'        : 'src/lmake_server/cmd.o'
+	,	'GLOBAL'     : 'src/lmake_server/global.o'
+	,	'CONFIG'     : 'src/lmake_server/config.o'
+	,	'JOB'        : 'src/lmake_server/job.o'
+	,	'JOB_DATA'   : 'src/lmake_server/job_data.o'
+	,	'CACHE'      : 'src/lmake_server/cache.o'
+	,	'MAKEFILES'  : 'src/lmake_server/makefiles.o'
+	,	'NODE'       : 'src/lmake_server/node.o'
+	,	'REQ'        : 'src/lmake_server/req.o'
+	,	'RULE'       : 'src/lmake_server/rule.o'
+	,	'RULE_DATA'  : 'src/lmake_server/rule_data.o'
+	,	'STORE'      : 'src/lmake_server/store.o'
+	,	'MAIN'       : 'src/lmake_server/main.o'
 	}
 	need_compress = True
 
@@ -489,33 +492,49 @@ class LinkLmakeRepairExe(LinkLmakeServerExe) :
 		'MAIN' : 'src/lmake_repair.o' # lmake_repair is a server with another main
 	}
 
-class LinkLMakeDumpExe(LinkAutodep,LinkAppExe) :
+class LinkLmakeDumpExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : '_bin/lmake_dump' }
 	deps = {
-		'RPC_CLIENT'   : 'src/rpc_client.o'
+		'RPC_CLIENT' : 'src/rpc_client.o'
+	,	'RPC_JOB'    : 'src/rpc_job.o'
+	,	'ZFD'        : 'src/zfd.o'
+	,	'LD'         : 'src/autodep/ld_server.o'
+	,	'RPC_CACHE'  : 'src/cache/rpc_cache.o'
+	,	'BE'         : 'src/lmake_server/backend.o'
+	,	'GLOBAL'     : 'src/lmake_server/global.o'
+	,	'CONFIG'     : 'src/lmake_server/config.o'
+	,	'JOB'        : 'src/lmake_server/job.o'
+	,	'JOB_DATA'   : 'src/lmake_server/job_data.o'
+	,	'CACHE'      : 'src/lmake_server/cache.o'
+	,	'NODE'       : 'src/lmake_server/node.o'
+	,	'REQ'        : 'src/lmake_server/req.o'
+	,	'RULE'       : 'src/lmake_server/rule.o'
+	,	'RULE_DATA'  : 'src/lmake_server/rule_data.o'
+	,	'STORE'      : 'src/lmake_server/store.o'
+	,	'MAIN'       : 'src/lmake_dump.o'
+	}
+	need_compress = True
+
+class LinkLdumpJobExe(LinkAppExe,LinkAutodep) :
+	targets = { 'TARGET' : '_bin/ldump_job' }
+	deps = {
+		'RPC_CLIENT' : 'src/rpc_client.o'
 	,	'RPC_JOB'      : 'src/rpc_job.o'
-	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o'
+	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
+	,	'ZFD'          : 'src/zfd.o'
 	,	'LD'           : 'src/autodep/ld_server.o'
+	,	'RPC_CACHE'    : 'src/cache/rpc_cache.o'
 	,	'BE'           : 'src/lmake_server/backend.o'
 	,	'GLOBAL'       : 'src/lmake_server/global.o'
 	,	'CONFIG'       : 'src/lmake_server/config.o'
 	,	'JOB'          : 'src/lmake_server/job.o'
 	,	'JOB_DATA'     : 'src/lmake_server/job_data.o'
+	,	'CACHE'        : 'src/lmake_server/cache.o'
 	,	'NODE'         : 'src/lmake_server/node.o'
 	,	'REQ'          : 'src/lmake_server/req.o'
 	,	'RULE'         : 'src/lmake_server/rule.o'
 	,	'RULE_DATA'    : 'src/lmake_server/rule_data.o'
 	,	'STORE'        : 'src/lmake_server/store.o'
-	,	'MAIN'         : 'src/lmake_dump.o'
-	}
-	need_compress = True
-
-class LinkLdumpJobExe(LinkPython,LinkAppExe,LinkAutodepEnv) :
-	targets = { 'TARGET' : '_bin/ldump_job' }
-	deps = {
-		'RPC_JOB'      : 'src/rpc_job.o'
-	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
-	,	'DAEMON_CACHE' : 'src/caches/daemon_cache.o'
 	,	'MAIN'         : 'src/ldump_job.o'
 	}
 	need_compress = True

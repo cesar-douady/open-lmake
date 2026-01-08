@@ -5,7 +5,7 @@
 
 #include "py.hh" // /!\ must be included first as Python.h must be included first
 
-#include "daemon_cache_utils.hh"
+#include "cache_utils.hh"
 
 #include "engine.hh"
 
@@ -14,8 +14,8 @@ using namespace Hash ;
 using namespace Py   ;
 using namespace Time ;
 
-DaemonCache::Config g_config      ;
-DiskSz              g_reserved_sz = 0 ;
+CacheConfig g_cache_config ;
+DiskSz      g_reserved_sz  = 0 ;
 
 CkeyFile      _g_key_file       ;
 CjobNameFile  _g_job_name_file  ;
@@ -32,13 +32,20 @@ CcrcsFile     _g_crcs_file      ;
 // higher rates means easier to recompute, so vicimitization is favored
 // to avoid searching all buckets for each victimization, a sorted tab is maintained, but order changes with time, so it is regularly refreshed (at most once every second)
 
+::string store_dir_s(bool for_bck) {
+	::string res = cat(PrivateAdminDirS,"store") ;
+	if (for_bck) res << ".bck" ;
+	add_slash(res) ;
+	return res ;
+}
+
 struct RateCmp {
 	// statics
 	static void s_init() {
 		bool first_seen = false ;
 		s_lrus = CrunData::s_hdr().lrus ;
 		for( Rate r : iota(NRates) ) {
-			s_rates[r] = from_rate( g_config , r ) ;
+			s_rates[r] = from_rate( g_cache_config , r ) ;
 			if (+s_lrus[r]) {
 				if (!first_seen) { s_iota.bounds[0] = r   ; first_seen = true ; }
 				/**/               s_iota.bounds[1] = r+1 ;
@@ -95,7 +102,7 @@ float               RateCmp::s_rates[NRates] = {}      ;
 LruEntry*           RateCmp::s_lrus          = nullptr ;
 ::set<Rate,RateCmp> RateCmp::s_tab           ;
 
-static void _daemon_cache_chk() {
+static void _cache_chk() {
 	_g_job_name_file .chk() ;
 	_g_node_name_file.chk() ;
 	_g_job_file      .chk() ;
@@ -105,12 +112,39 @@ static void _daemon_cache_chk() {
 	_g_crcs_file     .chk() ;
 }
 
-void daemon_cache_init( bool rescue , bool read_only ) {
-	Trace trace("daemon_cache_init",STR(rescue),STR(read_only)) ;
+void cache_init( bool rescue , bool read_only ) {
+	Trace trace("cache_init",STR(rescue),STR(read_only)) ;
 	//
-	// START_OF_VERSIONING DAEMON_CACHE
-	::string dir_s     = DaemonCache::Config::s_store_dir_s() ;
-	NfsGuard nfs_guard { g_config.file_sync }               ;
+	try {
+		::string config_file = ADMIN_DIR_S "config.py" ;
+		AcFd     config_fd   { config_file }           ;
+		Gil      gil         ;
+		for( auto const& [k,v] : ::vmap_ss(*py_run(config_fd.read())) ) {
+			try {
+				CacheConfig& ccfg = g_cache_config ;
+				switch (k[0]) {
+					case 'f' : if (k=="file_sync"       ) { ccfg.file_sync        = mk_enum<FileSync>    (v) ;                                                                continue ; } break ;
+					case 'i' : if (k=="inf"             ) {                                                                                                                   continue ; } break ;
+					case 'm' : if (k=="max_rate"        ) { ccfg.max_rate         = from_string_with_unit(v) ; throw_unless( ccfg.max_rate        >0 , "must be positive" ) ; continue ; }
+					/**/       if (k=="max_runs_per_job") { ccfg.max_runs_per_job = from_string<uint16_t>(v) ; throw_unless( ccfg.max_runs_per_job>0 , "must be positive" ) ; continue ; } break ;
+					case 'n' : if (k=="nan"             ) {                                                                                                                   continue ; } break ;
+					case 'p' : if (k=="perm"            ) { ccfg.perm_ext         = mk_enum<PermExt>     (v) ;                                                                continue ; } break ;
+					case 's' : if (k=="size"            ) { ccfg.max_sz           = from_string_with_unit(v) ;                                                                continue ; } break ;
+				DN}
+			} catch (::string const& e) {
+				trace("bad_val",k,v) ;
+				throw cat("wrong value (",e,") for entry ",k," : ",v) ;
+			}
+			trace("bad_cache_key",k) ;
+			throw cat("wrong key (",k,") in ",config_file) ;
+		}
+		throw_unless( g_cache_config.max_sz , "size must be defined as non-zero" ) ;
+	} catch (::string const& e) {
+		exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : ",e ) ;
+	}
+	// START_OF_VERSIONING CACHE
+	::string dir_s     = store_dir_s()        ;
+	NfsGuard nfs_guard { g_cache_config.file_sync } ;
 	{ ::string file=dir_s+"key"       ; nfs_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
 	{ ::string file=dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
 	{ ::string file=dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
@@ -120,7 +154,7 @@ void daemon_cache_init( bool rescue , bool read_only ) {
 	{ ::string file=dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
 	{ ::string file=dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 	// END_OF_VERSIONING
-	if (rescue) _daemon_cache_chk() ;
+	if (rescue) _cache_chk() ;
 	RateCmp::s_init() ;
 	//
 	CnodeHdr& hdr = CnodeData::s_hdr() ;
@@ -132,9 +166,9 @@ void daemon_cache_init( bool rescue , bool read_only ) {
 	trace("done") ;
 }
 
-void daemon_cache_finalize() {
+void cache_finalize() {
 	::string dir_s = cat(PrivateAdminDirS,"store/") ;
-	NfsGuard nfs_guard { g_config.file_sync } ;
+	NfsGuard nfs_guard { g_cache_config.file_sync } ;
 	nfs_guard.change(dir_s+"key"      ) ;
 	nfs_guard.change(dir_s+"job_name" ) ;
 	nfs_guard.change(dir_s+"node_name") ;
@@ -149,10 +183,10 @@ bool/*ok*/ mk_room( DiskSz sz , Cjob keep_job ) {
 	CrunHdr& hdr = CrunData::s_hdr() ;
 	Trace trace("mk_room",sz,hdr.total_sz,g_reserved_sz) ;
 	//
-	if (g_reserved_sz+sz>g_config.max_sz) { trace("not_done") ; return false/*ok*/ ; }
+	if (g_reserved_sz+sz>g_cache_config.max_sz) { trace("not_done") ; return false/*ok*/ ; }
 	//
 	RateCmp::s_refresh() ;
-	while ( hdr.total_sz && hdr.total_sz+g_reserved_sz+sz>g_config.max_sz ) {
+	while ( hdr.total_sz && hdr.total_sz+g_reserved_sz+sz>g_cache_config.max_sz ) {
 		SWEAR( +RateCmp::s_tab ) ;                                            // if total size is non-zero, we must have entries
 		Rate best_rate = *RateCmp::s_tab.begin()                    ;
 		Crun best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
@@ -169,46 +203,6 @@ bool/*ok*/ mk_room( DiskSz sz , Cjob keep_job ) {
 ::string& operator+=( ::string& os , Crun      const& r  ) { os << "CR("        ; if (+r      ) os << +r             ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , Cnode     const& n  ) { os << "CN("        ; if (+n      ) os << +n             ;                                      return os << ')' ; }
 ::string& operator+=( ::string& os , LruEntry  const& e  ) { os << "LruEntry("  ; if (+e.newer) os <<"N:"<< +e.newer ; if (+e.older) os <<"O:"<< +e.older ; return os << ')' ; }
-
-namespace Caches {
-
-	//
-	// DaemonCache::Config
-	//
-
-	::string DaemonCache::Config::s_store_dir_s(bool for_bck) {
-		::string res = cat(PrivateAdminDirS,"store") ;
-		if (for_bck) res << ".bck" ;
-		add_slash(res) ;
-		return res ;
-	}
-
-	DaemonCache::Config::Config(NewType) {
-		Trace trace("config") ;
-		//
-		::string config_file = ADMIN_DIR_S "config.py" ;
-		AcFd     config_fd   { config_file }           ;
-		Gil      gil         ;
-		for( auto const& [key,val] : ::vmap_ss(*py_run(config_fd.read())) ) {
-			try {
-				switch (key[0]) {
-					case 'f' : if (key=="file_sync"       ) { file_sync        = mk_enum<FileSync>    (val) ;                                                            continue ; } break ;
-					case 'i' : if (key=="inf"             ) {                                                                                                            continue ; } break ;
-					case 'm' : if (key=="max_rate"        ) { max_rate         = from_string_with_unit(val) ; throw_unless(max_rate        >0,key," must be positive") ; continue ; }
-					/**/       if (key=="max_runs_per_job") { max_runs_per_job = from_string<uint16_t>(val) ; throw_unless(max_runs_per_job>0,key," must be positive") ; continue ; } break ;
-					case 'n' : if (key=="nan"             ) {                                                                                                            continue ; } break ;
-					case 'p' : if (key=="perm"            ) { perm_ext         = mk_enum<PermExt>     (val) ;                                                            continue ; } break ;
-					case 's' : if (key=="size"            ) { max_sz           = from_string_with_unit(val) ;                                                            continue ; } break ;
-				DN}
-			} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key," : ",val) ; }
-			trace("bad_cache_key",key) ;
-			throw cat("wrong key (",key,") in ",config_file) ;
-		}
-		throw_unless( max_sz , "size must be defined as non-zero" ) ;
-		trace("done") ;
-	}
-
-}
 
 //
 // Ckey
@@ -349,7 +343,7 @@ void CjobData::victimize() {
 		if (+found_runs[false/*last*/]) found_runs[true]->victimize(false/*victimize_job*/) ;
 		else                            found_runs[true]->key_is_last = false ;
 	}
-	while (n_runs>=g_config.max_runs_per_job) lru.newer->victimize(false/*victimize_job*/) ; // maybe several pass in case.max_runs_per_job has been reduced
+	while (n_runs>=g_cache_config.max_runs_per_job) lru.newer->victimize(false/*victimize_job*/) ; // maybe several pass in case.max_runs_per_job has been reduced
 	mk_room( sz , idx() ) ;
 	Crun run { New , key , key_is_last , idx() , last_access , sz , rate , deps, dep_crcs } ;
 	trace("miss") ;
@@ -386,8 +380,8 @@ CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r 
 		RateCmp::s_insert(rate) ;
 	}
 	//
-	/**/                                                   key.inc()     ;
-	SWEAR( job->n_runs<g_config.max_runs_per_job , job ) ; job->n_runs++ ;
+	/**/                                                         key.inc()     ;
+	SWEAR( job->n_runs<g_cache_config.max_runs_per_job , job ) ; job->n_runs++ ;
 	for( Cnode d : ds ) d->inc() ;
 }
 

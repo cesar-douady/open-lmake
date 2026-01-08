@@ -7,8 +7,7 @@
 
 #include "rpc_job.hh"
 
-using namespace Caches ;
-using namespace Disk   ;
+using namespace Disk ;
 
 namespace Engine {
 
@@ -590,7 +589,7 @@ namespace Engine {
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
 		res.can_upload &= jd.run_status==RunStatus::Ok && ok==Yes ;        // only cache execution without errors
 		//
-		trace("wrap_up",ok,digest.cache_idx1,jd.run_status,STR(res.can_upload),digest.upload_key,STR(digest.incremental)) ;
+		trace("wrap_up",ok,jd.run_status,STR(res.can_upload),digest.upload_key,STR(digest.incremental)) ;
 		if ( +res.severe_msg || digest.has_msg_stderr ) {
 			JobInfo ji = job_info() ;
 			if (digest.has_msg_stderr) res.msg_stderr = ji.end.msg_stderr ;
@@ -656,7 +655,6 @@ namespace Engine {
 			,	true/*with_stats*/
 			,	pfx
 			,	MsgStderr{ .msg=job_msg , .stderr=end_digest.msg_stderr.stderr }
-			,	digest.max_stderr_len
 			,	digest.exe_time
 			,	is_retry(job_reason.tag)
 			) ;
@@ -666,12 +664,11 @@ namespace Engine {
 			trace("req_after",ri,job_reason,STR(done),STR(maybe_done)) ;
 		}
 		if (+digest.upload_key) {
-			SWEAR( digest.cache_idx1 , digest.cache_idx1 ) ;                                                                             // cannot commit/dismiss without cache
-			Cache* cache = Cache::s_tab[digest.cache_idx1-1] ;
-			SWEAR( cache , digest.cache_idx1 ) ;                                                                                         // .
+			/**/                                                                          SWEAR( cache_idx1 , cache_idx1 ) ;             // cannot commit/dismiss without cache
+			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ;             // .
 			try {
-				if (end_digest.can_upload) cache->commit ( digest.upload_key , self->unique_name() , job_info() ) ;
-				else                       cache->dismiss( digest.upload_key                                    ) ;                      // free up temporary storage copied in job_exec
+				if (end_digest.can_upload) cache.commit ( self , digest.upload_key ) ;
+				else                       cache.dismiss(        digest.upload_key ) ;                                                   // free up temporary storage copied in job_exec
 			} catch (::string const& e) {
 				const char* action = end_digest.can_upload ? "upload" : "dismiss" ;
 				trace("cache_throw",action,e) ;
@@ -685,13 +682,13 @@ namespace Engine {
 			Req      req = end_digest.running_reqs[i] ;
 			ReqInfo& ri  = jd.req_info(req) ;
 			trace("wakeup_watchers",ri) ;
-			if (must_wakeup[i]) ri.wakeup_watchers() ; // wakeup only after all messages are reported to user and cache->commit may generate user messages
+			if (must_wakeup[i]) ri.wakeup_watchers() ; // wakeup only after all messages are reported to user and cache.commit may generate user messages
 			req.chk_end() ;
 		}
 		trace("done",self) ;
 	}
 
-	JobReport JobExec::audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , MsgStderr const& msg_stderr , uint16_t max_stderr_len , Delay exe_time , bool retry ) const {
+	JobReport JobExec::audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , MsgStderr const& msg_stderr , Delay exe_time , bool retry ) const {
 		using JR = JobReport ;
 		//
 		Req            req         = ri.req           ;
@@ -743,6 +740,119 @@ namespace Engine {
 		if ( with_stats        ) req->stats.add(jr,exe_time) ;
 		//
 		return res ;
+	}
+
+	//
+	// JobInfo
+	//
+
+	::string& operator+=( ::string& os , SubmitInfo const& si ) {    // START_OF_NO_COV
+		First first ;
+		/**/                  os << "SubmitInfo("                  ;
+		if (+si.used_backend) os <<first("",",")<< si.used_backend ;
+		if ( si.live_out    ) os <<first("",",")<< "live_out"      ;
+		if (+si.pressure    ) os <<first("",",")<< si.pressure     ;
+		if (+si.deps        ) os <<first("",",")<< si.deps         ;
+		if (+si.reason      ) os <<first("",",")<< si.reason       ;
+		return                os <<')'                             ;
+	}                                                                // END_OF_NO_COV
+
+	void SubmitInfo::cache_cleanup() {
+		reason   = {}    ;             // execution dependent
+		pressure = {}    ;             // .
+		live_out = false ;             // execution dependent
+		nice     = -1    ;             // .
+	}
+
+	void SubmitInfo::chk(bool for_cache) const {
+		throw_unless(  used_backend<All<BackendTag> , "bad backend tag" ) ;
+		if (for_cache) {
+			throw_unless( !reason            , "bad reason"     ) ;
+			throw_unless( !pressure          , "bad pressure"   ) ;
+			throw_unless( !live_out          , "bad live_out"   ) ;
+			throw_unless(  nice==uint8_t(-1) , "bad nice"       ) ;
+		} else {
+			reason.chk() ;
+		}
+	}
+
+	::string& operator+=( ::string& os , JobInfoStart const& jis ) {                                                      // START_OF_NO_COV
+		return os << "JobInfoStart(" << jis.submit_info <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
+	}                                                                                                                     // END_OF_NO_COV
+
+	void JobInfoStart::cache_cleanup() {
+		submit_info.cache_cleanup() ;
+		pre_start  .cache_cleanup() ;
+		start      .cache_cleanup() ;
+		eta = {} ;                    // execution dependent
+	}
+
+	void JobInfoStart::chk(bool for_cache) const {
+		submit_info.chk(for_cache) ;
+		pre_start  .chk(for_cache) ;
+		start      .chk(for_cache) ;
+		if (for_cache) throw_unless( !eta , "bad eta" ) ;
+	}
+
+	void JobInfo::fill_from(::string const& file_name , JobInfoKinds need ) {
+		Trace trace("fill_from",file_name,need) ;
+		need &= ~JobInfoKind::None ;                                                                                                          // this is not a need, but it is practical to allow it
+		if (!need) return ;                                                                                                                   // fast path : dont read file_name
+		try {
+			::string      job_info = AcFd(file_name).read() ;
+			::string_view jis      = job_info               ;
+			deserialize( jis , need[JobInfoKind::Start] ? start : ::ref(JobInfoStart()) ) ; need &= ~JobInfoKind::Start ; if (!need) return ; // skip if not needed
+			deserialize( jis , need[JobInfoKind::End  ] ? end   : ::ref(JobEndRpcReq()) ) ; need &= ~JobInfoKind::End   ; if (!need) return ; // .
+			deserialize( jis , dep_crcs                                                 ) ;
+		} catch (...) {}                                                                                                                      // fill what we have
+	}
+
+	void JobInfo::update_digest() {
+		Trace trace("update_digest",dep_crcs.size()) ;
+		if (!dep_crcs) return ;                                                                                                                               // nothing to update
+		SWEAR( dep_crcs.size()==end.digest.deps.size() , dep_crcs.size(),end.digest.deps.size() ) ;
+		for( NodeIdx i : iota(end.digest.deps.size()) )
+			if ( dep_crcs[i].first.valid() || !end.digest.deps[i].second.accesses ) end.digest.deps[i].second.set_crc(dep_crcs[i].first,dep_crcs[i].second) ;
+		dep_crcs.clear() ;                                                                                                                                    // dep crcs are now recorded in digest
+	}
+
+	void JobInfo::cache_cleanup() {
+		start.cache_cleanup() ;
+		end  .cache_cleanup() ;
+	}
+
+	void JobInfo::chk(bool for_cache) const {
+		start.chk(for_cache) ;
+		end  .chk(for_cache) ;
+		/**/                                                   throw_unless( start.submit_info.deps.size()  <=end.digest.deps.size()   , "missing deps"    ) ;
+		for( NodeIdx i : iota(start.submit_info.deps.size()) ) throw_unless( start.submit_info.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ; // deps must start with deps ...
+		if (for_cache)                                         throw_unless( !dep_crcs                                                 , "bad dep_crcs"    ) ; // ... discovered before job execution
+		else                                                   throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size()      , "incoherent deps" ) ;
+	}
+
+	::string cache_repo_cmp( JobInfo const& info_cache , JobInfo const& info_repo ) {
+		static ::string only_in_repo      = "only in repo"      ;
+		static ::string only_in_cache     = "only in cache"     ;
+		static ::string different_content = "different content" ;
+		//
+		::umap_s<::pair<Crc/*cache*/,Crc/*repo*/>> diff_targets ;
+		for( auto const& [key,td] : info_repo .end.digest.targets )                    diff_targets.try_emplace( key , Crc::None,td.crc    ) ;
+		for( auto const& [key,td] : info_cache.end.digest.targets ) { auto [it,insd] = diff_targets.try_emplace( key , td.crc   ,Crc::None ) ; if (!insd) it->second.first = td.crc ; }
+		//
+		size_t w = 0 ;
+		for( auto const& [key,cache_repo] : diff_targets )
+			if      (cache_repo.first ==cache_repo.second) {}
+			else if (cache_repo.first ==Crc::None        ) w = ::max( w , only_in_repo     .size() ) ;
+			else if (cache_repo.second==Crc::None        ) w = ::max( w , only_in_cache    .size() ) ;
+			else                                           w = ::max( w , different_content.size() ) ;
+		if (!w) return {} ;
+		::string msg ;
+		for( auto const& [key,cache_repo] : diff_targets )
+			if      (cache_repo.first ==cache_repo.second) {}
+			else if (cache_repo.first ==Crc::None        ) msg << widen(only_in_repo     ,w)<<" : "<<key<<'\n' ;
+			else if (cache_repo.second==Crc::None        ) msg << widen(only_in_cache    ,w)<<" : "<<key<<'\n' ;
+			else                                           msg << widen(different_content,w)<<" : "<<key<<'\n' ;
+		return msg ;
 	}
 
 }

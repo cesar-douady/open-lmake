@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "daemon_cache_utils.hh"
+#include "cache_utils.hh"
 
 using namespace Disk ;
 using namespace Hash ;
@@ -83,21 +83,21 @@ bool crc_ok( Crc cache_crc , Crc repo_crc ) {
 	FAIL(cache_crc,repo_crc) ;
 }
 
-Disk::DiskSz run_sz( JobInfo const& job_info , ::string job_info_str , CompileDigest const& compile_digest ) {
+Disk::DiskSz run_sz( Disk::DiskSz total_z_sz , Disk::DiskSz job_info_sz , CompileDigest const& compile_digest ) {
 	return
-		job_info.end.total_z_sz
-	+	job_info_str.size()
+		total_z_sz
+	+	job_info_sz
 	+	sizeof(CrunData)
 	+	compile_digest.deps    .size()*sizeof(CnodeIdx)
 	+	compile_digest.dep_crcs.size()*sizeof(Crc     )
 	;
 }
 
-float from_rate( DaemonCache::Config const& config , Rate rate ) {
+float from_rate( CacheConfig const& config , Rate rate ) {
 	return config.max_rate * ::expf(-::ldexpf(rate,-4)) ;
 }
 
-Rate to_rate( DaemonCache::Config const& config , float rate ) {
+Rate to_rate( CacheConfig const& config , float rate ) {
 	float r = ::ldexpf(
 		::logf( config.max_rate / rate )
 	,	4

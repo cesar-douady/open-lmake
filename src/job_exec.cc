@@ -17,11 +17,10 @@
 
 #include "autodep/gather.hh"
 
-using namespace Caches ;
-using namespace Disk   ;
-using namespace Hash   ;
-using namespace Re     ;
-using namespace Time   ;
+using namespace Disk ;
+using namespace Hash ;
+using namespace Re   ;
+using namespace Time ;
 
 ::vector<UserTraceEntry>* g_user_trace      = nullptr      ;
 Gather                    g_gather          ;
@@ -107,11 +106,11 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 			*msg <<add_nl<< "absolute path of repo ("<<phy_repo_root<<") found in target "<<tn ;
 			bool warned = abs_path_warned.exchange(true) ;
 			if (!warned) {
-				/**/                    *msg <<"\n\tconsider :"                                                                                  ;
-				/**/                    *msg <<"\n\t  - "<<g_start_info.rule<<".cmd             = <script that generates no such absolute path>" ;
-				/**/                    *msg <<"\n\t  - "<<g_start_info.rule<<".repo_view       = '/repo'"                                       ;
-				if (g_start_info.cache) *msg <<"\n\t  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache= None"   ;
-				else                    *msg <<"\n\t  - "<<g_start_info.rule<<".check_abs_paths = False"                                         ;
+				/**/                     *msg <<"\n\tconsider :"                                                                                  ;
+				/**/                     *msg <<"\n\t  - "<<g_start_info.rule<<".cmd             = <script that generates no such absolute path>" ;
+				/**/                     *msg <<"\n\t  - "<<g_start_info.rule<<".repo_view       = '/repo'"                                       ;
+				if (+g_start_info.cache) *msg <<"\n\t  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache= None"   ;
+				else                     *msg <<"\n\t  - "<<g_start_info.rule<<".check_abs_paths = False"                                         ;
 			}
 		}
 		try {
@@ -239,7 +238,6 @@ int main( int argc , char* argv[] ) {
 		try {
 			bool entered = g_start_info.enter(
 				/*out*/  enter_accesses
-			,	/*.  */  g_gather.first_pid
 			,	/*.  */  repo_root_s
 			,	/*inout*/*g_user_trace
 			,	         g_phy_repo_root_s
@@ -365,9 +363,9 @@ int main( int argc , char* argv[] ) {
 		if ( status==Status::Ok && +crc_msg ) status = Status::Err ;
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
-		if (g_start_info.cache) {
+		if (+g_start_info.cache) {
 			try {
-				::tie(upload_key,end_report.total_z_sz) = g_start_info.cache->upload( exe_time , digest.targets , target_fis , g_start_info.zlvl , &nfs_guard ) ;
+				::tie(upload_key,end_report.total_z_sz) = g_start_info.cache.upload( exe_time , digest.targets , target_fis , g_start_info.zlvl ) ;
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;
@@ -397,7 +395,6 @@ int main( int argc , char* argv[] ) {
 		,	.targets        = ::move   (digest.targets       )
 		,	.deps           = ::move   (digest.deps          )
 		,	.refresh_codecs = mk_vector(digest.refresh_codecs)
-		,	.cache_idx1     = g_start_info.cache_idx1
 		,	.status         = status
 		,	.incremental    = incremental
 		} ;
@@ -420,7 +417,7 @@ End :
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache->dismiss(upload_key) ;                                                                // suppress temporary data if server cannot handle them
+			if (+upload_key) g_start_info.cache.dismiss(upload_key) ;                                                                // suppress temporary data if server cannot handle them
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}

@@ -344,11 +344,12 @@ namespace Engine::Makefiles {
 			}
 			if (!first_time) {               // fast path : on first time, we do not know if we are ever going to launch jobs, dont spend time configuring
 				static bool s_done = false ;
+				Config const& cfg =  +new_ ? new_ : old ;
 				doing_be_caches = true ;
-				if ( !s_done || (+new_&&old.backends!=new_.backends) ) Backends::Backend::s_config( +new_ ? new_.backends : old.backends ) ; // no new_ means keep old config
-				if ( !s_done || (+new_&&old.caches  !=new_.caches  ) ) Caches  ::Cache  ::s_config( +new_ ? new_.caches   : old.caches   ) ; // .
+				if ( !s_done || (+new_&&old.backends!=new_.backends) ) Backends::Backend        ::s_config(cfg.backends) ; // no new_ means keep old config
+				if ( !s_done || (+new_&&old.caches  !=new_.caches  ) ) Cache   ::CacheServerSide::s_config(cfg.caches  ) ; // .
 				doing_be_caches = false ;
-				s_done = true ;
+				s_done          = true  ;
 			}
 		} ; //!                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		try                           { Persistent::new_config( ::move(config) , rescue , diff_config ) ;                                                    }
@@ -410,8 +411,8 @@ namespace Engine::Makefiles {
 		if (first_time) {
 			AcFd fd { reg_exprs_file ,{.err_ok=true} } ;
 			if (+fd) {
-				try         { deserialize( ::string_view(fd.read()) , RegExpr::s_cache ) ;                                      }     // load from persistent cache
-				catch (...) { Fd::Stderr.write(cat("cannot read reg expr cache (no consequences) from ",reg_exprs_file,'\n')) ; }     // perf only, ignore errors (e.g. first time)
+				try         { deserialize( ::string_view(fd.read()) , RegExpr::s_cache ) ;                                      }  // load from persistent cache
+				catch (...) { Fd::Stderr.write(cat("cannot read reg expr cache (no consequences) from ",reg_exprs_file,'\n')) ; }  // perf only, ignore errors (e.g. first time)
 			}
 		}
 		//

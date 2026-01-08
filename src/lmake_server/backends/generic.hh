@@ -102,15 +102,15 @@ namespace Backends {
 
 	template<class Rsrcs> struct _WaitEntry {
 		_WaitEntry() = default ;
-		_WaitEntry( Rsrcs const& rs , SubmitAttrs const& sa , bool v ) : submit_attrs{sa} , rsrcs{rs} , n_reqs{1} , verbose{v} {}
+		_WaitEntry( Rsrcs const& rs , SubmitInfo const& si , bool v ) : submit_info{si} , rsrcs{rs} , n_reqs{1} , verbose{v} {}
 		// data
-		SubmitAttrs submit_attrs ;
-		Rsrcs       rsrcs        ;
-		ReqIdx      n_reqs       = 0     ;                                                         // number of reqs waiting for this job
-		bool        verbose      = false ;
+		SubmitInfo submit_info ;
+		Rsrcs      rsrcs       ;
+		ReqIdx     n_reqs      = 0     ;                                                         // number of reqs waiting for this job
+		bool       verbose     = false ;
 	} ;
 	template<class Rsrcs> ::string& operator+=( ::string& os , _WaitEntry<Rsrcs> const& we ) {     // START_OF_NO_COV
-		/**/            os << "WaitEntry(" << we.rsrcs <<','<< we.n_reqs <<','<< we.submit_attrs ;
+		/**/            os << "WaitEntry(" << we.rsrcs <<','<< we.n_reqs <<','<< we.submit_info ;
 		if (we.verbose) os << ",verbose"                                                         ;
 		return          os << ')'                                                                ;
 	}                                                                                              // END_OF_NO_COV
@@ -288,24 +288,24 @@ namespace Backends {
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
-		void submit( Job job , Req req , SubmitAttrs const& submit_attrs , ::vmap_ss&& rsrcs ) override {
+		void submit( Job job , Req req , SubmitInfo const& submit_info , ::vmap_ss&& rsrcs ) override {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
 			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
 			SWEAR( !waiting_jobs.contains(job) , job,waiting_jobs ) ;                                                                                                // job must be a new one
 			RsrcsData   rd       = import_(::move(rsrcs),req,job) ;
 			Rsrcs       rs       { New , rd }                     ; if ( ::string msg=lacking_rsrc(*rs) ; +msg ) throw cat(msg," to launch job ",Job(job)->name()) ;
 			ReqEntry&   re       = reqs.at(req)                   ; SWEAR(!re.waiting_jobs.contains(job)) ;                                                          // in particular for this req
-			CoarseDelay pressure = submit_attrs.pressure          ;
+			CoarseDelay pressure = submit_info.pressure           ;
 			Trace trace(BeChnl,"submit",rs,pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
-			waiting_jobs.emplace( job , WaitEntry(rs,submit_attrs,re.verbose) ) ;
-			re.waiting_queues[{New,rd.round(self)}].insert({pressure,job}) ;
+			waiting_jobs.emplace( job , WaitEntry(rs,submit_info,re.verbose) ) ;
+			re.waiting_queues[{New,rd.round(self)}].insert({pressure,job})     ;
 			if (!_oldest_submitted_job     ) _oldest_submitted_job = New ;
 			if (re.waiting_jobs.size()>1000) launch() ;                                                         // if too many jobs are waiting, ensure launch process is running
 		}
-		void add_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) override {
-			Trace trace(BeChnl,"add_pressure",job,req,submit_attrs) ;
+		void add_pressure( Job job , Req req , SubmitInfo const& submit_info ) override {
+			Trace trace(BeChnl,"add_pressure",job,req,submit_info) ;
 			ReqEntry& re  = reqs.at(req)           ;
 			auto      wit = waiting_jobs.find(job) ;
 			if (wit==waiting_jobs.end()) {                                                                      // job is not waiting anymore, mostly ignore
@@ -316,16 +316,16 @@ namespace Backends {
 			}
 			WaitEntry& we = wit->second ;
 			SWEAR(!re.waiting_jobs.contains(job)) ;                                                             // job must be new for this req
-			CoarseDelay pressure = submit_attrs.pressure ;
+			CoarseDelay pressure = submit_info.pressure ;
 			trace("adjusted_pressure",pressure) ;
 			//
 			re.waiting_jobs[job] = pressure ;
 			re.waiting_queues[we.rsrcs.round(self)].insert({pressure,job}) ;
-			we.submit_attrs |= submit_attrs ;
-			we.verbose      |= re.verbose   ;
+			we.submit_info |= submit_info ;
+			we.verbose     |= re.verbose  ;
 			we.n_reqs++ ;
 		}
-		void set_pressure( Job job , Req req , SubmitAttrs const& submit_attrs ) override {
+		void set_pressure( Job job , Req req , SubmitInfo const& submit_info ) override {
 			ReqEntry& re = reqs.at(req)           ;                                                             // req must be known to already know job
 			auto      it = waiting_jobs.find(job) ;
 			//
@@ -333,9 +333,9 @@ namespace Backends {
 			WaitEntry           & we           = it->second                                 ;
 			CoarseDelay         & old_pressure = re.waiting_jobs  .at(job                 ) ;                   // job must be known
 			::set<PressureEntry>& q            = re.waiting_queues.at(we.rsrcs.round(self)) ;                   // including for this req
-			CoarseDelay           pressure     = submit_attrs.pressure                      ;
+			CoarseDelay           pressure     = submit_info.pressure                       ;
 			Trace trace("set_pressure","pressure",pressure) ;
-			we.submit_attrs |= submit_attrs ;
+			we.submit_info |= submit_info ;
 			q.erase ({old_pressure,job}) ;
 			q.insert({pressure    ,job}) ;
 			old_pressure = pressure ;
@@ -485,7 +485,7 @@ namespace Backends {
 						}
 						if (pressure_set.size()==1) queues      .erase(candidate) ;                                                            // last entry for this rsrcs, erase the entire queue
 						else                        pressure_set.erase(pressure1) ;
-						launch_descrs.emplace_back( j , LaunchDescr{ rs , acquire_cmd_line( T , j , ::move(rs) , export_(*se.rsrcs) , ::move(wit->second.submit_attrs) ) , prio , &se } ) ;
+						launch_descrs.emplace_back( j , LaunchDescr{ rs , acquire_cmd_line( T , j , ::move(rs) , export_(*se.rsrcs) , ::move(wit->second.submit_info) ) , prio , &se } ) ;
 						waiting_jobs.erase(wit) ;
 					}
 					for( auto& [_,ld] : launch_descrs ) {                                         // as late as possible, while we hold the lock, so if killed, we miss no job

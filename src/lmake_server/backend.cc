@@ -8,7 +8,6 @@
 #include <pwd.h>
 #include <grp.h>
 
-using namespace Caches ;
 using namespace Disk   ;
 using namespace Py     ;
 using namespace Time   ;
@@ -52,9 +51,9 @@ namespace Backends {
 		return os <<')' ;
 	}                                                                            // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , Backend::StartEntry const& ste ) {                                       // START_OF_NO_COV
-		return os << "StartEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs <<','<< ste.submit_attrs << ')' ;
-	}                                                                                                             // END_OF_NO_COV
+	::string& operator+=( ::string& os , Backend::StartEntry const& ste ) {                                      // START_OF_NO_COV
+		return os << "StartEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs <<','<< ste.submit_info << ')' ;
+	}                                                                                                            // END_OF_NO_COV
 
 	::string& operator+=( ::string& os , Backend::StartEntry::Conn const& c ) {        // START_OF_NO_COV
 		return os << "Conn(" << c.service <<','<< c.seq_id <<','<< c.small_id << ')' ;
@@ -189,10 +188,10 @@ namespace Backends {
 		return r->options.flags[ReqFlag::Local] || !Backend::s_ready(t) ; // if asked backend is not usable, force local execution
 	}
 
-	void Backend::s_submit( Tag tag , Job j , Req r , SubmitAttrs&& submit_attrs , ::vmap_ss&& rsrcs ) {
+	void Backend::s_submit( Tag tag , Job j , Req r , SubmitInfo&& submit_info , ::vmap_ss&& rsrcs ) {
 		SWEAR(+tag) ;
 		TraceLock lock{ _s_mutex , BeChnl , "s_submit" } ;
-		Trace trace(BeChnl,"s_submit",tag,j,r,submit_attrs,rsrcs) ;
+		Trace trace(BeChnl,"s_submit",tag,j,r,submit_info,rsrcs) ;
 		//
 		if ( tag!=Tag::Local && _localize(tag,r) ) {
 			SWEAR(+tag<N<Tag>) ;                                                               // prevent compiler array bound warning in next statement
@@ -202,41 +201,41 @@ namespace Backends {
 			trace("local",rsrcs) ;
 		}
 		throw_unless( s_ready(tag) , "local backend is not available" ) ;
-		submit_attrs.used_backend = tag ;
+		submit_info.used_backend = tag ;
 		_s_workload.submit(r,j) ;
-		s_tab[+tag]->submit(j,r,submit_attrs,::move(rsrcs)) ;
+		s_tab[+tag]->submit(j,r,submit_info,::move(rsrcs)) ;
 	}
 
-	bool/*miss_live_out*/ Backend::s_add_pressure( Tag tag , Job j , Req r , SubmitAttrs const& sa ) {
+	bool/*miss_live_out*/ Backend::s_add_pressure( Tag tag , Job j , Req r , SubmitInfo const& si ) {
 		SWEAR(+tag) ;
 		if (_localize(tag,r)) tag = Tag::Local ;
-		Trace trace(BeChnl,"s_add_pressure",tag,j,r,sa) ;
+		Trace trace(BeChnl,"s_add_pressure",tag,j,r,si) ;
 		TraceLock lock    { _s_mutex , BeChnl , "s_add_pressure" } ;
 		auto      it      = _s_start_tab.find(j)                   ;
 		bool      started = it!=_s_start_tab.end()                 ;
 		if (!started) {
-			s_tab[+tag]->add_pressure(j,r,sa) ;   // ask sub-backend to raise its priority
+			s_tab[+tag]->add_pressure(j,r,si) ;   // ask sub-backend to raise its priority
 		} else {
 			Backend::StartEntry& e = it->second ;
 			e.reqs.push_back(+r) ;                // note the new Req as we maintain the list of Req's associated to each job
-			e.submit_attrs |= sa ;                // and update submit_attrs in case job was not actually started
-			if (sa.live_out)                      // tell job_exec to resend allready sent live_out messages that we missed
+			e.submit_info |= si ;                 // and update submit_info in case job was not actually started
+			if (si.live_out)                      // tell job_exec to resend allready sent live_out messages that we missed
 				// if we cannot connect to job, it cannot send live_out messages any more
 				try { OMsgBuf( JobMngtRpcReply{.proc=JobMngtProc::AddLiveOut,.seq_id=e.conn.seq_id} ).send( ClientSockFd(e.conn.service) ) ; } catch (::string const&) {}
 		}
 		_s_workload.add(r,j) ;                    // if not started, we must account for job being queued for this new req
-		return sa.live_out && started ;
+		return si.live_out && started ;
 	}
 
-	void Backend::s_set_pressure( Tag tag , Job j , Req r , SubmitAttrs const& sa ) {
+	void Backend::s_set_pressure( Tag tag , Job j , Req r , SubmitInfo const& si ) {
 		SWEAR(+tag) ;
 		if (_localize(tag,r)) tag = Tag::Local ;
 		TraceLock lock { _s_mutex , BeChnl , "s_set_pressure" } ;
-		Trace trace(BeChnl,"s_set_pressure",tag,j,r,sa) ;
-		s_tab[+tag]->set_pressure(j,r,sa) ;
+		Trace trace(BeChnl,"s_set_pressure",tag,j,r,si) ;
+		s_tab[+tag]->set_pressure(j,r,si) ;
 		auto it = _s_start_tab.find(j) ;
-		if (it==_s_start_tab.end()) s_tab[+tag]->set_pressure(j,r,sa) ; // if job is not started, ask sub-backend to raise its priority
-		else                        it->second.submit_attrs |= sa ;     // and update submit_attrs in case job was not actually started
+		if (it==_s_start_tab.end()) s_tab[+tag]->set_pressure(j,r,si) ; // if job is not started, ask sub-backend to raise its priority
+		else                        it->second.submit_info |= si ;      // and update submit_info in case job was not actually started
 	}
 
 	void Backend::_s_handle_deferred_wakeup(DeferredEntry&& de) {
@@ -305,16 +304,16 @@ namespace Backends {
 		//
 		Trace trace(BeChnl,"_s_handle_job_start",jsrr) ;
 		SWEAR( +fd , jsrr ) ;                                               // fd is needed to reply
-		SeqId             seq_id       = jsrr.seq_id                 ;
-		Tag               tag          = {}                          ;
-		Job               job          { jsrr.job }                  ;
-		RuleData const&   rd           = *job->rule()                ;
-		::vector<ReqIdx>  reqs         ;
-		JobInfoStart      jis          { .rule_crc_cmd=rd.crc->cmd } ;
-		JobStartRpcReply& reply        = jis.start                   ;
-		::string        & cmd          = reply.cmd                   ;
-		SubmitAttrs     & submit_attrs = jis.submit_attrs            ;
-		::vmap_ss       & rsrcs        = jis.rsrcs                   ;
+		SeqId             seq_id      = jsrr.seq_id                 ;
+		Tag               tag         = {}                          ;
+		Job               job         { jsrr.job }                  ;
+		RuleData const&   rd          = *job->rule()                ;
+		::vector<ReqIdx>  reqs        ;
+		JobInfoStart      jis         { .rule_crc_cmd=rd.crc->cmd } ;
+		JobStartRpcReply& reply       = jis.start                   ;
+		::string        & cmd         = reply.cmd                   ;
+		SubmitInfo      & submit_info = jis.submit_info             ;
+		::vmap_ss       & rsrcs       = jis.rsrcs                   ;
 		//
 		// to lock for minimal time, we lock twice
 		// 1st time, we only gather info, real decisions will be taken when we lock the 2nd time
@@ -330,18 +329,18 @@ namespace Backends {
 				trace("double_start",job,entry.conn.seq_id,seq_id) ;
 				return ;
 			}
-			entry.started                 = Maybe                      ;
-			tag                           =        entry.tag           ;
-			submit_attrs                  = ::move(entry.submit_attrs) ;
-			rsrcs                         = ::move(entry.rsrcs       ) ;
-			reqs                          =        entry.reqs          ;
-			::tie(jis.eta,reply.keep_tmp) =        entry.req_info()    ;
+			entry.started                 = Maybe                     ;
+			tag                           =        entry.tag          ;
+			submit_info                   = ::move(entry.submit_info) ;
+			rsrcs                         = ::move(entry.rsrcs      ) ;
+			reqs                          =        entry.reqs         ;
+			::tie(jis.eta,reply.keep_tmp) =        entry.req_info()   ;
 		}
 		// set server address for this backend at which it can be contacted by jobs
 		// first job is given fqdn, then then the address as soon as it is known
 		if ( tag!=Tag::Local && !s_tab[+tag]->addr_str ) s_tab[+tag]->addr_str = SockFd::s_addr_str(SockFd::s_addr(fd,false/*peer*/)) ;
 		//
-		trace("submit_attrs",submit_attrs) ;
+		trace("submit_info",submit_info) ;
 		::vmap<Node,FileAction>    pre_actions           ;
 		::vmap<Node,FileActionTag> pre_action_warnings   ;
 		StartCmdAttrs              start_cmd_attrs       ;
@@ -349,7 +348,7 @@ namespace Backends {
 		StartAncillaryAttrs        start_ancillary_attrs ;
 		MsgStderr                  start_msg_err         ;
 		Rule::RuleMatch            match                 = job->rule_match()              ;
-		::vmap_s<DepDigest>&       deps                  = submit_attrs.deps              ;                                              // these are the deps for dynamic attriute evaluation
+		::vmap_s<DepDigest>&       deps                  = submit_info.deps               ;                                              // these are the deps for dynamic attriute evaluation
 		size_t                     n_submit_deps         = deps.size()                    ;
 		int                        step                  = 0                              ;
 		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;                                              // this cannot fail as it was already run to construct job
@@ -440,21 +439,20 @@ namespace Backends {
 					for( VarIdx mi : rd.matches_iotas[true ][+mk] ) reply.star_matches  .emplace_back( star_patterns [i_star  ++] , rd.matches[mi].second.flags ) ;
 				}
 				//
-				/**/                            reply.autodep_env.lnk_support = g_config->lnk_support                                               ;
-				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                                                 ;
-				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                                       ;
-				/**/                            reply.autodep_env.sub_repo_s  = rd.sub_repo_s                                                       ;
-				if (submit_attrs.cache_idx1   ) reply.cache_idx1              =              submit_attrs.cache_idx1                                ;
-				if (submit_attrs.cache_idx1   ) reply.cache                   = Cache::s_tab[submit_attrs.cache_idx1-1]                             ;
-				/**/                            reply.ddate_prec              = g_config->ddate_prec                                                ;
-				/**/                            reply.key                     = g_config->key                                                       ;
-				/**/                            reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)                             ;
-				/**/                            reply.live_out                = submit_attrs.live_out                                               ;
-				/**/                            reply.network_delay           = g_config->network_delay                                             ;
-				/**/                            reply.nice                    = submit_attrs.nice!=uint8_t(-1) ? submit_attrs.nice : g_config->nice ;
-				/**/                            reply.rule                    = rd.user_name()                                                      ;
-				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rd.stdin_idx ].second.txt                      ;
-				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rd.stdout_idx].first                           ;
+				/**/                            reply.autodep_env.lnk_support = g_config->lnk_support                                             ;
+				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                                               ;
+				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                                     ;
+				/**/                            reply.autodep_env.sub_repo_s  = rd.sub_repo_s                                                     ;
+				if (submit_info.cache_idx1    ) reply.cache                   = Cache::CacheServerSide::s_tab[submit_info.cache_idx1-1]           ;
+				/**/                            reply.ddate_prec              = g_config->ddate_prec                                              ;
+				/**/                            reply.key                     = g_config->key                                                     ;
+				/**/                            reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)                           ;
+				/**/                            reply.live_out                = submit_info.live_out                                              ;
+				/**/                            reply.network_delay           = g_config->network_delay                                           ;
+				/**/                            reply.nice                    = submit_info.nice!=uint8_t(-1) ? submit_info.nice : g_config->nice ;
+				/**/                            reply.rule                    = rd.user_name()                                                    ;
+				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rd.stdin_idx ].second.txt                    ;
+				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rd.stdout_idx].first                         ;
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;
@@ -515,7 +513,6 @@ namespace Backends {
 					//
 					JobEndRpcReq jerr { jis.pre_start } ;
 					/**/                                 jerr.end_date              = New                   ;
-					/**/                                 jerr.digest.max_stderr_len = entry.max_stderr_len  ;
 					/**/                                 jerr.digest.status         = status                ;
 					/**/                                 jerr.digest.has_msg_stderr = true                  ;
 					/**/                                 jerr.msg_stderr            = ::move(start_msg_err) ;
@@ -525,7 +522,8 @@ namespace Backends {
 					Job::s_record_thread.emplace( job , ::move(jis ) ) ;
 					Job::s_record_thread.emplace( job , ::move(jerr) ) ;
 					//
-					job_exec = { job , jis.pre_start.service.addr , jerr.end_date/*start&end*/ } ;                   // job starts and ends
+					job_exec                = { job , jis.pre_start.service.addr , jerr.end_date/*start&end*/ } ;                   // job starts and ends
+					job_exec.max_stderr_len = entry.max_stderr_len                                              ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_action_warnings) ) ;
 					g_engine_queue.emplace( Proc::End   , ::move(job_exec) , ::move(jd)                                        ) ;
@@ -551,7 +549,7 @@ namespace Backends {
 			bool      report_now =                                                                                   // dont defer long jobs or if a message is to be delivered to user
 					+pre_action_warnings
 				||	+start_msg_err.stderr
-				||	is_retry(submit_attrs.reason.tag)                                                                // emit retry start message
+				||	is_retry(submit_info.reason.tag)                                                                 // emit retry start message
 				||	Delay(job->exe_time())>=start_ancillary_attrs.start_delay                                        // if job is probably long, emit start message immediately
 			;
 			if (+start_msg_err.stderr) msg_stderr = { jis.pre_start.msg+start_msg_err.msg , ::move(start_msg_err.stderr) } ;                           // get msg befor jis is moved
@@ -631,15 +629,16 @@ namespace Backends {
 		//
 		{	TraceLock lock { _s_mutex , BeChnl,"_s_handle_job_end" } ;                          // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; goto Bad ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; goto Bad ; }
+			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; return ; }
+			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; return ; }
 			_s_small_ids.release(entry.conn.small_id) ;
 			//
-			je                    = { job , entry.conn.service.addr , entry.start_date , New/*end_date*/ }   ;
-			/**/                    _s_workload.end ( entry.reqs , job                                     ) ;
-			je.cost               = _s_workload.cost(              job , entry.workload , entry.start_date ) ;
-			je.tokens1            = entry.submit_attrs.tokens1                                               ;
-			digest.max_stderr_len = entry.max_stderr_len                                                     ;
+			je                = { job , entry.conn.service.addr , entry.start_date , New/*end_date*/ }   ;
+			/**/                _s_workload.end ( entry.reqs , job                                     ) ;
+			je.cost           = _s_workload.cost(              job , entry.workload , entry.start_date ) ;
+			je.cache_idx1     = entry.submit_info.cache_idx1                                             ;
+			je.tokens1        = entry.submit_info.tokens1                                                ;
+			je.max_stderr_len = entry.max_stderr_len                                                     ;
 			//
 			trace("release_start_tab",job,entry) ;
 			// if we have no fd, job end was invented by heartbeat, no acknowledge
@@ -662,9 +661,6 @@ namespace Backends {
 			g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jd) ) ;                     // .
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
-		return ;
-	Bad :
-		if (+digest.upload_key) Cache::s_tab[digest.cache_idx1-1]->dismiss(digest.upload_key) ; // this job corresponds to nothing in server, free up temporary storage copied in job_exec
 	}
 
 	// kill all if ri==0
@@ -718,9 +714,6 @@ namespace Backends {
 		StartEntry::Conn         conn                ;
 		::pair_s<HeartbeatState> lost_report         = {}/*garbage*/                              ;
 		Status                   status              = {}/*garbage*/                              ;
-		Pdate                    eta                 ;
-		::vmap_ss                rsrcs               ;
-		SubmitAttrs              submit_attrs        ;
 		Delay                    round_trip          = Delay(New,g_config->network_delay.val()*2) ;
 		Delay                    started_min_job_age = Delay(New,g_config->heartbeat    .val()/2) ;                                 // first check is after g_config->heartbeat on average (for pef)
 		Delay                    spawned_min_job_age = ::max(started_min_job_age,round_trip)      ;                                 // ensure jobs have had a minimal time to start and signal it
@@ -743,11 +736,8 @@ namespace Backends {
 				//
 				status = lost_report.second==HeartbeatState::Err ? Status::EarlyLostErr : Status::EarlyLost ;
 				//
-				rsrcs        = ::move(entry.rsrcs       ) ;
-				submit_attrs = ::move(entry.submit_attrs) ;
-				eta          = entry.req_info().first     ;
-				_s_start_tab.erase(it) ;
 				trace("handle_job",job,entry,status) ;
+				_s_start_tab.erase(it) ;
 			}
 			{	JobExec      je   { job , New }          ;                                                                          // job starts and ends, no host
 				JobEndRpcReq jerr { {0/*seq_id*/,+job} } ;
@@ -869,19 +859,19 @@ namespace Backends {
 		trace("done") ;
 	}
 
-	::vector_s Backend::acquire_cmd_line( Tag tag , Job job , ::vector<ReqIdx>&& reqs , ::vmap_ss&& rsrcs , SubmitAttrs&& submit_attrs ) {
-		Trace trace(BeChnl,"acquire_cmd_line",tag,job,reqs,rsrcs,submit_attrs) ;
+	::vector_s Backend::acquire_cmd_line( Tag tag , Job job , ::vector<ReqIdx>&& reqs , ::vmap_ss&& rsrcs , SubmitInfo&& submit_info ) {
+		Trace trace(BeChnl,"acquire_cmd_line",tag,job,reqs,rsrcs,submit_info) ;
 		SeqId seq_id = (*Engine::g_seq_id)++ ;
 		//
 		_s_mutex.swear_locked() ;
 		auto        it_inserted = _s_start_tab.try_emplace(job) ; SWEAR(it_inserted.second,job) ;                 // ensure entry is created
 		StartEntry& entry       = it_inserted.first->second     ;
-		entry.submit_attrs = ::move(submit_attrs) ;
-		entry.conn.seq_id  =        seq_id        ;
-		entry.spawn_date   =        New           ;
-		entry.tag          =        tag           ;
-		entry.reqs         = ::move(reqs        ) ;
-		entry.rsrcs        = ::move(rsrcs       ) ;
+		entry.submit_info = ::move(submit_info) ;
+		entry.conn.seq_id =        seq_id       ;
+		entry.spawn_date  =        New          ;
+		entry.tag         =        tag          ;
+		entry.reqs        = ::move(reqs       ) ;
+		entry.rsrcs       = ::move(rsrcs      ) ;
 		trace("create_start_tab",entry) ;
 		::string const& server_host = tag==Tag::Local || +s_tab[+tag]->addr_str ? s_tab[+tag]->addr_str : fqdn_ ; // local backend always has an empty addr_str field
 		::vector_s cmd_line {

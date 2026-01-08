@@ -9,6 +9,7 @@
 #include "store.x.hh"
 #include "config.x.hh"
 #include "backend.x.hh"
+#include "cache.x.hh"
 #include "rule.x.hh"
 #include "req.x.hh"
 #include "job.x.hh"

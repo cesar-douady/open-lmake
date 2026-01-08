@@ -3,12 +3,14 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "lmake_server/core.hh" // /!\ must be first to include Python.h first
+
 #include "app.hh"
 #include "disk.hh"
-
 #include "rpc_job.hh"
 
-using namespace Disk ;
+using namespace Disk   ;
+using namespace Engine ;
 
 ::string g_out ;
 
@@ -22,13 +24,13 @@ void _print_views(::vmap_s<JobSpace::ViewDescr> const& m) {
 	for( auto const& [k,v] : m ) g_out <<'\t'<< widen(k,w) <<" : "<< v.phys_s <<' '<< v.copy_up <<'\n' ;
 }
 
-void print_submit_attrs(SubmitAttrs const& sa) {
-	g_out << "--submit attrs--\n" ;
+void print_submit_info(SubmitInfo const& si) {
+	g_out << "--submit info--\n" ;
 	//
-	g_out << "used_backend : "  << sa.used_backend         <<'\n' ;
-	g_out << "pressure     : "  << sa.pressure.short_str() <<'\n' ;
-	g_out << "live_out     : "  << sa.live_out             <<'\n' ;
-	g_out << "reason       : "  << sa.reason               <<'\n' ;
+	g_out << "used_backend : "  << si.used_backend         <<'\n' ;
+	g_out << "pressure     : "  << si.pressure.short_str() <<'\n' ;
+	g_out << "live_out     : "  << si.live_out             <<'\n' ;
+	g_out << "reason       : "  << si.reason               <<'\n' ;
 }
 
 void print_pre_start(JobStartRpcReq const& jsrr) {
@@ -44,7 +46,7 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "--start--\n" ;
 	//
 	g_out << "auto_mkdir       : " << jsrr.autodep_env.auto_mkdir <<'\n' ;
-	g_out << "cache_idx1       : " << jsrr.cache_idx1             <<'\n' ;
+	g_out << "cache            : " << jsrr.cache                  <<'\n' ;
 	g_out << "check_abs_paths  : " << jsrr.chk_abs_paths          <<'\n' ;
 	g_out << "chroot_actions   : " << jsrr.chroot_info.actions    <<'\n' ;
 	g_out << "chroot_dir_s     : " << jsrr.chroot_info.dir_s      <<'\n' ;
@@ -68,13 +70,12 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "tmp_view_s       : " << jsrr.job_space.tmp_view_s   <<'\n' ;
 	g_out << "use_script       : " << jsrr.use_script             <<'\n' ;
 	//
-	if (jsrr.cache) { g_out << "cache :\n"          ; _print_map  (jsrr.cache->descr() ) ; }
-	/**/              g_out << "cmd :\n"            ; g_out << indent(jsrr.cmd) <<add_nl ;
-	/**/              g_out << "deps :\n"           ; _print_map  (jsrr.deps           ) ;
-	/**/              g_out << "env :\n"            ; _print_map  (jsrr.env            ) ;
-	/**/              g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   ) ;
-	/**/              g_out << "static matches :\n" ; _print_map  (jsrr.static_matches ) ;
-	/**/              g_out << "views :\n"          ; _print_views(jsrr.job_space.views) ;
+	g_out << "cmd :\n"            ; g_out << indent(jsrr.cmd) <<add_nl ;
+	g_out << "deps :\n"           ; _print_map  (jsrr.deps           ) ;
+	g_out << "env :\n"            ; _print_map  (jsrr.env            ) ;
+	g_out << "star matches :\n"   ; _print_map  (jsrr.star_matches   ) ;
+	g_out << "static matches :\n" ; _print_map  (jsrr.static_matches ) ;
+	g_out << "views :\n"          ; _print_views(jsrr.job_space.views) ;
 }
 
 void print_end(JobEndRpcReq const& jerr) {
@@ -108,7 +109,7 @@ int main( int argc , char* argv[] ) {
 	if (+job_info.start) {
 		g_out << "eta  : " << job_info.start.eta                                    <<'\n' ;
 		g_out << "host : " << SockFd::s_host(job_info.start.pre_start.service.addr) <<'\n' ;
-		print_submit_attrs(job_info.start.submit_attrs) ;
+		print_submit_info(job_info.start.submit_info) ;
 		g_out << "rsrcs :\n" ; _print_map(job_info.start.rsrcs) ;
 		print_pre_start   (job_info.start.pre_start   ) ;
 		print_start       (job_info.start.start       ) ;

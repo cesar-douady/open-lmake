@@ -3,20 +3,20 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "py.hh" // /!\ must be included first as Python.h must be included first
+#include "lmake_server/core.hh" // /!\ must be first to include Python.h first
 
 #include "app.hh"
 #include "disk.hh"
 
-#include "caches/daemon_cache.hh"
+#include "cache_utils.hh"
 #include "engine.hh"
-#include "daemon_cache_utils.hh"
+#include "rpc_cache.hh"
 
-using namespace Disk ;
-using namespace Hash ;
-using namespace Time ;
-
-using namespace Caches ;
+using namespace Cache  ;
+using namespace Disk   ;
+using namespace Engine ;
+using namespace Hash   ;
+using namespace Time   ;
 
 enum class Key  : uint8_t { None   } ;
 enum class Flag : uint8_t { DryRun } ;
@@ -48,13 +48,13 @@ static RepairDigest _repair(bool dry_run) {
 	for( auto const& [file,_] : walk( Fd::Cwd , FileTag::Reg , {}/*pfx*/ , [&](::string const& f) { return f.starts_with(admin_dir) ; } ) ) {
 		SWEAR(file[0]=='/') ;
 		::string f = file.substr(1) ;
-		if (f.ends_with("/info")) { tab[dir_name_s(f)].info = true ; continue ; }
-		if (f.ends_with("/data")) { tab[dir_name_s(f)].data = true ; continue ; }
+		if (f.ends_with("-info")) { tab[f.substr(0,f.size()-5)].info = true ; continue ; }
+		if (f.ends_with("-data")) { tab[f.substr(0,f.size()-5)].data = true ; continue ; }
 		to_rm.insert(f) ;
 	}
-	for( auto const& [dir_s,e] : tab ) {
-		::string info_file = dir_s+"info" ;
-		::string data_file = dir_s+"data" ;
+	for( auto const& [run,e] : tab ) {
+		::string info_file = run+"-info" ;
+		::string data_file = run+"-data" ;
 		res.n_processed++ ;
 		if (!( e.info && e.data )) {
 			if (e.info) to_rm.insert(info_file) ;
@@ -68,32 +68,32 @@ static RepairDigest _repair(bool dry_run) {
 			job_info.chk(true/*for_cache*/) ;
 			throw_unless( job_info.end.digest.status==Status::Ok , "bad status" ) ;
 			//
-			::string old_key_str = base_name(dir_s) ;
+			::string old_key_str = base_name(run) ;
 			bool     key_is_last ;
-			if      (old_key_str.ends_with("-first/")) key_is_last = false ;
-			else if (old_key_str.ends_with("-last/" )) key_is_last = true  ;
-			else                                       throw cat("unexpected run entry",dir_s,rm_slash) ;
+			if      (old_key_str.ends_with("-first")) key_is_last = false ;
+			else if (old_key_str.ends_with("-last" )) key_is_last = true  ;
+			else                                      throw cat("unexpected run entry",run,rm_slash) ;
 			old_key_str = old_key_str.substr( 0 , old_key_str.rfind('-') ) ;
 			//
 			if (!dry_run) {
 				CompileDigest deps    = compile( mk_vmap<StrId<CnodeIdx>,DepDigest>(job_info.end.digest.deps) , false/*for_download*/ ) ;
-				DiskSz        sz      = run_sz( job_info , job_info_str , deps )                                                        ;
+				DiskSz        sz      = run_sz( job_info.end.total_z_sz , job_info_str.size() , deps )                                  ;
 				CkeyIdx       old_key = from_string<CkeyIdx>(old_key_str)                                                               ;
 				auto          it      = old_keys.find(old_key)                                                                          ;
 				::string      repo    = cat("repaired-",old_key)                                                                        ; // if key is unknown, invent a repo
-				Ckey          new_key { New , it==old_keys.end()?repo:it->second           }                                            ; // if key is unknown, invent a repo
-				Cjob          job     { New , no_slash(dir_name_s(dir_s)) , deps.n_statics }                                            ;
+				Ckey          new_key { New , it==old_keys.end()?repo:it->second         }                                              ; // if key is unknown, invent a repo
+				Cjob          job     { New , no_slash(dir_name_s(run)) , deps.n_statics }                                              ;
 				//
 				if (!new_key->ref_cnt) new_keys[+new_key] = repo ;                                                                        // record new association
 				::pair<Crun,CacheHitInfo> digest = job->insert(
 					deps.deps , deps.dep_crcs                                                                                             // to search entry
-				,	new_key , key_is_last , Pdate(data_stat.st_atim) , sz , to_rate(g_config,sz,job_info.end.digest.exe_time)             // to create entry
+				,	new_key , key_is_last , Pdate(data_stat.st_atim) , sz , to_rate(g_cache_config,sz,job_info.end.digest.exe_time)       // to create entry
 				) ;
 				throw_unless( digest.second>=CacheHitInfo::Miss , "conflict" ) ;
 			}
 		} catch (::string const&) {
-			to_rm.insert(dir_s+"info") ;
-			to_rm.insert(dir_s+"data") ;
+			to_rm.insert(info_file) ;
+			to_rm.insert(data_file) ;
 			continue ;
 		}
 		res.n_repaired++ ;
@@ -108,7 +108,7 @@ static RepairDigest _repair(bool dry_run) {
 		if (!dry_run) unlnk(f) ;
 	}
 	try { rename( repo_keys_file , repo_keys_file+".bck" ) ; } catch (::string const&) {}                                                 // no harm if file did not exist
-	AcFd repo_keys_fd { repo_keys_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=g_config.perm_ext} } ;
+	AcFd repo_keys_fd { repo_keys_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=g_cache_config.perm_ext} } ;
 	for( auto const& [k,r] : new_keys ) repo_keys_fd.write(cat(+k,' ',r,'\n')) ;
 	return res ;
 }
@@ -131,16 +131,16 @@ int main( int argc , char* argv[] ) {
 	,	.cd_root      = false                                                                          // we have already chdir'ed to top
 	,	.read_only_ok = cmd_line.flags[Flag::DryRun]
 	,	.root_mrkrs   = { cat(AdminDirS,"config.py") }
-	,	.version      = Version::DaemonCache
+	,	.version      = Version::Cache
 	}) ;
 	Py::init(*g_lmake_root_s) ;
 	//
-	::string lcl_repair_mrkr     = cat(AdminDirS,"repairing")                          ;
-	::string lcl_store_dir_s     = DaemonCache::Config::s_store_dir_s(               ) ;
-	::string lcl_bck_store_dir_s = DaemonCache::Config::s_store_dir_s(true/*for_bck*/) ;
-	::string repair_mrkr         = top_dir_s + lcl_repair_mrkr                         ;
-	::string store_dir_s         = top_dir_s + lcl_store_dir_s                         ;
-	::string bck_store_dir_s     = top_dir_s + lcl_bck_store_dir_s                     ;
+	::string lcl_repair_mrkr     = cat(AdminDirS,"repairing")      ;
+	::string lcl_store_dir_s     = store_dir_s(               )    ;
+	::string lcl_bck_store_dir_s = store_dir_s(true/*for_bck*/)    ;
+	::string repair_mrkr         = top_dir_s + lcl_repair_mrkr     ;
+	::string store_dir_s         = top_dir_s + lcl_store_dir_s     ;
+	::string bck_store_dir_s     = top_dir_s + lcl_bck_store_dir_s ;
 	//
 	if (!cmd_line.flags[Flag::DryRun]) {
 		if (FileInfo(lcl_repair_mrkr).tag()>=FileTag::Reg) unlnk( bck_store_dir_s , {.dir_ok=true} ) ; // if last lcache_repair was interrupted, reset unfinished state
@@ -158,11 +158,9 @@ int main( int argc , char* argv[] ) {
 		//
 		if ( !AcFd( lcl_repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	}
-	try                       { g_config = New ;                                                                             }
-	catch (::string const& e) { exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",top_dir_s,rm_slash," : ",e ) ; }
-	daemon_cache_init( false/*rescue*/, cmd_line.flags[Flag::DryRun] ) ;                                                                           // no need to rescue as store is fresh
-	 if (!cmd_line.flags[Flag::DryRun]) {
-	 	::string msg ;
+	cache_init( false/*rescue*/, cmd_line.flags[Flag::DryRun] ) ;                                                                                  // no need to rescue as store is fresh
+	if (!cmd_line.flags[Flag::DryRun]) {
+		::string msg ;
 		msg << "the repair process is starting, if something goes wrong :"                                                                                          <<'\n' ;
 		msg << "to restore old state,                    consider : rm -rf "<<store_dir_s<<rm_slash<<" ; mv "<<bck_store_dir_s<<rm_slash<<' '<<store_dir_s<<rm_slash<<'\n' ;
 		msg << "to restart the repair process,           consider : "<<*g_exe_name                                                                                  <<'\n' ;

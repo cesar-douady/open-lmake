@@ -272,7 +272,7 @@ namespace Engine {
 			} else if (job.is_plain()) {
 				JobEndRpcReq jerr = job.job_info(JobInfoKind::End).end ;
 				if (!jerr) self->audit_info( Color::Note , "no stderr available" , lvl+1 ) ;
-				else       seen_stderr = self->audit_stderr( job , jerr.msg_stderr , jerr.digest.max_stderr_len , lvl ) ;
+				else       seen_stderr = self->audit_stderr( job , jerr.msg_stderr , r->start_ancillary_attrs.spec.max_stderr_len , lvl ) ;
 			}
 		}
 		if (intermediate)

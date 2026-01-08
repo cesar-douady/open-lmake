@@ -69,7 +69,7 @@ mode_t get_umask() {
 	return res ;
 }
 
-[[noreturn]] void Child::_exit( Rc rc , const char* msg ) {                               // signal-safe
+[[noreturn]] void Child::_exit( Rc rc , const char* msg , const char* msg_dir_s ) {       // signal-safe
 	if (msg) {                                                                            // msg contains terminating null
 		bool ok = true ;
 		if (_child_args) {
@@ -80,91 +80,13 @@ mode_t get_umask() {
 				ok &= ::write(2," ",1)>=0 ;                                               // .
 			}
 		}
-		ok &= ::write(2,": ",2            )>=0 ;                                          // .
-		ok &= ::write(2,msg ,::strlen(msg))>=0 ;
-		ok &= ::write(2,"\n",1            )>=0 ;                                          // .
+		/**/           ok &= ::write(2,": "     ,2                    )>=0 ;              // .
+		/**/           ok &= ::write(2,msg      ,::strlen(msg)        )>=0 ;              // .
+		if (msg_dir_s) ok &= ::write(2,msg_dir_s,::strlen(msg_dir_s)-1)>=0 ;              // .
+		/**/           ok &= ::write(2,"\n"     ,1                    )>=0 ;              // .
 		if (!ok) rc = Rc::System ;
 	}
 	::_exit(+rc) ;                                                                        // /!\ cannot use exit as we are only allowed signal-safe functions
-}
-
-// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
-[[noreturn]] void Child::_do_child() {
-	SWEAR(_child_args[0]) ;
-	::execve( _child_args[0] , const_cast<char**>(_child_args) , const_cast<char**>(_child_env) ) ;
-	_exit(Rc::System,"cannot exec") ;                                                               // in case exec fails
-}
-
-// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
-// /!\ this function must not modify anything outside its local frame as it may be called as pre_exec under ::vfork()
-[[noreturn]] void Child::_do_child_trampoline() {
-	if (as_session) ::setsid() ;                  // if we are here, we are the init process and we must be in the new session to receive the kill signal
-	if (nice) {
-		[[maybe_unused]] int nice_val ;                                                                            // ignore error if any, as we cant do much about it
-		if (!as_session)
-			/**/                       nice_val = ::nice(nice) ;
-		else
-			// as_session creates a new autogroup, apply nice_val to it, not between processes within it
-			try                      { AcFd("/proc/self/autogroup",{.flags=O_WRONLY|O_TRUNC}).write(cat(nice)) ; }
-			catch (::string const&e) { nice_val = ::nice(nice) ;                                                 } // best effort
-	}
-	//
-	sigset_t full_mask ; sigfillset(&full_mask) ;                                                                  // sigfillset may be a macro
-	::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr/*oldset*/) ;                                                      // restore default behavior
-	//
-	switch (stdin.fd) {
-		case NoneFd.fd    : ::close(Fd::Stdin ) ;                                                    break ;
-		case PipeFd.fd    : ::close(_p2c.write) ; ::dup2(_p2c.read,Fd::Stdin) ; ::close(_p2c.read) ; break ;
-		case Fd::Stdin.fd :                                                                          break ;
-		default           :                       ::dup2(stdin    ,Fd::Stdin) ;
-	}
-	switch (stdout.fd) {
-		case NoneFd.fd     : ::close(Fd::Stdout) ;                                                         break ;
-		case PipeFd.fd     : ::close(_c2po.read) ; ::dup2(_c2po.write,Fd::Stdout) ; ::close(_c2po.write) ; break ;
-		case Fd::Stdout.fd :                                                                               break ;
-		default            :                       ::dup2(stdout     ,Fd::Stdout) ;
-	}
-	switch (stderr.fd) {
-		case NoneFd.fd     : ::close(Fd::Stderr) ;                                                         break ;
-		case PipeFd.fd     : ::close(_c2pe.read) ; ::dup2(_c2pe.write,Fd::Stderr) ; ::close(_c2pe.write) ; break ;
-		case Fd::Stderr.fd :                                                                               break ;
-		default            :                       ::dup2(stderr     ,Fd::Stderr) ;
-	}
-	if (+cwd_s  ) { if (::chdir(cwd_s.c_str())!=0) _exit( Rc::System , cat("cannot chdir to ",cwd_s,rm_slash).c_str() ) ; }
-	if (pre_exec) { if (pre_exec(pre_exec_arg)!=0) _exit( Rc::Fail   , "cannot setup child"                           ) ; }
-	//
-	#if HAS_CLOSE_RANGE
-		//::close_range(3/*first*/,~0u/*last*/,CLOSE_RANGE_UNSHARE) ;                                              // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
-	#endif
-	//
-	if (first_pid) {
-		SWEAR( first_pid>1 , first_pid ) ;                                                                              // START_OF_NO_COV coverage recording does not work in isolated namespace
-		// mount is not signal-safe and we are only allowed signal-safe functions here, but this is a syscall, should be ok
-		if (::mount(nullptr/*source*/,"/proc","proc",0/*flags*/,nullptr/*data*/)!=0) {
-			::perror("cannot mount /proc ") ;
-			_exit(Rc::System,"cannot mount /proc") ;
-		}
-		{	char                     first_pid_buf[30] ;                                                                // /!\ cannot use ::string as we are only allowed signal-safe functions
-			int                      first_pid_sz      = sprintf(first_pid_buf,"%d",first_pid-1  )                    ; // /!\ .
-			AcFd                     fd                { "/proc/sys/kernel/ns_last_pid" , {.flags=O_WRONLY|O_TRUNC} } ;
-			[[maybe_unused]] ssize_t _                 = ::write(fd,first_pid_buf,first_pid_sz)                       ; // dont care about errors, this is best effort
-		}
-		pid_t pid = ::vfork() ;                                                   // NOLINT(clang-analyzer-security.insecureAPI.vfork) faster than anything else
-		if (pid==0 ) _do_child() ;                                                // in child
-		if (pid==-1) _exit(Rc::System,"cannot spawn sub-process") ;
-		//
-		for(;;) {
-			int   wstatus   ;
-			pid_t child_pid = ::wait(&wstatus) ;
-			if (child_pid==pid) {                                                 // XXX! : find a way to simulate a caught signal rather than exit 128+sig (mimic bash)
-				if (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;     // exit as transparently as possible
-				if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;     // cannot kill self to be transparent as we are process 1, mimic bash
-				SWEAR( WIFSTOPPED(wstatus) || WIFCONTINUED(wstatus) , wstatus ) ; // ensure we have not forgotten a case
-			}
-		}                                                                         // END_OF_NO_COV
-	} else {
-		_do_child() ;
-	}
 }
 
 void Child::spawn() {
@@ -178,11 +100,11 @@ void Child::spawn() {
 	if (stderr==PipeFd) { _c2pe.open() ; _c2pe.no_std() ; }
 	//
 	// /!\ memory for environment must be allocated before calling clone
-	::vector_s            env_str_vec ;                                                                                      // ensure actual env strings (of the form name=val) lifetime
+	::vector_s            env_str_vec ;                                                              // ensure actual env strings (of the form name=val) lifetime
 	::vector<const char*> env_vec     ;
 	if ( env || add_env ) {
-		env_str_vec.reserve( (env?env->size():  0) + (add_env?add_env->size():0)                 ) ;                         // a little bit too large in case of key conflict, no harm
-		env_vec    .reserve( (env?env->size():100) + (add_env?add_env->size():0) + 1/*sentinel*/ ) ;                         // rough approximation if !env, better than nothing
+		env_str_vec.reserve( (env?env->size():  0) + (add_env?add_env->size():0)                 ) ; // a little bit too large in case of key conflict, no harm
+		env_vec    .reserve( (env?env->size():100) + (add_env?add_env->size():0) + 1/*sentinel*/ ) ; // rough approximation if !env, better than nothing
 		//
 		if (add_env) {
 			if (env) for( auto const& [k,v] : *env     ) { if (                                  !(      add_env->contains(k                ) ) ) env_str_vec.push_back(k+'='+v) ; }
@@ -200,25 +122,61 @@ void Child::spawn() {
 		_child_env = const_cast<const char**>(environ) ;
 	}
 	// /!\ memory for args must be allocated before calling clone
-	::vector<const char*> cmd_line_vec ; cmd_line_vec.reserve(cmd_line.size()+1) ;                                           // account for sentinel
+	::vector<const char*> cmd_line_vec ; cmd_line_vec.reserve(cmd_line.size()+1) ;                   // account for sentinel
 	for( ::string const& c : cmd_line ) cmd_line_vec.push_back(c.c_str()) ;
-	/**/                                cmd_line_vec.push_back(nullptr  ) ;                                                  // sentinel
+	/**/                                cmd_line_vec.push_back(nullptr  ) ;                          // sentinel
 	_child_args = cmd_line_vec.data() ;
-	//
-	if (first_pid) {
-		::vector<uint64_t> trampoline_stack     ( StackSz/sizeof(uint64_t) )                                               ; // we need a trampoline stack if we launch a grand-child
-		void*              trampoline_stack_ptr = trampoline_stack.data()+(STACK_GROWS_DOWNWARD?trampoline_stack.size():0) ; // .
-		pid = ::clone( _s_do_child_trampoline , trampoline_stack_ptr , SIGCHLD|CLONE_NEWPID|CLONE_NEWNS , this ) ;           // CLONE_NEWNS is passed to mount a new /proc without disturing caller
-	} else {
-		// pre_exec may modify parent's memory
-		pid_t pid_ = pre_exec ? ::fork() : ::vfork() ;               // NOLINT(clang-analyzer-security.insecureAPI.vfork,clang-analyzer-unix.Vfork) faster than anything else
-		if (pid_==0) _do_child_trampoline() ;                        // in child
-		pid = pid_ ;                                                 // only parent can modify parent's memory
+	// pre_exec may modify parent's memory
+	pid_t pid_ = pre_exec ? ::fork() : ::vfork() ; // NOLINT(clang-analyzer-security.insecureAPI.vfork,clang-analyzer-unix.Vfork) faster than anything else
+	if (pid_==0) {                                 // in child
+		// /!\ this section must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
+		if (as_session) ::setsid() ;               // if we are here, we are the init process and we must be in the new session to receive the kill signal
+		if (nice) {
+			if (as_session) try {
+				AcFd("/proc/self/autogroup",{.flags=O_WRONLY|O_TRUNC}).write(cat(nice)) ;               // as_session creates a new autogroup, apply nice_val to it, not between processes within it
+				goto NiceDone ;
+			} catch (::string const& e) {}                                                               // best effort
+			{ [[maybe_unused]] int nice_val = ::nice(nice) ; }                                          // ignore error if any, as we cant do much about it
+		NiceDone : ;
+		}
+		//
+		sigset_t full_mask ; sigfillset(&full_mask) ;                                                   // sigfillset may be a macro
+		::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr/*oldset*/) ;                                       // restore default behavior
+		//
+		switch (stdin.fd) {
+			case NoneFd.fd    : ::close(Fd::Stdin ) ;                                                    break ;
+			case PipeFd.fd    : ::close(_p2c.write) ; ::dup2(_p2c.read,Fd::Stdin) ; ::close(_p2c.read) ; break ;
+			case Fd::Stdin.fd :                                                                          break ;
+			default           :                       ::dup2(stdin    ,Fd::Stdin) ;
+		}
+		switch (stdout.fd) {
+			case NoneFd.fd     : ::close(Fd::Stdout) ;                                                         break ;
+			case PipeFd.fd     : ::close(_c2po.read) ; ::dup2(_c2po.write,Fd::Stdout) ; ::close(_c2po.write) ; break ;
+			case Fd::Stdout.fd :                                                                               break ;
+			default            :                       ::dup2(stdout     ,Fd::Stdout) ;
+		}
+		switch (stderr.fd) {
+			case NoneFd.fd     : ::close(Fd::Stderr) ;                                                         break ;
+			case PipeFd.fd     : ::close(_c2pe.read) ; ::dup2(_c2pe.write,Fd::Stderr) ; ::close(_c2pe.write) ; break ;
+			case Fd::Stderr.fd :                                                                               break ;
+			default            :                       ::dup2(stderr     ,Fd::Stderr) ;
+		}
+		if (+cwd_s  ) { if (::chdir(cwd_s.c_str())!=0) _exit( Rc::System , "cannot chdir to ",cwd_s.c_str() ) ; }
+		if (pre_exec) { if (pre_exec(pre_exec_arg)!=0) _exit( Rc::Fail   , "cannot setup child"             ) ; }
+		//
+		#if HAS_CLOSE_RANGE
+			//::close_range(3/*first*/,~0u/*last*/,CLOSE_RANGE_UNSHARE) ;                               // activate this code (uncomment) as an alternative to set CLOEXEC in Fd(::string)
+		#endif
+		//
+		SWEAR(_child_args[0]) ;
+		::execve( _child_args[0] , const_cast<char**>(_child_args) , const_cast<char**>(_child_env) ) ;
+		_exit(Rc::System,"cannot exec") ;                                                               // in case exec fails
 	}
+	pid = pid_ ;                                                                                        // only parent can modify parent's memory
 	//
 	if (pid==-1) {
-		waited() ;                                                   // NO_COV defensive programming, ensure we can be destructed
-		throw cat("cannot spawn process ",cmd_line," : ",StrErr()) ; // NO_COV .
+		waited() ;                                                                                      // NO_COV defensive programming, ensure we can be destructed
+		throw cat("cannot spawn process ",cmd_line," : ",StrErr()) ;                                    // NO_COV .
 	}
 	//
 	if      (stdin ==PipeFd) { stdin  = _p2c .write ; _p2c .read .close() ; }

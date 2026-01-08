@@ -11,12 +11,13 @@
 #include "serialize.hh"
 #include "time.hh"
 #include "trace.hh"
+#include "zfd.hh"
 
 #include "autodep/env.hh"
 
 #include "rpc_job_common.hh"
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+// START_OF_VERSIONING REPO CACHE
 // PER_AUTODEP_METHOD : add entry here
 // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 // by default, use a compromize between speed an reliability
@@ -27,7 +28,7 @@
 #endif
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+// START_OF_VERSIONING REPO CACHE
 enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 	Unknown                       // must be first
 ,	Local
@@ -40,7 +41,7 @@ enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 } ;
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+// START_OF_VERSIONING REPO CACHE
 enum class CacheHitInfo : uint8_t {
 	Hit                             // cache hit
 ,	Match                           // cache matches, but not hit (some deps are missing, hence dont know if hit or miss)
@@ -68,14 +69,14 @@ static constexpr ::amap<CacheHitInfo,const char*,N<CacheHitInfo>> CacheHitInfoSt
 }} ;
 static_assert(chk_enum_tab(CacheHitInfoStrs)) ;
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+// START_OF_VERSIONING REPO CACHE
 enum class ChrootAction : uint8_t {
 	ResolvConf                      // /etc/resolv.conf is copied from native env to chroot'ed env
 ,	UserName                        // user and root and their groups have a name, existing ones are not preserved
 } ;
 using ChrootActions = BitMap<ChrootAction> ;
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+// START_OF_VERSIONING REPO CACHE
 enum class FileActionTag : uint8_t {
 	Src                              // file is src, no action
 ,	None                             // same as unlink except expect file not to exist
@@ -91,16 +92,6 @@ enum class FileActionTag : uint8_t {
 } ;
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
-enum class JobInfoKind : uint8_t {
-	None
-,	Start
-,	End
-,	DepCrcs
-} ;
-// END_OF_VERSIONING
-using JobInfoKinds = BitMap<JobInfoKind> ;
-
 // START_OF_VERSIONING REPO CACHE
 enum class JobMngtProc : uint8_t {
 	None
@@ -115,7 +106,7 @@ enum class JobMngtProc : uint8_t {
 } ;
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+// START_OF_VERSIONING REPO CACHE
 enum class JobRpcProc : uint8_t {
 	None
 ,	Start
@@ -125,7 +116,7 @@ enum class JobRpcProc : uint8_t {
 } ;
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+// START_OF_VERSIONING REPO CACHE
 enum class JobReasonTag : uint8_t {            // see explanations in table below
 	None
 ,	Retry                                      // job is retried in case of error      if asked so by user
@@ -258,7 +249,7 @@ enum class MountAction : uint8_t {
 ,	Write
 } ;
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+// START_OF_VERSIONING REPO CACHE
 enum class Status : uint8_t { // result of job execution
 	New                       // job was never run
 ,	EarlyChkDeps              // dep check failed before job actually started
@@ -304,31 +295,10 @@ static_assert(chk_enum_tab(StatusAttrs)) ;
 inline Bool3 is_ok  (Status s) { return StatusAttrs[+s].second.first  ; }
 inline bool  is_lost(Status s) { return StatusAttrs[+s].second.second ; }
 
-// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
-enum class ZlvlTag : uint8_t {
-	None
-,	Zlib
-,	Zstd
-// aliases
-,	Dflt =
-		#if HAS_STD
-			Zstd
-		#elif HAS_ZLIB
-			Zlib
-		#else
-			None
-		#endif
-} ;
-// END_OF_VERSIONING
-
 static const ::string PassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
 static const ::string DynMrkr  = {'\0','d'} ; // special illegal value to mark dynamically computed variable
 
-namespace Caches {
-
-	using CacheKey = uint64_t ; // used to identify temporary data to upload
-
-}
+using CacheUploadKey = uint64_t ; // used to identify temporary data to upload
 
 //
 // get_os_info
@@ -353,7 +323,7 @@ bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&&
 struct FileAction {
 	friend ::string& operator+=( ::string& , FileAction const& ) ;
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	FileActionTag tag    = {} ;
 	Tflags        tflags = {} ;
 	Hash::Crc     crc    = {} ; // expected (else, quarantine)
@@ -386,7 +356,7 @@ struct AccDflags {
 	AccDflags  operator| (AccDflags other) const { return { accesses|other.accesses , dflags|other.dflags } ; }
 	AccDflags& operator|=(AccDflags other)       { self = self | other ; return self ;                        }
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	Accesses accesses ;
 	Dflags   dflags   ;
 	// END_OF_VERSIONING
@@ -418,14 +388,14 @@ struct JobReason {
 	}
 	void chk() const ;
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	NodeIdx node = 0                  ;
 	Tag     tag  = JobReasonTag::None ;
 	// END_OF_VERSIONING
 } ;
 
 struct JobStats {
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	size_t            mem = 0  ; // in bytes
 	Time::CoarseDelay cpu = {} ;
 	Time::CoarseDelay job = {} ; // elapsed in job
@@ -449,7 +419,7 @@ enum class DepInfoKind : uint8_t {
 ,	Info
 } ;
 struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 	// END_OF_VERSIONING
 	friend ::string& operator+=( ::string& , DepInfo const& ) ;
@@ -590,7 +560,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		return self ;
 	}
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	uint8_t       sz                       = 0          ;                                //   8 bits, number of items in chunk following header (semantically before)
 	Accesses      accesses                 ;                                             // 3<8 bits
 	Dflags        dflags                   = DflagsDflt ;                                // 5<8 bits
@@ -626,7 +596,7 @@ struct TargetDigest {
 	friend ::string& operator+=( ::string& , TargetDigest const& ) ;
 	using Crc = Hash::Crc ;
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	Tflags        tflags       = {}    ;
 	ExtraTflags   extra_tflags = {}    ;
 	bool          pre_exist    = false ; // if true <=> file was seen as existing while not incremental
@@ -643,8 +613,6 @@ template<class Key=::string> struct JobDigest {                                 
 			.upload_key     = upload_key
 		,	.refresh_codecs = refresh_codecs
 		,	.exe_time       = exe_time
-		,	.max_stderr_len = max_stderr_len
-		,	.cache_idx1     = cache_idx1
 		,	.status         = status
 		,	.has_msg_stderr = has_msg_stderr
 		,	.incremental    = incremental
@@ -663,14 +631,12 @@ template<class Key=::string> struct JobDigest {                                 
 	// services
 	void cache_cleanup() ;
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
-	uint64_t                 upload_key     = {}          ;
+	// START_OF_VERSIONING REPO CACHE
+	CacheUploadKey           upload_key     = {}          ;
 	::vmap<Key,TargetDigest> targets        = {}          ;
 	::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
 	::vector_s               refresh_codecs = {}          ;
 	Time::CoarseDelay        exe_time       = {}          ;
-	uint16_t                 max_stderr_len = {}          ;
-	CacheIdx                 cache_idx1     = 0           ;
 	Status                   status         = Status::New ;
 	bool                     has_msg_stderr = false       ;                                // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
 	bool                     incremental    = false       ;                                // if true <= job was run with existing incremental targets
@@ -691,74 +657,11 @@ template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 		for( auto const& [d,_] : deps    ) throw_unless( +d &&                     Disk::is_canon(d,true ) , "bad dep"    ) ;
 	}
 	throw_unless( status<All<Status> , "bad status" ) ;
-	if (for_cache) {
-		throw_unless( !cache_idx1 , "bad cache_idx1" ) ;
+	if (for_cache)
 		for( auto const& [_,d] : deps ) {
 			throw_unless( d.is_crc                       , "dep not crc" ) ;
 			throw_unless( !d.accesses || d.crc().valid() , "bad dep crc" ) ;
 		}
-	}
-}
-
-struct JobInfo ;
-
-struct Zlvl {
-	friend ::string& operator+=( ::string& , Zlvl ) ;
-	bool operator+() const { return +tag && lvl ; }
-	ZlvlTag tag = {} ;
-	uint8_t lvl = 0  ;
-} ;
-
-namespace Caches {
-
-	struct Cache {
-		using Sz  = Disk::DiskSz        ;
-		using MDD = ::vmap_s<DepDigest> ;
-		static constexpr Channel CacheChnl = Channel::Cache ;
-		struct DownloadDigest ;
-		struct Hdr {
-			// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
-			::vector<Sz> target_szs ;
-			// END_OF_VERSIONING
-		} ;
-		struct SubUploadDigest {
-			friend ::string& operator+=( ::string& , SubUploadDigest const& ) ;
-			// services
-			bool operator+() const { return upload_key ; }
-			// data
-			::string file       = {} ;
-			::string pfx        = {} ;                                                  // to be written to file before data
-			uint64_t upload_key = 0  ;
-			::string msg        = {} ;
-			PermExt  perm_ext   = {} ;
-		} ;
-		// statics
-		static Cache* s_new   (                          ) ;
-		static void   s_config(::vmap_s<::vmap_ss> const&) ;
-		// static data
-		static ::vector<Cache*> s_tab ;
-		// cxtors & casts
-		virtual ~Cache() = default ;
-		// services
-		// if match returns empty, answer is delayed and an action will be posted to the main loop when ready
-		DownloadDigest                                  download( ::string const& job , MDD const& deps , bool incremental , ::function<void()> pre_download         , NfsGuard* ) ;
-		::pair<uint64_t/*upload_key*/,Sz/*compressed*/> upload  ( Time::Delay exe_time , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl zlvl , NfsGuard* ) ;
-		//
-		void commit ( uint64_t upload_key , ::string const& /*job*/ , JobInfo&& ) ;
-		void dismiss( uint64_t upload_key                                       ) { Trace trace(CacheChnl,"Cache::dismiss",upload_key) ; sub_dismiss(upload_key) ; }
-		// default implementation : no caching, but enforce protocol
-		virtual void      config( ::vmap_ss const& , bool /*may_init*/=false )       {}
-		virtual ::vmap_ss descr (                                            ) const { return {}        ; }
-		virtual void      repair( bool /*dry_run*/                           )       {}
-		virtual void      serdes( ::string     &                             )       {} // serialize
-		virtual void      serdes( ::string_view&                             )       {} // deserialize
-		//
-		virtual ::pair<DownloadDigest,AcFd> sub_download( ::string const& /*job*/ , MDD const&                          ) ;
-		virtual SubUploadDigest             sub_upload  ( Time::Delay /*exe_time*/ , Sz /*max_sz*/                      ) { return {} ; }
-		virtual void                        sub_commit  ( uint64_t /*upload_key*/ , ::string const& /*job*/ , JobInfo&& ) {             }
-		virtual void                        sub_dismiss ( uint64_t /*upload_key*/                                       ) {             }
-	} ;
-
 }
 
 struct UserTraceEntry {
@@ -796,7 +699,7 @@ struct JobSpace {
 			::serdes( s , phys_s,copy_up ) ;
 		}
 		// data
-		// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+		// START_OF_VERSIONING REPO CACHE
 		::vector_s phys_s  = {} ;                                                              // (upper,lower...)
 		::vector_s copy_up = {} ;                                                              // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
@@ -829,7 +732,7 @@ struct JobSpace {
 	void mk_canon( ::string const& phy_repo_root_s , ::string const& sub_repo_s , bool has_chroot )       ;
 	void chk     (                                                                                ) const ;
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	::string            lmake_view_s = {} ;                                                    // absolute dir under which job sees open-lmake root dir (empty if unused)
 	::string            repo_view_s  = {} ;                                                    // absolute dir under which job sees repo root dir       (empty if unused)
 	::string            tmp_view_s   = {} ;                                                    // absolute dir under which job sees tmp dir             (empty if unused)
@@ -841,6 +744,21 @@ private :
 	bool     _force_creat = false ;                                                            // valid if _is_canon, if true => create a chroot
 } ;
 
+struct CacheRemoteSide {
+	friend ::string& operator+=( ::string& , CacheRemoteSide const& ) ;
+	// accesses
+	bool operator+() const { return +dir_s ; }
+	// services
+	::pair<CacheUploadKey/*upload_key*/,Disk::DiskSz/*compressed*/> upload ( Time::Delay exe_time , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl zlvl ) const ;
+	void                                                            dismiss( CacheUploadKey upload_key                                                                          ) const ;
+	// data
+	::string     dir_s     ;
+	KeyedService service   ;
+	Disk::DiskSz max_rate  = 0  ;
+	FileSync     file_sync = {} ;
+	PermExt      perm_ext  = {} ;
+} ;
+
 struct JobRpcReq {
 	// accesses
 	bool operator+() const { return +seq_id ; }
@@ -848,7 +766,7 @@ struct JobRpcReq {
 	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	SeqId  seq_id = 0 ;
 	JobIdx job    = 0 ;
 	// END_OF_VERSIONING)
@@ -867,7 +785,7 @@ struct JobStartRpcReq : JobRpcReq {
 	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	KeyedService service ; // where job_exec can be contacted (except addr which is discovered by server from peer_addr
 	::string     msg     ;
 	// END_OF_VERSIONING)
@@ -890,7 +808,7 @@ struct JobStartRpcReply {                                                // NOLI
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , autodep_env                   ) ;
-		::serdes( s , cache_idx1                    ) ;
+		::serdes( s , cache                         ) ;
 		::serdes( s , chk_abs_paths                 ) ;
 		::serdes( s , chroot_info                   ) ;
 		::serdes( s , cmd                           ) ;
@@ -916,16 +834,10 @@ struct JobStartRpcReply {                                                // NOLI
 		::serdes( s , timeout                       ) ;
 		::serdes( s , use_script                    ) ;
 		::serdes( s , zlvl                          ) ;
-		//
-		bool has_cache = cache ;
-		::serdes(s,has_cache) ;
-		if (IsIStream<S>) cache = has_cache ? Caches::Cache::s_new() : nullptr ;
-		if (has_cache   ) cache->serdes(s) ;
 	}
 	void            mk_canon( ::string const& phy_repo_root_s ) ;
 	bool/*entered*/ enter   (
 		::vector_s&              /*out  */ accesses
-	,	pid_t     &              /*.    */ first_pid
 	,	::string  &              /*.    */ repo_dir_s
 	,	::vector<UserTraceEntry>&/*inout*/
 	,	::string const&                    phy_repo_root_s
@@ -940,10 +852,9 @@ private :
 	void _mk_lmake_version() ;
 	// data
 public :
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	AutodepEnv                              autodep_env      ;
-	Caches::Cache*                          cache            = nullptr             ;
-	CacheIdx                                cache_idx1       ;                       // to be repeated in JobEndRpcReq to ensure it is available when processing
+	CacheRemoteSide                         cache            ;
 	bool                                    chk_abs_paths    = false               ;
 	ChrootInfo                              chroot_info      ;
 	::string                                cmd              ;
@@ -1004,7 +915,7 @@ struct JobEndRpcReq : JobRpcReq {
 	void cache_cleanup() ;                   // clean up info before uploading to cache
 	void chk(bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
+	// START_OF_VERSIONING REPO CACHE
 	JobDigest<>              digest        ;
 	::vmap_ss                dyn_env       ; // env variables computed in job_exec
 	Time::Pdate              end_date      ;
@@ -1076,95 +987,3 @@ struct JobMngtRpcReply {
 	::string              txt           = {}    ;                                // proc == ChkDeps|                     , reason for ChkDeps
 	Bool3                 ok            = Maybe ;                                // proc == ChkDeps|DepDirect            , if No <=> deps in error, if Maybe <=> deps not ready
 } ;
-
-struct SubmitAttrs {
-	friend ::string& operator+=( ::string& , SubmitAttrs const& ) ;
-	// services
-	SubmitAttrs& operator|=(SubmitAttrs const& other) {
-		// cache, deps and tag are independent of req but may not always be present
-		if (!cache_idx1  ) cache_idx1    =                other.cache_idx1   ; else if (+other.cache_idx1  ) SWEAR( cache_idx1  ==other.cache_idx1   , cache_idx1  ,other.cache_idx1   ) ;
-		if (!deps        ) deps          =                other.deps         ; else if (+other.deps        ) SWEAR( deps        ==other.deps         , deps        ,other.deps         ) ;
-		if (!used_backend) used_backend  =                other.used_backend ; else if (+other.used_backend) SWEAR( used_backend==other.used_backend , used_backend,other.used_backend ) ;
-		/**/               live_out     |=                other.live_out     ;
-		/**/               nice          = ::min(nice    ,other.nice     )   ;
-		/**/               pressure      = ::max(pressure,other.pressure )   ;
-		/**/               reason       |=                other.reason       ;
-		/**/               tokens1       = ::max(tokens1 ,other.tokens1  )   ;
-		return self ;
-	}
-	SubmitAttrs operator|(SubmitAttrs const& other) const {
-		SubmitAttrs res = self ;
-		res |= other ;
-		return res ;
-	}
-	void cache_cleanup() ;
-	void chk(bool for_cache=false) const ;
-	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
-	::vmap_s<DepDigest> deps         = {}    ;
-	JobReason           reason       = {}    ;
-	Time::CoarseDelay   pressure     = {}    ;
-	CacheIdx            cache_idx1   = {}    ;
-	Tokens1             tokens1      = 0     ;
-	BackendTag          used_backend = {}    ; // tag actually used (possibly made local because asked tag is not available)
-	bool                live_out     = false ;
-	uint8_t             nice         = -1    ; // -1 means not specified
-	// END_OF_VERSIONING
-} ;
-
-struct JobInfoStart {
-	friend ::string& operator+=( ::string& , JobInfoStart const& ) ;
-	// accesses
-	bool operator+() const { return +pre_start ; }
-	// services
-	void cache_cleanup() ;                 // clean up info before uploading to cache
-	void chk(bool for_cache=false) const ;
-	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
-	Hash::Crc        rule_crc_cmd = {} ;
-	::vector_s       stems        = {} ;
-	Time::Pdate      eta          = {} ;
-	SubmitAttrs      submit_attrs = {} ;
-	::vmap_ss        rsrcs        = {} ;
-	JobStartRpcReq   pre_start    = {} ;
-	JobStartRpcReply start        = {} ;
-	// END_OF_VERSIONING
-} ;
-
-struct JobInfo {
-	JobInfo() = default ;
-	JobInfo( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) { fill_from(ancillary_file,need) ; }
-	// services
-	template<IsStream S> void serdes(S& s) {
-		::serdes( s , start,end,dep_crcs ) ;
-	}
-	void fill_from( ::string const& ancillary_file , JobInfoKinds need=~JobInfoKinds() ) ;
-	//
-	void update_digest(                    ) ;         // update crc in digest from dep_crcs
-	void cache_cleanup(                    ) ;         // clean up info before uploading to cache
-	void chk          (bool for_cache=false) const ;
-	// data
-	// START_OF_VERSIONING REPO DAEMON_CACHE DIR_CACHE
-	JobInfoStart                            start    ;
-	JobEndRpcReq                            end      ;
-	::vector<::pair<Hash::Crc,bool/*err*/>> dep_crcs ; // optional, if not provided in end.digest.deps
-	// END_OF_VERSIONING
-} ;
-::string cache_repo_cmp( JobInfo const& info_cache , JobInfo const& info_repo ) ;
-
-//
-// implementation
-//
-
-namespace Caches {
-	struct Cache::DownloadDigest {
-		// data
-		CacheHitInfo hit_info = CacheHitInfo::NoCache ;
-		JobInfo      job_info = {}                    ;
-	} ;
-
-	inline ::pair<Cache::DownloadDigest,AcFd> Cache::sub_download( ::string const& /*job*/ , ::vmap_s<DepDigest> const& ) {
-		return {} ;
-	}
-
-}

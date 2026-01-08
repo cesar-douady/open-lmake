@@ -11,5 +11,5 @@ namespace Engine::Makefiles {
 	::umap_ss clean_env(bool under_lmake_ok) ; // ensure env is clean for dynamic execution and return original env
 	// msg may be updated even if throwing
 	// startup_dir_s is for diagnostic purpose only
-	void refresh  ( ::string&/*out*/ msg , ::umap_ss const& env , bool chk, bool refresh , ::string const& startup_dir_s ) ;
+	void refresh( ::string&/*out*/ msg , ::umap_ss const& env , bool chk, bool refresh , ::string const& startup_dir_s ) ;
 }

@@ -9,17 +9,16 @@
 #include "hash.hh"
 #include "process.hh"
 
-#include "caches/daemon_cache.hh"
-#include "caches/daemon_cache/daemon_cache_utils.hh"
+#include "cache_utils.hh"
+#include "engine.hh"
+#include "rpc_cache.hh"
 
-#include "caches/daemon_cache/engine.hh"
+using namespace Cache ;
+using namespace Disk  ;
+using namespace Hash  ;
 
-using namespace Caches ;
-using namespace Disk   ;
-using namespace Hash   ;
-
-SmallIds<uint64_t> _g_upload_keys  ;
-::vector<DiskSz>   _g_reserved_szs ; // indexed by upload_key
+SmallIds<CacheUploadKey> _g_upload_keys  ;
+::vector<DiskSz>         _g_reserved_szs ; // indexed by upload_key
 
 int main( int argc , char** ) {
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
@@ -28,14 +27,10 @@ int main( int argc , char** ) {
 	,	.cd_root      = false // launch at root
 	,	.read_only_ok = true
 	,	.root_mrkrs   = { cat(AdminDirS,"config.py") }
-	,	.version      = Version::DaemonCache
+	,	.version      = Version::Cache
 	}) ;
 	Py::init(*g_lmake_root_s) ;
-	//
-	try                       { g_config = New ;                                                                                  }
-	catch (::string const& e) { exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : ",e ) ; }
-	//
-	daemon_cache_init( false/*rescue*/ , true/*read_only*/ ) ;
+	cache_init( false/*rescue*/ , true/*read_only*/ ) ;
 	//
 	Fd::Stdout.write(cat("total_sz : ",CrunData ::s_hdr().total_sz,'\n')) ;
 	Fd::Stdout.write(cat("n_trash  : ",CnodeData::s_hdr().n_trash ,'\n')) ;
@@ -63,11 +58,11 @@ int main( int argc , char** ) {
 		Fd::Stdout.write(cat( //!    width
 			/**/    widen(cat(r     ),13 )
 		,	" : " , widen(cat(r->job),13 )
-		,	" : " , r->last_access.str(0) //!                                                       width right
-		,	' '   , widen(to_short_string_with_unit     (r->sz                                     ),5   ,true),"B"
-		,	' '   , widen(to_short_string_with_unit<'m'>(uint64_t(from_rate(g_config,r->rate)*1024)),5   ,true),"B/s"
-		,	' '   , widen(cat                           (r->deps    .size()                        ),6   ,true)
-		,	'('   , widen(cat                           (r->dep_crcs.size()                        ),3   ,true)
+		,	" : " , r->last_access.str(0) //!                                                             width right
+		,	' '   , widen(to_short_string_with_unit     (r->sz                                           ),5   ,true),"B"
+		,	' '   , widen(to_short_string_with_unit<'m'>(uint64_t(from_rate(g_cache_config,r->rate)*1024)),5   ,true),"B/s"
+		,	' '   , widen(cat                           (r->deps    .size()                              ),6   ,true)
+		,	'('   , widen(cat                           (r->dep_crcs.size()                              ),3   ,true)
 		,	')'
 		,	" : " , cat(r->key,'-',"FL"[r->key_is_last])
 		,'\n')) ;
@@ -80,7 +75,7 @@ int main( int argc , char** ) {
 		,	" : " ,           n->name()
 		,'\n')) ;
 	//
-	daemon_cache_finalize() ;
+	cache_finalize() ;
 	//
 	return 0 ;
 }

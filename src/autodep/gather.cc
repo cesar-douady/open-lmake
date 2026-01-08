@@ -366,7 +366,6 @@ Fd Gather::_spawn_child() {
 	_child.stdin      = child_stdin                           ;
 	_child.stdout     = child_stdout                          ;
 	_child.stderr     = child_stderr                          ;
-	_child.first_pid  = first_pid                             ;
 	if (is_ptrace) {                                            // PER_AUTODEP_METHOD : handle case
 		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)

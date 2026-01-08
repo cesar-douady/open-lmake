@@ -5,9 +5,9 @@
 
 // included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
 
-#ifdef STRUCT_DECL
-
 #include "rpc_job.hh"
+
+#ifdef STRUCT_DECL
 
 enum class ConnState : uint8_t {
 	New
@@ -105,17 +105,17 @@ namespace Backends {
 			// services
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
-			Conn             conn           ;
-			Pdate            spawn_date     ;
-			Pdate            start_date     ;
-			Workload::Val    workload       = 0            ;
-			::uset_s         washed         ;
-			::vmap_ss        rsrcs          ;
-			::vector<ReqIdx> reqs           ;
-			SubmitAttrs      submit_attrs   ;
-			Bool3            started        = No           ; // Maybe means _s_handle_job_start is executing
-			uint16_t         max_stderr_len = 0            ;
-			Tag              tag            = Tag::Unknown ;
+			Conn               conn           ;
+			Pdate              spawn_date     ;
+			Pdate              start_date     ;
+			Workload::Val      workload       = 0            ;
+			::uset_s           washed         ;
+			::vmap_ss          rsrcs          ;
+			::vector<ReqIdx>   reqs           ;
+			Engine::SubmitInfo submit_info    ;
+			Bool3              started        = No           ; // Maybe means _s_handle_job_start is executing
+			uint16_t           max_stderr_len = 0            ;
+			Tag                tag            = Tag::Unknown ;
 		} ;
 
 		struct DeferredEntry {
@@ -141,11 +141,11 @@ namespace Backends {
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread
-		static void                  s_open_req    (             Req , JobIdx n_jobs                          ) ;
-		static void                  s_close_req   (             Req                                          ) ;
-		static void                  s_submit      ( Tag , Job , Req , SubmitAttrs     && , ::vmap_ss&& rsrcs ) ;
-		static bool/*miss_live_out*/ s_add_pressure( Tag , Job , Req , SubmitAttrs const&                     ) ;
-		static void                  s_set_pressure( Tag , Job , Req , SubmitAttrs const&                     ) ;
+		static void                  s_open_req    (             Req , JobIdx n_jobs                         ) ;
+		static void                  s_close_req   (             Req                                         ) ;
+		static void                  s_submit      ( Tag , Job , Req , SubmitInfo     && , ::vmap_ss&& rsrcs ) ;
+		static bool/*miss_live_out*/ s_add_pressure( Tag , Job , Req , SubmitInfo const&                     ) ;
+		static void                  s_set_pressure( Tag , Job , Req , SubmitInfo const&                     ) ;
 		//
 		static void s_kill_all    (     ) {             _s_kill_req( ) ; }
 		static void s_kill_req    (Req r) { SWEAR(+r) ; _s_kill_req(r) ; }
@@ -210,9 +210,9 @@ namespace Backends {
 		virtual ::vector<Job> kill_waiting_jobs( Req                     ) = 0 ;                       // kill all waiting jobs for this req (all if 0), return killed jobs
 		virtual void          kill_job         ( Job                     ) = 0 ;                       // job must be spawned
 		//
-		virtual void submit      ( Job , Req , SubmitAttrs const& , ::vmap_ss&& /*rsrcs*/ ) = 0 ;      // submit a new job
-		virtual void add_pressure( Job , Req , SubmitAttrs const&                         ) {}         // add a new req for an already submitted job
-		virtual void set_pressure( Job , Req , SubmitAttrs const&                         ) {}         // set a new pressure for an existing req of a job
+		virtual void submit      ( Job , Req , SubmitInfo const& , ::vmap_ss&& /*rsrcs*/ ) = 0 ;       // submit a new job
+		virtual void add_pressure( Job , Req , SubmitInfo const&                         ) {}          // add a new req for an already submitted job
+		virtual void set_pressure( Job , Req , SubmitInfo const&                         ) {}          // set a new pressure for an existing req of a job
 		//
 		virtual void                     launch   (          ) = 0 ;                                   // called to trigger launch of waiting jobs
 		virtual ::string/*msg*/          start    (Job       ) = 0 ;                                   // tell sub-backend job started, return an informative message
@@ -224,8 +224,8 @@ namespace Backends {
 		//
 		virtual ::vmap_s<size_t> const& capacity() const { FAIL("only for local backend") ; }                                   // NO_COV
 	protected :
-		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx>&& , ::vmap_ss&& rsrcs , SubmitAttrs&& ) ; // must be called once before job is launched, SubmitAttrs must be the operator| of ...
-		/**/                                                                                                // ... the submit/add_pressure corresponding values for the job
+		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx>&& , ::vmap_ss&& rsrcs , SubmitInfo&& ) ; // must be called once before job is launched, SubmitInfo must be the operator| of ...
+		/**/                                                                                               // ... the submit/add_pressure corresponding values for the job
 		// data
 	public :
 		::string fqdn_      ;

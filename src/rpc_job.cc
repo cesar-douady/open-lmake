@@ -15,21 +15,15 @@
 #include "time.hh"
 #include "trace.hh"
 #include "version.hh"
-#include "caches/daemon_cache.hh"
+
+#include "cache/rpc_cache.hh"
 
 #include "rpc_job.hh"
 
-#if HAS_ZSTD
-	#include <zstd.h>
-#endif
-#if HAS_ZLIB
-	#define ZLIB_CONST
-	#include <zlib.h>
-#endif
-
-using namespace Disk ;
-using namespace Hash ;
-using namespace Time ;
+using namespace Cache ;
+using namespace Disk  ;
+using namespace Hash  ;
+using namespace Time  ;
 
 //
 // get_os_info
@@ -446,533 +440,6 @@ void JobRpcReq::chk(bool for_cache) const {
 }                                                // END_OF_NO_COV
 
 //
-// Cache
-//
-
-namespace Caches {
-
-	struct DeflateFd : AcFd {
-		static Cache::Sz s_max_sz( Cache::Sz sz , Zlvl zlvl={} ) {
-			if (!zlvl) return sz ;
-			switch (zlvl.tag) {
-				case ZlvlTag::Zlib :
-					throw_unless( HAS_ZLIB , "cannot compress without zlib" ) ;
-					#if HAS_ZLIB
-						static_assert(sizeof(ulong)==sizeof(Cache::Sz)) ;  // compressBound manages ulong and we need a Sz
-						return ::compressBound(sz) ;
-					#endif
-				break ;
-				case ZlvlTag::Zstd :
-					throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
-					#if HAS_ZSTD
-						static_assert(sizeof(size_t)==sizeof(Cache::Sz)) ; // ZSTD_compressBound manages size_t and we need a Sz
-						return ::ZSTD_compressBound(sz) ;
-					#endif
-				break ;
-			DF}                                                            // NO_COV
-			FAIL() ;
-		}
-		// cxtors & casts
-		DeflateFd() = default ;
-		DeflateFd( AcFd&& fd , Zlvl zl={} ) : AcFd{::move(fd)} , zlvl{zl} {
-			if (!zlvl) return ;
-			switch (zlvl.tag) {
-				case ZlvlTag::Zlib : {
-					throw_unless( HAS_ZLIB , "cannot compress without zlib" ) ;
-					#if HAS_ZLIB
-						zlvl.lvl    = ::min( zlvl.lvl , uint8_t(Z_BEST_COMPRESSION) ) ;
-						_zlib_state = {}                                              ;
-						int rc = ::deflateInit(&_zlib_state,zlvl.lvl) ; SWEAR(rc==Z_OK) ;
-						_zlib_state.next_in  = ::launder(reinterpret_cast<uint8_t const*>(_buf)) ;
-						_zlib_state.avail_in = 0                                                 ;
-					#endif
-				} break ;
-				case ZlvlTag::Zstd :
-					throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
-					#if HAS_ZSTD
-						zlvl.lvl    = ::min( zlvl.lvl , uint8_t(::ZSTD_maxCLevel()) ) ;
-						_zstd_state = ::ZSTD_createCCtx()                             ; SWEAR(_zstd_state) ;
-						::ZSTD_CCtx_setParameter( _zstd_state , ZSTD_c_compressionLevel , zlvl.lvl ) ;
-					#endif
-				break ;
-			DF}                                                            // NO_COV
-		}
-		~DeflateFd() {
-			flush() ;
-			if (!zlvl) return ;
-			switch (zlvl.tag) {
-				case ZlvlTag::Zlib :
-					SWEAR(HAS_ZLIB) ;
-					#if HAS_ZLIB
-						::deflateEnd(&_zlib_state) ;
-					#endif
-				break ;
-				case ZlvlTag::Zstd :
-					SWEAR(HAS_ZSTD) ;
-					#if HAS_ZSTD
-						::ZSTD_freeCCtx(_zstd_state) ;
-					#endif
-				break ;
-			DF}                                                            // NO_COV
-		}
-		// services
-		void write(::string const& s) {
-			if (!s) return ;
-			SWEAR(!_flushed) ;
-			if (+zlvl) {
-				switch (zlvl.tag) {
-					case ZlvlTag::Zlib :
-						SWEAR(HAS_ZLIB) ;
-						#if HAS_ZLIB
-							_zlib_state.next_in  = ::launder(reinterpret_cast<uint8_t const*>(s.data())) ;
-							_zlib_state.avail_in = s.size()                                              ;
-							while (_zlib_state.avail_in) {
-								_zlib_state.next_out  = ::launder(reinterpret_cast<uint8_t*>( _buf + _pos )) ;
-								_zlib_state.avail_out = DiskBufSz - _pos                                     ;
-								::deflate(&_zlib_state,Z_NO_FLUSH) ;
-								_pos = DiskBufSz - _zlib_state.avail_out ;
-								_flush(1/*room*/) ;
-							}
-						#endif
-					break ;
-					case ZlvlTag::Zstd : {
-						SWEAR(HAS_ZSTD) ;
-						#if HAS_ZSTD
-							::ZSTD_inBuffer  in_buf  { .src=s.data() , .size=s.size()  , .pos=0 } ;
-							::ZSTD_outBuffer out_buf { .dst=_buf     , .size=DiskBufSz , .pos=0 } ;
-							while (in_buf.pos<in_buf.size) {
-								out_buf.pos = _pos ;
-								::ZSTD_compressStream2( _zstd_state , &out_buf , &in_buf , ZSTD_e_continue ) ;
-								_pos = out_buf.pos ;
-								_flush(1/*room*/) ;
-							}
-						#endif
-					} break ;
-				DF}                                                                                                                                                        // NO_COV
-			} else {                                                                                                                                                       // no compression
-				if (_flush(s.size())) {                ::memcpy( _buf+_pos , s.data() , s.size() ) ; _pos += s.size() ; }                                                  // small data : put in _buf
-				else                  { SWEAR(!_pos) ; AcFd::write(s)                              ; z_sz += s.size() ; }                                                  // large data : send directly
-			}
-		}
-		void send_from( Fd fd_ , size_t sz ) {
-			if (!sz) return ;
-			if (+zlvl) {
-				SWEAR(!_flushed) ;
-				while (sz) {
-					size_t   cnt = ::min( sz , DiskBufSz ) ;
-					::string s   = fd_.read(cnt)           ; throw_unless( s.size()==cnt , "missing ",cnt-s.size()," bytes from ",fd ) ;
-					write(s) ;
-					sz -= cnt ;
-				}
-			} else {
-				if (_flush(sz)) {                size_t c=fd_.read_to({_buf+_pos,sz})               ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; _pos+=c  ; } // small : put in _buf
-				else            { SWEAR(!_pos) ; size_t c=::sendfile(self,fd_,nullptr/*offset*/,sz) ; throw_unless(c==sz,"missing ",sz-c," bytes from ",fd) ; z_sz+=sz ; } // large : send directly
-			}
-		}
-		void flush() {
-			if (_flushed) return ;
-			_flushed = true ;
-			if (+zlvl) {
-				switch (zlvl.tag) {
-					case ZlvlTag::Zlib :
-						SWEAR(HAS_ZLIB) ;
-						#if HAS_ZLIB
-							_zlib_state.next_in  = nullptr ;
-							_zlib_state.avail_in = 0       ;
-							for (;;) {
-								_zlib_state.next_out  = ::launder(reinterpret_cast<uint8_t*>(_buf+_pos)) ;
-								_zlib_state.avail_out = DiskBufSz - _pos                                 ;
-								int rc = ::deflate(&_zlib_state,Z_FINISH) ;
-								_pos = DiskBufSz - _zlib_state.avail_out ;
-								if (rc==Z_BUF_ERROR) throw cat("cannot flush ",self) ;
-								_flush() ;
-								if (rc==Z_STREAM_END) return ;
-							}
-						#endif
-					break ;
-					case ZlvlTag::Zstd : {
-						SWEAR(HAS_ZSTD) ;
-						#if HAS_ZSTD
-							::ZSTD_inBuffer  in_buf  { .src=nullptr , .size=0         , .pos=0 } ;
-							::ZSTD_outBuffer out_buf { .dst=_buf    , .size=DiskBufSz , .pos=0 } ;
-							for (;;) {
-								out_buf.pos = _pos ;
-								size_t rc = ::ZSTD_compressStream2( _zstd_state , &out_buf , &in_buf , ZSTD_e_end ) ;
-								_pos = out_buf.pos ;
-								if (::ZSTD_isError(rc)) throw cat("cannot flush ",self) ;
-								_flush() ;
-								if (!rc) return ;
-							}
-						#endif
-					} break ;
-				DF}                                                                                                                                                        // NO_COV
-			}
-			_flush() ;
-		}
-	private :
-		bool/*room_ok*/ _flush(size_t room=DiskBufSz) {        // flush if not enough room
-			if (_pos+room<=DiskBufSz) return true/*room_ok*/ ; // enough room
-			if (_pos) {                                        // if returning false (not enugh room), at least ensure nothing is left in buffer so that direct write is possible
-				AcFd::write({_buf,_pos}) ;
-				z_sz += _pos ;
-				_pos  = 0    ;
-			}
-			return room<=DiskBufSz ;
-		}
-		// data
-	public :
-		Disk::DiskSz z_sz = 0 ;                                // total compressed size
-		Zlvl         zlvl ;
-	private :
-		char   _buf[DiskBufSz] ;
-		size_t _pos            = 0     ;
-		bool   _flushed        = false ;
-		#if HAS_ZLIB && HAS_ZSTD
-			union {
-				::z_stream   _zlib_state = {} ;
-				::ZSTD_CCtx* _zstd_state ;
-			} ;
-		#elif HAS_ZLIB
-			::z_stream   _zlib_state = {} ;
-		#elif HAS_ZSTD
-			::ZSTD_CCtx* _zstd_state = nullptr ;
-		#endif
-	} ;
-
-	struct InflateFd : AcFd {
-		// cxtors & casts
-		InflateFd() = default ;
-		InflateFd( AcFd&& fd , Zlvl zl={} ) : AcFd{::move(fd)} , zlvl{zl} {
-			if (!zlvl) return ;
-			switch (zlvl.tag) {
-				case ZlvlTag::Zlib : {
-					throw_unless( HAS_ZLIB , "cannot compress without zlib" ) ;
-					#if HAS_ZLIB
-						int rc = ::inflateInit(&_zlib_state) ; SWEAR(rc==Z_OK,self) ;
-					#endif
-				} break ;
-				case ZlvlTag::Zstd :
-					throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
-					#if HAS_ZSTD
-						_zstd_state = ::ZSTD_createDCtx() ; SWEAR(_zstd_state,self) ;
-					#endif
-				break ;
-			DF}                                                                                                                      // NO_COV
-		}
-		~InflateFd() {
-			if (!zlvl) return ;
-			switch (zlvl.tag) {
-				case ZlvlTag::Zlib : {
-					SWEAR( HAS_ZLIB , zlvl ) ;
-					#if HAS_ZLIB
-						int rc = ::inflateEnd(&_zlib_state) ; SWEAR( rc==Z_OK , rc,self ) ;
-					#endif
-				} break ;
-				case ZlvlTag::Zstd : {
-					SWEAR( HAS_ZSTD , zlvl ) ;
-					#if HAS_ZSTD
-						size_t rc = ::ZSTD_freeDCtx(_zstd_state) ; SWEAR( !::ZSTD_isError(rc) , rc,self ) ;
-					#endif
-				} break ;
-			DF}                                                                                                                      // NO_COV
-		}
-		// services
-		::string read(size_t sz) {
-			if (!sz) return {} ;
-			::string res ( sz , 0 ) ;
-			if (+zlvl)
-				switch (zlvl.tag) {
-					case ZlvlTag::Zlib :
-						SWEAR( HAS_ZLIB , zlvl ) ;
-						#if HAS_ZLIB
-							_zlib_state.next_out  = ::launder(reinterpret_cast<uint8_t*>(res.data())) ;
-							_zlib_state.avail_out = res.size()                                        ;
-							while (_zlib_state.avail_out) {
-								if (!_len) {
-									_len = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(_len>0,"missing ",_zlib_state.avail_out," bytes from ",self) ;
-									_pos = 0                               ;
-								}
-								_zlib_state.next_in  = ::launder(reinterpret_cast<uint8_t const*>( _buf + _pos )) ;
-								_zlib_state.avail_in = _len                                                       ;
-								::inflate(&_zlib_state,Z_NO_FLUSH) ;
-								_pos = ::launder(reinterpret_cast<char const*>(_zlib_state.next_in)) - _buf ;
-								_len = _zlib_state.avail_in                                                 ;
-							}
-						#endif
-					break ;
-					case ZlvlTag::Zstd : {
-						SWEAR( HAS_ZSTD , zlvl ) ;
-						#if HAS_ZSTD
-							::ZSTD_inBuffer  in_buf  { .src=_buf       , .size=0  , .pos=0 } ;
-							::ZSTD_outBuffer out_buf { .dst=res.data() , .size=sz , .pos=0 } ;
-							while (out_buf.pos<sz) {
-								if (!_len) {
-									_len = AcFd::read_to({_buf,DiskBufSz}) ; throw_unless(_len>0,"missing ",sz-out_buf.pos," bytes from ",self) ;
-									_pos = 0                               ;
-								}
-								in_buf.pos  = _pos      ;
-								in_buf.size = _pos+_len ;
-								size_t rc = ::ZSTD_decompressStream( _zstd_state , &out_buf , &in_buf ) ; SWEAR(!::ZSTD_isError(rc)) ;
-								_pos = in_buf.pos               ;
-								_len = in_buf.size - in_buf.pos ;
-							}
-						#endif
-					} break ;
-				DF}                                                                                                                  // NO_COV
-			else {
-				size_t cnt = ::min( sz , _len ) ;
-				if (cnt) {                                                                                                           // gather available data from _buf
-					::memcpy( res.data() , _buf+_pos , cnt ) ;
-					_pos += cnt ;
-					_len -= cnt ;
-					sz   -= cnt ;
-				}
-				if (sz) {
-					SWEAR( !_len , _len ) ;
-					if (sz>=DiskBufSz) {                                                                                             // large data : read directly
-						size_t c = AcFd::read_to({&res[cnt],sz}) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
-					} else {                                                                                                         // small data : bufferize
-						_len = AcFd::read_to({_buf,DiskBufSz}) ;   throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
-						::memcpy( &res[cnt] , _buf , sz ) ;
-						_pos  = sz ;
-						_len -= sz ;
-					}
-				}
-			}
-			return res ;
-		}
-		void receive_to( Fd fd_ , size_t sz ) {
-			if (+zlvl) {
-				while (sz) {
-					size_t   cnt = ::min( sz , DiskBufSz ) ;
-					::string s   = read(cnt)               ; SWEAR(s.size()==cnt,s.size(),cnt) ;
-					fd_.write(s) ;
-					sz -= cnt ;
-				}
-			} else {
-				size_t cnt = ::min( sz , _len ) ;
-				if (cnt) {                                                                                                           // gather available data from _buf
-					fd_.write({_buf+_pos,cnt}) ;
-					_pos += cnt ;
-					_len -= cnt ;
-					sz   -= cnt ;
-				}
-				if (sz) {
-					SWEAR( !_len , _len ) ;
-					if (sz>=DiskBufSz) {                                                                                             // large data : transfer directly fd to fd
-						size_t c = ::sendfile(fd_,self,nullptr,sz) ; throw_unless(c   ==sz,"missing ",sz-c   ," bytes from ",self) ;
-					} else {                                                                                                         // small data : bufferize
-						_len = AcFd::read_to({_buf,DiskBufSz}) ;     throw_unless(_len>=sz,"missing ",sz-_len," bytes from ",self) ;
-						fd_.write({_buf,sz}) ;
-						_pos  = sz ;
-						_len -= sz ;
-					}
-				}
-			}
-		}
-		// data
-		Zlvl zlvl ;
-	private :
-		char   _buf[DiskBufSz] ;
-		size_t _pos            = 0 ;
-		size_t _len            = 0 ;
-		#if HAS_ZLIB && HAS_ZSTD
-			union {
-				::z_stream   _zlib_state = {} ;
-				::ZSTD_DCtx* _zstd_state ;
-			} ;
-		#elif HAS_ZLIB
-			::z_stream _zlib_state = {} ;
-		#elif HAS_ZSTD
-			::ZSTD_DCtx* _zstd_state = nullptr ;
-		#endif
-	} ;
-
-	::vector<Cache*> Cache::s_tab ;
-
-	Cache* Cache::s_new() {
-		return new DaemonCache ;
-	}
-
-	void Cache::s_config( ::vmap_s<::vmap_ss> const& caches ) {
-		Trace trace("Cache::s_config",caches.size()) ;
-		for( auto const& [k,cache] : caches ) {
-			trace(k,cache) ;
-			Cache*& c = s_tab.emplace_back(s_new()) ;
-			try {
-				if (c) c->config( cache , true/*may_init*/ ) ;
-			} catch (::string const& e) {
-				trace("no_config",e) ;
-				Fd::Stderr.write(cat("ignore cache ",k," (cannot configure) : ",e,add_nl)) ;
-				delete c ;
-				c = nullptr ;
-			}
-		}
-	}
-
-	::string& operator+=( ::string& os , Cache::SubUploadDigest const& sud ) {
-		/**/                 os << "SubUploadDigest("<<sud.file ;
-		if (+sud.pfx       ) os << ','<<sud.pfx                 ;
-		if (+sud.upload_key) os << ','<<sud.upload_key          ;
-		if (+sud.perm_ext  ) os << ','<<sud.perm_ext            ;
-		return               os << ')'                          ;
-	}
-
-	Cache::DownloadDigest Cache::download( ::string const& job , MDD const& deps , bool incremental , ::function<void()> pre_download , NfsGuard* repo_nfs_guard ) {
-		Trace trace(CacheChnl,"download",job) ;
-		::pair<DownloadDigest,AcFd> digest_fd   = sub_download( job , deps ) ;
-		DownloadDigest&             res         = digest_fd.first            ;
-		AcFd          &             download_fd = digest_fd.second           ;
-		trace("hit_info",res.hit_info) ;
-		switch (res.hit_info) {
-			case CacheHitInfo::Hit   : pre_download() ;                          break              ;
-			case CacheHitInfo::Match :                                           return ::move(res) ;
-			default                  : SWEAR(res.hit_info>=CacheHitInfo::Miss) ; return ::move(res) ;
-		}
-		// hit case : download
-		Zlvl                    zlvl     = res.job_info.start.start.zlvl ;
-		JobEndRpcReq          & end      = res.job_info.end              ;
-		JobDigest<>           & digest   = end.digest                    ; throw_if( digest.incremental && incremental , "cached job was incremental" ) ;
-		::vmap_s<TargetDigest>& targets  = digest.targets                ;
-		NodeIdx                 n_copied = 0                             ;
-		//
-		trace("download",targets.size(),zlvl) ;
-		try {
-			#if !HAS_ZLIB
-				throw_if( zlvl.tag==ZlvlTag::Zlib , "cannot uncompress without zlib" ) ;
-			#endif
-			#if !HAS_ZSTD
-				throw_if( zlvl.tag==ZlvlTag::Zstd , "cannot uncompress without zstd" ) ;
-			#endif
-			//
-			InflateFd data_fd { ::move(download_fd) , zlvl }                                ;
-			Hdr       hdr     = IMsgBuf().receive<Hdr>( data_fd , Yes/*once*/ , {}/*key*/ ) ; SWEAR( hdr.target_szs.size()==targets.size() , hdr.target_szs.size(),targets.size() ) ;
-			//
-			for( NodeIdx ti : iota(targets.size()) ) {
-				auto&           entry = targets[ti]            ;
-				::string const& tn    = entry.first            ;
-				FileTag         tag   = entry.second.sig.tag() ;
-				Sz              sz    = hdr.target_szs[ti]     ;
-				n_copied = ti+1 ;                                                                         // this is a protection, so record n_copied *before* action occurs
-				if (repo_nfs_guard    )       repo_nfs_guard->change(tn) ;
-				if (tag==FileTag::None) try { unlnk( tn                  ) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
-				else                          unlnk( tn , {.dir_ok=true} ) ;
-				switch (tag) {
-					case FileTag::None  :                                                                                               break ;
-					case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; sym_lnk( tn , data_fd.read(hdr.target_szs[ti]) )                  ; break ;
-					case FileTag::Empty : trace("empty_to",tn   ) ; AcFd   ( tn , {O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,0666/*mod*/} ) ; break ;
-					case FileTag::Exe   :
-					case FileTag::Reg   : {
-						AcFd fd { tn , { O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , mode_t(tag==FileTag::Exe?0777:0666) } } ;
-						if (sz) { trace("write_to"  ,tn,sz) ; data_fd.receive_to( fd , sz ) ; }
-						else      trace("no_data_to",tn   ) ;                                             // empty exe are Exe, not Empty
-					} break ;
-				DN}
-				entry.second.sig = FileSig(tn) ;                                                          // target digest is not stored in cache
-			}
-			end.end_date = New ;                                                                          // date must be after files are copied
-			// ensure we take a single lock at a time to avoid deadlocks
-			trace("done") ;
-			return ::move(res) ;
-		} catch(::string const& e) {
-			trace("failed",e,n_copied) ;
-			for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                 // clean up partial job
-			trace("throw") ;
-			throw ;
-		}
-	}
-
-	::pair<uint64_t/*upload_key*/,Cache::Sz/*compressed*/> Cache::upload(
-		Delay                         exe_time
-	,	::vmap_s<TargetDigest> const& targets
-	,	::vector<FileInfo>     const& target_fis
-	,	Zlvl                          zlvl
-	,	NfsGuard*                     nfs_guard
-	) {
-		Trace trace(CacheChnl,"Cache::upload",targets.size(),zlvl) ;
-		SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
-		//
-		Sz  tgts_sz  = 0 ;
-		Hdr hdr      ;     hdr.target_szs.reserve(target_fis.size()) ;
-		for( FileInfo fi : target_fis ) {
-			tgts_sz += fi.sz ;
-			hdr.target_szs.push_back(fi.sz) ;
-		}
-		trace("size",tgts_sz) ;
-		//
-		Sz              z_max_sz   = DeflateFd::s_max_sz(tgts_sz,zlvl) ;
-		SubUploadDigest sub_digest = sub_upload( exe_time , z_max_sz ) ;
-		//
-		trace("max_size",z_max_sz) ;
-		//
-		throw_unless( +sub_digest , sub_digest.msg ) ;
-		try {
-			AcFd      fd      { sub_digest.file , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.perm_ext=sub_digest.perm_ext,.nfs_guard=nfs_guard} } ; if (+sub_digest.pfx) fd.write(sub_digest.pfx) ;
-			DeflateFd data_fd { ::move(fd) , zlvl                                                                                                } ;
-			OMsgBuf(hdr).send( data_fd , {}/*key*/ ) ;
-			//
-			for( NodeIdx ti : iota(targets.size()) ) {
-				::pair_s<TargetDigest> const& entry = targets[ti]            ;
-				::string               const& tn    = entry.first            ;
-				FileTag                       tag   = entry.second.sig.tag() ;
-				Sz                            sz    = target_fis[ti].sz      ;
-				switch (tag) {
-					case FileTag::Lnk : {
-						trace("lnk_from",tn,sz) ;
-						::string l = read_lnk(tn) ; throw_unless( l.size()==sz                      , "cannot readlink ",tn ) ;
-						data_fd.write(l) ;          throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable "       ,tn ) ; // ensure cache entry is reliable by checking file *after* copy
-					}
-					break ;
-					case FileTag::Reg :
-					case FileTag::Exe :
-						if (sz) {
-							trace("read_from",tn,sz) ;
-							data_fd.send_from( AcFd(tn,{.flags=O_RDONLY|O_NOFOLLOW}) , sz ) ;
-							throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;                                // ensure cache entry is reliable by checking file *after* copy
-						}
-					[[fallthrough]] ;                                                                                           // empty executable is not tagged as Empty
-					case FileTag::Empty : trace("empty_from",tn) ; break ;
-				DN}
-			}
-			data_fd.flush() ;                                                                                                   // update data_fd.sz
-			trace("done",z_max_sz,data_fd.z_sz) ;
-			return { sub_digest.upload_key , data_fd.z_sz==tgts_sz?0:data_fd.z_sz } ;                                           // dont report compressed size of no compression
-		} catch (::string const& e) {
-			sub_dismiss(sub_digest.upload_key) ;
-			trace("failed") ;
-			throw ;
-		}
-	}
-
-	void Cache::commit( uint64_t upload_key , ::string const& job , JobInfo&& job_info ) {
-		Trace trace(CacheChnl,"Cache::commit",upload_key,job) ;
-		//
-		if (!( +job_info.start && +job_info.end )) { // we need a full report to cache job
-			trace("no_ancillary_file") ;
-			sub_dismiss(upload_key) ;
-			trace("throw1") ;
-			throw "no ancillary file"s ;
-		}
-		//
-		job_info.update_digest() ;                   // ensure cache has latest crc available
-		// check deps
-		for( auto const& [dn,dd] : job_info.end.digest.deps )
-			if ( !dd.is_crc || dd.never_match() ) {
-				trace("not_a_crc_dep",dn,dd) ;
-				sub_dismiss(upload_key) ;
-				trace("throw2") ;
-				throw "not a crc dep"s ;
-			}
-		job_info.cache_cleanup() ;                   // defensive programming : remove useless/meaningless info
-		//
-		trace("commit") ;
-		sub_commit( upload_key , job , ::move(job_info) ) ;
-		trace("done") ;
-	}
-
-}
-
-//
 // JobSpace
 //
 
@@ -996,12 +463,12 @@ namespace Caches {
 static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; throw_unless( ::chroot(dir.c_str())==0 , "cannot chroot to ",dir,rm_slash," : ",StrErr() ) ; }
 static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; throw_unless( ::chdir (dir.c_str())==0 , "cannot chdir to " ,dir,rm_slash," : ",StrErr() ) ; }
 
-//static void _mount_tmp( ::string const& dst_s , size_t sz , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { // src must be dir
-//	Trace trace("_mount_tmp",dst_s) ;
-//	::string dst = no_slash(dst_s) ;
-//	throw_unless( ::mount( "" , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",dst," of size ",sz," : ",StrErr() ) ;
-//	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Tmp , dst ) ;
-//}
+static void _mount_tmp( ::string const& dst , size_t sz , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { // dst must be dir
+	Trace trace("_mount_tmp",dst) ;
+	throw_unless( ::mount( "" , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",dst,rm_slash," of size ",sz," : ",StrErr() ) ;
+	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Tmp , no_slash(dst) ) ;
+}
+static void _mount_tmp( ::string const& dst , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { _mount_tmp( dst , 50<<20/*sz*/ , user_trace ) ; } // size must be large enough but is not allocated
 
 static void _mount_bind( ::string const& dst , ::string const& src , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { // src and dst may be files or dirs
 	Trace trace("_mount_bind",dst,src) ;
@@ -1132,7 +599,7 @@ bool JobSpace::enter(
 		) ;
 		phy_repo_super_s_ = dir_name_s(phy_repo_root_s,src_dir_depth) ; SWEAR(phy_repo_super_s_!="/") ;
 	}
-	::string const& phy_repo_super_s = +repo_view_s ? phy_repo_super_s_ : repo_super_s ;                      // fast path : only compute phy_repo_super_s if necessary
+	::string const& phy_repo_super_s = +repo_view_s ? phy_repo_super_s_ : repo_super_s ;    // fast path : only compute phy_repo_super_s if necessary
 	//
 	::string const& lmake_root_s = lmake_view_s | phy_lmake_root_s ;
 	::string const& tmp_dir_s    = tmp_view_s   | phy_tmp_dir_s    ;
@@ -1142,11 +609,11 @@ bool JobSpace::enter(
 		// but umount is privileged, so what we do instead is forking
 		// in parent, we are outside the namespace where the mount is not seen and we can clean tmp dir safely
 		// in child, we carry the whole job
-		if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                                                      // in parent
+		if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                                    // in parent
 			int wstatus ;
 			if ( ::waitpid(child_pid,&wstatus,0/*options*/)!=child_pid ) FAIL() ;
-			unlnk( phy_tmp_dir_s , {.dir_ok=true,.abs_ok=true} ) ;                                            // unlink when child is done
-			if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                                // except the unlink above, all the cleanup is done by the child, so nothing to do here
+			unlnk( phy_tmp_dir_s , {.dir_ok=true,.abs_ok=true} ) ;                          // unlink when child is done
+			if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;              // except the unlink above, all the cleanup is done by the child, so nothing to do here
 			else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
 			else                           ::_exit(255                     ) ;
 		}
@@ -1165,28 +632,30 @@ bool JobSpace::enter(
 	}
 	creat |= +creat_views_s ;
 	//
-	uid_t uid = ::geteuid() ;                                                                                 // must be done before unshare that invents a new user
-	gid_t gid = ::getegid() ;                                                                                 // .
+	uid_t uid = ::geteuid() ;                                                               // must be done before unshare that invents a new user
+	gid_t gid = ::getegid() ;                                                               // .
 	//
 	trace("creat",STR(_force_creat),STR(creat_lmake),STR(creat_repo),STR(creat_tmp),::getuid(),uid,gid,lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s) ;
 	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	throw_unless( ::unshare(CLONE_NEWUSER|CLONE_NEWNS)==0 , "cannot create namespace : ",StrErr() ) ;
 	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                                       // necessary to be allowed to write to gid_map (cf man 7 user_namespaces)
-	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;                                       // for each line, format is "id_in_namespace id_in_host size_of_range"
-	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;                                       // .
+	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                     // necessary to be allowed to write to gid_map (cf man 7 user_namespaces)
+	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;                     // for each line, format is "id_in_namespace id_in_host size_of_range"
+	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;                     // .
 	//
 	bool dev_sys_mapped = false ;
 	//
 	if (creat) {
-		::string work_dir_s = cat("/run/user/",uid,"/open-lmake",phy_repo_root_s,small_id,'/') ;              // use /run as this is certain that it can be used as upper
-		try { unlnk_inside_s(work_dir_s,{.abs_ok=true}) ; } catch (::string const&) {}                        // if we need a work dir, we must clean it first as it is not cleaned upon exit ...
-		if (+chroot_dir) {                                                                                    // ... (ignore errors as dir may not exist)
+		::string work_dir_s = cat("/tmp/",uid,"/open-lmake",phy_repo_root_s,small_id,'/') ; // /run/user would be ideal instead of /tmp (certain to be usable as upper) but does not always exist
+		try { unlnk_inside_s(work_dir_s,{.abs_ok=true}) ; } catch (::string const&) {}      // if we need a work dir, we must clean it first as it is not cleaned upon exit ...
+		if (+chroot_dir) {                                                                  // ... (ignore errors as dir may not exist)
 			::string upper   = work_dir_s+"upper" ;
 			::string root    = work_dir_s+"root"  ;
-			::string upper_s = with_slash(upper)  ; trace("mkdir1",upper_s) ; mk_dir_s(upper_s) ;
-			::string root_s  = with_slash(root )  ; trace("mkdir2",root_s ) ; mk_dir_s(root_s ) ;
+			bool     retried = false              ;
+	Retry :
+			::string upper_s = with_slash(upper) ; trace("mkdir1",upper_s) ; mk_dir_s(upper_s) ;
+			::string root_s  = with_slash(root ) ; trace("mkdir2",root_s ) ; mk_dir_s(root_s ) ;
 			if (creat_lmake)                                              { trace("mkdir3",lmake_root_s) ; mk_dir_s(upper+lmake_root_s) ; }
 			if (creat_repo )                                              { trace("mkdir4",repo_super_s) ; mk_dir_s(upper+repo_super_s) ; }
 			if (creat_tmp  )                                              { trace("mkdir5",tmp_dir_s   ) ; mk_dir_s(upper+tmp_dir_s   ) ; }
@@ -1195,11 +664,18 @@ bool JobSpace::enter(
 			//
 			_prepare_user( upper_s , chroot_info , uid , gid ) ;
 			//
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_mount_overlay( root_s , {upper_s,chroot_dir} , work_dir_s+"work/" , user_trace ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			try {
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				_mount_overlay( root_s , {upper_s,chroot_dir} , work_dir_s+"work/" , user_trace ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			} catch (::string const& e) {
+				if (retried) throw ;
+				retried = true ;
+				_mount_tmp( work_dir_s , user_trace ) ;
+				goto Retry/*BACKWARD*/ ;
+			}
 			chroot_dir = ::move(root) ;
-		} else {                                                                                              // mount replies ENOENT when trying to map /, so map all opt level dirs
+		} else {                                                                            // mount replies ENOENT when trying to map /, so map all opt level dirs
 			chroot_dir = work_dir_s+"root" ;
 			//
 			::vector_s top_lvls = lst_dir_s("/"s) ;
@@ -1314,11 +790,11 @@ bool JobSpace::enter(
 		}
 	}
 	if (+chroot_dir) {
-		if (!dev_sys_mapped) { //!                                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			{ ::string d_s = chroot_dir+"/dev/"  ; trace("mkdir11",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/" , user_trace ) ; }
-			{ ::string d_s = chroot_dir+"/sys/"  ; trace("mkdir12",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/" , user_trace ) ; }
-			{ ::string d_s = chroot_dir+"/proc/" ; trace("mkdir13",d_s) ; mk_dir_s(d_s) ;                                             }
-		} //!                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if (!dev_sys_mapped) { //!                                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			{ ::string d_s = chroot_dir+"/dev/"  ; trace("mkdir11",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/"  , user_trace ) ; }
+			{ ::string d_s = chroot_dir+"/sys/"  ; trace("mkdir12",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/"  , user_trace ) ; }
+			{ ::string d_s = chroot_dir+"/proc/" ; trace("mkdir13",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/proc/" , user_trace ) ; }
+		} //!                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//vvvvvvvvvvvvvvvvv
 		_chroot(chroot_dir) ;
 		//^^^^^^^^^^^^^^^^^
@@ -1434,6 +910,89 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 }
 
 //
+// CacheRemoteSide
+//
+
+::string& operator+=( ::string& os , CacheRemoteSide const& crs ) {
+	First first ;
+	/**/                os << "CacheRemoteSide("           ;
+	if (+crs.dir_s    ) os << first("",",")<<crs.dir_s     ;
+	if (+crs.service  ) os << first("",",")<<crs.service   ;
+	if (+crs.max_rate ) os << first("",",")<<crs.max_rate  ;
+	if (+crs.file_sync) os << first("",",")<<crs.file_sync ;
+	if (+crs.perm_ext ) os << first("",",")<<crs.perm_ext  ;
+	return              os << ')'                          ;
+}
+
+::pair<uint64_t/*upload_key*/,DiskSz/*compressed*/> CacheRemoteSide::upload( Delay exe_time , ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) const {
+	Trace trace(CacheChnl,"upload",targets.size(),zlvl) ;
+	SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
+	//
+	DiskSz targets_sz  = 0 ;
+	::vector<DiskSz> target_szs ; target_szs.reserve(target_fis.size()) ;
+	for( FileInfo fi : target_fis ) {
+		targets_sz += fi.sz ;
+		target_szs.push_back(fi.sz) ;
+	}
+	trace("size",targets_sz) ;
+	//
+	float        rate      = targets_sz/float(exe_time)           ; throw_unless( rate<=max_rate ) ;                        // job is too easy to reproduce, no interest to cache
+	ClientSockFd fd        { service }                            ;
+	::string     magic_str = fd.read(sizeof(CacheMagic))          ; throw_unless( magic_str.size()==sizeof(CacheMagic) , "bad_answer_sz" ) ;
+	uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0])  ; throw_unless( magic_          ==CacheMagic         , "bad_answer"    ) ;
+	DiskSz       z_max_sz  = DeflateFd::s_max_sz(targets_sz,zlvl) ;
+	//
+	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Upload , .reserved_sz=z_max_sz } ).send(fd) ;
+	auto reply = IMsgBuf().receive<CacheRpcReply>( fd , Maybe/*once*/ ) ;
+	//
+	throw_unless( reply.upload_key , reply.msg ) ;
+	//
+	trace("z_max_size",z_max_sz) ;
+	//
+	try {
+		NfsGuard  nfs_guard { file_sync                                                                                                                            } ;
+		AcFd      dfd       { dir_s+reserved_file(reply.upload_key)+"-data" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&nfs_guard} } ;
+		DeflateFd data_fd   { ::move(dfd) , zlvl                                                                                                                   } ;
+		OMsgBuf(target_szs).send( data_fd , {}/*key*/ ) ;
+		//
+		for( NodeIdx ti : iota(targets.size()) ) {
+			::pair_s<TargetDigest> const& entry = targets[ti]            ;
+			::string               const& tn    = entry.first            ;
+			FileTag                       tag   = entry.second.sig.tag() ;
+			DiskSz                        sz    = target_fis[ti].sz      ;
+			switch (tag) {
+				case FileTag::Lnk : {
+					trace("lnk_from",tn,sz) ;
+					::string l = read_lnk(tn) ; throw_unless( l.size()==sz                      , "cannot readlink ",tn ) ;
+					data_fd.write(l) ;          throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable "       ,tn ) ; // ensure cache entry is reliable by checking file *after* copy
+				}
+				break ;
+				case FileTag::Reg :
+				case FileTag::Exe :
+					if (sz) {
+						trace("read_from",tn,sz) ;
+						data_fd.send_from( AcFd(tn,{.flags=O_RDONLY|O_NOFOLLOW}) , sz ) ;
+						throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;                                // ensure cache entry is reliable by checking file *after* copy
+					}
+				[[fallthrough]] ;                                                                                           // empty executable is not tagged as Empty
+				case FileTag::Empty : trace("empty_from",tn) ; break ;
+			DN}
+		}
+		data_fd.flush() ;                                                                                                   // update data_fd.sz
+		trace("done",data_fd.z_sz) ;
+		return { reply.upload_key , data_fd.z_sz==targets_sz?0:data_fd.z_sz } ;                                             // dont report compressed size of no compression
+	} catch (::string const& e) {
+		dismiss(reply.upload_key) ;
+		trace("failed") ;
+		throw ;
+	}
+}
+
+void CacheRemoteSide::dismiss(CacheUploadKey upload_key) const {
+	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Dismiss ,.upload_key=upload_key } ).send( ClientSockFd(service) , {}/*key*/ ) ;
+}
+
+//
 // JobStartRpcReq
 //
 
@@ -1457,7 +1016,6 @@ void JobStartRpcReq::chk(bool for_cache) const {
 
 template<> void JobDigest<>::cache_cleanup() {
 	upload_key     = {} ;                      // no recursive info
-	cache_idx1     = {} ;                      // .
 	refresh_codecs = {} ;                      // execution dependent
 	for( auto& [_,td] : targets ) {
 		SWEAR(!td.pre_exist) ;                 // else cannot be a candidate for upload
@@ -1532,7 +1090,6 @@ void JobEndRpcReq::chk(bool for_cache) const {
 	if (+jsrr.stdin           ) os <<'<'  << jsrr.stdin                  ;
 	if (+jsrr.stdout          ) os <<'>'  << jsrr.stdout                 ;
 	if (+jsrr.timeout         ) os <<','  << jsrr.timeout                ;
-	if (+jsrr.cache_idx1      ) os <<','  << jsrr.cache_idx1             ;
 	/**/                        os <<','  << jsrr.cmd                    ; // last as it is most probably multi-line
 	return                      os <<')'                                 ;
 }                                                                          // END_OF_NO_COV
@@ -1585,7 +1142,6 @@ void JobStartRpcReply::_mk_lmake_version() {
 
 bool/*entered*/ JobStartRpcReply::enter(
 		::vector_s&              /*out  */ accesses
-	,	pid_t     &              /*.    */ first_pid
 	,	::string  &              /*.    */ repo_root_s
 	,	::vector<UserTraceEntry>&/*inout*/ user_trace
 	,	::string const&                    phy_repo_root_s
@@ -1622,21 +1178,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 			false
 		#endif
 	) ;
-	if (entered) {
-		// find a good starting pid
-		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique filenames as temporary file instead of using TMPDIR, which is quite common
-		// to do that we spread pid's among the availale range by setting the first pid used by jos as apart from each other as possible
-		// call phi the golden number and NPids the number of available pids
-		// spreading is maximized by using phi*NPids as an elementary spacing and id (small_id) as an index modulo NPids
-		// this way there is a conflict between job 1 and job 2 when (id2-id1)*phi is near an integer
-		// because phi is the irrational which is as far from rationals as possible, and id's are as small as possible, this probability is minimized
-		// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
-		static constexpr uint32_t FirstPid = 300                                 ;       // apparently, pid's wrap around back to 300
-		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ;       // number of available pid's
-		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ;       // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
-		first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;         // DeltaPid on 64 bits to avoid rare overflow in multiplication
-	}
-	trace("done",accesses,first_pid,repo_root_s) ;
+	trace("done",accesses,repo_root_s) ;
 	return entered ;
 }
 
@@ -1710,13 +1252,12 @@ void JobStartRpcReply::exit() {
 }
 
 void JobStartRpcReply::cache_cleanup() {
-	autodep_env.fast_report_pipe = {}      ; // execution dependent
-	cache                        = nullptr ; // no recursive info
-	cache_idx1                   = 0       ; // .
-	key                          = {}      ; // .
-	live_out                     = false   ; // execution dependent
-	nice                         = -1      ; // .
-	pre_actions                  = {}      ; // .
+	autodep_env.fast_report_pipe = {}    ; // execution dependent
+	cache                        = {}    ; // no recursive info
+	key                          = {}    ; // .
+	live_out                     = false ; // execution dependent
+	nice                         = -1    ; // .
+	pre_actions                  = {}    ; // .
 }
 
 void JobStartRpcReply::chk(bool for_cache) const {
@@ -1732,7 +1273,6 @@ void JobStartRpcReply::chk(bool for_cache) const {
 	/**/                                      throw_unless( timeout>=Delay()                                              , "bad timeout"        ) ;
 	if (for_cache) {
 		throw_unless( !cache             , "bad cache"       ) ;
-		throw_unless( !cache_idx1        , "bad cache_idx1"  ) ;
 		throw_unless( !key               , "bad key"         ) ;
 		throw_unless( !live_out          , "bad live_out"    ) ;
 		throw_unless(  nice==uint8_t(-1) , "bad nice"        ) ;
@@ -1765,126 +1305,3 @@ void JobStartRpcReply::chk(bool for_cache) const {
 	/**/                     os <<','<< jmrr.ok                                        ;
 	return                   os <<')'                                                  ;
 }                                                                                        // END_OF_NO_COV
-
-//
-// SubmitAttrs
-//
-
-::string& operator+=( ::string& os , SubmitAttrs const& sa ) {   // START_OF_NO_COV
-	First first ;
-	/**/                  os << "SubmitAttrs("                 ;
-	if (+sa.used_backend) os <<first("",",")<< sa.used_backend ;
-	if ( sa.live_out    ) os <<first("",",")<< "live_out"      ;
-	if (+sa.pressure    ) os <<first("",",")<< sa.pressure     ;
-	if (+sa.deps        ) os <<first("",",")<< sa.deps         ;
-	if (+sa.reason      ) os <<first("",",")<< sa.reason       ;
-	return                os <<')'                             ;
-}                                                                // END_OF_NO_COV
-
-void SubmitAttrs::cache_cleanup() {
-	reason     = {}    ;            // execution dependent
-	pressure   = {}    ;            // .
-	cache_idx1 = {}    ;            // no recursive info
-	live_out   = false ;            // execution dependent
-	nice       = -1    ;            // .
-}
-
-void SubmitAttrs::chk(bool for_cache) const {
-	throw_unless(  used_backend<All<BackendTag> , "bad backend tag" ) ;
-	if (for_cache) {
-		throw_unless( !reason            , "bad reason"     ) ;
-		throw_unless( !pressure          , "bad pressure"   ) ;
-		throw_unless( !cache_idx1        , "bad cache_idx1" ) ;
-		throw_unless( !live_out          , "bad live_out"   ) ;
-		throw_unless(  nice==uint8_t(-1) , "bad nice"       ) ;
-	} else {
-		reason.chk() ;
-	}
-}
-
-//
-// JobInfoStart
-//
-
-::string& operator+=( ::string& os , JobInfoStart const& jis ) {                                                       // START_OF_NO_COV
-	return os << "JobInfoStart(" << jis.submit_attrs <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
-}                                                                                                                      // END_OF_NO_COV
-
-void JobInfoStart::cache_cleanup() {
-	submit_attrs.cache_cleanup() ;
-	pre_start   .cache_cleanup() ;
-	start       .cache_cleanup() ;
-	eta = {} ;                     // execution dependent
-}
-
-void JobInfoStart::chk(bool for_cache) const {
-	submit_attrs.chk(for_cache) ;
-	pre_start   .chk(for_cache) ;
-	start       .chk(for_cache) ;
-	if (for_cache) throw_unless( !eta , "bad eta" ) ;
-}
-
-//
-// JobInfo
-//
-
-void JobInfo::fill_from(::string const& file_name , JobInfoKinds need ) {
-	Trace trace("fill_from",file_name,need) ;
-	need &= ~JobInfoKind::None ;                                                                                                          // this is not a need, but it is practical to allow it
-	if (!need) return ;                                                                                                                   // fast path : dont read file_name
-	try {
-		::string      job_info = AcFd(file_name).read() ;
-		::string_view jis      = job_info               ;
-		deserialize( jis , need[JobInfoKind::Start] ? start : ::ref(JobInfoStart()) ) ; need &= ~JobInfoKind::Start ; if (!need) return ; // skip if not needed
-		deserialize( jis , need[JobInfoKind::End  ] ? end   : ::ref(JobEndRpcReq()) ) ; need &= ~JobInfoKind::End   ; if (!need) return ; // .
-		deserialize( jis , dep_crcs                                                 ) ;
-	} catch (...) {}                                                                                                                      // fill what we have
-}
-
-void JobInfo::update_digest() {
-	Trace trace("update_digest",dep_crcs.size()) ;
-	if (!dep_crcs) return ;                                                                                                                               // nothing to update
-	SWEAR( dep_crcs.size()==end.digest.deps.size() , dep_crcs.size(),end.digest.deps.size() ) ;
-	for( NodeIdx i : iota(end.digest.deps.size()) )
-		if ( dep_crcs[i].first.valid() || !end.digest.deps[i].second.accesses ) end.digest.deps[i].second.set_crc(dep_crcs[i].first,dep_crcs[i].second) ;
-	dep_crcs.clear() ;                                                                                                                                    // now useless as info is recorded in digest
-}
-
-void JobInfo::cache_cleanup() {
-	start.cache_cleanup() ;
-	end  .cache_cleanup() ;
-}
-
-void JobInfo::chk(bool for_cache) const {
-	start.chk(for_cache) ;
-	end  .chk(for_cache) ;
-	/**/                                                    throw_unless( start.submit_attrs.deps.size()  <=end.digest.deps.size()   , "missing deps"    ) ;
-	for( NodeIdx i : iota(start.submit_attrs.deps.size()) ) throw_unless( start.submit_attrs.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ; // deps must start with deps discovered ...
-	if (for_cache)                                          throw_unless( !dep_crcs                                                  , "bad dep_crcs"    ) ; // ... before job execution
-	else                                                    throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size()       , "incoherent deps" ) ;
-}
-
-::string cache_repo_cmp( JobInfo const& info_cache , JobInfo const& info_repo ) {
-	static ::string only_in_repo      = "only in repo"      ;
-	static ::string only_in_cache     = "only in cache"     ;
-	static ::string different_content = "different content" ;
-	//
-	::umap_s<::pair<Crc/*cache*/,Crc/*repo*/>> diff_targets ;
-	for( auto const& [key,td] : info_repo .end.digest.targets )                    diff_targets.try_emplace( key , Crc::None,td.crc    ) ;
-	for( auto const& [key,td] : info_cache.end.digest.targets ) { auto [it,insd] = diff_targets.try_emplace( key , td.crc   ,Crc::None ) ; if (!insd) it->second.first = td.crc ; }
-	//
-	size_t w = 0 ;
-	for( auto const& [key,cache_repo] : diff_targets )
-		if      (cache_repo.first ==cache_repo.second) {}
-		else if (cache_repo.first ==Crc::None        ) w = ::max( w , only_in_repo     .size() ) ;
-		else if (cache_repo.second==Crc::None        ) w = ::max( w , only_in_cache    .size() ) ;
-		else                                           w = ::max( w , different_content.size() ) ;
-	if (!w) return {} ;
-	::string msg ;
-	for( auto const& [key,cache_repo] : diff_targets )
-		if      (cache_repo.first ==cache_repo.second) {}
-		else if (cache_repo.first ==Crc::None        ) msg << widen(only_in_repo     ,w)<<" : "<<key<<'\n' ;
-		else if (cache_repo.second==Crc::None        ) msg << widen(only_in_cache    ,w)<<" : "<<key<<'\n' ;
-		else                                           msg << widen(different_content,w)<<" : "<<key<<'\n' ;
-	return msg ;
-}
