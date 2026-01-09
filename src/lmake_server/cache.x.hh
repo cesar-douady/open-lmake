@@ -7,6 +7,8 @@
 
 #include "rpc_job.hh"
 
+#include "cache/rpc_cache.hh"
+
 #ifdef DATA_DEF
 
 namespace Cache {
@@ -38,6 +40,8 @@ namespace Cache {
 		ClientSockFd _fd     ;
 		IMsgBuf      _imsg   ;
 		AcFd         _dir_fd ;
+		::vector<Cache::CnodeIdx> _cnodes ; // indexed by Node, node->cnode conversion, might use a umap but probably less efficient (64B/entry instead of 4)
+		::vector<Cache::CjobIdx > _cjobs  ; // indexed by Job , job ->cjob  conversion, might use a umap but probably less efficient (64B/entry instead of 4)
 	} ;
 
 

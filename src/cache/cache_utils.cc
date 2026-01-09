@@ -12,7 +12,7 @@ using namespace Time ;
 static constexpr Crc::Val CrcOrNone = 1<< NBits<CrcSpecial>    ;
 static constexpr Crc::Val CrcErr    = 1<<(NBits<CrcSpecial>+1) ;
 
-CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool for_download ) {
+CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool for_download , ::vector<CnodeIdx>* dep_ids ) {
 	struct Dep {
 		// services
 		bool operator<(Dep const& other) const { return ::pair(bucket,+node) < ::pair(other.bucket,+other.node) ; }
@@ -23,7 +23,7 @@ CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool
 	} ;
 	CompileDigest res  ;
 	::vector<Dep> deps ;
-	for( auto const& [n,dd] : repo_deps ) {
+	for( auto& [n,dd] : repo_deps ) {
 		Accesses a = dd.accesses ;
 		if      (!dd.dflags[Dflag::Full] )   a = {} ;                                                 // dep is used for resources only, no real accesses
 		else if (!for_download           )   SWEAR( !dd.never_match() , n,dd ) ;                      // meaningless, should not have reached here
@@ -31,9 +31,14 @@ CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool
 		else if (!a                      )   continue ;                                               // dep was not accessed, ignore but keep static deps as they must not depend on run
 		//
 		Cnode node ;
-		if (n.is_id()   )   node = {       n.id   } ;
-		if (for_download) { node = {       n.name } ; if (!node) continue ; }                           // if it is not known in cache, it has no impact on matching
-		else                node = { New , n.name } ;
+		if (n.is_id()) {
+			node = {n.id} ;
+		} else {
+			if ( for_download          ) node = {       n.name } ;
+			else                         node = { New , n.name } ;
+			if ( dep_ids               ) dep_ids->push_back(+node) ;
+			if ( for_download && !node ) continue ;                                                   // if it is not known in cache, it has no impact on matching
+		}
 		//
 		Crc crc = dd.crc() ;
 		if (!for_download)                                                                            // Crc::Unknown means any existing file

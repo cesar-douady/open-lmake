@@ -44,8 +44,9 @@ static CacheRpcReply _download(CacheRpcReq const& crr) {
 	Trace trace("_download",crr) ;
 	CacheRpcReply              res    { .proc=CacheRpcProc::Download , .hit_info=CacheHitInfo::NoJob } ;
 	Cjob                       job    = crr.job.is_name() ? Cjob(crr.job.name) : Cjob(crr.job.id)      ; if (!job) { trace("no_job") ; return res ; }
-	CompileDigest              deps   = compile( crr.repo_deps , true/*for_download*/ )                ; SWEAR( deps.n_statics==job->n_statics , crr.job,job ) ;
+	CompileDigest              deps   = compile( crr.repo_deps , true/*for_download*/ , &res.dep_ids ) ; SWEAR( deps.n_statics==job->n_statics , crr.job,deps.n_statics,job,job->n_statics ) ;
 	::pair<Crun,CacheHitInfo > digest = job->match( deps.deps , deps.dep_crcs )                        ;
+	if (crr.job.is_name()) res.job_id = +job ;
 	//
 	res.hit_info = digest.second ;
 	if (res.hit_info<CacheHitInfo::Miss) {

@@ -38,10 +38,10 @@ pid_t  get_ppid (pid_t pid) ;
 mode_t get_umask(         ) ;
 
 struct Child {
-	static constexpr size_t StackSz = 16<<10 ; // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k
+	static constexpr size_t StackSz = 16<<10 ;        // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k
 	static constexpr Fd     NoneFd  { -1 }   ;
 	static constexpr Fd     PipeFd  { -2 }   ;
-	static constexpr Fd     JoinFd  { -3 }   ; // used on sderr to join to stdout
+	static constexpr Fd     JoinFd  { -3 }   ;        // used on sderr to join to stdout
 	// cxtors & casts
 	~Child() {
 		swear_prod(pid==0,"bad pid",pid) ;
@@ -81,7 +81,7 @@ public :
 	::string        cwd_s              = {}         ;
 	::map_ss const* env                = nullptr    ;
 	uint8_t         nice               = 0          ;
-	int/*rc*/       (*pre_exec)(void*) = nullptr    ;                                     // if no cmd_line, this is the entire function exec'ed as child returning the exit status
+	int/*rc*/       (*pre_exec)(void*) = nullptr    ; // if no cmd_line, this is the entire function exec'ed as child returning the exit status
 	void*           pre_exec_arg       = nullptr    ;
 	Fd              stderr             = Fd::Stderr ;
 	Fd              stdin              = Fd::Stdin  ;
@@ -92,8 +92,8 @@ public :
 	Pipe         _p2c        = {}      ;
 	Pipe         _c2po       = {}      ;
 	Pipe         _c2pe       = {}      ;
-	const char** _child_args = nullptr ;                                                  // all memory must be allocated before clone/fork/vfork is called
-	const char** _child_env  = nullptr ;                                                  // .
+	const char** _child_args = nullptr ;              // all memory must be allocated before clone/fork/vfork is called
+	const char** _child_env  = nullptr ;              // .
 } ;
 
 struct AutoServerBase {
@@ -127,10 +127,10 @@ template<class T> struct AutoServer : AutoServerBase {
 	bool/*interrupted*/ event_loop     (         ) ;
 	void                close_slave_out(Fd out_fd) ;
 	// injection
-	bool/*done*/ interrupt       (                     ) { return false/*done*/ ; }
-	void         start_connection( Fd                  ) {                        }
-	void         end_connection  ( Fd                  ) {                        }
-//	bool/*done*/ process_item    ( Fd , T::Item const& ) ;
+	bool/*done*/ interrupt       (                ) { return false/*done*/ ; }
+	void         start_connection( Fd             ) {                        }
+	void         end_connection  ( Fd             ) {                        }
+//	bool/*done*/ process_item    ( Fd , T::Item&& ) ;
 } ;
 
 ::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir={} ) ;
@@ -214,7 +214,7 @@ template<class T> bool/*interrupted*/ AutoServer<T>::event_loop() {
 						::optional<Item> received = se.buf.receive_step<Item>( fd , fetch , /*inout*/se.key ) ; if (!received) break ; // partial message
 						Item&            item     = *received                                                 ;
 						trace("item",item) ;
-						if (static_cast<T&>(self).process_item(fd,item)) {
+						if (static_cast<T&>(self).process_item(fd,::move(item))) {
 							epoll.del(false/*write*/,fd) ; trace("del_slave_fd",fd,se.out_active) ; // /!\ must precede close(fd) which may not occur as long as input is not closed
 							Lock lock { _slaves_mutex } ;
 							if (se.out_active==Maybe) { ::shutdown(fd,SHUT_RD) ; se.out_active = Yes ;                                            }

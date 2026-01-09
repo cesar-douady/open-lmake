@@ -141,23 +141,24 @@ namespace Cache {
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , proc ) ;
 			switch (proc) {
-				case CacheRpcProc::None     :                                                      break ;
-				case CacheRpcProc::Config   : ::serdes( s , config    ,gen                     ) ; break ;
-				case CacheRpcProc::Download : ::serdes( s , hit_info  ,key,key_is_last,dep_ids ) ; break ;
-				case CacheRpcProc::Upload   : ::serdes( s , upload_key,msg                     ) ; break ;
-			DF}                                                                                            // NO_COV
+				case CacheRpcProc::None     :                                                             break ;
+				case CacheRpcProc::Config   : ::serdes( s , config    ,gen                            ) ; break ;
+				case CacheRpcProc::Download : ::serdes( s , hit_info  ,key,key_is_last,job_id,dep_ids ) ; break ;
+				case CacheRpcProc::Upload   : ::serdes( s , upload_key,msg                            ) ; break ;
+			DF}                                                                                                   // NO_COV
 		}
 		// data
 		// START_OF_VERSIONING CACHE
 		CacheRpcProc       proc        = {}    ;
-		CacheConfig        config      = {}    ;                                                           // if proc = Config
-		uint64_t           gen         = {}    ;                                                           // if proc = Config
-		CacheHitInfo       hit_info    = {}    ;                                                           // if proc = Download
-		CkeyIdx            key         = 0     ;                                                           // if proc = Download
-		bool               key_is_last = false ;                                                           // if proc = Download
-		::vector<CnodeIdx> dep_ids     = {}    ;                                                           // if proc = Download, idx of correspding deps in Req that were passed by name
-		CacheUploadKey     upload_key  = 0     ;                                                           // if proc = Upload
-		::string           msg         = {}    ;                                                           // if proc = Upload and upload_key=0
+		CacheConfig        config      = {}    ;                                                                  // if proc = Config
+		uint64_t           gen         = {}    ;                                                                  // if proc = Config
+		CacheHitInfo       hit_info    = {}    ;                                                                  // if proc = Download
+		CkeyIdx            key         = 0     ;                                                                  // if proc = Download
+		bool               key_is_last = false ;                                                                  // if proc = Download
+		::vector<CnodeIdx> dep_ids     = {}    ;                                                                  // if proc = Download, idx of corresponding deps in Req that were passed by name
+		CjobIdx            job_id      = 0     ;                                                                  // if proc = Download, idx of corresponding job  in Req if passed by name
+		CacheUploadKey     upload_key  = 0     ;                                                                  // if proc = Upload
+		::string           msg         = {}    ;                                                                  // if proc = Upload and upload_key=0
 		// END_OF_VERSIONING
 	} ;
 

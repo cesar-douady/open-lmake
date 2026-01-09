@@ -71,23 +71,43 @@ namespace Cache {
 	CacheServerSide::DownloadDigest CacheServerSide::download( Job job , Rule::RuleMatch const& match , bool incremental ) {
 		Trace trace(CacheChnl,"download",job) ;
 		// provide node actual crc as this is the hit criteria
-		::vmap<StrId<CnodeIdx>,DepDigest> deps    ;                      for( Dep const& d : job->deps ) { DepDigest dd = d ; dd.set_crc(d->crc,d->ok()==No) ; deps.emplace_back(d->name(),dd) ; }
-		::string                          job_str = job->unique_name() ;
+		::vmap<StrId<CnodeIdx>,DepDigest> deps         ;
+		StrId<CjobIdx>                    job_str_id   ;
 		//
-		OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Download , .job=job_str , .repo_deps=deps } ).send(_fd) ;
-		auto reply = _imsg.receive<CacheRpcReply>( _fd , Maybe/*once*/ ) ;
+		if ( +job<_cjobs.size() && _cjobs[+job] ) job_str_id = {_cjobs[+job]      } ;
+		else                                      job_str_id = {job->unique_name()} ;
+		for( Dep const& d : job->deps ) {
+			DepDigest dd = d ;
+			dd.set_crc(d->crc,d->ok()==No) ;
+			if ( +d<_cnodes.size() && _cnodes[+d] ) deps.emplace_back( _cnodes[+d] , dd ) ;
+			else                                    deps.emplace_back( d->name()   , dd ) ;
+		}
+		//
+		OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Download , .job=job_str_id , .repo_deps=deps } ).send(_fd) ;
+		auto    reply   = _imsg.receive<CacheRpcReply>( _fd , Maybe/*once*/ ) ;
+		NodeIdx repo_i  = 0                                                   ;
+		NodeIdx cache_i = 0                                                   ;
+		if ( reply.job_id && job_str_id.is_name()) grow(_cjobs,+job) = reply.job_id ;
+		if (+reply.dep_ids)
+			for( Dep const& d : job->deps ) {
+				SWEAR( repo_i <deps.size() , repo_i ,deps.size() ) ;
+				if (deps[repo_i++].first.is_name()) {
+					SWEAR( cache_i<reply.dep_ids.size() , cache_i,reply.dep_ids.size() ) ;
+					grow(_cnodes,+d) = reply.dep_ids[cache_i++] ;
+				}
+			}
+		//
 		trace("hit_info",reply.hit_info) ;
-		//
 		if (reply.hit_info>=CacheHitInfo::Miss) return {.hit_info=reply.hit_info} ;
 		//
-		::string       rd              = run_dir( job_str , reply.key , reply.key_is_last )                          ;
-		NfsGuard       cache_nfs_guard { file_sync                                      }                            ;
-		AcFd           download_fd     { {_dir_fd,rd+"-data"} , {.nfs_guard=&cache_nfs_guard} }                      ; // open as soon as possible as entry could disappear
-		AcFd           info_fd         { {_dir_fd,rd+"-info"} , {.nfs_guard=&cache_nfs_guard} }                      ; // .
-		DownloadDigest res             { .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) } ;
-		NfsGuard       repo_nfs_guard  { g_config->file_sync }                                                       ;
+		::string       rd              = run_dir( job_str_id.is_name()?job_str_id.name:job->unique_name() , reply.key , reply.key_is_last ) ;
+		NfsGuard       cache_nfs_guard { file_sync                                            }                                             ;
+		NfsGuard       repo_nfs_guard  { g_config->file_sync                                  }                                             ;
+		AcFd           download_fd     { {_dir_fd,rd+"-data"} , {.nfs_guard=&cache_nfs_guard} }                                             ; // open as soon as possible as entry could disappear
+		AcFd           info_fd         { {_dir_fd,rd+"-info"} , {.nfs_guard=&cache_nfs_guard} }                                             ; // .
+		DownloadDigest res             { .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }                        ;
 		//
-		if (res.hit_info==CacheHitInfo::Hit) {                                                                         // actually download targets
+		if (res.hit_info==CacheHitInfo::Hit) {                                                                // actually download targets
 			Zlvl zlvl = res.job_info.start.start.zlvl ;
 			#if !HAS_ZLIB
 				throw_if( zlvl.tag==ZlvlTag::Zlib , "cannot uncompress without zlib" ) ;
@@ -113,9 +133,9 @@ namespace Cache {
 					::string const& tn    = entry.first            ;
 					FileTag         tag   = entry.second.sig.tag() ;
 					DiskSz          sz    = target_szs[ti]         ;
-					n_copied = ti+1 ;                                                                                  // this is a protection, so record n_copied *before* action occurs
+					n_copied = ti+1 ;                                                                         // this is a protection, so record n_copied *before* action occurs
 					repo_nfs_guard.change(tn) ;
-					if (tag==FileTag::None) try { unlnk( tn                  ) ; } catch (::string const&) {}          // if we do not want the target, avoid unlinking potentially existing sub-files
+					if (tag==FileTag::None) try { unlnk( tn                  ) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
 					else                          unlnk( tn , {.dir_ok=true} ) ;
 					switch (tag) {
 						case FileTag::None  :                                                                                               break ;
@@ -125,17 +145,17 @@ namespace Cache {
 						case FileTag::Reg   : {
 							AcFd fd { tn , { O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , mode_t(tag==FileTag::Exe?0777:0666) } } ;
 							if (sz) { trace("write_to"  ,tn,sz) ; data_fd.receive_to( fd , sz ) ; }
-							else      trace("no_data_to",tn   ) ;                                                      // empty exe are Exe, not Empty
+							else      trace("no_data_to",tn   ) ;                                             // empty exe are Exe, not Empty
 						} break ;
 					DN}
-					entry.second.sig = FileSig(tn) ;                                                                   // target digest is not stored in cache
+					entry.second.sig = FileSig(tn) ;                                                          // target digest is not stored in cache
 				}
-				end.end_date = New ;                                                                                   // date must be after files are copied
+				end.end_date = New ;                                                                          // date must be after files are copied
 				// ensure we take a single lock at a time to avoid deadlocks
 				trace("done") ;
 			} catch(::string const& e) {
 				trace("failed",e,n_copied) ;
-				for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                          // clean up partial job
+				for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                 // clean up partial job
 				trace("throw") ;
 				throw ;
 			}
