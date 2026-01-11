@@ -210,29 +210,6 @@ namespace Py {
 	// Module
 	//
 
-	Ptr<Module>::Ptr( NewType , ::string const& name , PyMethodDef* funcs ) {
-		Gil::s_swear_locked() ;
-		::string*    nm  = new ::string{name}   ;                                                                    // keep name alive
-		size_t       nf1 = 1                    ; for( PyMethodDef* f=funcs ; f->ml_name ; f++ ) nf1++             ; // start at 1 to account for terminating sentinel
-		PyMethodDef* fns = new PyMethodDef[nf1] ; for( size_t i : iota(nf1)                    ) fns[i] = funcs[i] ; // keep funcs alive
-		#if PY_MAJOR_VERSION<3
-			self = Py_InitModule( nm->c_str() , fns ) ;
-		#else
-			PyModuleDef* def = new PyModuleDef {                                                                     // must have the lifetime of the module
-				PyModuleDef_HEAD_INIT
-			,	nm->c_str()                                                                                          // m_name
-			,	nullptr                                                                                              // m_doc
-			,	-1                                                                                                   // m_size
-			,	fns                                                                                                  // m_methods
-			,	nullptr                                                                                              // m_slots
-			,	nullptr                                                                                              // m_traverse
-			,	nullptr                                                                                              // m_clear
-			,	nullptr                                                                                              // m_free
-			} ;
-			self = PyModule_Create(def) ;
-		#endif
-	}
-
 	Ptr<Module>::Ptr( ::string const& name ) {
 		Gil::s_swear_locked() ;
 		// XXX> : use PyImport_ImportModuleEx with a non-empy from_list when python2 support is no longer required

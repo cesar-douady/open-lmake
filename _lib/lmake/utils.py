@@ -35,8 +35,8 @@ class pdict(dict) :
 		try             : return self[attr]
 		except KeyError : raise AttributeError(attr)
 	def __setattr__(self,attr,val) :
-		try             : self[attr] = val ; return
+		try             : self[attr] = val
 		except KeyError : raise AttributeError(attr)
 	def __delattr__(self,attr) :
-		try             : del self[attr] ; return
+		try             : del self[attr]
 		except KeyError : raise AttributeError(attr)

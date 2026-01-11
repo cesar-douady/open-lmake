@@ -7,6 +7,8 @@ import sys
 
 if __name__!='__main__' :
 
+	import os.path as osp
+
 	import lmake
 	from lmake.rules import Rule,PyRule
 
@@ -16,17 +18,18 @@ if __name__!='__main__' :
 	,	'sub_mod.py'
 	)
 
-	class Dut(Rule) :
+	class Dut(Rule) :     # this rule is a Rule, not a PyRule, on purpose (so pyc files are not handled), so we must explicitly allow reading '.'
 		target     ='dut'
 		python     = (sys.executable,'-B')
-		use_script = True                     # ensure root dir is still accessible, even from a script in a sub-dir
+		use_script = True                                                                    # ensure root dir is still accessible, even from a script in a sub-dir
+		environ    = { 'LD_LIBRARY_PATH' : osp.dirname(osp.dirname(sys.executable))+'/lib' }
 		def cmd():
-			lmake.depend('.',readdir_ok=True) # this rule is a Rule, not a PyRule, on purpose (so pyc files are not handled), so we must explicitly allow reading '.'
+			lmake.depend('.',readdir_ok=True)
 			import mod
 
 	class PyDut(PyRule) :
 		target     ='py_dut'
-		use_script = True                     # ensure root dir is still accessible, even from a script in a sub-dir
+		use_script = True    # ensure root dir is still accessible, even from a script in a sub-dir
 		def cmd():
 			import mod
 

@@ -37,7 +37,7 @@ sys_config.env : FORCE
 			echo CXX=\'$$(    echo "$$CXX"    |sed "s:':'\\'':")\' ; \
 			echo GCOV=\'$$(   echo "$$GCOV"   |sed "s:':'\\'':")\' ; \
 			echo PYTHON2=\'$$(echo "$$PYTHON2"|sed "s:':'\\'':")\' ; \
-			echo PYTHON3=\'$$(echo "$$PYTHON" |sed "s:':'\\'':")\' ; \
+			echo PYTHON=\'$$( echo "$$PYTHON" |sed "s:':'\\'':")\' ; \
 			echo LMAKE_FLAGS=$$LMAKE_FLAGS                         ; \
 		} >$@ ;                                                      \
 	fi
@@ -45,10 +45,10 @@ sys_config.env : FORCE
 sys_config.log : _bin/sys_config sys_config.env
 	@echo sys_config
 	@# reread sys_config.env in case it has been modified while reading an old sys_config.mk
-	@set -a                                    ; \
-	PATH=$$(env -i bash -c 'echo $$PATH')      ; \
-	unset CXX GCOV PYTHON2 PYTHON3 LMAKE_FLAGS ; \
-	. ./sys_config.env                         ; \
+	@set -a                                   ; \
+	PATH=$$(env -i bash -c 'echo $$PATH')     ; \
+	unset CXX GCOV PYTHON2 PYTHON LMAKE_FLAGS ; \
+	. ./sys_config.env                        ; \
 	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.py) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
 sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h   : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
@@ -381,7 +381,7 @@ version.checked : FORCE
 # use a stamp to implement a by value update (while make works by date)
 src/version.cc.stamp : _bin/version version.src src/version.hh version.checked
 	@echo computing versions to $(@:%.stamp=%)
-	@PYTHON=$(PYTHON) VERSION=$(VERSION) TAG=$(TAG) ./$< gen src/version.hh $(@:%.stamp=%) version.src >$@
+	@LD_LIBRARY_PATH=$(PY3_LIB_DIR) PYTHON=$(PYTHON) VERSION=$(VERSION) TAG=$(TAG) ./$< gen src/version.hh $(@:%.stamp=%) version.src >$@
 	@# dont touch output if it is steady
 	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version info $(@:%.stamp=%) ; \
 	else                                cp $@ $(@:%.stamp=%) ; echo new    version info $(@:%.stamp=%) ; \
@@ -390,9 +390,9 @@ src/version.cc : src/version.cc.stamp ;
 
 _lib/version.py : _bin/version src/version.hh src/version.cc sys_config.py
 	@echo convert version to py to $@
-	@PYTHON=$(PYTHON) ./$< cc_to_py src/version.hh src/version.cc > $@
-	@echo '#'                                                     >>$@
-	@cat sys_config.py                                            >>$@
+	@LD_LIBRARY_PATH=$(PY3_LIB_DIR) PYTHON=$(PYTHON) ./$< cc_to_py src/version.hh src/version.cc > $@
+	@echo '#'                                                                                    >>$@
+	@cat sys_config.py                                                                           >>$@
 
 #
 # LMAKE
@@ -400,7 +400,6 @@ _lib/version.py : _bin/version src/version.hh src/version.cc sys_config.py
 
 # add system configuration to lmake.py :
 # Sense git bin dir at install time so as to be independent of it at run time.
-# Some python installations require LD_LIBRARY_PATH. Handle this at install time so as to be independent at run time.
 lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk _bin/align_comments
 	@echo customize $< to $@
 	@mkdir -p $(@D)
@@ -451,7 +450,7 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 	@echo big test "(2000000)" to $@
 	@mkdir -p $(@D)
 	@rm -rf   $(@D)/LMAKE
-	@PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; $(PYTHON) ../big_test.py / 2000000 )
+	@PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; LD_LIBRARY_PATH=$(PY3_LIB_DIR) $(PYTHON) ../big_test.py / 2000000 )
 	@touch $@
 
 #
@@ -789,6 +788,7 @@ TEST_ENV = \
 	export LD_LIBRARY_PATH=$(PY3_LIB_DIR)                                                          ; \
 	export HAS_32=$(HAS_32)                                                                        ; \
 	export PYTHON2=$(PYTHON2)                                                                      ; \
+	export PYTHON=$(PYTHON)                                                                        ; \
 	exec </dev/null >$@.out 2>$@.err
 
 # keep $(@D) to ease debugging, ignore git rc as old versions work but generate errors
@@ -1050,4 +1050,4 @@ $(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 GCOV : gcov/summary
 
 gcov/summary : FORCE
-	GCOV=$(GCOV) $(PYTHON) _bin/gen_gcov.py $@ $(DEP_SRCS)
+	GCOV=$(GCOV) LD_LIBRARY_PATH=$(PY3_LIB_DIR) $(PYTHON) _bin/gen_gcov.py $@ $(DEP_SRCS)

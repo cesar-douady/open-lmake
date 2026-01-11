@@ -133,8 +133,8 @@ namespace Py {
 		// services
 		Ptr<Str> repr     () const ;
 		Ptr<Str> str      () const ;
-		::string type_name() const { return ob_type->tp_name ; }
-		ssize_t  ref_cnt  () const { return ob_refcnt        ; }
+		::string type_name() const { return Py_TYPE  (this)->tp_name ; }
+		ssize_t  ref_cnt  () const { return Py_REFCNT(this)          ; }
 		//
 		template<class T=Object> Ptr<T> get_attr( ::string const& attr                     ) const ;
 		/**/                     void   set_attr( ::string const& attr , Object const& val ) ;
@@ -602,8 +602,7 @@ namespace Py {
 	template<> struct Ptr<Module> : PtrBase<Module> {
 		using Base = PtrBase<Module> ;
 		using Base::Base ;
-		Ptr( NewType , ::string const& name , PyMethodDef* funcs=nullptr ) ; // new module
-		Ptr(           ::string const& name                              ) ; // import
+		Ptr(::string const& name) ; // import
 	} ;
 
 	//

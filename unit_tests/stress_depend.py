@@ -17,8 +17,7 @@ if __name__!='__main__' :
 
 	if 'slurm' in lmake.backends :
 		lmake.config.backends.slurm = {
-			'interface'         : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
-		,	'use_nice'          : True
+			'use_nice'          : True
 		,	'n_max_queued_jobs' : 10
 		}
 
@@ -40,7 +39,7 @@ if __name__!='__main__' :
 			name    = f'test {backend}'
 			backend = backend
 			target  = fr'out_{backend}{{Verbose:(_verbose)?}}_{{N:\d+}}'
-			python  = ('/usr/bin/python3','-B','-tt')
+			python  = PyRule.python+('-B','-tt')
 			resources = {
 				'cpu' : 1
 			,	'mem' : '10M'

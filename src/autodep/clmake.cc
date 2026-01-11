@@ -373,19 +373,54 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	}
 }
 
+int populate_mod(PyObject* py_mod) {
+	Gil::s_swear_locked() ;
+	//
+	Module* mod = from_py<Module>(py_mod) ;
+	try {
+		Ptr<Tuple> py_ads { HAS_LD_AUDIT+3 } ;                               // PER_AUTODEP_METHOD : add entries here
+		{	size_t i = 0 ;
+			if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
+			/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
+			/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
+			/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
+			SWEAR( i==py_ads->size() , i,py_ads->size() ) ;
+		}
+		//
+		static constexpr const char* Bes[] = { "local" , "sge" , "slurm" } ; // PER_BACKEND : add entries here
+		static constexpr size_t      NBes  = sizeof(Bes)/sizeof(Bes[0])    ;
+		Ptr<Tuple> py_bes { NBes } ; for( size_t i : iota(NBes) ) py_bes->set_item(i,*Ptr<Str>(Bes[i])) ;
+		//
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		mod->set_attr( "top_repo_root" , *Ptr<Str>(no_slash(_g_autodep_env.repo_root_s                          )) ) ;
+		mod->set_attr( "repo_root"     , *Ptr<Str>(no_slash(_g_autodep_env.repo_root_s+_g_autodep_env.sub_repo_s)) ) ;
+		mod->set_attr( "backends"      , *py_bes                                                                   ) ;
+		mod->set_attr( "autodeps"      , *py_ads                                                                   ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		return 0 ;
+	} catch (::string const& e) {
+		py_err_set( PyException::RuntimeErr , e ) ;
+		return -1 ;
+	}
+}
+int populate_mod_no_gil(PyObject* py_mod) {
+	NoGil no_gil ;                                                           // tell our mutex we already have the GIL
+	return populate_mod(py_mod) ;
+}
+
 #pragma GCC visibility push(default)
 PyMODINIT_FUNC
-#if PY_MAJOR_VERSION<3
-	initclmake2()
-#else
+#if PY_MAJOR_VERSION>=3
 	PyInit_clmake()
+#else
+	initclmake2()
 #endif
 {
 
 	NoGil no_gil ; // tell our mutex we already have the GIL
 
 	#define F(name,func,descr) { name , reinterpret_cast<PyCFunction>(func) , METH_VARARGS|METH_KEYWORDS , descr }
-	PyMethodDef _g_funcs[] = {
+	static PyMethodDef s_methods[] = {
 		F( "depend" , (py_func<Object,depend>) ,
 			"depend(\n"
 			"\t*deps\n"
@@ -506,37 +541,37 @@ PyMODINIT_FUNC
 		#if PY_MAJOR_VERSION>=3
 			return py_err_set( PyException::FileNotFoundErr , e ) ;
 		#else
-			py_err_set( PyException::OsErr , e ) ;                       // FileNotFoundErr does not exist with python2
+			py_err_set( PyException::OsErr , e ) ;                         // FileNotFoundErr does not exist with python2
 			return ;
 		#endif
 	}
 	//
-	Ptr<Tuple> py_ads { HAS_LD_AUDIT+3 } ;                               // PER_AUTODEP_METHOD : add entries here
-	{	size_t i = 0 ;
-		if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
-		/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
-		/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
-		/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
-		SWEAR( i==py_ads->size() , i,py_ads->size() ) ;
-	}
-	//
-	static constexpr const char* Bes[] = { "local" , "sge" , "slurm" } ; // PER_BACKEND : add entries here
-	static constexpr size_t      NBes  = sizeof(Bes)/sizeof(Bes[0])    ;
-	Ptr<Tuple> py_bes { NBes } ; for( size_t i : iota(NBes) ) py_bes->set_item(i,*Ptr<Str>(Bes[i])) ;
-	//
 	_g_autodep_env = New ;
-	Ptr<Module> mod { New , PY_MAJOR_VERSION<3?"clmake2":"clmake" , _g_funcs } ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	mod->set_attr( "top_repo_root" , *Ptr<Str>(no_slash(_g_autodep_env.repo_root_s                          ).c_str()) ) ;
-	mod->set_attr( "repo_root"     , *Ptr<Str>(no_slash(_g_autodep_env.repo_root_s+_g_autodep_env.sub_repo_s).c_str()) ) ;
-	mod->set_attr( "backends"      , *py_bes                                                                ) ;
-	mod->set_attr( "autodeps"      , *py_ads                                                                ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Gil::s_swear_locked() ;
 	#if PY_MAJOR_VERSION>=3
-		return mod->to_py_boost() ;
+		static PyModuleDef_Slot s_slots[] = {
+			{ Py_mod_exec , reinterpret_cast<void*>(populate_mod_no_gil) }
+		,	{ 0           , nullptr                                      } // for Py_mod_gil if available
+		,	{ 0           , nullptr                                      }
+		} ;
+		#ifdef Py_mod_gil
+			s_slots[1] = { Py_mod_gil , Py_MOD_GIL_NOT_USED } ;
+		#endif
+		static PyModuleDef def {                                           // must have the lifetime of the module
+			PyModuleDef_HEAD_INIT
+		,	"clmake" /*m_name    */
+		,	nullptr  /*m_doc     */
+		,	0        /*m_size    */
+		,	s_methods/*m_methods */
+		,	s_slots  /*m_slots   */
+		,	nullptr  /*m_traverse*/
+		,	nullptr  /*m_clear   */
+		,	nullptr  /*m_free    */
+		} ;
+		return PyModuleDef_Init(&def) ;
 	#else
-		mod.boost() ;                                                    // ensure mod survives to mod dxtor
+		Module* mod = from_py<Module>( Py_InitModule( "clmake2" , s_methods ) ) ;
+		populate_mod(mod) ;
 	#endif
-
 }
 #pragma GCC visibility pop

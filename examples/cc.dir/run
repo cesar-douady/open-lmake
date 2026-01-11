@@ -113,7 +113,7 @@ lmake( 'hello_world.tok' , changed=1 , done=3 , steady=1 )          # the test l
 # generate compile_commands.json for IDE integration
 lmake( 'compile_commands.json' , done=5 , may_rerun=4 , new=1 )
 
-print('\n* lshow')
+print('\n* lshow',flush=True)
 # lshow can show you a lot of information
 sp.run(('lshow','-h'))                     # see what is available, all commands have a -h or --help flag
 # the most useful flags are -i (show info about the run) and -d (show deps)

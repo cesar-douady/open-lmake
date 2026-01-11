@@ -19,11 +19,11 @@ if __name__!='__main__' :
 	lmake.manifest = ('Lmakefile.py','../')
 
 	class Dut(Rule) :
-		target     = r'dut-{Autodep:\w+}-{Os:\w+}'
+		targets    = { 'TGT':r'dut-{Autodep:\w+}-{Os:\w+}' }
 		chroot_dir = '{image_root(Os)}'
 		lmake_root = '{lmake_install_root(Os)}'
 		autodep    = '{Autodep}'
-		cmd        = 'echo dut'
+		cmd        = 'echo dut >{TGT}'
 
 else :
 
