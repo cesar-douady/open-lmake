@@ -76,7 +76,6 @@ namespace Cache {
 		// accesses
 		bool operator+() const { return +name || +id ; }
 		bool is_name  () const { return +name        ; }
-		bool is_id    () const { return          +id ; }
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , name,id ) ;
@@ -87,7 +86,7 @@ namespace Cache {
 	} ;
 	template<class I> ::string& operator+=( ::string& os , StrId<I> const& si ) {
 		if      (si.is_name()) return os << si.name ;
-		else if (si.is_id  ()) return os << si.id   ;
+		else if (si.id       ) return os << si.id   ;
 		else                   return os << "()"    ;
 	}
 

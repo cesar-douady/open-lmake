@@ -31,13 +31,13 @@ CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool
 		else if (!a                      )   continue ;                                               // dep was not accessed, ignore but keep static deps as they must not depend on run
 		//
 		Cnode node ;
-		if (n.is_id()) {
-			node = {n.id} ;
-		} else {
+		if (n.is_name()) {
 			if ( for_download          ) node = {       n.name } ;
 			else                         node = { New , n.name } ;
 			if ( dep_ids               ) dep_ids->push_back(+node) ;
 			if ( for_download && !node ) continue ;                                                   // if it is not known in cache, it has no impact on matching
+		} else {
+			node = {n.id} ;
 		}
 		//
 		Crc crc = dd.crc() ;

@@ -49,8 +49,8 @@ JobStartRpcReply get_start_info() {
 		found_server = Yes   ; res = IMsgBuf(                                          ).receive<JobStartRpcReply>( fd , No/*once*/ , {}/*key*/ ) ; // read without limit as there is a single message
 	} catch (::string const& e) { //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		trace("no_start_info",STR(found_server),e) ;
-		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ; // this may be a server config problem, better to report if verbose
-		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ; // .
+		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ;        // this may be a server config problem, better to report if verbose
+		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ;        // .
 	}
 	if (+g_lmake_root_s) {
 		try {
@@ -364,6 +364,7 @@ int main( int argc , char* argv[] ) {
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
 		if (+g_start_info.cache) {
+			if (!g_start_info.cache.service.addr) g_start_info.cache.service.addr = g_service_start.addr ;                            // if no host info, cache is running on same host as server
 			try {
 				::tie(upload_key,end_report.total_z_sz) = g_start_info.cache.upload( exe_time , digest.targets , target_fis , g_start_info.zlvl ) ;
 				trace("cache",upload_key) ;
@@ -417,7 +418,7 @@ End :
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache.dismiss(upload_key) ;                                                                // suppress temporary data if server cannot handle them
+			if (+upload_key) g_start_info.cache.dismiss(upload_key) ;                                                                 // suppress temporary data if server cannot handle them
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}

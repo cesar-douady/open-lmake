@@ -75,11 +75,11 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	_g_upload_keys.release(crr.upload_key)         ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
-	NfsGuard      nfs_guard { g_cache_config.file_sync }                                                       ;
-	::string      rf        = reserved_file(crr.upload_key)                                                    ;
-	CompileDigest deps      = compile( crr.repo_deps , false/*for_download*/ )                                 ;
-	Cjob          job       = crr.job.is_id() ? Cjob(crr.job.id) : Cjob( New , crr.job.name , deps.n_statics ) ; SWEAR( job->n_statics==deps.n_statics , job,deps.n_statics ) ;
-	DiskSz        sz        = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                                ;
+	NfsGuard      nfs_guard { g_cache_config.file_sync }                                                   ;
+	::string      rf        = reserved_file(crr.upload_key)                                                ;
+	CompileDigest deps      = compile( crr.repo_deps , false/*for_download*/ )                             ;
+	Cjob          job       = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR( job->n_statics==deps.n_statics , job,deps.n_statics ) ;
+	DiskSz        sz        = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
 	//
 	::pair<Crun,CacheHitInfo > digest = job->insert(
 		deps.deps , deps.dep_crcs                                                                                   // to search entry
