@@ -817,7 +817,9 @@ namespace Engine {
 		// START_OF_VERSIONING REPO
 		Kind     kind_ ;
 		::string buf   ;
-		if (!IsIStream<S>) {
+		if constexpr (IsHash) {
+			kind_ = ::min(Kind::Dyn,kind) ;                                                                                               // marshal is unstable and cannot be used for hash computation
+		} else if (!IsIStream<S>) {
 			kind_ = kind ;
 			if (kind_==Kind::CompiledGlbs)
 				try                     { buf   = serialize(glbs) ; }
@@ -831,8 +833,8 @@ namespace Engine {
 		switch (kind_) {
 			case Kind::None         :                                                                                             break ;
 			case Kind::ShellCmd     : ::serdes( s , code_str                          ) ;                                         break ;
-			case Kind::PythonCmd    : ::serdes( s , code_str , glbs_str               ) ; { if (!IsHash) ::serdes(s,dbg_info) ; } break ; // dbg_info is not hashed as it no ...
-			case Kind::Dyn          : ::serdes( s , code_str , glbs_str  , may_import ) ; { if (!IsHash) ::serdes(s,dbg_info) ; } break ; // ... semantic value
+			case Kind::PythonCmd    : ::serdes( s , code_str , glbs_str               ) ; { if (!IsHash) ::serdes(s,dbg_info) ; } break ; // dbg_info is not hashed as it no semantic value
+			case Kind::Dyn          : ::serdes( s , code_str , glbs_str  , may_import ) ; { if (!IsHash) ::serdes(s,dbg_info) ; } break ;
 			case Kind::Compiled     : ::serdes( s , code     , glbs_code , may_import ) ;                                       ; break ;
 			case Kind::CompiledGlbs : ::serdes( s , code     , buf       , may_import ) ;                                       ; break ; // buf is marshaled info
 		}

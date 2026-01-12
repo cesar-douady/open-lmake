@@ -25,7 +25,7 @@ static Record*    _g_record      = nullptr ;
 static AutodepEnv _g_autodep_env ;
 
 template<class T,Ptr<T>(*Func)( Tuple const& args , Dict const& kwds )>
-	static PyObject* py_func( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
+	static PyObject* _py_func( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
 		NoGil no_gil ;                                                                 // tell our mutex we already have the GIL
 		try {
 			if (kwds) return Func( *from_py<Tuple const>(args) , *from_py<Dict const>(kwds) )->to_py_boost() ;
@@ -35,13 +35,13 @@ template<class T,Ptr<T>(*Func)( Tuple const& args , Dict const& kwds )>
 		catch (::pair<PyException,::string> const& e) { return py_err_set(e.first             ,e.second) ; }
 	}
 template<void(*Func)( Tuple const& args , Dict const& kwds )>
-	static Ptr<> add_none( Tuple const& args , Dict const& kwds ) {
+	static Ptr<> _add_none( Tuple const& args , Dict const& kwds ) {
 		Func(args,kwds) ;
 		return &None ;
 	}
 template<void(*Func)( Tuple const& args , Dict const& kwds )>
-	static PyObject* py_func( PyObject* null , PyObject* args , PyObject* kwds ) {
-		return py_func<Object,add_none<Func>>(null,args,kwds) ;
+	static PyObject* _py_func( PyObject* null , PyObject* args , PyObject* kwds ) {
+		return _py_func<Object,_add_none<Func>>(null,args,kwds) ;
 	} ;
 
 static uint8_t _mk_uint8( Object const& o , ::string const& arg_name={} ) {
@@ -67,7 +67,7 @@ static ::vector_s _get_files(Tuple const& py_args) {
 	return res ;
 }
 
-static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
+static Ptr<> _depend( Tuple const& py_args , Dict const& py_kwds ) {
 	bool         no_follow = true                                                                   ;
 	bool         regexpr   = false                                                                  ;
 	bool         direct    = false                                                                  ;
@@ -116,7 +116,7 @@ static Ptr<> depend( Tuple const& py_args , Dict const& py_kwds ) {
 	FAIL() ;
 }
 
-static void target( Tuple const& py_args , Dict const& py_kwds ) {
+static void _target( Tuple const& py_args , Dict const& py_kwds ) {
 	bool         no_follow = true                                                                       ;
 	bool         regexpr   = false                                                                      ;
 	AccessDigest ad        { .flags{.extra_tflags=ExtraTflag::Allow,.extra_dflags=ExtraDflag::NoStar} } ;
@@ -141,7 +141,7 @@ static void target( Tuple const& py_args , Dict const& py_kwds ) {
 	catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                          }
 }
 
-static Ptr<> chk_deps( Tuple const& py_args , Dict const& py_kwds ) {
+static Ptr<> _chk_deps( Tuple const& py_args , Dict const& py_kwds ) {
 	size_t n_args = py_args.size() ;
 	//
 	::optional<Delay> delay ;
@@ -173,7 +173,7 @@ static Ptr<> chk_deps( Tuple const& py_args , Dict const& py_kwds ) {
 	}
 }
 
-template<bool Target> static Ptr<Tuple> list( Tuple const& py_args , Dict const& py_kwds ) {
+template<bool Target> static Ptr<Tuple> _list( Tuple const& py_args , Dict const& py_kwds ) {
 	size_t n_args = py_args.size() ;
 	//
 	::optional_s dir     ;
@@ -204,7 +204,7 @@ template<bool Target> static Ptr<Tuple> list( Tuple const& py_args , Dict const&
 	}
 }
 
-static Ptr<Str> list_root_s( Tuple const& py_args , Dict const& py_kwds ) {
+static Ptr<Str> _list_root_s( Tuple const& py_args , Dict const& py_kwds ) {
 	if (!( py_args.size()==1 && !py_kwds )) throw cat("accept only a single arg") ;
 	try                       { return Ptr<Str>( no_slash( JobSupport::list_root_s(*py_args[0].str()) ) ) ; }
 	catch (::string const& e) { throw ::pair(PyException::RuntimeErr,e) ;                                   }
@@ -212,7 +212,7 @@ static Ptr<Str> list_root_s( Tuple const& py_args , Dict const& py_kwds ) {
 
 // encode and decode are very similar, it is easier to define a template for both
 // cv means code for decode and val for encode
-template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& py_kwds ) {
+template<bool Encode> static Ptr<Str> _codec( Tuple const& py_args , Dict const& py_kwds ) {
 	static constexpr const char* Cv = Encode ? "val" : "code" ;
 	size_t n_args = py_args.size() ;
 	//
@@ -255,7 +255,7 @@ template<bool Encode> static Ptr<Str> codec( Tuple const& py_args , Dict const& 
 	}
 }
 
-template<bool IsFile> static Ptr<Str> xxhsum( Tuple const& py_args , Dict const& py_kwds ) {
+template<bool IsFile> static Ptr<Str> _xxhsum( Tuple const& py_args , Dict const& py_kwds ) {
 	static constexpr const char* Ft = IsFile ? "file" : "text" ;
 	size_t       n_args = py_args.size() ;
 	::optional_s ft     ;
@@ -273,14 +273,14 @@ template<bool IsFile> static Ptr<Str> xxhsum( Tuple const& py_args , Dict const&
 	else        return Crc(New,*ft).hex() ;
 }
 
-static Ptr<Bool> get_autodep( Tuple const& py_args , Dict const& py_kwds ) {
+static Ptr<Bool> _get_autodep( Tuple const& py_args , Dict const& py_kwds ) {
 	if ( +py_args || +py_kwds ) throw "expected no args"s ;
 	//     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	return Backdoor::call(Backdoor::Enable()) ;
 	//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 }
 
-static void set_autodep( Tuple const& py_args , Dict const& py_kwds ) {
+static void _set_autodep( Tuple const& py_args , Dict const& py_kwds ) {
 	size_t n_args = py_args.size() ;
 	//
 	if (+py_kwds) throw "unexpected keyword args"s ;
@@ -301,7 +301,7 @@ template<bool EmptyIsDot> static ::vector_s _get_seq( ::string const& key , Obje
 		else                     res.emplace_back(*py.str()) ;
 	return res ;
 }
-static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
+static void _report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	static ::vector_s s_std_sfxs ;
 	if (!s_std_sfxs) {
 		#if PY_MAJOR_VERSION==2
@@ -373,7 +373,7 @@ static void report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	}
 }
 
-int populate_mod(PyObject* py_mod) {
+static int _populate_mod(PyObject* py_mod) {
 	Gil::s_swear_locked() ;
 	//
 	Module* mod = from_py<Module>(py_mod) ;
@@ -403,10 +403,12 @@ int populate_mod(PyObject* py_mod) {
 		return -1 ;
 	}
 }
-int populate_mod_no_gil(PyObject* py_mod) {
-	NoGil no_gil ;                                                           // tell our mutex we already have the GIL
-	return populate_mod(py_mod) ;
-}
+#if PY_MAJOR_VERSION>=3
+	static int _populate_mod_no_gil(PyObject* py_mod) {
+		NoGil no_gil ;                                                           // tell our mutex we already have the GIL
+		return _populate_mod(py_mod) ;
+	}
+#endif
 
 #pragma GCC visibility push(default)
 PyMODINIT_FUNC
@@ -421,7 +423,7 @@ PyMODINIT_FUNC
 
 	#define F(name,func,descr) { name , reinterpret_cast<PyCFunction>(func) , METH_VARARGS|METH_KEYWORDS , descr }
 	static PyMethodDef s_methods[] = {
-		F( "depend" , (py_func<Object,depend>) ,
+		F( "depend" , (_py_func<Object,_depend>) ,
 			"depend(\n"
 			"\t*deps\n"
 			",\tfollow_symlinks=False\n"
@@ -440,7 +442,7 @@ PyMODINIT_FUNC
 			"Pretend parallel read of deps (if read==True) and mark them with flags mentioned as True.\n"
 			"Flags accumulate and are never reset.\n"
 		)
-	,	F( "target" , py_func<target> ,
+	,	F( "target" , _py_func<_target> ,
 			"target(\n"
 			"\t*targets\n"
 			",\tregexpr     =False # targets are regexprs\n"
@@ -463,7 +465,7 @@ PyMODINIT_FUNC
 			"Pretend write to targets (if write==True) and mark them with flags mentioned as True.\n"
 			"Flags accumulate and are never reset.\n"
 		)
-	,	F( "check_deps" , (py_func<Object,chk_deps>) ,
+	,	F( "check_deps" , (_py_func<Object,_chk_deps>) ,
 			"check_deps(verbose=False)\n"
 			"Ensure that all previously seen deps are up-to-date.\n"
 			"Job will be killed in case some deps are not up-to-date.\n"
@@ -471,32 +473,32 @@ PyMODINIT_FUNC
 			"This is necessary, even without checking return value, to ensure that after this call,\n"
 			"the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).\n"
 		)
-	,	F( "get_autodep" , (py_func<Bool,get_autodep>) ,
+	,	F( "get_autodep" , (_py_func<Bool,_get_autodep>) ,
 			"get_autodep()\n"
 			"Return True if autodep is currenly activated (else False).\n"
 		)
-	,	F( "set_autodep" , py_func<set_autodep> ,
+	,	F( "set_autodep" , _py_func<_set_autodep> ,
 			"set_autodep(active,/)\n"
 			"Activate (if active) or deactivate (if not active) autodep recording.\n"
 		)
-	,	F( "list_deps" , (py_func<Tuple,list<false/*Target*/>>) ,
+	,	F( "list_deps" , (_py_func<Tuple,_list<false/*Target*/>>) ,
 			"list_deps( dir=None , regexpr=None )\n"
 			"Return the list of deps in dir that match regexpr, as currently known.\n"
 		)
-	,	F( "list_targets" , (py_func<Tuple,list<true/*Target*/>>) ,
+	,	F( "list_targets" , (_py_func<Tuple,_list<true/*Target*/>>) ,
 			"list_targets( dir=None , regexpr=None )\n"
 			"Return the list of targets in dir that match regexpr, as currently known.\n"
 		)
-	,	F( "list_root" , (py_func<Str,list_root_s>) ,
+	,	F( "list_root" , (_py_func<Str,_list_root_s>) ,
 			"list_root(dir)\n"
 			"Return passed dir as used as prefix in list_deps and list_targets.\n"
 		)
-	,	F( "decode" , (py_func<Str,codec<false/*Encode*/>>) ,
+	,	F( "decode" , (_py_func<Str,_codec<false/*Encode*/>>) ,
 			"decode(file,ctx,code)\n"
 			"Return the associated (long) value passed by encode(file,ctx,val) when it returned (short) code.\n"
 			"This call to encode must have been done before calling decode.\n"
 		)
-	,	F( "encode" , (py_func<Str,codec<true/*Encode*/>>) ,
+	,	F( "encode" , (_py_func<Str,_codec<true/*Encode*/>>) ,
 			"encode(file,ctx,val,min_length=1)\n"
 			"Return a (short) code associated with (long) val. If necessary create such a code of\n"
 			"length at least min_length based on a checksum computed from value.\n"
@@ -504,7 +506,7 @@ PyMODINIT_FUNC
 			"even from another job (as long as it is called after the call to encode).\n"
 			"This means that decode(file,ctx,encode(file,ctx,val,min_length)) always return val for any min_length.\n"
 		)
-	,	F( "xxhsum_file" , (py_func<Str,xxhsum<true/*IsFile*/>>) ,
+	,	F( "xxhsum_file" , (_py_func<Str,_xxhsum<true/*IsFile*/>>) ,
 			"xxhsum_file(file)\n"
 			"Return a checksum of provided file.\n"
 			"The checksum is :\n"
@@ -515,7 +517,7 @@ PyMODINIT_FUNC
 			"Note : this checksum is *not* crypto-robust.\n"
 			"Cf man xxhsum for a description of the algorithm.\n"
 		)
-	,	F( "xxhsum" , (py_func<Str,xxhsum<false/*IsFile*/>>) ,
+	,	F( "xxhsum" , (_py_func<Str,_xxhsum<false/*IsFile*/>>) ,
 			"xxhsum(text)\n"
 			"Return a checksum of provided text.\n"
 			"It is a 16-digit hex value with no suffix.\n"
@@ -524,7 +526,7 @@ PyMODINIT_FUNC
 			"Note : this checksum is *not* crypto-robust.\n"
 			"Cf man xxhsum for a description of the algorithm.\n"
 		)
-	,	F( "report_import" , py_func<report_import> ,
+	,	F( "report_import" , _py_func<_report_import> ,
 			"report_import(module_name=None,path=None)\n"
 			"Inform autodep that module_name is (or is about to be) accessed.\n"
 			"the enclosing package is supposed to have already been loaded (i.e. this function must be called for each package along the hierarchy).\n"
@@ -534,7 +536,6 @@ PyMODINIT_FUNC
 	,	{nullptr,nullptr,0,nullptr}/*sentinel*/
 	} ;
 	#undef F
-
 	try {
 		_g_record = new Record { New , Yes/*enabled*/ } ;
 	} catch (::string const& e) {
@@ -550,9 +551,9 @@ PyMODINIT_FUNC
 	Gil::s_swear_locked() ;
 	#if PY_MAJOR_VERSION>=3
 		static PyModuleDef_Slot s_slots[] = {
-			{ Py_mod_exec , reinterpret_cast<void*>(populate_mod_no_gil) }
-		,	{ 0           , nullptr                                      } // for Py_mod_gil if available
-		,	{ 0           , nullptr                                      }
+			{ Py_mod_exec , reinterpret_cast<void*>(_populate_mod_no_gil) }
+		,	{ 0           , nullptr                                       } // for Py_mod_gil if available
+		,	{ 0           , nullptr                                       }
 		} ;
 		#ifdef Py_mod_gil
 			s_slots[1] = { Py_mod_gil , Py_MOD_GIL_NOT_USED } ;
@@ -571,7 +572,7 @@ PyMODINIT_FUNC
 		return PyModuleDef_Init(&def) ;
 	#else
 		Module* mod = from_py<Module>( Py_InitModule( "clmake2" , s_methods ) ) ;
-		populate_mod(mod) ;
+		_populate_mod(mod) ;
 	#endif
 }
 #pragma GCC visibility pop
