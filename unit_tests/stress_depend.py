@@ -38,7 +38,7 @@ if __name__!='__main__' :
 			name    = f'test {backend}'
 			backend = backend
 			target  = fr'out_{backend}{{Verbose:(_verbose)?}}_{{N:\d+}}'
-			python  = ('/usr/bin/python3','-B','-tt')
+			python  = PyRule.python+('-B','-tt')
 			resources = {
 				'cpu' : 1
 			,	'mem' : '10M'

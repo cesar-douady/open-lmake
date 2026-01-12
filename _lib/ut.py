@@ -11,7 +11,11 @@ import subprocess as sp
 import sys
 import time
 
-from lmake import pdict
+# make a simplified pdict instead of importing from lmake to avoid loading c code and depending on python version
+class pdict(dict) :
+	def __getattr__(self,attr    ) : return self[attr]
+	def __setattr__(self,attr,val) :        self[attr] = val
+	def __delattr__(self,attr    ) : del    self[attr]
 
 def lmake(*args,rc=0,summary=None,no_ldump=False,**kwds) :
 	if not summary : summary = {}

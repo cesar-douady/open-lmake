@@ -132,8 +132,8 @@ namespace Py {
 		/**/      Object const& unboost    () const { { if (ref_cnt()==1) Gil::s_swear_locked() ; } Py_DECREF(to_py()) ; return self ; }
 		// services
 		Ptr<Str> str      () const ;
-		::string type_name() const { return ob_type->tp_name ; }
-		ssize_t  ref_cnt  () const { return ob_refcnt        ; }
+		::string type_name() const { return Py_TYPE  (this)->tp_name ; }
+		ssize_t  ref_cnt  () const { return Py_REFCNT(this)          ; }
 		//
 		template<class T=Object> Ptr<T> get_attr( ::string const& attr                     ) const ;
 		/**/                     void   set_attr( ::string const& attr , Object const& val ) ;
@@ -724,7 +724,7 @@ namespace Py {
 	template<IsStream T> void Ptr<Object>::serdes(T& s) {
 		s_init() ;
 		::string buf ;
-		if (!IsIStream<T>) buf  = *s_dumps->call<Bytes>(*self)    ;
+		if (!IsIStream<T>) buf  = *s_dumps->call<Bytes>(*self) ;
 		::serdes(s,buf) ;
 		if ( IsIStream<T>) self = s_loads->call(*Ptr<Bytes>(buf)) ;
 	}

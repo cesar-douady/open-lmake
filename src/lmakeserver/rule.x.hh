@@ -776,7 +776,9 @@ namespace Engine {
 		// START_OF_VERSIONING
 		Kind     kind_ ;
 		::string buf   ;
-		if (!IsIStream<S>) {
+		if constexpr (IsHash) {
+			kind_ = ::min(Kind::Dyn,kind) ; // marshal is unstable and cannot be used to compute hash
+		} else if (!IsIStream<S>) {
 			kind_ = kind ;
 			if (kind_==Kind::CompiledGlbs)
 				try                     { buf   = serialize(glbs) ; }
