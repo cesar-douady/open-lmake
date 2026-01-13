@@ -9,6 +9,7 @@
 #include <grp.h>
 
 #include "disk.hh"
+#include "fd.hh"
 #include "time.hh"
 
 #include "repo.hh"
@@ -174,7 +175,7 @@ int main( int argc , char* argv[] ) {
 		,	         *g_repo_root_s
 		,	         with_slash(tmp_dir)
 		) ;
-		jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ; // updateg jsrr.env and jsrr.interpreter
+		jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ;           // updateg jsrr.env and jsrr.interpreter
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
@@ -187,6 +188,8 @@ int main( int argc , char* argv[] ) {
 		gather.env          = &cmd_env                                       ;
 		gather.lmake_root_s = job_space.lmake_view_s | jsrr.phy_lmake_root_s ;
 		gather.method       = jsrr.method                                    ;
+		//
+		try { gather.addr = SockFd::s_addr(fqdn(),true/*name_ok*/) ; } catch (::string const& e) {}                // best effort to get our own addr in case job spawn a non-local process
 		//       vvvvvvvvvvvvvvvvvvv
 		status = gather.exec_child() ;
 		//       ^^^^^^^^^^^^^^^^^^^

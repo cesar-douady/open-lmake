@@ -105,6 +105,8 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
+    <span class="kn">import</span> <span class="nn">os.path</span> <span class="k">as</span> <span class="nn">osp</span>
+
     <span class="kn">import</span> <span class="nn">lmake</span>
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
 
@@ -114,17 +116,18 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="p">,</span>   <span class="s1">&#39;sub_mod.py&#39;</span>
     <span class="p">)</span>
 
-    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>     <span class="c1"># this rule is a Rule, not a PyRule, on purpose (so pyc files are not handled), so we must explicitly allow reading &#39;.&#39;</span>
         <span class="n">target</span>     <span class="o">=</span><span class="s1">&#39;dut&#39;</span>
         <span class="n">python</span>     <span class="o">=</span> <span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">,</span><span class="s1">&#39;-B&#39;</span><span class="p">)</span>
-        <span class="n">use_script</span> <span class="o">=</span> <span class="kc">True</span>                     <span class="c1"># ensure root dir is still accessible, even from a script in a sub-dir</span>
+        <span class="n">use_script</span> <span class="o">=</span> <span class="kc">True</span>                                                                    <span class="c1"># ensure root dir is still accessible, even from a script in a sub-dir</span>
+        <span class="n">environ</span>    <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;LD_LIBRARY_PATH&#39;</span> <span class="p">:</span> <span class="n">osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">))</span><span class="o">+</span><span class="s1">&#39;/lib&#39;</span> <span class="p">}</span>
         <span class="k">def</span> <span class="nf">cmd</span><span class="p">():</span>
-            <span class="n">lmake</span><span class="o">.</span><span class="n">depend</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span><span class="n">readdir_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># this rule is a Rule, not a PyRule, on purpose (so pyc files are not handled), so we must explicitly allow reading &#39;.&#39;</span>
+            <span class="n">lmake</span><span class="o">.</span><span class="n">depend</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">,</span><span class="n">readdir_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
             <span class="kn">import</span> <span class="nn">mod</span>
 
     <span class="k">class</span> <span class="nc">PyDut</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span>     <span class="o">=</span><span class="s1">&#39;py_dut&#39;</span>
-        <span class="n">use_script</span> <span class="o">=</span> <span class="kc">True</span>                     <span class="c1"># ensure root dir is still accessible, even from a script in a sub-dir</span>
+        <span class="n">use_script</span> <span class="o">=</span> <span class="kc">True</span>    <span class="c1"># ensure root dir is still accessible, even from a script in a sub-dir</span>
         <span class="k">def</span> <span class="nf">cmd</span><span class="p">():</span>
             <span class="kn">import</span> <span class="nn">mod</span>
 

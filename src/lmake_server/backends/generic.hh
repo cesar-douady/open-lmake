@@ -96,6 +96,19 @@ namespace Backends {
 		return (((i-1)>>sw)+1)<<sw ;       // quantify by rounding up
 	}
 
+	inline ::string get_stderr_file(Job job) {
+		return job.ancillary_file(AncillaryTag::Backend)+"/stderr" ;
+	}
+
+	inline ::string read_stderr(Job job) {
+		::string f   = get_stderr_file(job) ;
+		::string res ;
+		try                       { res = AcFd(f).read() ; Disk::unlnk(f) ; }
+		catch (::string const& e) { res = e                               ; }
+		return res ;
+	}
+
+
 	//
 	// GenericBackend
 	//

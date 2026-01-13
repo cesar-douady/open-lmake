@@ -521,6 +521,8 @@ The default value should be both comfortable (avoid hitting it in normal situati
 Unlimited if `0`.
 Contrarily to the `max_runs` attribute, cache accesses are counted when counting submits.
 
+If `max_runs` is specified, `max_submits` is forced to be at least the value of `max_runs`.
+
 ### [`name`](unit_tests/name.html#:~:text=name%20%3D%20f%27expand%7Bstep%7D%27)
 
 | Inheritance | Type  | Default        | Dynamic | Example |

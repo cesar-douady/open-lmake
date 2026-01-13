@@ -184,20 +184,14 @@ namespace Backends::Sge {
 			return cat("sge_id:",se.id.load()) ;
 		}
 		::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status ) const override {
-			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                     // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
-			::string msg ;
-			try                       { msg = AcFd(get_stderr_file(j)).read() ; }
-			catch (::string const& e) { msg = e                               ; }
-			return { ::move(msg) , true/*retry*/  } ;
+			if (!se.verbose) return { {}/*msg*/      , true/*retry*/ } ;                         // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
+			else             return { read_stderr(j) , true/*retry*/ } ;
 		}
 		::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const override {
 			if (sge_exec_client({"qstat","-j",::to_string(se.id)})) return { {}/*msg*/ , HeartbeatState::Alive } ;
 			::string msg ;
-			if (se.verbose)
-				try                       { msg = AcFd(get_stderr_file(job)).read() ; }
-				catch (::string const& e) { msg = e                                 ; }
-			else
-				msg = "lost job "+::to_string(se.id) ;
+			if (se.verbose) msg = read_stderr(job)               ;
+			else            msg = "lost job "+::to_string(se.id) ;
 			return { ::move(msg) , HeartbeatState::Lost } ;                                         // XXX! : try to distinguish between Lost and Err
 		}
 		void kill_queued_job(SpawnedEntry const& se) const override {
@@ -208,8 +202,8 @@ namespace Backends::Sge {
 				"qsub"
 			,	"-terse"
 			,	"-b"     , "y"
-			,	"-o"     ,                                              "/dev/null"s
-			,	"-e"     , se.verbose ? dir_guard(get_stderr_file(j)) : "/dev/null"s
+			,	"-o"     ,                                                             "/dev/null"s
+			,	"-e"     , se.verbose ? *g_repo_root_s+dir_guard(get_stderr_file(j)) : "/dev/null"s
 			,	"-shell" , "n"
 			,	"-N"     , sge_mk_name(repo_key+Job(j)->name())
 			} ;

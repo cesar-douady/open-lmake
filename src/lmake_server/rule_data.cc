@@ -368,6 +368,7 @@ namespace Engine {
 			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts   , &dct[field] ) ;
 			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( n_runs    , &dct[field] ) ;
 			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] ) ;
+			if ( n_runs && n_submits ) n_submits = ::max( n_submits , n_runs ) ;                                 // n_submits<n_runs is meaningless
 			//
 			var_idxs["targets"] = { VarCmd::Targets , 0 } ;
 			for( bool star : {false,true} )
@@ -818,20 +819,20 @@ namespace Engine {
 		h += special ;                                                                                                             // in addition to distinguishing special from other, ...
 		h += stems   ;                                                                                                             // ... this guarantees that shared rules have different crc's
 		h += targets ;
-		deps_attrs.update_hash( /*inout*/h , rules ) ; // no deps for source & anti
+		deps_attrs.update_hash( /*inout*/h , rules ) ;                                                                             // no deps for source & anti
 		if (is_plain()) h += job_name  ;
-		else            h += allow_ext ;               // only exists for special rules
+		else            h += allow_ext ; // only exists for special rules
 		Crc match_crc = h.digest() ;
 		//
-		if (!is_plain()) {                             // no cmd nor resources for special rules
+		if (!is_plain()) {               // no cmd nor resources for special rules
 			crc = {match_crc} ;
 			return ;
 		}
-		h += g_config->lnk_support  ;                  // this has an influence on generated deps, hence is part of cmd def
-		h += g_config->os_info      ;                  // this has an influence on job execution , hence is part of cmd def
+		h += g_config->lnk_support  ;    // this has an influence on generated deps, hence is part of cmd def
+		h += g_config->os_info      ;    // this has an influence on job execution , hence is part of cmd def
 		h += sub_repo_s             ;
-		h += Node::s_src_dirs_crc() ;                  // src_dirs influences deps recording
-		h += matches                ;                  // these define names and influence cmd execution, all is not necessary but simpler to code
+		h += Node::s_src_dirs_crc() ;    // src_dirs influences deps recording
+		h += matches                ;    // these define names and influence cmd execution, all is not necessary but simpler to code
 		h += force                  ;
 		h += is_python              ;
 		start_cmd_attrs.update_hash( /*inout*/h , rules ) ;

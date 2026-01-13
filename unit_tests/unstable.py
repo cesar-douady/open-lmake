@@ -81,7 +81,7 @@ else :
 	#
 	proc()
 	#
-	ut.lmake( 'wait_after' , wait=False , done=1 )                                # job has sampled src before modif
+	proc = ut.lmake( 'wait_after' , wait=False , done=1 )
 	ut.wait_sync   (0)
 	ut.trigger_sync(1)
 	proc()

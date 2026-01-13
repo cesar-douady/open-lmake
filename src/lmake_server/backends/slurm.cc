@@ -64,7 +64,6 @@ namespace Backends::Slurm {
 	Mutex<> slurm_mutex ; // ensure no more than a single outstanding request to daemon
 
 	RsrcsData parse_args        (::string const& args                                                                    ) ;
-	::string  read_stderr       (Job                                                                                     ) ;
 	Daemon    slurm_sense_daemon( ::string const& config_file , ::string const& lib_slurm , Delay timeout=Delay::Forever ) ;
 	//
 	SlurmId slurm_spawn_job(
@@ -528,18 +527,6 @@ namespace Backends::Slurm {
 			argv.resize(1)              ;
 		}
 		return res ;
-	}
-
-	::string read_stderr(Job job) {
-		Trace trace(BeChnl,"Slurm::read_stderr",job) ;
-		::string stderr_file = get_stderr_file(job) ;
-		try {
-			::string res = AcFd(stderr_file).read() ;
-			if (!res) return {}                                    ;
-			else      return "stderr from : "+stderr_file+'\n'+res ;
-		} catch (::string const&) {
-			return "stderr not found : "+stderr_file ;
-		}
 	}
 
 }

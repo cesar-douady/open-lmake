@@ -107,31 +107,32 @@ in_addr_t SockFd::s_random_loopback() {
 in_addr_t SockFd::s_addr( ::string const& host , bool name_ok ) {
 	if (!host) return 0 ;
 	// by standard dot notation
-	{	in_addr_t addr   = 0     ;         // address being decoded
-		int       byte   = 0     ;         // ensure component is less than 256
-		int       n      = 0     ;         // ensure there are 4 components
-		bool      first  = true  ;         // prevent empty components
-		bool      first0 = false ;         // prevent leading 0's (unless component is 0)
+	{	in_addr_t addr   = 0     ;             // address being decoded
+		int       byte   = 0     ;             // ensure component is less than 256
+		int       n      = 0     ;             // ensure there are 4 components
+		bool      first  = true  ;             // prevent empty components
+		bool      first0 = false ;             // prevent leading 0's (unless component is 0)
 		for( char c : host ) {
 			if (c=='.') {
 				if (first) goto ByName ;
-				addr  = (addr<<8) | byte ; // dot notation is big endian
+				addr  = (addr<<8) | byte ;     // dot notation is big endian
 				byte  = 0                ;
 				first = true             ;
-				n++ ;
 				continue ;
 			}
 			if ( c>='0' && c<='9' ) {
 				byte = byte*10 + (c-'0') ;
-				if      (first    ) { first0 = first && c=='0' ; first  = false ; }
+				if      (first    ) { n++ ; first0 = c=='0' ; first  = false ; }
 				else if (first0   )   goto ByName ;
 				if      (byte>=256)   goto ByName ;
 				continue ;
 			}
 			goto ByName ;
 		}
-		if (first              ) goto ByName ;
-		if (n!=4               ) goto ByName ;
+		if (first) goto ByName ;
+		if (n!=4 ) goto ByName ;
+		//
+		addr = (addr<<8) | byte ;              // dot notation is big endian
 		if (s_is_loopback(addr)) return 0    ;
 		else                     return addr ;
 	}

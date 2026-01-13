@@ -77,14 +77,13 @@ class Ut :
 		#
 		# wrap up
 		res = pdict()
-		for k,v in list(self.kwds.items()) :
-			if v==... :
-				res[k] = cnt[k]
-				del cnt      [k]
-				del self.kwds[k]
+		for k in [ k for k,v in self.kwds.items() if v==... ] :
+			res[k] = cnt[k]
+			del cnt      [k]
+			del self.kwds[k]
 		if cnt!=self.kwds :
 			for k in cnt :
-				if cnt[k]!=self.kwds[k] : raise RuntimeError(f'bad count for {k} : {cnt[k]} != {self.kwds[k]}')
+				if cnt[k]!=self.kwds.get(k,0) : raise RuntimeError(f'bad count for {k} : {cnt[k]} != {self.kwds.get(k,0)}')
 		#
 		return res
 

@@ -151,28 +151,20 @@ namespace Backends::Local {
 		}
 		::pair_s<bool/*retry*/> end_job( Job job , SpawnedEntry const& se , Status status ) const override {
 			_wait_queue.push(se.id) ;                                                                               // defer wait in case job_exec process does some time consuming book-keeping
-			if (!se.verbose) return {{}/*msg*/,true/*retry*/} ;                                            // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
-			::string msg ;
-			if (status!=Status::Ok) msg <<"return status : "<< status <<'\n' ;
-			try                       { msg = AcFd(get_stderr_file(job)).read() ; }
-			catch (::string const& e) { msg = e                                 ; }
-			return { ::move(msg) , status==Status::Ok/*retry*/ } ;                                         // retry if garbage
+			if (!se.verbose) return { {}/*msg*/        , true              /*retry*/ } ;                    // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
+			else             return { read_stderr(job) , status==Status::Ok/*.    */ } ;                    // retry if garbage
 		}
-		::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const override { // called after job_exec has had time to start
+		::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const override {  // called after job_exec has had time to start
 			SWEAR(se.id) ;
 			int wstatus = 0 ;
-			if (::waitpid(se.id,&wstatus,WNOHANG)==0) return { {}/*msg*/ , HeartbeatState::Alive } ;       // process is still alive
-			::string msg ;
-			if (se.verbose)
-				try                       { msg = AcFd(get_stderr_file(job)).read() ; }
-				catch (::string const& e) { msg = e                                 ; }
-			if (wstatus_ok(wstatus)) return { ::move(msg) , HeartbeatState::Lost } ;                       // process died long before (already waited) or just died with no error
-			else                     return { ::move(msg) , HeartbeatState::Err  } ;                       // process just died with an error
+			if (::waitpid(se.id,&wstatus,WNOHANG)==0) return { {}/*msg*/        , HeartbeatState::Alive } ; // process is still alive
+			if (wstatus_ok(wstatus)                 ) return { read_stderr(job) , HeartbeatState::Lost  } ; // process died long before (already waited) or just died with no error
+			/**/                                      return { read_stderr(job) , HeartbeatState::Err   } ; // process just died with an error
 		}
 		void kill_queued_job(SpawnedEntry const& se) const override {
 			if (se.zombie) return ;
-			kill_process(se.id,SIGHUP) ;                                                                   // jobs killed here have not started yet, so we just want to kill job_exec
-			_wait_queue.push(se.id) ;                                                                      // defer wait in case job_exec process does some time consuming book-keeping
+			kill_process(se.id,SIGHUP) ;                                                                    // jobs killed here have not started yet, so we just want to kill job_exec
+			_wait_queue.push(se.id) ;                                                                       // defer wait in case job_exec process does some time consuming book-keeping
 		}
 		SpawnId launch_job( ::stop_token , Job job , ::vector<ReqIdx> const& , Pdate /*prio*/ , ::vector_s const& cmd_line , SpawnedEntry const& se ) const override {
 			::vector<const char*> cmd_line_ ; cmd_line_.reserve(cmd_line.size()+1) ;

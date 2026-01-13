@@ -586,6 +586,7 @@ The whole content of stderr stays accessible with the <code>lshow -e</code> comm
 The default value should be both comfortable (avoid hitting it in normal situations) and practical (avoid too many submissions before stopping).
 Unlimited if <code>0</code>.
 Contrarily to the <code>max_runs</code> attribute, cache accesses are counted when counting submits.</p>
+<p>If <code>max_runs</code> is specified, <code>max_submits</code> is forced to be at least the value of <code>max_runs</code>.</p>
 <h3 id="name"><a class="header" href="#name"><a href="unit_tests/name.html#:~:text=name%20%3D%20f%27expand%7Bstep%7D%27"><code>name</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>None</td><td><code>str</code></td><td><code>cls.__name__</code></td><td>No</td><td></td></tr>

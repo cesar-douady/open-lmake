@@ -41,8 +41,6 @@ namespace Backends {
 
 	void send_reply( Job , JobMngtRpcReply&& ) ;
 
-	inline ::string get_stderr_file(Job job) { return job.ancillary_file(AncillaryTag::Backend)+"/stderr" ; }
-
 	struct Backend {
 
 		friend void send_reply( Job , JobMngtRpcReply&& ) ;
