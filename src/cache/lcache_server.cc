@@ -53,7 +53,7 @@ static CacheRpcReply _download(CacheRpcReq const& crr) {
 		res.key         = +digest.first->key         ;
 		res.key_is_last =  digest.first->key_is_last ;
 	}
-	trace(res.hit_info) ;
+	trace(res) ;
 	return res ;
 }
 

@@ -465,7 +465,7 @@ static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; throw_un
 
 static void _mount_tmp( ::string const& dst , size_t sz , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { // dst must be dir
 	Trace trace("_mount_tmp",dst) ;
-	throw_unless( ::mount( "" , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",dst,rm_slash," of size ",sz," : ",StrErr() ) ;
+	throw_unless( ::mount( nullptr/*src*/ , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",dst,rm_slash," of size ",sz," : ",StrErr() ) ;
 	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Tmp , no_slash(dst) ) ;
 }
 static void _mount_tmp( ::string const& dst , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { _mount_tmp( dst , 50<<20/*sz*/ , user_trace ) ; } // size must be large enough but is not allocated

@@ -12,6 +12,7 @@
 #include "engine.hh"
 
 struct CompileDigest {
+	friend ::string& operator+=( ::string& , CompileDigest const& ) ;
 	VarIdx              n_statics = 0 ;
 	::vector<Cnode>     deps      ;
 	::vector<Hash::Crc> dep_crcs  ;

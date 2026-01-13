@@ -27,11 +27,13 @@ namespace Cache {
 	}
 
 	::string& operator+=( ::string& os , CacheRpcReply const& dcrr ) {
-		/**/                   os << "CacheRpcReply("<<dcrr.proc                ;
-		if (+dcrr.hit_info   ) os << ','<<dcrr.hit_info                         ;
-		if (+dcrr.key        ) os << ','<<dcrr.key<<'-'<<"FL"[dcrr.key_is_last] ;
-		if (+dcrr.upload_key ) os << ','<<dcrr.upload_key                       ;
-		return                 os << ')'                                        ;
+		/**/                   os << "CacheRpcReply("<<dcrr.proc                  ;
+		if (+dcrr.hit_info   ) os << ','  <<dcrr.hit_info                         ;
+		if (+dcrr.key        ) os << ",K:"<<dcrr.key<<'-'<<"FL"[dcrr.key_is_last] ;
+		if (+dcrr.dep_ids    ) os << ",D:"<<dcrr.dep_ids.size()                   ;
+		if (+dcrr.job_id     ) os << ",J:"<<dcrr.job_id                           ;
+		if (+dcrr.upload_key ) os << ','<<dcrr.upload_key                         ;
+		return                 os << ')'                                          ;
 	}
 
 }
