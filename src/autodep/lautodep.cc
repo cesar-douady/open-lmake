@@ -7,6 +7,7 @@
 
 #include "app.hh"
 #include "disk.hh"
+#include "fd.hh"
 #include "time.hh"
 
 #include "gather.hh"
@@ -169,6 +170,8 @@ int main( int argc , char* argv[] ) {
 		gather.cmd_line          = cmd_line.args         ;
 		gather.env               = &cmd_env              ;
 		gather.method            = jsrr.method           ;
+		//
+		try { gather.addr = SockFd::s_addr(fqdn()) ; } catch (::string const& e) {}                                // best effort to get our own addr in case job spawn a non-local process
 		//       vvvvvvvvvvvvvvvvvvv
 		status = gather.exec_child() ;
 		//       ^^^^^^^^^^^^^^^^^^^

@@ -112,12 +112,11 @@ in_addr_t SockFd::s_addr(::string const& server) {
 				addr  = (addr<<8) | byte ;                                                                   // dot notation is big endian
 				byte  = 0                ;
 				first = true             ;
-				n++ ;
 				continue ;
 			}
 			if ( c>='0' && c<='9' ) {
 				byte = byte*10 + (c-'0') ;
-				if      (first    ) { first0 = first && c=='0' ; first  = false ; }
+				if      (first    ) { n++ ; first0 = first && c=='0' ; first  = false ; }
 				else if (first0   )   goto ByName ;
 				if      (byte>=256)   goto ByName ;
 				continue ;
@@ -126,6 +125,8 @@ in_addr_t SockFd::s_addr(::string const& server) {
 		}
 		if (first) goto ByName ;
 		if (n!=4 ) goto ByName ;
+		//
+		addr = (addr<<8) | byte ;                                                                            // dot notation is big endian
 		return addr ;
 	}
 ByName :
