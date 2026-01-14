@@ -6,11 +6,10 @@
 // included 5 times, successively with following macros defined : STRUCT_DECL, STRUCT_DEF, INFO_DEF, DATA_DEF, IMPL
 
 #include "store/store_utils.hh"
-#include "store/struct.hh"
 #include "store/alloc.hh"
-#include "store/vector.hh"
+#include "store/struct.hh"
 #include "store/prefix.hh"
-#include "store/side_car.hh"
+#include "store/vector.hh"
 
 #include "store/idxed.hh"
 

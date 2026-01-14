@@ -26,7 +26,7 @@ static AutodepEnv _g_autodep_env ;
 
 template<class T,Ptr<T>(*Func)( Tuple const& args , Dict const& kwds )>
 	static PyObject* _py_func( PyObject* /*null*/ , PyObject* args , PyObject* kwds ) {
-		NoGil no_gil ;                                                                 // tell our mutex we already have the GIL
+		NoGil no_gil ;                                                                  // tell our mutex we already have the GIL
 		try {
 			if (kwds) return Func( *from_py<Tuple const>(args) , *from_py<Dict const>(kwds) )->to_py_boost() ;
 			else      return Func( *from_py<Tuple const>(args) , *Ptr<Dict>(New)            )->to_py_boost() ;
@@ -405,7 +405,7 @@ static int _populate_mod(PyObject* py_mod) {
 }
 #if PY_MAJOR_VERSION>=3
 	static int _populate_mod_no_gil(PyObject* py_mod) {
-		NoGil no_gil ;                                                           // tell our mutex we already have the GIL
+		NoGil no_gil ;                                                       // tell our mutex we already have the GIL
 		return _populate_mod(py_mod) ;
 	}
 #endif
@@ -542,7 +542,7 @@ PyMODINIT_FUNC
 		#if PY_MAJOR_VERSION>=3
 			return py_err_set( PyException::FileNotFoundErr , e ) ;
 		#else
-			py_err_set( PyException::OsErr , e ) ;                         // FileNotFoundErr does not exist with python2
+			py_err_set( PyException::OsErr , e ) ;                                                     // FileNotFoundErr does not exist with python2
 			return ;
 		#endif
 	}
@@ -552,13 +552,20 @@ PyMODINIT_FUNC
 	#if PY_MAJOR_VERSION>=3
 		static PyModuleDef_Slot s_slots[] = {
 			{ Py_mod_exec , reinterpret_cast<void*>(_populate_mod_no_gil) }
-		,	{ 0           , nullptr                                       } // for Py_mod_gil if available
+		,	{ 0           , nullptr                                       }                            // for Py_mod_gil if available
 		,	{ 0           , nullptr                                       }
 		} ;
-		#ifdef Py_mod_gil
-			s_slots[1] = { Py_mod_gil , Py_MOD_GIL_NOT_USED } ;
+		::string version = Py_GetVersion()                                     ;                       // version format is officially documented, so it may be safely analyzed
+		size_t   dot     = version.find('.')                                   ;
+		size_t   end     = dot+1                                               ; while ( version[end]>='0' && version[end]<='9' ) end++ ;
+		int      major   = from_string<int>(version.substr(0    ,dot        )) ;
+		int      minor   = from_string<int>(version.substr(dot+1,end-(dot+1))) ;
+		//
+		if (::pair(major,minor)<::pair(3,6)) return py_err_set( PyException::RuntimeErr , cat("python version (",major,'.',minor,") must be at least 3.6") ) ;
+		#if defined(Py_mod_gil) && Py_GIL_DISABLED
+			if (::pair(major,minor)>=::pair(3,13)) s_slots[1] = { Py_mod_gil , Py_MOD_GIL_NOT_USED } ; // starting at 3.13, free-threading is available
 		#endif
-		static PyModuleDef def {                                           // must have the lifetime of the module
+		static PyModuleDef def {                                                                       // must have the lifetime of the module
 			PyModuleDef_HEAD_INIT
 		,	"clmake" /*m_name    */
 		,	nullptr  /*m_doc     */

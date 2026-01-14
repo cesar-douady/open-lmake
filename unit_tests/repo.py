@@ -75,7 +75,7 @@ else :
 		mkdir -p a.repo
 		zip a.repo/b.zip c.c ; rm c.c
 		cd a.repo
-		git init .      # -b main is not supported on older git's
+		git init .    # -b main is not supported on older git's
 		git add b.zip
 		git commit -minit
 	''')

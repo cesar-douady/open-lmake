@@ -187,7 +187,7 @@ bool/*ok*/ mk_room( DiskSz sz , Cjob keep_job ) {
 	//
 	RateCmp::s_refresh() ;
 	while ( hdr.total_sz && hdr.total_sz+g_reserved_sz+sz>g_cache_config.max_sz ) {
-		SWEAR( +RateCmp::s_tab ) ;                                            // if total size is non-zero, we must have entries
+		SWEAR( +RateCmp::s_tab ) ;                                                  // if total size is non-zero, we must have entries
 		Rate best_rate = *RateCmp::s_tab.begin()                    ;
 		Crun best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
 		best_run->victimize(best_run->job!=keep_job) ;
@@ -326,7 +326,7 @@ void CjobData::victimize() {
 ,	Ckey key , bool key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate
 ) {
 	Trace trace("insert",idx(),key,sz,rate,deps.size(),dep_crcs.size()) ;
-	Crun found_runs[2] ;                                                                     // first and last with same key
+	Crun found_runs[2] ;                                                                           // first and last with same key
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
 		CrunData& rd = *r ;
 		if (rd.key==key) {
@@ -365,7 +365,7 @@ CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r 
 ,	key_is_last { kil }
 {
 	CrunHdr& hdr = s_hdr() ;
-	Trace trace("CrunData",key,STR(key_is_last),job,sz,rate,hdr.total_sz,ds,dcs) ;
+	Trace trace("CrunData",key,STR(key_is_last),job,sz,rate,hdr.total_sz,ds.size(),dcs.size()) ;
 	bool first = !RateCmp::s_lrus[rate] ;
 	hdr.total_sz += sz ;
 	//

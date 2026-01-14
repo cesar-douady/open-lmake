@@ -135,7 +135,7 @@ void Child::spawn() {
 			if (as_session) try {
 				AcFd("/proc/self/autogroup",{.flags=O_WRONLY|O_TRUNC}).write(cat(nice)) ;               // as_session creates a new autogroup, apply nice_val to it, not between processes within it
 				goto NiceDone ;
-			} catch (::string const& e) {}                                                               // best effort
+			} catch (::string const& e) {}                                                              // best effort
 			{ [[maybe_unused]] int nice_val = ::nice(nice) ; }                                          // ignore error if any, as we cant do much about it
 		NiceDone : ;
 		}

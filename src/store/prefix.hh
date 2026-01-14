@@ -819,9 +819,9 @@ namespace Store {
 			Item& old_item = _at(old_idx) ;
 			Item& new_item = _at(new_idx) ;
 			SWEAR( old_item.kind()==new_item.kind() , old_item.kind() , new_item.kind() ) ;
-			/**/                              _mv_lnk_after <BuPrev,BuO  ,false >( old_item.prev , old_item.prev_is_eq , new_idx                                  ) ; // new_idx was not in tree
-			if(old_item.kind()>=Kind::Split ) _mv_lnk_before<false ,false,BuNxt0>(                                       new_idx , false , old_item.nxt_if(false) ) ; // . + old_idx already backed up
-			if(old_item.kind()>=Kind::Prefix) _mv_lnk_before<false ,false,BuNxt1>(                                       new_idx , true  , old_item.nxt_if(true ) ) ; // . + old_idx already backed up
+			/**/                               _mv_lnk_after <BuPrev,BuO  ,false >( old_item.prev , old_item.prev_is_eq , new_idx                                  ) ; // new_idx was not in tree
+			if (old_item.kind()>=Kind::Split ) _mv_lnk_before<false ,false,BuNxt0>(                                       new_idx , false , old_item.nxt_if(false) ) ; // . + old_idx already backed up
+			if (old_item.kind()>=Kind::Prefix) _mv_lnk_before<false ,false,BuNxt1>(                                       new_idx , true  , old_item.nxt_if(true ) ) ; // . + old_idx already backed up
 			_scheduled_pop.push_back(old_idx) ;
 		}
 
@@ -1036,8 +1036,8 @@ namespace Store {
 				chunk_pos = _at(prev).chunk_sz ;
 			}
 			// create branch
-			Idx      branch   {} ;                                                                          // first item of the branch
-			Idx      prev_idx {} ;
+			Idx      branch   {}                                                     ;                      // first item of the branch
+			Idx      prev_idx {}                                                     ;
 			CharUint dvg_val  = Prefix::rep(Prefix::char_at<Reverse>(name,psfx,pos)) ;
 			while ( pos+MaxTerminalChunkSz < total_sz ) {                                                   // create intermediate items
 				ChunkIdx chunk_sz = ::min( total_sz-(pos+MinTerminalChunkSz) , size_t(MaxPrefixChunkSz) ) ;
@@ -1085,16 +1085,16 @@ namespace Store {
 				bool compressed ;
 				::tie(compressed,idx)  = _compress_after <true,false,false>(idx) ;    // idx & nxt  already backed up
 				compressed            |= _compress_before<true,false,false>(idx) ;    // idx & prev already backed up
-				if(!compressed) _minimize_sz<false>(idx) ;                            // idx already backed up
+				if (!compressed) _minimize_sz<false>(idx) ;                           // idx already backed up
 				_commit() ;
-				while(nxt_item->kind()==Kind::Prefix) {                               // now that branch is out of the tree, walk forward to actually collect the items
-					nxt      = nxt_item->nxt() ;
-					nxt_item = &_at(nxt)       ;
+				for(;;) {                                                             // now that branch is out of the tree, walk forward to actually collect the items
 					//    vvvvvvvv
 					Base::pop(nxt) ;
 					//    ^^^^^^^^
+					if (nxt_item->kind()==Kind::Terminal) break ;
+					nxt      = nxt_item->nxt() ;
+					nxt_item = &_at(nxt)       ;
 				} ;
-				Base::pop(nxt) ;
 			} else {
 				_backup<true>(idx) ;
 				item->mk_used(false) ;
@@ -1102,7 +1102,7 @@ namespace Store {
 				bool compressed ;
 				::tie(compressed,idx)  = _compress_after <true,false,true >(idx) ;    // idx already backed up
 				compressed            |= _compress_before<true,false,false>(idx) ;    // idx & prev already backed up
-				if(!compressed) _minimize_sz<false>(idx) ;                            // idx already backed up
+				if (!compressed) _minimize_sz<false>(idx) ;                           // idx already backed up
 				_commit() ;
 			}
 		}

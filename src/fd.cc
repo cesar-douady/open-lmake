@@ -229,7 +229,7 @@ ServerSockFd::ServerSockFd( int backlog , bool reuse_addr , in_addr_t local_addr
 
 SlaveSockFd ServerSockFd::accept() {
 	SlaveSockFd slave_fd { ::accept(fd,nullptr/*addr*/,nullptr/*addrlen*/) , key } ;
-	swear_prod( +slave_fd , "cannot accept from",self ) ;
+	swear_prod( +slave_fd , "cannot accept (",StrErr(),"from",self ) ;
 	return slave_fd ;
 }
 
@@ -246,7 +246,7 @@ ClientSockFd::ClientSockFd( KeyedService service , bool reuse_addr , Delay timeo
 	Pdate    end          = Pdate(New) + timeout ;
 	uint32_t i_reuse_addr = 1                    ;
 	uint32_t i_connect    = 1                    ;
-	for( uint32_t i=1 ;; i++ ) {
+	for (;;) {
 		if (has_timeout) {
 			TimeVal to ( ::max( Delay(0.001) , end-Pdate(New) ) ) ;                                                       // ensure to is positive
 			::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to , sizeof(to) ) ;

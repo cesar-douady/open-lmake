@@ -184,7 +184,7 @@ namespace Backends::Sge {
 			return cat("sge_id:",se.id.load()) ;
 		}
 		::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status ) const override {
-			if (!se.verbose) return { {}/*msg*/      , true/*retry*/ } ;                         // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
+			if (!se.verbose) return { {}/*msg*/      , true/*retry*/ } ;                            // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
 			else             return { read_stderr(j) , true/*retry*/ } ;
 		}
 		::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const override {

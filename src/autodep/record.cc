@@ -49,14 +49,14 @@ Restart :
 	size_t pfx_sz = 0 ;
 	switch (file[1]) {                                                                                                              // recognize simple and frequent top level system directories
 		case 0   : return true ;                                                                                                    // / is simple
-		case 'b' : if (::strncmp(file+1,"bin" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
-		case 'e' : if (::strncmp(file+1,"etc" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
-		case 'o' : if (::strncmp(file+1,"opt" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;                                       // used to install 3rd party software, not a data dir
-		case 'r' : if (::strncmp(file+1,"run" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
-		case 's' : if (::strncmp(file+1,"sbin",4)!=0) goto ReturnFalse ; pfx_sz = 6 ;
-		/**/       if (::strncmp(file+1,"sys" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
-		case 'u' : if (::strncmp(file+1,"usr" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
-		case 'v' : if (::strncmp(file+1,"var" ,3)!=0) goto ReturnFalse ; pfx_sz = 5 ; break ;
+		case 'b' : if (::strncmp(file+1,"bin" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
+		case 'e' : if (::strncmp(file+1,"etc" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
+		case 'o' : if (::strncmp(file+1,"opt" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;                                   // used to install 3rd party software, not a data dir
+		case 'r' : if (::strncmp(file+1,"run" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
+		case 's' : if (::strncmp(file+1,"sbin",4)==0) { pfx_sz = 6 ; break ; }
+		/**/       if (::strncmp(file+1,"sys" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
+		case 'u' : if (::strncmp(file+1,"usr" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
+		case 'v' : if (::strncmp(file+1,"var" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
 		case 'd' :
 			if (::strncmp(file+1,"dev",3)!=0) goto ReturnFalse ;                                                                    // not in /dev  => not simple
 			if (!file[4]                    ) return true      ;                                                                    // /dev         =>     simple

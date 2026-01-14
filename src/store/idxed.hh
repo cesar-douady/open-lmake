@@ -24,7 +24,7 @@ private :
 	// cxtors & casts
 public :
 	constexpr Idxed() = default ;
-	constexpr Idxed(Idx i) : val{i} { _s_chk(i) ; }                                      // ensure no index overflow
+	constexpr Idxed(Idx i) : val{i} { _s_chk(i) ; }    // ensure no index overflow
 	// accesses
 	constexpr bool              operator== (Idxed other) const { return +self== +other        ; }
 	constexpr ::strong_ordering operator<=>(Idxed other) const { return +self<=>+other        ; }
@@ -50,7 +50,7 @@ template<IsIdxed I> ::string& operator+=( ::string& os , I const i ) {
 	/**/                                          os <<     +i                                  ;
 	if constexpr (I::NGuardBits>1) if (i.val!=+i) os <<'+'<< i.template side<I::NGuardBits-1>() ;
 	return                                        os ;
-} // NO_COV
+}                                                      // NO_COV
 
 //
 // Idxed2

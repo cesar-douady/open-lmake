@@ -52,7 +52,7 @@ namespace Store {
 			NoVoid<H>                 hdr        ;
 			::array<I,NFree         > free       = {} ;
 			::array<I,NFree*HasTrash> trash      = {} ;
-			::array<I,NFree*HasTrash> trash_last = {} ;                                 // last entry in trash list
+			::array<I,NFree*HasTrash> trash_last = {} ;                                // last entry in trash list
 		} ;
 		template<class I,class D> struct Data {
 			static_assert( sizeof(D)>=sizeof(I) ) ;                                    // else waste memory
@@ -65,9 +65,9 @@ namespace Store {
 		} ;
 
 	}
-	template<char ThreadKey,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0,bool HasTrash=false> struct AllocFile //!      Multi
-	:	                 StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa,HasTrash> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true >    // if !Mantissa, Multi is useless but easier to code
-	{	using Base     = StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa,HasTrash> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true > ;
+	template<char ThreadKey,class Hdr_,IsIdx Idx_,uint8_t NIdxBits,class Data_,uint8_t Mantissa=0,bool HasTrash=false> struct AllocFile
+	:	                 StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa,HasTrash> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true/*Multi*/ >   // if !Mantissa, Multi is useless ...
+	{	using Base     = StructFile< ThreadKey , Alloc::Hdr<Hdr_,Idx_,Mantissa,HasTrash> , Idx_ , NIdxBits , Alloc::Data<Idx_,Data_> , true/*.    */ > ; // ... but easier to code
 		using BaseHdr  =                         Alloc::Hdr<Hdr_,Idx_,Mantissa,HasTrash> ;
 		using BaseData =                                                                                     Alloc::Data<Idx_,Data_> ;
 		//

@@ -303,27 +303,28 @@ align.tok : _bin/align_comments $(filter-out lmake_env/ext_lnk,$(SRCS))
 	for f in $(SRCS) ; do                                                   \
 		c= ;                                                                \
 		case $$f in                                                         \
-			museum/*    )                                         ;;        \
-			ext/*       )                                         ;;        \
-			debian/*    )                                         ;;        \
-			.gitignore  )                                         ;;        \
-			TO_DO       )                                         ;;        \
-			LICENSE     )                                         ;;        \
-			*.md        )                                         ;;        \
-			doc/*       )                                         ;;        \
-			docs/*      )                                         ;;        \
-			docker/*    )                                         ;;        \
-			*.dir/*     )                                         ;;        \
-			lmake_env/* )                                         ;;        \
-			*.c         ) c=//                                    ;;        \
-			*.h         ) c=//                                    ;;        \
-			*.cc        ) c=//                                    ;;        \
-			*.hh        ) c=//                                    ;;        \
-			*.py        ) c='#'                                   ;;        \
-			Makefile    ) c='#'                                   ;;        \
-			_bin/*      ) c='#'                                   ;;        \
-			unit_tests/*)                                         ;;        \
-			*           ) echo unrecognized file $$f >&2 ; exit 1 ;;        \
+			museum/*        )                                         ;;    \
+			ext/*           )                                         ;;    \
+			docs/*          )                                         ;;    \
+			*.c             ) c=//                                    ;;    \
+			*.h             ) c=//                                    ;;    \
+			*.cc            ) c=//                                    ;;    \
+			*.hh            ) c=//                                    ;;    \
+			*.py            ) c='#'                                   ;;    \
+			*.docker        ) c='#'                                   ;;    \
+			Makefile        ) c='#'                                   ;;    \
+			_bin/*          ) c='#'                                   ;;    \
+			apparmor-profile) c='#'                                   ;;    \
+			debian/*        )                                         ;;    \
+			.gitignore      )                                         ;;    \
+			TO_DO           )                                         ;;    \
+			LICENSE         )                                         ;;    \
+			*.md            )                                         ;;    \
+			doc/*           )                                         ;;    \
+			*.dir/*         )                                         ;;    \
+			lmake_env/*     )                                         ;;    \
+			unit_tests/*    )                                         ;;    \
+			*               ) echo unrecognized file $$f >&2 ; exit 1 ;;    \
 		esac ;                                                              \
 		if [ "$$c" ] && ! align_comments 4 200 $$c <$$f | diff $$f - ; then \
 			echo bad comments alignment for $$f >&2 ;                       \

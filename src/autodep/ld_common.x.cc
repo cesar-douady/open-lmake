@@ -669,7 +669,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		int fstatat64(int d,CC* p,struct stat64* b,int f) NE { HDR1(fstatat64,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),FullAccesses,Comment::fstatat64} ; return r(orig(d,p,b,f)) ; }
 	#endif
 	//
-	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE {                   // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
+	int statx(int d,CC* p,int f,uint msk,struct statx* b) NE {                    // statx must exist even if statx is not supported by the system as it appears in ENUMERATE_LIBCALLS
 		HDR1(statx,p,(d,p,f,msk,b)) ;
 		#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
 			Accesses a ;

@@ -292,13 +292,13 @@ _LockerLink::Trial _LockerLink::try_lock() {
 	if (rc!=0) {                                                                             // it seems (cf man 2 open in section relative to O_EXCL) linkat may succeed while returning an error
 		FileStat fs ;
 		int      rc = ::fstatat( spec.at,tmp.c_str() , &fs , AT_SYMLINK_NOFOLLOW ) ; SWEAR( rc==0 , spec,StrErr() ) ;
-		if (fs.st_nlink==2) rc = 0 ;                                                                                  // /!\ if link count has increased, the link actually occurred
+		if (fs.st_nlink==2) rc = 0 ;  // NOLINT(clang-analyzer-deadcode.DeadStores) false positive /!\ if link count has increased, the link actually occurred
 	}
 	if (rc==0) {
 		rc = ::unlinkat( spec.at , tmp.c_str() , 0/*flags*/ ) ; SWEAR( rc==0 , spec ) ;
 		return Trial::Locked ;
 	}
-	if (exists) return Trial::Retry ;                                                                                 // if file exists, lock is held by someone else
+	if (exists) return Trial::Retry ; // if file exists, lock is held by someone else
 	else        return Trial::Fail  ;
 }
 

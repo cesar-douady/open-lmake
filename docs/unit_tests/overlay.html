@@ -121,7 +121,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">views</span>   <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;read_write&#39;</span> <span class="p">:</span> <span class="p">{</span><span class="s1">&#39;upper&#39;</span><span class="p">:</span><span class="s1">&#39;write&#39;</span><span class="p">,</span><span class="s1">&#39;lower&#39;</span><span class="p">:</span><span class="s1">&#39;read&#39;</span><span class="p">}</span> <span class="p">}</span> <span class="c1"># mount read_write as write on top of read</span>
         <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DUT&#39;</span> <span class="p">:</span> <span class="s1">&#39;write/dut&#39;</span> <span class="p">}</span>
         <span class="n">deps</span>    <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;SRC&#39;</span> <span class="p">:</span> <span class="s1">&#39;read/src&#39;</span>  <span class="p">}</span>
-        <span class="n">cmd</span>     <span class="o">=</span> <span class="s1">&#39;cd read_write ; cp src dut&#39;</span>                           <span class="c1"># a typical cmd that work in a dir rather than having inputs and outputs</span>
+        <span class="n">cmd</span>     <span class="o">=</span> <span class="s1">&#39;cd read_write ; cp src dut&#39;</span>                        <span class="c1"># a typical cmd that work in a dir rather than having inputs and outputs</span>
 
     <span class="k">class</span> <span class="nc">Dut2</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">tmp_view</span> <span class="o">=</span> <span class="s1">&#39;/tmp&#39;</span>
@@ -129,7 +129,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">target</span>   <span class="o">=</span> <span class="s1">&#39;write/dut2&#39;</span>
         <span class="k">def</span> <span class="nf">cmd</span><span class="p">():</span>
             <span class="kn">import</span> <span class="nn">stat</span>
-            <span class="nb">dir</span> <span class="o">=</span> <span class="s1">&#39;/tmp/merged/sys&#39;</span>                                                                      <span class="c1"># a subdir that exists in /usr/include</span>
+            <span class="nb">dir</span> <span class="o">=</span> <span class="s1">&#39;/tmp/merged/sys&#39;</span>                                                                   <span class="c1"># a subdir that exists in /usr/include</span>
             <span class="nb">open</span><span class="p">(</span><span class="nb">dir</span><span class="o">+</span><span class="s1">&#39;/testfile&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s1">&#39;good&#39;</span><span class="p">)</span>
             <span class="nb">print</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="nb">dir</span><span class="o">+</span><span class="s1">&#39;/testfile&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
 

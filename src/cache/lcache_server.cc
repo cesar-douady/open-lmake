@@ -114,20 +114,20 @@ struct CacheServer : AutoServer<CacheServer> {
 	using RpcReq   = CacheRpcReq   ;
 	using RpcReply = CacheRpcReply ;
 	using Item     = RpcReq        ;
-	static constexpr uint64_t Magic = CacheMagic ;                                              // any random improbable value!=0 used as a sanity check when client connect to server
+	static constexpr uint64_t Magic = CacheMagic ;                                            // any random improbable value!=0 used as a sanity check when client connect to server
 	// cxtors & casts
 	using AutoServer<CacheServer>::AutoServer ;
 	// injection
-	bool/*done*/ process_item( Fd fd , RpcReq const& crr ) {
+	Bool3/*done*/ process_item( Fd fd , RpcReq const& crr ) {
 		Trace trace("process_item",fd,crr) ;
-		switch (crr.proc) { //!                                          key            done
-			case Proc::None     :                                                return true  ;
-			case Proc::Config   : OMsgBuf( _config  (fd,crr) ).send( fd , {} ) ; return false ; // from lmake_server
-			case Proc::Download : OMsgBuf( _download(   crr) ).send( fd , {} ) ; return false ; // from lmake_server
-			case Proc::Upload   : OMsgBuf( _upload  (   crr) ).send( fd , {} ) ; return true  ; // from job_exec
-			case Proc::Commit   :          _commit  (fd,crr)                   ; return false ; // from lmake_server
-			case Proc::Dismiss  :          _dismiss (   crr)                   ; return false ; // .
-		DF}                                                                                     // NO_COV
+		switch (crr.proc) { //!                                          key           done
+			case Proc::None     :                                                return Yes ;
+			case Proc::Config   : OMsgBuf( _config  (fd,crr) ).send( fd , {} ) ; return No  ; // from lmake_server
+			case Proc::Download : OMsgBuf( _download(   crr) ).send( fd , {} ) ; return No  ; // from lmake_server
+			case Proc::Upload   : OMsgBuf( _upload  (   crr) ).send( fd , {} ) ; return Yes ; // from job_exec
+			case Proc::Commit   :          _commit  (fd,crr)                   ; return No  ; // from lmake_server
+			case Proc::Dismiss  :          _dismiss (   crr)                   ; return No  ; // .
+		DF}                                                                                   // NO_COV
 	}
 	void end_connection(Fd fd) {
 		auto it = _g_key_tab.find(fd) ;

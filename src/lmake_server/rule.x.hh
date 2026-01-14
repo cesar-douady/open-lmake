@@ -481,10 +481,10 @@ namespace Engine {
 		::string           txt    ;                                                                   // human readable pattern
 	} ;
 
-	struct RuleData {
+	struct RuleData {                                                // NOLINT(clang-analyzer-optin.performance.Padding) prefer logical order
 		friend ::string& operator+=( ::string& , RuleData const& ) ;
 		friend Rule ;
-		static constexpr char   JobMrkr =  0          ;                                                                                         // ensure no ambiguity between job names and node names
+		static constexpr char   JobMrkr =  0          ;              // ensure no ambiguity between job names and node names
 		static constexpr VarIdx NoVar   = Rule::NoVar ;
 		// START_OF_VERSIONING REPO
 		using Prio = double ;
@@ -497,12 +497,12 @@ namespace Engine {
 			// START_OF_VERSIONING REPO
 			::string       pattern  = {} ;
 			MatchFlags     flags    = {} ;
-			::vector<bool> captures = {} ;                                                                                                      // indexed by stem, true if stem is referenced
+			::vector<bool> captures = {} ;                           // indexed by stem, true if stem is referenced
 			// END_OF_VERSIONING
 		} ;
 		// cxtors & casts
 		RuleData() = default ;
-		RuleData( Special , ::string const& src_dir_s={} ) ;                                                                                    // src_dir in case Special is SrcDir
+		RuleData( Special , ::string const& src_dir_s={} ) ;         // src_dir in case Special is SrcDir
 		RuleData(::string_view str) {
 			serdes(str) ;
 		}

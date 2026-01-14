@@ -35,7 +35,7 @@ else :
 	import ut
 
 	print('good1',file=open('src','w'))
-	ut.lmake( 'dut' , new=1 , done=2 ) # derived and dut are run
+	ut.lmake( 'dut' , new=1 , done=2 )  # derived and dut are run
 
 	print('bad',file=open('src','w'))
 	ut.lmake( 'dut' , changed=1 , new=1 , failed=1 , rc=1 ) # derived fails

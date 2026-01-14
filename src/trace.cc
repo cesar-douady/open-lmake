@@ -59,7 +59,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		if (!s_channels   ) return ; // nothing to trace
 		if (!*g_trace_file) return ; // nowhere to trace to
 		if (s_backup_trace) {
-			::string prev_old ; //                                                                       src             dst
+			::string prev_old ; //!                                                                      src             dst
 			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) try { rename( old           , prev_old ) ; } catch (::string const&) {} prev_old = ::move(old) ; }
 			/**/                                                            if (+prev_old) try { rename( *g_trace_file , prev_old ) ; } catch (::string const&) {}
 		}

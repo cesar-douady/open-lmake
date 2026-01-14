@@ -23,7 +23,7 @@ if __name__!='__main__' :
 		views   = { 'read_write' : {'upper':'write','lower':'read'} } # mount read_write as write on top of read
 		targets = { 'DUT' : 'write/dut' }
 		deps    = { 'SRC' : 'read/src'  }
-		cmd     = 'cd read_write ; cp src dut'                           # a typical cmd that work in a dir rather than having inputs and outputs
+		cmd     = 'cd read_write ; cp src dut'                        # a typical cmd that work in a dir rather than having inputs and outputs
 
 	class Dut2(PyRule) :
 		tmp_view = '/tmp'
@@ -31,7 +31,7 @@ if __name__!='__main__' :
 		target   = 'write/dut2'
 		def cmd():
 			import stat
-			dir = '/tmp/merged/sys'                                                                      # a subdir that exists in /usr/include
+			dir = '/tmp/merged/sys'                                                                   # a subdir that exists in /usr/include
 			open(dir+'/testfile','w').write('good')
 			print(open(dir+'/testfile').read())
 

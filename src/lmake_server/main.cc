@@ -43,7 +43,7 @@ struct LmakeServer : AutoServer<LmakeServer> {
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		return false/*done*/ ;
 	}
-	bool/*done*/ process_item( Fd fd , ReqRpcReq const& rrr ) {
+	Bool3/*done*/ process_item( Fd fd , ReqRpcReq const& rrr ) {     // Maybe means there may be further output to fd, close_slave_out will be called
 		Trace trace("process_item",fd,rrr) ;
 		switch (rrr.proc) {
 			case ReqProc::Kill :
@@ -54,7 +54,7 @@ struct LmakeServer : AutoServer<LmakeServer> {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace_urgent( rrr.proc , r , fd ) ; // this will close ofd when done writing to it, urgent to ensure good reactivity
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				return true/*done*/ ;
+				return Maybe/*done*/ ;
 			}
 			case ReqProc::Collect :                                  // PER_CMD : handle request coming from receiving thread, just add your Proc here if the request is answered immediately
 			case ReqProc::Debug   :
@@ -66,7 +66,7 @@ struct LmakeServer : AutoServer<LmakeServer> {
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace_urgent( rrr.proc , fd , rrr.files , rrr.options ) ;                                          // urgent to ensure in order Kill/None
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				return true/*done*/ ;
+				return Maybe/*done*/ ;
 			case ReqProc::Make : {
 				SWEAR(writable) ;
 				Req& r = slaves.at(fd) ;
@@ -76,15 +76,14 @@ struct LmakeServer : AutoServer<LmakeServer> {
 					audit( fd , rrr.options , Color::None , e , true/*as_is*/ ) ;
 					try                       { OMsgBuf( ReqRpcReply(ReqRpcReplyProc::Status,Rc::Fail) ).send( fd , {}/*key*/ ) ; }
 					catch (::string const& e) { trace("lost_client",e) ;                                                          } // we cant do much if we cant communicate
-					close_slave_out(fd) ;
-					return true/*done_input*/ ;
+					return Yes/*done_input*/ ;
 				}
 				r.zombie(false) ;
 				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				g_engine_queue.emplace_urgent( rrr.proc , r , fd , rrr.files , rrr.options ) ;                                      // urgent to ensure in order Kill/None
 				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				trace("make",r) ;
-				return false/*done*/ ;
+				return No/*done*/ ;
 			}
 		DF}                                                                                                                         // NO_COV
 	}

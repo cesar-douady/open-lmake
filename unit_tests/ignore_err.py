@@ -47,7 +47,7 @@ if __name__!='__main__' :
 		target = 'dep_verbose_py'
 		def cmd() :
 			from_server = lmake.depend('bad',ignore_error=True,verbose=True)
-			assert from_server['bad']['ok'] in (True,False) , from_server                      # ensure cmd is independent of step, so dont check status
+			assert from_server['bad']['ok'] in (True,False) , from_server    # ensure cmd is independent of step, so dont check status
 
 else :
 

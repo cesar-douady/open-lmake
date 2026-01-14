@@ -112,7 +112,7 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	switch (rv_str[0]) {
 		case 'n' : case 'N' : rv = No                                     ; break ;
 		case 'r' : case 'R' : rv = Yes                                    ; break ;
-		case 'f' : case 'F' : rv = Maybe                                  ; break ;                                                                // force no color
+		case 'f' : case 'F' : rv = Maybe                                  ; break ;                                   // force no color
 		default  :            rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
 	}
 	trace("reverse_video",rv) ;
@@ -122,18 +122,18 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	pid_t     server_pid = 0                                           ;
 	//
 	::vector_s server_cmd_line = { *g_lmake_root_s+"bin/lmake_server" , "-d"/*no_daemon*/ , "-c"+*g_startup_dir_s } ;
-	if (!refresh ) server_cmd_line.emplace_back("-r") ;                                                                                            // -r means no refresh
-	if (read_only) server_cmd_line.emplace_back("-R") ;                                                                                            // -R means read-only
+	if (!refresh ) server_cmd_line.emplace_back("-r") ;                                                               // -r means no refresh
+	if (read_only) server_cmd_line.emplace_back("-R") ;                                                               // -R means read-only
 	// if read-only and we connect to an old server, it could write for us but should not
 	try                           { tie(g_server_fd,server_pid) = connect_to_server( !read_only , LmakeServerMagic , ::move(server_cmd_line) , ServerMrkr ) ; }
 	catch (::pair_s<Rc> const& e) { exit( e.second   , e.first ) ;                                                                                            }
 	catch (::string     const& e) { exit( Rc::System , e       ) ;                                                                                            }
 	trace("starting",g_server_fd,rrr) ;
-	cb(true/*start*/) ;                                                            // block INT once server is initialized so as to be interruptible at all time
-	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ; // /!\ must be after call to cb so INT can be blocked before creating threads
+	cb(true/*start*/) ;                                                                                               // block INT once server is initialized so as to be interruptible at all time
+	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ;                                    // /!\ must be after call to cb so INT can be blocked before creating threads
 	OMsgBuf(rrr).send(g_server_fd) ;
 	trace("started") ;
-	bool    received = false/*garbage*/ ;                                          // for trace only
+	bool    received = false/*garbage*/ ;                                                                             // for trace only
 	IMsgBuf buf      ;
 	try {
 		for(;;) {

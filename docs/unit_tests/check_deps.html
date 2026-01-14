@@ -122,7 +122,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="s1">            cat dep2 &gt; </span><span class="si">{OUT}</span><span class="s1"> ; cat </span><span class="si">{OUT}</span><span class="s1">.dir/1 || echo star &gt; </span><span class="si">{OUT}</span><span class="s1">.dir/1</span>
 <span class="s1">            sleep 2</span>
 <span class="s1">            cat dep3 &gt; </span><span class="si">{OUT}</span><span class="s1"> ; cat </span><span class="si">{OUT}</span><span class="s1">.dir/1 || echo star &gt; </span><span class="si">{OUT}</span><span class="s1">.dir/1</span>
-<span class="s1">        &#39;&#39;&#39;</span> <span class="c1"># sleep to ensure job is killed when lcheck_deps fails</span>
+<span class="s1">        &#39;&#39;&#39;</span>                                                               <span class="c1"># sleep to ensure job is killed when lcheck_deps fails</span>
 
     <span class="k">class</span> <span class="nc">Dep</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;dep{D:\d+}&#39;</span>

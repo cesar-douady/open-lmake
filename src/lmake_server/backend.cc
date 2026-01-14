@@ -522,7 +522,7 @@ namespace Backends {
 					Job::s_record_thread.emplace( job , ::move(jis ) ) ;
 					Job::s_record_thread.emplace( job , ::move(jerr) ) ;
 					//
-					job_exec                = { job , jis.pre_start.service.addr , jerr.end_date/*start&end*/ } ;                   // job starts and ends
+					job_exec                = { job , jis.pre_start.service.addr , jerr.end_date/*start&end*/ } ;    // job starts and ends
 					job_exec.max_stderr_len = entry.max_stderr_len                                              ;
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_action_warnings) ) ;
@@ -619,15 +619,15 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_job_end( JobEndRpcReq&& jerr , Fd ) {
-		if (!jerr) return ;                                                                     // if connection is lost, ignore it
+		if (!jerr) return ;                                                 // if connection is lost, ignore it
 		JobDigest<>& digest = jerr.digest ;
 		Job          job    { jerr.job }  ;
 		JobExec      je     ;
 		Trace trace(BeChnl,"_s_handle_job_end",jerr) ;
 		//
-		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;                       // ensure _s_handled_job_start is done for this job
+		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;   // ensure _s_handled_job_start is done for this job
 		//
-		{	TraceLock lock { _s_mutex , BeChnl,"_s_handle_job_end" } ;                          // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	TraceLock lock { _s_mutex , BeChnl,"_s_handle_job_end" } ;      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; return ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; return ; }
@@ -655,10 +655,10 @@ namespace Backends {
 		trace("digest",digest) ;
 		job->end_exec() ;
 		// record to file before queueing to main thread as main thread appends to file and may otherwise access info
-		{	JobDigest<Node> jd = digest ;                                                       // before jerr is moved
-			Job::s_record_thread.emplace( job , ::move(jerr) ) ;                                // /!\ _s_starting_job ensures Start has been queued before we enqueue End
+		{	JobDigest<Node> jd = digest ;                                   // before jerr is moved
+			Job::s_record_thread.emplace( job , ::move(jerr) ) ;            // /!\ _s_starting_job ensures Start has been queued before we enqueue End
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jd) ) ;                     // .
+			g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jd) ) ; // .
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 	}

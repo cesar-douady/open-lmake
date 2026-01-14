@@ -44,7 +44,7 @@ struct IMsgBuf : MsgBuf {
 			case No    : for(;;) if ( ::optional<T> x=receive_step<T>(fd,Yes            ,k) ; +x ) return ::move(*x) ;
 			case Maybe : for(;;) if ( ::optional<T> x=receive_step<T>(fd,Maybe|!_msg_len,k) ; +x ) return ::move(*x) ;              // no need to read past message
 			case Yes   : for(;;) if ( ::optional<T> x=receive_step<T>(fd,Maybe          ,k) ; +x ) return ::move(*x) ;
-		DF} // NO_COV
+		DF}                                                                                                                         // NO_COV
 	}
 	template<class T> ::optional<T> receive_step( SockFd&&         fd , Bool3 fetch                   ) { return _receive_step<T>( fd , fetch , fd.key ) ; } // Maybe means read only necessary bytes
 	template<class T> ::optional<T> receive_step( SockFd&/*inout*/ fd , Bool3 fetch                   ) { return _receive_step<T>( fd , fetch , fd.key ) ; } // .

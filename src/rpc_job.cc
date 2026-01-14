@@ -463,7 +463,7 @@ void JobRpcReq::chk(bool for_cache) const {
 static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; throw_unless( ::chroot(dir.c_str())==0 , "cannot chroot to ",dir,rm_slash," : ",StrErr() ) ; }
 static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; throw_unless( ::chdir (dir.c_str())==0 , "cannot chdir to " ,dir,rm_slash," : ",StrErr() ) ; }
 
-static void _mount_tmp( ::string const& dst , size_t sz , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { // dst must be dir
+static void _mount_tmp( ::string const& dst , size_t sz , ::vector<UserTraceEntry>&/*inout*/ user_trace ) {                                       // dst must be dir
 	Trace trace("_mount_tmp",dst) ;
 	throw_unless( ::mount( nullptr/*src*/ , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",dst,rm_slash," of size ",sz," : ",StrErr() ) ;
 	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Tmp , no_slash(dst) ) ;
@@ -675,7 +675,7 @@ bool JobSpace::enter(
 				goto Retry/*BACKWARD*/ ;
 			}
 			chroot_dir = ::move(root) ;
-		} else {                                                                            // mount replies ENOENT when trying to map /, so map all opt level dirs
+		} else {                                                                                              // mount replies ENOENT when trying to map /, so map all opt level dirs
 			chroot_dir = work_dir_s+"root" ;
 			//
 			::vector_s top_lvls = lst_dir_s("/"s) ;

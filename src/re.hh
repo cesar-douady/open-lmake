@@ -230,7 +230,7 @@ namespace Re {
 						case Maybe : res << escape(s)     ; break ;
 						case Yes   : res << '('  <<s<<')' ; break ;
 						case No    : res << "(?:"<<s<<')' ; break ;
-					DF} // NO_COV
+					DF}                                                                                          // NO_COV
 				}
 				return res ;
 			}

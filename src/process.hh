@@ -127,10 +127,10 @@ template<class T> struct AutoServer : AutoServerBase {
 	bool/*interrupted*/ event_loop     (         ) ;
 	void                close_slave_out(Fd out_fd) ;
 	// injection
-	bool/*done*/ interrupt       (                ) { return false/*done*/ ; }
-	void         start_connection( Fd             ) {                        }
-	void         end_connection  ( Fd             ) {                        }
-//	bool/*done*/ process_item    ( Fd , T::Item&& ) ;
+	bool/*done*/  interrupt       (                ) { return false/*done*/ ; }
+	void          start_connection( Fd             ) {                        }
+	void          end_connection  ( Fd             ) {                        }
+//	Bool3/*done*/ process_item    ( Fd , T::Item&& ) ;                          // Maybe means there may be further outputs to Fd, close_slave_out will be/has been called
 } ;
 
 ::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir={} ) ;
@@ -214,14 +214,15 @@ template<class T> bool/*interrupted*/ AutoServer<T>::event_loop() {
 						::optional<Item> received = se.buf.receive_step<Item>( fd , fetch , /*inout*/se.key ) ; if (!received) break ; // partial message
 						Item&            item     = *received                                                 ;
 						trace("item",item) ;
-						if (static_cast<T&>(self).process_item(fd,::move(item))) {
+						Bool3 done = static_cast<T&>(self).process_item(fd,::move(item)) ;
+						if (done==No) {
+							SWEAR(+item) ;                                                          // ensure we have no eof condition to avoid infinite loop
+						} else {
 							epoll.del(false/*write*/,fd) ; trace("del_slave_fd",fd,se.out_active) ; // /!\ must precede close(fd) which may not occur as long as input is not closed
 							Lock lock { _slaves_mutex } ;
-							if (se.out_active==Maybe) { ::shutdown(fd,SHUT_RD) ; se.out_active = Yes ;                                            }
-							else                      { ::close   (fd        ) ; _slaves.erase(it)   ; static_cast<T&>(self).end_connection(fd) ; }
+							if ( done==Maybe && se.out_active==Maybe ) { ::shutdown(fd,SHUT_RD) ; se.out_active = Yes ;                                            }
+							else                                       { ::close   (fd        ) ; _slaves.erase(it)   ; static_cast<T&>(self).end_connection(fd) ; }
 							break ;
-						} else {
-							SWEAR(+item) ;                                                          // ensure we have no eof condition to avoid infinite loop
 						}
 					}
 				} break ;

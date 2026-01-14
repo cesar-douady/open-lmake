@@ -17,8 +17,8 @@ if __name__!='__main__' :
 		target = 'dut'
 		environ = { 'PYTHONPATH' : 'a' } # check namespaces with several branches : based on repo root (automatic) and on a
 		def cmd() :
-			import b.c   # check namespace based import from a
-			import a.b.c # check namespace based import from repo root
+			import b.c                   # check namespace based import from a
+			import a.b.c                 # check namespace based import from repo root
 
 else :
 

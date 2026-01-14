@@ -71,16 +71,16 @@ namespace Cache {
 	CacheServerSide::DownloadDigest CacheServerSide::download( Job job , Rule::RuleMatch const& match , bool incremental ) {
 		Trace trace(CacheChnl,"download",job) ;
 		// provide node actual crc as this is the hit criteria
-		::vmap<StrId<CnodeIdx>,DepDigest> deps         ;
-		StrId<CjobIdx>                    job_str_id   ;
+		::vmap<StrId<CnodeIdx>,DepDigest> deps       ;
+		StrId<CjobIdx>                    job_str_id ;
 		//
 		if ( +job<_cjobs.size() && _cjobs[+job] ) job_str_id = {_cjobs[+job]      } ;
 		else                                      job_str_id = {job->unique_name()} ;
 		for( Dep const& d : job->deps ) {
 			DepDigest dd = d ;
 			dd.set_crc(d->crc,d->ok()==No) ;
-			if ( +d<_cnodes.size() && _cnodes[+d] ) { deps.emplace_back( _cnodes[+d] , dd ) ; SWEAR( !deps.back().first.is_name() , job,d ) ; }
-			else                                    { deps.emplace_back( d->name()   , dd ) ; SWEAR(  deps.back().first.is_name() , job,d ) ; }
+			if ( +d<_cnodes.size() && _cnodes[+d] ) deps.emplace_back( _cnodes[+d] , dd ) ;
+			else                                    deps.emplace_back( d->name()   , dd ) ;
 		}
 		//
 		OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Download , .job=job_str_id , .repo_deps=deps } ).send(_fd) ;

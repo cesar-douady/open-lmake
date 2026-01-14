@@ -119,7 +119,7 @@ namespace Backends {
 		// data
 		SubmitInfo submit_info ;
 		Rsrcs      rsrcs       ;
-		ReqIdx     n_reqs      = 0     ;                                                         // number of reqs waiting for this job
+		ReqIdx     n_reqs      = 0     ;                                                           // number of reqs waiting for this job
 		bool       verbose     = false ;
 	} ;
 	template<class Rsrcs> ::string& operator+=( ::string& os , _WaitEntry<Rsrcs> const& we ) {     // START_OF_NO_COV

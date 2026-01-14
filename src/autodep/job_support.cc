@@ -100,7 +100,7 @@ namespace JobSupport {
 	::string encode( ::string&& file , ::string&& ctx , ::string&& val  , uint8_t min_len ) {
 		throw_unless( +file                  , "file cannot be empty"                                                      ) ;
 		throw_unless( min_len>=1             , "min_len (",min_len,") must be at least 1"                                  ) ;
-		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')' ) ;     // codes are output in hex, 4 bits/digit
+		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')' ) ; // codes are output in hex, 4 bits/digit
 		::pair<PermExt,FileSync> cfg = _codec_config(file) ;
 		return Backdoor::call<Backdoor::Encode>({ .file=::move(file) , .ctx=::move(ctx) , .val=::move(val) , .min_len=min_len , .perm_ext=cfg.first , .file_sync=cfg.second }) ;
 	}

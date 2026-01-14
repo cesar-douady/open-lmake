@@ -162,7 +162,7 @@ class Serialize :
 			avoid.discard(val_id)
 
 	def get_src(self) :
-		if len(self.src) and self.src[-1] : self.src.append('')                                                                         # ensure there is \n at the end
+		if len(self.src) and self.src[-1] : self.src.append('')                                                                           # ensure there is \n at the end
 		modules = ''
 		for name,(mod,var) in self.modules.items() :
 			self.may_import.add('static')

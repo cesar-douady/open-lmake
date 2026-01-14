@@ -24,7 +24,7 @@ if __name__!='__main__' :
 			cat dep2 > {OUT} ; cat {OUT}.dir/1 || echo star > {OUT}.dir/1
 			sleep 2
 			cat dep3 > {OUT} ; cat {OUT}.dir/1 || echo star > {OUT}.dir/1
-		''' # sleep to ensure job is killed when lcheck_deps fails
+		'''                                                               # sleep to ensure job is killed when lcheck_deps fails
 
 	class Dep(Rule) :
 		target = r'dep{D:\d+}'

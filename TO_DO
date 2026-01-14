@@ -145,7 +145,15 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* rework codec
+	- declare in config
+	- add a codec rule attribute
+	- suppress file in lencode/ldecode
+	- provide a env variable for external use
+* add a kill_daemons attribute
+	- to reliably kill all processes upon job end
 ? process fstat and decrease accesses in open as do not anticipate fstat
+	- unclear it is better as fstat is quite common and most of the time, open implies full dep anyway
 ? add flags to chroot_dir
 	- implement action merge
 ? provide a list of forbidden src dirs
@@ -305,8 +313,9 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
-* test chroot action overwrite
+* test chroot actions
 * improve cache test coverage
+	- add a stress test
 * test codec errors
 	- including non existent codec files
 * test system_tag

@@ -77,8 +77,8 @@ config = pdict(
 	)
 ,	caches = pdict(                                               # PER_CACHE : provide an explanation for each cache method
 	#,	my_cache = pdict(                                         # when rule specifies cache = 'my_cache', this cache is selected
-	#	,	key = '<repo_root>/<git-sha1>'                        # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag
-	#	,	dir = '/cache_dir'                                    # the directory in which cached results are stored
+	#	,	repo_key = '<repo_root> <git-sha1>'                   # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag
+	#	,	dir      = '/path/to/cache_dir'                       # the directory in which cached results are stored
 	#	)
 	)
 ,	collect = pdict(

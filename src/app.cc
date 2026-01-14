@@ -33,12 +33,12 @@ static void _terminate() {
 }
 
 bool/*read_only*/ app_init(AppInitAction const& action) {
-	t_thread_key = '=' ;                                                                                          // we are the main thread
+	t_thread_key = '=' ;                                                                                      // we are the main thread
 	//
 	::set_terminate(_terminate) ;
-	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ;                     // catch all synchronous signals so as to generate a backtrace
+	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ;                 // catch all synchronous signals so as to generate a backtrace
 	//
-	bool     read_only = false     ; // unless proven read-only, assume we can write traces
+	bool     read_only = false     ;                                                                          // unless proven read-only, assume we can write traces
 	::string exe_path  = get_exe() ;
 	g_exe_name     = new ::string { base_name(exe_path)    } ;
 	g_lmake_root_s = new ::string { dir_name_s(exe_path,2) } ;
