@@ -246,11 +246,11 @@ namespace Engine {
 			using namespace Attrs ;
 			dyn_env = false ;                                                                                                                                 // update solves dynamic val
 			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"  ) ;
+			Attrs::acquire_env     ( env                    , py_dct , "env"         ) ;
 			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat" ) ;
+			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter" ) ;
 			Attrs::acquire_from_dct( readdir_ok             , py_dct , "readdir_ok"  ) ;
 			Attrs::acquire_from_dct( stderr_ok              , py_dct , "stderr_ok"   ) ;
-			Attrs::acquire_env     ( env                    , py_dct , "env"         ) ;
-			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter" ) ;
 			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"  ) ; if (+job_space.lmake_view_s)              add_slash(job_space.lmake_view_s) ;
 			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"   ) ; if (+job_space.repo_view_s )              add_slash(job_space.repo_view_s ) ;
 			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"    ) ; if (+job_space.tmp_view_s  )              add_slash(job_space.tmp_view_s  ) ;
@@ -265,14 +265,14 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		bool       auto_mkdir  = false ;
-		bool       ignore_stat = false ;
-		bool       readdir_ok  = false ;
-		bool       stderr_ok   = false ;
 		bool       dyn_env     = false ;
 		bool       dyn_views   = false ;
+		bool       auto_mkdir  = false ;
 		::vmap_ss  env         ;
+		bool       ignore_stat = false ;
 		::vector_s interpreter ;
+		bool       readdir_ok  = false ;
+		bool       stderr_ok   = false ;
 		JobSpace   job_space   ;
 		// END_OF_VERSIONING
 	} ;
@@ -282,14 +282,14 @@ namespace Engine {
 		static constexpr const char* Msg = "execution resources attributes" ;
 		void update( Py::Dict const& py_dct ) {
 			dyn_env = false ;                                                                             // update solves dynamic val
-			Attrs::acquire_from_dct( method         , py_dct , "autodep"                              ) ;
 			Attrs::acquire_from_dct( chk_abs_paths  , py_dct , "check_abs_paths"                      ) ;
-			Attrs::acquire_from_dct( use_script     , py_dct , "use_script"                           ) ;
-			Attrs::acquire_from_dct( timeout        , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( chroot_dir_s   , py_dct , "chroot_dir"                           ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
 			Attrs::acquire_from_dct( chroot_actions , py_dct , "chroot_actions"                       ) ;
-			Attrs::acquire_from_dct( lmake_root_s   , py_dct , "lmake_root"                           ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
+			Attrs::acquire_from_dct( chroot_dir_s   , py_dct , "chroot_dir"                           ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
 			Attrs::acquire_env     ( env            , py_dct , "env"                                  ) ;
+			Attrs::acquire_from_dct( lmake_root_s   , py_dct , "lmake_root"                           ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
+			Attrs::acquire_from_dct( method         , py_dct , "autodep"                              ) ;
+			Attrs::acquire_from_dct( timeout        , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( use_script     , py_dct , "use_script"                           ) ;
 			::sort(env) ;                                                                                 // stabilize rsrcs crc
 		}
 		void mk_dyn(::uset_s const& dyn_keys) {
@@ -298,14 +298,14 @@ namespace Engine {
 		// data
 		// START_OF_VERSIONING REPO
 		bool          dyn_env        = false               ;
-		AutodepMethod method         = AutodepMethod::Dflt ;
 		bool          chk_abs_paths  = false               ;
-		bool          use_script     = false               ;
-		Time::Delay   timeout        ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
-		::string      chroot_dir_s   ;
 		ChrootActions chroot_actions ;
-		::string      lmake_root_s   ;
+		::string      chroot_dir_s   ;
 		::vmap_ss     env            ;
+		::string      lmake_root_s   ;
+		AutodepMethod method         = AutodepMethod::Dflt ;
+		Time::Delay   timeout        ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
+		bool          use_script     = false               ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -316,12 +316,13 @@ namespace Engine {
 		void update( Py::Dict const& py_dct ) {
 			using namespace Attrs ;
 			dyn_env = false ;                                                                              // update solves dynamic val
+			Attrs::acquire_env     ( env            , py_dct , "env"                                   ) ;
 			Attrs::acquire_from_dct( keep_tmp       , py_dct , "keep_tmp"                              ) ;
-			Attrs::acquire_from_dct( zlvl           , py_dct , "compression"                           ) ;
-			Attrs::acquire_from_dct( start_delay    , py_dct , "start_delay"    , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( kill_daemons   , py_dct , "kill_daemons"                          ) ;
 			Attrs::acquire_from_dct( kill_sigs      , py_dct , "kill_sigs"                             ) ;
 			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len"                        ) ;
-			Attrs::acquire_env     ( env            , py_dct , "env"                                   ) ;
+			Attrs::acquire_from_dct( start_delay    , py_dct , "start_delay"    , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( zlvl           , py_dct , "compression"                           ) ;
 			::sort(env) ;                                                                                  // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
 		}
 		void mk_dyn(::uset_s const& dyn_keys) {
@@ -329,13 +330,14 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
-		uint16_t          max_stderr_len = 0     ;                                                         // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
-		bool              keep_tmp       = false ;
-		Zlvl              zlvl           = {}    ;
 		bool              dyn_env        = false ;
-		::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
 		::vmap_ss         env            ;
+		bool              keep_tmp       = false ;
+		bool              kill_daemons   = false ;
+		::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
+		uint16_t          max_stderr_len = 0     ;                                                         // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
+		Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
+		Zlvl              zlvl           = {}    ;
 		// END_OF_VERSIONING
 	} ;
 

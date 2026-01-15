@@ -23,8 +23,9 @@ SmallIds<CacheUploadKey> _g_upload_keys  ;
 int main( int argc , char** ) {
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
 	app_init({
-		.chk_version  = Yes
-	,	.cd_root      = false // launch at root
+		.cd_root      = false // launch at root
+	,	.chk_version  = Yes
+	,	.clean_msg    = cache_clean_msg()
 	,	.read_only_ok = true
 	,	.root_mrkrs   = { cat(AdminDirS,"config.py") }
 	,	.version      = Version::Cache

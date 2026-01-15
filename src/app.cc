@@ -86,8 +86,9 @@ void chk_version( AppInitAction const& action , ::string const& dir_s ) {
 		throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
 		stored.pop_back() ;
 		if (from_string<uint64_t>(stored)!=action.version) {
-			if ( +g_repo_root_s && !dir_s ) throw "version mismatch, consider : "+git_clean_msg() ;
-			else                            throw "version mismatch"s                             ;
+			::string msg = action.clean_msg | git_clean_msg() ;
+			if (msg.find('\n')==Npos) throw "version mismatch, consider : " +       msg  ;
+			else                      throw "version mismatch, consider :\n"+indent(msg) ;
 		}
 	}
 }

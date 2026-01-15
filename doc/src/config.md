@@ -27,9 +27,9 @@ Such resources are backend specific.
 Open-lmake needs to know its own network address so that jobs can connect to it when they start.
 
 By default, jobs connect to the fqdn (Fully Qualified Domain Name), e.g. `my_host.my_network.local`.
-Fqdn is determined by calling [getaddrinfo(3)](https://man7.org/linux/man-pages/man3/getaddrinfo.3.html) and asking for the canonical name.
+Fqdn is determined by calling [getaddrinfo](https://man7.org/linux/man-pages/man3/getaddrinfo.3.html) and asking for the canonical name.
 If this does not provide the adequate information, this field allows to specify a domain name, e.g. `my_network.local`, and jobs will connect to `<my_host>.<domain_name>` where `<my_host>` is the
-value returned by [gethostname(2)](https://man7.org/linux/man-pages/man2/gethostname.2.html) and `<domain_name>` is the value of this field.
+value returned by [gethostname](https://man7.org/linux/man-pages/man2/gethostname.2.html) and `<domain_name>` is the value of this field.
 
 #### [`backends.<backend>.environ`](unit_tests/slurm.html#:~:text=%27environ%27%20%3A%20%7B%20%27DUT%27%3A%27dut%27%20%7D) : Dynamic (`{}`)
 
@@ -122,7 +122,7 @@ If this attribute is true, the title shows the ETE of the command, in addition t
 
 When `ldebug` is used, it consults this `dict`.
 
-It maps debug keys to modules to import to implement the debug method (cf. [ldebug(1)](man/man1/ldebug.html)).
+It maps debug keys to modules to import to implement the debug method (cf. [ldebug](man/man1/ldebug.html)).
 Values contain the module name optionnaly followed by a human description (that will appear with `ldebug -h`) separated with spaces.
 
 ### [`disk_date_precision`](unit_tests/hot.html#:~:text=lmake%2Econfig%2Edisk%5Fdate%5Fprecision%20%3D%202) : Static (`0.010`)
@@ -141,11 +141,11 @@ This attribute specifies how to ensure file synchronization when a file is produ
 
 Possible values are (ordered by decreasing performance):
 
-| Value     | Recommanded for  | Default               | Comment                                                                                           |
-|-----------|------------------|-----------------------|---------------------------------------------------------------------------------------------------|
-| `'none'`  | local disk, CEPH | if no remote backends | no precaution, file system is coherent                                                            |
-| `'dir'`   | NFS              | if any remote backend | enclosing dir (recursively) is open before any read and closed after any write                    |
-| `'sync'`  |                  |                       | [`fsync`(2)](https://man7.org/linux/man-pages/man2/fsync.2.html) is called after any modification |
+| Value     | Recommanded for  | Default               | Comment                                                                                        |
+|-----------|------------------|-----------------------|------------------------------------------------------------------------------------------------|
+| `'none'`  | local disk, CEPH | if no remote backends | no precaution, file system is coherent                                                         |
+| `'dir'`   | NFS              | if any remote backend | enclosing dir (recursively) is open before any read and closed after any write                 |
+| `'sync'`  |                  |                       | [`fsync`](https://man7.org/linux/man-pages/man2/fsync.2.html) is called after any modification |
 
 ### [`heartbeat`](lib/lmake/config_.html#:~:text=%2C%20heartbeat%20%3D%2010%20%23%20in%20seconds%2C%20minimum%20interval%20between%202%20heartbeat%20checks%20%28and%20before%20first%20one%29%20for%20the%20same%20job%20%28no%20heartbeat%20if%20None) : Static (`10`)
 
@@ -223,9 +223,9 @@ The default value should fit most cases.
 ### [`nice`](lib/lmake/config_.html#:~:text=%23%2C%20nice%20%3D%200%20%23%20nice%20value%20to%20apply%20to%20all%20jobs) : Dynamic (`0`)
 
 This attribute provides the nice value to apply to all jobs.
-It is a value between 0 and 20 that decreases the priority of jobs (cf. [nice (2)](https://man7.org/linux/man-pages/man2/nice.2.html)).
+It is a value between 0 and 20 that decreases the priority of jobs (cf. [nice](https://man7.org/linux/man-pages/man2/nice.2.html)).
 
-If available, the autogroup mecanism (cf. [sched(7)](https://man7.org/linux/man-pages/man7/sched.7.html#:~:text=2%29%2E-,The%20autogroup%20feature)) is used instead as jobs are launched as sessions.
+If available, the autogroup mecanism (cf. [sched](https://man7.org/linux/man-pages/man7/sched.7.html#:~:text=2%29%2E-,The%20autogroup%20feature)) is used instead as jobs are launched as sessions.
 
 Note that negative nice values are not supported as these require privileges.
 

@@ -172,9 +172,9 @@ Such resources are backend specific.</p>
 <h3 id="backendsbackenddomain_name--static-none"><a class="header" href="#backendsbackenddomain_name--static-none"><a href="lib/lmake/config_.html#:~:text=%23%20%2C%20domain%5Fname%20%3D%20socket%2Egetfqdn%28%29%2Esplit%28%27%2E%27%2C1%29%5B%2D1%5D%20%23%20the%20domain%20name%20to%20host%20name%20to%20form%20the%20fqdn%20under%20which%20jobs%20must%20contact%20server,-%23%20%2C%20config"><code>backends.&lt;backend&gt;.domain_name</code></a> : Static (None)</a></h3>
 <p>Open-lmake needs to know its own network address so that jobs can connect to it when they start.</p>
 <p>By default, jobs connect to the fqdn (Fully Qualified Domain Name), e.g. <code>my_host.my_network.local</code>.
-Fqdn is determined by calling <a href="https://man7.org/linux/man-pages/man3/getaddrinfo.3.html">getaddrinfo(3)</a> and asking for the canonical name.
+Fqdn is determined by calling <a href="https://man7.org/linux/man-pages/man3/getaddrinfo.3.html">getaddrinfo</a> and asking for the canonical name.
 If this does not provide the adequate information, this field allows to specify a domain name, e.g. <code>my_network.local</code>, and jobs will connect to <code>&lt;my_host&gt;.&lt;domain_name&gt;</code> where <code>&lt;my_host&gt;</code> is the
-value returned by <a href="https://man7.org/linux/man-pages/man2/gethostname.2.html">gethostname(2)</a> and <code>&lt;domain_name&gt;</code> is the value of this field.</p>
+value returned by <a href="https://man7.org/linux/man-pages/man2/gethostname.2.html">gethostname</a> and <code>&lt;domain_name&gt;</code> is the value of this field.</p>
 <h4 id="backendsbackendenviron--dynamic-"><a class="header" href="#backendsbackendenviron--dynamic-"><a href="unit_tests/slurm.html#:~:text=%27environ%27%20%3A%20%7B%20%27DUT%27%3A%27dut%27%20%7D"><code>backends.&lt;backend&gt;.environ</code></a> : Dynamic (<code>{}</code>)</a></h4>
 <p>Environment to pass when launching job in backend.
 This environment is accessed when <a href="unit_tests/slurm.html#:~:text=environ%20%3D%20%7B%20%27DUT%27%3A%2E%2E%2E%20%7D">the value mentioned in the rule is <code>...</code></a>.</p>
@@ -226,7 +226,7 @@ Note that no host is shown for local execution.</p>
 <p>If this attribute is true, the title shows the ETE of the command, in addition to statistics about number of jobs.</p>
 <h3 id="debug--static"><a class="header" href="#debug--static"><a href="lib/lmake/config_.html#:~:text=%2C%20debug,gdb%29%27%20%7D%29"><code>debug</code></a> : Static</a></h3>
 <p>When <code>ldebug</code> is used, it consults this <code>dict</code>.</p>
-<p>It maps debug keys to modules to import to implement the debug method (cf. <a href="man/man1/ldebug.html">ldebug(1)</a>).
+<p>It maps debug keys to modules to import to implement the debug method (cf. <a href="man/man1/ldebug.html">ldebug</a>).
 Values contain the module name optionnaly followed by a human description (that will appear with <code>ldebug -h</code>) separated with spaces.</p>
 <h3 id="disk_date_precision--static-0010"><a class="header" href="#disk_date_precision--static-0010"><a href="unit_tests/hot.html#:~:text=lmake%2Econfig%2Edisk%5Fdate%5Fprecision%20%3D%202"><code>disk_date_precision</code></a> : Static (<code>0.010</code>)</a></h3>
 <p>This attribute instruct open-lmake to take some margin (expressed in seconds) when it must rely on file dates to decide about event orders.
@@ -242,7 +242,7 @@ It must account for file date granularity (generally a few ms) and date discrepa
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
 <tr><td><code>'none'</code></td><td>local disk, CEPH</td><td>if no remote backends</td><td>no precaution, file system is coherent</td></tr>
 <tr><td><code>'dir'</code></td><td>NFS</td><td>if any remote backend</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
-<tr><td><code>'sync'</code></td><td></td><td></td><td><a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync</code>(2)</a> is called after any modification</td></tr>
+<tr><td><code>'sync'</code></td><td></td><td></td><td><a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync</code></a> is called after any modification</td></tr>
 </tbody></table>
 </div>
 <h3 id="heartbeat--static-10"><a class="header" href="#heartbeat--static-10"><a href="lib/lmake/config_.html#:~:text=%2C%20heartbeat%20%3D%2010%20%23%20in%20seconds%2C%20minimum%20interval%20between%202%20heartbeat%20checks%20%28and%20before%20first%20one%29%20for%20the%20same%20job%20%28no%20heartbeat%20if%20None"><code>heartbeat</code></a> : Static (<code>10</code>)</a></h3>
@@ -303,8 +303,8 @@ The purpose is to ease reading.</p>
 <p>The default value should fit most cases.</p>
 <h3 id="nice--dynamic-0"><a class="header" href="#nice--dynamic-0"><a href="lib/lmake/config_.html#:~:text=%23%2C%20nice%20%3D%200%20%23%20nice%20value%20to%20apply%20to%20all%20jobs"><code>nice</code></a> : Dynamic (<code>0</code>)</a></h3>
 <p>This attribute provides the nice value to apply to all jobs.
-It is a value between 0 and 20 that decreases the priority of jobs (cf. <a href="https://man7.org/linux/man-pages/man2/nice.2.html">nice (2)</a>).</p>
-<p>If available, the autogroup mecanism (cf. <a href="https://man7.org/linux/man-pages/man7/sched.7.html#:~:text=2%29%2E-,The%20autogroup%20feature">sched(7)</a>) is used instead as jobs are launched as sessions.</p>
+It is a value between 0 and 20 that decreases the priority of jobs (cf. <a href="https://man7.org/linux/man-pages/man2/nice.2.html">nice</a>).</p>
+<p>If available, the autogroup mecanism (cf. <a href="https://man7.org/linux/man-pages/man7/sched.7.html#:~:text=2%29%2E-,The%20autogroup%20feature">sched</a>) is used instead as jobs are launched as sessions.</p>
 <p>Note that negative nice values are not supported as these require privileges.</p>
 <h3 id="path_max--static-200"><a class="header" href="#path_max--static-200"><a href="unit_tests/path_max.html#:~:text=lmake%2Econfig%2Epath%5Fmax%20%3D%20path%5Fmax"><code>path_max</code></a> : Static (<code>200</code>)</a></h3>
 <p>The <a href="rule_selection.html">rule selection</a> process is a recursive one.

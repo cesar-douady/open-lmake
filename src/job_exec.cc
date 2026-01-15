@@ -236,7 +236,7 @@ int main( int argc , char* argv[] ) {
 		::vector_s enter_accesses ;
 		::string   repo_root_s    ;
 		try {
-			bool entered = g_start_info.enter(
+			g_start_info.enter(
 				/*out*/  enter_accesses
 			,	/*.  */  repo_root_s
 			,	/*inout*/*g_user_trace
@@ -244,19 +244,16 @@ int main( int argc , char* argv[] ) {
 			,	         end_report.phy_tmp_dir_s
 			) ;
 			RealPath real_path { g_start_info.autodep_env } ;
-			if (entered) {
-				for( ::string& d_s : enter_accesses ) {
-					RealPath::SolveReport sr = real_path.solve(no_slash(::move(d_s)),true/*no_follow*/) ;
-					for( ::string& l : sr.lnks ) {
-						FileInfo fi { l } ;                                                                                                  // capture before l is moved
-						g_gather.new_access( washed , ::move(l) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Lnk ) ;
-					}
-					if ( sr.file_loc<=FileLoc::Dep && sr.file_accessed==Yes ) {
-						FileInfo fi { sr.real } ;                                                                                            // capture before l is moved
-						g_gather.new_access( washed , ::move(sr.real) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Read ) ;
-					}
+			for( ::string& d_s : enter_accesses ) {
+				RealPath::SolveReport sr = real_path.solve(no_slash(::move(d_s)),true/*no_follow*/) ;
+				for( ::string& l : sr.lnks ) {
+					FileInfo fi { l } ;                                                                                                  // capture before l is moved
+					g_gather.new_access( washed , ::move(l) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Lnk ) ;
 				}
-				g_user_trace->emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
+				if ( sr.file_loc<=FileLoc::Dep && sr.file_accessed==Yes ) {
+					FileInfo fi { sr.real } ;                                                                                            // capture before l is moved
+					g_gather.new_access( washed , ::move(sr.real) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Read ) ;
+				}
 			}
 			g_start_info.update_env( /*out*/end_report.dyn_env , g_phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
 		} catch (::string const& e) {

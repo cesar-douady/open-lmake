@@ -256,7 +256,7 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <li>The value is a <code>dict</code> composed of:
 <ul>
 <li><code>ok</code>:       <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
-<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <em>xxhsum(1)</em>).</li>
+<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <a href="man/man1/xxhsum.html">xxhsum</a>).</li>
 </ul>
 </li>
 </ul>
@@ -268,7 +268,7 @@ However, the <code>ignore</code> flag only applies to deps following this call.<
 <li>If <code>critical</code>,     create critical deps (cf. note (5)).</li>
 <li>If <code>essential</code>,    passed deps will appear in the flow shown with a graphical tool.</li>
 <li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
-<li>If <code>readdir_ok</code>,   <code>readdir</code> (3) can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
+<li>If <code>readdir_ok</code>,   <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
 <li>If not <code>required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
 <li>If not <code>no_star</code>,  accept regexpr based flags (e.g. calls to this function with <code>regexpr=True</code>).</li>
 <li>If <code>ignore</code>,       deps are ignored altogether, even if further accessed (but previous accesses are kept).</li>
@@ -406,7 +406,7 @@ However, the <code>ignore</code> flag only applies to targets following this cal
 <ul>
 <li>If <code>critical</code>,     create critical deps (cf. note (5) of <code>depend</code>).</li>
 <li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
-<li>If <code>readdir_ok</code>,   <code>readdir</code> (3) can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
+<li>If <code>readdir_ok</code>,   <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
 <li>If <code>not required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
 </ul>
 <p>Flags accumulate and are never reset.</p>
@@ -420,7 +420,7 @@ The same functionality is provided with the <code>ltarget</code> executable.</li
 <p>It is a 16-digit hex value with no suffix as a <code>str</code>.</p>
 <p>Note: this checksum is not the same as the checksum of a file with same content.</p>
 <p>Note: this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
+<p>Cf. <a href="man/man1/xxhsum.html">xxhsum</a> for a description of the algorithm.</p>
 <h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><a href="unit_tests/xxh.html#:~:text=crc%5Fpy%20%3D%20lmake%2Exxhsum%5Ffile%28%27Lmakefile%2Epy%27%29"><code>xxhsum_file(file)</code></a></a></h3>
 <p>Return a checksum of provided file.</p>
 <p>The checksum is a <code>str</code> containing:</p>
@@ -431,7 +431,7 @@ The same functionality is provided with the <code>ltarget</code> executable.</li
 <li>xxxxxxxxxxxxxxxx-L                           if file is a symbolic link</li>
 </ul>
 <p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf. <a href="man/man1/xxhsum.html">xxhsum(1)</a> for a description of the algorithm.</p>
+<p>Cf. <a href="man/man1/xxhsum.html">xxhsum</a> for a description of the algorithm.</p>
 
                     </main>
 

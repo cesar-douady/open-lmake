@@ -270,7 +270,7 @@ namespace Store {
 			static Sz s_min_sz( Kind k , bool used , ChunkIdx chunk_sz ) {
 				ChunkIdx max_chunk_sz = s_max_chunk_sz(k,used) ;
 				SWEAR( max_chunk_sz>=chunk_sz , max_chunk_sz , chunk_sz ) ;
-				Sz min_sz = MaxSz - (max_chunk_sz- chunk_sz)/ItemSizeOf ;
+				Sz min_sz = MaxSz - (max_chunk_sz-chunk_sz)/ItemSizeOf ;
 				if ( k==Kind::Terminal && min_sz<MinUsedSz ) return MinUsedSz ;
 				else                                         return min_sz    ;
 			}

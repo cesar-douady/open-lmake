@@ -341,7 +341,7 @@ So, it is possible for a first definition to define an environment variable that
 <tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>()</code></td><td>Full</td><td><code>('resolv_conf',)</code></td></tr>
 </tbody></table>
 </div>
-<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot(2)</a>, there may be some actions to carry out to make a sound execution environment.
+<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot</a>, there may be some actions to carry out to make a sound execution environment.
 This attribute lists these actions.
 It is a <code>list</code> or <code>tuple</code> composed of the following elements:</p>
 <ul>
@@ -398,9 +398,9 @@ Hence they lack the initial <code>f</code> in front of the string.</p>
 Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple</code>'s.</p>
 <div class="table-wrapper"><table><thead><tr><th>CamelCase</th><th>snake_case</th><th>Default</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>Essential</code></td><td><code>essential</code></td><td>Yes</td><td>This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.</td></tr>
-<tr><td><code>Critical</code></td><td><a href="unit_tests/critical.html#:~:text=%27critical"><code>critical</code></a></td><td>No</td><td>This dep is <a href="critical_deps.html">critical</a>.</td></tr>
-<tr><td><code>IgnoreError</code></td><td><a href="unit_tests/ignore_err.html#:~:text=%27IgnoreError"><code>ignore_error</code></a></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
-<tr><td><code>ReaddirOk</code></td><td><a href="unit_tests/wine.html#:~:text=%27readdir%5Fok"><code>readdir_ok</code></a></td><td>No</td><td>This dep may be read as a dir (using <code>readdir</code> (3)) without error.</td></tr>
+<tr><td><code>Critical</code></td><td><a href="unit_tests/critical.html#:~:text=%27critical">critical</a></td><td>No</td><td>This dep is <a href="critical_deps.html">critical</a>.</td></tr>
+<tr><td><code>IgnoreError</code></td><td><a href="unit_tests/ignore_err.html#:~:text=%27IgnoreError">ignore_error</a></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
+<tr><td><code>ReaddirOk</code></td><td><a href="unit_tests/wine.html#:~:text=%27readdir%5Fok">readdir_ok</a></td><td>No</td><td>This dep may be accessed as a dir (e.g. using <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> without error.</td></tr>
 <tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
 <tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. <a href="experimental_subrepos.html">subrepos</a>).</td></tr>
@@ -515,6 +515,14 @@ If it contains star stems, they will be replaced by <code>*</code>'s in the repo
 It can be retreived with <code>lshow -i</code>.</p>
 <p>Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
 When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.</p>
+<h3 id="kill_daemons"><a class="header" href="#kill_daemons"><a href="unit_tests/wine.html#:~:text=kill%5Fdaemons%20%3D%20True"><code>kill_daemons</code></a></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute is set to a true value, special precautions are taken to ensure all remaining job processes are killed upon job termination.
+This is done by creating a <a href="https://man7.org/linux/man-pages/man7/pid_namespaces.7.html">pid_namespaces</a>`.</p>
+<p>This is useful when a job starts a daemon which is not stopped at the end (e.g. when using <a href="https://www.winehq.org/">wine</a>.</p>
 <h3 id="kill_sigs"><a class="header" href="#kill_sigs"><a href="unit_tests/kill.html#:~:text=kill%5Fsigs%20%3D%20%282%2C%29%20%23%20SIGKILL%20%289%29%20is%20automatically%20added%20when%20list%20is%20exhausted"><code>kill_sigs</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>(signal.SIGKILL,)</code></td><td>Full</td><td></td></tr>

@@ -178,7 +178,7 @@ This problem can be solved with symbolic links if they are allowed.
 In all cases, it can be solved by using the <code>tmp_view</code> and copying data back and forth between the repo and the tmp dir.
 Or, more efficient, it can be solved by adequately mapping a logical steady file or dir to a per job physical file or dir (respectively).</li>
 </ul>
-<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot(2)</a>, the user and group databases become those specified in the chroot dir.
+<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot</a>, the user and group databases become those specified in the chroot dir.
 It may not contain entries for the current user, or the network service may not be available in this environment.
 In that case, some root and the calling user names can be restored by open-lmake by including <code>user_name</code> in the <code>chroot_actions</code> rule attribute.</p>
 <p>Also the file <code>/etc/resolv.conf</code> may need to be copied from the native filesystem.

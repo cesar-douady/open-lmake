@@ -150,8 +150,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- add a codec rule attribute
 	- suppress file in lencode/ldecode
 	- provide a env variable for external use
-* add a kill_daemons attribute
-	- to reliably kill all processes upon job end
+* consider using fanotify as an autodep method
+	- fanotify_init
+	- fanotify_mark
 ? process fstat and decrease accesses in open as do not anticipate fstat
 	- unclear it is better as fstat is quite common and most of the time, open implies full dep anyway
 ? add flags to chroot_dir

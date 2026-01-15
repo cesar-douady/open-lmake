@@ -712,7 +712,7 @@ struct JobSpace {
 		::serdes( s , lmake_view_s,repo_view_s,tmp_view_s ) ;
 		::serdes( s , views                               ) ;
 	}
-	bool/*entered*/ enter(
+	void enter(
 		::vector_s&              /*out  */ accesses
 	,	::string  &              /*.    */ repo_root_s
 	,	::vector<UserTraceEntry>&/*inout*/
@@ -723,6 +723,7 @@ struct JobSpace {
 	,	ChrootInfo const&                  chroot_info
 	,	::string   const&                  sub_repo_s
 	,	::vector_s const&                  src_dirs_s
+	,	bool                               kill_daemons
 	,	bool                               is_ld_audit
 	) ;
 	void exit() ;
@@ -736,12 +737,11 @@ struct JobSpace {
 	::string            lmake_view_s = {} ;                                                    // absolute dir under which job sees open-lmake root dir (empty if unused)
 	::string            repo_view_s  = {} ;                                                    // absolute dir under which job sees repo root dir       (empty if unused)
 	::string            tmp_view_s   = {} ;                                                    // absolute dir under which job sees tmp dir             (empty if unused)
-	::vmap_s<ViewDescr> views        = {} ;                                                    // dir_s->descr, relative to sub_repo when not _is_canon, relative to repo_root when _is_canon
+	::vmap_s<ViewDescr> views        = {} ;                                                    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
 	// END_OF_VERSIONING
 private :
 	::string _tmp_dir_s   ;                                                                    // to be unlinked upon exit
-	bool     _is_canon    = false ;
-	bool     _force_creat = false ;                                                            // valid if _is_canon, if true => create a chroot
+	Bool3    _force_creat = Maybe ;                                                            // if Yes => create a chroot (dont know if Maybe)
 } ;
 
 struct CacheRemoteSide {
@@ -819,6 +819,7 @@ struct JobStartRpcReply {                                                // NOLI
 		::serdes( s , job_space                     ) ;
 		::serdes( s , keep_tmp                      ) ;
 		::serdes( s , key                           ) ;
+		::serdes( s , kill_daemons                  ) ;
 		::serdes( s , kill_sigs                     ) ;
 		::serdes( s , live_out                      ) ;
 		::serdes( s , method                        ) ;
@@ -835,8 +836,8 @@ struct JobStartRpcReply {                                                // NOLI
 		::serdes( s , use_script                    ) ;
 		::serdes( s , zlvl                          ) ;
 	}
-	void            mk_canon( ::string const& phy_repo_root_s ) ;
-	bool/*entered*/ enter   (
+	void mk_canon( ::string const& phy_repo_root_s ) ;
+	void enter   (
 		::vector_s&              /*out  */ accesses
 	,	::string  &              /*.    */ repo_dir_s
 	,	::vector<UserTraceEntry>&/*inout*/
@@ -865,6 +866,7 @@ public :
 	JobSpace                                job_space        ;
 	bool                                    keep_tmp         = false               ;
 	::string                                key              ;                       // key used to uniquely identify repo
+	bool                                    kill_daemons     = false               ;
 	::vector<uint8_t>                       kill_sigs        ;
 	bool                                    live_out         = false               ;
 	AutodepMethod                           method           = AutodepMethod::Dflt ;
@@ -884,8 +886,6 @@ public :
 	Zlvl                                    zlvl             {}                    ;
 	// END_OF_VERSIONING
 	LmakeVersion lmake_version ;                                                     // not transported
-private :
-	::string _tmp_dir_s ;                                                            // for use in exit (autodep.tmp_dir_s may be moved)
 } ;
 
 struct JobEndRpcReq : JobRpcReq {

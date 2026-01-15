@@ -205,7 +205,7 @@ As for other attributes that may be dynamic, `cmd` is interpreted as an f-string
 |-------------|-------------------|---------|---------|--------------------|
 | python      | `list` or `tuple` | `()`    | Full    | `('resolv_conf',)` |
 
-When entering a `chroot_dir` with [chroot(2)](https://man7.org/linux/man-pages/man2/chroot.2.html), there may be some actions to carry out to make a sound execution environment.
+When entering a `chroot_dir` with [chroot](https://man7.org/linux/man-pages/man2/chroot.2.html), there may be some actions to carry out to make a sound execution environment.
 This attribute lists these actions.
 It is a `list` or `tuple` composed of the following elements:
 
@@ -275,14 +275,14 @@ Alternatively, values can also be `list` or `tuple` whose first item is as descr
 The flags may be any combination of the following flags, optionally preceded by - to turn it off.
 Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
 
-| CamelCase     | snake\_case                                                         | Default | Description                                                                                                                     |
-|---------------|---------------------------------------------------------------------|---------|-----------------------------------------------------------------------------------------------------|
-| `Essential`   | `essential`                                                         | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect. |
-| `Critical`    | [`critical`](unit_tests/critical.html#:~:text=%27critical)          | No      | This dep is [critical](critical_deps.html).                                                         |
-| `IgnoreError` | [`ignore_error`](unit_tests/ignore_err.html#:~:text=%27IgnoreError) | No      | This dep may be in error, job will be launched anyway.                                              |
-| `ReaddirOk`   | [`readdir_ok`](unit_tests/wine.html#:~:text=%27readdir%5Fok)        | No      | This dep may be read as a dir (using `readdir` (3)) without error.                                  |
-| `Required`    | `required`                                                          | No      | This dep is deemed to be read, even if not actually read by the job.                                |
-| `NoStar`      | `no_star`                                                           | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                           |
+| CamelCase     | snake\_case                                                       | Default | Description                                                                                           |
+|---------------|-------------------------------------------------------------------|---------|-------------------------------------------------------------------------------------------------------|
+| `Essential`   | `essential`                                                       | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.   |
+| `Critical`    | [critical](unit_tests/critical.html#:~:text=%27critical)          | No      | This dep is [critical](critical_deps.html).                                                           |
+| `IgnoreError` | [ignore_error](unit_tests/ignore_err.html#:~:text=%27IgnoreError) | No      | This dep may be in error, job will be launched anyway.                                                |
+| `ReaddirOk` | [readdir_ok](unit_tests/wine.html#:~:text=%27readdir%5Fok) | No | This dep may be accessed as a dir (e.g. using [readdir](https://man7.org/linux/man-pages/man3/readdir.3.html) without error. |
+| `Required`    | `required`                                                        | No      | This dep is deemed to be read, even if not actually read by the job.                                  |
+| `NoStar`      | `no_star`                                                         | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                             |
 | `Top`         | `top`                                        | No | Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. [subrepos](experimental_subrepos.html)). |
 
 Flag order and dep order are not significative.
@@ -427,6 +427,17 @@ It can be retreived with `lshow -i`.
 
 Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
 When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.
+
+### [`kill_daemons`](unit_tests/wine.html#:~:text=kill%5Fdaemons%20%3D%20True)
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute is set to a true value, special precautions are taken to ensure all remaining job processes are killed upon job termination.
+This is done by creating a [pid\_namespaces](https://man7.org/linux/man-pages/man7/pid_namespaces.7.html)`.
+
+This is useful when a job starts a daemon which is not stopped at the end (e.g. when using [wine](https://www.winehq.org/).
 
 ### [`kill_sigs`](unit_tests/kill.html#:~:text=kill%5Fsigs%20%3D%20%282%2C%29%20%23%20SIGKILL%20%289%29%20is%20automatically%20added%20when%20list%20is%20exhausted)
 

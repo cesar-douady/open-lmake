@@ -66,8 +66,8 @@ Reading file `foo` means :
 
 A dir `foo` is read when files it contains are listed, which occur when:
 
-- A system call that reads dir `foo`, e.g. [getdents(2)](https://man7.org/linux/man-pages/man2/getdents.2.html).
-- A libc call that reads dir `foo`, e.g. [readdir(3)](https://man7.org/linux/man-pages/man3/readdir.3.html) or [glob(3)](https://man7.org/linux/man-pages/man3/glob.3.html)
+- A system call that reads dir `foo`, e.g. [getdents](https://man7.org/linux/man-pages/man2/getdents.2.html).
+- A libc call that reads dir `foo`, e.g. [readdir](https://man7.org/linux/man-pages/man3/readdir.3.html) or [glob](https://man7.org/linux/man-pages/man3/glob.3.html)
   (in which its pattern argument requires reading `foo`).
 - Under the condition that these actions are not preceded by a call to `lmake.target('foo',ignore=True)` or the execution of `ltarget -I foo`.
 - Also under the condition that neither `lmake.target('foo',incremental=True)` was called nor `ltarget -i foo` executed.

@@ -18,6 +18,16 @@ struct CompileDigest {
 	::vector<Hash::Crc> dep_crcs  ;
 } ;
 
+inline ::string cache_clean_msg() {
+	::string cwd_s_ = Disk::cwd_s() ;
+	return cat(
+		"cfg=$(cat    "  ,cwd_s_,"LMAKE/config.py)",'\n'
+	,	"rm -rf       "  ,cwd_s_,rm_slash          ,'\n'
+	,	"mkdir -p     "  ,cwd_s_,"LMAKE"           ,'\n'
+	,	"echo \"$cfg\" >",cwd_s_,"LMAKE/config.py"
+	) ;
+}
+
 CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool for_download , ::vector<CnodeIdx>* dep_ids=nullptr ) ; // dep_ids are filled for each named dep in repo_deps
 
 bool crc_ok( Hash::Crc cache_crc , Hash::Crc repo_crc ) ;

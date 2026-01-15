@@ -30,7 +30,7 @@ Namespaces can be used in the following situations :
   Or, more efficient, it can be solved by adequately mapping a logical steady file or dir to a per job physical file or dir (respectively).
 
 
-When entering a `chroot_dir` with [chroot(2)](https://man7.org/linux/man-pages/man2/chroot.2.html), the user and group databases become those specified in the chroot dir.
+When entering a `chroot_dir` with [chroot](https://man7.org/linux/man-pages/man2/chroot.2.html), the user and group databases become those specified in the chroot dir.
 It may not contain entries for the current user, or the network service may not be available in this environment.
 In that case, some root and the calling user names can be restored by open-lmake by including `user_name` in the `chroot_actions` rule attribute.
 

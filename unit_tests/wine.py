@@ -22,7 +22,6 @@ if __name__!='__main__' :
 		stems = { 'Method' : r'\w+' }
 
 	class WineRule(Rule) :
-		tmp_view = '/tmp'                                                            # ensure pid namespace is used to ensure reliable job termination
 		side_targets = {
 			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                               # wine writes in dir, even after init
 		,	'CACHE' : (r'.cache/{*:.*}','incremental')                               # .
@@ -35,7 +34,8 @@ if __name__!='__main__' :
 		,	'CONFIG_DIR' : ('.config'      ,'readdir_ok')                            # .
 		,	'MENUS_DIR'  : ('.config/menus','readdir_ok')                            # .
 		}
-		environ = { 'WINEDEBUG' : '-all' }
+		kill_daemons = True
+		environ      = { 'WINEDEBUG' : '-all' }
 		if xvfb : environ_resources = { 'SMALL_ID' : '$SMALL_ID'                   } # display is provided by xvfb-run
 		else    : environ_resources = { 'DISPLAY'  : lmake.user_environ['DISPLAY'] } # use current display
 

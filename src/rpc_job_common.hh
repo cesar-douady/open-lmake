@@ -289,6 +289,7 @@ enum class CommentExt : uint8_t {
 ,	NoFollow
 ,	Orig
 ,	Overlay
+,	Proc
 ,	RunPath
 ,	Read
 ,	Reply

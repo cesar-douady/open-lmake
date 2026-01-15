@@ -127,8 +127,9 @@ int main( int argc , char* argv[] ) {
 	if (::chdir(top_dir_s.c_str())!=0) exit(Rc::System  ,"cannot chdir (",StrErr(),") to ",top_dir_s,rm_slash ) ;
 	//
 	app_init({
-		.chk_version  = Yes
-	,	.cd_root      = false                                                                          // we have already chdir'ed to top
+		.cd_root      = false                                                                          // we have already chdir'ed to top
+	,	.chk_version  = Yes
+	,	.clean_msg    = cache_clean_msg()
 	,	.read_only_ok = cmd_line.flags[Flag::DryRun]
 	,	.root_mrkrs   = { cat(AdminDirS,"config.py") }
 	,	.version      = Version::Cache

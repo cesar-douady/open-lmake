@@ -678,7 +678,7 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <li>The value is a <code>dict</code> composed of:
 <ul>
 <li><code>ok</code>:       <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
-<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <em>xxhsum(1)</em>).</li>
+<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <a href="man/man1/xxhsum.html">xxhsum</a>).</li>
 </ul>
 </li>
 </ul>
@@ -690,7 +690,7 @@ However, the <code>ignore</code> flag only applies to deps following this call.<
 <li>If <code>critical</code>,     create critical deps (cf. note (5)).</li>
 <li>If <code>essential</code>,    passed deps will appear in the flow shown with a graphical tool.</li>
 <li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
-<li>If <code>readdir_ok</code>,   <code>readdir</code> (3) can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
+<li>If <code>readdir_ok</code>,   <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
 <li>If not <code>required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
 <li>If not <code>no_star</code>,  accept regexpr based flags (e.g. calls to this function with <code>regexpr=True</code>).</li>
 <li>If <code>ignore</code>,       deps are ignored altogether, even if further accessed (but previous accesses are kept).</li>
@@ -828,7 +828,7 @@ However, the <code>ignore</code> flag only applies to targets following this cal
 <ul>
 <li>If <code>critical</code>,     create critical deps (cf. note (5) of <code>depend</code>).</li>
 <li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
-<li>If <code>readdir_ok</code>,   <code>readdir</code> (3) can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
+<li>If <code>readdir_ok</code>,   <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
 <li>If <code>not required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
 </ul>
 <p>Flags accumulate and are never reset.</p>
@@ -842,7 +842,7 @@ The same functionality is provided with the <code>ltarget</code> executable.</li
 <p>It is a 16-digit hex value with no suffix as a <code>str</code>.</p>
 <p>Note: this checksum is not the same as the checksum of a file with same content.</p>
 <p>Note: this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf. <em>xxhsum(1)</em> for a description of the algorithm.</p>
+<p>Cf. <a href="man/man1/xxhsum.html">xxhsum</a> for a description of the algorithm.</p>
 <h3 id="xxhsum_filefile"><a class="header" href="#xxhsum_filefile"><a href="unit_tests/xxh.html#:~:text=crc%5Fpy%20%3D%20lmake%2Exxhsum%5Ffile%28%27Lmakefile%2Epy%27%29"><code>xxhsum_file(file)</code></a></a></h3>
 <p>Return a checksum of provided file.</p>
 <p>The checksum is a <code>str</code> containing:</p>
@@ -853,7 +853,7 @@ The same functionality is provided with the <code>ltarget</code> executable.</li
 <li>xxxxxxxxxxxxxxxx-L                           if file is a symbolic link</li>
 </ul>
 <p>Note : this checksum is <strong>not</strong> crypto-robust.</p>
-<p>Cf. <a href="man/man1/xxhsum.html">xxhsum(1)</a> for a description of the algorithm.</p>
+<p>Cf. <a href="man/man1/xxhsum.html">xxhsum</a> for a description of the algorithm.</p>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2026 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
@@ -1114,9 +1114,9 @@ Such resources are backend specific.</p>
 <h3 id="backendsbackenddomain_name--static-none"><a class="header" href="#backendsbackenddomain_name--static-none"><a href="lib/lmake/config_.html#:~:text=%23%20%2C%20domain%5Fname%20%3D%20socket%2Egetfqdn%28%29%2Esplit%28%27%2E%27%2C1%29%5B%2D1%5D%20%23%20the%20domain%20name%20to%20host%20name%20to%20form%20the%20fqdn%20under%20which%20jobs%20must%20contact%20server,-%23%20%2C%20config"><code>backends.&lt;backend&gt;.domain_name</code></a> : Static (None)</a></h3>
 <p>Open-lmake needs to know its own network address so that jobs can connect to it when they start.</p>
 <p>By default, jobs connect to the fqdn (Fully Qualified Domain Name), e.g. <code>my_host.my_network.local</code>.
-Fqdn is determined by calling <a href="https://man7.org/linux/man-pages/man3/getaddrinfo.3.html">getaddrinfo(3)</a> and asking for the canonical name.
+Fqdn is determined by calling <a href="https://man7.org/linux/man-pages/man3/getaddrinfo.3.html">getaddrinfo</a> and asking for the canonical name.
 If this does not provide the adequate information, this field allows to specify a domain name, e.g. <code>my_network.local</code>, and jobs will connect to <code>&lt;my_host&gt;.&lt;domain_name&gt;</code> where <code>&lt;my_host&gt;</code> is the
-value returned by <a href="https://man7.org/linux/man-pages/man2/gethostname.2.html">gethostname(2)</a> and <code>&lt;domain_name&gt;</code> is the value of this field.</p>
+value returned by <a href="https://man7.org/linux/man-pages/man2/gethostname.2.html">gethostname</a> and <code>&lt;domain_name&gt;</code> is the value of this field.</p>
 <h4 id="backendsbackendenviron--dynamic-"><a class="header" href="#backendsbackendenviron--dynamic-"><a href="unit_tests/slurm.html#:~:text=%27environ%27%20%3A%20%7B%20%27DUT%27%3A%27dut%27%20%7D"><code>backends.&lt;backend&gt;.environ</code></a> : Dynamic (<code>{}</code>)</a></h4>
 <p>Environment to pass when launching job in backend.
 This environment is accessed when <a href="unit_tests/slurm.html#:~:text=environ%20%3D%20%7B%20%27DUT%27%3A%2E%2E%2E%20%7D">the value mentioned in the rule is <code>...</code></a>.</p>
@@ -1168,7 +1168,7 @@ Note that no host is shown for local execution.</p>
 <p>If this attribute is true, the title shows the ETE of the command, in addition to statistics about number of jobs.</p>
 <h3 id="debug--static"><a class="header" href="#debug--static"><a href="lib/lmake/config_.html#:~:text=%2C%20debug,gdb%29%27%20%7D%29"><code>debug</code></a> : Static</a></h3>
 <p>When <code>ldebug</code> is used, it consults this <code>dict</code>.</p>
-<p>It maps debug keys to modules to import to implement the debug method (cf. <a href="man/man1/ldebug.html">ldebug(1)</a>).
+<p>It maps debug keys to modules to import to implement the debug method (cf. <a href="man/man1/ldebug.html">ldebug</a>).
 Values contain the module name optionnaly followed by a human description (that will appear with <code>ldebug -h</code>) separated with spaces.</p>
 <h3 id="disk_date_precision--static-0010"><a class="header" href="#disk_date_precision--static-0010"><a href="unit_tests/hot.html#:~:text=lmake%2Econfig%2Edisk%5Fdate%5Fprecision%20%3D%202"><code>disk_date_precision</code></a> : Static (<code>0.010</code>)</a></h3>
 <p>This attribute instruct open-lmake to take some margin (expressed in seconds) when it must rely on file dates to decide about event orders.
@@ -1184,7 +1184,7 @@ It must account for file date granularity (generally a few ms) and date discrepa
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
 <tr><td><code>'none'</code></td><td>local disk, CEPH</td><td>if no remote backends</td><td>no precaution, file system is coherent</td></tr>
 <tr><td><code>'dir'</code></td><td>NFS</td><td>if any remote backend</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
-<tr><td><code>'sync'</code></td><td></td><td></td><td><a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync</code>(2)</a> is called after any modification</td></tr>
+<tr><td><code>'sync'</code></td><td></td><td></td><td><a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync</code></a> is called after any modification</td></tr>
 </tbody></table>
 </div>
 <h3 id="heartbeat--static-10"><a class="header" href="#heartbeat--static-10"><a href="lib/lmake/config_.html#:~:text=%2C%20heartbeat%20%3D%2010%20%23%20in%20seconds%2C%20minimum%20interval%20between%202%20heartbeat%20checks%20%28and%20before%20first%20one%29%20for%20the%20same%20job%20%28no%20heartbeat%20if%20None"><code>heartbeat</code></a> : Static (<code>10</code>)</a></h3>
@@ -1245,8 +1245,8 @@ The purpose is to ease reading.</p>
 <p>The default value should fit most cases.</p>
 <h3 id="nice--dynamic-0"><a class="header" href="#nice--dynamic-0"><a href="lib/lmake/config_.html#:~:text=%23%2C%20nice%20%3D%200%20%23%20nice%20value%20to%20apply%20to%20all%20jobs"><code>nice</code></a> : Dynamic (<code>0</code>)</a></h3>
 <p>This attribute provides the nice value to apply to all jobs.
-It is a value between 0 and 20 that decreases the priority of jobs (cf. <a href="https://man7.org/linux/man-pages/man2/nice.2.html">nice (2)</a>).</p>
-<p>If available, the autogroup mecanism (cf. <a href="https://man7.org/linux/man-pages/man7/sched.7.html#:~:text=2%29%2E-,The%20autogroup%20feature">sched(7)</a>) is used instead as jobs are launched as sessions.</p>
+It is a value between 0 and 20 that decreases the priority of jobs (cf. <a href="https://man7.org/linux/man-pages/man2/nice.2.html">nice</a>).</p>
+<p>If available, the autogroup mecanism (cf. <a href="https://man7.org/linux/man-pages/man7/sched.7.html#:~:text=2%29%2E-,The%20autogroup%20feature">sched</a>) is used instead as jobs are launched as sessions.</p>
 <p>Note that negative nice values are not supported as these require privileges.</p>
 <h3 id="path_max--static-200"><a class="header" href="#path_max--static-200"><a href="unit_tests/path_max.html#:~:text=lmake%2Econfig%2Epath%5Fmax%20%3D%20path%5Fmax"><code>path_max</code></a> : Static (<code>200</code>)</a></h3>
 <p>The <a href="rule_selection.html">rule selection</a> process is a recursive one.
@@ -1466,7 +1466,7 @@ So, it is possible for a first definition to define an environment variable that
 <tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>()</code></td><td>Full</td><td><code>('resolv_conf',)</code></td></tr>
 </tbody></table>
 </div>
-<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot(2)</a>, there may be some actions to carry out to make a sound execution environment.
+<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot</a>, there may be some actions to carry out to make a sound execution environment.
 This attribute lists these actions.
 It is a <code>list</code> or <code>tuple</code> composed of the following elements:</p>
 <ul>
@@ -1523,9 +1523,9 @@ Hence they lack the initial <code>f</code> in front of the string.</p>
 Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple</code>'s.</p>
 <div class="table-wrapper"><table><thead><tr><th>CamelCase</th><th>snake_case</th><th>Default</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>Essential</code></td><td><code>essential</code></td><td>Yes</td><td>This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.</td></tr>
-<tr><td><code>Critical</code></td><td><a href="unit_tests/critical.html#:~:text=%27critical"><code>critical</code></a></td><td>No</td><td>This dep is <a href="critical_deps.html">critical</a>.</td></tr>
-<tr><td><code>IgnoreError</code></td><td><a href="unit_tests/ignore_err.html#:~:text=%27IgnoreError"><code>ignore_error</code></a></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
-<tr><td><code>ReaddirOk</code></td><td><a href="unit_tests/wine.html#:~:text=%27readdir%5Fok"><code>readdir_ok</code></a></td><td>No</td><td>This dep may be read as a dir (using <code>readdir</code> (3)) without error.</td></tr>
+<tr><td><code>Critical</code></td><td><a href="unit_tests/critical.html#:~:text=%27critical">critical</a></td><td>No</td><td>This dep is <a href="critical_deps.html">critical</a>.</td></tr>
+<tr><td><code>IgnoreError</code></td><td><a href="unit_tests/ignore_err.html#:~:text=%27IgnoreError">ignore_error</a></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
+<tr><td><code>ReaddirOk</code></td><td><a href="unit_tests/wine.html#:~:text=%27readdir%5Fok">readdir_ok</a></td><td>No</td><td>This dep may be accessed as a dir (e.g. using <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> without error.</td></tr>
 <tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
 <tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. <a href="experimental_subrepos.html">subrepos</a>).</td></tr>
@@ -1640,6 +1640,14 @@ If it contains star stems, they will be replaced by <code>*</code>'s in the repo
 It can be retreived with <code>lshow -i</code>.</p>
 <p>Sucessive executions of the same job overwrite the temporary dir, though, so only the content corresponding to the last execution is available.
 When this attribute has a false value, the temporary dir is cleaned up at the end of the job execution.</p>
+<h3 id="kill_daemons"><a class="header" href="#kill_daemons"><a href="unit_tests/wine.html#:~:text=kill%5Fdaemons%20%3D%20True"><code>kill_daemons</code></a></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute is set to a true value, special precautions are taken to ensure all remaining job processes are killed upon job termination.
+This is done by creating a <a href="https://man7.org/linux/man-pages/man7/pid_namespaces.7.html">pid_namespaces</a>`.</p>
+<p>This is useful when a job starts a daemon which is not stopped at the end (e.g. when using <a href="https://www.winehq.org/">wine</a>.</p>
 <h3 id="kill_sigs"><a class="header" href="#kill_sigs"><a href="unit_tests/kill.html#:~:text=kill%5Fsigs%20%3D%20%282%2C%29%20%23%20SIGKILL%20%289%29%20is%20automatically%20added%20when%20list%20is%20exhausted"><code>kill_sigs</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>(signal.SIGKILL,)</code></td><td>Full</td><td></td></tr>
@@ -2012,8 +2020,8 @@ In that case, the read occurs before the write.</li>
 <h3 id="reading-a-dir"><a class="header" href="#reading-a-dir">Reading a dir</a></h3>
 <p>A dir <code>foo</code> is read when files it contains are listed, which occur when:</p>
 <ul>
-<li>A system call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man2/getdents.2.html">getdents(2)</a>.</li>
-<li>A libc call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir(3)</a> or <a href="https://man7.org/linux/man-pages/man3/glob.3.html">glob(3)</a>
+<li>A system call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man2/getdents.2.html">getdents</a>.</li>
+<li>A libc call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> or <a href="https://man7.org/linux/man-pages/man3/glob.3.html">glob</a>
 (in which its pattern argument requires reading <code>foo</code>).</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
 <li>Also under the condition that neither <code>lmake.target('foo',incremental=True)</code> was called nor <code>ltarget -i foo</code> executed.</li>
@@ -2198,7 +2206,7 @@ Such constructs are strongly discouraged (prefer and explicit list, possibly bas
 <li>use of <code>glob.glob</code> in python</li>
 <li>use of wildcard in bash</li>
 </ul>
-<p>As a consequence, such calls to <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir(3)</a> is forbidden unless <a href="rules.html#:~:text=repo%2E-,readdir%5Fok,date">explicitly allowed</a>
+<p>As a consequence, such calls to <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> is forbidden unless <a href="rules.html#:~:text=repo%2E-,readdir%5Fok,date">explicitly allowed</a>
 in which case the user takes the responsibility of its stability.</p>
 <h2 id="jobs"><a class="header" href="#jobs">Jobs</a></h2>
 <p>Jobs are identified by their rule and stems (excluding star-stems).</p>
@@ -2523,7 +2531,7 @@ This problem can be solved with symbolic links if they are allowed.
 In all cases, it can be solved by using the <code>tmp_view</code> and copying data back and forth between the repo and the tmp dir.
 Or, more efficient, it can be solved by adequately mapping a logical steady file or dir to a per job physical file or dir (respectively).</li>
 </ul>
-<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot(2)</a>, the user and group databases become those specified in the chroot dir.
+<p>When entering a <code>chroot_dir</code> with <a href="https://man7.org/linux/man-pages/man2/chroot.2.html">chroot</a>, the user and group databases become those specified in the chroot dir.
 It may not contain entries for the current user, or the network service may not be available in this environment.
 In that case, some root and the calling user names can be restored by open-lmake by including <code>user_name</code> in the <code>chroot_actions</code> rule attribute.</p>
 <p>Also the file <code>/etc/resolv.conf</code> may need to be copied from the native filesystem.

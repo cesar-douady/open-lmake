@@ -449,16 +449,16 @@ void JobRpcReq::chk(bool for_cache) const {
 	return           os <<')'                      ;
 }                                                                      // END_OF_NO_COV
 
-::string& operator+=( ::string& os , JobSpace const& js ) {            // START_OF_NO_COV
+::string& operator+=( ::string& os , JobSpace const& js ) {                                        // START_OF_NO_COV
 	First first ;
-	/**/                  os <<"JobSpace("                           ;
-	if (+js._is_canon   ) os <<first("",",")<<"is_canon"             ;
-	if (+js.lmake_view_s) os <<first("",",")<<"L:"<< js.lmake_view_s ;
-	if (+js.repo_view_s ) os <<first("",",")<<"R:"<< js.repo_view_s  ;
-	if (+js.tmp_view_s  ) os <<first("",",")<<"T:"<< js.tmp_view_s   ;
-	if (+js.views       ) os <<first("",",")<<"V:"<< js.views        ;
-	return                os <<')'                                   ;
-}                                                                      // END_OF_NO_COV
+	/**/                         os <<"JobSpace("                                                ;
+	if ( js._force_creat!=Maybe) os <<first("",",")<<(js._force_creat==No?"!":"")<<"force_creat" ;
+	if (+js.lmake_view_s       ) os <<first("",",")<<"L:"<< js.lmake_view_s                      ;
+	if (+js.repo_view_s        ) os <<first("",",")<<"R:"<< js.repo_view_s                       ;
+	if (+js.tmp_view_s         ) os <<first("",",")<<"T:"<< js.tmp_view_s                        ;
+	if (+js.views              ) os <<first("",",")<<"V:"<< js.views                             ;
+	return                       os <<')'                                                        ;
+}                                                                                                  // END_OF_NO_COV
 
 static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; throw_unless( ::chroot(dir.c_str())==0 , "cannot chroot to ",dir,rm_slash," : ",StrErr() ) ; }
 static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; throw_unless( ::chdir (dir.c_str())==0 , "cannot chdir to " ,dir,rm_slash," : ",StrErr() ) ; }
@@ -476,6 +476,12 @@ static void _mount_bind( ::string const& dst , ::string const& src , ::vector<Us
 	::string dst_ = no_slash(dst) ;
 	throw_unless( ::mount( src_.c_str() , dst_.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )==0 , "cannot bind mount ",src_," onto ",dst_," : ",StrErr() ) ;
 	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Bind , cat(dst_," : ",src_) ) ;
+}
+
+static void _mount_proc( ::string const& dst , ::vector<UserTraceEntry>&/*inout*/ user_trace ) {
+	Trace trace("_mount_proc",dst) ;
+	throw_unless( ::mount( nullptr/*src*/ , dst.c_str() , "proc" , 0/*flags*/ , nullptr/*data*/ )==0 , "cannot mount proc ",dst," : ",::getpid(),' ',StrErr() ) ;
+	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Proc , no_slash(dst) ) ;
 }
 
 static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s , ::vector<UserTraceEntry>&/*inout*/ user_trace ) {
@@ -532,7 +538,7 @@ void JobSpace::chk() const {
 	}
 }
 
-void _prepare_user( ::string const& dir_s , ChrootInfo const& chroot_info , uid_t uid , gid_t gid ) {
+static void _prepare_user( ::string const& dir_s , ChrootInfo const& chroot_info , uid_t uid , gid_t gid ) {
 	if (!chroot_info.actions) return ;                                                                                             // fast path
 	//
 	if (chroot_info.actions[ChrootAction::UserName]) {
@@ -546,7 +552,7 @@ void _prepare_user( ::string const& dir_s , ChrootInfo const& chroot_info , uid_
 		try { AcFd( dir_s+"etc/resolv.conf" , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444} ).write( AcFd("/etc/resolv.conf").read() ) ; } catch (::string const&) {}
 	}
 }
-bool JobSpace::enter(
+void JobSpace::enter(
 	::vector_s&              /*out  */ report
 ,	::string  &              /*.    */ repo_root_s
 ,	::vector<UserTraceEntry>&/*inout*/ user_trace
@@ -557,23 +563,25 @@ bool JobSpace::enter(
 ,	ChrootInfo const&                  chroot_info
 ,	::string   const&                  sub_repo_s
 ,	::vector_s const&                  src_dirs_s
+,	bool                               kill_daemons
 ,	bool                               is_ld_audit
 ) {
-	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s,STR(is_ld_audit)) ;
+	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s,STR(kill_daemons),STR(is_ld_audit)) ;
 	//
+	bool need_chroot = +self || +chroot_info.dir_s ;
 	repo_root_s = repo_view_s | phy_repo_root_s ;
-	if ( !self && !chroot_info.dir_s ) {
+	if ( !need_chroot && !kill_daemons ) {
 		if (+sub_repo_s) _chdir(sub_repo_s) ;
+		_tmp_dir_s = phy_tmp_dir_s ;
 		trace("not_done",repo_root_s) ;
-		return false/*entered*/ ;
+		return ;
 	}
 	//
 	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ;                                             // dont use no_slash to properly manage the '/' case
 	//
 	mk_canon( phy_repo_root_s , sub_repo_s , +chroot_dir ) ;
 	//
-	bool clean_mount_in_tmp = false        ;
-	bool creat              = _force_creat ;
+	bool creat = _force_creat!=No ;
 	//
 	SWEAR( +phy_lmake_root_s ) ;
 	SWEAR( +phy_repo_root_s  ) ;
@@ -584,7 +592,7 @@ bool JobSpace::enter(
 	if (src_dir_depth>=repo_depth)
 		for( ::string const& sd_s : src_dirs_s )
 			throw_if( uphill_lvl(sd_s)==src_dir_depth , "too many .. to access relative source dir ",sd_s," from repo view ",repo_root_s,rm_slash) ;
-	::string repo_super_s      = dir_name_s(repo_root_s,src_dir_depth) ; SWEAR(repo_super_s!="/") ;
+	::string repo_super_s      = dir_name_s( repo_root_s , src_dir_depth ) ; SWEAR(repo_super_s!="/") ;
 	::string phy_repo_super_s_ ;
 	if (+repo_view_s) {
 		::string repo_base_s     = base_name(repo_root_s    ,src_dir_depth) ;
@@ -599,57 +607,94 @@ bool JobSpace::enter(
 		) ;
 		phy_repo_super_s_ = dir_name_s(phy_repo_root_s,src_dir_depth) ; SWEAR(phy_repo_super_s_!="/") ;
 	}
-	::string const& phy_repo_super_s = +repo_view_s ? phy_repo_super_s_ : repo_super_s ;    // fast path : only compute phy_repo_super_s if necessary
+	::string const& phy_repo_super_s   = +repo_view_s ? phy_repo_super_s_                       : repo_super_s ;                   // fast path : only compute phy_repo_super_s if necessary
+	::string const& lmake_root_s       = lmake_view_s | phy_lmake_root_s                        ;
+	::string const& tmp_dir_s          = tmp_view_s   | phy_tmp_dir_s                           ;
+	bool            bind_lmake         =                 +lmake_view_s || +chroot_dir           ;
+	bool            bind_repo          =                 +repo_view_s  || +chroot_dir           ;
+	bool            bind_tmp           = +tmp_dir_s && ( +tmp_view_s   || +chroot_dir )         ;
+	bool            creat_lmake        = bind_lmake && !FileInfo(chroot_dir+lmake_root_s).tag() ; creat |= creat_lmake ;
+	bool            creat_repo         = bind_repo  && !FileInfo(chroot_dir+repo_super_s).tag() ; creat |= creat_repo  ;
+	bool            creat_tmp          = bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ; creat |= creat_tmp   ;
+	bool            clean_tmp_dir_here = true                                                                          ;
+	::vector_s      creat_views_s      ;
+	for( auto const& [v_s,_] : views ) {
+		if      ( +tmp_dir_s && v_s.starts_with(tmp_dir_s) ) { clean_tmp_dir_here = false ;                                                            }
+		else if ( !is_lcl(v_s)                             ) { if (!FileInfo(chroot_dir+mk_glb(v_s,repo_root_s)).tag()) creat_views_s.push_back(v_s) ; }
+	}
+	creat |= +creat_views_s ;
 	//
-	::string const& lmake_root_s = lmake_view_s | phy_lmake_root_s ;
-	::string const& tmp_dir_s    = tmp_view_s   | phy_tmp_dir_s    ;
-	//
-	if (clean_mount_in_tmp) {
-		// if a dir (or a file) is mounted in tmp dir, we cannot directly clean it up as we should umount it beforehand to avoid unlinking the mounted info
-		// but umount is privileged, so what we do instead is forking
-		// in parent, we are outside the namespace where the mount is not seen and we can clean tmp dir safely
-		// in child, we carry the whole job
-		if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                                    // in parent
-			int wstatus ;
-			if ( ::waitpid(child_pid,&wstatus,0/*options*/)!=child_pid ) FAIL() ;
-			unlnk( phy_tmp_dir_s , {.dir_ok=true,.abs_ok=true} ) ;                          // unlink when child is done
-			if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;              // except the unlink above, all the cleanup is done by the child, so nothing to do here
+	// if a dir (or a file) is mounted in tmp dir, we cannot directly clean it up as we should umount it beforehand to avoid unlinking the mounted info
+	// but umount is privileged, so what we do instead is forking
+	// in child , we are outside the namespace where the mount is not seen and we can clean tmp dir safely
+	if (!clean_tmp_dir_here) {
+		if ( pid_t pid=::fork() ; pid!=0 ) {                                                                                                              // in parent
+			throw_unless( pid!=-1 , "cannot set up to wait (",StrErr(),") to clean tmp" ) ;
+			int   wstatus   ;
+			pid_t child_pid = ::waitpid( pid , &wstatus , 0/*flags*/ );
+			if (child_pid==-1) {
+				Fd::Stderr.write(cat("cannot wait (",StrErr(),") for job to finsh")) ;
+				::_exit(+Rc::System) ;                                                          // all the cleanup is done by the child, so nothing to do here
+			}
+			unlnk( phy_tmp_dir_s , {.dir_ok=true,.abs_ok=true} ) ;                              // clean tmp from outside namespace when child is done
+			if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                  // all the cleanup is done by the child, so nothing to do here
 			else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
 			else                           ::_exit(255                     ) ;
 		}
 	}
 	//
-	bool       bind_lmake    =                 +lmake_view_s || +chroot_dir           ;
-	bool       bind_repo     =                 +repo_view_s  || +chroot_dir           ;
-	bool       bind_tmp      = +tmp_dir_s && ( +tmp_view_s   || +chroot_dir )         ;
-	bool       creat_lmake   = bind_lmake && !FileInfo(chroot_dir+lmake_root_s).tag() ; creat |= creat_lmake ;
-	bool       creat_repo    = bind_repo  && !FileInfo(chroot_dir+repo_super_s).tag() ; creat |= creat_repo  ;
-	bool       creat_tmp     = bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ; creat |= creat_tmp   ;
-	::vector_s creat_views_s ;
-	for( auto const& [v_s,_] : views ) {
-		if      ( +tmp_dir_s && v_s.starts_with(tmp_dir_s) ) { if (!clean_mount_in_tmp                                ) clean_mount_in_tmp = !keep_tmp ; }
-		else if ( !is_lcl(v_s)                             ) { if (!FileInfo(chroot_dir+mk_glb(v_s,repo_root_s)).tag()) creat_views_s.push_back(v_s) ;   }
+	uid_t uid = ::geteuid() ;                                                                   // must be done before unshare that invents a new user
+	gid_t gid = ::getegid() ;                                                                   // .
+	//
+	trace("creat",STR(_force_creat),STR(creat_lmake),STR(creat_repo),STR(creat_tmp),uid,gid,lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s) ;
+	int unshare_flags = CLONE_NEWUSER | CLONE_NEWNS ; if (kill_daemons) unshare_flags |= CLONE_NEWPID ;
+	//            vvvvvvvvvvvvvvvvvvvvvvvv
+	throw_unless( ::unshare(unshare_flags)==0 , "cannot create mount namespace : ",StrErr() ) ;
+	//            ^^^^^^^^^^^^^^^^^^^^^^^^
+	if (kill_daemons) {
+		if ( pid_t pid=::fork() ; pid!=0 ) {                                                    // in parent, /!\ must be first fork() after unshare as this is process 1 in namespace
+			throw_unless( pid!=-1 , "cannot set up to wait (",StrErr(),") for job to finsh" ) ;
+			int   wstatus   ;
+			pid_t child_pid ;
+			do {
+				child_pid = ::wait(&wstatus) ;                                                  // reap orphan if child_pid!=pid
+				if (child_pid==-1) {
+					Fd::Stderr.write(cat("cannot wait (",StrErr(),") for job to finsh")) ;
+					::_exit(+Rc::System) ;                                                      // all the cleanup is done by the child, so nothing to do here
+				}
+			} while (child_pid!=pid) ;
+			if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                  // all the cleanup is done by the child, so nothing to do here
+			else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
+			else                           ::_exit(255                     ) ;
+		}
+		_mount_proc( "/proc" , user_trace ) ;
+		// find a good starting pid
+		// the goal is to minimize risks of pid conflicts between jobs in case pid is used to generate unique filenames as temporary file instead of using TMPDIR, which is quite common
+		// to do that we spread pid's among the availale range by setting the first pid used by jos as apart from each other as possible
+		// call phi the golden number and NPids the number of available pids
+		// spreading is maximized by using phi*NPids as an elementary spacing and id (small_id) as an index modulo NPids
+		// this way there is a conflict between job 1 and job 2 when (id2-id1)*phi is near an integer
+		// because phi is the irrational which is as far from rationals as possible, and id's are as small as possible, this probability is minimized
+		// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
+		static constexpr uint32_t FirstPid = 300                                 ;              // apparently, pid's wrap around back to 300
+		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ;              // number of available pid's
+		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ;              // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
+		//
+		pid_t first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;          // DeltaPid on 64 bits to avoid rare overflow in multiplication
+		//
+		AcFd( "/proc/sys/kernel/ns_last_pid" , {.flags=O_WRONLY|O_TRUNC} ).write(cat(first_pid)) ;
 	}
-	creat |= +creat_views_s ;
-	//
-	uid_t uid = ::geteuid() ;                                                               // must be done before unshare that invents a new user
-	gid_t gid = ::getegid() ;                                                               // .
-	//
-	trace("creat",STR(_force_creat),STR(creat_lmake),STR(creat_repo),STR(creat_tmp),::getuid(),uid,gid,lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s) ;
-	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	throw_unless( ::unshare(CLONE_NEWUSER|CLONE_NEWNS)==0 , "cannot create namespace : ",StrErr() ) ;
-	//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                     // necessary to be allowed to write to gid_map (cf man 7 user_namespaces)
-	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;                     // for each line, format is "id_in_namespace id_in_host size_of_range"
-	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;                     // .
+	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                         // necessary to be allowed to write to gid_map (cf man 7 user_namespaces)
+	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;                         // for each line, format is "id_in_namespace id_in_host size_of_range"
+	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;                         // .
 	//
 	bool dev_sys_mapped = false ;
 	//
 	if (creat) {
-		::string work_dir_s = cat("/tmp/",uid,"/open-lmake",phy_repo_root_s,small_id,'/') ; // /run/user would be ideal instead of /tmp (certain to be usable as upper) but does not always exist
-		try { unlnk_inside_s(work_dir_s,{.abs_ok=true}) ; } catch (::string const&) {}      // if we need a work dir, we must clean it first as it is not cleaned upon exit ...
-		if (+chroot_dir) {                                                                  // ... (ignore errors as dir may not exist)
+		::string work_dir_s = cat("/tmp/",uid,"/open-lmake",phy_repo_root_s,small_id,'/') ;     // /run/user would be ideal instead of /tmp (certain to be usable as upper) but does not always exist
+		try { unlnk_inside_s(work_dir_s,{.abs_ok=true}) ; } catch (::string const&) {}          // if we need a work dir, we must clean it first as it is not cleaned upon exit ...
+		if (+chroot_dir) {                                                                      // ... (ignore errors as dir may not exist)
 			::string upper   = work_dir_s+"upper" ;
 			::string root    = work_dir_s+"root"  ;
 			bool     retried = false              ;
@@ -773,7 +818,7 @@ bool JobSpace::enter(
 		//
 		if (!view_is_ext) mk_entry( view_s , abs_view_s , view_is_lcl ) ;                                   // external views are created above
 		//
-		if ( view_is_tmp && !keep_tmp ) swear_prod( clean_mount_in_tmp , _tmp_dir_s,abs_view_s ) ;          // ensure we do not clean up dirs mounted tmp upon exit
+		if ( view_is_tmp && !keep_tmp ) swear_prod( !clean_tmp_dir_here , abs_view_s ) ;                    // ensure we do not clean up dirs mounted tmp upon exit
 		if (abs_phys_s.size()==1) {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			_mount_bind( abs_view_s , abs_phys_s[0] , user_trace ) ;
@@ -808,14 +853,13 @@ bool JobSpace::enter(
 		user_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , d ) ;
 	}
 	// only set _tmp_dir_s once tmp mount is done so as to ensure not to unlink in the underlying dir
-	if (!clean_mount_in_tmp) _tmp_dir_s = tmp_dir_s ;                                                       // if we have mounted something in tmp, we cant clean it before unmount
+	if (clean_tmp_dir_here) _tmp_dir_s = tmp_dir_s ;                                                        // if we have mounted something in tmp, we cant clean it before unmount
+	user_trace.emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 	trace("done",report) ;
-	return true/*entered*/ ;
 }
 
 void JobSpace::exit() {
-	if (+_tmp_dir_s)
-		try { unlnk(_tmp_dir_s,{.dir_ok=true,.abs_ok=true}) ; } catch (::string const&) {} // best effort
+	if (+_tmp_dir_s) try { unlnk(_tmp_dir_s,{.dir_ok=true,.abs_ok=true}) ; } catch (::string const&) {} // best effort
 }
 
 // XXX! : implement recursive views
@@ -837,12 +881,12 @@ void _mk_canon( ::string&/*inout*/ dir_s , const char* key , bool root_ok , bool
 }
 
 void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_repo_s , bool has_chroot ) {
-	if (_is_canon) return ;
-	_force_creat =has_chroot ;
+	if (_force_creat!=Maybe) return ;
+	_force_creat = No | has_chroot ;
 	//                                      root_ok contains_repo_ok
 	_mk_canon( lmake_view_s , "lmake view" , false , true          , phy_repo_root_s ) ;
 	_mk_canon( repo_view_s  , "repo view"  , false , true          , phy_repo_root_s ) ;
-	_mk_canon( tmp_view_s   , "tmp view"   , false , false         , phy_repo_root_s ) ;                                      // deps would not be reported if recognized as tmp
+	_mk_canon( tmp_view_s   , "tmp view"   , false , false         , phy_repo_root_s ) ;                                     // deps would not be reported if recognized as tmp
 	if ( +lmake_view_s && +repo_view_s ) {
 		if (lmake_view_s.starts_with(repo_view_s )) throw cat("lmake view ",no_slash(lmake_view_s)," cannot lie within repo view " ,no_slash(repo_view_s )) ;
 		if (repo_view_s .starts_with(lmake_view_s)) throw cat("repo view " ,no_slash(repo_view_s )," cannot lie within lmake view ",no_slash(lmake_view_s)) ;
@@ -862,19 +906,18 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
 		if (!is_canon(dir_s)) dir_s = Disk::mk_canon(dir_s)        ;
 		/**/                  dir_s = mk_glb( dir_s , sub_repo_s ) ;
-		if ( !_force_creat && +repo_view_s ) {
-			if (for_view) _force_creat |= dir_s.starts_with(phy_repo_root_s) || phy_repo_root_s.starts_with(dir_s) ;          // avoid confusion
-			else          _force_creat |= dir_s.starts_with(repo_view_s    ) || repo_view_s    .starts_with(dir_s) ;          // .
+		if ( _force_creat==No && +repo_view_s ) {
+			if (for_view) _force_creat |= dir_s.starts_with(phy_repo_root_s) || phy_repo_root_s.starts_with(dir_s) ;         // avoid confusion
+			else          _force_creat |= dir_s.starts_with(repo_view_s    ) || repo_view_s    .starts_with(dir_s) ;         // .
 		}
-		if (for_view) { if (dir_s.starts_with(repo_root_s    )) dir_s.erase(0,repo_root_s    .size()) ; }                     // only mounted dir contains actual repo
-		else          { if (dir_s.starts_with(phy_repo_root_s)) dir_s.erase(0,phy_repo_root_s.size()) ; }                     // .
+		if (for_view) { if (dir_s.starts_with(repo_root_s    )) dir_s.erase(0,repo_root_s    .size()) ; }                    // only mounted dir contains actual repo
+		else          { if (dir_s.starts_with(phy_repo_root_s)) dir_s.erase(0,phy_repo_root_s.size()) ; }                    // .
 	} ;
 	//
 	for( auto& [view_s,descr] : views ) { //!              for_view
 		/**/                                  do_dir(view_s,true  ) ;
 		for( ::string& phy_s : descr.phys_s ) do_dir(phy_s ,false ) ;
 	}
-	_is_canon = true ;
 	for( auto& [view_s,descr] : views ) {
 		if (!view_s) throw cat("cannot map to full repo view") ;
 		bool view_is_tmp = +tmp_view_s && view_s.starts_with(tmp_view_s) ;
@@ -894,10 +937,10 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 			if(  phy_is_ext && first && descr.phys_s.size()>1 ) throw cat("cannot map external upper dir "       ,no_slash(phy_s)," to overlay view " ,no_slash(view_s)) ;
 			if( !phy_is_ext && view_is_ext                    ) throw cat("cannot map local or tmp dir "         ,no_slash(phy_s)," to external view ",no_slash(view_s)) ;
 			//
-			if (!_force_creat) {                                                                                              // if we see recursive mapping, force chroot to cancel this recursion
+			if (_force_creat==No) {                                                                                          // if we see recursive mapping, force chroot to cancel this recursion
 				for( auto const& [v_s,_] : views ) {
-					if (+phy_s) { if ( phy_s.starts_with(v_s) || v_s.starts_with(phy_s) ) { _force_creat = true ; break ; } }
-					else        { if ( is_lcl(v_s)                                      ) { _force_creat = true ; break ; } } // empty phy_s is the full repo
+					if (+phy_s) { if ( phy_s.starts_with(v_s) || v_s.starts_with(phy_s) ) { _force_creat = Yes ; break ; } }
+					else        { if ( is_lcl(v_s)                                      ) { _force_creat = Yes ; break ; } } // empty phy_s is the full repo
 				}
 			}
 			first = false ;
@@ -1140,7 +1183,7 @@ void JobStartRpcReply::_mk_lmake_version() {
 	}
 }
 
-bool/*entered*/ JobStartRpcReply::enter(
+void JobStartRpcReply::enter(
 		::vector_s&              /*out  */ accesses
 	,	::string  &              /*.    */ repo_root_s
 	,	::vector<UserTraceEntry>&/*inout*/ user_trace
@@ -1153,14 +1196,13 @@ bool/*entered*/ JobStartRpcReply::enter(
 	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s ;
 	autodep_env.tmp_dir_s   = job_space.tmp_view_s  | phy_tmp_dir_s   ;
 	if (+phy_tmp_dir_s) {
-		_tmp_dir_s = autodep_env.tmp_dir_s ;                                             // for use in exit (autodep.tmp_dir_s may be moved)
 		try                       { mk_dir_empty_s( phy_tmp_dir_s , {.abs_ok=true} ) ; }
 		catch (::string const& e) { throw "cannot create tmp dir : "+e ;               }
 	} else {
 		if (+job_space.tmp_view_s) throw cat("cannot map tmp dir ",job_space.tmp_view_s," to nowhere") ;
 	}
 	//
-	bool entered = job_space.enter(
+	job_space.enter(
 		/*out*/  accesses
 	,	/*.  */  repo_root_s
 	,	/*inout*/user_trace
@@ -1171,6 +1213,7 @@ bool/*entered*/ JobStartRpcReply::enter(
 	,	         chroot_info
 	,	         autodep_env.sub_repo_s
 	,	         autodep_env.src_dirs_s
+	,		     kill_daemons
 	,
 		#if HAS_LD_AUDIT
 			method==AutodepMethod::LdAudit
@@ -1179,7 +1222,6 @@ bool/*entered*/ JobStartRpcReply::enter(
 		#endif
 	) ;
 	trace("done",accesses,repo_root_s) ;
-	return entered ;
 }
 
 template<bool NoSlash,class T> static bool/*match*/ _handle_var( ::string& s/*inout*/ , size_t& d /*inout*/, const char* key , T const& val , bool brace ) {

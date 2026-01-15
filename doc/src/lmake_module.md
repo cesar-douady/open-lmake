@@ -151,7 +151,7 @@ If `verbose`, return a `dict` with one entry par dep where:
 - The key is the dep name.
 - The value is a `dict` composed of:
   - `ok`:       `True` if the dep is built with no error, `False` if the dep is built in error, `None` if the was not built.
-  - `checksum`: The checksum computed after the dep (unless `ok` is `None`) (cf. *xxhsum(1)*).
+  - `checksum`: The checksum computed after the dep (unless `ok` is `None`) (cf. [xxhsum](man/man1/xxhsum.html)).
 
 If `read`, report an actual read of `deps`. Default is just to alter associated flags.
 
@@ -163,7 +163,7 @@ For `critical`, `essential`, `ignore`, `ignore_error`, `readdir_ok`, `required` 
 - If `critical`,     create critical deps (cf. note (5)).
 - If `essential`,    passed deps will appear in the flow shown with a graphical tool.
 - If `ignore_error`, ignore the error status of the passed deps.
-- If `readdir_ok`,   `readdir` (3) can be called on passed deps without error even if not `ignore`'ed nor `incremental`.
+- If `readdir_ok`,   [readdir](https://man7.org/linux/man-pages/man3/readdir.3.html) can be called on passed deps without error even if not `ignore`'ed nor `incremental`.
 - If not `required`, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).
 - If not `no_star`,  accept regexpr based flags (e.g. calls to this function with `regexpr=True`).
 - If `ignore`,       deps are ignored altogether, even if further accessed (but previous accesses are kept).
@@ -332,7 +332,7 @@ For `allow`, `essential`, `ignore`, `incremental`, `no_warning`, `source_ok` and
 In case passed targets turn out to be deps, the deps flags are also available: `critical`, `ignore_error`, `readdir_ok` and `required`:
 - If `critical`,     create critical deps (cf. note (5) of `depend`).
 - If `ignore_error`, ignore the error status of the passed deps.
-- If `readdir_ok`,   `readdir` (3) can be called on passed deps without error even if not `ignore`'ed nor `incremental`.
+- If `readdir_ok`,   [readdir](https://man7.org/linux/man-pages/man3/readdir.3.html) can be called on passed deps without error even if not `ignore`'ed nor `incremental`.
 - If `not required`, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).
 
 Flags accumulate and are never reset.
@@ -352,7 +352,7 @@ Note: this checksum is not the same as the checksum of a file with same content.
 
 Note: this checksum is **not** crypto-robust.
 
-Cf. *xxhsum(1)* for a description of the algorithm.
+Cf. [xxhsum](man/man1/xxhsum.html) for a description of the algorithm.
 
 ### [`xxhsum_file(file)`](unit_tests/xxh.html#:~:text=crc%5Fpy%20%3D%20lmake%2Exxhsum%5Ffile%28%27Lmakefile%2Epy%27%29)
 
@@ -367,4 +367,4 @@ The checksum is a `str` containing:
 
 Note : this checksum is **not** crypto-robust.
 
-Cf. [xxhsum(1)](man/man1/xxhsum.html) for a description of the algorithm.
+Cf. [xxhsum](man/man1/xxhsum.html) for a description of the algorithm.

@@ -26,7 +26,7 @@ This is true for `make`, but is not necessary:
 
 While I can't explain what is going on on the `make` side, what happends on the open-lmake side is:
 
-- It is not necessary to `stat(2)` all intermediate files, only source files need to be checked.
+- It is not necessary to [stat](https://man7.org/linux/man-pages/man2/stat.2.html) all intermediate files, only source files need to be checked.
 - Open-lmake keeps its internal DAG data-base on disk in an optimized format, directly mapped in the process at start-up.
 
 Mapping this entire DAG has constant time as long as it is not read, and only the partial DAG aiming to the targets will ever be read, leading to time proportional to its size.
@@ -36,9 +36,9 @@ And in all cases, we are speaking of less than a second to an already rather lar
 Also, detecting that a file has been modified is far from easy while keeping a good reliability level:
 
 - The IDE and the source control system may very well be instrumented (as is any job in open-lmake), but what if the user uses a plain linux command (such as `sed` or whatever) ?
-- A solution would be to use `inotify(2)` (which probably did not exist at the time the paper was written), but:
+- A solution would be to use [inotify](https://man7.org/linux/man-pages/man2/inotify.2.html) (which probably did not exist at the time the paper was written), but:
 	- it would require one `inotify` instance per source file, which makes it impractical as soon as the project reaches an even moderate size,
-	- `inotify(2)` advertises itself as _unreliable_, for example if the file is modified on another host through a network file system, such modification would go unnoticed.
+	- [inotify](https://man7.org/linux/man-pages/man2/inotify.2.html) advertises itself as _unreliable_, for example if the file is modified on another host through a network file system, such modification would go unnoticed.
 - Another solution would be to use `fuse` and again, nothing prevents the user from modifying directly the underlying file without going through `fuse`.
 
 So the only reliable way is to explore the partial DAG aiming at the asked targets, a time that will go unnoticed by the user in most cases,

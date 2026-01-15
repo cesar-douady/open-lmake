@@ -205,8 +205,8 @@ In that case, the read occurs before the write.</li>
 <h3 id="reading-a-dir"><a class="header" href="#reading-a-dir">Reading a dir</a></h3>
 <p>A dir <code>foo</code> is read when files it contains are listed, which occur when:</p>
 <ul>
-<li>A system call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man2/getdents.2.html">getdents(2)</a>.</li>
-<li>A libc call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir(3)</a> or <a href="https://man7.org/linux/man-pages/man3/glob.3.html">glob(3)</a>
+<li>A system call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man2/getdents.2.html">getdents</a>.</li>
+<li>A libc call that reads dir <code>foo</code>, e.g. <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> or <a href="https://man7.org/linux/man-pages/man3/glob.3.html">glob</a>
 (in which its pattern argument requires reading <code>foo</code>).</li>
 <li>Under the condition that these actions are not preceded by a call to <code>lmake.target('foo',ignore=True)</code> or the execution of <code>ltarget -I foo</code>.</li>
 <li>Also under the condition that neither <code>lmake.target('foo',incremental=True)</code> was called nor <code>ltarget -i foo</code> executed.</li>

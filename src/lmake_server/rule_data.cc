@@ -738,6 +738,7 @@ namespace Engine {
 			if ( force                                                 ) entries.emplace_back( "force"               , cat        (force                                              ) ) ;
 			if (+interpreter                                           ) entries.emplace_back( "interpreter"         ,             interpreter                                          ) ;
 			if ( start_ancillary_attrs .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"            , cat        (start_ancillary_attrs .spec.keep_tmp               ) ) ;
+			if (+start_ancillary_attrs .spec.kill_daemons              ) entries.emplace_back( "kill_daemons"        , cat        (start_ancillary_attrs .spec.kill_daemons           ) ) ;
 			if (+start_ancillary_attrs .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                            ) ;
 			if (+start_rsrcs_attrs     .spec.lmake_root_s              ) entries.emplace_back( "lmake_root"          , no_slash   (start_rsrcs_attrs     .spec.lmake_root_s           ) ) ;
 			if (+start_cmd_attrs       .spec.job_space.lmake_view_s    ) entries.emplace_back( "lmake_view"          , no_slash   (start_cmd_attrs       .spec.job_space.lmake_view_s ) ) ;

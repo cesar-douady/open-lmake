@@ -15,12 +15,13 @@ extern StaticUniqPtr<::string> g_lmake_root_s  ; // absolute                 , i
 extern StaticUniqPtr<::string> g_exe_name      ; //                            executable name for user messages
 
 struct AppInitAction {
-	Bool3      chk_version  = Yes   ; // Maybe means it is ok to initialize
 	bool       cd_root      = true  ; // if false, ensure we are at root level
+	Bool3      chk_version  = Yes   ; // Maybe means it is ok to initialize
+	::string   clean_msg    = {}    ;
 	PermExt    perm_ext     = {}    ; // right to apply if initializing
 	bool       read_only_ok = true  ;
-	Bool3      trace        = Maybe ; // if Maybe, trace if chk_version!=No
 	::vector_s root_mrkrs   = {}    ;
+	Bool3      trace        = Maybe ; // if Maybe, trace if chk_version!=No
 	uint64_t   version      = {}    ;
 } ;
 

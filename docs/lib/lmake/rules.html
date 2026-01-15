@@ -182,6 +182,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1">#   ete                 = 0                         # Estimated Time Enroute, initial guess for job exec time (in s)</span>
 <span class="c1">#   force               = False                     # if set, jobs are never up-to-date, they are rebuilt every time they are needed</span>
 <span class="c1">#   keep_tmp            = False                     # keep tmp dir after job execution</span>
+<span class="c1">#   kill_daemons        = False                     # ensure no process survive after job end</span>
     <span class="n">kill_sigs</span>           <span class="o">=</span> <span class="p">()</span>                        <span class="c1"># signals to use to kill jobs (send them in turn followed by SIGKILL), 1 second apart, until job dies</span>
     <span class="c1">#                                               #   0&#39;s may be used to set a larger delay between 2 trials)</span>
 <span class="c1">#   lmake_root          = &#39;/my/installs/open-lmake&#39; # absolute path of the open-lmake installation dir to be used by job (default is current installation dir)</span>

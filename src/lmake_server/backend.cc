@@ -393,7 +393,8 @@ namespace Backends {
 					start_ancillary_attrs = rd.start_ancillary_attrs.spec ;
 					jsrr.msg <<add_nl<< rd.start_ancillary_attrs.s_exc_msg(true/*using_static*/) ;
 				}
-				reply.keep_tmp |= start_ancillary_attrs.keep_tmp ;
+				reply.keep_tmp     |= start_ancillary_attrs.keep_tmp     ;
+				reply.kill_daemons  = start_ancillary_attrs.kill_daemons ;
 				#if HAS_ZSTD
 					reply.zlvl = start_ancillary_attrs.zlvl ;                                                                            // if zlib is not available, dont compress
 				#endif
@@ -402,12 +403,13 @@ namespace Backends {
 			[[fallthrough]] ;
 			case 3 :
 			case 2 :
-				reply.chk_abs_paths     = start_rsrcs_attrs.chk_abs_paths ;
-				reply.chroot_info.dir_s = start_rsrcs_attrs.chroot_dir_s  ; if (+reply.chroot_info.dir_s) reply.chroot_info.actions = start_rsrcs_attrs.chroot_actions ;
-				reply.phy_lmake_root_s  = start_rsrcs_attrs.lmake_root_s  ;
-				reply.method            = start_rsrcs_attrs.method        ;
-				reply.timeout           = start_rsrcs_attrs.timeout       ;
-				reply.use_script        = start_rsrcs_attrs.use_script    ;
+				/**/                          reply.chk_abs_paths       =        start_rsrcs_attrs.chk_abs_paths   ;
+				/**/                          reply.chroot_info.dir_s   = ::move(start_rsrcs_attrs.chroot_dir_s  ) ;
+				if (+reply.chroot_info.dir_s) reply.chroot_info.actions =        start_rsrcs_attrs.chroot_actions  ;
+				/**/                          reply.phy_lmake_root_s    = ::move(start_rsrcs_attrs.lmake_root_s  ) ;
+				/**/                          reply.method              =        start_rsrcs_attrs.method          ;
+				/**/                          reply.timeout             =        start_rsrcs_attrs.timeout         ;
+				/**/                          reply.use_script          =        start_rsrcs_attrs.use_script      ;
 				//
 				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 				//
@@ -421,12 +423,12 @@ namespace Backends {
 				}
 			[[fallthrough]] ;
 			case 1 :
-				reply.interpreter             = ::move(start_cmd_attrs.interpreter ) ;
-				reply.stderr_ok               =        start_cmd_attrs.stderr_ok     ;
-				reply.autodep_env.auto_mkdir  =        start_cmd_attrs.auto_mkdir    ;
-				reply.autodep_env.ignore_stat =        start_cmd_attrs.ignore_stat   ;
-				reply.autodep_env.readdir_ok  =        start_cmd_attrs.readdir_ok    ;
-				reply.job_space               = ::move(start_cmd_attrs.job_space   ) ;
+				reply.interpreter             = ::move(start_cmd_attrs.interpreter) ;
+				reply.stderr_ok               =        start_cmd_attrs.stderr_ok    ;
+				reply.autodep_env.auto_mkdir  =        start_cmd_attrs.auto_mkdir   ;
+				reply.autodep_env.ignore_stat =        start_cmd_attrs.ignore_stat  ;
+				reply.autodep_env.readdir_ok  =        start_cmd_attrs.readdir_ok   ;
+				reply.job_space               = ::move(start_cmd_attrs.job_space  ) ;
 				//
 				for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
 			[[fallthrough]] ;

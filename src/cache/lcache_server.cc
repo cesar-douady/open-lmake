@@ -139,8 +139,9 @@ static CacheServer _g_server { ServerMrkr } ;
 
 int main( int argc , char** argv ) {
 	app_init({
-		.chk_version  = Maybe
-	,	.cd_root      = false // daemon is always launched at root
+		.cd_root      = false // daemon is always launched at root
+	,	.chk_version  = Maybe
+	,	.clean_msg    = cache_clean_msg()
 	,	.read_only_ok = false
 	,	.root_mrkrs   = { cat(AdminDirS,"config.py") }
 	,	.version      = Version::Cache
