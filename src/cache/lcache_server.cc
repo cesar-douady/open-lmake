@@ -37,14 +37,14 @@ static CacheRpcReply _config( Fd fd , CacheRpcReq const& crr ) {
 	if (!key->ref_cnt) AcFd(cat(PrivateAdminDirS,"repo_keys"),{.flags=O_WRONLY|O_APPEND|O_CREAT,.mod=0666,.perm_ext=g_cache_config.perm_ext}).write(cat(+key,' ',crr.repo_key,'\n')) ;
 	//
 	key.inc() ;
-	return { .proc=CacheRpcProc::Config , .config=g_cache_config , .gen=CnodeData::s_hdr().gen } ;
+	return { .proc=CacheRpcProc::Config , .config=g_cache_config } ;
 }
 
 static CacheRpcReply _download(CacheRpcReq const& crr) {
 	Trace trace("_download",crr) ;
 	CacheRpcReply              res    { .proc=CacheRpcProc::Download , .hit_info=CacheHitInfo::NoJob } ;
 	Cjob                       job    = crr.job.is_name() ? Cjob(crr.job.name) : Cjob(crr.job.id)      ; if (!job) { trace("no_job") ; return res ; }
-	CompileDigest              deps   = compile( crr.repo_deps , true/*for_download*/ , &res.dep_ids ) ; SWEAR( deps.n_statics==job->n_statics , crr.job,deps.n_statics,job,job->n_statics ) ;
+	CompileDigest              deps   { crr.repo_deps , true/*for_download*/ , &res.dep_ids }          ; SWEAR( deps.n_statics==job->n_statics , crr.job,deps.n_statics,job,job->n_statics ) ;
 	::pair<Crun,CacheHitInfo > digest = job->match( deps.deps , deps.dep_crcs )                        ;
 	if (crr.job.is_name()) res.job_id = +job ;
 	//
@@ -60,7 +60,8 @@ static CacheRpcReply _download(CacheRpcReq const& crr) {
 static CacheRpcReply _upload(CacheRpcReq const& crr) {
 	Trace trace("_upload",crr) ;
 	//
-	if (!mk_room(crr.reserved_sz)) return {.proc=CacheRpcProc::Upload} ; // no upload possible
+	try                       { mk_room(crr.reserved_sz) ;                       }
+	catch (::string const& e) { return { .proc=CacheRpcProc::Upload , .msg=e } ; } // no upload possible
 	//
 	CacheUploadKey upload_key = _g_upload_keys.acquire() ;
 	g_reserved_sz                    += crr.reserved_sz ;
@@ -77,15 +78,19 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	//
 	NfsGuard      nfs_guard { g_cache_config.file_sync }                                                   ;
 	::string      rf        = reserved_file(crr.upload_key)                                                ;
-	CompileDigest deps      = compile( crr.repo_deps , false/*for_download*/ )                             ;
+	CompileDigest deps      { crr.repo_deps , false/*for_download*/ }                                      ;
 	Cjob          job       = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR( job->n_statics==deps.n_statics , job,deps.n_statics ) ;
 	DiskSz        sz        = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
 	//
-	::pair<Crun,CacheHitInfo > digest = job->insert(
-		deps.deps , deps.dep_crcs                                                                                   // to search entry
-	,	_g_key_tab.at(fd) , true/*key_is_last*/ , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
-	) ;
-	//
+	::pair<Crun,CacheHitInfo> digest ;
+	try {
+		digest = job->insert(
+			deps.deps , deps.dep_crcs                                                                                   // to search entry
+		,	_g_key_tab.at(fd) , true/*key_is_last*/ , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
+		) ;
+	} catch (::string const&) {
+		digest.second = {} ;                                                                                            // we dont report on commit, so just force dismiss
+	}
 	if (digest.second<CacheHitInfo::Miss) {
 		unlnk( rf+"-data" , {.nfs_guard=&nfs_guard} ) ;
 		unlnk( rf+"-info" , {.nfs_guard=&nfs_guard} ) ;
@@ -118,6 +123,13 @@ struct CacheServer : AutoServer<CacheServer> {
 	// cxtors & casts
 	using AutoServer<CacheServer>::AutoServer ;
 	// injection
+	void start_connection(Fd) {
+		if (n_connections()==1) cache_empty_trash() ;
+	}
+	void end_connection(Fd fd) {
+		auto it = _g_key_tab.find(fd) ;
+		if (it!=_g_key_tab.end()) it->second.dec() ;
+	}
 	Bool3/*done*/ process_item( Fd fd , RpcReq const& crr ) {
 		Trace trace("process_item",fd,crr) ;
 		switch (crr.proc) { //!                                          key           done
@@ -128,10 +140,6 @@ struct CacheServer : AutoServer<CacheServer> {
 			case Proc::Commit   :          _commit  (fd,crr)                   ; return No  ; // from lmake_server
 			case Proc::Dismiss  :          _dismiss (   crr)                   ; return No  ; // .
 		DF}                                                                                   // NO_COV
-	}
-	void end_connection(Fd fd) {
-		auto it = _g_key_tab.find(fd) ;
-		if (it!=_g_key_tab.end()) it->second.dec() ;
 	}
 } ;
 

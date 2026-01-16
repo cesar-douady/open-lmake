@@ -847,18 +847,18 @@ lmake_env/% : %
 	cp $< $@
 lmake_env/stamp : lmake_env/Manifest $(patsubst %,lmake_env/%,$(LMAKE_SRCS))
 	@touch $@
-	@echo init lmake_env
-lmake_env/tok : $(LMAKE_ALL_FILES) lmake_env/stamp lmake_env/Lmakefile.py
 	@cd lmake_env ;                                       \
 	$(REPO_ROOT)/bin/lmake --version >/dev/null 2>&1 || { \
 		echo reset lmake_env book-keeping ;               \
 		rm -rf LMAKE ../lmake_env-cache   ;               \
 	}
-	@[ -f lmake_env-cache/LMAKE/size ] || {                    \
-		echo init lmake_env-cache                            ; \
-		mkdir -p lmake_env-cache/LMAKE                       ; \
-		echo 'size=100<<20' >lmake_env-cache/LMAKE/config.py ; \
+	@[ -f lmake_env-cache/LMAKE/config.py ] || {             \
+		echo init lmake_env-cache                          ; \
+		mkdir -p lmake_env-cache/LMAKE                     ; \
+		echo 'size=5<<20' >lmake_env-cache/LMAKE/config.py ; \
 	}
+	@echo init lmake_env
+lmake_env/tok : $(LMAKE_ALL_FILES) lmake_env/stamp lmake_env/Lmakefile.py
 	@set -e ; cd lmake_env                            ; \
 	export CXX=$(CXX)                                 ; \
 	$(REPO_ROOT)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; \

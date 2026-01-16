@@ -331,14 +331,16 @@ template<_CanDoToChars N> ::string& operator+=( ::string& s , N         n ) {
 //
 template<_CanDoFunc F> ::string& operator+=( ::string& s , F*f ) { f(s) ; return s ; }
 //
-template<class T,size_t N> ::string& operator+=( ::string& os ,          T           a[N] ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-template<class T,size_t N> ::string& operator+=( ::string& os , ::array <T,N> const& a    ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-template<class T         > ::string& operator+=( ::string& os , ::vector<T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-template<class T         > ::string& operator+=( ::string& os , ::span  <T  > const& v    ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-template<class K         > ::string& operator+=( ::string& os , ::uset  <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-template<class K         > ::string& operator+=( ::string& os , ::set   <K  > const& s    ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-template<class K,class V > ::string& operator+=( ::string& os , ::umap  <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
-template<class K,class V > ::string& operator+=( ::string& os , ::map   <K,V> const& m    ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+template<class T,size_t N        > ::string& operator+=(::string& os,         T             a[N]) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+template<class T,size_t N        > ::string& operator+=(::string& os,::array <T,N  > const& a   ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
+template<class T                 > ::string& operator+=(::string& os,::vector<T    > const& v   ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+template<class T                 > ::string& operator+=(::string& os,::span  <T    > const& v   ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
+template<class K                 > ::string& operator+=(::string& os,::uset  <K    > const& s   ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+template<class K                 > ::string& operator+=(::string& os,::set   <K    > const& s   ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+template<class K,         class C> ::string& operator+=(::string& os,::set   <K,  C> const& s   ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
+template<class K,class V         > ::string& operator+=(::string& os,::umap  <K,V  > const& m   ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+template<class K,class V         > ::string& operator+=(::string& os,::map   <K,V  > const& m   ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
+template<class K,class V ,class C> ::string& operator+=(::string& os,::map   <K,V,C> const& m   ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
 //
 template<class A,class B> ::string& operator+=( ::string& os , ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
 //

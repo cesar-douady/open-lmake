@@ -40,11 +40,13 @@ extern Disk::DiskSz g_reserved_sz  ;
 // free functions
 //
 
-::string   store_dir_s   ( bool for_bck=false                 ) ;
-void       cache_init    ( bool rescue , bool read_only=false ) ;
-void       cache_finalize(                                    ) ;
-bool/*ok*/ mk_room       ( Disk::DiskSz , Cjob keep_job       ) ;
-bool/*ok*/ mk_room       ( Disk::DiskSz                       ) ;
+::string store_dir_s      ( bool for_bck=false                 ) ;
+void     cache_init       ( bool rescue , bool read_only=false ) ;
+void     cache_empty_trash(                                    ) ;
+void     cache_finalize   (                                    ) ;
+void     cache_chk        (                                    ) ;
+void     mk_room          ( Disk::DiskSz , Cjob keep_job       ) ;
+void     mk_room          ( Disk::DiskSz                       ) ;
 
 //
 // structs
@@ -224,19 +226,12 @@ struct CrunData {
 } ;
 static_assert( sizeof(CrunData)==56 ) ;
 
-struct CnodeHdr {
-	CnodeIdx n_trash = 0 ; // number of nodes in trash
-	uint64_t gen     = 0 ; // generation, incremented when nodes are recycled
-} ;
-
 struct CnodeData {
 	friend struct Cnode ;
 	friend ::string& operator+=( ::string& , CnodeData const& ) ;
 	// statics
-	static CnodeHdr      & s_hdr        () ;
-	static CnodeHdr const& s_c_hdr      () ;
-	static CnodeIdx        s_size       () ;
-	static void            s_empty_trash() ;
+	static CnodeIdx s_size       () ;
+	static void     s_empty_trash() ;
 	// cxtors & casts
 	CnodeData() = default ;
 	CnodeData(CnodeName n) : _name{n} {}
@@ -249,22 +244,22 @@ struct CnodeData {
 	void victimize() ;
 	// data
 	// START_OF_VERSIONING CACHE
-	CjobIdx ref_cnt = 0 ;
+	CrunIdx ref_cnt = 0 ;
 private :
 	CnodeName _name ;
 	// END_OF_VERSIONING
 } ;
 
 // START_OF_VERSIONING CACHE
-//                                           ThreadKey header     index       n_index_bits        key    data        misc
-using CkeyFile      = Store::SinglePrefixFile< '='   , void     , Ckey      , NCkeyIdxBits      , char , CkeyData                                     > ;
-using CjobNameFile  = Store::SinglePrefixFile< '='   , void     , CjobName  , NCjobNameIdxBits  , char , Cjob                                         > ;
-using CnodeNameFile = Store::SinglePrefixFile< '='   , void     , CnodeName , NCnodeNameIdxBits , char , Cnode                                        > ;
-using CjobFile      = Store::AllocFile       < '='   , void     , Cjob      , NCjobIdxBits      ,        CjobData                                     > ;
-using CrunFile      = Store::AllocFile       < '='   , CrunHdr  , Crun      , NCrunIdxBits      ,        CrunData                                     > ;
-using CnodeFile     = Store::AllocFile       < '='   , CnodeHdr , Cnode     , NCnodeIdxBits     ,        CnodeData , 0/*Mantissa*/ , true/*HasTrash*/ > ;
-using CnodesFile    = Store::VectorFile      < '='   , void     , Cnodes    , NCnodesIdxBits    ,        Cnode     , CnodeIdx      , 4   /*MinSz   */ > ;
-using CcrcsFile     = Store::VectorFile      < '='   , void     , Ccrcs     , NCcrcsIdxBits     ,        Hash::Crc , CnodeIdx      , 4   /*.       */ > ;
+//                                           ThreadKey header    index       n_index_bits        key    data        misc
+using CkeyFile      = Store::SinglePrefixFile< '='   , void    , Ckey      , NCkeyIdxBits      , char , CkeyData                                     > ;
+using CjobNameFile  = Store::SinglePrefixFile< '='   , void    , CjobName  , NCjobNameIdxBits  , char , Cjob                                         > ;
+using CnodeNameFile = Store::SinglePrefixFile< '='   , void    , CnodeName , NCnodeNameIdxBits , char , Cnode                                        > ;
+using CjobFile      = Store::AllocFile       < '='   , void    , Cjob      , NCjobIdxBits      ,        CjobData                                     > ;
+using CrunFile      = Store::AllocFile       < '='   , CrunHdr , Crun      , NCrunIdxBits      ,        CrunData                                     > ;
+using CnodeFile     = Store::AllocFile       < '='   , void    , Cnode     , NCnodeIdxBits     ,        CnodeData , 0/*Mantissa*/ , true/*HasTrash*/ > ;
+using CnodesFile    = Store::VectorFile      < '='   , void    , Cnodes    , NCnodesIdxBits    ,        Cnode     , CnodeIdx      , 4   /*MinSz   */ > ;
+using CcrcsFile     = Store::VectorFile      < '='   , void    , Ccrcs     , NCcrcsIdxBits     ,        Hash::Crc , CnodeIdx      , 4   /*.       */ > ;
 // END_OF_VERSIONING
 
 extern CkeyFile      _g_key_file       ;
@@ -291,7 +286,7 @@ namespace Vector {
 // implementation
 //
 
-inline bool/*ok*/ mk_room( Disk::DiskSz sz ) { return mk_room(sz,{}) ; }
+inline void mk_room( Disk::DiskSz sz ) { mk_room(sz,{}) ; }
 
 inline ::string Ckey     ::str() const { return _g_key_file      .str_key(self) ; }
 inline ::string CjobName ::str() const { return _g_job_name_file .str_key(self) ; }
@@ -313,10 +308,8 @@ template<class... A> Crun::Crun( NewType , A&&... args ) {
 	self = _g_run_file.emplace(::forward<A>(args)...) ;
 }
 
-inline CrunHdr       & CrunData ::s_hdr  () { return _g_run_file .hdr  () ; }
-inline CrunHdr  const& CrunData ::s_c_hdr() { return _g_run_file .c_hdr() ; }
-inline CnodeHdr      & CnodeData::s_hdr  () { return _g_node_file.hdr  () ; }
-inline CnodeHdr const& CnodeData::s_c_hdr() { return _g_node_file.c_hdr() ; }
+inline CrunHdr      & CrunData ::s_hdr  () { return _g_run_file .hdr  () ; }
+inline CrunHdr const& CrunData ::s_c_hdr() { return _g_run_file .c_hdr() ; }
 
 inline Cjob  CjobData ::idx() const { return _g_job_file .idx(self) ; }
 inline Crun  CrunData ::idx() const { return _g_run_file .idx(self) ; }

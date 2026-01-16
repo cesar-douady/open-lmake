@@ -102,7 +102,7 @@ float               RateCmp::s_rates[NRates] = {}      ;
 LruEntry*           RateCmp::s_lrus          = nullptr ;
 ::set<Rate,RateCmp> RateCmp::s_tab           ;
 
-static void _cache_chk() {
+void cache_chk() {
 	_g_job_name_file .chk() ;
 	_g_node_name_file.chk() ;
 	_g_job_file      .chk() ;
@@ -154,15 +154,14 @@ void cache_init( bool rescue , bool read_only ) {
 	{ ::string file=dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
 	{ ::string file=dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 	// END_OF_VERSIONING
-	if (rescue) _cache_chk() ;
+	if (rescue) cache_chk() ;
 	RateCmp::s_init() ;
-	//
-	CnodeHdr& hdr = CnodeData::s_hdr() ;
-	if ( hdr.n_trash > (CnodeData::s_size()>>3) ) {
-		hdr.gen++ ;                                 // if we empty trash, we can reuse old Cnode and we must tell clients
-		CnodeData::s_empty_trash() ;
-		hdr.n_trash = 0 ;
-	}
+	trace("done") ;
+}
+
+void cache_empty_trash() {
+	Trace trace("empty_trash") ;
+	CnodeData::s_empty_trash() ;
 	trace("done") ;
 }
 
@@ -179,12 +178,17 @@ void cache_finalize() {
 	nfs_guard.change(dir_s+"crcs"     ) ;
 }
 
-bool/*ok*/ mk_room( DiskSz sz , Cjob keep_job ) {
+void mk_room( DiskSz sz , Cjob keep_job ) {
 	CrunHdr& hdr = CrunData::s_hdr() ;
 	Trace trace("mk_room",sz,hdr.total_sz,g_reserved_sz) ;
 	//
-	if (g_reserved_sz+sz>g_cache_config.max_sz) { trace("not_done") ; return false/*ok*/ ; }
-	//
+	if (g_reserved_sz+sz>g_cache_config.max_sz) {
+		::string msg ;
+		/**/               msg << "cache too small ("<<to_short_string_with_unit(g_cache_config.max_sz)<<"B)"         ;
+		/**/               msg << " while needing "  <<to_short_string_with_unit(sz                   )<<'B'          ;
+		if (g_reserved_sz) msg << " with "           <<to_short_string_with_unit(g_reserved_sz        )<<"B reserved" ;
+		throw msg ;
+	}
 	RateCmp::s_refresh() ;
 	while ( hdr.total_sz && hdr.total_sz+g_reserved_sz+sz>g_cache_config.max_sz ) {
 		SWEAR( +RateCmp::s_tab ) ;                                                  // if total size is non-zero, we must have entries
@@ -193,7 +197,6 @@ bool/*ok*/ mk_room( DiskSz sz , Cjob keep_job ) {
 		best_run->victimize(best_run->job!=keep_job) ;
 	}
 	trace("done",sz,hdr.total_sz) ;
-	return true/*ok*/ ;
 }
 
 ::string& operator+=( ::string& os , Ckey      const& k  ) { os << "Ckey("      ; if (+k      ) os << +k             ;                                      return os << ')' ; }
@@ -405,15 +408,15 @@ void CrunData::access() {
 void CrunData::victimize(bool victimize_job) {
 	CrunHdr& hdr = s_hdr() ;
 	Trace trace("victimize",idx(),hdr.total_sz,sz) ;
+	RateCmp::s_tab.erase(rate) ;                                                      // erase from tab before pruning glb_lru chain as lru is necessary for comparison
 	bool last = job_lru.erase( job->lru              , idx() , &CrunData::job_lru ) ; // manage job-local LRU
 	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , idx() , &CrunData::glb_lru ) ; // manage global    LRU
 	//
-	RateCmp::s_tab.erase(rate) ;
 	if (!RateCmp::s_lrus[rate].newer/*oldest*/) {
 		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[0]  ]) RateCmp::s_iota.bounds[0]++ ;
 		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[1]-1]) RateCmp::s_iota.bounds[1]-- ;
 	} else {
-		RateCmp::s_insert(rate) ;
+		RateCmp::s_insert(rate) ;                                                     // erase and re-insert is necessary when glb_lru chain has been modified
 	}
 	//
 	/**/                           key.dec()     ;
@@ -496,7 +499,6 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 }
 
 void CnodeData::victimize() {
-	s_hdr().n_trash++ ;
 	_g_node_name_file.pop(_name) ;
 	_g_node_file     .pop(idx()) ;
 }

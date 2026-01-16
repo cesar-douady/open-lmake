@@ -105,6 +105,8 @@ struct AutoServerBase {
 	// cxtors & casts
 	AutoServerBase() = default ;
 	AutoServerBase(::string const& sm) : server_mrkr{sm} {}
+	// accesses
+	size_t n_connections() const { return _slaves.size() ; }
 	// services
 	void start() ;
 	// data
@@ -220,8 +222,8 @@ template<class T> bool/*interrupted*/ AutoServer<T>::event_loop() {
 						} else {
 							epoll.del(false/*write*/,fd) ; trace("del_slave_fd",fd,se.out_active) ; // /!\ must precede close(fd) which may not occur as long as input is not closed
 							Lock lock { _slaves_mutex } ;
-							if ( done==Maybe && se.out_active==Maybe ) { ::shutdown(fd,SHUT_RD) ; se.out_active = Yes ;                                            }
-							else                                       { ::close   (fd        ) ; _slaves.erase(it)   ; static_cast<T&>(self).end_connection(fd) ; }
+							if ( done==Maybe && se.out_active==Maybe ) { se.out_active = Yes                      ; ::shutdown(fd,SHUT_RD) ;                     }
+							else                                       { static_cast<T&>(self).end_connection(fd) ; ::close   (fd        ) ; _slaves.erase(it) ; }
 							break ;
 						}
 					}
@@ -240,6 +242,6 @@ template<class T> void AutoServer<T>::close_slave_out(Fd fd)  {
 	auto        it   = _slaves.find(fd) ; SWEAR( it!=_slaves.end() , fd ) ;
 	SlaveEntry& se   = it->second       ; SWEAR( se.out_active!=No , fd ) ;
 	Trace trace("close_slave_out",fd,se.out_active) ;
-	if (se.out_active==Maybe) { ::shutdown(fd,SHUT_WR) ; se.out_active = No ;                                             }
-	else                      { ::close   (fd        ) ; _slaves.erase(it)  ;  static_cast<T&>(self).end_connection(fd) ; }
+	if (se.out_active==Maybe) { se.out_active = No                       ; ::shutdown(fd,SHUT_WR) ;                     }
+	else                      { static_cast<T&>(self).end_connection(fd) ; ::close   (fd        ) ; _slaves.erase(it) ; }
 }

@@ -271,8 +271,8 @@ namespace Store {
 				ChunkIdx max_chunk_sz = s_max_chunk_sz(k,used) ;
 				SWEAR( max_chunk_sz>=chunk_sz , max_chunk_sz , chunk_sz ) ;
 				Sz min_sz = MaxSz - (max_chunk_sz-chunk_sz)/ItemSizeOf ;
-				if ( k==Kind::Terminal && min_sz<MinUsedSz ) return MinUsedSz ;
-				else                                         return min_sz    ;
+				if ( used && min_sz<MinUsedSz ) return MinUsedSz ;
+				else                            return min_sz    ;
 			}
 		private :
 			template<class T> T      & _at(size_t ofs)       { return *::launder(reinterpret_cast<      T*>(reinterpret_cast<char      *>(this)+ofs)) ; }
@@ -347,11 +347,11 @@ namespace Store {
 			void mk_used(bool used_) {
 				if (used_==used) return ;
 				_del_data() ;
-				CharUint cmp_val_{} ;
+				CharUint cmp_val_ {} ;
 				if (kind()==Kind::Split) cmp_val_ = cmp_val() ;
 				if (BigData) {                                                                                                                      // data is after nxt
 					if ( kind()==Kind::Split && used ) for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(sz(),true,!is_eq)) = nxt_if(!is_eq) ; // walk backward if moving forward
-					else                               for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(sz(),true, is_eq)) = nxt_if( is_eq) ;
+					else                               for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(sz(),true, is_eq)) = nxt_if( is_eq) ; // and vice versa
 				}
 				//vvvvvvvvvv
 				used = used_ ;
@@ -1341,9 +1341,9 @@ namespace Store {
 				Item const& item = _at(idx)  ;
 				IdxSz       res  = item.used ;
 				// root may not be minimized as it must stay prepared to hold its info w/o moving
-				if (+item.prev) throw_unless(item.sz()==item.min_sz()  ,"item has size",item.sz(),"not minimum (",item.min_sz()  ,')') ;
-				else            throw_unless(item.sz()==Item::MinUsedSz,"root has size",item.sz(),"!="           ,Item::MinUsedSz    ) ;
-				if (!item.prev) throw_unless(!item.chunk_sz            ,"root must not have an empty chunk"                          ) ;
+				if (+item.prev) throw_unless(item.sz()==item.min_sz()  ,"item has size ",item.sz()," less than minimum (",item.min_sz()  ,')') ;
+				else            throw_unless(item.sz()==Item::MinUsedSz,"root has size ",item.sz(),"!="                  ,Item::MinUsedSz    ) ;
+				if (!item.prev) throw_unless(!item.chunk_sz            ,"root must not have an empty chunk"                                  ) ;
 				for( bool is_eq : Nxt(item.kind()) ) {
 					Idx         nxt      = item.nxt_if(is_eq) ;
 					Item const& nxt_item = _at(nxt) ;

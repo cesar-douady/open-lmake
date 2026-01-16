@@ -628,7 +628,7 @@ void JobSpace::enter(
 	// but umount is privileged, so what we do instead is forking
 	// in child , we are outside the namespace where the mount is not seen and we can clean tmp dir safely
 	if (!clean_tmp_dir_here) {
-		if ( pid_t pid=::fork() ; pid!=0 ) {                                                                                                              // in parent
+		if ( pid_t pid=::fork() ; pid!=0 ) {                                                    // in parent
 			throw_unless( pid!=-1 , "cannot set up to wait (",StrErr(),") to clean tmp" ) ;
 			int   wstatus   ;
 			pid_t child_pid = ::waitpid( pid , &wstatus , 0/*flags*/ );
@@ -979,18 +979,19 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 	}
 	trace("size",targets_sz) ;
 	//
-	float        rate      = targets_sz/float(exe_time)           ; throw_unless( rate<=max_rate ) ;                        // job is too easy to reproduce, no interest to cache
+	float        rate      = targets_sz/float(exe_time)           ; throw_unless( rate<=max_rate , "too fast : ",rate,'>',max_rate ) ; // job is too easy to reproduce, no interest to cache
 	ClientSockFd fd        { service }                            ;
 	::string     magic_str = fd.read(sizeof(CacheMagic))          ; throw_unless( magic_str.size()==sizeof(CacheMagic) , "bad_answer_sz" ) ;
 	uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0])  ; throw_unless( magic_          ==CacheMagic         , "bad_answer"    ) ;
 	DiskSz       z_max_sz  = DeflateFd::s_max_sz(targets_sz,zlvl) ;
 	//
+	trace("z_max_size",z_max_sz) ;
+	//
 	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Upload , .reserved_sz=z_max_sz } ).send(fd) ;
 	auto reply = IMsgBuf().receive<CacheRpcReply>( fd , Maybe/*once*/ ) ;
 	//
-	throw_unless( reply.upload_key , reply.msg ) ;
-	//
-	trace("z_max_size",z_max_sz) ;
+	throw_unless( +reply            , "no reply from cache" ) ; SWEAR( reply.proc==CacheRpcProc::Upload , reply.proc ) ;
+	throw_unless(  reply.upload_key , reply.msg             ) ;
 	//
 	try {
 		NfsGuard  nfs_guard { file_sync                                                                                                                            } ;
@@ -1007,7 +1008,7 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 				case FileTag::Lnk : {
 					trace("lnk_from",tn,sz) ;
 					::string l = read_lnk(tn) ; throw_unless( l.size()==sz                      , "cannot readlink ",tn ) ;
-					data_fd.write(l) ;          throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable "       ,tn ) ; // ensure cache entry is reliable by checking file *after* copy
+					data_fd.write(l) ;          throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable "       ,tn ) ;            // ensure cache entry is reliable by checking file *after* copy
 				}
 				break ;
 				case FileTag::Reg :
@@ -1015,15 +1016,15 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 					if (sz) {
 						trace("read_from",tn,sz) ;
 						data_fd.send_from( AcFd(tn,{.flags=O_RDONLY|O_NOFOLLOW}) , sz ) ;
-						throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;                                // ensure cache entry is reliable by checking file *after* copy
+						throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;                                           // ensure cache entry is reliable by checking file *after* copy
 					}
-				[[fallthrough]] ;                                                                                           // empty executable is not tagged as Empty
+				[[fallthrough]] ;                                                                                                      // empty executable is not tagged as Empty
 				case FileTag::Empty : trace("empty_from",tn) ; break ;
 			DN}
 		}
-		data_fd.flush() ;                                                                                                   // update data_fd.sz
+		data_fd.flush() ;                                                                                                              // update data_fd.sz
 		trace("done",data_fd.z_sz) ;
-		return { reply.upload_key , data_fd.z_sz==targets_sz?0:data_fd.z_sz } ;                                             // dont report compressed size of no compression
+		return { reply.upload_key , data_fd.z_sz==targets_sz?0:data_fd.z_sz } ;                                                        // dont report compressed size of no compression
 	} catch (::string const& e) {
 		dismiss(reply.upload_key) ;
 		trace("failed") ;

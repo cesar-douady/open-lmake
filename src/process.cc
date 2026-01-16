@@ -311,7 +311,7 @@ void AutoServerBase::start() {
 			/**/                     msg << "kill "<<server_pid                          ;
 			/**/                     msg << '\n'                                         ;
 		}
-		msg << "\trm "<<server_mrkr ;
+		msg << "\trm "<<dir_s<<server_mrkr ;
 	}
 	msg << '\n' ;
 	trace("bad",file_service_str,msg) ;

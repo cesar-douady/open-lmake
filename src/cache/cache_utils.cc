@@ -21,39 +21,42 @@ static constexpr Crc::Val CrcErr    = 1<<(NBits<CrcSpecial>+1) ;
 	return             os << ')'                                      ;
 }
 
-CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool for_download , ::vector<CnodeIdx>* dep_ids ) {
+CompileDigest::~CompileDigest() {
+	for( Cnode& d : deps ) d->dec() ;
+}
+
+CompileDigest::CompileDigest( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool for_download , ::vector<CnodeIdx>* dep_ids ) {
 	struct Dep {
 		// services
 		bool operator<(Dep const& other) const { return ::pair(bucket,+node) < ::pair(other.bucket,+other.node) ; }
 		// data
-		int   bucket = 0/*garbage*/ ;                                                                        // deps are sorted statics first, then existing, then non-existing
+		int   bucket = 0/*garbage*/ ;                                                                // deps are sorted statics first, then existing, then non-existing
 		Cnode node   ;
 		Crc   crc    ;
 	} ;
-	CompileDigest res  ;
-	::vector<Dep> deps ;
+	::vector<Dep> deps_ ;
 	Trace trace("compile",repo_deps.size(),STR(for_download),STR(bool(dep_ids))) ;
 	for( auto& [n,dd] : repo_deps ) {
 		bool      is_name = n.is_name()                                              ;
 		CnodeIdx* dep_id  = is_name && dep_ids ? &dep_ids->emplace_back(0) : nullptr ;
 		Accesses  a       = dd.accesses                                              ;
-		if      (!dd.dflags[Dflag::Full] )   a = {} ;                                                        // dep is used for resources only, no real accesses
-		else if (!for_download           )   SWEAR( !dd.never_match()         , n,dd ) ;                     // meaningless, should not have reached here
-		if      (dd.dflags[Dflag::Static]) { SWEAR( res.n_statics<Max<VarIdx>        ) ; res.n_statics++ ; }
-		else if (!a                      )   continue ;                                                      // dep was not accessed, ignore but keep static deps as they must not depend on run
+		if      (!dd.dflags[Dflag::Full] )   a = {} ;                                                // dep is used for resources only, no real accesses
+		else if (!for_download           )   SWEAR( !dd.never_match()     , n,dd ) ;                 // meaningless, should not have reached here
+		if      (dd.dflags[Dflag::Static]) { SWEAR( n_statics<Max<VarIdx>        ) ; n_statics++ ; }
+		else if (!a                      )   continue ;                                              // dep was not accessed, ignore but keep static deps as they must not depend on run
 		//
 		Cnode node ;
 		if (is_name) {
 			if ( for_download          ) node    = {       n.name } ;
 			else                         node    = { New , n.name } ;
 			if ( dep_id                ) *dep_id = +node            ;
-			if ( for_download && !node ) continue ;                                                          // if it is not known in cache, it has no impact on matching
+			if ( for_download && !node ) continue ;                                                  // if it is not known in cache, it has no impact on matching
 		} else {
 			node = {n.id} ;
 		}
 		//
 		Crc crc = dd.crc() ;
-		if (!for_download)                                                                                   // Crc::Unknown means any existing file
+		if (!for_download)                                                                           // Crc::Unknown means any existing file
 			switch (+(a&Accesses(Access::Lnk,Access::Reg,Access::Stat))) {
 				case +Accesses(                        ) :                      crc = +Crc::Unknown|CrcOrNone ; break ;
 				case +Accesses(Access::Lnk             ) : if (!crc.is_lnk()  ) crc = +Crc::Reg    |CrcOrNone ; break ;
@@ -63,20 +66,19 @@ CompileDigest compile( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool
 				case +Accesses(Access::Reg,Access::Stat) : if ( crc.is_lnk()  ) crc =  Crc::Lnk               ; break ;
 			DN}
 		// we lose 1 bit of crc but we must manage errors and it does not desserv an additional field
-		if (dd.err) { SWEAR(a[Access::Err]) ; crc = +crc |  CrcErr ; }                                       // if error are not sensed, lmake engine would stop if dep is in error
+		if (dd.err) { SWEAR(a[Access::Err]) ; crc = +crc |  CrcErr ; }                               // if error are not sensed, lmake engine would stop if dep is in error
 		else                                  crc = +crc & ~CrcErr ;
 		//
-		deps.push_back({
+		deps_.push_back({
 			.bucket = dd.dflags[Dflag::Static] ? 0 : crc!=Crc::None ? 1 : 2
 		,	.node   = node
 		,	.crc    = crc
 		}) ;
 	}
-	::sort(deps) ;
-	for( Dep const& dep : deps )                              res.deps    .push_back(dep.node) ;
-	for( Dep const& dep : deps ) { if (dep.bucket==2) break ; res.dep_crcs.push_back(dep.crc ) ; }
-	trace("done",res,dep_ids?dep_ids->size():size_t(0)) ;
-	return res ;
+	::sort(deps_) ;
+	for( Dep      & dep : deps_ ) { dep.node->inc() ;          deps    .push_back(dep.node) ; }
+	for( Dep const& dep : deps_ ) { if (dep.bucket==2) break ; dep_crcs.push_back(dep.crc ) ; }
+	trace("done",dep_ids?dep_ids->size():size_t(0)) ;
 }
 
 // check if cache_crc and repo_crc are compatible

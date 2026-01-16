@@ -34,8 +34,6 @@ int main( int argc , char** ) {
 	cache_init( false/*rescue*/ , true/*read_only*/ ) ;
 	//
 	Fd::Stdout.write(cat("total_sz : ",CrunData ::s_hdr().total_sz,'\n')) ;
-	Fd::Stdout.write(cat("n_trash  : ",CnodeData::s_hdr().n_trash ,'\n')) ;
-	Fd::Stdout.write(cat("gen      : ",CnodeData::s_hdr().gen     ,'\n')) ;
 	//
 	Fd::Stdout.write("# id          :  ref_count : name\n") ;
 	for( Ckey k : lst<Ckey>() )

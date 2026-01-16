@@ -213,7 +213,7 @@ int main( int argc , char* argv[] ) {
 		SWEAR( !end_report.phy_tmp_dir_s , end_report.phy_tmp_dir_s ) ;
 		{	auto it = g_start_info.env.begin() ;
 			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if ( it==g_start_info.env.end() || +it->second ) {                         // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
+			if ( it==g_start_info.env.end() || +it->second ) {                                                                           // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
 				if (g_start_info.keep_tmp) {
 					end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
 				} else {
@@ -260,8 +260,8 @@ int main( int argc , char* argv[] ) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;
 		}
-		g_start_info.autodep_env.fast_mail        = mail()                                                                  ;                // user@host on which fast_report_pipe works
-		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ;                // fast_report_pipe is a pipe and only works locally
+		g_start_info.autodep_env.fast_mail        = mail()                                                                  ;            // user@host on which fast_report_pipe works
+		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ;            // fast_report_pipe is a pipe and only works locally
 		g_start_info.autodep_env.views_s          = g_start_info.job_space.flat_phys_s()                                    ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//

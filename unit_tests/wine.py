@@ -54,11 +54,13 @@ if __name__!='__main__' :
 			name    = f'Dut{ext}'
 			target  = f'dut{ext}.{{Method}}'
 			deps    = { 'WINE_INIT' : 'wine_init' }
-			timeout = 40                                                                                                    # actual time is ~2s
+			timeout = 40                            # actual time is ~2s
 			autodep = '{Method}'
 			# wine sends err messages, that do occur, to stdout !
-			if xvfb : cmd = f'set -o pipefail ; D=$(($SMALL_ID+50)) ; {xvfb} -n $D wine{ext} hostname | head -1 && sleep 2' # wine exits before hostname has finished !
-			else    : cmd = f'set -o pipefail ;                                    wine{ext} hostname | head -1 && sleep 2' # .
+			# wine exits before hostname has finished !
+			# xvfb leaves files in /tmp, rm them upon startup
+			if xvfb : cmd = f'set -o pipefail ; D=$(($SMALL_ID+50)) ; rm -f /tmp/.X$D-lock /tmp/.X11-unix/X$D ; {xvfb} -n $D wine{ext} hostname | head -1 && sleep 2'
+			else    : cmd = f'set -o pipefail ;                                                                              wine{ext} hostname | head -1 && sleep 2'
 
 	class Chk(Base,PyRule) :
 		target = r'test{Ext:64|}.{Method}'

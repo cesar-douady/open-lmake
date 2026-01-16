@@ -32,6 +32,9 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* keep reserved by connection in lcache
+* commit when was_done instead of may_rerun
+	- to ensure -first entries are reliable
 * provide a means to reliably kill all job processes
 	- try to use CLONE_NEWPID flag in unshare
 	- difficulties to mount /proc

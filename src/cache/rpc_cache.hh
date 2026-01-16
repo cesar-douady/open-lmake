@@ -141,7 +141,7 @@ namespace Cache {
 			::serdes( s , proc ) ;
 			switch (proc) {
 				case CacheRpcProc::None     :                                                             break ;
-				case CacheRpcProc::Config   : ::serdes( s , config    ,gen                            ) ; break ;
+				case CacheRpcProc::Config   : ::serdes( s , config                                    ) ; break ;
 				case CacheRpcProc::Download : ::serdes( s , hit_info  ,key,key_is_last,job_id,dep_ids ) ; break ;
 				case CacheRpcProc::Upload   : ::serdes( s , upload_key,msg                            ) ; break ;
 			DF}                                                                                                   // NO_COV
@@ -150,7 +150,6 @@ namespace Cache {
 		// START_OF_VERSIONING CACHE
 		CacheRpcProc       proc        = {}    ;
 		CacheConfig        config      = {}    ;                                                                  // if proc = Config
-		uint64_t           gen         = {}    ;                                                                  // if proc = Config
 		CacheHitInfo       hit_info    = {}    ;                                                                  // if proc = Download
 		CkeyIdx            key         = 0     ;                                                                  // if proc = Download
 		bool               key_is_last = false ;                                                                  // if proc = Download

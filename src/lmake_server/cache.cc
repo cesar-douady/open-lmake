@@ -51,7 +51,7 @@ namespace Cache {
 		_dir_fd = AcFd( dir_s , {.flags=O_RDONLY|O_DIRECTORY} ) ;
 		//
 		OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Config , .repo_key=repo_key } ).send(_fd) ;
-		auto reply = _imsg.receive<CacheRpcReply>( _fd , Maybe/*once*/ , {}/*key*/ ) ; SWEAR( reply.proc==CacheRpcProc::Config , reply ) ;
+		auto reply = _imsg.receive<CacheRpcReply>( _fd , Maybe/*once*/ , {}/*key*/ ) ; throw_unless( reply.proc==CacheRpcProc::Config , "cache did not start" ) ;
 		max_rate  = reply.config.max_rate  ;
 		file_sync = reply.config.file_sync ;
 		perm_ext  = reply.config.perm_ext  ;
