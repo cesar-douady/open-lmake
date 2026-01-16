@@ -363,7 +363,9 @@ int main( int argc , char* argv[] ) {
 		if (+g_start_info.cache) {
 			if (!g_start_info.cache.service.addr) g_start_info.cache.service.addr = g_service_start.addr ;                            // if no host info, cache is running on same host as server
 			try {
-				::tie(upload_key,end_report.total_z_sz) = g_start_info.cache.upload( exe_time , digest.targets , target_fis , g_start_info.zlvl ) ;
+				CacheRemoteSide::UploadDigest ud = g_start_info.cache.upload( g_start_info.cache.conn_id , exe_time , digest.targets , target_fis , g_start_info.zlvl ) ;
+				upload_key            = ud.upload_key ;
+				end_report.total_z_sz = ud.z_sz       ;
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;
@@ -415,7 +417,7 @@ End :
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache.dismiss(upload_key) ;                                                                 // suppress temporary data if server cannot handle them
+			if (+upload_key) g_start_info.cache.dismiss( upload_key , g_start_info.cache.conn_id ) ;                                  // suppress temporary data if server cannot handle them
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}

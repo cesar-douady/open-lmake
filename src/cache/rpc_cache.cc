@@ -17,23 +17,30 @@ using namespace Time ;
 
 namespace Cache {
 
-	::string& operator+=( ::string& os , CacheRpcReq const& dcrr ) {
-		/**/                   os << "CacheRpcReq("<<dcrr.proc    ;
-		if (+dcrr.job        ) os << ','  <<dcrr.job              ;
-		if (+dcrr.repo_deps  ) os << ",D:"<<dcrr.repo_deps.size() ;
-		if (+dcrr.reserved_sz) os << ",S:"<<dcrr.reserved_sz      ;
-		if (+dcrr.upload_key ) os << ",K:"<<dcrr.upload_key       ;
-		return                 os << ')'                          ;
+	::string& operator+=( ::string& os , CacheRpcReq const& crr ) {
+		/**/                  os << "CacheRpcReq("<<crr.proc    ;
+		if (+crr.repo_key   ) os << ",K:"<<crr.repo_key         ;
+		if (+crr.job        ) os << ','  <<crr.job              ;
+		if (+crr.repo_deps  ) os << ",D:"<<crr.repo_deps.size() ;
+		if (+crr.conn_id    ) os << ",C:"<<crr.conn_id          ;
+		if (+crr.reserved_sz) os << ",S:"<<crr.reserved_sz      ;
+		if (+crr.total_z_sz ) os << ",Z:"<<crr.total_z_sz       ;
+		if (+crr.job_info_sz) os << ",J:"<<crr.job_info_sz      ;
+		if (+crr.exe_time   ) os << ','  <<crr.exe_time         ;
+		if (+crr.upload_key ) os << ",U:"<<crr.upload_key       ;
+		return                os << ')'                         ;
 	}
 
-	::string& operator+=( ::string& os , CacheRpcReply const& dcrr ) {
-		/**/                   os << "CacheRpcReply("<<dcrr.proc                  ;
-		if (+dcrr.hit_info   ) os << ','  <<dcrr.hit_info                         ;
-		if (+dcrr.key        ) os << ",K:"<<dcrr.key<<'-'<<"FL"[dcrr.key_is_last] ;
-		if (+dcrr.dep_ids    ) os << ",D:"<<dcrr.dep_ids.size()                   ;
-		if (+dcrr.job_id     ) os << ",J:"<<dcrr.job_id                           ;
-		if (+dcrr.upload_key ) os << ','<<dcrr.upload_key                         ;
-		return                 os << ')'                                          ;
+	::string& operator+=( ::string& os , CacheRpcReply const& crr ) {
+		/**/                  os << "CacheRpcReply("<<crr.proc                 ;
+		if (+crr.conn_id    ) os << ",C:"<<crr.conn_id                         ;
+		if (+crr.hit_info   ) os << ','  <<crr.hit_info                        ;
+		if (+crr.key        ) os << ",K:"<<crr.key<<'-'<<"FL"[crr.key_is_last] ;
+		if (+crr.dep_ids    ) os << ",D:"<<crr.dep_ids.size()                  ;
+		if (+crr.job_id     ) os << ",J:"<<crr.job_id                          ;
+		if (+crr.upload_key ) os << ','  <<crr.upload_key                      ;
+		if (+crr.msg        ) os << ','  <<crr.msg                             ;
+		return                os << ')'                                        ;
 	}
 
 }

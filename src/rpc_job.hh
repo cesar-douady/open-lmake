@@ -746,15 +746,20 @@ private :
 
 struct CacheRemoteSide {
 	friend ::string& operator+=( ::string& , CacheRemoteSide const& ) ;
+	struct UploadDigest {
+		CacheUploadKey upload_key ;
+		Disk::DiskSz   z_sz       ; // compressed
+	} ;
 	// accesses
 	bool operator+() const { return +dir_s ; }
 	// services
-	::pair<CacheUploadKey/*upload_key*/,Disk::DiskSz/*compressed*/> upload ( Time::Delay exe_time , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl zlvl ) const ;
-	void                                                            dismiss( CacheUploadKey upload_key                                                                          ) const ;
+	UploadDigest upload ( uint32_t conn_id , Time::Delay exe_time , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl ) const ;
+	void         dismiss( CacheUploadKey upload_key , uint32_t conn_id=0                                                                   ) const ;
 	// data
 	::string     dir_s     ;
 	KeyedService service   ;
 	Disk::DiskSz max_rate  = 0  ;
+	uint32_t     conn_id   = 0  ;   // id given by cache to server upon connection
 	FileSync     file_sync = {} ;
 	PermExt      perm_ext  = {} ;
 } ;

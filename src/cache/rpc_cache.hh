@@ -110,25 +110,26 @@ namespace Cache {
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , proc ) ;
 			switch (proc) {
-				case CacheRpcProc::None     :
-				case CacheRpcProc::Config   : ::serdes( s , repo_key                                                         ) ; break ;
-				case CacheRpcProc::Download : ::serdes( s , job        ,repo_deps                                            ) ; break ;
-				case CacheRpcProc::Upload   : ::serdes( s , reserved_sz                                                      ) ; break ;
-				case CacheRpcProc::Commit   : ::serdes( s , job        ,repo_deps,total_z_sz,job_info_sz,exe_time,upload_key ) ; break ;
-				case CacheRpcProc::Dismiss  : ::serdes( s ,                                                       upload_key ) ; break ;
-			DF}                                                                                                                          // NO_COV
+				case CacheRpcProc::None     :                                                                                                         break ;
+				case CacheRpcProc::Config   : ::serdes( s , repo_key                                                                              ) ; break ;
+				case CacheRpcProc::Download : ::serdes( s ,          job,repo_deps                                                                ) ; break ;
+				case CacheRpcProc::Upload   : ::serdes( s ,                        conn_id,reserved_sz                                            ) ; break ;
+				case CacheRpcProc::Commit   : ::serdes( s ,          job,repo_deps,                    total_z_sz,job_info_sz,exe_time,upload_key ) ; break ;
+				case CacheRpcProc::Dismiss  : ::serdes( s ,                        conn_id,                                            upload_key ) ; break ;
+			DF}                                                                                                                                               // NO_COV
 		}
 		// data
 		// START_OF_VERSIONING CACHE
 		CacheRpcProc                      proc        = {} ;
-		::string                          repo_key    = {} ;                                                                             // if proc = Config
-		StrId<CjobIdx>                    job         = {} ;                                                                             // if proc = Download | Commit
-		::vmap<StrId<CnodeIdx>,DepDigest> repo_deps   = {} ;                                                                             // if proc = Download | Commit
-		Disk::DiskSz                      reserved_sz = 0  ;                                                                             // if proc =            Upload
-		Disk::DiskSz                      total_z_sz  = 0  ;                                                                             // if proc =            Commit
-		Disk::DiskSz                      job_info_sz = 0  ;                                                                             // if proc =            Commit
-		Time::CoarseDelay                 exe_time    = {} ;                                                                             // if proc =            Commit
-		CacheUploadKey                    upload_key  = 0  ;                                                                             // if proc =            Commit | Dismiss
+		::string                          repo_key    = {} ; // if proc = Config
+		StrId<CjobIdx>                    job         = {} ; // if proc = Download | Commit
+		::vmap<StrId<CnodeIdx>,DepDigest> repo_deps   = {} ; // if proc = Download | Commit
+		uint32_t                          conn_id     = {} ; // if proc =            Upload | Dismiss (when from job_exec)
+		Disk::DiskSz                      reserved_sz = 0  ; // if proc =            Upload
+		Disk::DiskSz                      total_z_sz  = 0  ; // if proc =            Commit
+		Disk::DiskSz                      job_info_sz = 0  ; // if proc =            Commit
+		Time::CoarseDelay                 exe_time    = {} ; // if proc =            Commit
+		CacheUploadKey                    upload_key  = 0  ; // if proc =            Commit | Dismiss
 		// END_OF_VERSIONING
 	} ;
 
@@ -140,23 +141,24 @@ namespace Cache {
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , proc ) ;
 			switch (proc) {
-				case CacheRpcProc::None     :                                                             break ;
-				case CacheRpcProc::Config   : ::serdes( s , config                                    ) ; break ;
-				case CacheRpcProc::Download : ::serdes( s , hit_info  ,key,key_is_last,job_id,dep_ids ) ; break ;
-				case CacheRpcProc::Upload   : ::serdes( s , upload_key,msg                            ) ; break ;
-			DF}                                                                                                   // NO_COV
+				case CacheRpcProc::None     :                                                           break ;
+				case CacheRpcProc::Config   : ::serdes( s , config,conn_id                          ) ; break ;
+				case CacheRpcProc::Download : ::serdes( s , hit_info,key,key_is_last,job_id,dep_ids ) ; break ;
+				case CacheRpcProc::Upload   : ::serdes( s , upload_key,msg                          ) ; break ;
+			DF}                                                                                                 // NO_COV
 		}
 		// data
 		// START_OF_VERSIONING CACHE
 		CacheRpcProc       proc        = {}    ;
-		CacheConfig        config      = {}    ;                                                                  // if proc = Config
-		CacheHitInfo       hit_info    = {}    ;                                                                  // if proc = Download
-		CkeyIdx            key         = 0     ;                                                                  // if proc = Download
-		bool               key_is_last = false ;                                                                  // if proc = Download
-		::vector<CnodeIdx> dep_ids     = {}    ;                                                                  // if proc = Download, idx of corresponding deps in Req that were passed by name
-		CjobIdx            job_id      = 0     ;                                                                  // if proc = Download, idx of corresponding job  in Req if passed by name
-		CacheUploadKey     upload_key  = 0     ;                                                                  // if proc = Upload
-		::string           msg         = {}    ;                                                                  // if proc = Upload and upload_key=0
+		CacheConfig        config      = {}    ;                                                                // if proc = Config
+		uint32_t           conn_id     = 0     ;                                                                // if proc = Config  , id to be repeated by upload requests
+		CacheHitInfo       hit_info    = {}    ;                                                                // if proc = Download
+		CkeyIdx            key         = 0     ;                                                                // if proc = Download
+		bool               key_is_last = false ;                                                                // if proc = Download
+		::vector<CnodeIdx> dep_ids     = {}    ;                                                                // if proc = Download, idx of corresponding deps in Req that were passed by name
+		CjobIdx            job_id      = 0     ;                                                                // if proc = Download, idx of corresponding job  in Req if passed by name
+		CacheUploadKey     upload_key  = 0     ;                                                                // if proc = Upload
+		::string           msg         = {}    ;                                                                // if proc = Upload and upload_key=0
 		// END_OF_VERSIONING
 	} ;
 

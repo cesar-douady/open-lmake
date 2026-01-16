@@ -17,9 +17,14 @@ using namespace Cache ;
 using namespace Disk  ;
 using namespace Hash  ;
 
+struct ConnEntry {
+	Ckey                   key         = {} ;
+	::uset<CacheUploadKey> upload_keys = {} ;
+} ;
+
 SmallIds<CacheUploadKey> _g_upload_keys  ;
-::vector<DiskSz>         _g_reserved_szs ; // indexed by upload_key
-::umap<Fd,Ckey>          _g_key_tab      ;
+::vector<CacheUploadKey> _g_reserved_szs ;
+::umap<Fd,ConnEntry>     _g_conn_tab     ;
 
 static void _release_room(DiskSz sz) {
 	CrunHdr& hdr = CrunData::s_hdr() ;
@@ -29,15 +34,15 @@ static void _release_room(DiskSz sz) {
 	SWEAR( hdr.total_sz+g_reserved_sz <= g_cache_config.max_sz , hdr.total_sz,g_reserved_sz,g_cache_config.max_sz ) ;
 }
 
-static CacheRpcReply _config( Fd fd , CacheRpcReq const& crr ) {
-	Trace trace("_config",fd,crr) ;
-	Ckey key      { New , crr.repo_key }                      ;
-	bool inserted = _g_key_tab.try_emplace( fd , key ).second ; SWEAR( inserted , fd,crr ) ;
+static CacheRpcReply _config( Fd fd , ::string const& repo_key ) {
+	Trace trace("_config",fd,repo_key) ;
+	Ckey key      { New , repo_key }                                           ;
+	bool inserted = _g_conn_tab.try_emplace( fd , ConnEntry{.key=key} ).second ; SWEAR( inserted , fd,repo_key ) ;
 	// ensure lcache_repair can retrieve repo keys
-	if (!key->ref_cnt) AcFd(cat(PrivateAdminDirS,"repo_keys"),{.flags=O_WRONLY|O_APPEND|O_CREAT,.mod=0666,.perm_ext=g_cache_config.perm_ext}).write(cat(+key,' ',crr.repo_key,'\n')) ;
+	if (!key->ref_cnt) AcFd(cat(PrivateAdminDirS,"repo_keys"),{.flags=O_WRONLY|O_APPEND|O_CREAT,.mod=0666,.perm_ext=g_cache_config.perm_ext}).write(cat(+key,' ',repo_key,'\n')) ;
 	//
 	key.inc() ;
-	return { .proc=CacheRpcProc::Config , .config=g_cache_config } ;
+	return { .proc=CacheRpcProc::Config , .config=g_cache_config , .conn_id=uint32_t(fd.fd+1) } ; // conn_id=0 is reserved to mean no id
 }
 
 static CacheRpcReply _download(CacheRpcReq const& crr) {
@@ -57,16 +62,20 @@ static CacheRpcReply _download(CacheRpcReq const& crr) {
 	return res ;
 }
 
-static CacheRpcReply _upload(CacheRpcReq const& crr) {
-	Trace trace("_upload",crr) ;
+static CacheRpcReply _upload( Fd fd , DiskSz reserved_sz ) {
+	Trace trace("_upload",fd,reserved_sz) ;
+	auto it = _g_conn_tab.find(fd) ;
+	if (it==_g_conn_tab.end()) { trace("conn_not_found") ; return { .proc=CacheRpcProc::Upload , .msg="cache is diabled" } ; }
 	//
-	try                       { mk_room(crr.reserved_sz) ;                       }
-	catch (::string const& e) { return { .proc=CacheRpcProc::Upload , .msg=e } ; } // no upload possible
+	try                       { mk_room(reserved_sz) ;                                              }
+	catch (::string const& e) { trace("throw",e) ; return { .proc=CacheRpcProc::Upload , .msg=e } ; } // no upload possible
 	//
 	CacheUploadKey upload_key = _g_upload_keys.acquire() ;
-	g_reserved_sz                    += crr.reserved_sz ;
-	grow(_g_reserved_szs,upload_key)  = crr.reserved_sz ;
-	return { .proc=CacheRpcProc::Upload , .upload_key = upload_key } ;
+	it->second.upload_keys.insert(upload_key) ;
+	g_reserved_sz                    += reserved_sz ;
+	grow(_g_reserved_szs,upload_key)  = reserved_sz ;
+	trace("done",upload_key) ;
+	return { .proc=CacheRpcProc::Upload , .upload_key=upload_key } ;
 }
 
 static void _commit( Fd fd , CacheRpcReq const& crr ) {
@@ -76,20 +85,21 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	_g_upload_keys.release(crr.upload_key)         ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
-	NfsGuard      nfs_guard { g_cache_config.file_sync }                                                   ;
-	::string      rf        = reserved_file(crr.upload_key)                                                ;
-	CompileDigest deps      { crr.repo_deps , false/*for_download*/ }                                      ;
-	Cjob          job       = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR( job->n_statics==deps.n_statics , job,deps.n_statics ) ;
-	DiskSz        sz        = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
-	//
-	::pair<Crun,CacheHitInfo> digest ;
+	NfsGuard                  nfs_guard  { g_cache_config.file_sync }                                                   ;
+	::string                  rf         = reserved_file(crr.upload_key)                                                ;
+	CompileDigest             deps       { crr.repo_deps , false/*for_download*/ }                                      ;
+	Cjob                      job        = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR( job->n_statics==deps.n_statics , job,deps.n_statics ) ;
+	DiskSz                    sz         = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
+	ConnEntry&                conn_entry = _g_conn_tab.at(fd)                                                           ;
+	::pair<Crun,CacheHitInfo> digest     ;
+	conn_entry.upload_keys.erase(crr.upload_key) ;
 	try {
 		digest = job->insert(
-			deps.deps , deps.dep_crcs                                                                                   // to search entry
-		,	_g_key_tab.at(fd) , true/*key_is_last*/ , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
+			deps.deps , deps.dep_crcs                                                                                // to search entry
+		,	conn_entry.key , true/*key_is_last*/ , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
 		) ;
 	} catch (::string const&) {
-		digest.second = {} ;                                                                                            // we dont report on commit, so just force dismiss
+		digest.second = {} ;                                                                                         // we dont report on commit, so just force dismiss
 	}
 	if (digest.second<CacheHitInfo::Miss) {
 		unlnk( rf+"-data" , {.nfs_guard=&nfs_guard} ) ;
@@ -103,15 +113,17 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	}
 }
 
-static void _dismiss(CacheRpcReq const& crr) {
-	Trace trace("dismiss",crr) ;
-	_release_room(_g_reserved_szs[crr.upload_key]) ;
-	_g_upload_keys.release(crr.upload_key)         ;
-	_g_reserved_szs[crr.upload_key] = 0 ;
+static void _dismiss( Fd fd , CacheUploadKey upload_key ) {
+	Trace trace("dismiss",upload_key) ;
+	_release_room(_g_reserved_szs[upload_key]) ;
+	_g_upload_keys.release(upload_key)         ;
+	_g_reserved_szs[upload_key] = 0 ;
+	_g_conn_tab.at(fd).upload_keys.erase(upload_key) ;
 	//
-	::string rf = reserved_file(crr.upload_key) ;
+	::string rf = reserved_file(upload_key) ;
 	unlnk(rf+"-data") ;
 	unlnk(rf+"-info") ;
+	trace("done") ;
 }
 
 struct CacheServer : AutoServer<CacheServer> {
@@ -119,7 +131,7 @@ struct CacheServer : AutoServer<CacheServer> {
 	using RpcReq   = CacheRpcReq   ;
 	using RpcReply = CacheRpcReply ;
 	using Item     = RpcReq        ;
-	static constexpr uint64_t Magic = CacheMagic ;                                            // any random improbable value!=0 used as a sanity check when client connect to server
+	static constexpr uint64_t Magic = CacheMagic ;                                                             // AutoServer expects Magic definition
 	// cxtors & casts
 	using AutoServer<CacheServer>::AutoServer ;
 	// injection
@@ -127,19 +139,24 @@ struct CacheServer : AutoServer<CacheServer> {
 		if (n_connections()==1) cache_empty_trash() ;
 	}
 	void end_connection(Fd fd) {
-		auto it = _g_key_tab.find(fd) ;
-		if (it!=_g_key_tab.end()) it->second.dec() ;
+		auto       it         = _g_conn_tab.find(fd) ; if (it==_g_conn_tab.end()) return ;
+		ConnEntry& conn_entry = it->second           ;
+		//
+		for( CacheUploadKey upload_key : mk_vector(conn_entry.upload_keys) ) _dismiss( fd , upload_key ) ;     // copy upload_keys as _dismiss erases entries in it
+		conn_entry.key.dec() ;
+		_g_conn_tab.erase(it) ;
 	}
-	Bool3/*done*/ process_item( Fd fd , RpcReq const& crr ) {
+	Bool3/*done*/ process_item( Fd fd , RpcReq&& crr ) {
 		Trace trace("process_item",fd,crr) ;
-		switch (crr.proc) { //!                                          key           done
-			case Proc::None     :                                                return Yes ;
-			case Proc::Config   : OMsgBuf( _config  (fd,crr) ).send( fd , {} ) ; return No  ; // from lmake_server
-			case Proc::Download : OMsgBuf( _download(   crr) ).send( fd , {} ) ; return No  ; // from lmake_server
-			case Proc::Upload   : OMsgBuf( _upload  (   crr) ).send( fd , {} ) ; return Yes ; // from job_exec
-			case Proc::Commit   :          _commit  (fd,crr)                   ; return No  ; // from lmake_server
-			case Proc::Dismiss  :          _dismiss (   crr)                   ; return No  ; // .
-		DF}                                                                                   // NO_COV
+		Fd conn_fd = crr.conn_id ? Fd(crr.conn_id-1) : fd ;                                                    // get fd from conn_id when coming from job_exec
+		switch (crr.proc) { //!                                                           key           done
+			case Proc::None     :                                                                 return Yes ;
+			case Proc::Config   : OMsgBuf( _config  (conn_fd,crr.repo_key   ) ).send( fd , {} ) ; return No  ; // from lmake_server
+			case Proc::Download : OMsgBuf( _download(        crr            ) ).send( fd , {} ) ; return No  ; // from lmake_server
+			case Proc::Upload   : OMsgBuf( _upload  (conn_fd,crr.reserved_sz) ).send( fd , {} ) ; return Yes ; // from job_exec
+			case Proc::Commit   :          _commit  (conn_fd,crr            )                   ; return No  ; // from lmake_server
+			case Proc::Dismiss  :          _dismiss (conn_fd,crr.upload_key )                   ; return No  ; // .
+		DF}                                                                                                    // NO_COV
 	}
 } ;
 

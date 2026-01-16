@@ -53,8 +53,10 @@ namespace Cache {
 		OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Config , .repo_key=repo_key } ).send(_fd) ;
 		auto reply = _imsg.receive<CacheRpcReply>( _fd , Maybe/*once*/ , {}/*key*/ ) ; throw_unless( reply.proc==CacheRpcProc::Config , "cache did not start" ) ;
 		max_rate  = reply.config.max_rate  ;
+		conn_id   = reply.conn_id          ;
 		file_sync = reply.config.file_sync ;
 		perm_ext  = reply.config.perm_ext  ;
+		trace("done",max_rate,conn_id,file_sync,perm_ext) ;
 	}
 
 	::vmap_ss CacheServerSide::descr() const {

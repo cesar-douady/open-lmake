@@ -41,13 +41,14 @@ if __name__!='__main__' :
 
 	class WineInit(WineRule) :
 		target       = 'wine_init'
-		targets      = { 'WINE' : (r'.wine/{*:.*}','incremental') }                 # for init wine env is not incremental
+		targets      = { 'WINE' : (r'.wine/{*:.*}','incremental') } # for init wine env is not incremental
 		side_targets = { 'WINE' : None                            }
-		timeout      = 120                                                          # actual time is ~10s but seems to sometimes block under heavy load
+		timeout      = 120                                          # actual time is ~10s but seems to sometimes block under heavy load
 		stderr_ok    = True
 		readdir_ok   = True
-		if xvfb : cmd = f'D=$(($SMALL_ID+50)) ; {xvfb} -n $D wine64 cmd && sleep 1' # do nothing, init support files (in targets) wait for wineserver to die (3s by default)
-		else    : cmd =  '                                   wine64 cmd && sleep 1' # .
+		# do nothing, init support files (in targets) wait for wineserver to die (3s by default)
+		if xvfb : cmd = f'D=$(($SMALL_ID+50)) ; rm -f /tmp/.X$D-lock /tmp/.X11-unix/X$D ; {xvfb} -n $D wine64 cmd && sleep 1'
+		else    : cmd =  '                                                                             wine64 cmd && sleep 1'
 
 	for ext in ('','64') :
 		class Dut(Base,WineRule) :

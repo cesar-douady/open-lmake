@@ -967,8 +967,8 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 	return              os << ')'                          ;
 }
 
-::pair<uint64_t/*upload_key*/,DiskSz/*compressed*/> CacheRemoteSide::upload( Delay exe_time , ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) const {
-	Trace trace(CacheChnl,"upload",targets.size(),zlvl) ;
+CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay exe_time , ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) const {
+	Trace trace(CacheChnl,"upload",conn_id,targets.size(),zlvl) ;
 	SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 	//
 	DiskSz targets_sz  = 0 ;
@@ -987,7 +987,7 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 	//
 	trace("z_max_size",z_max_sz) ;
 	//
-	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Upload , .reserved_sz=z_max_sz } ).send(fd) ;
+	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Upload , .conn_id=conn_id , .reserved_sz=z_max_sz } ).send(fd) ;
 	auto reply = IMsgBuf().receive<CacheRpcReply>( fd , Maybe/*once*/ ) ;
 	//
 	throw_unless( +reply            , "no reply from cache" ) ; SWEAR( reply.proc==CacheRpcProc::Upload , reply.proc ) ;
@@ -1024,7 +1024,7 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 		}
 		data_fd.flush() ;                                                                                                              // update data_fd.sz
 		trace("done",data_fd.z_sz) ;
-		return { reply.upload_key , data_fd.z_sz==targets_sz?0:data_fd.z_sz } ;                                                        // dont report compressed size of no compression
+		return { .upload_key=reply.upload_key , .z_sz=data_fd.z_sz==targets_sz?0:data_fd.z_sz } ;                                      // dont report compressed size of no compression
 	} catch (::string const& e) {
 		dismiss(reply.upload_key) ;
 		trace("failed") ;
@@ -1032,8 +1032,8 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 	}
 }
 
-void CacheRemoteSide::dismiss(CacheUploadKey upload_key) const {
-	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Dismiss ,.upload_key=upload_key } ).send( ClientSockFd(service) , {}/*key*/ ) ;
+void CacheRemoteSide::dismiss( CacheUploadKey upload_key , uint32_t conn_id ) const {
+	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Dismiss , .conn_id=conn_id , .upload_key=upload_key } ).send( ClientSockFd(service) , {}/*key*/ ) ;
 }
 
 //
