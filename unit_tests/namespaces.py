@@ -63,6 +63,7 @@ if __name__!='__main__' :
 else :
 
 	import os
+	import os.path as osp
 
 	import ut
 
@@ -72,3 +73,5 @@ else :
 
 	ut.lmake( *(f'dut.{l}.{r}.{t}' for l in (None,'lmake') for r in (None,'repo') for t in tmp_views ) ,         done=12 )
 	ut.lmake( 'tmp_map_test'                                                                           , new=1 , done=2  )
+
+	assert osp.isdir('/tmp/open-lmake_tu') # ensure not unlinked by any job

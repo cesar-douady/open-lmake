@@ -607,7 +607,7 @@ void JobSpace::enter(
 		) ;
 		phy_repo_super_s_ = dir_name_s(phy_repo_root_s,src_dir_depth) ; SWEAR(phy_repo_super_s_!="/") ;
 	}
-	::string const& phy_repo_super_s   = +repo_view_s ? phy_repo_super_s_                       : repo_super_s ;                   // fast path : only compute phy_repo_super_s if necessary
+	::string const& phy_repo_super_s   = +repo_view_s ? phy_repo_super_s_ : repo_super_s        ;                                  // fast path : only compute phy_repo_super_s if necessary
 	::string const& lmake_root_s       = lmake_view_s | phy_lmake_root_s                        ;
 	::string const& tmp_dir_s          = tmp_view_s   | phy_tmp_dir_s                           ;
 	bool            bind_lmake         =                 +lmake_view_s || +chroot_dir           ;
@@ -616,7 +616,7 @@ void JobSpace::enter(
 	bool            creat_lmake        = bind_lmake && !FileInfo(chroot_dir+lmake_root_s).tag() ; creat |= creat_lmake ;
 	bool            creat_repo         = bind_repo  && !FileInfo(chroot_dir+repo_super_s).tag() ; creat |= creat_repo  ;
 	bool            creat_tmp          = bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ; creat |= creat_tmp   ;
-	bool            clean_tmp_dir_here = true                                                                          ;
+	bool            clean_tmp_dir_here = true                                                   ;
 	::vector_s      creat_views_s      ;
 	for( auto const& [v_s,_] : views ) {
 		if      ( +tmp_dir_s && v_s.starts_with(tmp_dir_s) ) { clean_tmp_dir_here = false ;                                                            }
@@ -627,7 +627,8 @@ void JobSpace::enter(
 	// if a dir (or a file) is mounted in tmp dir, we cannot directly clean it up as we should umount it beforehand to avoid unlinking the mounted info
 	// but umount is privileged, so what we do instead is forking
 	// in child , we are outside the namespace where the mount is not seen and we can clean tmp dir safely
-	if (!clean_tmp_dir_here) {
+	if ( !clean_tmp_dir_here && +phy_tmp_dir_s ) {
+		trace("clean_tmp_process",phy_tmp_dir_s) ;
 		if ( pid_t pid=::fork() ; pid!=0 ) {                                                    // in parent
 			throw_unless( pid!=-1 , "cannot set up to wait (",StrErr(),") to clean tmp" ) ;
 			int   wstatus   ;
@@ -637,21 +638,21 @@ void JobSpace::enter(
 				::_exit(+Rc::System) ;                                                          // all the cleanup is done by the child, so nothing to do here
 			}
 			unlnk( phy_tmp_dir_s , {.dir_ok=true,.abs_ok=true} ) ;                              // clean tmp from outside namespace when child is done
-			if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                  // all the cleanup is done by the child, so nothing to do here
-			else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
-			else                           ::_exit(255                     ) ;
+			::_exit(mimic_wstatus(wstatus)) ;                                                   // all the cleanup is done by the child, so nothing to do here
 		}
 	}
 	//
 	uid_t uid = ::geteuid() ;                                                                   // must be done before unshare that invents a new user
 	gid_t gid = ::getegid() ;                                                                   // .
 	//
-	trace("creat",STR(_force_creat),STR(creat_lmake),STR(creat_repo),STR(creat_tmp),uid,gid,lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s) ;
+	trace("creat1",STR(_force_creat),STR(creat_lmake),STR(creat_repo),STR(creat_tmp),STR(kill_daemons),uid,gid) ;
+	trace("creat2",lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s                                            ) ;
 	int unshare_flags = CLONE_NEWUSER | CLONE_NEWNS ; if (kill_daemons) unshare_flags |= CLONE_NEWPID ;
 	//            vvvvvvvvvvvvvvvvvvvvvvvv
 	throw_unless( ::unshare(unshare_flags)==0 , "cannot create mount namespace : ",StrErr() ) ;
 	//            ^^^^^^^^^^^^^^^^^^^^^^^^
 	if (kill_daemons) {
+		trace("kill_daemons") ;
 		if ( pid_t pid=::fork() ; pid!=0 ) {                                                    // in parent, /!\ must be first fork() after unshare as this is process 1 in namespace
 			throw_unless( pid!=-1 , "cannot set up to wait (",StrErr(),") for job to finsh" ) ;
 			int   wstatus   ;
@@ -663,9 +664,7 @@ void JobSpace::enter(
 					::_exit(+Rc::System) ;                                                      // all the cleanup is done by the child, so nothing to do here
 				}
 			} while (child_pid!=pid) ;
-			if      (WIFEXITED  (wstatus)) ::_exit(    WEXITSTATUS(wstatus)) ;                  // all the cleanup is done by the child, so nothing to do here
-			else if (WIFSIGNALED(wstatus)) ::_exit(128+WTERMSIG   (wstatus)) ;
-			else                           ::_exit(255                     ) ;
+			::_exit(mimic_wstatus(wstatus)) ;                                                   // all the cleanup is done by the child, so nothing to do here
 		}
 		_mount_proc( "/proc" , user_trace ) ;
 		// find a good starting pid
@@ -698,7 +697,7 @@ void JobSpace::enter(
 			::string upper   = work_dir_s+"upper" ;
 			::string root    = work_dir_s+"root"  ;
 			bool     retried = false              ;
-	Retry :
+		Retry :
 			::string upper_s = with_slash(upper) ; trace("mkdir1",upper_s) ; mk_dir_s(upper_s) ;
 			::string root_s  = with_slash(root ) ; trace("mkdir2",root_s ) ; mk_dir_s(root_s ) ;
 			if (creat_lmake)                                              { trace("mkdir3",lmake_root_s) ; mk_dir_s(upper+lmake_root_s) ; }
@@ -716,7 +715,7 @@ void JobSpace::enter(
 			} catch (::string const& e) {
 				if (retried) throw ;
 				retried = true ;
-				_mount_tmp( work_dir_s , user_trace ) ;
+				_mount_tmp( work_dir_s , user_trace ) ;                                                       // /tmp cannot be used as overlay lower, make a fresh tmp-mount and retry
 				goto Retry/*BACKWARD*/ ;
 			}
 			chroot_dir = ::move(root) ;
@@ -742,9 +741,9 @@ void JobSpace::enter(
 					continue ;                                                                                // these will be mounted below
 				}
 				switch (FileInfo(src_f).tag()) { //!                                                                                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case FileTag::Dir : trace("mkdir" ,private_f_s) ; mk_dir_s( private_f_s                                               ) ; _mount_bind(private_f_s,src_f_s,user_trace) ; break ;
+					case FileTag::Dir : trace("mkdir9",private_f_s) ; mk_dir_s( private_f_s                                               ) ; _mount_bind(private_f_s,src_f_s,user_trace) ; break ;
 					case FileTag::Lnk : trace("symlnk",private_f_s) ; sym_lnk ( private_f   , read_lnk(src_f)                             ) ;                                               break ;
-					default           : trace("creat" ,private_f_s) ; AcFd    ( private_f   , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0000} ) ; _mount_bind(private_f  ,src_f  ,user_trace) ;
+					default           : trace("file"  ,private_f_s) ; AcFd    ( private_f   , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0000} ) ; _mount_bind(private_f  ,src_f  ,user_trace) ;
 				} //!                                                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			dev_sys_mapped = true ;
@@ -755,7 +754,7 @@ void JobSpace::enter(
 					/**/                                                   msg << " must be a top level dir or already exist (not yet implemented) : "<<d_s<<rm_slash ;
 					throw msg ;
 				}
-				trace("mkdir9",d_s) ;
+				trace("mkdir10",d_s) ;
 				mk_dir_s(chroot_dir+d_s) ;
 			} ;
 			if (creat_lmake)                           do_view( "lmake_view" , lmake_root_s                 ) ;
@@ -772,7 +771,7 @@ void JobSpace::enter(
 	auto mk_entry = [&]( ::string const& dir_s , ::string const& abs_dir_s , bool path_is_lcl ) {
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
 		if (path_is_lcl) report.emplace_back(no_slash(dir_s)) ;
-		trace("mkdir10",abs_dir_s) ;
+		trace("mkdir11",abs_dir_s) ;
 		mk_dir_s(abs_dir_s) ;
 	} ;
 	//
@@ -836,9 +835,9 @@ void JobSpace::enter(
 	}
 	if (+chroot_dir) {
 		if (!dev_sys_mapped) { //!                                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			{ ::string d_s = chroot_dir+"/dev/"  ; trace("mkdir11",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/"  , user_trace ) ; }
-			{ ::string d_s = chroot_dir+"/sys/"  ; trace("mkdir12",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/"  , user_trace ) ; }
-			{ ::string d_s = chroot_dir+"/proc/" ; trace("mkdir13",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/proc/" , user_trace ) ; }
+			{ ::string d_s = chroot_dir+"/dev/"  ; trace("mkdir12",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/"  , user_trace ) ; }
+			{ ::string d_s = chroot_dir+"/sys/"  ; trace("mkdir13",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/"  , user_trace ) ; }
+			{ ::string d_s = chroot_dir+"/proc/" ; trace("mkdir14",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/proc/" , user_trace ) ; }
 		} //!                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//vvvvvvvvvvvvvvvvv
 		_chroot(chroot_dir) ;
@@ -852,13 +851,14 @@ void JobSpace::enter(
 		//^^^^^^^
 		user_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , d ) ;
 	}
-	// only set _tmp_dir_s once tmp mount is done so as to ensure not to unlink in the underlying dir
+	// only set _tmp_dir_s once tmp mount and chroot are done so as to ensure not to unlink in the underlying dir
 	if (clean_tmp_dir_here) _tmp_dir_s = tmp_dir_s ;                                                        // if we have mounted something in tmp, we cant clean it before unmount
 	user_trace.emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 	trace("done",report) ;
 }
 
 void JobSpace::exit() {
+	Trace trace("JobSpace::exit",_tmp_dir_s) ;
 	if (+_tmp_dir_s) try { unlnk(_tmp_dir_s,{.dir_ok=true,.abs_ok=true}) ; } catch (::string const&) {} // best effort
 }
 

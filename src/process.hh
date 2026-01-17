@@ -28,6 +28,11 @@ inline bool is_sig_sync(int sig) {
 inline bool wstatus_ok(int wstatus) {
 	return WIFEXITED(wstatus) && WEXITSTATUS(wstatus)==0 ;
 }
+inline int/*exit_code*/ mimic_wstatus(int wstatus) {                 // transform wstatus into exit code the best possible way
+	if      (WIFEXITED  (wstatus)) return     WEXITSTATUS(wstatus) ;
+	else if (WIFSIGNALED(wstatus)) return 128+WTERMSIG   (wstatus) ; // mimic bash when it needs to transform a signal into an exit code
+	else                           return 255                      ; // well, do what is possible
+}
 
 ::string wstatus_str(int wstatus) ;
 

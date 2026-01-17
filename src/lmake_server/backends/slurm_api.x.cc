@@ -206,21 +206,21 @@ namespace Backends::Slurm::SlurmApi {
 				case JOB_BOOT_FAIL : msg = "boot failure"      ; ok = Yes   ; goto Done ; // terminated due to node boot failure
 				case JOB_DEADLINE  : msg = "deadline reached"  ; ok = Yes   ; goto Done ; // terminated on deadline
 				case JOB_OOM       : msg = "out of memory"     ; ok = No    ; goto Done ; // experienced out of memory error
-				//   JOB_END                                                              // not a real state, last entry in table
 				case JOB_FAILED :                                                         // completed execution unsuccessfully
 					// when job_exec receives a signal, the bash process which launches it (which the process seen by slurm) exits with an exit code > 128
 					// however, the user is interested in the received signal, not mapped bash exit code, so undo mapping
 					// signaled wstatus are barely the signal number
-					/**/                                      msg = "failed ("                                                                                           ;
-					if      (WIFSIGNALED(ji->exit_code)     ) msg << "signal " << WTERMSIG(ji->exit_code)           <<'-'<< ::strsignal(WTERMSIG(ji->exit_code)        ) ;
-					else if (!WIFEXITED(ji->exit_code)      ) msg << "??"                                                                                                ; // weird, could be a FAIL
-					else if (WEXITSTATUS(ji->exit_code)>0x80) msg << "signal " << (WEXITSTATUS(ji->exit_code)-0x80) <<'-'<< ::strsignal(WEXITSTATUS(ji->exit_code)-0x80) ; // cf comment above
-					else if (WEXITSTATUS(ji->exit_code)!=0  ) msg << "exit "   << WEXITSTATUS(ji->exit_code)                                                             ;
-					else                                      msg << "ok"                                                                                                ;
-					/**/                                      msg << ')'                                                                                                 ;
+					/**/                                       msg = "failed ("                                                                                           ;
+					if      ( WIFSIGNALED(ji->exit_code)     ) msg << "signal " <<  WTERMSIG   (ji->exit_code)       <<'-'<< ::strsignal(WTERMSIG(ji->exit_code)        ) ;
+					else if (!WIFEXITED  (ji->exit_code)     ) msg << "??"                                                                                                ; // weird, could be a FAIL
+					else if ( WEXITSTATUS(ji->exit_code)>0x80) msg << "signal " << (WEXITSTATUS(ji->exit_code)-0x80) <<'-'<< ::strsignal(WEXITSTATUS(ji->exit_code)-0x80) ; // cf comment above
+					else if ( WEXITSTATUS(ji->exit_code)!=0  ) msg << "exit "   <<  WEXITSTATUS(ji->exit_code)                                                            ;
+					else                                       msg << "ok"                                                                                                ;
+					/**/                                       msg << ')'                                                                                                 ;
 					ok = No ;
 					goto Done ;
-				default : FAIL("Slurm : wrong job state return for job (",slurm_id,") : ") ;                                                                               // NO_COV
+			//	case JOB_END :                                                                    // not a real state, last entry in table
+				default      : FAIL("Slurm : wrong job state return for job (",slurm_id,") : ") ; // NO_COV
 			}
 		}
 	Done :

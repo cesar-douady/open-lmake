@@ -144,6 +144,16 @@ void cache_init( bool rescue , bool read_only ) {
 	} catch (::string const& e) {
 		exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : ",e ) ;
 	}
+	// record what has been understood from config
+	CacheConfig ref_config        ;
+	::string    sensed_config_str ;
+	/**/                                                              sensed_config_str << "size             : "<<g_cache_config.max_sz          <<'\n' ;
+	if (g_cache_config.max_rate        !=ref_config.max_rate        ) sensed_config_str << "max_rate         : "<<g_cache_config.max_rate        <<'\n' ;
+	if (g_cache_config.max_runs_per_job!=ref_config.max_runs_per_job) sensed_config_str << "max_runs_per_job : "<<g_cache_config.max_runs_per_job<<'\n' ;
+	if (g_cache_config.file_sync       !=ref_config.file_sync       ) sensed_config_str << "file_sync        : "<<g_cache_config.file_sync       <<'\n' ;
+	if (g_cache_config.perm_ext        !=ref_config.perm_ext        ) sensed_config_str << "perm             : "<<g_cache_config.perm_ext        <<'\n' ;
+	try { AcFd( ADMIN_DIR_S "config" , { .flags=O_WRONLY|O_TRUNC|O_CREAT , .mod=0666 } ).write( sensed_config_str ) ; } catch (::string const&) {}        // best effort
+	//
 	// START_OF_VERSIONING CACHE
 	::string dir_s     = store_dir_s()              ;
 	NfsGuard nfs_guard { g_cache_config.file_sync } ;
