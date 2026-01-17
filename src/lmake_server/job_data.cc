@@ -999,8 +999,9 @@ namespace Engine {
 			/**/                            cache_idx1   = it->second+1                       ; if (!has_download(req->cache_method)) { cache_hit_info = CacheHitInfo::NoDownload ; goto CacheDone ; }
 			CacheServerSide::DownloadDigest cache_digest ;
 			JobInfo&                        job_info     = cache_digest.job_info              ;
-			try {
+			try { //!          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				cache_digest = cache.download( job , match , !req->options.flags[ReqFlag::NoIncremental] ) ;
+				//             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			} catch (::string const& e) {
 				trace("cache_download_throw",e) ;
 				req->audit_job ( Color::Warning , "bad_cache_download" , job ) ;

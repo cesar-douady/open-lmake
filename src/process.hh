@@ -135,7 +135,7 @@ template<class T> struct AutoServer : AutoServerBase {
 //	Bool3/*done*/ process_item    ( Fd , T::Item&& ) ;                          // Maybe means there may be further outputs to Fd, close_slave_out will be/has been called
 } ;
 
-::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir={} ) ;
+::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir_s={} , Channel={} ) ;
 
 //
 // implementation

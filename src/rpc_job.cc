@@ -1024,7 +1024,7 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 		}
 		data_fd.flush() ;                                                                                                              // update data_fd.sz
 		trace("done",data_fd.z_sz) ;
-		return { .upload_key=reply.upload_key , .z_sz=data_fd.z_sz==targets_sz?0:data_fd.z_sz } ;                                      // dont report compressed size of no compression
+		return { .upload_key=reply.upload_key , .z_sz=data_fd.z_sz } ;
 	} catch (::string const& e) {
 		dismiss(reply.upload_key) ;
 		trace("failed") ;

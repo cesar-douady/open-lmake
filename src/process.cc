@@ -230,7 +230,7 @@ void AutoServerBase::start() {
 		bool ok = ::link(tmp.c_str(),server_mrkr.c_str())==0 ;
 		//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		unlnk(tmp) ;
-		if (!ok) throw ::pair_s<Rc>( cat(server_mrkr," : ",StrErr()) , Rc::BadServer ) ;
+		if (!ok) { trace("no_unlnk") ; throw ::pair_s<Rc>( cat(server_mrkr," : ",StrErr()) , Rc::BadServer ) ; }
 		_g_server_mrkr = server_mrkr ;
 		//vvvvvvvvvvvvvvvvvvvvvvv
 		::atexit(_server_cleanup) ;
@@ -241,11 +241,11 @@ void AutoServerBase::start() {
 			if ( ::inotify_add_watch( watch_fd , server_mrkr.c_str() , IN_DELETE_SELF|IN_MOVE_SELF|IN_MODIFY )<0 )
 				watch_fd.close() ;                                                                                 // useless if we cannot watch
 	}
-	trace("started",STR(rescue)) ;
+	trace("done",STR(rescue)) ;
 }
 
-::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir_s ) {
-	Trace trace("connect_to_server",magic,cmd_line) ;
+::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir_s , Channel chnl ) {
+	Trace trace(chnl,"connect_to_server",magic,cmd_line) ;
 	::string file_service_str ;
 	Bool3    server_is_local  = Maybe                                                          ;
 	pid_t    server_pid       = 0                                                              ;

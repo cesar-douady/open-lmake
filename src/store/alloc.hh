@@ -51,7 +51,7 @@ namespace Store {
 			static constexpr size_t NFree = bucket<Mantissa>(lsb_msk(8*sizeof(I)))+1 ; // number of necessary slot is highest possible index + 1
 			NoVoid<H>                 hdr        ;
 			::array<I,NFree         > free       = {} ;
-			::array<I,NFree*HasTrash> trash      = {} ;
+			::array<I,NFree*HasTrash> trash      = {} ;                                // empty_trash must be called before trashed entries can be reallocated
 			::array<I,NFree*HasTrash> trash_last = {} ;                                // last entry in trash list
 		} ;
 		template<class I,class D> struct Data {
@@ -115,7 +115,8 @@ namespace Store {
 			} ;
 			// cxtors & casts
 			Lst( AllocFile const& s ) : _self{&s} {
-				for( Idx i=_self->_free(0) ; +i ; i=_self->Base::at(i).nxt ) _frees.insert(+i) ;
+				/**/          for( Idx i=_self->_free (0) ; +i ; i=_self->Base::at(i).nxt ) _frees.insert(+i) ;
+				if (HasTrash) for( Idx i=_self->_trash(0) ; +i ; i=_self->Base::at(i).nxt ) _frees.insert(+i) ;
 			}
 			// accesses
 			Sz size() const { return _self->size() ; }
@@ -164,8 +165,9 @@ namespace Store {
 	public :
 		void clear() {
 			Base::clear() ;
-			for( Idx& e : Base::hdr().free  ) e = 0 ;
-			for( Idx& e : Base::hdr().trash ) e = 0 ;
+			/**/          for( Idx& e : Base::hdr().free       ) e = 0 ;
+			if (HasTrash) for( Idx& e : Base::hdr().trash      ) e = 0 ;
+			if (HasTrash) for( Idx& e : Base::hdr().trash_last ) e = 0 ; // defensive programming : avoid leaving garbage values hanging around
 		}
 		void chk        () const                    ;
 		void empty_trash()       requires(HasTrash) ;
@@ -239,37 +241,47 @@ namespace Store {
 			/**/                                  trash               = idx ;
 		}
 	} ;
+
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa,bool HasTrash>
 		void AllocFile<ThreadKey,Hdr,Idx,NIdxBits,Data,Mantissa,HasTrash>::empty_trash() requires(HasTrash) {
+chk() ;                                                                                                       // XXX : suppress
 			for( Sz bucket : iota<Sz>(BaseHdr::NFree) ) {
 				Idx& trash      = _trash     (bucket) ; if (!trash) continue ;
 				Idx& free       = _free      (bucket) ;
 				Idx& trash_last = _trash_last(bucket) ; SWEAR( !Base::at(trash_last).nxt , bucket,trash_last ) ;
 				//
-				Base::at(trash_last).nxt = free  ;                                                                             // insert trash in front of free list
-				free                     = trash ;                                                                             // .
-				trash                    = 0     ;                                                                             // empty trash
-				trash_last               = 0     ;                                                                             // defensive programming : avoid leaving meaningless info
+				Base::at(trash_last).nxt = free  ;                                                            // insert trash in front of free list
+				free                     = trash ;                                                            // .
+				trash                    = 0     ;                                                            // empty trash
+				trash_last               = 0     ;                                                            // defensive programming : avoid leaving meaningless info
 			}
+chk() ;                                                                                                       // XXX : suppress
 		}
+
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Data,uint8_t Mantissa,bool HasTrash> void AllocFile<ThreadKey,Hdr,Idx,NIdxBits,Data,Mantissa,HasTrash>::chk() const {
 		Base::chk() ;
 		//
-		::vector<bool> free_map ; free_map.resize(size()) ;
+		struct FreeEntry {
+			bool operator+() const { return in_trash!=Maybe ; }
+			Bool3 in_trash = Maybe ;                             // Maybe means entry is in no free lists
+			Sz    bucket   = 0     ;
+		} ;
+		::vector<FreeEntry> free_map ; free_map.resize(size()) ; // record the list/bucket in which each entry appears in the free list of
 		//
-		for( Sz bucket : iota<Sz>(BaseHdr::NFree) ) {
-			Sz sz = _s_sz(bucket) ;
-			auto do_chk = [&](Idx free) {
-				for( Idx idx=free ; +idx ; idx=Base::at(idx).nxt ) {
-					SWEAR( static_cast<Sz>(+idx+_s_sz(bucket))<=size() , idx ) ;
+		for( char in_trash : {false,true} ) {
+			if ( !HasTrash && in_trash ) continue ;
+			for( Sz bucket : iota<Sz>(BaseHdr::NFree) ) {
+				Sz  sz   = _s_sz(bucket)                             ;
+				Idx head = in_trash ? _trash(bucket) : _free(bucket) ;
+				for( Idx idx=head ; +idx ; idx=Base::at(idx).nxt ) {
+					SWEAR( static_cast<Sz>(+idx+sz)<=size() , idx,sz ) ;
 					for( Sz i : iota(sz) ) {
-						SWEAR( !free_map[+idx+i] , idx,i ) ;
-						free_map[+idx+i] = true ;
+						FreeEntry& e = free_map[+idx+i] ;
+						SWEAR( !e , idx,i,in_trash?'T':'F',bucket,e.in_trash==Yes?'T':'F',e.bucket ) ;
+						e = { No|in_trash , bucket } ;
 					}
 				}
-			} ;
-			/**/          do_chk(_free (bucket)) ;
-			if (HasTrash) do_chk(_trash(bucket)) ;
+			}
 		}
 	}
 

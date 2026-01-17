@@ -852,10 +852,10 @@ lmake_env/stamp : lmake_env/Manifest $(patsubst %,lmake_env/%,$(LMAKE_SRCS))
 		echo reset lmake_env book-keeping ;               \
 		rm -rf LMAKE ../lmake_env-cache   ;               \
 	}
-	@[ -f lmake_env-cache/LMAKE/config.py ] || {             \
-		echo init lmake_env-cache                          ; \
-		mkdir -p lmake_env-cache/LMAKE                     ; \
-		echo 'size=5<<20' >lmake_env-cache/LMAKE/config.py ; \
+	@[ -f lmake_env-cache/LMAKE/config.py ] || {               \
+		echo init lmake_env-cache                            ; \
+		mkdir -p lmake_env-cache/LMAKE                       ; \
+		echo 'size=150<<20' >lmake_env-cache/LMAKE/config.py ; \
 	}
 	@echo init lmake_env
 lmake_env/tok : $(LMAKE_ALL_FILES) lmake_env/stamp lmake_env/Lmakefile.py

@@ -649,7 +649,7 @@ namespace Engine {
 			}
 			//
 			bool      maybe_done = !ri.running() && jd.status>Status::Garbage && !end_digest.has_unstable_deps ;
-			::string  pfx        = !done && maybe_done ? "may_" : ""                                        ;
+			::string  pfx        = !done && maybe_done ? "may_" : ""                                           ;
 			JobReport jr = audit_end(
 				ri
 			,	true/*with_stats*/

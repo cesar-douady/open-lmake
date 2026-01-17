@@ -965,33 +965,34 @@ namespace Engine {
 								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								//
 								if (porcelaine) { //!                                                                                    color protect
-									/**/                      push_entry( "rc"                    , wstatus_str(end.wstatus)             , {} , true  ) ;
-									/**/                      push_entry( "cpu time"              , ::to_string(double(end.stats.cpu  )) , {} , false ) ;
-									/**/                      push_entry( "elapsed in job"        , ::to_string(double(end.stats.job  )) , {} , false ) ;
-									/**/                      push_entry( "elapsed total"         , ::to_string(double(digest.exe_time)) , {} , false ) ;
-									/**/                      push_entry( "used mem"              , cat        (end.stats.mem          ) , {} , false ) ;
-									/**/                      push_entry( "cost"                  , ::to_string(double(job->cost()    )) , {} , false ) ;
-									/**/                      push_entry( "total size"            , cat        (end.total_sz           ) , {} , false ) ;
-									if ( end.total_z_sz     ) push_entry( "total compressed size" , cat        (end.total_z_sz         ) , {} , false ) ;
-									if ( verbose && +target ) push_entry( "checksum"              , ::string   (target->crc            ) , {} , true  ) ;
+									/**/                                push_entry( "rc"                    , wstatus_str(end.wstatus)             , {} , true  ) ;
+									/**/                                push_entry( "cpu_time"              , ::to_string(double(end.stats.cpu  )) , {} , false ) ;
+									/**/                                push_entry( "elapsed_in_job"        , ::to_string(double(end.stats.job  )) , {} , false ) ;
+									/**/                                push_entry( "elapsed_total"         , ::to_string(double(digest.exe_time)) , {} , false ) ;
+									/**/                                push_entry( "used_mem"              , cat        (end.stats.mem          ) , {} , false ) ;
+									/**/                                push_entry( "cost"                  , ::to_string(double(job->cost()    )) , {} , false ) ;
+									/**/                                push_entry( "total_size"            , cat        (end.total_sz           ) , {} , false ) ;
+									if ( end.total_z_sz!=end.total_sz ) push_entry( "total_compressed_size" , cat        (end.total_z_sz         ) , {} , false ) ;
+									if ( verbose && +target           ) push_entry( "checksum"              , ::string   (target->crc            ) , {} , true  ) ;
 								} else {
 									::string const& mem_rsrc_str = allocated_rsrcs.contains("mem") ? allocated_rsrcs.at("mem") : required_rsrcs.contains("mem") ? required_rsrcs.at("mem") : ""s ;
 									size_t          mem_rsrc     = +mem_rsrc_str?from_string_with_unit(mem_rsrc_str):0                                                                           ;
 									bool            overflow     = end.stats.mem > mem_rsrc                                                                                                      ;
 									::string        mem_str      = to_short_string_with_unit(end.stats.mem)+'B'                                                                                  ;
 									if ( overflow && mem_rsrc ) mem_str += " > "+mem_rsrc_str+'B' ;
-									::string rc_str   = wstatus_str(end.wstatus) + (wstatus_ok(end.wstatus)&&+end.msg_stderr.stderr?" (with non-empty stderr)":"") ;
-									Color    rc_color = wstatus_ok(end.wstatus) ? Color::Ok : Color::Err                                                           ;
+									::string rc_str     = wstatus_str(end.wstatus) + (wstatus_ok(end.wstatus)&&+end.msg_stderr.stderr?" (with non-empty stderr)":"") ;
+									Color    z_sz_color = end.total_z_sz>end.total_sz ? Color::Warning : Color::None                                                 ;
+									Color    rc_color   = wstatus_ok(end.wstatus)     ? Color::Ok      : Color::Err                                                  ;
 									if ( rc_color==Color::Ok && +end.msg_stderr.stderr ) rc_color = job->status==Status::Ok ? Color::Warning : Color::Err ;
-									/**/                      push_entry( "rc"                 , rc_str                                        , rc_color                            ) ;
-									/**/                      push_entry( "cpu time"           , end.stats.cpu  .short_str()                                                         ) ;
-									/**/                      push_entry( "elapsed in job"     , end.stats.job  .short_str()                                                         ) ;
-									/**/                      push_entry( "elapsed total"      , digest.exe_time.short_str()                                                         ) ;
-									/**/                      push_entry( "used mem"           , mem_str                                       , overflow?Color::Warning:Color::None ) ;
-									/**/                      push_entry( "cost"               , job->cost()     .short_str()                                                        ) ;
-									/**/                      push_entry( "total targets size" , to_short_string_with_unit(end.total_sz  )+'B'                                       ) ;
-									if ( end.total_z_sz     ) push_entry( "compressed size"    , to_short_string_with_unit(end.total_z_sz)+'B'                                       ) ;
-									if ( verbose && +target ) push_entry( "checksum"           , ::string(target->crc)                                                               ) ;
+									/**/                                push_entry( "rc"                    , rc_str                                        , rc_color                            ) ;
+									/**/                                push_entry( "cpu time"              , end.stats.cpu  .short_str()                                                         ) ;
+									/**/                                push_entry( "elapsed in job"        , end.stats.job  .short_str()                                                         ) ;
+									/**/                                push_entry( "elapsed total"         , digest.exe_time.short_str()                                                         ) ;
+									/**/                                push_entry( "used mem"              , mem_str                                       , overflow?Color::Warning:Color::None ) ;
+									/**/                                push_entry( "cost"                  , job->cost()     .short_str()                                                        ) ;
+									/**/                                push_entry( "total targets size"    , to_short_string_with_unit(end.total_sz  )+'B'                                       ) ;
+									if ( end.total_z_sz!=end.total_sz ) push_entry( "total compressed size" , to_short_string_with_unit(end.total_z_sz)+'B' , z_sz_color                          ) ;
+									if ( verbose && +target           ) push_entry( "checksum"              , ::string(target->crc)                                                               ) ;
 								}
 							}
 							//

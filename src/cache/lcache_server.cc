@@ -163,6 +163,7 @@ struct CacheServer : AutoServer<CacheServer> {
 static CacheServer _g_server { ServerMrkr } ;
 
 int main( int argc , char** argv ) {
+	Trace::s_backup_trace = true ;
 	app_init({
 		.cd_root      = false // daemon is always launched at root
 	,	.chk_version  = Maybe

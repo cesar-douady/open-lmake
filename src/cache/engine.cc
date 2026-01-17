@@ -103,6 +103,7 @@ LruEntry*           RateCmp::s_lrus          = nullptr ;
 ::set<Rate,RateCmp> RateCmp::s_tab           ;
 
 void cache_chk() {
+	Trace trace("cache_chk") ;
 	_g_job_name_file .chk() ;
 	_g_node_name_file.chk() ;
 	_g_job_file      .chk() ;
@@ -110,6 +111,7 @@ void cache_chk() {
 	_g_node_file     .chk() ;
 	_g_nodes_file    .chk() ;
 	_g_crcs_file     .chk() ;
+	trace("done") ;
 }
 
 void cache_init( bool rescue , bool read_only ) {
@@ -143,7 +145,7 @@ void cache_init( bool rescue , bool read_only ) {
 		exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : ",e ) ;
 	}
 	// START_OF_VERSIONING CACHE
-	::string dir_s     = store_dir_s()        ;
+	::string dir_s     = store_dir_s()              ;
 	NfsGuard nfs_guard { g_cache_config.file_sync } ;
 	{ ::string file=dir_s+"key"       ; nfs_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
 	{ ::string file=dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
@@ -160,14 +162,15 @@ void cache_init( bool rescue , bool read_only ) {
 }
 
 void cache_empty_trash() {
-	Trace trace("empty_trash") ;
+	Trace trace("cache_empty_trash") ;
 	CnodeData::s_empty_trash() ;
 	trace("done") ;
 }
 
 void cache_finalize() {
-	::string dir_s = cat(PrivateAdminDirS,"store/") ;
-	NfsGuard nfs_guard { g_cache_config.file_sync } ;
+	::string dir_s     = cat(PrivateAdminDirS,"store/") ;
+	NfsGuard nfs_guard { g_cache_config.file_sync }     ;
+	Trace trace("cache_finalize",dir_s) ;
 	nfs_guard.change(dir_s+"key"      ) ;
 	nfs_guard.change(dir_s+"job_name" ) ;
 	nfs_guard.change(dir_s+"node_name") ;
@@ -176,6 +179,7 @@ void cache_finalize() {
 	nfs_guard.change(dir_s+"node"     ) ;
 	nfs_guard.change(dir_s+"nodes"    ) ;
 	nfs_guard.change(dir_s+"crcs"     ) ;
+	trace("done") ;
 }
 
 void mk_room( DiskSz sz , Cjob keep_job ) {

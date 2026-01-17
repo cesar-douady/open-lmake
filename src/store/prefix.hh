@@ -307,10 +307,10 @@ namespace Store {
 				return round_down<alignof(Char)>( _s_end_ofs(sz) -  end_ofs ) ;                                                                     // align
 			}
 			static constexpr bool _s_large_enough_empty( Sz sz , Kind k , bool u ) {
-				if (!u) return true ;                                                                                                               // an unused Split fits in a minimal item
-				ItemOfs at_end = DataSizeOf + sizeof(Idx)*+k ;
-				if (k==Kind::Split) at_end = round_up<CharSizeOf>(at_end) + CharSizeOf ;
-				return sz>=MinUsedSz && _s_end_ofs(sz) >= ChunkOfs+sizeof(Char)+at_end ;                                                            // used items must have a non-null chunk
+				if (!u          ) return true  ;                                                                                                    // an unused Split fits in a minimal item
+				if (sz<MinUsedSz) return false ;
+				ItemOfs at_end = DataSizeOf + sizeof(Idx)*+k ; if (k==Kind::Split) at_end = round_up<CharSizeOf>(at_end) + CharSizeOf ;
+				return _s_end_ofs(sz) >= ChunkOfs+sizeof(Char)+at_end ;                                                                             // used items must have a non-null chunk
 			}
 			size_t _data_ofs   () const { SWEAR(used                         ) ; return _s_data_ofs   (sz(),kind()     ) ; }
 			size_t _nxt_ofs    () const { SWEAR(kind()!=Kind::Terminal       ) ; return _s_nxt_ofs    (sz(),kind(),used) ; }

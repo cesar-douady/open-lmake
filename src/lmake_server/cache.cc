@@ -17,7 +17,7 @@ namespace Cache {
 	::vector<CacheServerSide> CacheServerSide::s_tab ;
 
 	void CacheServerSide::s_config( ::vmap_s<::vmap_ss> const& caches ) {
-		Trace trace("Cache::s_config",caches.size()) ;
+		Trace trace(CacheChnl,"Cache::s_config",caches.size()) ;
 		for( auto const& [k,cache] : caches ) {
 			try {
 				trace(k,cache) ;
@@ -42,11 +42,11 @@ namespace Cache {
 			trace("bad_repo_key",key) ;
 			throw cat("wrong key (",key,") in lmake.config") ;
 		}
-		throw_unless(       +dir_s  , "dir must be specified for cache") ;
-		throw_unless( is_abs(dir_s) , "dir must be absolute for cache" ) ;
+		throw_unless(       +dir_s  , "dir must be specified for cache" ) ;
+		throw_unless( is_abs(dir_s) , "dir must be absolute for cache"  ) ;
 		::vector_s cmd_line = { *g_lmake_root_s+"bin/lcache_server" , "-d"/*no_daemon*/ } ;
-		try                           { _fd = connect_to_server( true/*try_old*/ , CacheMagic , ::move(cmd_line) , ServerMrkr , dir_s ).first ; }
-		catch (::pair_s<Rc> const& e) { throw e.first ;                                                                                         }
+		try                           { _fd = connect_to_server( true/*try_old*/ , CacheMagic , ::move(cmd_line) , ServerMrkr , dir_s , CacheChnl ).first ; }
+		catch (::pair_s<Rc> const& e) { throw e.first ;                                                                                                     }
 		service = _fd.service()                                 ;
 		_dir_fd = AcFd( dir_s , {.flags=O_RDONLY|O_DIRECTORY} ) ;
 		//
@@ -71,7 +71,7 @@ namespace Cache {
 	}
 
 	CacheServerSide::DownloadDigest CacheServerSide::download( Job job , Rule::RuleMatch const& match , bool incremental ) {
-		Trace trace(CacheChnl,"download",job) ;
+		Trace trace(CacheChnl,"download",job,STR(incremental)) ;
 		// provide node actual crc as this is the hit criteria
 		::vmap<StrId<CnodeIdx>,DepDigest> deps       ;
 		StrId<CjobIdx>                    job_str_id ;
@@ -193,7 +193,6 @@ namespace Cache {
 			ifd.write(job_info_str) ;
 		}
 		//
-		trace("commit") ;
 		CacheRpcReq crr {
 			.proc        = CacheRpcProc::Commit
 		,	.job         = job->unique_name()
@@ -203,6 +202,7 @@ namespace Cache {
 		,	.exe_time    = job_info.end.digest.exe_time
 		,	.upload_key  = upload_key
 		} ;
+		trace("req",crr) ;
 		OMsgBuf(crr).send(_fd) ;
 		trace("done") ;
 	}
