@@ -1013,17 +1013,17 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 				break ;
 				case FileTag::Reg :
 				case FileTag::Exe :
-					if (sz) {
+					if (sz) {                                                                                                      // empty executable is not tagged as Empty
 						trace("read_from",tn,sz) ;
 						data_fd.send_from( AcFd(tn,{.flags=O_RDONLY|O_NOFOLLOW}) , sz ) ;
 						throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;                                           // ensure cache entry is reliable by checking file *after* copy
 					}
-				[[fallthrough]] ;                                                                                                      // empty executable is not tagged as Empty
+				break ;
 				case FileTag::Empty : trace("empty_from",tn) ; break ;
 			DN}
 		}
 		data_fd.flush() ;                                                                                                              // update data_fd.sz
-		trace("done",data_fd.z_sz) ;
+		trace("done",reply.upload_key,data_fd.z_sz) ;
 		return { .upload_key=reply.upload_key , .z_sz=data_fd.z_sz } ;
 	} catch (::string const& e) {
 		dismiss(reply.upload_key) ;

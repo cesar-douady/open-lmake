@@ -164,6 +164,9 @@ struct CkeyData {
 struct CjobData {
 	friend struct Cjob ;
 	friend ::string& operator+=( ::string& , CjobData const& ) ;
+	// statics
+	static CnodeIdx s_size       () ;
+	static void     s_empty_trash() ;
 	// cxtors & casts
 	CjobData() = default ;
 	CjobData( CjobName n , VarIdx nss ) : n_statics{nss},_name{n} {}
@@ -200,6 +203,7 @@ struct CrunData {
 	// statics
 	static CrunHdr      & s_hdr  () ;
 	static CrunHdr const& s_c_hdr() ;
+	static CrunIdx        s_size () ;
 	// cxtors & casts
 	CrunData() = default ;
 	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
@@ -255,9 +259,9 @@ private :
 using CkeyFile      = Store::SinglePrefixFile< '='   , void    , Ckey      , NCkeyIdxBits      , char , CkeyData                                     > ;
 using CjobNameFile  = Store::SinglePrefixFile< '='   , void    , CjobName  , NCjobNameIdxBits  , char , Cjob                                         > ;
 using CnodeNameFile = Store::SinglePrefixFile< '='   , void    , CnodeName , NCnodeNameIdxBits , char , Cnode                                        > ;
-using CjobFile      = Store::AllocFile       < '='   , void    , Cjob      , NCjobIdxBits      ,        CjobData                                     > ;
+using CjobFile      = Store::AllocFile       < '='   , void    , Cjob      , NCjobIdxBits      ,        CjobData  , 0/*Mantissa*/ , true/*HasTrash*/ > ; // id's are kept in lmake_server
 using CrunFile      = Store::AllocFile       < '='   , CrunHdr , Crun      , NCrunIdxBits      ,        CrunData                                     > ;
-using CnodeFile     = Store::AllocFile       < '='   , void    , Cnode     , NCnodeIdxBits     ,        CnodeData , 0/*Mantissa*/ , true/*HasTrash*/ > ;
+using CnodeFile     = Store::AllocFile       < '='   , void    , Cnode     , NCnodeIdxBits     ,        CnodeData , 0/*Mantissa*/ , true/*HasTrash*/ > ; // id's are kept in lmake_server
 using CnodesFile    = Store::VectorFile      < '='   , void    , Cnodes    , NCnodesIdxBits    ,        Cnode     , CnodeIdx      , 4   /*MinSz   */ > ;
 using CcrcsFile     = Store::VectorFile      < '='   , void    , Ccrcs     , NCcrcsIdxBits     ,        Hash::Crc , CnodeIdx      , 4   /*.       */ > ;
 // END_OF_VERSIONING
@@ -308,12 +312,16 @@ template<class... A> Crun::Crun( NewType , A&&... args ) {
 	self = _g_run_file.emplace(::forward<A>(args)...) ;
 }
 
-inline CrunHdr      & CrunData ::s_hdr  () { return _g_run_file .hdr  () ; }
-inline CrunHdr const& CrunData ::s_c_hdr() { return _g_run_file .c_hdr() ; }
+inline CrunHdr      & CrunData ::s_hdr        ()       { return _g_run_file .hdr        (    ) ; }
+inline CrunHdr const& CrunData ::s_c_hdr      ()       { return _g_run_file .c_hdr      (    ) ; }
 
-inline Cjob  CjobData ::idx() const { return _g_job_file .idx(self) ; }
-inline Crun  CrunData ::idx() const { return _g_run_file .idx(self) ; }
-inline Cnode CnodeData::idx() const { return _g_node_file.idx(self) ; }
+inline CjobIdx        CjobData ::s_size       ()       { return _g_job_file .size       (    ) ; }
+inline CrunIdx        CrunData ::s_size       ()       { return _g_run_file .size       (    ) ; }
+inline CnodeIdx       CnodeData::s_size       ()       { return _g_node_file.size       (    ) ; }
 
-inline CnodeIdx CnodeData::s_size       () { return _g_node_file.size       () ; }
-inline void     CnodeData::s_empty_trash() { return _g_node_file.empty_trash() ; }
+inline void           CjobData ::s_empty_trash()       { return _g_job_file .empty_trash(    ) ; }
+inline void           CnodeData::s_empty_trash()       { return _g_node_file.empty_trash(    ) ; }
+
+inline Cjob           CjobData ::idx          () const { return _g_job_file .idx        (self) ; }
+inline Crun           CrunData ::idx          () const { return _g_run_file .idx        (self) ; }
+inline Cnode          CnodeData::idx          () const { return _g_node_file.idx        (self) ; }

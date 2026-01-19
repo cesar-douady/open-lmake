@@ -75,9 +75,9 @@ namespace Cache {
 		// provide node actual crc as this is the hit criteria
 		::vmap<StrId<CnodeIdx>,DepDigest> deps       ;
 		StrId<CjobIdx>                    job_str_id ;
-		//
 		if ( +job<_cjobs.size() && _cjobs[+job] ) job_str_id = {_cjobs[+job]      } ;
 		else                                      job_str_id = {job->unique_name()} ;
+		//
 		for( Dep const& d : job->deps ) {
 			DepDigest dd = d ;
 			dd.set_crc(d->crc,d->ok()==No) ;
@@ -193,9 +193,12 @@ namespace Cache {
 			ifd.write(job_info_str) ;
 		}
 		//
+		StrId<CjobIdx> job_str_id ;
+		if ( +job<_cjobs.size() && _cjobs[+job] ) job_str_id = {_cjobs[+job]      } ;
+		else                                      job_str_id = {job->unique_name()} ;
 		CacheRpcReq crr {
 			.proc        = CacheRpcProc::Commit
-		,	.job         = job->unique_name()
+		,	.job         = job_str_id
 		,	.repo_deps   = ::move(repo_deps)
 		,	.total_z_sz  = job_info.end.total_z_sz
 		,	.job_info_sz = job_info_str.size()

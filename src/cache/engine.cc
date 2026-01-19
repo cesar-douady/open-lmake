@@ -152,7 +152,11 @@ void cache_init( bool rescue , bool read_only ) {
 	if (g_cache_config.max_runs_per_job!=ref_config.max_runs_per_job) sensed_config_str << "max_runs_per_job : "<<g_cache_config.max_runs_per_job<<'\n' ;
 	if (g_cache_config.file_sync       !=ref_config.file_sync       ) sensed_config_str << "file_sync        : "<<g_cache_config.file_sync       <<'\n' ;
 	if (g_cache_config.perm_ext        !=ref_config.perm_ext        ) sensed_config_str << "perm             : "<<g_cache_config.perm_ext        <<'\n' ;
-	try { AcFd( ADMIN_DIR_S "config" , { .flags=O_WRONLY|O_TRUNC|O_CREAT , .mod=0666 } ).write( sensed_config_str ) ; } catch (::string const&) {}        // best effort
+	try {
+		::string sensed_config_file = ADMIN_DIR_S "config" ;
+		unlnk( sensed_config_file                                                                                 )                            ; // in case it exists with insufficient perm
+		AcFd ( sensed_config_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=g_cache_config.perm_ext} ).write( sensed_config_str ) ;
+	} catch (::string const&) {}                                                                                                                 // best effort
 	//
 	// START_OF_VERSIONING CACHE
 	::string dir_s     = store_dir_s()              ;
@@ -173,6 +177,7 @@ void cache_init( bool rescue , bool read_only ) {
 
 void cache_empty_trash() {
 	Trace trace("cache_empty_trash") ;
+	CjobData ::s_empty_trash() ;
 	CnodeData::s_empty_trash() ;
 	trace("done") ;
 }
@@ -456,45 +461,45 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 	SWEAR( n_statics<=dep_crcs_view.size() && dep_crcs_view.size()<=deps_view.size() , n_statics,deps_view,dep_crcs_view ) ;
 	// first check static deps
 	for( NodeIdx i : iota(n_statics) ) {
-		SWEAR( deps_view[i]==deps_[i] , i,deps,deps_view ) ;                                                                    // static deps only depend on job
-		if (dep_crcs_view[i]!=dep_crcs_[i]) { trace("miss1",i) ; return CacheHitInfo::Miss ; }                                  // found with a different crc
+		SWEAR( deps_view[i]==deps_[i] , i,deps_,deps_view ) ;                                                                                              // static deps only depend on job
+		if (!crc_ok(dep_crcs_view[i],dep_crcs_[i])) { trace("miss1",i,deps_view[i],dep_crcs_view[i],dep_crcs_[i]) ; return CacheHitInfo::Miss ; }          // found with a different crc
 	}
-	NodeIdx j1 = n_statics        ;                                                                                             // index into provided deps, with    crc
-	NodeIdx j2 = dep_crcs_.size() ;                                                                                             // index into provided deps, without crc
+	NodeIdx j1 = n_statics        ;                                                                                                                        // index into provided deps, with    crc
+	NodeIdx j2 = dep_crcs_.size() ;                                                                                                                        // index into provided deps, without crc
 	// then search for exising deps
 	for( NodeIdx i : iota(n_statics,dep_crcs_view.size()) ) {
 		while ( j1<dep_crcs_.size() && +deps_[j1]< +deps_view[i] ) j1++ ;
 		if    ( j1<dep_crcs_.size() &&  deps_[j1]== deps_view[i] ) {
-			if (!crc_ok(dep_crcs_view[i],dep_crcs_[j1])) { trace("miss2",i,j1) ; return CacheHitInfo::Miss ; }                  // found with a different crc
-			j1++ ;                                                                                                              // fast path : j1 is consumed
+			if (!crc_ok(dep_crcs_view[i],dep_crcs_[j1])) { trace("miss2",i,j1,deps_view[i],dep_crcs_view[i],dep_crcs_[j1]) ; return CacheHitInfo::Miss ; } // found with a different crc
+			j1++ ;                                                                                                                                         // fast path : j1 is consumed
 		} else {
 			while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
 			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) {
-				if (!crc_ok(dep_crcs_view[i],Crc::None)) { trace("miss3",i,j2) ; return CacheHitInfo::Miss ; }                  // found without crc while expecting one
-				j2++ ;                                                                                                          // fast path : j1 is consumed
-			} else { trace("match",i,j1,j2) ; res = CacheHitInfo::Match ; }                                                     // not found
+				if (!crc_ok(dep_crcs_view[i],Crc::None)) { trace("miss3",i,j2,deps_view[i],dep_crcs_view[i]) ; return CacheHitInfo::Miss ; }               // found without crc while expecting one
+				j2++ ;                                                                                                                                     // fast path : j1 is consumed
+			} else { trace("match",i,deps_view[i],j1,j2) ; res = CacheHitInfo::Match ; }                                                                   // not found
 		}
 	}
 	// then search for non-existing deps
-	if ( res==CacheHitInfo::Hit && dep_crcs_.size()==dep_crcs_view.size() ) {                                                   // fast path : all existing deps are consumed
-		SWEAR( j2==dep_crcs_.size() , j2,dep_crcs_.size() )  ;                                                                  // all existing deps were found existing
+	if ( res==CacheHitInfo::Hit && dep_crcs_.size()==dep_crcs_view.size() ) {                                                                              // fast path : all existing deps are consumed
+		SWEAR( j2==dep_crcs_.size() , j2,dep_crcs_.size() )  ;                                                                                             // all existing deps were found existing
 		for( NodeIdx i : iota(dep_crcs_view.size(),deps_view.size()) ) {
 			while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
-			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                       // fast path : j2 is consumed
-			else                                                   { trace("match",i,j1,j2) ; res = CacheHitInfo::Match ; }     // not found
+			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                                                  // fast path : j2 is consumed
+			else                                                   { trace("match",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; }                   // not found
 		}
 	} else {
-		j1 = n_statics        ;                                                                                                 // reset search as desp are ordered separately existing/non-existing
-		j2 = dep_crcs_.size() ;                                                                                                 // .
+		j1 = n_statics        ;                                          // reset search as deps are ordered separately existing/non-existing
+		j2 = dep_crcs_.size() ;                                          // .
 		for( NodeIdx i : iota(dep_crcs_view.size(),deps_view.size()) ) {
 			while ( j1<dep_crcs_.size() && +deps_[j1]< +deps_view[i] ) j1++ ;
 			if    ( j1<dep_crcs_.size() &&  deps_[j1]== deps_view[i] ) {
-				if (!crc_ok(Crc::None,dep_crcs_[j1])) { trace("miss4",i,j1   ) ; return CacheHitInfo::Miss ; }                  // found with crc while expecting none
-				j1++ ;                                                                                                          // fast path : j1 is consumed
+				if (!crc_ok(Crc::None,dep_crcs_[j1])) { trace("miss4",i,j1,deps_view[i],dep_crcs_[j1]) ; return CacheHitInfo::Miss ; }       // found with crc while expecting none
+				j1++ ;                                                                                                                       // fast path : j1 is consumed
 			} else {
 				while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
-				if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                   // fast path : j2 is consumed
-				else                                                   { trace("match",i,j1,j2) ; res = CacheHitInfo::Match ; } // not found
+				if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                                // fast path : j2 is consumed
+				else                                                   { trace("match",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; } // not found
 			}
 		}
 	}

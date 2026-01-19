@@ -88,7 +88,7 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	NfsGuard                  nfs_guard  { g_cache_config.file_sync }                                                   ;
 	::string                  rf         = reserved_file(crr.upload_key)                                                ;
 	CompileDigest             deps       { crr.repo_deps , false/*for_download*/ }                                      ;
-	Cjob                      job        = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR( job->n_statics==deps.n_statics , job,deps.n_statics ) ;
+	Cjob                      job        = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR( job->n_statics==deps.n_statics , job,job->n_statics,deps.n_statics ) ;
 	DiskSz                    sz         = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
 	ConnEntry&                conn_entry = _g_conn_tab.at(fd)                                                           ;
 	::pair<Crun,CacheHitInfo> digest     ;
