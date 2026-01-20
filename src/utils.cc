@@ -537,12 +537,12 @@ bool              _crash_busy  = false ;
 	// - quite often, line number is off by 1 or 2, either direction
 	// however, this is better than nothing
 
-	static size_t/*len*/ _beautify(char* file_name) {                     // does not call malloc for use in src_point
+	static size_t/*len*/ _beautify(char* filename) {                      // does not call malloc for use in src_point
 		enum State { Plain , Slash , Dot , DotDot } ;
-		char*       out = file_name ;
-		const char* min = file_name ;
+		char*       out = filename ;
+		const char* min = filename ;
 		State  state = Slash ;
-		for( const char* in=file_name ; *in ; in++) {
+		for( const char* in=filename ; *in ; in++) {
 			char c = *in ;
 			switch (c) {
 				case '/' : {
@@ -551,8 +551,8 @@ bool              _crash_busy  = false ;
 					switch (s) {
 						case Plain : break ;
 						case Slash  :
-							if (in!=file_name) continue ;                 // 2 consecutive /, ignore 2nd if not first char
-							min = file_name+1 ;
+							if (in!=filename) continue ;                  // 2 consecutive /, ignore 2nd if not first char
+							min = filename+1 ;
 						break ;
 						case Dot :                                        // after a ., suppress it
 							out-- ;
@@ -581,7 +581,7 @@ bool              _crash_busy  = false ;
 			*out++ = c ;
 		}
 		*out = 0 ;
-		return out-file_name ;
+		return out-filename ;
 	}
 
 	struct SrcPoint {

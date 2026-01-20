@@ -225,6 +225,7 @@ template<bool WithStart,class T> struct Iota {
 		using value_type      = T         ;
 		using difference_type = ptrdiff_t ;
 		// cxtors & casts
+		Iterator() = default ;
 		constexpr Iterator(T c) : cur{c} {}
 		// services
 		constexpr bool      operator==(Iterator const&) const = default ;

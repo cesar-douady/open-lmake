@@ -87,10 +87,10 @@ def get_expr(expr,*,no_imports=None,ctx=(),force=False,call_callables=False) :
 
 end_liness = {}
 srcs       = {}
-def _analyze(file_name) :
-	if file_name in end_liness : return
-	srcs      [file_name] = lines          = open(file_name).read().splitlines()
-	end_liness[file_name] = file_end_lines = {}
+def _analyze(filename) :
+	if filename in end_liness : return
+	srcs      [filename] = lines          = open(filename).read().splitlines()
+	end_liness[filename] = file_end_lines = {}
 	for start_lineno in range(len(lines)) :
 		start_line = lines[start_lineno]
 		def_pos    = start_line.find('def')
@@ -305,22 +305,22 @@ class Serialize :
 		return f'def {name}{inspect.signature(func)} :{core}'
 
 	def func_src(self,name,func) :
-		code      = func.__code__
-		module    = func.__module__
-		file_name = osp.abspath(code.co_filename)
-		_analyze(file_name)
-		file_src       = srcs      [file_name]
-		file_end_lines = end_liness[file_name]
+		code     = func.__code__
+		module   = func.__module__
+		filename = osp.abspath(code.co_filename)
+		_analyze(filename)
+		file_src       = srcs      [filename]
+		file_end_lines = end_liness[filename]
 		first_line_no1 = code.co_firstlineno                                             # first line is 1
 		first_line_no0 = first_line_no1-1                                                # first line is 0
 		end_line_no    = file_end_lines.get(first_line_no0)
 		if first_line_no0>0 and file_src[first_line_no0-1].strip().startswith('@') : raise ValueError(f'cannot handle decorated {name}')
-		assert end_line_no,f'{file_name}:{first_line_no1} : cannot find def {name}'
+		assert end_line_no,f'{filename}:{first_line_no1} : cannot find def {name}'
 		#
 		for glb_var in self.get_glbs(code) : self.gather_ctx( glb_var , func.__globals__ )
 		#
 		self.src.append( self.get_first_line( name , func , file_src[first_line_no0] ) ) # first line
 		self.src.extend( file_src[ first_line_no0+1 : end_line_no ]                    ) # other lines
 		#
-		if self.root_s and file_name.startswith(self.root_s) : file_name = file_name[len(self.root_s):]
-		self.dbg_info[name] = (func.__module__,func.__qualname__,file_name,first_line_no1)
+		if self.root_s and filename.startswith(self.root_s) : filename = filename[len(self.root_s):]
+		self.dbg_info[name] = (func.__module__,func.__qualname__,filename,first_line_no1)

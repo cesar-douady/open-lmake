@@ -389,19 +389,19 @@ namespace Backdoor {
 			if (+sr.accesses) r.report_access( { .comment=Comment::Encode , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
 		}
 		if (is_dir) add_slash(sr.real) ;
-		Crc          crc            { New , val }                                    ;
-		::string     node           = Codec::CodecFile( sr.real , ctx , crc ).name() ;
-		Fd           rfd            = Record::s_repo_root_fd()                       ;
-		::string     new_codes_file = Codec::CodecFile::s_new_codes_file(sr.real)    ;
-		AccessDigest digest         { .accesses=Access::Reg }                        ;                 // get default flags
-		::string     res            ;
+		Crc          crc    { New , val }                                    ;
+		::string     node   = Codec::CodecFile( sr.real , ctx , crc ).name() ;
+		Fd           rfd    = Record::s_repo_root_fd()                       ;
+		AccessDigest digest { .accesses=Access::Reg }                        ;                         // get default flags
+		::string     res    ;
 		try {
 			try {                                                                                      // first try with share lock (light weight in case no update is necessary)
 				res = AcFd( {rfd,node} , {.nfs_guard=&::ref(NfsGuard(file_sync))} ).read() ;           // if node exists, it contains the reply
 			} catch (::string const&) {                                                                // if node does not exist, create a code
 				if (!is_dir) throw_if( _retry_codec(r,{rfd,sr.real},node)==Maybe , "no codec file" ) ; // cannot encode without a codec file
-				::string              crc_str = crc.hex()                             ;
-				Codec::CodecGuardLock lock    { {rfd,sr.real} , {.file_sync=file_sync} } ;             // must hold the lock as we probably need to create a code
+				::string              crc_str        = crc.hex()                                   ;
+				::string              new_codes_file = Codec::CodecFile::s_new_codes_file(sr.real) ;
+				Codec::CodecGuardLock lock           { {rfd,sr.real} , {.file_sync=file_sync} }    ;   // must hold the lock as we probably need to create a code
 				try {
 					res = AcFd( {rfd,node} , {.nfs_guard=&lock} ).read() ;                             // repeat test with lock
 				} catch (::string const&) {
@@ -411,12 +411,14 @@ namespace Backdoor {
 						// must write to new_codes_file first to allow replay in case of crash
 						::string tmp_sfx         = cat('.',host(),'.',::getpid(),".tmp") ;
 						::string tmp_node        = node       +tmp_sfx                   ; // nodes must be always correct when they exist as there is no read lock
-						::string tmp_decode_node = decode_node+tmp_sfx                   ;                                                                                                         // .
+						::string tmp_decode_node = decode_node+tmp_sfx                   ; // .
+						//
 						AcFd( {rfd,new_codes_file } , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.perm_ext=perm_ext,.nfs_guard=&lock} ).write(Codec::Entry(ctx,code,val).line(true/*with_nl*/)) ;
 						AcFd( {rfd,tmp_node       } , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&lock} ).write(code                                            ) ;
 						AcFd( {rfd,tmp_decode_node} , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&lock} ).write(val                                             ) ;
-						rename( {rfd,tmp_node       /*src*/} , {rfd,node       /*dst*/} , {.nfs_guard=&lock} ) ;
-						rename( {rfd,tmp_decode_node/*.  */} , {rfd,decode_node/*.  */} , {.nfs_guard=&lock} ) ;
+						//      src                     dst
+						rename( {rfd,tmp_node       } , {rfd,node       } , {.nfs_guard=&lock} ) ;
+						rename( {rfd,tmp_decode_node} , {rfd,decode_node} , {.nfs_guard=&lock} ) ;
 						//
 						res                        = code                     ;
 						digest.flags.extra_dflags |= ExtraDflag::CreateEncode ;

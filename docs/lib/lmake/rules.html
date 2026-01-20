@@ -243,6 +243,16 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="s1">        set -x</span>
 <span class="s1">    &#39;&#39;&#39;</span>
 
+<span class="k">class</span> <span class="nc">AliasRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+    <span class="s1">&#39;base rule to make target an alias for deps&#39;</span>
+    <span class="n">force</span>        <span class="o">=</span> <span class="kc">True</span>                                                              <span class="c1"># force deps to always be built as they are guaranted available when job runs</span>
+    <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;__PHONY__&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="s1">&#39;{*:.*}&#39;</span><span class="p">,</span><span class="s1">&#39;phony&#39;</span><span class="p">)</span> <span class="p">}</span>                              <span class="c1"># targets are useless and are typically not built</span>
+    <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">depend</span><span class="p">(</span> <span class="o">*</span><span class="n">deps</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span> <span class="p">))</span>
+    <span class="n">cmd</span><span class="o">.</span><span class="n">shell</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">        ldepend -v {&#39; &#39;.join(&quot;&#39;&quot;+v.replace(&quot;&#39;&quot;,&quot;&#39;</span><span class="se">\\</span><span class="s1">&#39;&#39;&quot;)+&quot;&#39;&quot; for v in deps.values())} # take care of managing awkward deps</span>
+<span class="s1">    &#39;&#39;&#39;</span>
+
 <span class="k">class</span> <span class="nc">DirtyRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
     <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;__NO_MATCH__&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="s1">&#39;{*:.*}&#39;</span><span class="p">,</span><span class="s1">&#39;Incremental&#39;</span><span class="p">,</span><span class="s1">&#39;NoWarning&#39;</span><span class="p">)</span> <span class="p">}</span>
 

@@ -270,26 +270,26 @@ def finalize_dyn_expr( dyn_expr , for_cmd ) :
 						if has_repo  : prelude.append(f'{repo_root_var } = repo_root' )                                                  # repo_root  prepended at exec time
 						if True      : prelude.append( 'del repo_root'                )
 				prelude.append('#')
-			for func , (module,qualname,file_name,firstlineno) in dyn_expr.dbg_info.items() :
+			for func , (module,qualname,filename,firstlineno) in dyn_expr.dbg_info.items() :
 				pfx = ''
 				hl = hr = False
 				if for_cmd :
-					if   file_name.startswith(lmake_root_s) : pfx,file_name,hl = lmake_root_var+'+',    file_name[len(lmake_root):],True # leave leading / in file_name
-					elif file_name.startswith(repo_root_s ) : pfx,file_name,hr = repo_root_var +'+',    file_name[len(repo_root ):],True # leave leading / in file_name
-					elif file_name[0]!='/'                  : pfx,file_name,hr = repo_root_var +'+','/'+file_name                  ,True # make file_name absolute
+					if   filename.startswith(lmake_root_s) : pfx,filename,hl = lmake_root_var+'+',    filename[len(lmake_root):],True # leave leading / in filename
+					elif filename.startswith(repo_root_s ) : pfx,filename,hr = repo_root_var +'+',    filename[len(repo_root ):],True # leave leading / in filename
+					elif filename[0]!='/'                  : pfx,filename,hr = repo_root_var +'+','/'+filename                  ,True # make filename absolute
 				if set_w :
 					fl = max( fl , len(str (func       )) )
 					ml = max( ml , len(repr(module     )) )
 					ql = max( ql , len(repr(qualname   )) )
 					pl = max( pl , len(str (pfx        )) )
-					nl = max( nl , len(repr(file_name  )) )
+					nl = max( nl , len(repr(filename   )) )
 					ll = max( ll , len(repr(firstlineno)) )
 					has_lmake |= hl
 					has_repo  |= hr
 				else :
 					# python3.6 does not support 0-width alignment and pl may be 0 (in which case there are no pfx's)
-					if pl : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {pfx:{pl}}{file_name!r:{nl}} , {firstlineno:>{ll}} )')
-					else  : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {          file_name!r:{nl}} , {firstlineno:>{ll}} )')
+					if pl : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {pfx:{pl}}{filename!r:{nl}} , {firstlineno:>{ll}} )')
+					else  : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {          filename!r:{nl}} , {firstlineno:>{ll}} )')
 		#
 		dyn_expr.glbs     = ''.join(l+'\n' for l in prelude ) + getattr(dyn_expr,'glbs','')
 		dyn_expr.dbg_info = ''.join(l+'\n' for l in dbg_info)

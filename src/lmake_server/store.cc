@@ -34,7 +34,7 @@ namespace Engine::Persistent {
 
 	void RuleBase::_s_save() {
 		SWEAR(+Rule::s_rules) ;
-		AcFd( _g_rules_file_name , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( serialize(*Rule::s_rules) ) ;
+		AcFd( _g_rules_filename , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( serialize(*Rule::s_rules) ) ;
 	}
 
 	void RuleBase::_s_update_crcs() {
@@ -72,8 +72,8 @@ namespace Engine::Persistent {
 	void RuleBase::s_from_disk() {
 		Trace trace("s_from_disk") ;
 		//
-		try        { s_rules = new Rules{deserialize<Rules>(AcFd(_g_rules_file_name).read())} ; }
-		catch(...) { s_rules = nullptr                                                        ; }
+		try        { s_rules = new Rules{deserialize<Rules>(AcFd(_g_rules_filename).read())} ; }
+		catch(...) { s_rules = nullptr                                                       ; }
 		_s_set_rules() ;
 		//
 		trace("done") ;
@@ -175,7 +175,7 @@ namespace Engine::Persistent {
 	//
 
 	// on disk
-	::string _g_rules_file_name ;
+	::string _g_rules_filename ;
 	//
 	JobFile      _g_job_file       ; // jobs
 	JobNameFile  _g_job_name_file  ; // .
@@ -211,7 +211,7 @@ namespace Engine::Persistent {
 		// START_OF_VERSIONING REPO
 		::string dir_s = g_config->local_admin_dir_s+"store/" ;
 		//
-		_g_rules_file_name = dir_s+"rule" ;
+		_g_rules_filename = dir_s+"rule" ;
 		// jobs
 		_g_job_file      .init( dir_s+"job"       , g_writable ) ;
 		_g_job_name_file .init( dir_s+"job_name"  , g_writable ) ;

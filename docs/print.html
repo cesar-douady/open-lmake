@@ -908,6 +908,12 @@ In that case, the file is deemed unbuildable.</p>
 In that case, the file is deemed to be a source.</p>
 <p>If such a file is required and does not exist, it is an error condition.</p>
 <h2 id="helper-rules"><a class="header" href="#helper-rules">Helper rules</a></h2>
+<h3 id="class-aliasrulerule"><a class="header" href="#class-aliasrulerule"><a href="unit_tests/basics.html#:~:text=class%20DutPy,cmd%20%3D%20%27%27"><code>class AliasRule(Rule)</code></a></a></h3>
+<p>This class may be used to create aliases.</p>
+<p>Building any of its targets ensures that all deps are up-to-date and available.</p>
+<p>This rule is typically useless within a flow but may be practical to provide a comfortable user interface for targets as <code>all</code> or <code>tests</code>.</p>
+<p>Note : if the <code>target</code> attribute is provided, it is <code>done</code> if any dep has changed, else it is <code>steady</code>.
+If the <code>targets</code> attribute is provided, they are phony and not created by this base rule (but may be created by a user-provided <code>cmd</code>).</p>
 <h3 id="class-dirtyrulerule"><a class="header" href="#class-dirtyrulerule"><code>class DirtyRule(Rule)</code></a></h3>
 <p>This class may be used to ignore all writes that are not an official target.</p>
 <p>By itself, it is a dangerous class and must be used with care.

@@ -51,6 +51,17 @@ If such a file is required and does not exist, it is an error condition.
 
 ## Helper rules
 
+### [`class AliasRule(Rule)`](unit_tests/basics.html#:~:text=class%20DutPy,cmd%20%3D%20%27%27)
+
+This class may be used to create aliases.
+
+Building any of its targets ensures that all deps are up-to-date and available.
+
+This rule is typically useless within a flow but may be practical to provide a comfortable user interface for targets as `all` or `tests`.
+
+Note : if the `target` attribute is provided, it is `done` if any dep has changed, else it is `steady`.
+If the `targets` attribute is provided, they are phony and not created by this base rule (but may be created by a user-provided `cmd`).
+
 ### `class DirtyRule(Rule)`
 
 This class may be used to ignore all writes that are not an official target.

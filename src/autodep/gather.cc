@@ -448,8 +448,8 @@ Status Gather::_exec_child() {
 		if      (next_step             ) SWEAR(kill_step<=kill_sigs.size()) ;
 		else if (kill_step             ) return ;
 		if      (!_wait[Kind::ChildEnd]) return ;
-		int   sig = kill_step==kill_sigs.size() ? SIGKILL : kill_sigs[kill_step] ;
-		Pdate now { New }                                                        ;
+		int   sig = kill_step<kill_sigs.size() ? kill_sigs[kill_step] : SIGKILL ;
+		Pdate now { New }                                                       ;
 		trace("kill_sig",sig) ;
 		//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if ( sig && _child.pid>1 ) kill_process(_child.pid,sig,as_session/*as_group*/) ;
@@ -514,10 +514,13 @@ Status Gather::_exec_child() {
 				/**/                     msg_ << "still open after job has terminated "<<dead<<" ago (networkd_delay is "<<network_delay.short_str()<<')' ;
 				set_status(Status::Err,msg_) ;
 			}
-			else if ( kill_step && kill_step< kill_sigs.size() ) set_status(Status::Err,cat("still alive after having been killed ",kill_step       ," times"                               )) ;
-			else if (              kill_step==kill_sigs.size() ) set_status(Status::Err,cat("still alive after having been killed ",kill_sigs.size()," times followed by a SIGKILL"         )) ;
-			else if ( timeout_fired                            ) set_status(Status::Err,cat("still alive after having timed out and been killed with SIGKILL"                               )) ;
-			else                                                 set_status(Status::Err,cat("still alive after having exited ",dead," ago (networkd_delay is ",network_delay.short_str(),')')) ;
+			::string kill_msg = "still alive after having " ;
+			if      (timeout_fired              ) kill_msg << "timed out and "                                                            ;
+			if      (!kill_step                 ) kill_msg << "exited "<<dead<<" ago (networkd_delay is "<<network_delay.short_str()<<')' ;
+			else if (kill_step<=kill_sigs.size()) kill_msg << "been killed "<<kill_step       <<" times"                                  ;
+			else if (+kill_sigs.size()          ) kill_msg << "been killed "<<kill_sigs.size()<<" times followed by SIGKILL"              ;
+			else                                  kill_msg << "been killed with SIGKILL"                                                  ;
+			set_status( Status::Err , kill_msg ) ;
 			break ;                                              // exit loop
 		}
 		if (now>=end_kill) {

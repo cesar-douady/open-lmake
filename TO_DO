@@ -32,8 +32,14 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* commit when was_done instead of may_rerun
-	- to ensure -first entries are reliable
+* put initial tmp in /tmp/<userid>/open-lmake/<repo>
+	- so that repo can be in /tmp
+	- so that no clash between users, repo etc.
+	- already used with namespaces
+	- warn in 25.07
+* manage first/last in cache based on dates
+	- store date for first in Ckey
+	- take date from req->start_date when connecting to cache
 * provide support for all available python releases
 	- generate clmake.xxx.so (including per python release) instead of clmake.so
 ! manage 32 bits executables with ptrace

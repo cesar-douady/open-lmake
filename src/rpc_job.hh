@@ -117,23 +117,23 @@ enum class JobRpcProc : uint8_t {
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING REPO CACHE
-enum class JobReasonTag : uint8_t {            // see explanations in table below
+enum class JobReasonTag : uint8_t {           // see explanations in table below
 	None
-,	Retry                                      // job is retried in case of error      if asked so by user
-,	LostRetry                                  // job is retried in case of lost_error if asked so by user
+,	Retry                                     // job is retried in case of error      if asked so by user
+,	LostRetry                                 // job is retried in case of lost_error if asked so by user
 //	with reason
+,	CacheMatch
 ,	OldErr
 ,	Rsrcs
 ,	PollutedTargets
 ,	ChkDeps
-,	CacheMatch
-,	Cmd
+,	WasIncremental
+,	Lost
+,	WasLost
 ,	Force
 ,	Killed
-,	Lost
+,	Cmd
 ,	New
-,	WasIncremental
-,	WasLost
 //	with node
 ,	BusyTarget
 ,	NoTarget
@@ -142,7 +142,8 @@ enum class JobReasonTag : uint8_t {            // see explanations in table belo
 ,	PollutedTarget
 ,	ManualTarget
 ,	ClashTarget
-,	BusyDep                                    // job is waiting for an unknown dep
+// with dep
+,	BusyDep                                   // job is waiting for an unknown dep
 ,	DepOutOfDate
 ,	DepTransient
 ,	DepUnlnked
@@ -151,15 +152,15 @@ enum class JobReasonTag : uint8_t {            // see explanations in table belo
 ,	DepOverwritten
 ,	DepDangling
 ,	DepErr
-,	DepMissingRequired                         // this is actually an error
+,	DepMissingRequired                        // this is actually an error
 // with missing
-,	DepMissingStatic                           // this prevents the job from being selected
+,	DepMissingStatic                          // this prevents the job from being selected
 //
 // aliases
-,	HasNode = BusyTarget                       // if >=HasNode, a node is associated
-,	HasDep  = BusyDep                          // if >=HasDep , a dep  is associated
-,	Err     = DepOverwritten
-,	Missing = DepMissingStatic
+,	HasNode = BusyTarget                      // if >=HasNode <=> a node is associated
+,	HasDep  = BusyDep                         // if >=HasDep  <=> a dep  is associated
+,	Err     = DepOverwritten                  // if >=Err     <=> a dep  is in error
+,	Missing = DepMissingStatic                // if >=Missing <=> a dep  is missing
 } ;
 // END_OF_VERSIONING
 static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagStrs = {{
@@ -167,18 +168,18 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::Retry              , "job is retried after error"                 }
 ,	{ JobReasonTag::LostRetry          , "job is retried after lost_error"            }
 //	with reason
+,	{ JobReasonTag::CacheMatch         , "cache reported a match but job did not run" }
 ,	{ JobReasonTag::OldErr             , "job was in error"                           }
 ,	{ JobReasonTag::Rsrcs              , "resources changed and job was in error"     }
 ,	{ JobReasonTag::PollutedTargets    , "polluted targets"                           }
 ,	{ JobReasonTag::ChkDeps            , "dep check requires rerun"                   }
-,	{ JobReasonTag::CacheMatch         , "cache reported a match but job did not run" }
-,	{ JobReasonTag::Cmd                , "command changed"                            }
+,	{ JobReasonTag::WasIncremental     , "job was built incremental"                  }
+,	{ JobReasonTag::Lost               , "job lost"                                   }
+,	{ JobReasonTag::WasLost            , "job was lost"                               }
 ,	{ JobReasonTag::Force              , "job forced"                                 }
 ,	{ JobReasonTag::Killed             , "job was killed"                             }
-,	{ JobReasonTag::Lost               , "job lost"                                   }
+,	{ JobReasonTag::Cmd                , "command changed"                            }
 ,	{ JobReasonTag::New                , "job was never run"                          }
-,	{ JobReasonTag::WasIncremental     , "job was built incremental"                  }
-,	{ JobReasonTag::WasLost            , "job was lost"                               }
 //	with node
 ,	{ JobReasonTag::BusyTarget         , "busy target"                                }
 ,	{ JobReasonTag::NoTarget           , "missing target"                             }
@@ -187,6 +188,7 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::PollutedTarget     , "polluted target"                            }
 ,	{ JobReasonTag::ManualTarget       , "target manually polluted"                   }
 ,	{ JobReasonTag::ClashTarget        , "multiple simultaneous writes"               }
+// with dep
 ,	{ JobReasonTag::BusyDep            , "waiting dep"                                }
 ,	{ JobReasonTag::DepOutOfDate       , "dep out of date"                            }
 ,	{ JobReasonTag::DepTransient       , "dep dir is a symbolic link"                 }
@@ -203,42 +205,43 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 static_assert(chk_enum_tab(JobReasonTagStrs)) ;
 static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios = {{
 //	no reason, must be 0
-	{ JobReasonTag::None               ,   0 }
-,	{ JobReasonTag::Retry              ,   1 } // must be least prio, below other reasons to run as retries are limited (normally 0)
-,	{ JobReasonTag::LostRetry          ,   1 } // .
+	{ JobReasonTag::None               ,  0 }
+,	{ JobReasonTag::Retry              ,  1 } // must be least prio, below other reasons to run as retries are limited (normally 0)
+,	{ JobReasonTag::LostRetry          ,  1 } // .
 //	with reason
-,	{ JobReasonTag::OldErr             ,  20 }
-,	{ JobReasonTag::Rsrcs              ,  21 }
-,	{ JobReasonTag::PollutedTargets    ,  22 }
-,	{ JobReasonTag::ChkDeps            ,  41 }
-,	{ JobReasonTag::CacheMatch         ,  40 }
-,	{ JobReasonTag::Cmd                ,  64 }
-,	{ JobReasonTag::Force              ,  62 }
-,	{ JobReasonTag::Killed             ,  63 }
-,	{ JobReasonTag::Lost               ,  61 }
-,	{ JobReasonTag::New                , 100 }
-,	{ JobReasonTag::WasIncremental     ,  60 } // job was built incrementally but asked not-incremental
-,	{ JobReasonTag::WasLost            ,  61 }
+,	{ JobReasonTag::CacheMatch         , 20 }
+,	{ JobReasonTag::OldErr             , 21 }
+,	{ JobReasonTag::Rsrcs              , 22 }
+,	{ JobReasonTag::PollutedTargets    , 23 }
+,	{ JobReasonTag::ChkDeps            , 41 }
+,	{ JobReasonTag::WasIncremental     , 60 } // job was built incrementally but asked not-incremental
+,	{ JobReasonTag::Lost               , 61 }
+,	{ JobReasonTag::WasLost            , 61 }
+,	{ JobReasonTag::Force              , 62 }
+,	{ JobReasonTag::Killed             , 63 }
+,	{ JobReasonTag::Cmd                , 64 }
+,	{ JobReasonTag::New                , 90 }
 //	with node
-,	{ JobReasonTag::BusyTarget         ,  10 } // this should not occur as there is certainly another reason to be running
-,	{ JobReasonTag::NoTarget           ,  30 }
-,	{ JobReasonTag::OldTarget          ,  31 }
-,	{ JobReasonTag::PrevTarget         ,  32 }
-,	{ JobReasonTag::PollutedTarget     ,  33 }
-,	{ JobReasonTag::ManualTarget       ,  34 }
-,	{ JobReasonTag::ClashTarget        ,  35 }
-,	{ JobReasonTag::BusyDep            ,  11 }
-,	{ JobReasonTag::DepOutOfDate       ,  50 }
-,	{ JobReasonTag::DepTransient       ,  51 }
-,	{ JobReasonTag::DepUnlnked         ,  51 }
-,	{ JobReasonTag::DepUnstable        ,  51 }
-//	with error, must be higher than ok reasons
-,	{ JobReasonTag::DepOverwritten     ,  70 }
-,	{ JobReasonTag::DepDangling        ,  71 }
-,	{ JobReasonTag::DepErr             ,  71 }
-,	{ JobReasonTag::DepMissingRequired ,  71 }
-// with missing, must be higher than err reasons
-,	{ JobReasonTag::DepMissingStatic   ,  80 }
+,	{ JobReasonTag::BusyTarget         , 10 } // this should not occur as there is certainly another reason to be running
+,	{ JobReasonTag::NoTarget           , 30 }
+,	{ JobReasonTag::OldTarget          , 31 }
+,	{ JobReasonTag::PrevTarget         , 32 }
+,	{ JobReasonTag::PollutedTarget     , 33 }
+,	{ JobReasonTag::ManualTarget       , 34 }
+,	{ JobReasonTag::ClashTarget        , 35 }
+// with dep
+,	{ JobReasonTag::BusyDep            , 50 }
+,	{ JobReasonTag::DepOutOfDate       , 50 }
+,	{ JobReasonTag::DepTransient       , 50 }
+,	{ JobReasonTag::DepUnlnked         , 51 }
+,	{ JobReasonTag::DepUnstable        , 51 }
+//	with error
+,	{ JobReasonTag::DepOverwritten     , 70 }
+,	{ JobReasonTag::DepDangling        , 71 }
+,	{ JobReasonTag::DepErr             , 71 }
+,	{ JobReasonTag::DepMissingRequired , 71 }
+// with missing
+,	{ JobReasonTag::DepMissingStatic   , 80 }
 }} ;
 static_assert(chk_enum_tab(JobReasonTagPrios)) ;
 inline bool is_retry(JobReasonTag jrt) { return jrt==JobReasonTag::Retry || jrt==JobReasonTag::LostRetry ; }

@@ -137,11 +137,11 @@ namespace Codec {
 		if (!self) return ;                                                                                                                                                        // nothing to lock
 		file = file_ ;
 		//
-		::string new_codes_file    = CodecFile::s_new_codes_file(file.file)                                                                    ;
-		::string new_codes_sz_file = new_codes_file+"_sz"                                                                                      ;
-		DiskSz   actual_sz         = FileInfo({file.at,new_codes_file   }, {                                             .nfs_guard=this} ).sz ;
-		AcFd     known_sz_fd       {          {file.at,new_codes_sz_file}, {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=true,.nfs_guard=this} }    ;
-		::string known_sz_str      = known_sz_fd.read(sizeof(DiskSz))                                                                          ;
+		::string new_codes_file    = CodecFile::s_new_codes_file(file.file)                                                                      ;
+		::string new_codes_sz_file = new_codes_file+"_sz"                                                                                        ;
+		DiskSz   actual_sz         = FileInfo( {file.at,new_codes_file   } , {                                             .nfs_guard=this} ).sz ;
+		AcFd     known_sz_fd       {           {file.at,new_codes_sz_file} , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=true,.nfs_guard=this} }    ;
+		::string known_sz_str      = known_sz_fd.read(sizeof(DiskSz))                                                                            ;
 		if (+known_sz_str) {                                                                                                                      // empty means nothing to replay
 			/**/                                                        SWEAR( known_sz_str.size()==sizeof(DiskSz) , file,known_sz_str.size() ) ;
 			DiskSz known_sz = decode_int<DiskSz>(known_sz_str.data()) ; SWEAR( known_sz           <=actual_sz      , file,known_sz,actual_sz  ) ;

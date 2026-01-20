@@ -30,15 +30,15 @@ template<bool Multi,bool HasDataSz> struct TestData {
 struct TestFile {
 	TestFile() {
 		Fd::Stdout.write("check file ...") ;
-		::string file_name = g_dir_s+"file" ;
-		{	RawFile<0/*ThreadKey*/,10000> f(file_name,true/*writable*/) ;
+		::string filename = g_dir_s+"file" ;
+		{	RawFile<0/*ThreadKey*/,10000> f(filename,true/*writable*/) ;
 			f.expand(1000) ;
 			f.base[100] = 'a' ;
 			f.expand(5000) ;
 			f.base[101] = 'b' ;
 			f.clear(1000) ;
 		}
-		{	RawFile<0/*ThreadKey*/,10000> f(file_name,false/*writable*/) ;
+		{	RawFile<0/*ThreadKey*/,10000> f(filename,false/*writable*/) ;
 			SWEAR(f.base[100]=='a') ;
 			SWEAR(f.base[101]=='b') ;
 		}

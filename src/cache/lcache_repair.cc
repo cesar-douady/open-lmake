@@ -144,7 +144,7 @@ int main( int argc , char* argv[] ) {
 	::string bck_store_dir_s     = top_dir_s + lcl_bck_store_dir_s ;
 	//
 	if (!cmd_line.flags[Flag::DryRun]) {
-		if (FileInfo(lcl_repair_mrkr).tag()>=FileTag::Reg) unlnk( bck_store_dir_s , {.dir_ok=true} ) ; // if last lcache_repair was interrupted, reset unfinished state
+		if (FileInfo(lcl_repair_mrkr).tag()>=FileTag::Reg) unlnk( bck_store_dir_s , {.dir_ok=true,.abs_ok=true} ) ; // if last lcache_repair was interrupted, reset unfinished state
 		//
 		if (FileInfo(bck_store_dir_s).tag()!=FileTag::Dir) {
 			try                       { rename( lcl_store_dir_s/*src*/ , lcl_bck_store_dir_s/*dst*/ ) ; }

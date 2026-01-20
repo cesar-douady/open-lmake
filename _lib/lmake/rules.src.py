@@ -145,6 +145,17 @@ class TraceRule(Rule) :
 		set -x
 	'''
 
+class AliasRule(Rule) :
+	'base rule to make target an alias for deps'
+	force        = True                                                              # force deps to always be built as they are guaranted available when job runs
+	side_targets = { '__PHONY__' : ('{*:.*}','phony') }                              # targets are useless and are typically not built
+	def cmd() :
+		print(lmake.depend( *deps.values() , verbose=True ))
+	cmd.shell = '''
+		# take care of managing awkward deps : single quote deps, replacing ' by '"'"' as ' protects against everything but '
+		ldepend -v {' '.join("'"+v.replace("'","'"+'"'+"'"+'"'+"'")+"'" for v in deps.values())}
+	'''
+
 class DirtyRule(Rule) :
 	side_targets = { '__NO_MATCH__' : ('{*:.*}','Incremental','NoWarning') }
 

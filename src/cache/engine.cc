@@ -170,7 +170,11 @@ void cache_init( bool rescue , bool read_only ) {
 	{ ::string file=dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
 	{ ::string file=dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 	// END_OF_VERSIONING
-	if (rescue) cache_chk() ;
+	if (rescue) {
+		cache_chk() ;
+		CjobData ::s_rescue() ;
+		CnodeData::s_rescue() ;
+	}
 	RateCmp::s_init() ;
 	trace("done") ;
 }
@@ -317,17 +321,15 @@ void LruEntry::mv_to_top( LruEntry& hdr , Crun run , LruEntry CrunData::* lru ) 
 // CjobData
 //
 
+::vector<Cjob> CjobData::s_trash ;
+
+void CjobData::s_empty_trash() { for( Cjob j : s_trash     ) if ( CjobData& jd=*j ; !jd ) { _g_job_name_file.pop(jd._name) ; _g_job_file.pop(j) ; } s_trash.clear() ; }
+void CjobData::s_rescue     () { for( Cjob j : lst<Cjob>() ) if ( CjobData& jd=*j ; !jd ) { _g_job_name_file.pop(jd._name) ; _g_job_file.pop(j) ; }                   }
+
 ::string& operator+=( ::string& os , CjobData const& jd ) {
 	/**/         os << "CjobData(" ;
 	if (+jd.lru) os << +jd.lru     ;
 	return       os << ')'         ;
-}
-
-void CjobData::victimize() {
-	SWEAR( !lru    , idx() ) ;
-	SWEAR( !n_runs , idx() ) ;
-	_g_job_name_file.pop(_name) ;
-	_g_job_file     .pop(idx()) ;
 }
 
 ::pair<Crun,CacheHitInfo> CjobData::match( ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) {
@@ -511,13 +513,13 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 // CnodeData
 //
 
+::vector<Cnode> CnodeData::s_trash ;
+
+void CnodeData::s_empty_trash() { for( Cnode n : s_trash      ) if ( CnodeData& nd=*n ; !nd ) { _g_node_name_file.pop(nd._name) ; _g_node_file.pop(n) ; } s_trash.clear() ; }
+void CnodeData::s_rescue     () { for( Cnode n : lst<Cnode>() ) if ( CnodeData& nd=*n ; !nd ) { _g_node_name_file.pop(nd._name) ; _g_node_file.pop(n) ; }                   }
+
 ::string& operator+=( ::string& os , CnodeData const& nd ) {
 	/**/            os << "CnodeData(" ;
-	if (nd.ref_cnt) os << nd.ref_cnt  ;
-	return          os << ')'         ;
-}
-
-void CnodeData::victimize() {
-	_g_node_name_file.pop(_name) ;
-	_g_node_file     .pop(idx()) ;
+	if (nd.ref_cnt) os << nd.ref_cnt   ;
+	return          os << ')'          ;
 }

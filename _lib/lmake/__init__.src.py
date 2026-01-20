@@ -127,20 +127,20 @@ def run_cc(*cmd_line,**kwds) :
 try :
 	# python version >= 3.10 (simpler, more reliable as we do not need the exact order of arguments)
 	(lambda:None).__code__.replace(co_filename='',co_firstlineno=1)
-	def _sourcify(func,module,qualname,file_name,firstlineno) :
-		func.__code__     = func.__code__.replace( co_filename=file_name , co_firstlineno=firstlineno )
+	def _sourcify(func,module,qualname,filename,firstlineno) :
+		func.__code__     = func.__code__.replace( co_filename=filename , co_firstlineno=firstlineno )
 		func.__module__   = module
 		func.__qualname__ = qualname
 except :
 	# python version < 3.10 (fall back to more fragile code if we have no choice)
-	def _sourcify(func,module,qualname,file_name,firstlineno) :
+	def _sourcify(func,module,qualname,filename,firstlineno) :
 		c    = func.__code__
 		args = [c.co_argcount]
 		if hasattr(c,'co_posonlyargcount') : args.append(c.co_posonlyargcount)
 		if hasattr(c,'co_kwonlyargcount' ) : args.append(c.co_kwonlyargcount )
 		args += (
 			c.co_nlocals , c.co_stacksize , c.co_flags , c.co_code , c.co_consts , c.co_names , c.co_varnames
-		,	file_name
+		,	filename
 		,	c.co_name
 		,	firstlineno
 		,	c.co_lnotab,c.co_freevars,c.co_cellvars # co_lnotab is deprecated since 3.12 (but used before 3.10)

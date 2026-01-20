@@ -45,6 +45,7 @@ int main( int argc , char* argv[]) {
 	}) ;
 	Py::init(*g_lmake_root_s) ;
 	cache_init( false/*rescue*/ , true/*read_only*/ ) ;
+	cache_chk (                                     ) ;
 	//
 	Fd::Stdout.write(cat("total_sz : ",CrunData ::s_hdr().total_sz,'\n')) ;
 	//

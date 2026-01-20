@@ -304,9 +304,9 @@ class TarLmake(BaseRule) :
 	,	'LD_PRELOAD_JEMALLOC' : '_lib/ld_preload_jemalloc.so'
 	,	'AUTODEP'             : '_bin/lautodep'
 	,	'JOB_EXEC'            : '_bin/job_exec'
+	,	'LCACHE_DUMP'         : '_bin/lcache_dump'
 	,	'LMAKE_DUMP'          : '_bin/lmake_dump'
 	,	'LDUMP_JOB'           : '_bin/ldump_job'
-	,	'LMAKE_SERVER'        : 'bin/lmake_server'
 	,	'LIB_UTILS'           : 'lib/lmake/utils.py'
 	,	'LIB_INIT'            : 'lib/lmake/__init__.py'
 	,	'LIB1'                : 'lib/lmake/auto_sources.py'
@@ -326,6 +326,8 @@ class TarLmake(BaseRule) :
 	,	'LIB_DBG_RT3'         : 'lib/lmake_debug/runtime/vscode.py'
 	,	'CLMAKE'              : 'lib/clmake.so'
 	,	'ALIGN_COMMENTS'      : 'bin/align_comments'
+	,	'LCACHE_REPAIR'       : 'bin/lcache_repair'
+	,	'LCACHE_SERVER'       : 'bin/lcache_server'
 	,	'LCHECK_DEPS'         : 'bin/lcheck_deps'
 	,	'LDBG'                : 'bin/ldebug'
 	,	'LDECODE'             : 'bin/ldecode'
@@ -335,6 +337,7 @@ class TarLmake(BaseRule) :
 	,	'LMAKE'               : 'bin/lmake'
 	,	'LMARK'               : 'bin/lmark'
 	,	'LMAKE_REPAIR'        : 'bin/lmake_repair'
+	,	'LMAKE_SERVER'        : 'bin/lmake_server'
 	,	'LSHOW'               : 'bin/lshow'
 	,	'LTARGET'             : 'bin/ltarget'
 	,	'XXHSUM'              : 'bin/xxhsum'
@@ -458,6 +461,15 @@ class LinkJobExecExe(LinkAutodep,LinkAppExe) :
 	,	'MAIN'      : 'src/job_exec.o'
 	}
 
+class LinkLcacheServerExe(LinkPython,LinkAppExe) :
+	targets = { 'TARGET' : 'bin/lcache_server' }
+	deps = {
+		'ENGINE'      : 'src/cache/engine.o'
+	,	'CACHE_UTILS' : 'src/cache/cache_utils.o'
+	,	'MAIN'        : 'src/cache/lcache_server.o'
+	}
+	need_compress = True
+
 class LinkLmakeServerExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : 'bin/lmake_server' }
 	deps = {
@@ -492,52 +504,21 @@ class LinkLmakeRepairExe(LinkLmakeServerExe) :
 		'MAIN' : 'src/lmake_repair.o' # lmake_repair is a server with another main
 	}
 
-class LinkLmakeDumpExe(LinkAutodep,LinkAppExe) :
-	targets = { 'TARGET' : '_bin/lmake_dump' }
-	deps = {
-		'RPC_CLIENT' : 'src/rpc_client.o'
-	,	'RPC_JOB'    : 'src/rpc_job.o'
-	,	'ZFD'        : 'src/zfd.o'
-	,	'LD'         : 'src/autodep/ld_server.o'
-	,	'RPC_CACHE'  : 'src/cache/rpc_cache.o'
-	,	'BE'         : 'src/lmake_server/backend.o'
-	,	'GLOBAL'     : 'src/lmake_server/global.o'
-	,	'CONFIG'     : 'src/lmake_server/config.o'
-	,	'JOB'        : 'src/lmake_server/job.o'
-	,	'JOB_DATA'   : 'src/lmake_server/job_data.o'
-	,	'CACHE'      : 'src/lmake_server/cache.o'
-	,	'NODE'       : 'src/lmake_server/node.o'
-	,	'REQ'        : 'src/lmake_server/req.o'
-	,	'RULE'       : 'src/lmake_server/rule.o'
-	,	'RULE_DATA'  : 'src/lmake_server/rule_data.o'
-	,	'STORE'      : 'src/lmake_server/store.o'
-	,	'MAIN'       : 'src/lmake_dump.o'
-	}
-	need_compress = True
+class LinkLcacheRepairExe(LinkLmakeServerExe,LinkLcacheServerExe) :
+	targets = { 'TARGET' : 'bin/lcache_repair'         }
+	deps    = { 'MAIN'   : 'src/cache/lcache_repair.o' }
 
-class LinkLdumpJobExe(LinkAppExe,LinkAutodep) :
-	targets = { 'TARGET' : '_bin/ldump_job' }
-	deps = {
-		'RPC_CLIENT' : 'src/rpc_client.o'
-	,	'RPC_JOB'      : 'src/rpc_job.o'
-	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
-	,	'ZFD'          : 'src/zfd.o'
-	,	'LD'           : 'src/autodep/ld_server.o'
-	,	'RPC_CACHE'    : 'src/cache/rpc_cache.o'
-	,	'BE'           : 'src/lmake_server/backend.o'
-	,	'GLOBAL'       : 'src/lmake_server/global.o'
-	,	'CONFIG'       : 'src/lmake_server/config.o'
-	,	'JOB'          : 'src/lmake_server/job.o'
-	,	'JOB_DATA'     : 'src/lmake_server/job_data.o'
-	,	'CACHE'        : 'src/lmake_server/cache.o'
-	,	'NODE'         : 'src/lmake_server/node.o'
-	,	'REQ'          : 'src/lmake_server/req.o'
-	,	'RULE'         : 'src/lmake_server/rule.o'
-	,	'RULE_DATA'    : 'src/lmake_server/rule_data.o'
-	,	'STORE'        : 'src/lmake_server/store.o'
-	,	'MAIN'         : 'src/ldump_job.o'
-	}
-	need_compress = True
+class LinkLcacheDumpExe(LinkLcacheServerExe) :
+	targets = { 'TARGET' : '_bin/lcache_dump'        }
+	deps    = { 'MAIN'   : 'src/cache/lcache_dump.o' }
+
+class LinkLmakeDumpExe(LinkLmakeServerExe) :
+	targets = { 'TARGET' : '_bin/lmake_dump'  }
+	deps    = { 'MAIN'   : 'src/lmake_dump.o' }
+
+class LinkLdumpJobExe(LinkLmakeServerExe) :
+	targets = { 'TARGET' : '_bin/ldump_job'  }
+	deps    = { 'MAIN'   : 'src/ldump_job.o' }
 
 for client in ('lforget','lmake','lmark','lshow') :
 	class LinkLmake(LinkClientAppExe) :

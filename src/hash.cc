@@ -20,10 +20,10 @@ namespace Hash {
 	}                                                                             // END_OF_NO_COV
 
 	// START_OF_VERSIONING
-	Crc::Crc(::string const& file_name) {
+	Crc::Crc(::string const& filename) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 		self = None ;
-		if ( AcFd fd{file_name,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
+		if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
 			FileInfo fi { fd } ;
 			switch (fi.tag()) {
 				case FileTag::Empty :
@@ -42,8 +42,8 @@ namespace Hash {
 								case EWOULDBLOCK :
 							#endif
 							case EAGAIN :
-							case EINTR  : continue                                        ;
-							default     : throw "I/O error while reading file "+file_name ;
+							case EINTR  : continue                                       ;
+							default     : throw "I/O error while reading file "+filename ;
 						}
 						SWEAR( cnt>0 , cnt ) ;
 						if (size_t(cnt)>=sz) break ;
@@ -52,7 +52,7 @@ namespace Hash {
 					self = ctx.digest() ;
 				} break ;
 			DN}
-		} else if ( ::string lnk_target=read_lnk(file_name) ; +lnk_target ) {
+		} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
 			Xxh ctx { FileTag::Lnk } ;
 			ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 			self = ctx.digest() ;

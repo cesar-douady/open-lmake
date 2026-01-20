@@ -6,7 +6,7 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule,PyRule
+	from lmake.rules import Rule,PyRule,AliasRule
 
 	lmake.manifest       = ('Lmakefile.py',)
 	lmake.extra_manifest = (
@@ -34,6 +34,21 @@ if __name__!='__main__' :
 			for fn in (FIRST,SECOND) :
 				with open(fn) as f : print(f.read(),end='')
 
+	class DutPy(AliasRule,PyRule) :
+		target = 'dut_py'
+		deps   = {
+			'HELLO' : 'hello+hello_py'
+		,	'WORLD' : 'world+world_py'
+		}
+
+	class DutSh(AliasRule) :
+		target = 'dut_sh'
+		deps   = {
+			'HELLO' : 'hello+hello_sh'
+		,	'WORLD' : 'world+world_sh'
+		}
+		cmd = ''
+
 else :
 
 	import os
@@ -49,6 +64,9 @@ else :
 	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 ) # check targets are up to date
 	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         ) # check reconvergence
 	ut.lmake( 'hello+_sh'      , '+world_py'      , rc=1           ) # check empty deps prevent job from matching
+
+	ut.lmake( 'dut_py','dut_sh' , done  =4 )
+	ut.lmake( 'dut_py','dut_sh' , steady=2 )
 
 	assert os.system('ldebug -tn hello+world_sh'                   )==0 # coverage is not collected if -n flag not present
 	assert os.system('ldebug -t hello+world_sh'                    )==0 # check no crash

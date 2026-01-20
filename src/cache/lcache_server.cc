@@ -135,10 +135,9 @@ struct CacheServer : AutoServer<CacheServer> {
 	// cxtors & casts
 	using AutoServer<CacheServer>::AutoServer ;
 	// injection
-	void start_connection(Fd) {
-		if (n_connections()==1) cache_empty_trash() ;
-	}
 	void end_connection(Fd fd) {
+		if (n_connections()==1) cache_empty_trash() ;
+		//
 		auto       it         = _g_conn_tab.find(fd) ; if (it==_g_conn_tab.end()) return ;
 		ConnEntry& conn_entry = it->second           ;
 		//

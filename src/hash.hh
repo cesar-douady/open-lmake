@@ -37,9 +37,9 @@ namespace Hash {
 	struct Crc {
 		friend ::string& operator+=( ::string& , Crc const ) ;
 		using Val = uint64_t ;
-		static constexpr uint8_t NChkBits = 8 ;                                                                   // as Crc may be used w/o protection against collision, ensure we have some margin
+		static constexpr uint8_t NChkBits = 8 ;                                                                  // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
-		static constexpr Val ChkMsk = Val(-1)>>NChkBits ;                                                         // lsb's are used for various manipulations
+		static constexpr Val ChkMsk = Val(-1)>>NChkBits ;                                                        // lsb's are used for various manipulations
 		//
 		static const Crc Unknown ;
 		static const Crc Lnk     ;
@@ -47,8 +47,8 @@ namespace Hash {
 		static const Crc None    ;
 		static const Crc Empty   ;
 		// statics
-		static Crc s_from_hex(::string_view sv) ;                                                                 // inverse of hex()
-		static bool s_sense( Accesses a , FileTag t ) {                                                           // return whether accesses a can see the difference between files with tag t
+		static Crc s_from_hex(::string_view sv) ;                                                                // inverse of hex()
+		static bool s_sense( Accesses a , FileTag t ) {                                                          // return whether accesses a can see the difference between files with tag t
 			Crc crc{t} ;
 			return !crc.match(crc,a) ;
 		}
@@ -66,19 +66,19 @@ namespace Hash {
 				case FileTag::Reg   :
 				case FileTag::Exe   : self = Crc::Reg   ; break ;
 				case FileTag::Empty : self = Crc::Empty ; break ;
-			DF}                                                                                                   // NO_COV
+			DF}                                                                                                  // NO_COV
 		}
-		Crc( ::string const& file_name                             ) ;
-		Crc( ::string const& file_name , Disk::FileInfo&/*out*/ fi ) {
-			for(;;) {                                                                                             // restart if file was moving
-				fi   = Disk::FileInfo(file_name) ; if (fi.tag()==FileTag::Empty) { self = Crc::Empty ; return ; } // fast path : minimize stat syscall's
-				self = Crc(file_name)            ;
-				if (fi.sig()==Disk::FileSig(file_name)) return ;                                                  // file was stable, we can return result
+		Crc( ::string const& filename                             ) ;
+		Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
+			for(;;) {                                                                                            // restart if file was moving
+				fi   = Disk::FileInfo(filename) ; if (fi.tag()==FileTag::Empty) { self = Crc::Empty ; return ; } // fast path : minimize stat syscall's
+				self = Crc(filename)            ;
+				if (fi.sig()==Disk::FileSig(filename)) return ;                                                  // file was stable, we can return result
 			}
 		}
-		Crc( ::string const& file_name , Disk::FileSig&/*out*/ sig ) {
+		Crc( ::string const& filename , Disk::FileSig&/*out*/ sig ) {
 			Disk::FileInfo fi ;
-			self = Crc(file_name,/*out*/fi) ;
+			self = Crc(filename,/*out*/fi) ;
 			sig  = fi.sig()                 ;
 		}
 		template<class T> Crc( NewType , T const& x , Bool3 is_lnk=Maybe ) ;

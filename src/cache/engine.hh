@@ -167,19 +167,23 @@ struct CjobData {
 	// statics
 	static CnodeIdx s_size       () ;
 	static void     s_empty_trash() ;
+	static void     s_rescue     () ;
+	// static data
+	static ::vector<Cjob> s_trash ;
 	// cxtors & casts
 	CjobData() = default ;
 	CjobData( CjobName n , VarIdx nss ) : n_statics{nss},_name{n} {}
 	// accesses
-	Cjob     idx () const ;
-	::string name() const { return _name.str() ; }
+	Cjob     idx      () const ;
+	bool     operator+() const { return +n_runs     ; }
+	::string name     () const { return _name.str() ; }
 	// services
 	::pair<Crun,CacheHitInfo> match( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ; // updates lru related info when hit
 	::pair<Crun,CacheHitInfo> insert(                                                        // like match, but create when miss
 		::vector<Cnode> const& , ::vector<Hash::Crc> const&                                  // to search entry
 	,	Ckey key , bool key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate  // to create entry
 	) ;
-	void victimize() ;
+	void victimize() { s_trash.push_back(idx()) ; }
 	// data
 	// START_OF_VERSIONING CACHE
 	LruEntry lru       ;
@@ -236,16 +240,20 @@ struct CnodeData {
 	// statics
 	static CnodeIdx s_size       () ;
 	static void     s_empty_trash() ;
+	static void     s_rescue     () ;
+	// static data
+	static ::vector<Cnode> s_trash ;
 	// cxtors & casts
 	CnodeData() = default ;
 	CnodeData(CnodeName n) : _name{n} {}
 	// accesses
-	Cnode    idx () const ;
-	::string name() const { return _name.str() ; }
+	Cnode    idx      () const ;
+	bool     operator+() const { return ref_cnt>0   ; }
+	::string name     () const { return _name.str() ; }
 	// services
-	void inc      () {                  ref_cnt++ ;                             }
-	void dec      () { SWEAR(ref_cnt) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }
-	void victimize() ;
+	void inc      () {                    ref_cnt++ ;                             }
+	void dec      () { SWEAR(ref_cnt>0) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }
+	void victimize() { s_trash.push_back(idx()) ;                                 }
 	// data
 	// START_OF_VERSIONING CACHE
 	CrunIdx ref_cnt = 0 ;
@@ -256,14 +264,14 @@ private :
 
 // START_OF_VERSIONING CACHE
 //                                           ThreadKey header    index       n_index_bits        key    data        misc
-using CkeyFile      = Store::SinglePrefixFile< '='   , void    , Ckey      , NCkeyIdxBits      , char , CkeyData                                     > ;
-using CjobNameFile  = Store::SinglePrefixFile< '='   , void    , CjobName  , NCjobNameIdxBits  , char , Cjob                                         > ;
-using CnodeNameFile = Store::SinglePrefixFile< '='   , void    , CnodeName , NCnodeNameIdxBits , char , Cnode                                        > ;
-using CjobFile      = Store::AllocFile       < '='   , void    , Cjob      , NCjobIdxBits      ,        CjobData  , 0/*Mantissa*/ , true/*HasTrash*/ > ; // id's are kept in lmake_server
-using CrunFile      = Store::AllocFile       < '='   , CrunHdr , Crun      , NCrunIdxBits      ,        CrunData                                     > ;
-using CnodeFile     = Store::AllocFile       < '='   , void    , Cnode     , NCnodeIdxBits     ,        CnodeData , 0/*Mantissa*/ , true/*HasTrash*/ > ; // id's are kept in lmake_server
-using CnodesFile    = Store::VectorFile      < '='   , void    , Cnodes    , NCnodesIdxBits    ,        Cnode     , CnodeIdx      , 4   /*MinSz   */ > ;
-using CcrcsFile     = Store::VectorFile      < '='   , void    , Ccrcs     , NCcrcsIdxBits     ,        Hash::Crc , CnodeIdx      , 4   /*.       */ > ;
+using CkeyFile      = Store::SinglePrefixFile< '='   , void    , Ckey      , NCkeyIdxBits      , char , CkeyData                          > ;
+using CjobNameFile  = Store::SinglePrefixFile< '='   , void    , CjobName  , NCjobNameIdxBits  , char , Cjob                              > ;
+using CnodeNameFile = Store::SinglePrefixFile< '='   , void    , CnodeName , NCnodeNameIdxBits , char , Cnode                             > ;
+using CjobFile      = Store::AllocFile       < '='   , void    , Cjob      , NCjobIdxBits      ,        CjobData  , 0/*Mantissa*/         > ;
+using CrunFile      = Store::AllocFile       < '='   , CrunHdr , Crun      , NCrunIdxBits      ,        CrunData                          > ;
+using CnodeFile     = Store::AllocFile       < '='   , void    , Cnode     , NCnodeIdxBits     ,        CnodeData , 0/*Mantissa*/         > ;
+using CnodesFile    = Store::VectorFile      < '='   , void    , Cnodes    , NCnodesIdxBits    ,        Cnode     , CnodeIdx , 4/*MinSz*/ > ;
+using CcrcsFile     = Store::VectorFile      < '='   , void    , Ccrcs     , NCcrcsIdxBits     ,        Hash::Crc , CnodeIdx , 4/*.    */ > ;
 // END_OF_VERSIONING
 
 extern CkeyFile      _g_key_file       ;
@@ -312,16 +320,13 @@ template<class... A> Crun::Crun( NewType , A&&... args ) {
 	self = _g_run_file.emplace(::forward<A>(args)...) ;
 }
 
-inline CrunHdr      & CrunData ::s_hdr        ()       { return _g_run_file .hdr        (    ) ; }
-inline CrunHdr const& CrunData ::s_c_hdr      ()       { return _g_run_file .c_hdr      (    ) ; }
+inline CrunHdr      & CrunData ::s_hdr  ()       { return _g_run_file .hdr  (    ) ; }
+inline CrunHdr const& CrunData ::s_c_hdr()       { return _g_run_file .c_hdr(    ) ; }
 
-inline CjobIdx        CjobData ::s_size       ()       { return _g_job_file .size       (    ) ; }
-inline CrunIdx        CrunData ::s_size       ()       { return _g_run_file .size       (    ) ; }
-inline CnodeIdx       CnodeData::s_size       ()       { return _g_node_file.size       (    ) ; }
+inline CjobIdx        CjobData ::s_size ()       { return _g_job_file .size (    ) ; }
+inline CrunIdx        CrunData ::s_size ()       { return _g_run_file .size (    ) ; }
+inline CnodeIdx       CnodeData::s_size ()       { return _g_node_file.size (    ) ; }
 
-inline void           CjobData ::s_empty_trash()       { return _g_job_file .empty_trash(    ) ; }
-inline void           CnodeData::s_empty_trash()       { return _g_node_file.empty_trash(    ) ; }
-
-inline Cjob           CjobData ::idx          () const { return _g_job_file .idx        (self) ; }
-inline Crun           CrunData ::idx          () const { return _g_run_file .idx        (self) ; }
-inline Cnode          CnodeData::idx          () const { return _g_node_file.idx        (self) ; }
+inline Cjob           CjobData ::idx    () const { return _g_job_file .idx  (self) ; }
+inline Crun           CrunData ::idx    () const { return _g_run_file .idx  (self) ; }
+inline Cnode          CnodeData::idx    () const { return _g_node_file.idx  (self) ; }
