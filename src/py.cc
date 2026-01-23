@@ -19,7 +19,8 @@ static const ::amap<PyException,PyObject*,N<PyException>> PyExceptionTab {{
 
 namespace Py {
 
-	Mutex<MutexLvl::Gil> Gil::_s_mutex ;
+	Mutex<MutexLvl::Gil> Gil::_s_mutex              ;
+	::atomic<char>       Gil::_s_holding_thread_key = '?' ;
 
 	//
 	// functions

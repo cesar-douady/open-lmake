@@ -12,7 +12,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
-	// env format : server:port:fast_host:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
+	// env format : server:port:fast_host:fast_report_pipe:options:fqdn:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
 	// if tmp_dir_s is empty, there is no tmp dir
 	AutodepEnv(::string const& env) ;
 	AutodepEnv(NewType            ) : AutodepEnv{get_env("LMAKE_AUTODEP_ENV")} {}
@@ -28,22 +28,28 @@ struct AutodepEnv : Disk::RealPathEnv {
 		::serdes(s,ignore_stat                    ) ;
 		::serdes(s,readdir_ok                     ) ;
 		::serdes(s,fast_report_pipe               ) ;
+		::serdes(s,fqdn                           ) ;
 		::serdes(s,service                        ) ;
 		::serdes(s,sub_repo_s                     ) ;
 		::serdes(s,views                          ) ;
 	}
 	Fd repo_root_fd() const {
-		Fd res = { repo_root_s , Fd::Dir , true/*no_std*/ } ;                                                                                    // avoid poluting standard descriptors
+		Fd res = { repo_root_s , Fd::Dir , true/*no_std*/ } ;                                                                                   // avoid poluting standard descriptors
 		swear_prod(+res,"cannot open repo root dir",repo_root_s) ;
 		return res ;
 	}
 	template<bool Fast> Fd report_fd() const {
 		Fd res ;
 		try {
-			if ( Fast && +fast_report_pipe && host()==fast_host )   res = { fast_report_pipe , Fd::Append , true/*no_std*/ } ;                   // append if writing to a file
-			else                                                  { res = ClientSockFd(service).detach()                     ; res.no_std()  ; } // establish connection with server
+			if ( Fast && +fast_report_pipe && host()==fast_host ) {
+				/**/                                        res = { fast_report_pipe , Fd::Append , true/*no_std*/ }                        ;   // append if writing to a file
+			} else {
+				try                     {                    res = ClientSockFd( service                                         ).detach() ; } // establish connection with server
+				catch (::string const&) { if (!fqdn) throw ; res = ClientSockFd( SockFd::s_service(fqdn,SockFd::s_port(service)) ).detach() ; } // 2nd chance : use fqdn (slower but more reliable)
+				res.no_std() ;
+			}
 		} catch (::string const& e) {
-			fail_prod("while trying to report deps :",e) ;                                                                                       // NO_COV
+			fail_prod("while trying to report deps :",e) ;                                                                                      // NO_COV
 		}
 		swear_prod( +res , "cannot open report fd" , Fast?"fast":"plain" , Fast?fast_report_pipe:service ) ;
 		return res ;
@@ -55,6 +61,7 @@ struct AutodepEnv : Disk::RealPathEnv {
 	bool                 ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
 	bool                 readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
 	::string             fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
+	::string             fqdn             ;
 	::string             service          ;
 	::string             sub_repo_s       ;         // relative to repo_root_s
 	::vmap_s<::vector_s> views            ;

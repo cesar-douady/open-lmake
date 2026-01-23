@@ -233,6 +233,7 @@ Fd Gather::_spawn_child() {
 	Fd   report_fd ;
 	bool is_ptrace = method==AutodepMethod::Ptrace ;
 	//
+	if ( !addr || addr==SockFd::LoopBackAddr ) autodep_env.fqdn  = fqdn() ;                        // provide means to distant process to contact us
 	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                    // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
 	_child.nice       = nice                                  ;
@@ -313,19 +314,19 @@ Status Gather::exec_child() {
 	else                           swear_prod( !has_env      ("LMAKE_AUTODEP_ENV") , "cannot run lmake under lmake" ) ;
 	//
 	ServerSockFd             job_master_fd         { New }       ;
-	AcFd                     fast_report_fd        ;                                                     // always open, never waited for
+	AcFd                     fast_report_fd        ;                                                  // always open, never waited for
 	AcFd                     child_fd              ;
 	Epoll<Kind>              epoll                 { New }       ;
 	Status                   status                = Status::New ;
-	::umap<Fd,Jerr>          delayed_check_deps    ;                                                     // check_deps events are delayed to ensure all previous deps are received
+	::umap<Fd,Jerr>          delayed_check_deps    ;                                                  // check_deps events are delayed to ensure all previous deps are received
 	size_t                   live_out_pos          = 0           ;
 	::umap<Fd,IMsgBuf      > server_slaves         ;
-	::umap<Fd,JobSlaveEntry> job_slaves            ;                                                     // Jerr's are waiting for confirmation
+	::umap<Fd,JobSlaveEntry> job_slaves            ;                                                  // Jerr's are waiting for confirmation
 	bool                     panic_seen            = false       ;
 	PD                       end_timeout           = PD::Future  ;
 	PD                       end_child             = PD::Future  ;
 	PD                       end_kill              = PD::Future  ;
-	PD                       end_heartbeat         = PD::Future  ;                                       // heartbeat to probe server when waiting for it
+	PD                       end_heartbeat         = PD::Future  ;                                    // heartbeat to probe server when waiting for it
 	bool                     timeout_fired         = false       ;
 	size_t                   kill_step             = 0           ;
 	bool                     dep_unstable_reported = false       ;

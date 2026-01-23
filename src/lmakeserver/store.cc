@@ -562,9 +562,10 @@ namespace Engine::Persistent {
 		::uset<Node        > new_src_dirs ;
 		Trace trace("new_srcs") ;
 		// check and format new srcs
-		size_t      repo_root_depth = 0                                                                 ; { for( char c : *g_repo_root_s ) repo_root_depth += c=='/' ; } repo_root_depth-- ;
-		RealPathEnv rpe            { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
-		RealPath    real_path      { rpe                                                              } ;
+		size_t      repo_root_depth = 0 ; { for( char c : *g_repo_root_s ) repo_root_depth += c=='/' ; } repo_root_depth-- ;
+		//
+		RealPathEnv rpe       { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=*g_repo_root_s+PRIVATE_ADMIN_DIR_S } ;
+		RealPath    real_path { rpe                                                                                                              } ;
 		for( ::string& src : src_names ) {
 			throw_unless( +src , "found an empty source" ) ;
 			bool is_dir_ = is_dir_name(src) ;

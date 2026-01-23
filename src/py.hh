@@ -40,21 +40,37 @@ namespace Py {
 	//
 	template<class T=Object> struct Ptr ;
 
+	// recursive lock, i.e. do not take lock if already held by current thread
 	struct Gil {
 		friend struct NoGil ;
 		// statics
 		static void s_swear_locked() { _s_mutex.swear_locked() ; }
 		// static data
 	private :
-		static Mutex<MutexLvl::Gil> _s_mutex ;
+		static Mutex<MutexLvl::Gil> _s_mutex              ;
+		static ::atomic<char>       _s_holding_thread_key ;
 		// cxtors & casts
 	public :
-		Gil () : _lock{_s_mutex} { Trace trace("Gil::acquire") ; _state = PyGILState_Ensure (      ) ; }
-		~Gil()                   { Trace trace("Gil::release") ;          PyGILState_Release(_state) ; }
+		Gil () {
+			Trace trace("Gil::acquire",t_thread_key,_s_holding_thread_key) ;
+			SWEAR(t_thread_key!='?') ;                                       // ensure t_thread_key is set
+			if (t_thread_key==_s_holding_thread_key) return ;                // the only time _s_holding_thread_key is us is when we have the lock
+			_lock                 = _s_mutex            ;
+			_locked               = true                ;
+			_s_holding_thread_key = t_thread_key        ;
+			_state                = PyGILState_Ensure() ;
+		}
+		~Gil() {
+			Trace trace("Gil::release",t_thread_key,STR(_locked)) ;
+			if (!_locked) return ;
+			PyGILState_Release(_state) ;
+			_s_holding_thread_key = '?' ;
+		}
 		// data
 	private :
-		Lock<Mutex<MutexLvl::Gil>> _lock  ;
-		PyGILState_STATE           _state ;
+		bool                       _locked = false ;
+		Lock<Mutex<MutexLvl::Gil>> _lock   ;
+		PyGILState_STATE           _state  ;
 	} ;
 
 	struct NoGil {

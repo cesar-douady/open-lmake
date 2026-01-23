@@ -12,6 +12,7 @@ using namespace Disk ;
 	/**/                       os <<      static_cast<RealPathEnv const&>(ade) ;
 	if (+ade.fast_report_pipe) os <<','<< ade.fast_report_pipe                 ;
 	/**/                       os <<','<< ade.service                          ;
+	if (+ade.fqdn            ) os <<','<< ade.fqdn                             ;
 	if ( ade.enable          ) os <<",enable"                                  ;
 	if ( ade.auto_mkdir      ) os <<",auto_mkdir"                              ;
 	if ( ade.readdir_ok      ) os <<",readdir_ok"                              ;
@@ -67,6 +68,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			default  : goto Fail ;
 		}
 	// other stuff                                                                                                                       empty_ok
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } fqdn        = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
 	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } tmp_dir_s   = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
 	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } repo_root_s = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
 	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } sub_repo_s  = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
@@ -101,6 +103,7 @@ AutodepEnv::operator ::string() const {
 		case FileSync::Dir  : res << "sd" ; break ;
 		case FileSync::Sync : res << "ss" ; break ;
 	DF} //! NO_COV                                empty_ok
+	res <<':'<< '"'<<mk_printable<'"'>(fqdn              )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(tmp_dir_s         )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(repo_root_s       )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(sub_repo_s        )<<'"' ;

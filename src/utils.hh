@@ -258,8 +258,14 @@ template<MutexLvl Lvl_,bool S=false/*shared*/> struct Mutex : ::conditional_t<S,
 template<class M> struct Lock {
 	// cxtors & casts
 	Lock() = default ;
-	Lock (M& m) : _mutex{&m} { lock  () ; }
-	~Lock(    )              { unlock() ; }
+	Lock (M& m) : _mutex{&m} { lock() ; }
+	//
+	~Lock() { if (+self) unlock() ; }
+	//
+	Lock           (Lock&& l) : _mutex{l._mutex} , _lvl{l._lvl} { l._mutex=nullptr ; l._lvl=MutexLvl::Unlocked ;               }
+	Lock& operator=(Lock&& l) { _mutex=l._mutex  ; _lvl=l._lvl ;  l._mutex=nullptr ; l._lvl=MutexLvl::Unlocked ; return self ; }
+	// accesses
+	bool operator+() const { return _mutex ; }
 	// services
 	void lock  () { SWEAR(!_lvl) ; _mutex->lock  (_lvl) ; }
 	void unlock() { SWEAR(+_lvl) ; _mutex->unlock(_lvl) ; }
