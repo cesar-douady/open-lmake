@@ -226,9 +226,9 @@ namespace Backends {
 		/**/                                                                                               // ... the submit/add_pressure corresponding values for the job
 		// data
 	public :
-		::string fqdn_      ;
-		::string addr_str   ;
-		::string config_err ;
+		::string domain_name ;
+		::string addr_str    ;
+		::string config_err  ;
 	} ;
 
 }

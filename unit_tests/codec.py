@@ -21,9 +21,9 @@ if __name__!='__main__' :
 		target = r'{File:.*}_sh'
 		shell  = ('/bin/bash','-e')
 		cmd    = '''
-			code=$( echo {File}_sh | lencode -f codec_file -x ctx -l 4 )
+			code=$( echo {File}_sh | lencode -t codec_file -x ctx -l 4 )
 			echo $code
-			ldecode -f codec_file -x ctx -c $code
+			ldecode -t codec_file -x ctx -c $code
 			lcheck_deps
 		'''
 

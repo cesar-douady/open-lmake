@@ -360,13 +360,15 @@ Fd Gather::_spawn_child() {
 	Fd   report_fd ;
 	bool is_ptrace = method==AutodepMethod::Ptrace ;
 	//
-	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ; // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
-	_child.as_session = as_session                            ;
-	_child.nice       = nice                                  ;
-	_child.stdin      = child_stdin                           ;
-	_child.stdout     = child_stdout                          ;
-	_child.stderr     = child_stderr                          ;
-	if (is_ptrace) {                                            // PER_AUTODEP_METHOD : handle case
+	autodep_env.fast_mail = mail() ;
+	//
+	_add_env              = { {"LMAKE_AUTODEP_ENV",autodep_env} } ; // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_child.as_session     = as_session                            ;
+	_child.nice           = nice                                  ;
+	_child.stdin          = child_stdin                           ;
+	_child.stdout         = child_stdout                          ;
+	_child.stderr         = child_stderr                          ;
+	if (is_ptrace) {                                                // PER_AUTODEP_METHOD : handle case
 		// we split the responsability into 2 threads :
 		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report

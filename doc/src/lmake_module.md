@@ -108,13 +108,17 @@ Copy generated targets that are inside `from_dir` and match `regexpr` to `to_dir
 
 Links are copied as is, without effort to make them point to the same place.
 
-### [`decode( file , ctx , code )`](unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29)
+### [`decode( table , ctx , code )`](unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29)
 
-If a val is associated to `code` within file `file` and context `ctx`, return it.
+If a val is associated to `code` within `table` and context `ctx`, return it.
 Else an exception is raised.
 
-`file` (symbolic links are followed) may be either a source file within repo or a dir (ending with `'/'`).
-In the latter case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
+`table` may be:
+
+- a key found in `lmake.config.codecs` in which case it is a local source file or an external dir
+- a local source file (symbolic links are followed) recording the association table
+
+In the former case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for:
 
 - `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
 - `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
@@ -150,8 +154,8 @@ If `verbose`, return a `dict` with one entry par dep where:
 
 - The key is the dep name.
 - The value is a `dict` composed of:
-  - `ok`:       `True` if the dep is built with no error, `False` if the dep is built in error, `None` if the was not built.
-  - `checksum`: The checksum computed after the dep (unless `ok` is `None`) (cf. [xxhsum](man/man1/xxhsum.html)).
+  - `ok`      : if `ignore_error=True` was also passed, `True` if the dep is built with no error, `False` if the dep is built in error, `None` if the was not built.
+  - `checksum`: if `read=True`         was also passed, the checksum [computed](man/man1/xxhsum.html) after the dep (unless `ok` is `None`).
 
 If `read`, report an actual read of `deps`. Default is just to alter associated flags.
 
@@ -204,13 +208,17 @@ Notes:
 	In that case, using the `direct` flag reduces the number of reruns, which can occur for each step otherwise.
 	In that case, it is most probably wise to use the `critical` flag simultaneously.
 
-### [`encode( file , ctx , val , min_length=1 )`](unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29)
+### [`encode( table , ctx , val , min_length=1 )`](unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29)
 
-If a code is associated to `val` within file `file` and context `ctx`, return it.
+If a code is associated to `val` within `table` and context `ctx`, return it.
 Else a code is created, of length at least `min_length`, is associated to `val` and is return.
 
-`file` (symbolic links are followed) may be either a source file within repo or a dir (ending with `'/'`).
-In the latter case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
+`table` may be:
+
+- a key found in `lmake.config.codecs` in which case it is a local source file or an external dir
+- a local source file (symbolic links are followed) recording the association table
+
+In the former case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for:
 
 - `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
 - `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.

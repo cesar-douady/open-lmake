@@ -195,6 +195,8 @@ int main( int argc , char* argv[] ) {
 		try                       { g_start_info.mk_canon( g_phy_repo_root_s ) ; }
 		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;  }                             // NO_COV defensive programming
 		//
+		g_start_info.autodep_env.fqdn = fqdn(g_start_info.domain_name) ;                                       // call fqdn() before potential chroot in g_start_info.enter()
+		//
 		NfsGuard   nfs_guard    { g_start_info.autodep_env.file_sync } ;
 		bool       incremental  = false/*garbage*/                     ;
 		::vector_s washed_files ;
@@ -260,7 +262,6 @@ int main( int argc , char* argv[] ) {
 			end_report.msg_stderr.msg += e ;
 			goto End ;
 		}
-		g_start_info.autodep_env.fast_mail        = mail()                                                                  ;            // user@host on which fast_report_pipe works
 		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ;            // fast_report_pipe is a pipe and only works locally
 		g_start_info.autodep_env.views_s          = g_start_info.job_space.flat_phys_s()                                    ;
 		trace("prepared",g_start_info.autodep_env) ;
@@ -271,7 +272,6 @@ int main( int argc , char* argv[] ) {
 		g_gather.autodep_env      = ::move(g_start_info.autodep_env      ) ;
 		g_gather.ddate_prec       =        g_start_info.ddate_prec         ;
 		g_gather.env              =        &cmd_env                        ;
-		g_gather.user_trace       =        g_user_trace                    ;
 		g_gather.job              =        g_job                           ;
 		g_gather.kill_sigs        = ::move(g_start_info.kill_sigs        ) ;
 		g_gather.live_out         =        g_start_info.live_out           ;
@@ -285,6 +285,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.server_master_fd = ::move(g_server_fd                   ) ;
 		g_gather.service_mngt     =        g_service_mngt                  ;
 		g_gather.timeout          =        g_start_info.timeout            ;
+		g_gather.user_trace       =        g_user_trace                    ;
 		//
 		if (!g_start_info.method)                                                                             // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,dd_edf] : g_start_info.deps ) if (dd_edf.first.dflags[Dflag::Static]) {

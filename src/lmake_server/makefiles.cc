@@ -187,6 +187,7 @@ namespace Engine::Makefiles {
 		set_env( "TMPDIR" , no_slash(*g_repo_root_s+tmp_dir_s) ) ;
 		mk_dir_empty_s(tmp_dir_s) ;                                 // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
 		//
+		gather.autodep_env.fqdn        = fqdn()                                                                                                                    ;
 		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                     ;
 		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                            ;
 		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , cat('.',action,".top.") , sub_repos } ;
@@ -334,7 +335,7 @@ namespace Engine::Makefiles {
 		Bool3 changed_rules      = No    ;
 		bool  invalidate         = false ;                                                         // invalidate because of config
 		bool  changed_extra_srcs = false ;
-		bool  doing_be_caches    = false ;
+		bool  doing_ancillaries  = false ;
 		auto diff_config = [&]( Config const& old , Config const& new_ ) {
 			if (+new_) {                                                                           // no new config means keep old config, no modification
 				changed_srcs       = +old ? No|(old.srcs_action   !=new_.srcs_action   ) : Maybe ; // Maybe means new
@@ -345,17 +346,17 @@ namespace Engine::Makefiles {
 			if (!first_time) {               // fast path : on first time, we do not know if we are ever going to launch jobs, dont spend time configuring
 				static bool s_done = false ;
 				Config const& cfg =  +new_ ? new_ : old ;
-				doing_be_caches = true ;
+				doing_ancillaries = true ;
 				if ( !s_done || (+new_&&old.backends!=new_.backends) ) Backends::Backend        ::s_config(cfg.backends) ; // no new_ means keep old config
 				if ( !s_done || (+new_&&old.caches  !=new_.caches  ) ) Cache   ::CacheServerSide::s_config(cfg.caches  ) ; // .
-				doing_be_caches = false ;
-				s_done          = true  ;
+				doing_ancillaries = false ;
+				s_done            = true  ;
 			}
 		} ; //!                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		try                           { Persistent::new_config( ::move(config) , rescue , diff_config ) ;                                                    }
+		try                           { Persistent::new_config( ::move(config) , rescue , diff_config ) ;                                                      }
 		//                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		catch (::string     const& e) { if (doing_be_caches) throw ; else throw         cat("cannot ",dynamically,"update config : ",e      )              ; }
-		catch (::pair_s<Rc> const& e) { if (doing_be_caches) throw ; else throw ::pair( cat("cannot ",dynamically,"update config : ",e.first) , e.second ) ; }
+		catch (::string     const& e) { if (doing_ancillaries) throw ; else throw         cat("cannot ",dynamically,"update config : ",e      )              ; }
+		catch (::pair_s<Rc> const& e) { if (doing_ancillaries) throw ; else throw ::pair( cat("cannot ",dynamically,"update config : ",e.first) , e.second ) ; }
 		//
 		// /!\ sources must be processed first as source dirs influence rules
 		//

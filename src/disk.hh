@@ -64,8 +64,8 @@ namespace Disk {
 	::string mk_canon( ::string const&                                                                                    ) ;
 	//
 	inline bool has_dir(::string const& file) {
-		if (file.size()<3) return false ;                                                                                     // we must have at least 2 components and a / to have a dir component
-		return file.find('/',1)<file.size()-2 ;                                                                               // search a / at neither ends of file
+		if (file.size()<3) return false                          ;                                                            // we must have at least 2 components and a / to have a dir component
+		else               return file.find('/',1)<file.size()-2 ;                                                            // search a / at neither ends of file
 	}
 	//
 	inline bool is_dir_name(::string const& file) { return !file || file.back()=='/' ; }

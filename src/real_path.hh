@@ -35,11 +35,13 @@ struct RealPathEnv {
 	FileLoc file_loc(::string const& file) const ;
 	void    chk     (bool for_cache=false) const ;
 	// data
+	// START_OF_VERSIONING
 	LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
 	FileSync   file_sync   = FileSync::Dflt   ;
 	::string   repo_root_s = {}               ;
 	::string   tmp_dir_s   = {}               ;
 	::vector_s src_dirs_s  = {}               ;
+	// END_OF_VERSIONING
 } ;
 
 struct RealPath {

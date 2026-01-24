@@ -232,9 +232,9 @@ template<bool Encode> static Ptr<Str> _codec( Tuple const& py_args , Dict const&
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
 		switch (key[0]) {
-			case 'f' : if (key=="file"   ) { throw_if(+file   ,"arg ",key,MsgEnd) ; file    =          *py_val.str() ; continue ; } break ;
 			case 'c' : if (key=="ctx"    ) { throw_if(+ctx    ,"arg ",key,MsgEnd) ; ctx     =          *py_val.str() ; continue ; }
 			/**/       if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =          *py_val.str() ; continue ; } break ;
+			case 't' : if (key=="table"  ) { throw_if(+file   ,"arg ",key,MsgEnd) ; file    =          *py_val.str() ; continue ; } break ;
 			case 'v' : if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =          *py_val.str() ; continue ; } break ;
 			case 'm' : if (key=="min_len") { throw_if(+min_len,"arg ",key,MsgEnd) ; min_len = _mk_uint8(py_val,key)  ; continue ; } break ;
 		DN}
@@ -304,7 +304,7 @@ template<bool EmptyIsDot> static ::vector_s _get_seq( ::string const& key , Obje
 static void _report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	static ::vector_s s_std_sfxs ;
 	if (!s_std_sfxs) {
-		#if PY_MAJOR_VERSION==2
+		#if PY_MAJOR_VERSION<3
 			for( const char* pfx : {"/__init__",""} )
 				for( const char* sfx : { ".so" , "module.so" , ".py" , ".pyc" } )
 					s_std_sfxs.push_back(cat(pfx,sfx)) ;
@@ -345,7 +345,7 @@ static void _report_import( Tuple const& py_args , Dict const& py_kwds ) {
 	if ( py_path && py_path!=&None ) path = _get_seq<true    >("path"    ,*py_path          ) ;
 	else                             path = _get_seq<true    >("sys.path",py_get_sys("path")) ;
 	for( ::string& d : path ) rm_slash(d) ;
-	#if PY_MAJOR_VERSION>2
+	#if PY_MAJOR_VERSION>=3
 		try                       { JobSupport::depend( ::copy(path) , {.flags{.extra_dflags=ExtraDflag::ReaddirOk}} , false/*no_follow*/ ) ; } // python3 reads dirs in path
 		catch (::string const& e) { throw ::pair(PyException::ValueErr,e) ;                                                                   }
 	#endif
@@ -421,6 +421,8 @@ PyMODINIT_FUNC
 
 	NoGil no_gil ; // tell our mutex we already have the GIL
 
+	Py::init_from_python() ;
+
 	#define F(name,func,descr) { name , reinterpret_cast<PyCFunction>(func) , METH_VARARGS|METH_KEYWORDS , descr }
 	static PyMethodDef s_methods[] = {
 		F( "depend" , (_py_func<Object,_depend>) ,
@@ -494,17 +496,17 @@ PyMODINIT_FUNC
 			"Return passed dir as used as prefix in list_deps and list_targets.\n"
 		)
 	,	F( "decode" , (_py_func<Str,_codec<false/*Encode*/>>) ,
-			"decode(file,ctx,code)\n"
-			"Return the associated (long) value passed by encode(file,ctx,val) when it returned (short) code.\n"
+			"decode(table,ctx,code)\n"
+			"Return the associated (long) value passed by encode(table,ctx,val) when it returned (short) code.\n"
 			"This call to encode must have been done before calling decode.\n"
 		)
 	,	F( "encode" , (_py_func<Str,_codec<true/*Encode*/>>) ,
-			"encode(file,ctx,val,min_length=1)\n"
+			"encode(table,ctx,val,min_length=1)\n"
 			"Return a (short) code associated with (long) val. If necessary create such a code of\n"
 			"length at least min_length based on a checksum computed from value.\n"
-			"val can be retrieve from code using decode(file,ctx,code),\n"
+			"val can be retrieve from code using decode(table,ctx,code),\n"
 			"even from another job (as long as it is called after the call to encode).\n"
-			"This means that decode(file,ctx,encode(file,ctx,val,min_length)) always return val for any min_length.\n"
+			"This means that decode(table,ctx,encode(table,ctx,val,min_length)) always return val for any min_length.\n"
 		)
 	,	F( "xxhsum_file" , (_py_func<Str,_xxhsum<true/*IsFile*/>>) ,
 			"xxhsum_file(file)\n"

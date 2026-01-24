@@ -9,6 +9,8 @@
 
 #include "rpc_client.hh"
 
+#include "autodep/env.hh"
+
 #ifdef STRUCT_DECL
 
 enum class Color : uint8_t {
@@ -44,6 +46,22 @@ namespace Engine {
 #endif
 #ifdef STRUCT_DEF
 
+namespace Codec {
+
+	static constexpr Channel CodecChnl = Channel::Codec ;
+
+	struct CodecServerSide : CodecRemoteSide {
+		// cxtors & casts
+		using CodecRemoteSide::CodecRemoteSide ;
+		CodecServerSide( ::vmap_ss const& , FileSync dflt_file_sync ) ;
+		// services
+		template<IsStream S> void _serdes(S& s) {
+			::serdes( s , static_cast<CodecRemoteSide&>(self) ) ;
+		}
+		::vmap_ss descr() const ;
+	} ;
+
+}
 namespace Engine {
 
 	// changing these values require restarting from a clean base
@@ -52,10 +70,11 @@ namespace Engine {
 		bool operator==(ConfigClean const&) const = default ;
 		// data
 		// START_OF_VERSIONING REPO
-		::string   key                    ;                    // random key to differentiate repo from other repos
-		LnkSupport lnk_support            = LnkSupport::Full ;
-		::string   os_info                ;                    // os version/release/architecture
-		::string   user_local_admin_dir_s ;
+		::vmap_s<Codec::CodecServerSide> codecs                 ;
+		::string                         key                    ;                    // random key to differentiate repo from other repos
+		LnkSupport                       lnk_support            = LnkSupport::Full ;
+		::string                         os_info                ;                    // os version/release/architecture
+		::string                         user_local_admin_dir_s ;
 		// END_OF_VERSIONING
 	} ;
 

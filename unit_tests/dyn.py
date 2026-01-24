@@ -57,9 +57,10 @@ if __name__!='__main__' :
 				'FIRST'  : File1
 			,	'SECOND' : file2_func()
 			}
-		def cmd() :
-			print(open(deps['FIRST' ]).read(),end='')
-			print(open(deps['SECOND']).read(),end='')
+		# test with both dynamic deps and cmd
+		cmd = '''
+			cat {deps['FIRST']} {deps['SECOND']}
+		'''
 
 	class Interpreter(PyRule) :
 		stems = {

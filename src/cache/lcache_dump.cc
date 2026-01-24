@@ -66,7 +66,7 @@ int main( int argc , char* argv[]) {
 		,	" : " ,           j->name()
 		,'\n')) ;
 	//
-	Fd::Stdout.write("\n# id          : job           : last_access          size   rate    n_deps(crc) : key\n") ;
+	Fd::Stdout.write("\n# id          : job           : last_access          size       rate    n_deps(crc) : key\n") ;
 	for( Crun  r : lst<Crun>() ) {
 		CrunData const& rd = *r ;
 		Fd::Stdout.write(cat( //!    width
@@ -74,7 +74,8 @@ int main( int argc , char* argv[]) {
 		,	" : " , widen(cat(rd.job),13 )
 		,	" : " , r->last_access.str(0) //!                                                             width right
 		,	' '   , widen(to_short_string_with_unit     (rd.sz                                           ),5   ,true),"B"
-		,	' '   , widen(to_short_string_with_unit<'m'>(uint64_t(from_rate(g_cache_config,rd.rate)*1024)),5   ,true),"B/s"
+		,	' '   , widen(cat                           (rd.rate                                         ),3   ,true)
+		,	':'   , widen(to_short_string_with_unit<'m'>(uint64_t(from_rate(g_cache_config,rd.rate)*1024)),5   ,true),"B/s"
 		,	' '   , widen(cat                           (rd.deps    .size()                              ),6   ,true)
 		,	'('   , widen(cat                           (rd.dep_crcs.size()                              ),3   ,true)
 		,	')'

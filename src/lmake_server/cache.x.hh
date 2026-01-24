@@ -33,7 +33,7 @@ namespace Cache {
 		}
 		::vmap_ss descr() const ;
 		DownloadDigest download( Engine::Job , Engine::Rule::RuleMatch const& , bool incremental ) ;
-		void commit            ( Engine::Job , CacheUploadKey                                    ) ;
+		void commit            ( Engine::Job , CacheUploadKey , bool was_missing_audit           ) ;
 		// data
 		::string repo_key ;
 	private :
@@ -43,7 +43,6 @@ namespace Cache {
 		::vector<Cache::CnodeIdx> _cnodes ;         // indexed by Node, node->cnode conversion, might use a umap but probably less efficient (64B/entry instead of 4)
 		::vector<Cache::CjobIdx > _cjobs  ;         // indexed by Job , job ->cjob  conversion, might use a umap but probably less efficient (64B/entry instead of 4)
 	} ;
-
 
 }
 

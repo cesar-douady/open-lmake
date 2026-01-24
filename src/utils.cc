@@ -423,20 +423,21 @@ template<> ::string mk_printable( ::vector_s const& v , bool empty_ok ) {
 	::string res   ;
 	First    first ;
 	res << '(' ;
-	for( ::string const& s : v ) if ( empty_ok || +v ) res << first("",",")<< '"'<<mk_printable<'"'>(s)<<'"' ;
+	for( ::string const& s : v )
+		if ( empty_ok || +v ) res << first("",",")<<'"'<<mk_printable<'"'>(s)<<'"' ;
 	res << ')' ;
 	return res ;
 }
 
 template<> ::vector_s parse_printable( ::string const& txt , size_t& pos , bool empty_ok ) {
-	::vector_s res ;
+	::vector_s res   ;
+	First      first ;
 	if (txt[pos++]!='(') goto Fail ;
-	for ( First first ; txt[pos]!=')' ;) {
-		if (!first.advance() && txt[pos++]!=',') goto Fail ;
-		if (txt[pos++]!='"') goto Fail ;
-		::string v = parse_printable<'"'>(txt,pos) ;
-		if (txt[pos++]!='"') goto Fail ;
-		if ( empty_ok || +v ) res.push_back(::move(v)) ;
+	while (txt[pos]!=')') {
+		if ( !first.advance() && txt[pos++]!=',' )   goto Fail ;
+		if (                     txt[pos++]!='"' ) { goto Fail ; } ::string v = parse_printable<'"'>(txt,pos) ;
+		if (                     txt[pos++]!='"' )   goto Fail ;
+		if ( empty_ok || +v                      )   res.push_back(::move(v)) ;
 	}
 	if (txt[pos++]!=')') goto Fail ;
 	return res ;
@@ -444,50 +445,57 @@ Fail :                    // NO_COV defensive programming
 	throw "bad format"s ; // NO_COV .
 }
 
-template<> ::string mk_printable( ::vmap_s<::vector_s> const& m , bool empty_ok ) {
-	::string res    ;
-	bool     first1 = true ;
+template<> ::string mk_printable( ::vmap_ss const& m , bool empty_ok ) {
+	::string res   ;
+	First    first ;
 	res << '{' ;
 	for( auto const& [k,v] : m ) {
-		if (!( empty_ok || +v )) continue ;
-		if (!first1) res << ',' ; else first1 = false ;
-		res << '"'<<mk_printable<'"'>(k)<<'"' ;
-		res << ':' ;
-		bool first2 = true ;
-		res << '(' ;
-		for( ::string const& x : v ) {
-			if (!first2) res <<',' ; else first2 = false ;
-			res << '"'<<mk_printable<'"'>(x)<<'"' ;
-		}
-		res << ')' ;
+		if ( empty_ok || +v )
+			res << first("",",")<<'"'<<mk_printable<'"'>(k)<<"\":\""<<mk_printable<'"'>(v)<<'"' ;
 	}
 	res << '}' ;
 	return res ;
 }
 
-template<> ::vmap_s<::vector_s> parse_printable( ::string const& txt , size_t& pos , bool empty_ok ) {
-	::vmap_s<::vector_s> res ;
+template<> ::vmap_ss parse_printable( ::string const& txt , size_t& pos , bool empty_ok ) {
+	::vmap_ss res   ;
+	First     first ;
 	if (txt[pos++]!='{') goto Fail ;
-	for ( bool first1=true ; txt[pos]!='}' ; first1=false ) {
-		if (!first1 && txt[pos++]!=',') goto Fail ;
-		//
-		if (txt[pos++]!='"') goto Fail ;
-		::string k = parse_printable<'"'>(txt,pos) ;
-		if (txt[pos++]!='"') goto Fail ;
-		//
-		if (txt[pos++]!=':') goto Fail ;
-		//
-		::vector_s v ;
-		if (txt[pos++]!='(') goto Fail ;
-		for ( bool first2=true ; txt[pos]!=')' ; first2=false ) {
-			if (!first2 && txt[pos++]!=',') goto Fail ;
-			if (txt[pos++]!='"') goto Fail ;
-			::string x = parse_printable<'"'>(txt,pos) ;
-			if (txt[pos++]!='"') goto Fail ;
-			v.push_back(::move(x)) ;
-		}
-		if (txt[pos++]!=')') goto Fail ;
-		if ( empty_ok || +v ) res.emplace_back(k,v) ;
+	while (txt[pos]!='}') {
+		if ( !first.advance() && txt[pos++]!=',' )   goto Fail ;
+		if (                     txt[pos++]!='"' ) { goto Fail ; } ::string k = parse_printable<'"'>(txt,pos) ;
+		if (                     txt[pos++]!='"' )   goto Fail ;
+		if (                     txt[pos++]!=':' )   goto Fail ;
+		if (                     txt[pos++]!='"' ) { goto Fail ; } ::string v = parse_printable<'"'>(txt,pos) ;
+		if (                     txt[pos++]!='"' )   goto Fail ;
+		if ( empty_ok || +v                      )   res.emplace_back(k,v) ;
+	}
+	if (txt[pos++]!='}') goto Fail ;
+	return res ;
+Fail :                    // NO_COV defensive programming
+	throw "bad format"s ; // NO_COV .
+}
+
+template<> ::string mk_printable( ::vmap_s<::vector_s> const& m , bool empty_ok ) {
+	::string res   ;
+	First    first ;
+	res << '{' ;
+	for( auto const& [k,v] : m )
+		if ( empty_ok || +v ) res << first("",",")<<'"'<<mk_printable<'"'>(k)<<"\":"<<mk_printable(v) ;
+	res << '}' ;
+	return res ;
+}
+
+template<> ::vmap_s<::vector_s> parse_printable( ::string const& txt , size_t& pos , bool empty_ok ) {
+	::vmap_s<::vector_s> res   ;
+	First                first ;
+	if (txt[pos++]!='{') goto Fail ;
+	while (txt[pos]!='}') {
+		if ( !first.advance() && txt[pos++]!=',' )   goto Fail ;
+		if (                     txt[pos++]!='"' ) { goto Fail ; } ::string   k = parse_printable<'"'>       ( txt , pos                    ) ;
+		if (                     txt[pos++]!='"' )   goto Fail ;
+		if (                     txt[pos++]!=':' ) { goto Fail ; } ::vector_s v = parse_printable<::vector_s>( txt , pos , true/*empty_ok*/ ) ;
+		if ( empty_ok || +v                      )   res.emplace_back(k,v) ;
 	}
 	if (txt[pos++]!='}') goto Fail ;
 	return res ;

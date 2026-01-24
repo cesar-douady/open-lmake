@@ -7,11 +7,47 @@
 
 #include "re.hh"
 
-using namespace Disk ;
-using namespace Hash ;
-using namespace Py   ;
-using namespace Re   ;
-using namespace Time ;
+using namespace Codec ;
+using namespace Disk  ;
+using namespace Hash  ;
+using namespace Py    ;
+using namespace Re    ;
+using namespace Time  ;
+
+namespace Codec {
+
+	CodecServerSide::CodecServerSide( ::vmap_ss const& dct , FileSync dflt_file_sync ) {
+		Trace trace(CodecChnl,"Codec::Codec",dct.size()) ;
+		bool is_dir = false/*garbage*/ ;                               // necessary to please compiler to avoid a maybe used unitialized warning
+		for( auto const& [key,val] : dct ) {
+			try {
+				switch (key[0]) {
+					case 'd' : if (key=="dir"      ) { tab       =                   val  ; is_dir = true  ; continue ; } break ;
+					case 'f' : if (key=="file"     ) { tab       =                   val  ; is_dir = false ; continue ; }
+					/**/       if (key=="file_sync") { file_sync = mk_enum<FileSync>(val) ;                  continue ; } break ;
+					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >(val) ;                  continue ; } break ;
+				DN}
+			} catch (::string const& e) {
+				trace("bad_val",key,val) ;
+				throw cat("wrong value for entry ",key," : ",val) ;
+			}
+			trace("bad_repo_key",key) ;
+			throw cat("wrong key (",key,") in lmake.config.codecs") ;
+		}
+		throw_unless( +tab , "codec dir or file must be specified" ) ;
+		if (!is_dir) file_sync = dflt_file_sync ;                      // for local codec, file synchro is the same as any other file
+		trace("done",tab,file_sync,perm_ext) ;
+	}
+
+	::vmap_ss CodecServerSide::descr() const {
+		return {
+			{ is_dir_name(tab)?"dir":"file" ,           tab        }
+		,	{ "file_sync"                   , snake_str(file_sync) }
+		,	{ "perm_ext"                    , snake_str(perm_ext ) }
+		} ;
+	}
+
+}
 
 namespace Engine {
 
@@ -74,6 +110,20 @@ namespace Engine {
 		//
 		::vector_s fields = {{}} ;
 		try {
+			fields[0] = "backends" ;
+			throw_unless( py_map.contains(fields[0]) , "not found" ) ;
+			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;
+			fields.emplace_back() ;
+			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                           // local backend is always present
+				fields[1] = snake(t) ;
+				if (!Backends::Backend::s_tab[+t]   ) continue ;                                                                      // not implemented
+				if (!py_backends.contains(fields[1])) continue ;                                                                      // not configured
+				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
+				catch (::string const& e) { Fd::Stderr.write("Warning : backend "+fields[1]+" could not be configured : "+e+'\n') ; }
+			}
+			bool has_remote_backends = ::any_of( iota(BackendTag::Remote,All<BackendTag>) , [&](BackendTag t) { return backends[+t].configured && Backends::Backend::s_ready(t) ; } ) ;
+			fields.pop_back() ;
+			//
 			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) ddate_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
 			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
 			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
@@ -92,7 +142,7 @@ namespace Engine {
 			fields[0] = "path_max" ;
 			if (py_map.contains(fields[0])) {
 				Object const& py_path_max = py_map[fields[0]] ;
-				if (py_path_max==None) path_max = size_t(-1                     ) ;                                                   // deactivate
+				if (py_path_max==None) path_max = size_t(-1                     ) ;                            // deactivate
 				else                   path_max = size_t(py_path_max.as_a<Int>()) ;
 			}
 			fields[0] = "link_support" ;
@@ -102,27 +152,21 @@ namespace Engine {
 				else if (py_lnk_support==True) lnk_support = LnkSupport::Full                                ;
 				else                           lnk_support = mk_enum<LnkSupport>(py_lnk_support.as_a<Str>()) ;
 			}
-			fields[0] = "reliable_dirs" ;
-			if (py_map.contains(fields[0])) file_sync = +py_map[fields[0]] ? FileSync::None : FileSync::Dflt ;                        // XXX> : suppress when backward compatibility is no more required
-			fields[0] = "file_sync" ;
-			if (py_map.contains(fields[0])) {
-				Object const& py_file_sync = py_map[fields[0]] ;
-				if (!py_file_sync) file_sync = FileSync::None                              ;
-				else               file_sync = mk_enum<FileSync>(py_file_sync.as_a<Str>()) ;
+			if (has_remote_backends) {
+				fields[0] = "reliable_dirs" ;                                                                  // XXX> : suppress when backward compatibility is no more required
+				if (py_map.contains(fields[0])) {
+					Fd::Stderr.write("reliable_dirs is deprecated, use lmake.config.file_sync='none' instead\n") ;
+					file_sync = +py_map[fields[0]] ? FileSync::None : FileSync::Dflt ;
+				}
+				fields[0] = "file_sync" ;
+				if (py_map.contains(fields[0])) {
+					Object const& py_file_sync = py_map[fields[0]] ;
+					if (!py_file_sync) file_sync = FileSync::None                              ;
+					else               file_sync = mk_enum<FileSync>(py_file_sync.as_a<Str>()) ;
+				}
+			} else {
+				file_sync = FileSync::None ;                                                                   // no remote backend, no need for file synchronization
 			}
-			//
-			fields[0] = "backends" ;
-			throw_unless( py_map.contains(fields[0]) , "not found" ) ;
-			Dict const& py_backends = py_map[fields[0]].as_a<Dict>() ;
-			fields.emplace_back() ;
-			for( BackendTag t : iota(1,All<BackendTag>) ) {                                                                           // local backend is always present
-				fields[1] = snake(t) ;
-				if (!Backends::Backend::s_tab[+t]   ) continue ;                                                                      // not implemented
-				if (!py_backends.contains(fields[1])) continue ;                                                                      // not configured
-				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
-				catch (::string const& e) { Fd::Stderr.write("Warning : backend "+fields[1]+" could not be configured : "+e+'\n') ; }
-			}
-			fields.pop_back() ;
 			//
 			fields[0] = "caches" ;
 			if (py_map.contains(fields[0])) {
@@ -132,6 +176,18 @@ namespace Engine {
 					//
 					::vmap_ss& c = caches.emplace_back( fields[1] , ::vmap_ss() ).second ;
 					for( auto const& [py_k,py_v] : py_val.as_a<Dict>() ) c.emplace_back( py_k.as_a<Str>() , *py_v.str() ) ;
+				}
+				fields.pop_back() ;
+			}
+			//
+			fields[0] = "codecs" ;
+			if (py_map.contains(fields[0])) {
+				fields.emplace_back() ;
+				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
+					fields[1] = py_key.as_a<Str>() ; throw_unless( +fields[1]                 , "codec key cannot be empty"   ) ;
+					/**/                             throw_unless(  fields[1].find('/')==Npos , "codec key cannot constain /" ) ;
+					//
+					codecs.emplace_back( fields[1] , CodecServerSide(::vmap_ss(py_val.as_a<Dict>()),file_sync) ) ;
 				}
 				fields.pop_back() ;
 			}
@@ -250,10 +306,14 @@ namespace Engine {
 					Object const& py_history_days = py_console[fields[1]] ;
 					if (+py_history_days) console.history_days = static_cast<uint32_t>(py_history_days.as_a<Int>()) ;
 				}
-				fields[1] = "host_len" ;
-				if (py_console.contains(fields[1])) {
-					Object const& py_host_len = py_console[fields[1]] ;
-					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
+				if (has_remote_backends) {
+					fields[1] = "host_len" ;
+					if (py_console.contains(fields[1])) {
+						Object const& py_host_len = py_console[fields[1]] ;
+						if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
+					}
+				} else {
+					console.host_len = 0 ;                                                                     // host has no interest if all jobs are local
 				}
 				//
 				fields.pop_back() ;
@@ -287,11 +347,6 @@ namespace Engine {
 					for( Object const& py_c : py_trace[fields[1]].as_a<Sequence>() ) trace.channels |= mk_enum<Channel>(py_c.as_a<Str>()) ;
 				}
 				fields.pop_back() ;
-			}
-			// do some adjustments
-			if ( ::none_of( iota(BackendTag::Remote,All<BackendTag>) , [&](BackendTag t) { return backends[+t].configured && Backends::Backend::s_ready(t) ; } ) ) {
-				file_sync        = FileSync::None ;                                                                                    // no remote backend, filesystem is necessarily reliable
-				console.host_len = 0              ;                                                                                    // host has no interest if all jobs are local
 			}
 		} catch(::string& e) {
 			::string field = "config" ; for( ::string const& f : fields ) field<<'.'<<f ;
@@ -334,6 +389,15 @@ namespace Engine {
 				size_t w = ::max<size_t>( cache , [](auto const& k_v) { return k_v.first.size() ; } ) ;
 				/**/                             res << "\t\t"<<key<<" :\n"                  ;
 				for( auto const& [k,v] : cache ) res << "\t\t\t"<<widen(k,w)<<" : "<<v<<'\n' ;
+			}
+		}
+		if (+codecs) {
+			res << "\tcodecs :\n" ;
+			for( auto const& [key,codec] : codecs ) {
+				::vmap_ss descr = codec.descr() ;
+				size_t w = ::max<size_t>( descr , [](auto const& k_v) { return k_v.first.size() ; } ) ;
+				/**/                             res << "\t\t"<<key<<" :\n"                  ;
+				for( auto const& [k,v] : descr ) res << "\t\t\t"<<widen(k,w)<<" : "<<v<<'\n' ;
 			}
 		}
 		if (+sub_repos_s) {

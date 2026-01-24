@@ -155,7 +155,7 @@ namespace Codec {
 
 	// START_OF_VERSIONING
 	static constexpr char Pfx      [] = PRIVATE_ADMIN_DIR_S "codec" ;
-	static constexpr char Infx     [] = "/\t"                       ; static constexpr size_t InfxSz = sizeof(Infx)-1 ; // account for terminating null
+	static constexpr char CodecSep    = '*'                         ;
 	static constexpr char DecodeSfx[] = ".decode"                   ;
 	static constexpr char EncodeSfx[] = ".encode"                   ;
 	// END_OF_VERSIONING
@@ -173,7 +173,7 @@ namespace Codec {
 			else                                                       return cat(s_pfx_s(d),file) ;
 		}
 		static ::string s_lock_file(::string const& file) {
-			if (Disk::is_dir_name(file)) return file+"\alock"                                   ;
+			if (Disk::is_dir_name(file)) return file+"lock"                                     ;
 			else                         return s_pfx_s(CodecDir::Lock)+mk_printable<'/'>(file) ;
 		}
 		static ::string s_config_file(::string const& file) {
@@ -212,7 +212,7 @@ namespace Codec {
 		// cxtors & casts
 		Entry() = default ;
 		Entry( ::string const& x , ::string const& c , ::string const& v ) : ctx{x} , code{c} , val{v} {}
-		Entry( ::string const& line                                      ) ;                              // format : "\t<ctx>\t<code>\t<val>" exactly
+		Entry( ::string const& line                                      ) ;                              // format : "\t<code>\t<ctx>\t<val>" exactly
 		// services
 		::string line(bool with_nl=false) const ;                                                         // .
 		// data

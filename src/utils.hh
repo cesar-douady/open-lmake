@@ -203,8 +203,8 @@ template<char Delimiter=0> ::string mk_printable(::string     && txt) {
 }
 template<char Delimiter=0> ::string parse_printable( ::string const& , size_t& pos=::ref(size_t()) ) ;
 
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&                               , bool empty_ok=true ) ;
-template<class T> requires(IsOneOf<T,::vector_s,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos=::ref(size_t()) , bool empty_ok=true ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) ::string mk_printable   ( T        const&                               , bool empty_ok=true ) ;
+template<class T> requires(IsOneOf<T,::vector_s,::vmap_ss,::vmap_s<::vector_s>>) T        parse_printable( ::string const& , size_t& pos=::ref(size_t()) , bool empty_ok=true ) ;
 
 inline void     add_nl (::string      & txt) { if ( +txt && txt.back()!='\n' ) txt += '\n'    ; }
 inline void     rm_nl  (::string      & txt) { if ( +txt && txt.back()=='\n' ) txt.pop_back() ; }
@@ -330,8 +330,14 @@ template<MutexLvl Lvl_=MutexLvl::Inner,bool S=false/*shared*/> struct Mutex : ::
 template<class M=Mutex<>> struct Lock {
 	// cxtors & casts
 	Lock() = default ;
-	Lock (M& m) : _mutex{&m} { lock  () ; }
-	~Lock(    )              { unlock() ; }
+	Lock (M& m) : _mutex{&m} { lock() ; }
+	//
+	~Lock() { if (+self) unlock() ; }
+	//
+	Lock           (Lock&& l) : _mutex{l._mutex} , _lvl{l._lvl} { l._mutex=nullptr ; l._lvl=MutexLvl::Unlocked ;               }
+	Lock& operator=(Lock&& l) { _mutex=l._mutex  ; _lvl=l._lvl ;  l._mutex=nullptr ; l._lvl=MutexLvl::Unlocked ; return self ; }
+	// accesses
+	bool operator+() const { return _mutex ; }
 	// services
 	void lock  () { SWEAR(!_lvl) ; _mutex->lock  (_lvl) ; }
 	void unlock() { SWEAR(+_lvl) ; _mutex->unlock(_lvl) ; }

@@ -119,8 +119,8 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">cache</span>  <span class="o">=</span> <span class="s1">&#39;my_cache&#39;</span>
         <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;dut{C:\d}{V:\d}&#39;</span>
         <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">            code=&quot;$( echo -n val</span><span class="si">{V}</span><span class="s1"> | lencode -f codec_file -x ctx )&quot; ; [ &quot;$code&quot; = code</span><span class="si">{C}</span><span class="s1"> ] || echo bad code &quot;$code&quot; versus code</span><span class="si">{C}</span><span class="s1"> &gt;&amp;2</span>
-<span class="s1">            val=&quot;$(  ldecode -f codec_file -x ctx -c code</span><span class="si">{C}</span><span class="s1">       )&quot; ; [ &quot;$val&quot;  = val</span><span class="si">{V}</span><span class="s1">  ] || echo bad val  &quot;$val&quot;  versus val</span><span class="si">{C}</span><span class="s1">  &gt;&amp;2</span>
+<span class="s1">            code=&quot;$( echo -n val</span><span class="si">{V}</span><span class="s1"> | lencode -t codec_file -x ctx )&quot; ; [ &quot;$code&quot; = code</span><span class="si">{C}</span><span class="s1"> ] || echo bad code &quot;$code&quot; versus code</span><span class="si">{C}</span><span class="s1"> &gt;&amp;2</span>
+<span class="s1">            val=&quot;$(  ldecode -t codec_file -x ctx -c code</span><span class="si">{C}</span><span class="s1">       )&quot; ; [ &quot;$val&quot;  = val</span><span class="si">{V}</span><span class="s1">  ] || echo bad val  &quot;$val&quot;  versus val</span><span class="si">{C}</span><span class="s1">  &gt;&amp;2</span>
 <span class="s1">        &#39;&#39;&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>

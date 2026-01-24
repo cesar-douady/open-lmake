@@ -26,6 +26,7 @@ enum class CmdFlag : uint8_t {
 ,	AutodepMethod
 ,	ChrootDir
 ,	ChrootActions
+,	DomainName
 ,	Cwd
 ,	Env
 ,	KeepTmp
@@ -112,6 +113,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                             } }
 	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                        } }
 	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                        } }
+	,	{ CmdFlag::DomainName    , { .short_name='N' , .has_arg=true  , .doc="domain name to use for processes to contact this host (as host.domain_name) if network does not provide fqdn"} }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                        } }
 	,	{ CmdFlag::LmakeRoot     , { .short_name='r' , .has_arg=true  , .doc="open-lmake installation dir to use"                                                                          } }
 	,	{ CmdFlag::RepoView      , { .short_name='R' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                                 } }
@@ -145,6 +147,7 @@ int main( int argc , char* argv[] ) {
 		/**/                                        jsrr.key                =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method             = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
 		if (cmd_line.flags[CmdFlag::ChrootDir    ]) jsrr.chroot_info.dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
+		if (cmd_line.flags[CmdFlag::LinkSupport  ]) jsrr.domain_name        =                        cmd_line.flag_args[+CmdFlag::DomainName   ]  ;
 		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.phy_lmake_root_s   = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
 		else                                        jsrr.phy_lmake_root_s   =                        *g_lmake_root_s                              ;
 		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s  = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
@@ -179,6 +182,8 @@ int main( int argc , char* argv[] ) {
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
+	autodep_env.fqdn = fqdn(jsrr.domain_name) ;                                       // call fqdn() before potential chroot in g_start_info.enter()
+	//
 	Status   status  ;
 	::map_ss cmd_env = mk_map(jsrr.env) ;
 	try {
@@ -188,8 +193,6 @@ int main( int argc , char* argv[] ) {
 		gather.env          = &cmd_env                                       ;
 		gather.lmake_root_s = job_space.lmake_view_s | jsrr.phy_lmake_root_s ;
 		gather.method       = jsrr.method                                    ;
-		//
-		try { gather.addr = SockFd::s_addr(fqdn(),true/*name_ok*/) ; } catch (::string const& e) {}                // best effort to get our own addr in case job spawn a non-local process
 		//       vvvvvvvvvvvvvvvvvvv
 		status = gather.exec_child() ;
 		//       ^^^^^^^^^^^^^^^^^^^
@@ -202,9 +205,9 @@ int main( int argc , char* argv[] ) {
 	for( auto const& [target,ai] : gather.accesses )
 		if (ai.first_write()<Pdate::Future) files << target <<'\n' ;
 	files << "deps :\n" ;
-	::string prev_dep         ;
-	bool     prev_parallel    = false ;
-	Pdate    prev_first_read  ;
+	::string prev_dep        ;
+	bool     prev_parallel   = false ;
+	Pdate    prev_first_read ;
 	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                              // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {

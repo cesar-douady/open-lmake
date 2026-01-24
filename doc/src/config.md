@@ -62,6 +62,13 @@ Caches are named with an arbitrary `str` and are referenced in rules [using this
 
 By default, no cache is configured.
 
+### `codecs` : Clean
+
+This attribute is a [`pdict`](lmake_module.html#:~:text=class%20pdict) with one entry for each codec file or dir.
+
+Codecs are named with an arbitrary `str` not containing `/` and are referenced in `ldecode`, `lencode`, `lmake.decode` and `lmake.encode` as their file attribute,
+in which case the associated value is used instead.
+
 ### [`collect`](unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D%20lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D) : Dynamic
 
 This attribute specifies files and dirs to be ignored (and hence kept) when `lcollect` is run.

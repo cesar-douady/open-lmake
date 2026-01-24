@@ -18,7 +18,7 @@ namespace Cache {
 
 	void CacheServerSide::s_config( ::vmap_s<::vmap_ss> const& caches ) {
 		Trace trace(CacheChnl,"Cache::s_config",caches.size()) ;
-		for( auto const& [k,cache] : caches ) {
+		for( auto const& [k,cache] : caches )
 			try {
 				trace(k,cache) ;
 				s_tab.emplace_back(CacheServerSide(cache)) ;
@@ -27,7 +27,6 @@ namespace Cache {
 				Fd::Stderr.write(cat("ignore cache ",k," (cannot configure) : ",e,add_nl)) ;
 				s_tab.emplace_back() ;
 			}
-		}
 	}
 
 	CacheServerSide::CacheServerSide(::vmap_ss const& dct) {
@@ -38,9 +37,12 @@ namespace Cache {
 					case 'd' : if (key=="dir"     ) { dir_s    = with_slash(val) ; continue ; } break ; // dir is necessary to access cache
 					case 'r' : if (key=="repo_key") { repo_key =            val  ; continue ; } break ; // cannot be shared as it identifies repo
 				DN}
-			} catch (::string const& e) { trace("bad_val",key,val) ; throw cat("wrong value for entry ",key,": ",val) ; }
+			} catch (::string const& e) {
+				trace("bad_val",key,val) ;
+				throw cat("wrong value for entry ",key," : ",val) ;
+			}
 			trace("bad_repo_key",key) ;
-			throw cat("wrong key (",key,") in lmake.config") ;
+			throw cat("wrong key (",key,") in lmake.config.caches") ;
 		}
 		throw_unless(       +dir_s  , "dir must be specified for cache" ) ;
 		throw_unless( is_abs(dir_s) , "dir must be absolute for cache"  ) ;
@@ -165,7 +167,7 @@ namespace Cache {
 		return res ;
 	}
 
-	void CacheServerSide::commit( Job job , CacheUploadKey upload_key ) {
+	void CacheServerSide::commit( Job job , CacheUploadKey upload_key , bool was_missing_audit ) {
 		Trace trace(CacheChnl,"Cache::commit",upload_key,job) ;
 		//
 		JobInfo job_info = job.job_info() ;
@@ -179,12 +181,16 @@ namespace Cache {
 		// check deps
 		::vmap<StrId<CnodeIdx>,DepDigest> repo_deps ;
 		for( auto const& [dn,dd] : job_info.end.digest.deps ) {
-			if ( !dd.is_crc || dd.never_match() ) {
+			if ( +dd.is_crc && !dd.never_match() ) {
+				repo_deps.emplace_back(dn,dd) ;
+			} else if (!dd.accesses) {
+				DepDigest dd2 = dd ; dd2.set_crc( Crc::None , dd.err ) ; // no need for a crc if dep is not accessed
+				repo_deps.emplace_back(dn,dd2) ;
+			} else {
 				trace("not_a_crc_dep",dn,dd) ;
 				dismiss(upload_key) ;
-				throw cat("not a valid crc dep : ",dn) ;
+				throw cat("dep has no valid crc : ",dn) ;
 			}
-			repo_deps.emplace_back(dn,dd) ;
 		}
 		job_info.cache_cleanup() ;                    // defensive programming : remove useless/meaningless info
 		::string job_info_str = serialize(job_info) ;
@@ -197,13 +203,14 @@ namespace Cache {
 		if ( +job<_cjobs.size() && _cjobs[+job] ) job_str_id = {_cjobs[+job]      } ;
 		else                                      job_str_id = {job->unique_name()} ;
 		CacheRpcReq crr {
-			.proc        = CacheRpcProc::Commit
-		,	.job         = job_str_id
-		,	.repo_deps   = ::move(repo_deps)
-		,	.total_z_sz  = job_info.end.total_z_sz
-		,	.job_info_sz = job_info_str.size()
-		,	.exe_time    = job_info.end.digest.exe_time
-		,	.upload_key  = upload_key
+			.proc           = CacheRpcProc::Commit
+		,	.job            = job_str_id
+		,	.repo_deps      = ::move(repo_deps)
+		,	.override_first = was_missing_audit       // if previous run was missing audit, it was may_rerun and this run replaces previous commit
+		,	.total_z_sz     = job_info.end.total_z_sz
+		,	.job_info_sz    = job_info_str.size()
+		,	.exe_time       = job_info.end.digest.exe_time
+		,	.upload_key     = upload_key
 		} ;
 		trace("req",crr) ;
 		OMsgBuf(crr).send(_fd) ;

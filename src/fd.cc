@@ -29,20 +29,28 @@ StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 ::string& operator+=( ::string& os , EventFd      const& fd ) { return fd.append_to_str(os,"EventFd"                 ) ; } // NO_COV
 ::string& operator+=( ::string& os , SignalFd     const& fd ) { return fd.append_to_str(os,"SignalFd"                ) ; } // NO_COV
 
-::string const& fqdn() {
-	static ::string s_fqdn = []() {
-		struct addrinfo  hints = {}     ; hints.ai_family = AF_UNSPEC ; hints.ai_flags = AI_CANONNAME ;
-		struct addrinfo* ai    ;
-		::string         res   = host() ; // default to hostname
+::string const& fqdn(::string const& domain_name) {
+	static bool     s_used_domain_name = false ;
+	static ::string s_domain_name      ;
+	static ::string s_fqdn             ;
+	if ( s_used_domain_name && +domain_name ) {                                                                                       // if domain_name is not provided, use any previous one
+		if (+s_domain_name) {
+			if (domain_name!=s_domain_name) s_fqdn = {} ;
+		} else {
+			s_domain_name = domain_name ;
+			s_fqdn        = {}          ;
+		}
+	}
+	if (!s_fqdn) {
+		struct addrinfo  hints = {}      ; hints.ai_family = AF_UNSPEC ; hints.ai_flags = AI_CANONNAME ;
+		struct addrinfo* ai    = nullptr ;
+		::string         res   = host()  ;
 		//
-		if ( ::getaddrinfo( res.c_str() , nullptr/*service*/ , &hints , &ai )!=0 ) goto Return  ;
-		if ( !ai->ai_canonname                                                   ) goto Release ;
-		res = ai->ai_canonname ;
-	Release :
-		::freeaddrinfo(ai) ;
-	Return :
-		return res ;
-	}() ;
+		if      ( ::getaddrinfo( res.c_str() , nullptr/*service*/ , &hints , &ai )==0 && ai->ai_canonname )   res = ai->ai_canonname ;
+		else if ( +domain_name                                                                            ) { s_used_domain_name = true ; res << '.'<<domain_name ; } // default if no network answer
+		if      ( ai                                                                                      )   ::freeaddrinfo(ai) ;
+		s_fqdn = res ;
+	}
 	return s_fqdn ;
 }
 
@@ -87,8 +95,8 @@ static Ports const& _ports() {
 }
 
 in_addr_t SockFd::s_random_loopback() {
-	in_addr_t a = (LoopBackAddr&LoopBackMask) | (Pdate(New).hash()&~LoopBackMask) ;
-	if (a==(LoopBackAddr|~LoopBackMask)) return LoopBackAddr ;                      // never generate broadcast address as it is not routable
+	in_addr_t a = (LoopbackAddr&LoopbackMask) | (Pdate(New).hash()&~LoopbackMask) ;
+	if (a==(LoopbackAddr|~LoopbackMask)) return LoopbackAddr ;                      // never generate broadcast address as it is not routable
 	else                                 return a            ;
 }
 

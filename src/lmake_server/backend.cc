@@ -338,7 +338,10 @@ namespace Backends {
 		}
 		// set server address for this backend at which it can be contacted by jobs
 		// first job is given fqdn, then then the address as soon as it is known
-		if ( tag!=Tag::Local && !s_tab[+tag]->addr_str ) s_tab[+tag]->addr_str = SockFd::s_addr_str(SockFd::s_addr(fd,false/*peer*/)) ;
+		if ( tag!=Tag::Local && !s_tab[+tag]->addr_str ) {
+			in_addr_t a = SockFd::s_addr(fd,false/*peer*/) ;
+			if (a) s_tab[+tag]->addr_str = SockFd::s_addr_str(a) ;
+		}
 		//
 		trace("submit_info",submit_info) ;
 		::vmap<Node,FileAction>    pre_actions           ;
@@ -445,8 +448,10 @@ namespace Backends {
 				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                                               ;
 				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                                     ;
 				/**/                            reply.autodep_env.sub_repo_s  = rd.sub_repo_s                                                     ;
+				/**/                            reply.autodep_env.codecs      = mk_umap<Codec::CodecRemoteSide>(g_config->codecs)                 ;
 				if (submit_info.cache_idx1    ) reply.cache                   = Cache::CacheServerSide::s_tab[submit_info.cache_idx1-1]           ;
 				/**/                            reply.ddate_prec              = g_config->ddate_prec                                              ;
+				/**/                            reply.domain_name             = s_tab[+tag]->domain_name                                          ;
 				/**/                            reply.key                     = g_config->key                                                     ;
 				/**/                            reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)                           ;
 				/**/                            reply.live_out                = submit_info.live_out                                              ;
@@ -815,7 +820,7 @@ namespace Backends {
 				trace("not_configured" ,t) ;
 				continue ;
 			}
-			be->fqdn_ = +cfg.domain_name ? cat(host(),'.',cfg.domain_name) : fqdn() ;
+			be->domain_name = cfg.domain_name ;
 			try {
 				be->config(cfg.dct,cfg.env) ;
 				if (FileInfo(warning_sentinel).exists()) {
@@ -866,7 +871,7 @@ namespace Backends {
 		SeqId seq_id = (*Engine::g_seq_id)++ ;
 		//
 		_s_mutex.swear_locked() ;
-		auto        it_inserted = _s_start_tab.try_emplace(job) ; SWEAR(it_inserted.second,job) ;                 // ensure entry is created
+		auto        it_inserted = _s_start_tab.try_emplace(job) ; SWEAR(it_inserted.second,job) ;   // ensure entry is created
 		StartEntry& entry       = it_inserted.first->second     ;
 		entry.submit_info = ::move(submit_info) ;
 		entry.conn.seq_id =        seq_id       ;
@@ -875,12 +880,12 @@ namespace Backends {
 		entry.reqs        = ::move(reqs       ) ;
 		entry.rsrcs       = ::move(rsrcs      ) ;
 		trace("create_start_tab",entry) ;
-		::string const& server_host = tag==Tag::Local || +s_tab[+tag]->addr_str ? s_tab[+tag]->addr_str : fqdn_ ; // local backend always has an empty addr_str field
+		::string const& server_host = tag==Tag::Local || +addr_str ? addr_str : fqdn(domain_name) ; // local backend always has an empty addr_str field
 		::vector_s cmd_line {
 			_s_job_exec
-		,	_s_job_start_thread.fd.service_str(server_host)                                                       // server address is only passed as start service as others use the same
-		,	_s_job_mngt_thread .fd.service_str({}         )                                                       // .
-		,	_s_job_end_thread  .fd.service_str({}         )                                                       // .
+		,	_s_job_start_thread.fd.service_str(server_host)                                         // server address is only passed as start service as others use the same
+		,	_s_job_mngt_thread .fd.service_str({}         )                                         // .
+		,	_s_job_end_thread  .fd.service_str({}         )                                         // .
 		,	::to_string(seq_id)
 		,	::to_string(+job  )
 		,	*g_repo_root_s

@@ -40,30 +40,46 @@ namespace Py {
 	//
 	template<class T=Object> struct Ptr ;
 
-	struct Gil {
-		friend struct NoGil ;
+	// recursive lock, i.e. do not take lock if already held by current thread
+	struct NoGil { // pretend to take the GIL, but dont take it, to use when we already own the GIL, such as when called from python
 		// statics
 		static void s_swear_locked() { _s_mutex.swear_locked() ; }
 		// static data
 	private :
-		static Mutex<MutexLvl::Gil> _s_mutex ;
+		static Mutex<MutexLvl::Gil>   _s_mutex          ;
+		static ::atomic<::thread::id> _s_holding_thread ;
 		// cxtors & casts
 	public :
-		Gil () : _lock{_s_mutex} { Trace trace("Gil::acquire") ; _state = PyGILState_Ensure (      ) ; }
-		~Gil()                   { Trace trace("Gil::release") ;          PyGILState_Release(_state) ; }
+		NoGil() {
+			::thread::id id = ::this_thread::get_id() ; if (id==_s_holding_thread) return ; // _s_holding_thread guarantees we already own the lock
+			//
+			_lock             = _s_mutex ;
+			_locked           = true     ;
+			_s_holding_thread = id       ;
+		}
+		~NoGil() {
+			if (!_locked) return ;
+			_s_holding_thread = ::thread::id() ;
+		}
 		// data
+	protected :
+		bool _locked = false ;
 	private :
-		Lock<Mutex<MutexLvl::Gil>> _lock  ;
-		PyGILState_STATE           _state ;
+		Lock<Mutex<MutexLvl::Gil>> _lock ;
 	} ;
 
-	struct NoGil {
+	struct Gil : NoGil {
 		// cxtors & casts
-		NoGil () : _lock{Gil::_s_mutex} { Trace trace("NoGil::acquire") ; }
-		~NoGil()                        { Trace trace("NoGil::release") ; }
+		Gil() {
+			if (_locked) { Trace trace("Gil::acquire",t_thread_key) ; _state = PyGILState_Ensure() ; }
+			else         { Trace trace("Gil::owned"  ,t_thread_key) ;                                }
+		}
+		~Gil() {
+			if (_locked) { Trace trace("Gil::release",t_thread_key) ; PyGILState_Release(_state) ; }
+		}
 		// data
 	private :
-		Lock<Mutex<MutexLvl::Gil>> _lock  ;
+		PyGILState_STATE _state ;
 	} ;
 
 	struct SavPyLdLibraryPath {
@@ -637,7 +653,8 @@ namespace Py {
 	// functions
 	//
 
-	void init(::string const& lmake_root_s={}) ;
+	void init_from_python(                               ) ;
+	void init            (::string const& lmake_root_s={}) ;
 
 	template<class T=Object> T& py_get_sys(::string const& name) {
 		Gil::s_swear_locked() ;

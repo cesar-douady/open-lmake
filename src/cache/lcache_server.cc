@@ -95,11 +95,11 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	conn_entry.upload_keys.erase(crr.upload_key) ;
 	try {
 		digest = job->insert(
-			deps.deps , deps.dep_crcs                                                                                // to search entry
-		,	conn_entry.key , true/*key_is_last*/ , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
+			deps.deps , deps.dep_crcs                                                                                                                         // to search entry
+		,	conn_entry.key , crr.override_first?KeyIsLast::OverrideFirst:KeyIsLast::Plain , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
 		) ;
 	} catch (::string const&) {
-		digest.second = {} ;                                                                                         // we dont report on commit, so just force dismiss
+		digest.second = {} ;    // we dont report on commit, so just force dismiss
 	}
 	if (digest.second<CacheHitInfo::Miss) {
 		unlnk( rf+"-data" , {.nfs_guard=&nfs_guard} ) ;

@@ -35,8 +35,11 @@ static FileLoc _lcl_file_loc(::string_view file) {
 // /!\ : this code must be in sync with RealPath::solve
 FileLoc RealPathEnv::file_loc(::string const& real) const {
 	::string abs_real = mk_glb(real,repo_root_s) ;
-	if (abs_real.starts_with(tmp_dir_s                                      )) return FileLoc::Tmp  ;
-	if (abs_real.starts_with("/proc/"                                       )) return FileLoc::Proc ;
+	if (+tmp_dir_s) { if (abs_real.starts_with(tmp_dir_s   )) return FileLoc::Tmp  ; }
+	else            { if (abs_real.starts_with(P_tmpdir "/")) return FileLoc::Tmp  ; }
+	//
+	if (abs_real.starts_with("/proc/")) return FileLoc::Proc ;
+	//
 	if (abs_real.starts_with(substr_view(repo_root_s,0,repo_root_s.size()-1)))
 		switch (abs_real[repo_root_s.size()-1]) {
 			case 0   : return FileLoc::RepoRoot                                       ;

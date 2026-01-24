@@ -60,6 +60,7 @@ class _RuleBase :
 
 class Rule(_RuleBase) :
 #	auto_mkdir          = False                     # auto mkdir dir in case of chdir
+#	autodep             = 'ld_audit'                # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace
 #	backend             = 'local'                   # may be set anywhere in the inheritance hierarchy if execution must be remote
 #	check_abs_paths     = False                     # check that absolute paths inside the repo are not stored in targets
 #	chroot_dir          = '/'                       # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)
@@ -109,12 +110,6 @@ class Rule(_RuleBase) :
 	#                                               #   -      a private sub-dir in $TMPDIR if provided in the environment
 	#                                               #   - else a private sub-dir in the LMAKE dir
 #	use_script          = False                     # use a script to run job rather than calling interpreter with -c
-#	autodep             = 'ld_audit'                # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace
-	resources = {                                   # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
-		'cpu' : 1                                   # number of cpu's to allocate to job
-#	,	'mem' : '100M'                              # memory to allocate to job
-#	,	'tmp' : '1G'                                # temporary disk space to allocate to job
-	}                                               # follow the same syntax as deps
 	environ = pdict(                                # job execution environment, handled as part of cmd (trigger rebuild upon modification)
 		HOME = '$REPO_ROOT'                         # favor repeatability by hiding use home dir some tools use at start up time
 	,	PATH = '$LMAKE_ROOT/bin:$STD_PATH'
@@ -124,6 +119,11 @@ class Rule(_RuleBase) :
 		UID  = str(_os.getuid())                    # this may be necessary by some tools and usually does not lead to user specific configuration
 	,	USER = _pwd.getpwuid(_os.getuid()).pw_name  # .
 	)
+	resources = {                                   # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
+		'cpu' : 1                                   # number of cpu's to allocate to job
+#	,	'mem' : '100M'                              # memory to allocate to job
+#	,	'tmp' : '1G'                                # temporary disk space to allocate to job
+	}                                               # follow the same syntax as deps
 
 class AntiRule(_RuleBase) :
 	__special__ = 'anti'       # AntiRule's are not executed, but defined at high enough prio, prevent other rules from being selected
@@ -147,13 +147,13 @@ class TraceRule(Rule) :
 
 class AliasRule(Rule) :
 	'base rule to make target an alias for deps'
-	force        = True                                                              # force deps to always be built as they are guaranted available when job runs
-	side_targets = { '__PHONY__' : ('{*:.*}','phony') }                              # targets are useless and are typically not built
+	force        = True                                 # force deps to always be built as they are guaranted available when job runs
+	side_targets = { '__PHONY__' : ('{*:.*}','phony') } # targets are useless and are typically not built
 	def cmd() :
-		print(lmake.depend( *deps.values() , verbose=True ))
+		print(lmake.depend( *deps.values() , verbose=True , read=True ))
 	cmd.shell = '''
 		# take care of managing awkward deps : single quote deps, replacing ' by '"'"' as ' protects against everything but '
-		ldepend -v {' '.join("'"+v.replace("'","'"+'"'+"'"+'"'+"'")+"'" for v in deps.values())}
+		ldepend -vR {' '.join("'"+v.replace("'","'"+'"'+"'"+'"'+"'")+"'" for v in deps.values())}
 	'''
 
 class DirtyRule(Rule) :

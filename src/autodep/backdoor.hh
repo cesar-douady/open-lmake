@@ -234,27 +234,24 @@ namespace Backdoor {
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const ;
 		// data
-		::string file      = {}             ;
-		::string ctx       = {}             ;
-		::string code      = {}             ;
-		FileSync file_sync = FileSync::Dflt ;
+		::string tab  = {} ;
+		::string ctx  = {} ;
+		::string code = {} ;
 	} ;
 
 	struct Encode {
 		friend ::string& operator+=( ::string& , Encode const& ) ;
-		static constexpr char   Cmd[]              = "encode" ;
-		static constexpr bool   ReliableMaxReplySz = true ;
+		static constexpr char   Cmd[]              = "encode"                                 ;
+		static constexpr bool   ReliableMaxReplySz = true                                     ;
 		static constexpr size_t MaxReplySz         = sizeof(::optional_s)+sizeof(Hash::Crc)*2 ; // 2 digit per Crc byte
 		// services
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const ;
 		// data
-		::string file      = {}             ;
-		::string ctx       = {}             ;
-		::string val       = {}             ;
-		uint8_t  min_len   = 0              ;
-		PermExt  perm_ext  = {}             ;
-		FileSync file_sync = FileSync::Dflt ;
+		::string tab     = {} ;
+		::string ctx     = {} ;
+		::string val     = {} ;
+		uint8_t  min_len = 0  ;
 	} ;
 
 }

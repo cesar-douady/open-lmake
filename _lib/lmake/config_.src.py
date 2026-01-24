@@ -52,7 +52,7 @@ config = pdict(
 		,	tmp = str(_tmp>>20)+'M'                         # total available temporary disk space in MBytes, defaults to free space in current filesystem
 		)
 	#,	sge = pdict(
-	#	,	domain_name       = socket.getfqdn().split('.',1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server
+	#		domain_name       = socket.getfqdn().split('.',1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server
 	#	,	bin               = '/opt/sge/bin/ls-amd64'           # directory where sge binaries are located
 	#	,	cell              = 'default'                         # cell     used for SGE job submission, by default, SGE automatically determines it
 	#	,	cluster           = 'p6444'                           # cluster used for SGE job submission, by default, SGE automatically determines it
@@ -65,7 +65,7 @@ config = pdict(
 	#	,	tmp_resource      = 'tmp'                             # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified
 	#	)
 	#,	slurm = pdict(
-	#	,	domain_name       = socket.getfqdn().split('.',1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server
+	#		domain_name       = socket.getfqdn().split('.',1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server
 	#	,	config            = '/etc/slurm/slurm.conf'           # config file (this is the default value if not specified)
 	#	,	init_timeout      = 10                                # maximum time allowed for slurm initialization
 	#	,	lib_slurm         = '/usr/lib/slurm.so'               # slurm dynamic lib (this is a typical default value if not specified)
@@ -75,14 +75,19 @@ config = pdict(
 	#		                                                      # requires slurm configuration collaboration
 	#	)
 	)
-,	caches = pdict(                                               # PER_CACHE : provide an explanation for each cache method
-	#,	my_cache = pdict(                                         # when rule specifies cache = 'my_cache', this cache is selected
-	#	,	repo_key = '<repo_root> <git-sha1>'                   # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag
-	#	,	dir      = '/path/to/cache_dir'                       # the directory in which cached results are stored
+,	caches = pdict(
+	#	my_cache = pdict(                                         # when rule specifies cache = 'my_cache', this cache is selected
+	#		repo_key = '<repo_root> <git-sha1>'                   # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag
+	#	,	dir      = '/path/to/cache_dir'                       # the dir in which cached results are stored
 	#	)
 	)
+,	codecs = pdict(
+	#	my_abs_ext_codec = '/path/to/codec_dir'                   # dir containing associations code<->value, 2 files (encode and decode) each, better if within a source dir to track modifications
+	#,	my_rel_ext_codec = '../path/to/codec_dir'                 # .
+	#,	my_src_codec     = 'path/to/codec_src_file'               # source file containing associations code<->value, one per line
+	)
 ,	collect = pdict(
-	#	stems  = pdict(Stem1=r'.*')                               # defines stems as regexprs for use in ignore
+	#	stems  = pdict(Stem1=r'.*')                               # define stems as regexprs for use in ignore
 	#,	ignore = pdict(                                           # patterns used to prevent lcollect from removing files
 	#		STATIC = ('file1','file2')                            # several files/patterns can be provided for a single key
 	#	,	STAR   = 'file{Stem1}'                                # mimic Rule.targets attribute (except several patterns can be defined using tuple/list)

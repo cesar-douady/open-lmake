@@ -545,18 +545,23 @@ namespace Engine::Persistent {
 	bool/*invalidate*/ new_srcs( Sources&& src_names , ::string const& manifest ) {
 		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 		//
-		NfsGuard             nfs_guard    { first_time ? FileSync::None : g_config->file_sync }  ;                      // when dynamic, sources may be modified from jobs
-		::vmap<Node,FileTag> srcs         ; srcs    .reserve(src_names                  .size()) ;
-		::umap<Node,FileTag> old_srcs     ; old_srcs.reserve(Node::s_srcs(false/*dirs*/).size()) ;                      // typically there are no source dirs
-		::umap<Node,FileTag> new_srcs     ; new_srcs.reserve(src_names                  .size()) ;
-		::uset<Node        > src_dirs     ;
-		::uset<Node        > old_src_dirs ;
-		::uset<Node        > new_src_dirs ;
+		size_t               n_codecs       = g_config->codecs.size() ;
+		size_t               n_old_srcs     = Node::s_srcs(false/*dirs*/).size() + Node::s_srcs(true/*dirs*/).size() ;
+		NfsGuard             nfs_guard      { first_time ? FileSync::None : g_config->file_sync }                    ;            // when dynamic, sources may be modified from jobs
+		::vmap<Node,FileTag> srcs           ; srcs    .reserve(src_names.size()+n_codecs)                            ;            // worst case
+		::umap<Node,FileTag> old_srcs       ; old_srcs.reserve(n_old_srcs               )                            ;
+		::umap<Node,FileTag> new_srcs       ; new_srcs.reserve(src_names.size()+n_codecs)                            ;            // worst case
+		::uset<Node        > src_dirs       ;
+		::uset<Node        > old_src_dirs   ;
+		::uset<Node        > new_src_dirs   ;
+		::uset_s             ext_src_dirs_s ;
+		::uset_s             lcl_src_regs   ;
+		bool                 has_codecs     = +g_config->codecs                                                      ;
 		Trace trace("new_srcs") ;
 		// check and format new srcs
-		size_t      repo_root_depth = ::count(*g_repo_root_s,'/') - 1                                    ;              // account for terminating /
-		RealPathEnv rpe             { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s } ;
-		RealPath    real_path       { rpe                                                              } ;
+		size_t      repo_root_depth = ::count(*g_repo_root_s,'/') - 1                                                                                    ; // account for terminating /
+		RealPathEnv rpe             { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=*g_repo_root_s+PRIVATE_ADMIN_DIR_S } ;
+		RealPath    real_path       { rpe                                                                                                              } ;
 		// user report done before analysis so manifest is available for investigation in case of error
 		{	::string content ;
 			for( ::string const& src : src_names ) content << src <<'\n' ;
@@ -566,10 +571,10 @@ namespace Engine::Persistent {
 			throw_unless( +src , "found an empty source" ) ;
 			bool is_dir_ = is_dir_name(src) ;
 			if (!is_canon(src)) {
-				if ( ::string c=mk_canon(src) ; c!=src ) throw cat("source ",is_dir_?"dir ":"",src," is not canonical, consider : ",c) ;
-				else                                     throw cat("source ",is_dir_?"dir ":"",src," is not canonical"               ) ;
+				if ( ::string c=mk_canon(src) ; c!=src ) throw cat("source ",is_dir_?"dir ":"","is not cannonical : ",src," is not canonical (consider ",c,')') ;
+				else                                     throw cat("source ",is_dir_?"dir ":"","is not cannonical : ",src                                     ) ;
 			}
-			if (Record::s_is_simple(src)) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within or encompass system directories") ;
+			if (Record::s_is_simple(src)) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within system directories") ;
 			//
 			if (is_dir_) {
 				if ( size_t lvl=uphill_lvl(src) ; lvl>=repo_root_depth ) {
@@ -580,13 +585,15 @@ namespace Engine::Persistent {
 			}
 			FileTag               tag ;
 			RealPath::SolveReport sr  = real_path.solve(src,true/*no_follow*/) ;
-			if (+sr.lnks) throw cat("source ",is_dir_?"dir ":"",src,"/ has symbolic link ",sr.lnks[0]," in its path") ; // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
+			if (+sr.lnks) throw cat("source ",is_dir_?"dir ":"",src,"/ has symbolic link ",sr.lnks[0]," in its path") ;           // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
 			if (is_dir_) {
 				tag = FileTag::Dir ;
+				if (sr.file_loc>FileLoc::Repo) ext_src_dirs_s.insert(with_slash(src)) ;
 			} else {
 				throw_unless( sr.file_loc==FileLoc::Repo , "source ",src," is not in repo" ) ;
 				SWEAR( src==sr.real , src,sr.real ) ;                                          // src is local, canonic and there are no links, what may justify real from being different ?
 				tag = FileInfo(src,{.nfs_guard=&nfs_guard}).tag() ; if (tag==FileTag::Dir) tag = FileTag::None ;                                 // dirs do not officially exist as source
+				if ( has_codecs && tag==FileTag::Reg ) lcl_src_regs.insert(src) ;
 			}
 			srcs.emplace_back( Node(New,src,sr.file_loc>FileLoc::Repo) , tag ) ;                                                                 // external src dirs need no uphill dir
 		}
@@ -602,6 +609,22 @@ namespace Engine::Persistent {
 			::string nn_s = nn+'/'    ;
 			for( ::string const& sn : src_names ) throw_if( sn.starts_with(nn_s) , "source ",t==FileTag::Dir?"dir ":"",nn," is a dir of ",sn ) ;
 			FAIL(nn,"is a source dir of no source") ;                                                                                            // NO_COV
+		}
+		for( auto const& [key,val] : g_config->codecs ) {
+				bool is_dir  = is_dir_name(val.tab) ;
+				//
+				if (!is_canon(val.tab)) {
+					if ( ::string c=mk_canon(val.tab) ; c!=val.tab ) throw cat("codec table ",is_dir?"dir":"file"," is not cannonical : ",val.tab," is not canonical (consider ",c,')') ;
+					else                                             throw cat("codec table ",is_dir?"dir":"file"," is not cannonical : ",val.tab                                     ) ;
+				}
+				//
+				RealPath::SolveReport sr  = real_path.solve(no_slash(val.tab),false/*no_follow*/) ;                 // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
+				if (+sr.lnks)   throw cat("codec table ",val.tab," has symbolic link ",sr.lnks[0]," in its path") ;
+				//
+				if (is_dir  ) { for( ::string d_s=val.tab ; d_s!="/" ; d_s=dir_name_s(d_s) ) if (ext_src_dirs_s.contains(d_s    )) goto CodecFound ; }
+				else          {                                                              if (lcl_src_regs  .contains(val.tab)) goto CodecFound ; }                  // solve lazy
+				throw cat("codec table ",key," must ",is_dir?"lie within a source dir":"be a local source",", consider : lmake.config.extra_sources.append(",val,')') ;
+		CodecFound : ;
 		}
 		// compute diff
 		bool fresh = !old_srcs ;

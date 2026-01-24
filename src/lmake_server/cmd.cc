@@ -457,6 +457,7 @@ namespace Engine {
 		if (+jsrr.chroot_info.dir_s  ) res << ",\tchroot_dir     = " << mk_py_str(no_slash(jsrr.chroot_info.dir_s  )) << '\n' ;
 		if (+jsrr.chroot_info.actions) res << ",\tchroot_actions = " << mk_py_str(cat     (jsrr.chroot_info.actions)) << '\n' ;
 		/**/                           res << ",\tdebug_dir      = " << mk_py_str(no_slash(dbg_dir_s               )) << '\n' ;
+		/**/                           res << ",\tdomain_name    = " << mk_py_str(         jsrr.domain_name         ) << '\n' ;
 		/**/                           res << ",\tis_python      = " << mk_py_str(         job->rule()->is_python   ) << '\n' ;
 		/**/                           res << ",\tkey            = " << mk_py_str(         key                      ) << '\n' ;
 		/**/                           res << ",\tjob            = " <<                    +job                       << '\n' ;

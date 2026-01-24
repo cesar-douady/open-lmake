@@ -47,8 +47,8 @@ Item(B(-d),B(--direct))          Build deps before command completion (cf. note 
 Item(B(-v),B(--verbose))
 	Write lines composed of:
 	.RS
-	Item(I(status))   B(ok) if dep is built ok, B(error) if dep is built in error, B(-) if dep is no built or if B(--ignore_error) was not passed
-	Item(I(checksum)) The checksum of the dep (cf C(xxhsum,1)) if B(--read) was passed, else B(-).
+	Item(I(status))   If B(--ignore_error) was also passed, B(ok) if dep is built ok, B(error) if dep is built in error. In all other cases, B(-).
+	Item(I(checksum)) If B(--read)         was also passed, the checksum of the dep (cf C(xxhsum,1)) if it was built.    In all other cases, B(-).
 	Item(I(file))     The filename
 	.RE
 	.IP

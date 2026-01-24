@@ -150,7 +150,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="p">,</span>   <span class="n">tmp</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">_tmp</span><span class="o">&gt;&gt;</span><span class="mi">20</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;M&#39;</span>                         <span class="c1"># total available temporary disk space in MBytes, defaults to free space in current filesystem</span>
         <span class="p">)</span>
     <span class="c1">#,  sge = pdict(</span>
-    <span class="c1">#   ,   domain_name       = socket.getfqdn().split(&#39;.&#39;,1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server</span>
+    <span class="c1">#       domain_name       = socket.getfqdn().split(&#39;.&#39;,1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server</span>
     <span class="c1">#   ,   bin               = &#39;/opt/sge/bin/ls-amd64&#39;           # directory where sge binaries are located</span>
     <span class="c1">#   ,   cell              = &#39;default&#39;                         # cell     used for SGE job submission, by default, SGE automatically determines it</span>
     <span class="c1">#   ,   cluster           = &#39;p6444&#39;                           # cluster used for SGE job submission, by default, SGE automatically determines it</span>
@@ -163,7 +163,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="c1">#   ,   tmp_resource      = &#39;tmp&#39;                             # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified</span>
     <span class="c1">#   )</span>
     <span class="c1">#,  slurm = pdict(</span>
-    <span class="c1">#   ,   domain_name       = socket.getfqdn().split(&#39;.&#39;,1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server</span>
+    <span class="c1">#       domain_name       = socket.getfqdn().split(&#39;.&#39;,1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server</span>
     <span class="c1">#   ,   config            = &#39;/etc/slurm/slurm.conf&#39;           # config file (this is the default value if not specified)</span>
     <span class="c1">#   ,   init_timeout      = 10                                # maximum time allowed for slurm initialization</span>
     <span class="c1">#   ,   lib_slurm         = &#39;/usr/lib/slurm.so&#39;               # slurm dynamic lib (this is a typical default value if not specified)</span>
@@ -173,14 +173,19 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="c1">#                                                             # requires slurm configuration collaboration</span>
     <span class="c1">#   )</span>
     <span class="p">)</span>
-<span class="p">,</span>   <span class="n">caches</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>                                               <span class="c1"># PER_CACHE : provide an explanation for each cache method</span>
-    <span class="c1">#,  my_cache = pdict(                                         # when rule specifies cache = &#39;my_cache&#39;, this cache is selected</span>
-    <span class="c1">#   ,   repo_key = &#39;&lt;repo_root&gt; &lt;git-sha1&gt;&#39;                   # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag</span>
-    <span class="c1">#   ,   dir      = &#39;/path/to/cache_dir&#39;                       # the directory in which cached results are stored</span>
+<span class="p">,</span>   <span class="n">caches</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>
+    <span class="c1">#   my_cache = pdict(                                         # when rule specifies cache = &#39;my_cache&#39;, this cache is selected</span>
+    <span class="c1">#       repo_key = &#39;&lt;repo_root&gt; &lt;git-sha1&gt;&#39;                   # an id that identifies the repository, no more than 2 entries (first and last) is stored in the cache for a given job and tag</span>
+    <span class="c1">#   ,   dir      = &#39;/path/to/cache_dir&#39;                       # the dir in which cached results are stored</span>
     <span class="c1">#   )</span>
     <span class="p">)</span>
+<span class="p">,</span>   <span class="n">codecs</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>
+    <span class="c1">#   my_abs_ext_codec = &#39;/path/to/codec_dir&#39;                   # dir containing associations code&lt;-&gt;value, 2 files (encode and decode) each, better if within a source dir to track modifications</span>
+    <span class="c1">#,  my_rel_ext_codec = &#39;../path/to/codec_dir&#39;                 # .</span>
+    <span class="c1">#,  my_src_codec     = &#39;path/to/codec_src_file&#39;               # source file containing associations code&lt;-&gt;value, one per line</span>
+    <span class="p">)</span>
 <span class="p">,</span>   <span class="n">collect</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>
-    <span class="c1">#   stems  = pdict(Stem1=r&#39;.*&#39;)                               # defines stems as regexprs for use in ignore</span>
+    <span class="c1">#   stems  = pdict(Stem1=r&#39;.*&#39;)                               # define stems as regexprs for use in ignore</span>
     <span class="c1">#,  ignore = pdict(                                           # patterns used to prevent lcollect from removing files</span>
     <span class="c1">#       STATIC = (&#39;file1&#39;,&#39;file2&#39;)                            # several files/patterns can be provided for a single key</span>
     <span class="c1">#   ,   STAR   = &#39;file{Stem1}&#39;                                # mimic Rule.targets attribute (except several patterns can be defined using tuple/list)</span>

@@ -625,19 +625,20 @@ namespace Engine {
 
 	void JobExec::end(JobDigest<Node>&& digest) {
 		Trace trace("end",self,digest) ;
-		JobData&       jd          = *self                        ;
-		EndDigest      end_digest  = end_analyze(/*inout*/digest) ;
-		::vector<bool> must_wakeup ;
+		JobData&       jd                = *self                        ;
+		EndDigest      end_digest        = end_analyze(/*inout*/digest) ;
+		::vector<bool> must_wakeup       ;
+		bool           was_missing_audit = false                        ;
 		//
 		for( Req req : end_digest.running_reqs ) {
 			ReqInfo& ri = jd.req_info(req) ;
 			trace("req_before",end_digest.target_reason,jd.status,ri) ;
-			req->missing_audits.erase(self) ;                           // old missing audit is obsolete as soon as we have rerun the job
+			if (req->missing_audits.erase(self)) was_missing_audit = true ; // old missing audit is obsolete as soon as we have rerun the job
 			//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason job_reason = jd.make( ri , MakeAction::End , end_digest.target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !end_digest.has_new_deps  ; // if not done, does a full report anyway if not due to new deps
+			bool     full_report = done || !end_digest.has_new_deps  ;           // if not done, does a full report anyway if not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
@@ -654,11 +655,11 @@ namespace Engine {
 				ri
 			,	true/*with_stats*/
 			,	pfx
-			,	MsgStderr{ .msg=job_msg , .stderr=end_digest.msg_stderr.stderr }
+			,	MsgStderr{ .msg=job_msg , .stderr=end_digest.msg_stderr.stderr } // XXX/ : MsgStderr is necessary for gcc-11
 			,	digest.exe_time
 			,	is_retry(job_reason.tag)
 			) ;
-			end_digest.can_upload &= maybe_done ;                      // if job is not done, cache entry will be overwritten when actually rerun
+			end_digest.can_upload &= maybe_done ;                                // if job is not done, cache entry will be overwritten when actually rerun
 			must_wakeup.push_back(done) ;
 			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=end_digest.msg_stderr.msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
 			trace("req_after",ri,job_reason,STR(done),STR(maybe_done)) ;
@@ -667,8 +668,8 @@ namespace Engine {
 			/**/                                                                          SWEAR( cache_idx1 , cache_idx1 ) ;             // cannot commit/dismiss without cache
 			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ;             // .
 			try {
-				if (end_digest.can_upload) cache.commit ( self , digest.upload_key ) ;
-				else                       cache.dismiss(        digest.upload_key ) ;                                                   // free up temporary storage copied in job_exec
+				if (end_digest.can_upload) cache.commit ( self , digest.upload_key , was_missing_audit ) ;
+				else                       cache.dismiss(        digest.upload_key                     ) ;                               // free up temporary storage copied in job_exec
 			} catch (::string const& e) {
 				const char* action = end_digest.can_upload ? "upload" : "dismiss" ;
 				trace("cache_throw",action,e) ;

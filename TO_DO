@@ -32,16 +32,9 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* put initial tmp in /tmp/<userid>/open-lmake/<repo>
-	- so that repo can be in /tmp
-	- so that no clash between users, repo etc.
-	- already used with namespaces
-	- warn in 25.07
-* manage first/last in cache based on dates
-	- store date for first in Ckey
-	- take date from req->start_date when connecting to cache
 * provide support for all available python releases
 	- generate clmake.xxx.so (including per python release) instead of clmake.so
+	- or ensure single .so is binary compatible with all 3.6-3.14 releases
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -151,9 +144,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ****************************************************************************************************
 
 * rework codec
-	- declare in config
-	- add a codec rule attribute
-	- suppress file in lencode/ldecode
 	- provide a env variable for external use
 * consider using fanotify as an autodep method
 	- fanotify_init

@@ -630,12 +630,12 @@ namespace Engine {
 	public :
 		bool operator==(RuleMatch const& rm) const { return rule==rm.rule && stems==rm.stems ; }
 		bool operator+ (                   ) const { return +rule                            ; }
-		::vector<Re::Pattern> star_patterns (         ) const ;
-		::vector_s            py_matches    (         ) const ; //!                  targets_only
-		::vector_s            matches       (bool star) const { return _matches(star,false      ) ; }
-		::vector_s            targets       (bool star) const { return _matches(star,true       ) ; }
+		::vector<Re::Pattern> star_patterns(         ) const ;
+		::vector_s            py_matches   (         ) const ; //!                 targets_only
+		::vector_s            matches      (bool star) const { return _matches(star,false     ) ; }
+		::vector_s            targets      (bool star) const { return _matches(star,true      ) ; }
 	private :
-		::vector_s            _matches      ( bool star , bool targets_only ) const ;
+		::vector_s _matches( bool star , bool targets_only ) const ;
 	public :
 		::vmap_s<DepSpec> const& deps_holes() const {
 			if (!_has_deps) {
@@ -886,17 +886,10 @@ namespace Engine {
 	template<class T> Py::Ptr<> Dyn<T>::_eval_code( Job job , Rule::RuleMatch& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps ) const {
 		// functions defined in glbs use glbs as their global dict (which is stored in the code object of the functions), so glbs must be modified in place or the job-related values will not
 		// be seen by these functions, which is the whole purpose of such dynamic values
-		Rule       r       = +match ? match.rule : job->rule() ;
-		::vector_s to_del  ;
-		::string   to_eval ;
+		Rule r = +match ? match.rule : job->rule() ;
 		//
-		Rule::s_last_dyn_job  = job                             ;
-		Rule::s_last_dyn_msg  = T::Msg                          ;
-		Rule::s_last_dyn_rule = +job ? job->rule() : match.rule ;
-		fence() ;
-		Save<Atomic<Pdate>> sav_last_dyn_date { Rule::s_last_dyn_date , New } ;
-		SWEAR( !sav_last_dyn_date.saved , sav_last_dyn_date.saved ) ;
-		//
+		::vector_s        to_del   ;
+		::string          to_eval  ;
 		Py::Ptr<Py::Dict> tmp_glbs = entry().glbs ;                        // use a modifyable copy as we restore after use
 		eval_ctx( job , match , rsrcs
 		,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) {
@@ -911,19 +904,27 @@ namespace Engine {
 				tmp_glbs->set_item(key,*py_dct) ;
 			}
 		) ;
+		//
+		Rule::s_last_dyn_job  = job                             ;
+		Rule::s_last_dyn_msg  = T::Msg                          ;
+		Rule::s_last_dyn_rule = +job ? job->rule() : match.rule ;
+		fence() ;
+		Pdate               start             { New                           } ;
+		Save<Atomic<Pdate>> sav_last_dyn_date { Rule::s_last_dyn_date , start } ; SWEAR( !sav_last_dyn_date.saved , sav_last_dyn_date.saved ) ;
+		//
 		Py::py_run(to_eval,tmp_glbs) ;
-		g_kpi.py_exe_time += Pdate(New) - Rule::s_last_dyn_date ;
+		g_kpi.py_exe_time += Pdate(New) - start ;
 		Py::Ptr<>   res      ;
 		::string    err      ;
 		bool        seen_err = false  ;
-		AutodepLock lock     { deps } ;                                    // ensure waiting for lock is not accounted as python exec time
-		Rule::s_last_dyn_date = Pdate(New) ;
+		AutodepLock lock     { deps } ;
+		start = New ;                                                      // ensure waiting for lock is not accounted as python exec time
 		//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		try                       { res = entry().code->eval(tmp_glbs) ; }
 		//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		catch (::string const& e) { err = e ; seen_err = true ;          }
 		for( ::string const& key : to_del ) tmp_glbs->del_item(key) ;      // delete job-related info, just to avoid percolation to other jobs, even in case of error
-		g_kpi.py_exe_time += Pdate(New) - Rule::s_last_dyn_date ;
+		g_kpi.py_exe_time += Pdate(New) - start ;
 		if ( +lock.err || seen_err ) throw MsgStderr{.msg=lock.err,.stderr=err} ;
 		return res ;
 	}

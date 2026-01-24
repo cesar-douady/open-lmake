@@ -7,19 +7,61 @@
 
 using namespace Disk ;
 
-::string& operator+=( ::string& os , AutodepEnv const& ade ) {                   // START_OF_NO_COV
-	/**/                       os << "AutodepEnv("                             ;
-	/**/                       os <<      static_cast<RealPathEnv const&>(ade) ;
-	if (+ade.fast_mail       ) os <<','<< ade.fast_mail                        ;
-	if (+ade.fast_report_pipe) os <<','<< ade.fast_report_pipe                 ;
-	/**/                       os <<','<< ade.service                          ;
-	if ( ade.enable          ) os <<",enable"                                  ;
-	if ( ade.auto_mkdir      ) os <<",auto_mkdir"                              ;
-	if ( ade.readdir_ok      ) os <<",readdir_ok"                              ;
-	if (+ade.sub_repo_s      ) os <<','<< ade.sub_repo_s                       ;
-	if (+ade.views_s         ) os <<','<< ade.views_s                          ;
-	return                     os <<')'                                        ;
-}                                                                                // END_OF_NO_COV
+namespace Codec {
+
+	CodecRemoteSide::CodecRemoteSide(::string const& descr) {
+		SWEAR( descr.size()>=2 , descr ) ;
+		tab = descr.substr(0,descr.size()-2) ;
+		switch (descr[descr.size()-2]) {
+			case 'N' : file_sync = FileSync::None ; break ;
+			case 'D' : file_sync = FileSync::Dir  ; break ;
+			case 'S' : file_sync = FileSync::Sync ; break ;
+		DF}
+		switch (descr[descr.size()-1]) {
+			case 'N' : perm_ext = PermExt::None  ; break ;
+			case 'G' : perm_ext = PermExt::Group ; break ;
+			case 'O' : perm_ext = PermExt::Other ; break ;
+		DF}
+	}
+
+	CodecRemoteSide::operator ::string() const {
+		::string res = tab ;
+		switch (file_sync) {
+			case FileSync::None : res << 'N' ; break ;
+			case FileSync::Dir  : res << 'D' ; break ;
+			case FileSync::Sync : res << 'S' ; break ;
+		DF}
+		switch (perm_ext) {
+			case PermExt::None  : res << 'N' ; break ;
+			case PermExt::Group : res << 'G' ; break ;
+			case PermExt::Other : res << 'O' ; break ;
+		DF}
+		return res ;
+	}
+
+	::string& operator+=( ::string& os , CodecRemoteSide const& crs ) { // START_OF_NO_COV
+		/**/                os << "Codec("<<crs.tab  ;
+		if (+crs.file_sync) os << ','<<crs.file_sync ;
+		if (+crs.perm_ext ) os << ','<<crs.perm_ext  ;
+		return              os << ')'                ;
+	}                                                                   // END_OF_NO_COV
+
+}
+
+::string& operator+=( ::string& os , AutodepEnv const& ade ) {                             // START_OF_NO_COV
+	/**/                       os << "AutodepEnv("<<static_cast<RealPathEnv const&>(ade) ;
+	if (+ade.fast_mail       ) os << ','<<ade.fast_mail                                  ;
+	if (+ade.fast_report_pipe) os << ','<<ade.fast_report_pipe                           ;
+	/**/                       os << ','<<ade.service                                    ;
+	if (+ade.fqdn            ) os << ','<<ade.fqdn                                       ;
+	if ( ade.enable          ) os << ",enable"                                           ;
+	if ( ade.auto_mkdir      ) os << ",auto_mkdir"                                       ;
+	if ( ade.readdir_ok      ) os << ",readdir_ok"                                       ;
+	if (+ade.sub_repo_s      ) os << ','<<ade.sub_repo_s                                 ;
+	if (+ade.codecs          ) os << ','<<ade.codecs                                     ;
+	if (+ade.views_s         ) os << ','<<ade.views_s                                    ;
+	return                     os << ')'                                                 ;
+}                                                                                          // END_OF_NO_COV
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
@@ -61,12 +103,15 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			break ;
 			default  : goto Fail ;
 		}
-	// other stuff                                                                                                                       empty_ok
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } tmp_dir_s   = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } repo_root_s = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } sub_repo_s  = parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
-	{ if (env[pos++]!=':') goto Fail ; }                                      src_dirs_s  = parse_printable<::vector_s>          (env,pos,false ) ;
-	{ if (env[pos++]!=':') goto Fail ; }                                      views_s     = parse_printable<::vmap_s<::vector_s>>(env,pos,false ) ;
+	// other stuff
+	using CRS = Codec::CodecRemoteSide ; //!                                                                                                          empty_ok
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } fqdn        =              parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } tmp_dir_s   =              parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } repo_root_s =              parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; } { if (env[pos++]!='"') goto Fail ; } sub_repo_s  =              parse_printable<'"'>                 (env,pos       ) ; { if (env[pos++]!='"') goto Fail ; }
+	{ if (env[pos++]!=':') goto Fail ; }                                      src_dirs_s  =              parse_printable<::vector_s          >(env,pos,false ) ;
+	{ if (env[pos++]!=':') goto Fail ; }                                      codecs      = mk_umap<CRS>(parse_printable<::vmap_ss           >(env,pos,false )) ;
+	{ if (env[pos++]!=':') goto Fail ; }                                      views_s     =              parse_printable<::vmap_s<::vector_s>>(env,pos,false ) ;
 	{ if (env[pos  ]!=0  ) goto Fail ; }
 	for( ::string const& src_dir_s : src_dirs_s ) if (!is_dir_name(src_dir_s)) goto Fail ;
 	return ;
@@ -81,6 +126,7 @@ AutodepEnv::operator ::string() const {
 	res <<':'<< '"'<<mk_printable<'"'>(fast_mail       )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(fast_report_pipe)<<'"' ;
 	// options
+	// START_OF_VERSIONING
 	res << ':' ;
 	if (!enable    ) res << 'd' ;
 	if (readdir_ok ) res << 'D' ;
@@ -95,12 +141,15 @@ AutodepEnv::operator ::string() const {
 		case FileSync::None : res << "sn" ; break ;
 		case FileSync::Dir  : res << "sd" ; break ;
 		case FileSync::Sync : res << "ss" ; break ;
-	DF} //! NO_COV                                empty_ok
-	res <<':'<< '"'<<mk_printable<'"'>(tmp_dir_s         )<<'"' ;
-	res <<':'<< '"'<<mk_printable<'"'>(repo_root_s       )<<'"' ;
-	res <<':'<< '"'<<mk_printable<'"'>(sub_repo_s        )<<'"' ;
-	res <<':'<<      mk_printable     (src_dirs_s ,false )      ;
-	res <<':'<<      mk_printable     (views_s    ,false )      ;
+	DF} //! NO_COV                                                   empty_ok
+	res <<':'<< '"'<<mk_printable<'"'>(                  fqdn               )<<'"' ;
+	res <<':'<< '"'<<mk_printable<'"'>(                  tmp_dir_s          )<<'"' ;
+	res <<':'<< '"'<<mk_printable<'"'>(                  repo_root_s        )<<'"' ;
+	res <<':'<< '"'<<mk_printable<'"'>(                  sub_repo_s         )<<'"' ;
+	res <<':'<<      mk_printable     (                  src_dirs_s  ,false )      ;
+	res <<':'<<      mk_printable     (mk_vmap<::string>(codecs     ),false )      ;
+	res <<':'<<      mk_printable     (                  views_s     ,false )      ;
+	// END_OF_VERSIONING
 	return res ;
 }
 
@@ -138,9 +187,17 @@ AcFd AutodepEnv::fast_report_fd() const {
 
 ClientSockFd AutodepEnv::slow_report_fd() const {
 	try {
-		if (+self) { KeyedService s = service ; if (host()==fast_mail) s.addr = 0 ; return ClientSockFd(s) ; }
-		else                                                                        return {}              ;
-	} catch (::string const& e) {                                                                            // START_OF_NO_COV
+		if (!self) return {} ;
+		KeyedService s = service ;
+		if (mail()==fast_mail) s.addr = 0 ;
+		try {
+			return ClientSockFd(s) ;
+		} catch (::string const&) {
+			if (!fqdn) throw ;
+			s.addr = SockFd::s_addr(fqdn) ;            // 2nd chance if addr does not work
+			return ClientSockFd(s) ;
+		}
+	} catch (::string const& e) {                      // START_OF_NO_COV
 		fail_prod("while trying to report deps :",e) ;
-	}                                                                                                        // END_OF_NO_COV
+	}                                                  // END_OF_NO_COV
 }

@@ -708,7 +708,8 @@ REMOTE_OBJS  := \
 #_bin/job_exec bin/lautodep :
 #	@mkdir -p $(@D)
 #	@echo link to $@
-#	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
+#	@# forces dynamic lib resolution as chroot may be called, so lazy binding could lead to wrong lib being loaded
+#	@$(LINK) $(SAN_FLAGS) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 #	@$(SPLIT_DBG_CMD)
 
 JOB_EXEC_OBJS := \
@@ -730,7 +731,8 @@ LMAKE_DBG_FILES += _bin/job_exec bin/lautodep
 _bin/job_exec bin/lautodep :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
+	@# forces dynamic lib resolution as chroot may be called, so lazy binding could lead to wrong lib being loaded
+	@$(LINK) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps

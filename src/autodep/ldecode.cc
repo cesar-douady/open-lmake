@@ -16,27 +16,27 @@ enum class Key : uint8_t { None } ;
 
 enum class Flag : uint8_t {
 	Code
-,	File
+,	Table
 ,	Context
 } ;
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
 		{ Flag::Code    , { .short_name='c' , .has_arg=true , .doc="code to retreive associated value from"               } }
-	,	{ Flag::File    , { .short_name='f' , .has_arg=true , .doc="file storing code-value associations"                 } }
+	,	{ Flag::Table   , { .short_name='t' , .has_arg=true , .doc="table storing code-value associations"                } }
 	,	{ Flag::Context , { .short_name='x' , .has_arg=true , .doc="context used within file to retreive value from code" } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	//
 	if (!cmd_line.flags[Flag::Code   ]) syntax.usage("must have code to retrieve associated value"   ) ;
-	if (!cmd_line.flags[Flag::File   ]) syntax.usage("must have file to retrieve associated value"   ) ;
+	if (!cmd_line.flags[Flag::Table  ]) syntax.usage("must have file to retrieve associated value"   ) ;
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to retrieve associated value") ;
 	//
 	Py::init() ;
 	//
 	try {
 		auto&    fa    = cmd_line.flag_args                                                                                   ;
-		::string reply = JobSupport::decode( ::move(fa[+Flag::File]) , ::move(fa[+Flag::Context]) , ::move(fa[+Flag::Code]) ) ;
+		::string reply = JobSupport::decode( ::move(fa[+Flag::Table]) , ::move(fa[+Flag::Context]) , ::move(fa[+Flag::Code]) ) ;
 		Fd::Stdout.write(reply) ;
 	} catch (::string const& e) {
 		exit(Rc::Fail,e) ;

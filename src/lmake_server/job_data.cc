@@ -30,8 +30,6 @@ namespace Codec {
 
 	using namespace Engine ;
 
-	static constexpr Channel CodecChnl = Channel::Codec ;
-
 	::strong_ordering operator<=>( Entry const& a , Entry const& b ) {
 		if ( ::strong_ordering r=a.ctx<=>b.ctx ; r!=0 ) return r               ;
 		/**/                                            return a.code<=>b.code ;
@@ -874,11 +872,11 @@ namespace Engine {
 			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                                     // global move
 			trace("done_fresh",n_ctxs,n_entries) ;
 		} else {
-			trace("update") ;
 			NodeIdx        n_ctxs             = 0                                                     ; // for trace only // .
 			NodeIdx        n_entries          = 0                                                     ;
 			::string       new_codes_filename = CodecFile::s_new_codes_file(filename)                 ;
 			CodecGuardLock lock               { filename , {.file_sync=Engine::g_config->file_sync} } ; // if we cannot lock, jobs do not access db, so no need to lock
+			trace("update",new_codes_filename) ;
 			//
 			::vector_s new_code_lines = AcFd(new_codes_filename,{.err_ok=true}).read_lines(false/*partial_ok*/) ;
 			_update_old_decode_tab( new_code_lines , /*inout*/old_decode_tab                          ) ;

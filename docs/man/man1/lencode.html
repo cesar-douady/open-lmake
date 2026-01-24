@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Jan 14 15:00:11 2026 -->
+<!-- CreationDate: Sat Jan 24 12:35:08 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -23,6 +23,7 @@
 <a href="#NAME">NAME</a><br>
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#OPTIONS">OPTIONS</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#EXIT STATUS">EXIT STATUS</a><br>
 <a href="#NOTES">NOTES</a><br>
@@ -37,9 +38,8 @@
 </h2>
 
 
-<p style="margin-left:9%; margin-top: 1em">lencode - encode
-a (long) value into a (short) code for retrieval with
-<b>ldecode</b>(1) within a <i>open-lmake</i> job</p>
+<p style="margin-left:9%; margin-top: 1em">lencode -
+associates a code to a provided value</p>
 
 <h2>SYNOPSIS
 <a name="SYNOPSIS"></a>
@@ -47,7 +47,7 @@ a (long) value into a (short) code for retrieval with
 
 
 <p style="margin-left:9%; margin-top: 1em"><b>lencode</b>
-<i>association_file context</i> [<i>min_length</i>]</p>
+[<i>OPTION</i>]... [<i>FILE</i>]...</p>
 
 <h2>DESCRIPTION
 <a name="DESCRIPTION"></a>
@@ -72,11 +72,58 @@ passed value in hexadecimal, with a length at least
 <i>min_length</i> (default is 1), but may be longer in case
 of conflict.</p>
 
+<p style="margin-left:9%; margin-top: 1em"><i>table</i> may
+be:</p>
 
-<p style="margin-left:9%; margin-top: 1em"><i>association_file</i>
-(symbolic links are followed) may be either a source file
-within repo or a dir (ending with <b>/&rsquo;&rsquo;</b>)
-that lies within a source dir.</p>
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="6%">
+
+
+<p>a key</p></td>
+<td width="3%"></td>
+<td width="82%">
+
+
+<p>found in <b>lmake.config.codecs</b> in which case it is
+a local source file or an external dir.</p></td></tr>
+</table>
+
+<p style="margin-left:9%;">a local source file</p>
+
+<p style="margin-left:18%;">(symbolic links are followed)
+recording the association table.</p>
+
+<p style="margin-left:9%;">an external dir</p>
+
+<p style="margin-left:9%; margin-top: 1em">In the former
+case, such a dir must lie within a source dir and must
+contain a file <i>LMAKE/config.py</i> containing definitions
+for: <b><br>
+file_sync</b></p>
+
+<p style="margin-left:18%;">one of <b>none</b>, <b>dir</b>
+(default) or <b>sync</b> for choosing the method to ensure
+proper consistent operations.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="5%">
+
+
+<p><b>perm</b></p></td>
+<td width="4%"></td>
+<td width="82%">
+
+
+<p>one of <b>none</b>, <b>group</b> or <b>other</b> which
+specifies who is given permission to access this shared
+dir.</p> </td></tr>
+</table>
 
 <p style="margin-left:9%; margin-top: 1em">Associations are
 usually created using <b>lencode</b> or <b>lmake.encode</b>
@@ -85,6 +132,80 @@ but not necessarily (they can be created by hand).</p>
 <p style="margin-left:9%; margin-top: 1em">Usage and use
 cases are more extensively documented the full
 <i>open-lmake</i> documentation.</p>
+
+<h2>OPTIONS
+<a name="OPTIONS"></a>
+</h2>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>-t</b>
+<i>table</i>, <b>--table</b>=<i>table</i></p>
+
+<p style="margin-left:18%;"><i>table</i> may be:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="6%">
+
+
+<p>a key</p></td>
+<td width="3%"></td>
+<td width="82%">
+
+
+<p>found in <b>lmake.config.codecs</b> in which case it is
+equivalent to its associated value.</p></td></tr>
+</table>
+
+<p style="margin-left:9%;">a local source file</p>
+
+<p style="margin-left:18%;">(symbolic links are followed)
+recording the association table.</p>
+
+<p style="margin-left:9%;">an external dir</p>
+
+<p style="margin-left:9%; margin-top: 1em">In the latter
+case, such a dir must lie within a source dir and must
+contain a file <i>LMAKE/config.py</i> containing definitions
+for: <b><br>
+file_sync</b></p>
+
+<p style="margin-left:18%;">one of <b>none</b>, <b>dir</b>
+(default) or <b>sync</b> for choosing the method to ensure
+proper consistent operations.</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="5%">
+
+
+<p><b>perm</b></p></td>
+<td width="4%"></td>
+<td width="82%">
+
+
+<p>one of <b>none</b>, <b>group</b> or <b>other</b> which
+specifies who is given permission to access this shared
+dir.</p> </td></tr>
+</table>
+
+<p style="margin-left:9%; margin-top: 1em">It is also an
+error if <i>code</i> cannot be found with the accompanying
+<i>context</i>. <b><br>
+-x</b> <i>context</i>, <b>--context</b>=<i>context</i></p>
+
+<p style="margin-left:18%;">specifies the context in which
+to find the value associated with passed code</p>
+
+<p style="margin-left:9%;"><b>-l</b> <i>min_len</i>,
+<b>--min-len</b>=<i>min_len</i></p>
+
+<p style="margin-left:18%;">specifies the minimum code
+length to use to encode value</p>
 
 <h2>EXAMPLES
 <a name="EXAMPLES"></a>
@@ -198,7 +319,7 @@ provided with the <b>lmake.encode</b> python function.</p></td></tr>
 <p><b>lencode</b> and <b>ldecode</b>(1) are useful tools
 when the flow implies files whose names are impractical.
 This is a way to transform long filenames into much shorter
-ones by keeping an association file to retrieve long info
+ones by keeping an association table to retrieve long info
 from short codes.</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
@@ -211,11 +332,11 @@ from short codes.</p></td></tr>
 
 
 <p>Using this functionality may imply <b>git</b>(1)
-conflicts on the association file when several users
-independently create associations in their repos. This is
-fully dealt with and the only thing left to the user is to
-accept the resolution of the conflict <b>without any
-action</b>.</p> </td></tr>
+conflicts on the association table (when a local source)
+when several users independently create associations in
+their repos. This is fully dealt with and the only thing
+left to the user is to accept the resolution of the conflict
+<b>without any action</b>.</p></td></tr>
 </table>
 
 <h2>SEE ALSO

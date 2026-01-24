@@ -21,8 +21,8 @@ if __name__!='__main__' :
 		cache  = 'my_cache'
 		target = r'dut{C:\d}{V:\d}'
 		cmd    = '''
-			code="$( echo -n val{V} | lencode -f codec_file -x ctx )" ; [ "$code" = code{C} ] || echo bad code "$code" versus code{C} >&2
-			val="$(  ldecode -f codec_file -x ctx -c code{C}       )" ; [ "$val"  = val{V}  ] || echo bad val  "$val"  versus val{C}  >&2
+			code="$( echo -n val{V} | lencode -t codec_file -x ctx )" ; [ "$code" = code{C} ] || echo bad code "$code" versus code{C} >&2
+			val="$(  ldecode -t codec_file -x ctx -c code{C}       )" ; [ "$val"  = val{V}  ] || echo bad val  "$val"  versus val{C}  >&2
 		'''
 
 else :

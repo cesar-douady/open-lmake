@@ -644,11 +644,15 @@ time can be save by avoiding full compilation with bad inputs when deps are bein
 <h3 id="cp_target_tree-from_dir--to_dir--regexprnone-"><a class="header" href="#cp_target_tree-from_dir--to_dir--regexprnone-"><a href="unit_tests/target_tree.html#:~:text=lmake%2Ecp%5Ftarget%5Ftree%28%27dut%27%2C%27dut2%27%2Cregexpr%3D%27dut%2Fa%2E%27%29"><code>cp_target_tree( from_dir , to_dir , regexpr=None )</code></a></a></h3>
 <p>Copy generated targets that are inside <code>from_dir</code> and match <code>regexpr</code> to <code>to_dir</code>.</p>
 <p>Links are copied as is, without effort to make them point to the same place.</p>
-<h3 id="decode-file--ctx--code-"><a class="header" href="#decode-file--ctx--code-"><a href="unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29"><code>decode( file , ctx , code )</code></a></a></h3>
-<p>If a val is associated to <code>code</code> within file <code>file</code> and context <code>ctx</code>, return it.
+<h3 id="decode-table--ctx--code-"><a class="header" href="#decode-table--ctx--code-"><a href="unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29"><code>decode( table , ctx , code )</code></a></a></h3>
+<p>If a val is associated to <code>code</code> within <code>table</code> and context <code>ctx</code>, return it.
 Else an exception is raised.</p>
-<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
-In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<p><code>table</code> may be:</p>
+<ul>
+<li>a key found in <code>lmake.config.codecs</code> in which case it is a local source file or an external dir</li>
+<li>a local source file (symbolic links are followed) recording the association table</li>
+</ul>
+<p>In the former case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for:</p>
 <ul>
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
 <li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
@@ -677,8 +681,8 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <li>The key is the dep name.</li>
 <li>The value is a <code>dict</code> composed of:
 <ul>
-<li><code>ok</code>:       <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
-<li><code>checksum</code>: The checksum computed after the dep (unless <code>ok</code> is <code>None</code>) (cf. <a href="man/man1/xxhsum.html">xxhsum</a>).</li>
+<li><code>ok</code>      : if <code>ignore_error=True</code> was also passed, <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
+<li><code>checksum</code>: if <code>read=True</code>         was also passed, the checksum <a href="man/man1/xxhsum.html">computed</a> after the dep (unless <code>ok</code> is <code>None</code>).</li>
 </ul>
 </li>
 </ul>
@@ -742,11 +746,15 @@ In that case, using the <code>direct</code> flag reduces the number of reruns, w
 In that case, it is most probably wise to use the <code>critical</code> flag simultaneously.</p>
 </li>
 </ul>
-<h3 id="encode-file--ctx--val--min_length1-"><a class="header" href="#encode-file--ctx--val--min_length1-"><a href="unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29"><code>encode( file , ctx , val , min_length=1 )</code></a></a></h3>
-<p>If a code is associated to <code>val</code> within file <code>file</code> and context <code>ctx</code>, return it.
+<h3 id="encode-table--ctx--val--min_length1-"><a class="header" href="#encode-table--ctx--val--min_length1-"><a href="unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29"><code>encode( table , ctx , val , min_length=1 )</code></a></a></h3>
+<p>If a code is associated to <code>val</code> within <code>table</code> and context <code>ctx</code>, return it.
 Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.</p>
-<p><code>file</code> (symbolic links are followed) may be either a source file within repo or a dir (ending with <code>'/'</code>).
-In the latter case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+<p><code>table</code> may be:</p>
+<ul>
+<li>a key found in <code>lmake.config.codecs</code> in which case it is a local source file or an external dir</li>
+<li>a local source file (symbolic links are followed) recording the association table</li>
+</ul>
+<p>In the former case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for:</p>
 <ul>
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
 <li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
@@ -1140,6 +1148,10 @@ It can be specified as a <code>int</code> or a <code>str</code> representing a n
 <p>This attribute is a <a href="lmake_module.html#:~:text=class%20pdict"><code>pdict</code></a> with one entry for each cache.</p>
 <p>Caches are named with an arbitrary <code>str</code> and are referenced in rules <a href="unit_tests/cache.html#:~:text=cache%20%3D%20%27my%5Fcache">using this name</a>.</p>
 <p>By default, no cache is configured.</p>
+<h3 id="codecs--clean"><a class="header" href="#codecs--clean"><code>codecs</code> : Clean</a></h3>
+<p>This attribute is a <a href="lmake_module.html#:~:text=class%20pdict"><code>pdict</code></a> with one entry for each codec file or dir.</p>
+<p>Codecs are named with an arbitrary <code>str</code> not containing <code>/</code> and are referenced in <code>ldecode</code>, <code>lencode</code>, <code>lmake.decode</code> and <code>lmake.encode</code> as their file attribute,
+in which case the associated value is used instead.</p>
 <h3 id="collect--dynamic"><a class="header" href="#collect--dynamic"><a href="unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D%20lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D"><code>collect</code></a> : Dynamic</a></h3>
 <p>This attribute specifies files and dirs to be ignored (and hence kept) when <code>lcollect</code> is run.
 Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.</p>

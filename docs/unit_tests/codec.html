@@ -119,9 +119,9 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;{File:.*}_sh&#39;</span>
         <span class="n">shell</span>  <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;/bin/bash&#39;</span><span class="p">,</span><span class="s1">&#39;-e&#39;</span><span class="p">)</span>
         <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">            code=$( echo </span><span class="si">{File}</span><span class="s1">_sh | lencode -f codec_file -x ctx -l 4 )</span>
+<span class="s1">            code=$( echo </span><span class="si">{File}</span><span class="s1">_sh | lencode -t codec_file -x ctx -l 4 )</span>
 <span class="s1">            echo $code</span>
-<span class="s1">            ldecode -f codec_file -x ctx -c $code</span>
+<span class="s1">            ldecode -t codec_file -x ctx -c $code</span>
 <span class="s1">            lcheck_deps</span>
 <span class="s1">        &#39;&#39;&#39;</span>
 

@@ -22,7 +22,7 @@ namespace Engine {
 		if (+ri.done_               ) os <<",Done@"       << ri.done_              ;
 		if ( ri.n_wait              ) os <<",wait:"       << ri.n_wait             ;
 		if ( ri.overwritten         ) os <<",overwritten"                          ;
-		if (+ri.manual              ) os <<','            <<ri.manual              ;
+		if (+ri.manual              ) os <<','            << ri.manual             ;
 		return                        os <<')'                                     ;
 	}                                                                                // END_OF_NO_COV
 

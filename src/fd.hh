@@ -16,7 +16,7 @@
 	#define SOCK_CLOEXEC 0 // CLOEXEC is just defensive programming, not really needed
 #endif
 
-::string const& fqdn() ; // fully qualified domain name (includes hostname)
+::string const& fqdn(::string const& domain_name={}) ;
 
 struct Service {
 	friend ::string& operator+=( ::string& , Service const& ) ;
@@ -79,15 +79,15 @@ struct SockAddr : private ::sockaddr_in { // ensure fields cannot be accessed di
 struct SockFd : AcFd {
 	friend ::string& operator+=( ::string& , SockFd const& ) ;
 	using Key = Service::Key ;
-	static constexpr in_addr_t   LoopBackAddr      = 0x7f000001                 ;                              // 127.0.0.1
-	static constexpr in_addr_t   LoopBackMask      = 0xff000000                 ;
-	static constexpr in_addr_t   LoopBackBroadcast = LoopBackAddr|~LoopBackMask ;                              // must be avoided as it is illegal
+	static constexpr in_addr_t   LoopbackAddr      = 0x7f000001                 ;                              // 127.0.0.1
+	static constexpr in_addr_t   LoopbackMask      = 0xff000000                 ;
+	static constexpr in_addr_t   LoopbackBroadcast = LoopbackAddr|~LoopbackMask ;                              // must be avoided as it is illegal
 	static constexpr Time::Delay AddrInUseTick     {    0.010 }                 ;
 	static constexpr uint32_t    NAddrInUseTrials  = 1000                       ;
 	static constexpr uint32_t    NConnectTrials    =  100                       ;
 	static constexpr Time::Delay ConnectTimeout    { 1000     }                 ;
 	// statics
-	static bool            s_is_loopback    ( in_addr_t a                               ) {                                             return (a&LoopBackMask)==(LoopBackAddr&LoopBackMask) ; }
+	static bool            s_is_loopback    ( in_addr_t a                               ) {                                             return (a&LoopbackMask)==(LoopbackAddr&LoopbackMask) ; }
 	static in_addr_t       s_random_loopback(                                           ) ;
 	static ::string        s_addr_str       ( in_addr_t                                 ) ;
 	static in_addr_t       s_addr           ( ::string const& host , bool name_ok=false ) ;                    // if !name_ok, host must be empty or in dot notation

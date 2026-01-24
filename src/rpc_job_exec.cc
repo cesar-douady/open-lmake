@@ -88,23 +88,22 @@ namespace Codec {
 
 	CodecFile::CodecFile(::string const& node) {
 		throw_unless( s_is_codec(node) , "not a codec node : ",node ) ;
-		static_assert( Infx[InfxSz-1]=='\t' ) ;
-		size_t pos1 = s_pfx_s().size()        ;
-		size_t pos3 = node.rfind('\t'       ) ; SWEAR( pos1<pos3 && pos3!=Npos , node,pos1,     pos3 ) ;
-		size_t pos2 = node.rfind('\t',pos3-1) ; SWEAR( pos1<pos2 && pos2<pos3  , node,pos1,pos2,pos3 ) ;
+		size_t pos1 = s_pfx_s().size()            ;
+		size_t pos3 = node.rfind(CodecSep       ) ; SWEAR( pos1<pos3 && pos3!=Npos && node[pos3-1]=='/' , node,pos1,     pos3 ) ;
+		size_t pos2 = node.rfind(CodecSep,pos3-1) ; SWEAR( pos1<pos2 && pos2<pos3  && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
 		//
-		/**/     file = node.substr(pos1,pos2-(InfxSz-1)-pos1) ; if (!is_lcl(node)) file += '/' ;                                                // dir based codec
-		pos2++ ; ctx  = parse_printable(node,pos2)             ; SWEAR( pos2==pos3 , node,pos1,pos2,pos3 ) ; ctx.resize(ctx.size()-(InfxSz-1)) ;
+		/**/     file = node.substr(pos1,pos2-pos1)          ; if (is_lcl(node)) file.pop_back() ;                                           // if external, it is a dir based codec
+		pos2++ ; ctx  = parse_printable<CodecSep>(node,pos2) ; SWEAR( pos2==pos3 , node,pos1,pos2,pos3 ) ; ctx.resize(ctx.size()-1/* / */) ;
 		pos3++ ;
-		if      (node.ends_with(DecodeSfx)) _code_val_crc = parse_printable      (node.substr(pos3,node.size()-(sizeof(DecodeSfx)-1)-pos3)) ;    // account for terminating null
-		else if (node.ends_with(EncodeSfx)) _code_val_crc = Hash::Crc::s_from_hex(node.substr(pos3,node.size()-(sizeof(EncodeSfx)-1)-pos3)) ;    // .
+		if      (node.ends_with(DecodeSfx)) _code_val_crc = parse_printable<CodecSep>(node.substr(pos3,node.size()-(sizeof(DecodeSfx)-1/*null*/)-pos3)) ;
+		else if (node.ends_with(EncodeSfx)) _code_val_crc = Hash::Crc::s_from_hex    (node.substr(pos3,node.size()-(sizeof(EncodeSfx)-1/*.   */)-pos3)) ;
 		else    FAIL(node) ;
 	}
 
 	// START_OF_VERSIONING
 	::string CodecFile::name(bool tmp) const {
-		if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),Infx,mk_printable(ctx),Infx,val_crc().hex()     ,EncodeSfx) ;
-		else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),Infx,mk_printable(ctx),Infx,mk_printable(code()),DecodeSfx) ;
+		if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',CodecSep,val_crc().hex()               ,EncodeSfx) ;
+		else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',CodecSep,mk_printable<CodecSep>(code()),DecodeSfx) ;
 	}
 	// END_OF_VERSIONING
 
@@ -142,7 +141,7 @@ namespace Codec {
 		DiskSz   actual_sz         = FileInfo( {file.at,new_codes_file   } , {                                             .nfs_guard=this} ).sz ;
 		AcFd     known_sz_fd       {           {file.at,new_codes_sz_file} , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=true,.nfs_guard=this} }    ;
 		::string known_sz_str      = known_sz_fd.read(sizeof(DiskSz))                                                                            ;
-		if (+known_sz_str) {                                                                                                                      // empty means nothing to replay
+		if (+known_sz_str) {                                                                                                                       // empty means nothing to replay
 			/**/                                                        SWEAR( known_sz_str.size()==sizeof(DiskSz) , file,known_sz_str.size() ) ;
 			DiskSz known_sz = decode_int<DiskSz>(known_sz_str.data()) ; SWEAR( known_sz           <=actual_sz      , file,known_sz,actual_sz  ) ;
 			//

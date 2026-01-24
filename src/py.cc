@@ -19,7 +19,8 @@ static const ::amap<PyException,PyObject*,N<PyException>> PyExceptionTab {{
 
 namespace Py {
 
-	Mutex<MutexLvl::Gil> Gil::_s_mutex ;
+	Mutex<MutexLvl::Gil>   NoGil::_s_mutex          ;
+	::atomic<::thread::id> NoGil::_s_holding_thread ;
 
 	//
 	// functions
@@ -37,6 +38,11 @@ namespace Py {
 	} ;
 
 	static StaticUniqPtr<::vector_s> _g_std_sys_path ;
+
+	void init_from_python() {
+		Gil::s_swear_locked() ;
+		Dict::s_builtins = from_py<Dict>(PyEval_GetBuiltins()) ;
+	}
 
 	void init(::string const& lmake_root_s) {
 		static bool once=false ; if (once) return ; else once = true ;
@@ -68,7 +74,7 @@ namespace Py {
 		/**/                       _g_std_sys_path = New ;
 		for( Object& p : py_path ) _g_std_sys_path->emplace_back(p.as_a<Str>()) ;
 		//
-		Dict::s_builtins = from_py<Dict>(PyEval_GetBuiltins()) ;
+		init_from_python() ;
 		//
 		#if PY_VERSION_HEX >= 0x03080000
 			PyEval_SaveThread() ;
@@ -152,9 +158,9 @@ namespace Py {
 		Ptr<> res = PyRun_String( expr.c_str() , Run?Py_file_input:Py_eval_input , glbs->to_py() , glbs->to_py() ) ;
 		if constexpr (Run) return glbs ;
 		else               return res  ;
-	}
-	Ptr<    > py_eval( ::string const& expr , Dict* glbs , Sequence const* sys_path ) { return _py_eval_run<false/*Run*/>( expr , glbs , sys_path ) ; }
-	Ptr<Dict> py_run ( ::string const& expr , Dict* glbs , Sequence const* sys_path ) { return _py_eval_run<true /*Run*/>( expr , glbs , sys_path ) ; }
+	} //!                                                                                                   Run
+	Ptr<    > py_eval( ::string const& expr , Dict* glbs , Sequence const* sys_path ) { return _py_eval_run<false>( expr , glbs , sys_path ) ; }
+	Ptr<Dict> py_run ( ::string const& expr , Dict* glbs , Sequence const* sys_path ) { return _py_eval_run<true >( expr , glbs , sys_path ) ; }
 
 	::string py_fstr_escape(::string const& s) {
 		static constexpr ::array<bool,256> IsSpecial = []() {

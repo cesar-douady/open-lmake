@@ -30,7 +30,7 @@ if __name__!='__main__' :
 
 	class Decode(Rule) :
 		target = r'decode/{File:.*}/{Ctx:.*}/{Code:.*}'
-		cmd    = 'ldecode -f {File} -x {Ctx} -c {Code}'
+		cmd    = 'ldecode -t {File} -x {Ctx} -c {Code}'
 
 	class Encode(PyRule) :
 		max_runs = 2
@@ -42,7 +42,7 @@ if __name__!='__main__' :
 				file = f'codec_{n*97%n_files}'
 				ctx  = f'ctx_{n*53%n_files}'
 				val  = ('val',int(I)+i)
-				code = lmake.encode( val=val , file=file , ctx=ctx )
+				code = lmake.encode( val=val , table=file , ctx=ctx )
 				dep  = f'decode/{file}/{ctx}/{code}'
 				try    : print(open(dep).read(),'from',dep)
 				except : fail = fail or (file,ctx,code,val,i)

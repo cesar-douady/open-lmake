@@ -20,6 +20,13 @@
 
 using namespace Cache ;
 
+enum class KeyIsLast : uint8_t {
+	No
+,	OverrideFirst
+,	Plain
+,	Yes
+} ;
+
 struct Ckey      ;
 struct Cjob      ;
 struct Crun      ;
@@ -141,9 +148,10 @@ struct LruEntry {
 	// accesses
 	bool operator+() const { return +newer || +older ; }
 	// services
-	bool/*first*/ insert_top( LruEntry& hdr , Crun , LruEntry CrunData::* lru ) ;
-	bool/*last*/  erase     ( LruEntry& hdr , Crun , LruEntry CrunData::* lru ) ;
-	void          mv_to_top ( LruEntry& hdr , Crun , LruEntry CrunData::* lru ) ;
+	bool/*first*/ insert_top( LruEntry      & hdr , Crun , LruEntry CrunData::* lru )       ;
+	bool/*last*/  erase     ( LruEntry      & hdr ,        LruEntry CrunData::* lru )       ;
+	void          mv_to_top ( LruEntry      & hdr , Crun , LruEntry CrunData::* lru )       ;
+	void          chk       ( LruEntry const& hdr , Crun , LruEntry CrunData::* lru ) const ;
 	// data
 	Crun newer ; // for headers : oldest
 	Crun older ; // for headers : newest
@@ -178,10 +186,10 @@ struct CjobData {
 	bool     operator+() const { return +n_runs     ; }
 	::string name     () const { return _name.str() ; }
 	// services
-	::pair<Crun,CacheHitInfo> match( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ; // updates lru related info when hit
-	::pair<Crun,CacheHitInfo> insert(                                                        // like match, but create when miss
-		::vector<Cnode> const& , ::vector<Hash::Crc> const&                                  // to search entry
-	,	Ckey key , bool key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate  // to create entry
+	::pair<Crun,CacheHitInfo> match( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ;     // updates lru related info when hit
+	::pair<Crun,CacheHitInfo> insert(                                                            // like match, but create when miss
+		::vector<Cnode> const& , ::vector<Hash::Crc> const&                                      // to search entry
+	,	Ckey key , KeyIsLast key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate // to create entry
 	) ;
 	void victimize() { s_trash.push_back(idx()) ; }
 	// data
@@ -208,16 +216,19 @@ struct CrunData {
 	static CrunHdr      & s_hdr  () ;
 	static CrunHdr const& s_c_hdr() ;
 	static CrunIdx        s_size () ;
+	static void           s_chk  () ;
 	// cxtors & casts
 	CrunData() = default ;
 	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
 	// accesses
-	Crun     idx (    ) const ;
-	::string name(Cjob) const { return run_dir( job->name() , +key , key_is_last ) ; }
+	bool     operator+(    ) const { return +job                                        ; }
+	Crun     idx      (    ) const ;
+	::string name     (Cjob) const { return run_dir( job->name() , +key , key_is_last ) ; }
 	// services
 	void         access   (                                                     )       ; // move to top in LRU (both job and glb)
 	void         victimize( bool victimize_job=true                             )       ; // if victimize_job, victimize job if last run
 	CacheHitInfo match    ( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) const ;
+	void         chk      (                                                     ) const ;
 	// data
 	// START_OF_VERSIONING CACHE
 	Time::Pdate  last_access ;
@@ -251,9 +262,9 @@ struct CnodeData {
 	bool     operator+() const { return ref_cnt>0   ; }
 	::string name     () const { return _name.str() ; }
 	// services
-	void inc      () {                    ref_cnt++ ;                             }
-	void dec      () { SWEAR(ref_cnt>0) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }
-	void victimize() { s_trash.push_back(idx()) ;                                 }
+	void inc      () {                          ref_cnt++ ;                             }
+	void dec      () { SWEAR(ref_cnt>0,idx()) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }
+	void victimize() { s_trash.push_back(idx()) ;                                       }
 	// data
 	// START_OF_VERSIONING CACHE
 	CrunIdx ref_cnt = 0 ;

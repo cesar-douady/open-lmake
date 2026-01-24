@@ -232,7 +232,7 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 	- '=' refers to the main thread
 	- in server:
 		- `C` : cancel jobs in sge backend
-		- `D` : handle lencode/ldecode
+		- `D` : handle codec
 		- `E` : job end
 		- `G` : SGE launch jobs
 		- `H` : heartbeat

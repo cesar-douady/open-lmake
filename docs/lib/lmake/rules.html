@@ -158,6 +158,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
 <span class="k">class</span> <span class="nc">Rule</span><span class="p">(</span><span class="n">_RuleBase</span><span class="p">)</span> <span class="p">:</span>
 <span class="c1">#   auto_mkdir          = False                     # auto mkdir dir in case of chdir</span>
+<span class="c1">#   autodep             = &#39;ld_audit&#39;                # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace</span>
 <span class="c1">#   backend             = &#39;local&#39;                   # may be set anywhere in the inheritance hierarchy if execution must be remote</span>
 <span class="c1">#   check_abs_paths     = False                     # check that absolute paths inside the repo are not stored in targets</span>
 <span class="c1">#   chroot_dir          = &#39;/&#39;                       # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)</span>
@@ -207,12 +208,6 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="c1">#                                               #   -      a private sub-dir in $TMPDIR if provided in the environment</span>
     <span class="c1">#                                               #   - else a private sub-dir in the LMAKE dir</span>
 <span class="c1">#   use_script          = False                     # use a script to run job rather than calling interpreter with -c</span>
-<span class="c1">#   autodep             = &#39;ld_audit&#39;                # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace</span>
-    <span class="n">resources</span> <span class="o">=</span> <span class="p">{</span>                                   <span class="c1"># used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps</span>
-        <span class="s1">&#39;cpu&#39;</span> <span class="p">:</span> <span class="mi">1</span>                                   <span class="c1"># number of cpu&#39;s to allocate to job</span>
-<span class="c1">#   ,   &#39;mem&#39; : &#39;100M&#39;                              # memory to allocate to job</span>
-<span class="c1">#   ,   &#39;tmp&#39; : &#39;1G&#39;                                # temporary disk space to allocate to job</span>
-    <span class="p">}</span>                                               <span class="c1"># follow the same syntax as deps</span>
     <span class="n">environ</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>                                <span class="c1"># job execution environment, handled as part of cmd (trigger rebuild upon modification)</span>
         <span class="n">HOME</span> <span class="o">=</span> <span class="s1">&#39;$REPO_ROOT&#39;</span>                         <span class="c1"># favor repeatability by hiding use home dir some tools use at start up time</span>
     <span class="p">,</span>   <span class="n">PATH</span> <span class="o">=</span> <span class="s1">&#39;$LMAKE_ROOT/bin:$STD_PATH&#39;</span>
@@ -222,6 +217,11 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">UID</span>  <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">_os</span><span class="o">.</span><span class="n">getuid</span><span class="p">())</span>                    <span class="c1"># this may be necessary by some tools and usually does not lead to user specific configuration</span>
     <span class="p">,</span>   <span class="n">USER</span> <span class="o">=</span> <span class="n">_pwd</span><span class="o">.</span><span class="n">getpwuid</span><span class="p">(</span><span class="n">_os</span><span class="o">.</span><span class="n">getuid</span><span class="p">())</span><span class="o">.</span><span class="n">pw_name</span>  <span class="c1"># .</span>
     <span class="p">)</span>
+    <span class="n">resources</span> <span class="o">=</span> <span class="p">{</span>                                   <span class="c1"># used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps</span>
+        <span class="s1">&#39;cpu&#39;</span> <span class="p">:</span> <span class="mi">1</span>                                   <span class="c1"># number of cpu&#39;s to allocate to job</span>
+<span class="c1">#   ,   &#39;mem&#39; : &#39;100M&#39;                              # memory to allocate to job</span>
+<span class="c1">#   ,   &#39;tmp&#39; : &#39;1G&#39;                                # temporary disk space to allocate to job</span>
+    <span class="p">}</span>                                               <span class="c1"># follow the same syntax as deps</span>
 
 <span class="k">class</span> <span class="nc">AntiRule</span><span class="p">(</span><span class="n">_RuleBase</span><span class="p">)</span> <span class="p">:</span>
     <span class="n">__special__</span> <span class="o">=</span> <span class="s1">&#39;anti&#39;</span>       <span class="c1"># AntiRule&#39;s are not executed, but defined at high enough prio, prevent other rules from being selected</span>
@@ -245,12 +245,13 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
 <span class="k">class</span> <span class="nc">AliasRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
     <span class="s1">&#39;base rule to make target an alias for deps&#39;</span>
-    <span class="n">force</span>        <span class="o">=</span> <span class="kc">True</span>                                                              <span class="c1"># force deps to always be built as they are guaranted available when job runs</span>
-    <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;__PHONY__&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="s1">&#39;{*:.*}&#39;</span><span class="p">,</span><span class="s1">&#39;phony&#39;</span><span class="p">)</span> <span class="p">}</span>                              <span class="c1"># targets are useless and are typically not built</span>
+    <span class="n">force</span>        <span class="o">=</span> <span class="kc">True</span>                                 <span class="c1"># force deps to always be built as they are guaranted available when job runs</span>
+    <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;__PHONY__&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="s1">&#39;{*:.*}&#39;</span><span class="p">,</span><span class="s1">&#39;phony&#39;</span><span class="p">)</span> <span class="p">}</span> <span class="c1"># targets are useless and are typically not built</span>
     <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
-        <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">depend</span><span class="p">(</span> <span class="o">*</span><span class="n">deps</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span> <span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">depend</span><span class="p">(</span> <span class="o">*</span><span class="n">deps</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span> <span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="kc">True</span> <span class="p">))</span>
     <span class="n">cmd</span><span class="o">.</span><span class="n">shell</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">        ldepend -v {&#39; &#39;.join(&quot;&#39;&quot;+v.replace(&quot;&#39;&quot;,&quot;&#39;</span><span class="se">\\</span><span class="s1">&#39;&#39;&quot;)+&quot;&#39;&quot; for v in deps.values())} # take care of managing awkward deps</span>
+<span class="s1">        # take care of managing awkward deps : single quote deps, replacing &#39; by &#39;&quot;&#39;&quot;&#39; as &#39; protects against everything but &#39;</span>
+<span class="s1">        ldepend -vR {&#39; &#39;.join(&quot;&#39;&quot;+v.replace(&quot;&#39;&quot;,&quot;&#39;&quot;+&#39;&quot;&#39;+&quot;&#39;&quot;+&#39;&quot;&#39;+&quot;&#39;&quot;)+&quot;&#39;&quot; for v in deps.values())}</span>
 <span class="s1">    &#39;&#39;&#39;</span>
 
 <span class="k">class</span> <span class="nc">DirtyRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>

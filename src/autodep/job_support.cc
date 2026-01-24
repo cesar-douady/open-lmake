@@ -3,8 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "py.hh" // /!\ must be included first as Python.h must be included first
-
 #include "disk.hh"
 #include "re.hh"
 #include "time.hh"
@@ -14,7 +12,6 @@
 
 using namespace Disk ;
 using namespace Hash ;
-using namespace Py   ;
 using namespace Re   ;
 using namespace Time ;
 
@@ -74,35 +71,13 @@ namespace JobSupport {
 		return Backdoor::call<Backdoor::ListRootS>({.dir=::move(dir)}) ;
 	}
 
-	static ::pair<PermExt,FileSync> _codec_config(::string const& file) {
-		if (!is_dir_name(file)) return {} ;
-		//
-		PermExt  perm_ext  = {}                                                       ;
-		FileSync file_sync = FileSync::Dflt                                           ;
-		AcFd     config_fd { Codec::CodecFile::s_config_file(file) , {.err_ok=true} } ;
-		if (+config_fd) {
-			Gil gil ;
-			for( auto const& [k,v] : ::vmap_ss(*py_run(config_fd.read())) )
-				try {
-					switch (k[0]) {
-						case 'f' : if (k=="file_sync") file_sync = mk_enum<FileSync>(v) ; break ;
-						case 'p' : if (k=="perm"     ) perm_ext  = mk_enum<PermExt >(v) ; break ;
-					DN}
-				} catch (::string const& e) { throw cat("wrong value for entry ",k,": ",v) ; }
-		}
-		return { perm_ext , file_sync } ;
+	::string decode( ::string&& tab , ::string&& ctx , ::string&& code ) {
+		return Backdoor::call<Backdoor::Decode>({ .tab=::move(tab) , .ctx=::move(ctx) , .code=::move(code) }) ;
 	}
-	::string decode( ::string&& file , ::string&& ctx , ::string&& code ) {
-		throw_unless( +file , "file cannot be empty" ) ;
-		FileSync file_sync = _codec_config(file).second ;
-		return Backdoor::call<Backdoor::Decode>({ .file=::move(file) , .ctx=::move(ctx) , .code=::move(code) , .file_sync=file_sync }) ;
-	}
-	::string encode( ::string&& file , ::string&& ctx , ::string&& val  , uint8_t min_len ) {
-		throw_unless( +file                  , "file cannot be empty"                                                      ) ;
+	::string encode( ::string&& tab , ::string&& ctx , ::string&& val  , uint8_t min_len ) {
 		throw_unless( min_len>=1             , "min_len (",min_len,") must be at least 1"                                  ) ;
-		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')' ) ; // codes are output in hex, 4 bits/digit
-		::pair<PermExt,FileSync> cfg = _codec_config(file) ;
-		return Backdoor::call<Backdoor::Encode>({ .file=::move(file) , .ctx=::move(ctx) , .val=::move(val) , .min_len=min_len , .perm_ext=cfg.first , .file_sync=cfg.second }) ;
+		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')' ) ;     // codes are output in hex, 4 bits/digit
+		return Backdoor::call<Backdoor::Encode>({ .tab=::move(tab) , .ctx=::move(ctx) , .val=::move(val) , .min_len=min_len }) ;
 	}
 
 }

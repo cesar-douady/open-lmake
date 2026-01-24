@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Jan 14 15:00:11 2026 -->
+<!-- CreationDate: Sat Jan 24 12:35:07 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -214,16 +214,16 @@ completion (cf. note (5)).</p>
 <td width="73%">
 
 
-<p><b>ok</b> if dep is built ok, <b>error</b> if dep is
-built in error, <b>-</b> if dep is no built or if
-<b>--ignore_error</b> was not passed</p></td></tr>
+<p>If <b>--ignore_error</b> was also passed, <b>ok</b> if
+dep is built ok, <b>error</b> if dep is built in error. In
+all other cases, <b>-</b>.</p></td></tr>
 </table>
 
 <p style="margin-left:18%;"><i>checksum</i></p>
 
-<p style="margin-left:27%;">The checksum of the dep (cf
-<b>xxhsum</b>(1)) if <b>--read</b> was passed, else
-<b>-</b>.</p>
+<p style="margin-left:27%;">If <b>--read</b> was also
+passed, the checksum of the dep (cf <b>xxhsum</b>(1)) if it
+was built. In all other cases, <b>-</b>.</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">

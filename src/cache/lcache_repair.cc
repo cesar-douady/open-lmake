@@ -35,7 +35,7 @@ static RepairDigest _repair(bool dry_run) {
 	RepairDigest             res            ;
 	AcFd                     repaired_runs  ; if (!dry_run) repaired_runs = AcFd{ cat(AdminDirS,"repaired_runs") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} } ;
 	::umap<CkeyIdx,::string> old_keys       ;
-	::map <CkeyIdx,::string> new_keys       ;                                                                                       // ordered to generate a nicer repo_keys file
+	::map <CkeyIdx,::string> new_keys       ;                                     // ordered to generate a nicer repo_keys file
 	::string                 repo_keys_file = cat(PrivateAdminDirS,"repo_keys") ;
 	for( ::string const& line : AcFd(repo_keys_file,{.err_ok=true}).read_lines() ) {
 		size_t pos = line.find(' ') ;
@@ -80,14 +80,14 @@ static RepairDigest _repair(bool dry_run) {
 				DiskSz        sz      = run_sz( job_info.end.total_z_sz , job_info_str.size() , deps )                         ;
 				CkeyIdx       old_key = from_string<CkeyIdx>(old_key_str)                                                      ;
 				auto          it      = old_keys.find(old_key)                                                                 ;
-				::string      repo    = cat("repaired-",old_key)                                                               ;    // if key is unknown, invent a repo
-				Ckey          new_key { New , it==old_keys.end()?repo:it->second         }                                     ;    // .
+				::string      repo    = cat("repaired-",old_key)                                                               ;                                 // if key is unknown, invent a repo
+				Ckey          new_key { New , it==old_keys.end()?repo:it->second         }                                     ;                                 // .
 				Cjob          job     { New , no_slash(dir_name_s(run)) , deps.n_statics }                                     ;
 				//
-				if (!new_key->ref_cnt) new_keys[+new_key] = repo ;                                                                  // record new association
+				if (!new_key->ref_cnt) new_keys[+new_key] = repo ;                                                                                               // record new association
 				::pair<Crun,CacheHitInfo> digest = job->insert(
-					deps.deps , deps.dep_crcs                                                                                       // to search entry
-				,	new_key , key_is_last , Pdate(data_stat.st_atim) , sz , to_rate(g_cache_config,sz,job_info.end.digest.exe_time) // to create entry
+					deps.deps , deps.dep_crcs                                                                                                                    // to search entry
+				,	new_key , key_is_last?KeyIsLast::Yes:KeyIsLast::No , Pdate(data_stat.st_atim) , sz , to_rate(g_cache_config,sz,job_info.end.digest.exe_time) // to create entry
 				) ;
 				throw_unless( digest.second>=CacheHitInfo::Miss , "conflict" ) ;
 			}
@@ -107,7 +107,7 @@ static RepairDigest _repair(bool dry_run) {
 		Fd::Stdout.write(cat("rm ",f,'\n')) ;
 		if (!dry_run) unlnk(f) ;
 	}
-	try { rename( repo_keys_file , repo_keys_file+".bck" ) ; } catch (::string const&) {}                                           // no harm if file did not exist
+	try { rename( repo_keys_file , repo_keys_file+".bck" ) ; } catch (::string const&) {}                                                                        // no harm if file did not exist
 	AcFd repo_keys_fd { repo_keys_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=g_cache_config.perm_ext} } ;
 	for( auto const& [k,r] : new_keys ) repo_keys_fd.write(cat(+k,' ',r,'\n')) ;
 	return res ;
@@ -127,7 +127,7 @@ int main( int argc , char* argv[] ) {
 	if (::chdir(top_dir_s.c_str())!=0) exit(Rc::System  ,"cannot chdir (",StrErr(),") to ",top_dir_s,rm_slash ) ;
 	//
 	app_init({
-		.cd_root      = false                                                                          // we have already chdir'ed to top
+		.cd_root      = false                                                                                       // we have already chdir'ed to top
 	,	.chk_version  = Yes
 	,	.clean_msg    = cache_clean_msg()
 	,	.read_only_ok = cmd_line.flags[Flag::DryRun]

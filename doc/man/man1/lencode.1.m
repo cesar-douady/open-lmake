@@ -5,9 +5,7 @@ Comment(
 	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 )
 
-Title(lencode,encode a (long) value into a (short) code for retrieval with C(ldecode) within a OpenLmake job)
-.SH SYNOPSIS
-B(lencode) I(association_file) I(context) [I(min_length)]
+Header(lencode,associates a code to a provided value)
 
 .SH DESCRIPTION
 .LP
@@ -19,11 +17,38 @@ The generated (or retrieved) code corresponding to the value is output on I(stdo
 .LP
 If generated, the code is generated after a checksum computed on the passed value in hexadecimal, with a length at least I(min_length) (default is 1), but may be longer in case of conflict.
 .LP
-I(association_file) (symbolic links are followed) may be either a source file within repo or a dir (ending with B('/')) that lies within a source dir.
+I(table) may be:
+Item(a key) found in B(lmake.config.codecs) in which case it is a local source file or an external dir.
+Item(a local source file) (symbolic links are followed) recording the association table.
+Item(an external dir)
+.LP
+In the former case, such a dir must lie within a source dir and must contain a file I(LMAKE/config.py) containing definitions for:
+Item(B(file_sync)) one of B(none), B(dir) (default) or B(sync) for choosing the method to ensure proper consistent operations.
+Item(B(perm))      one of B(none), B(group) or B(other) which specifies who is given permission to access this shared dir.
 .LP
 Associations are usually created using B(lencode) or B(lmake.encode) but not necessarily (they can be created by hand).
 .LP
 Usage and use cases are more extensively documented the full OpenLmake documentation.
+
+.SH OPTIONS
+.LP
+Item(B(-t) I(table),B(--table)=I(table))
+I(table) may be:
+Item(a key) found in B(lmake.config.codecs) in which case it is equivalent to its associated value.
+Item(a local source file) (symbolic links are followed) recording the association table.
+Item(an external dir)
+.LP
+In the latter case, such a dir must lie within a source dir and must contain a file I(LMAKE/config.py) containing definitions for:
+Item(B(file_sync)) one of B(none), B(dir) (default) or B(sync) for choosing the method to ensure proper consistent operations.
+Item(B(perm))      one of B(none), B(group) or B(other) which specifies who is given permission to access this shared dir.
+.LP
+It is also an error if I(code) cannot be found with the accompanying I(context).
+
+.LP
+Item(B(-x) I(context),B(--context)=I(context)) specifies the context in which to find the value associated with passed code
+
+.LP
+Item(B(-l) I(min_len),B(--min-len)=I(min_len)) specifies the minimum code length to use to encode value
 
 .SH EXAMPLES
 .LP
@@ -65,9 +90,9 @@ Item((1))
 	The same functionality is provided with the B(lmake.encode) python function.
 Item((2))
 	B(lencode) and C(ldecode) are useful tools when the flow implies files whose names are impractical.
-	This is a way to transform long filenames into much shorter ones by keeping an association file to retrieve long info from short codes.
+	This is a way to transform long filenames into much shorter ones by keeping an association table to retrieve long info from short codes.
 Item((3))
-	Using this functionality may imply C(git) conflicts on the association file when several users independently create associations in their repos.
+	Using this functionality may imply C(git) conflicts on the association table (when a local source) when several users independently create associations in their repos.
 	This is fully dealt with and the only thing left to the user is to accept the resolution of the conflict B(without any action).
 
 Footer

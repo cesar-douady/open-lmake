@@ -37,7 +37,11 @@ def check_version(major,minor=0) :
 
 def _maybe_lcl(file) :
 	'fast check for local files, avoiding full absolute path generation'
-	return not file or file[0]!='/' or file.startswith(top_repo_root)
+	if not file                             : return True
+	if file.startswith(top_repo_root)       : return True
+	if file[0]=='/'                         : return False
+	if file=='..' or file.startswith('../') : return False
+	else                                    : return True
 
 #
 # config, manifest and _rules are meant to be overwritten when import Lmakefile

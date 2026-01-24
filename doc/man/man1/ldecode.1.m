@@ -5,24 +5,35 @@ Comment(
 	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 )
 
-Title(ldecode,retrieve the original content encoded with C(lencode) within a OpenLmake job)
-.SH SYNOPSIS
-B(ldecode) I(association_file) I(context) I(code)
+Header(ldecode,retrieve the original content encoded with C(lencode) within a OpenLmake job)
 
 .SH DESCRIPTION
 .LP
-B(ldecode) may be used to ask for a value (typically rather large) associated with a short code.
-This must have been generated using the command C(lencode) with the same association_file and context.
+B(ldecode) may be used to ask for a value (typically rather large, up to a few kB) associated with a short code (a few characters, typically 3 to 5).
+This must have been generated using the command C(lencode,1) with the same table and context.
 The value corresponding to I(code) is output on stdout.
 .LP
-I(association_file) (symbolic links are followed) may be either a source file within repo or a dir (ending with B('/')) that lies within a source dir.
-In the latter case, such a dir must lie within a source dir and must contain a file I(LMAKE/config.py) containing definitions for :
+Usage and use cases are more extensively documented in the full OpenLmake documentation.
+
+.SH OPTIONS
+.LP
+Item(B(-t) I(table),B(--table)=I(table))
+I(table) may be:
+Item(a key) found in B(lmake.config.codecs) in which case it is a local source file or an external dir.
+Item(a local source file) (symbolic links are followed) recording the association table.
+Item(an external dir)
+.LP
+In the former case, such a dir must lie within a source dir and must contain a file I(LMAKE/config.py) containing definitions for:
 Item(B(file_sync)) one of B(none), B(dir) (default) or B(sync) for choosing the method to ensure proper consistent operations.
 Item(B(perm))      one of B(none), B(group) or B(other) which specifies who is given permission to access this shared dir.
 .LP
 It is also an error if I(code) cannot be found with the accompanying I(context).
+
 .LP
-Usage and use cases are more extensively documented the full OpenLmake documentation.
+Item(B(-x) I(context),B(--context)=I(context)) specifies the context in which to find the value associated with passed code
+
+.LP
+Item(B(-c) I(code),B(--code)=I(code)) specifies the code to search within passed context in the passed table
 
 .SH "EXIT STATUS"
 .LP
@@ -40,10 +51,10 @@ See C(lencode,1).
 Item((1))
 	The same functionality is provided with the B(lmake.decode) python function.
 Item((2))
-	C(lencode) and B(ldecode) are useful tools when the flow implies files whose names are impractical.
-	This is a way to transform long filenames into much shorter ones by keeping an association file to retrieve long info from short codes.
+	C(lencode,1) and B(ldecode,1) are useful tools when the flow implies files whose names are impractical.
+	This is a way to transform long filenames into much shorter ones by keeping an association table to retrieve long info from short codes.
 Item((3))
-	Using this functionality may imply C(git) conflicts on the association file when several users independently create associations in their repos.
+	Using this functionality may imply C(git) conflicts on the association table (when a local source file) file when several users independently create associations in their repos.
 	This is fully dealt with and the only thing left to the user is to accept the resolution of the conflict B(without any action).
 
 Footer

@@ -192,6 +192,10 @@ It can be specified as a <code>int</code> or a <code>str</code> representing a n
 <p>This attribute is a <a href="lmake_module.html#:~:text=class%20pdict"><code>pdict</code></a> with one entry for each cache.</p>
 <p>Caches are named with an arbitrary <code>str</code> and are referenced in rules <a href="unit_tests/cache.html#:~:text=cache%20%3D%20%27my%5Fcache">using this name</a>.</p>
 <p>By default, no cache is configured.</p>
+<h3 id="codecs--clean"><a class="header" href="#codecs--clean"><code>codecs</code> : Clean</a></h3>
+<p>This attribute is a <a href="lmake_module.html#:~:text=class%20pdict"><code>pdict</code></a> with one entry for each codec file or dir.</p>
+<p>Codecs are named with an arbitrary <code>str</code> not containing <code>/</code> and are referenced in <code>ldecode</code>, <code>lencode</code>, <code>lmake.decode</code> and <code>lmake.encode</code> as their file attribute,
+in which case the associated value is used instead.</p>
 <h3 id="collect--dynamic"><a class="header" href="#collect--dynamic"><a href="unit_tests/collect.html#:~:text=lmake%2Econfig%2Ecollect%2Estems%20%3D%20%7B%20%27SFX%27%20%3A%20r%27%5B%5Cw%2F%5D%2B%27%20%7D%20lmake%2Econfig%2Ecollect%2Eignore%20%3D%20%7B%20%27TOK%27%20%3A%20%28%20%27tok%2Eout%27%20%2C%20%27tok%2Eerr%27%20%29%20%2C%20%27COLLECT%27%20%3A%20%27dont%5Fcollect%7BSFX%7D%27%20%7D"><code>collect</code></a> : Dynamic</a></h3>
 <p>This attribute specifies files and dirs to be ignored (and hence kept) when <code>lcollect</code> is run.
 Files are specified as in rule targets : with stems and patterns given with a syntax similar to python f-strings.</p>

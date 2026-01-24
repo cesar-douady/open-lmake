@@ -95,18 +95,30 @@ if '.config.' in actions :
 		)
 		config.system_tag = expr.glbs+'system_tag = '+expr.expr
 	if is_top :
-		for tag,be in config.get('backends',{}).items() :
-			if 'interface' in be :
-				del be['interface']                                                                                       # XXX> suppress when compatibility with v25.07 is no more necessary
-				print(f'lmake.config.backends.{tag}.interface is deprecated and ignored',file=sys.stderr)
-				print(f'use lmake.config.backends.{tag}.domain_name if necessary'       ,file=sys.stderr)
-		git = '$GIT'                                                                                                      # substitued at build time
-		for cache in config.get('caches',{}).values() :
-			if 'repo_key' in cache : continue
-			key = cwd
-			try    : key += ' '+sp.check_output((git,'rev-parse','--verify','-q','HEAD'),universal_newlines=True).strip()
-			except : pass                                                                                                 # if not under git, ignore
-			cache['repo_key'] = key
+		git = '$GIT'                                                                                                          # substitued at build time
+		if 'backends' in config :
+			for tag,be in config.backends.items() :
+				if 'interface' in be :
+					del be['interface']                                                                                       # XXX> suppress when compatibility with v25.07 is no more necessary
+					print(f'lmake.config.backends.{tag}.interface is deprecated and ignored',file=sys.stderr)
+					print(f'use lmake.config.backends.{tag}.domain_name if necessary'       ,file=sys.stderr)
+		if 'caches' in config :
+			for cache in config.caches.values() :
+				if 'repo_key' in cache : continue
+				key = cwd
+				try    : key += ' '+sp.check_output((git,'rev-parse','--verify','-q','HEAD'),universal_newlines=True).strip()
+				except : pass                                                                                                 # if not under git, ignore
+				cache['repo_key'] = key
+		if 'codecs' in config :
+			for key,codec in config.codecs.items() :
+				if _maybe_lcl(codec) :
+					d = { 'file' : codec }
+				else :
+					d = {}
+					exec(open(codec+'/LMAKE/config.py').read(),d,d)
+					del d['__builtins__']
+					d['dir'] = codec
+				config.codecs[key] = d
 
 srcs = []
 if '.sources.' in actions :

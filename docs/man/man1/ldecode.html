@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Wed Jan 14 15:00:11 2026 -->
+<!-- CreationDate: Sat Jan 24 12:35:08 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -23,6 +23,7 @@
 <a href="#NAME">NAME</a><br>
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
 <a href="#DESCRIPTION">DESCRIPTION</a><br>
+<a href="#OPTIONS">OPTIONS</a><br>
 <a href="#EXIT STATUS">EXIT STATUS</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#NOTES">NOTES</a><br>
@@ -47,28 +48,62 @@ within a <i>open-lmake</i> job</p>
 
 
 <p style="margin-left:9%; margin-top: 1em"><b>ldecode</b>
-<i>association_file context code</i></p>
+[<i>OPTION</i>]... [<i>FILE</i>]...</p>
 
 <h2>DESCRIPTION
 <a name="DESCRIPTION"></a>
 </h2>
 
 
+<p style="margin-left:9%; margin-top: 1em"><b>ldecode</b>
+may be used to ask for a value (typically rather large, up
+to a few kB) associated with a short code (a few characters,
+typically 3 to 5). This must have been generated using the
+command <b>lencode</b>(1) with the same table and context.
+The value corresponding to <i>code</i> is output on
+stdout.</p>
 
-<p style="margin-left:9%; margin-top: 1em"><i><b>ldecode</b></i>
-may be used to ask for a value (typically rather large)
-associated with a short code. This must have been generated
-using the command <b>lencode</b>(1) with the same
-association_file and context. The value corresponding to
-<i>code</i> is output on stdout.</p>
+<p style="margin-left:9%; margin-top: 1em">Usage and use
+cases are more extensively documented in the full
+<i>open-lmake</i> documentation.</p>
+
+<h2>OPTIONS
+<a name="OPTIONS"></a>
+</h2>
 
 
-<p style="margin-left:9%; margin-top: 1em"><i>association_file</i>
-(symbolic links are followed) may be either a source file
-within repo or a dir (ending with <b>/&rsquo;&rsquo;</b>)
-that lies within a source dir. In the latter case, such a
-dir must lie within a source dir and must contain a file
-<i>LMAKE/config.py</i> containing definitions for : <b><br>
+<p style="margin-left:9%; margin-top: 1em"><b>-t</b>
+<i>table</i>, <b>--table</b>=<i>table</i></p>
+
+<p style="margin-left:18%;"><i>table</i> may be:</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="6%">
+
+
+<p>a key</p></td>
+<td width="3%"></td>
+<td width="82%">
+
+
+<p>found in <b>lmake.config.codecs</b> in which case it is
+a local source file or an external dir.</p></td></tr>
+</table>
+
+<p style="margin-left:9%;">a local source file</p>
+
+<p style="margin-left:18%;">(symbolic links are followed)
+recording the association table.</p>
+
+<p style="margin-left:9%;">an external dir</p>
+
+<p style="margin-left:9%; margin-top: 1em">In the former
+case, such a dir must lie within a source dir and must
+contain a file <i>LMAKE/config.py</i> containing definitions
+for: <b><br>
 file_sync</b></p>
 
 <p style="margin-left:18%;">one of <b>none</b>, <b>dir</b>
@@ -94,11 +129,17 @@ dir.</p> </td></tr>
 
 <p style="margin-left:9%; margin-top: 1em">It is also an
 error if <i>code</i> cannot be found with the accompanying
-<i>context</i>.</p>
+<i>context</i>. <b><br>
+-x</b> <i>context</i>, <b>--context</b>=<i>context</i></p>
 
-<p style="margin-left:9%; margin-top: 1em">Usage and use
-cases are more extensively documented the full
-<i>open-lmake</i> documentation.</p>
+<p style="margin-left:18%;">specifies the context in which
+to find the value associated with passed code</p>
+
+<p style="margin-left:9%;"><b>-c</b> <i>code</i>,
+<b>--code</b>=<i>code</i></p>
+
+<p style="margin-left:18%;">specifies the code to search
+within passed context in the passed table</p>
 
 <h2>EXIT STATUS
 <a name="EXIT STATUS"></a>
@@ -116,13 +157,12 @@ Else it exits with a non-zero status:</p>
 <td width="3%">
 
 
-<p style="margin-top: 1em"><b>2</b></p></td>
+<p><b>2</b></p></td>
 <td width="6%"></td>
 <td width="82%">
 
 
-<p style="margin-top: 1em">internal error, should not
-occur</p> </td></tr>
+<p>internal error, should not occur</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="3%">
@@ -174,10 +214,10 @@ provided with the <b>lmake.decode</b> python function.</p></td></tr>
 <td width="82%">
 
 
-<p><b>lencode</b>(1) and <b>ldecode</b> are useful tools
+<p><b>lencode</b>(1) and <b>ldecode,1</b> are useful tools
 when the flow implies files whose names are impractical.
 This is a way to transform long filenames into much shorter
-ones by keeping an association file to retrieve long info
+ones by keeping an association table to retrieve long info
 from short codes.</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
@@ -190,11 +230,11 @@ from short codes.</p></td></tr>
 
 
 <p>Using this functionality may imply <b>git</b>(1)
-conflicts on the association file when several users
-independently create associations in their repos. This is
-fully dealt with and the only thing left to the user is to
-accept the resolution of the conflict <b>without any
-action</b>.</p> </td></tr>
+conflicts on the association table (when a local source
+file) file when several users independently create
+associations in their repos. This is fully dealt with and
+the only thing left to the user is to accept the resolution
+of the conflict <b>without any action</b>.</p></td></tr>
 </table>
 
 <h2>SEE ALSO

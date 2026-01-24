@@ -20,20 +20,20 @@ using namespace Hash ;
 enum class Key : uint8_t { None } ;
 
 enum class Flag : uint8_t {
-	File
+	Table
 ,	Context
 ,	MinLen
 } ;
 
 int main( int argc , char* argv[]) {
 	Syntax<Key,Flag> syntax {{
-		{ Flag::File    , { .short_name='f' , .has_arg=true , .doc="file storing code-value associations"                     } }
+		{ Flag::Table   , { .short_name='t' , .has_arg=true , .doc="table storing code-value associations"                    } }
 	,	{ Flag::Context , { .short_name='x' , .has_arg=true , .doc="context used within file to store code-value association" } }
 	,	{ Flag::MinLen  , { .short_name='l' , .has_arg=true , .doc="min length of generated code from value"                  } }
 	}} ;
 	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
 	//
-	if (!cmd_line.flags[Flag::File   ]) syntax.usage("must have file to store code-value association"   ) ;
+	if (!cmd_line.flags[Flag::Table  ]) syntax.usage("must have file to store code-value association"   ) ;
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to store code-value association") ;
 	//
 	uint8_t min_len = 1 ;
@@ -45,8 +45,8 @@ int main( int argc , char* argv[]) {
 	Py::init() ;
 	//
 	try {
-		auto&    fa    = cmd_line.flag_args                                                                                      ;
-		::string reply = JobSupport::encode( ::move(fa[+Flag::File]) , ::move(fa[+Flag::Context]) , Fd::Stdin.read() , min_len ) ;
+		auto&    fa    = cmd_line.flag_args                                                                                       ;
+		::string reply = JobSupport::encode( ::move(fa[+Flag::Table]) , ::move(fa[+Flag::Context]) , Fd::Stdin.read() , min_len ) ;
 		Fd::Stdout.write(::move(reply)+'\n') ;
 	} catch (::string const& e) {
 		exit(Rc::Fail,e) ;

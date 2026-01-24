@@ -465,10 +465,10 @@ namespace Engine {
 		::vector<Req>  running_reqs( bool with_zombies=true , bool hit_ok=false ) const ;
 		bool           running     ( bool with_zombies=true , bool hit_ok=false ) const ;                                         // fast implementation of +running_reqs(...)
 		//
-		bool cmd_ok    (                    ) const { return                      rule_crc->state<=RuleCrcState::CmdOk ; }
-		bool rsrcs_ok  (                    ) const { return is_ok(status)!=No || rule_crc->state==RuleCrcState::Ok    ; }        // dont care about rsrcs if job went ok
-		bool is_plain  (bool frozen_ok=false) const { return rule()->is_plain() && (frozen_ok||!idx().frozen())        ; }
-		bool has_req   (Req                 ) const ;
+		bool cmd_ok  (                    ) const { return                      rule_crc->state<=RuleCrcState::CmdOk ; }
+		bool rsrcs_ok(                    ) const { return is_ok(status)!=No || rule_crc->state==RuleCrcState::Ok    ; }          // dont care about rsrcs if job went ok
+		bool is_plain(bool frozen_ok=false) const { return rule()->is_plain() && (frozen_ok||!idx().frozen())        ; }
+		bool has_req (Req                 ) const ;
 		//
 		void set_exec_ok() {                                                                                                      // set official rule_crc (i.e. with the right cmd and rsrcs crc's)
 			Rule r = rule() ; SWEAR(r->is_plain(),r->special) ;

@@ -10,11 +10,33 @@
 #include "serialize.hh"
 #include "time.hh"
 
+namespace Codec {
+	struct CodecRemoteSide {
+		friend ::string& operator+=( ::string& , CodecRemoteSide const& ) ;
+		// cxtors & casts
+		CodecRemoteSide() = default ;
+		CodecRemoteSide(::string  const&) ;
+		operator ::string() const ;
+		// accesses
+		bool operator==(CodecRemoteSide const&) const = default ;
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes(s,tab      ) ;
+			::serdes(s,file_sync) ;
+			::serdes(s,perm_ext ) ;
+		}
+		// data
+		::string tab       ;      // source file if is_lcl(tab), else external dir
+		FileSync file_sync = {} ; // valid if external dir
+		PermExt  perm_ext  = {} ; // .
+	} ;
+}
+
 struct AutodepEnv : RealPathEnv {
 	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
-	// env format : server:port:fast_mail:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views_s
+	// env format : server:port:fast_mail:fast_report_pipe:options:fqdn:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:codecs:views_s
 	// if tmp_dir_s is empty, there is no tmp dir
 	AutodepEnv(::string const& env) ;
 	AutodepEnv(NewType            ) : AutodepEnv{get_env("LMAKE_AUTODEP_ENV")} {}
@@ -23,15 +45,17 @@ struct AutodepEnv : RealPathEnv {
 	bool operator+() const { return +service ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes(s,static_cast<RealPathEnv&>(self)) ;
-		::serdes(s,auto_mkdir                     ) ;
-		::serdes(s,enable                         ) ;
-		::serdes(s,ignore_stat                    ) ;
-		::serdes(s,readdir_ok                     ) ;
-		::serdes(s,fast_report_pipe               ) ;
-		::serdes(s,service                        ) ;
-		::serdes(s,sub_repo_s                     ) ;
-		::serdes(s,views_s                        ) ;
+		/**/                        ::serdes(s,static_cast<RealPathEnv&>(self)) ;
+		/**/                        ::serdes(s,auto_mkdir                     ) ;
+		/**/                        ::serdes(s,enable                         ) ;
+		/**/                        ::serdes(s,ignore_stat                    ) ;
+		/**/                        ::serdes(s,readdir_ok                     ) ;
+		/**/                        ::serdes(s,fast_report_pipe               ) ;
+		/**/                        ::serdes(s,service                        ) ;
+		/**/                        ::serdes(s,sub_repo_s                     ) ;
+		if constexpr (IsIStream<S>) ::serdes(s,       codecs                  ) ;
+		else                        ::serdes(s,mk_map(codecs)                 ) ; // serialization does not support umap to ensure stability
+		/**/                        ::serdes(s,views_s                        ) ;
 	}
 	Fd           repo_root_fd   (                    ) const ;
 	bool         can_fast_report(                    ) const ;
@@ -39,14 +63,18 @@ struct AutodepEnv : RealPathEnv {
 	ClientSockFd slow_report_fd (                    ) const ;
 	void         chk            (bool for_cache=false) const ;
 	// data
-	bool                 auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
-	bool                 enable           = true  ; // if false <=> no automatic report
-	bool                 ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
-	bool                 readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
-	::string             fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
-	KeyedService         service          ;
-	::string             sub_repo_s       ;         // relative to repo_root_s
-	::vmap_s<::vector_s> views_s          ;
+	// START_OF_VERSIONING
+	bool                             auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
+	bool                             enable           = true  ; // if false <=> no automatic report
+	::string                         fqdn             ;
+	bool                             ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
+	bool                             readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
+	::string                         fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
+	KeyedService                     service          ;
+	::string                         sub_repo_s       ;         // relative to repo_root_s
+	::umap_s<Codec::CodecRemoteSide> codecs           ;
+	::vmap_s<::vector_s>             views_s          ;
+	// END_OF_VERSIONING
 	// not transported
-	::string fast_mail ;                            // host on which fast_report_pipe can be used
+	::string fast_mail ;                                        // host on which fast_report_pipe can be used
 } ;

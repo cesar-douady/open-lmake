@@ -8,6 +8,7 @@
 #include "msg.hh"
 #include "time.hh"
 
+#include "repo.hh"
 #include "rpc_job.hh"
 
 enum class CacheRpcProc : uint8_t {
@@ -110,26 +111,27 @@ namespace Cache {
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , proc ) ;
 			switch (proc) {
-				case CacheRpcProc::None     :                                                                                                         break ;
-				case CacheRpcProc::Config   : ::serdes( s , repo_key                                                                              ) ; break ;
-				case CacheRpcProc::Download : ::serdes( s ,          job,repo_deps                                                                ) ; break ;
-				case CacheRpcProc::Upload   : ::serdes( s ,                        conn_id,reserved_sz                                            ) ; break ;
-				case CacheRpcProc::Commit   : ::serdes( s ,          job,repo_deps,                    total_z_sz,job_info_sz,exe_time,upload_key ) ; break ;
-				case CacheRpcProc::Dismiss  : ::serdes( s ,                        conn_id,                                            upload_key ) ; break ;
-			DF}                                                                                                                                               // NO_COV
+				case CacheRpcProc::None     :                                                                                           break ;
+				case CacheRpcProc::Config   : ::serdes( s , repo_key                                                                ) ; break ;
+				case CacheRpcProc::Download : ::serdes( s , job,repo_deps                                                           ) ; break ;
+				case CacheRpcProc::Upload   : ::serdes( s , conn_id,reserved_sz                                                     ) ; break ;
+				case CacheRpcProc::Commit   : ::serdes( s , job,repo_deps,override_first,total_z_sz,job_info_sz,exe_time,upload_key ) ; break ;
+				case CacheRpcProc::Dismiss  : ::serdes( s , conn_id,upload_key                                                      ) ; break ;
+			DF}                                                                                                                                 // NO_COV
 		}
 		// data
 		// START_OF_VERSIONING CACHE
-		CacheRpcProc                      proc        = {} ;
-		::string                          repo_key    = {} ; // if proc = Config
-		StrId<CjobIdx>                    job         = {} ; // if proc = Download | Commit
-		::vmap<StrId<CnodeIdx>,DepDigest> repo_deps   = {} ; // if proc = Download | Commit
-		uint32_t                          conn_id     = {} ; // if proc =            Upload | Dismiss (when from job_exec)
-		Disk::DiskSz                      reserved_sz = 0  ; // if proc =            Upload
-		Disk::DiskSz                      total_z_sz  = 0  ; // if proc =            Commit
-		Disk::DiskSz                      job_info_sz = 0  ; // if proc =            Commit
-		Time::CoarseDelay                 exe_time    = {} ; // if proc =            Commit
-		CacheUploadKey                    upload_key  = 0  ; // if proc =            Commit | Dismiss
+		CacheRpcProc                      proc           = {}    ;
+		::string                          repo_key       = {}    ; // if proc = Config
+		StrId<CjobIdx>                    job            = {}    ; // if proc = Download | Commit
+		::vmap<StrId<CnodeIdx>,DepDigest> repo_deps      = {}    ; // if proc = Download | Commit
+		uint32_t                          conn_id        = 0     ; // if proc =            Upload | Dismiss, when from job_exec
+		bool                              override_first = false ; // if proc =            Commit          , replace first slot if last slot does not exist, used after a maybe_rerun
+		Disk::DiskSz                      reserved_sz    = 0     ; // if proc =            Upload
+		Disk::DiskSz                      total_z_sz     = 0     ; // if proc =            Commit
+		Disk::DiskSz                      job_info_sz    = 0     ; // if proc =            Commit
+		Time::CoarseDelay                 exe_time       = {}    ; // if proc =            Commit
+		CacheUploadKey                    upload_key     = 0     ; // if proc =            Commit | Dismiss
 		// END_OF_VERSIONING
 	} ;
 
