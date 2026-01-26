@@ -278,8 +278,9 @@ namespace Engine {
 
 namespace Engine {
 
-	extern StaticUniqPtr<Config    > g_config     ;
-	extern StaticUniqPtr<::vector_s> g_src_dirs_s ;
+	extern StaticUniqPtr<Config    > g_config         ;
+	extern StaticUniqPtr<::vector_s> g_src_dirs_s     ;
+	extern StaticUniqPtr<::vector_s> g_ext_codec_dirs ;
 
 }
 

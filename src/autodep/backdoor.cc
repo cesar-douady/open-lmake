@@ -49,10 +49,10 @@ namespace Backdoor {
 
 	::string Enable::descr(::string const& reason) const {
 		switch (enable) {
-			case No    : return cat("disable autodep"  ,reason) ;
-			case Yes   : return cat("enable autodep"   ,reason) ;
-			case Maybe : return cat("get autodep state",reason) ;
-		DF}                                                       // NO_COV
+			case No    : return cat("disable autodep "  ,reason) ;
+			case Yes   : return cat("enable autodep "   ,reason) ;
+			case Maybe : return cat("get autodep state ",reason) ;
+		DF}                                                        // NO_COV
 	}
 
 	//
@@ -71,8 +71,8 @@ namespace Backdoor {
 
 	::string Regexpr::descr(::string const& reason) const {
 		const char* kind = +access_digest.write ? "target" : "dep" ;
-		if (files.size()==1) return cat(kind," regexpr" ,reason,' ',files[0]) ;
-		else                 return cat(kind," regexprs",reason,' ',files   ) ;
+		if (files.size()==1) return cat(kind," regexpr " ,reason,' ',files[0]) ;
+		else                 return cat(kind," regexprs ",reason,' ',files   ) ;
 	}
 
 	//
@@ -281,15 +281,15 @@ namespace Backdoor {
 	}
 
 	::string List::descr(::string const& reason) const {
-		::string res = "list" ;
+		::string res = "list " ;
 		switch (write) {
-			case No    : res << " deps"                  ; break ;
-			case Yes   : res << " targets"               ; break ;
-			case Maybe : res << " both deps and targets" ; break ;
-		DF}                                                        // NO_COV
-		/**/          res << reason                           ;
-		if (+dir    ) res <<" in "                << *dir     ;
-		if (+regexpr) res <<" satisfying regexpr "<< *regexpr ;
+			case No    : res << "deps"                  ; break ;
+			case Yes   : res << "targets"               ; break ;
+			case Maybe : res << "both deps and targets" ; break ;
+		DF}                                                       // NO_COV
+		/**/          res <<' '<<reason                      ;
+		if (+dir    ) res <<" in "                <<*dir     ;
+		if (+regexpr) res <<" satisfying regexpr "<<*regexpr ;
 		return res ;
 	}
 
@@ -347,12 +347,12 @@ namespace Backdoor {
 		return res ;
 	}
 
-	static Bool3/*retry*/ _retry_codec( Record& r , FileRef file , ::string const& node ) {                     // Maybe means codec file is not available
+	static Bool3/*retry*/ _retry_codec( Record& r , FileRef file , ::string const& node , Comment c ) {         // Maybe means codec file is not available
 		if( FileInfo({file.at,Codec::CodecFile::s_dir_s(file.file)}).tag()==FileTag::Dir ) return No/*retry*/ ; // if dir exists, it means codec db was initialized
 		JobExecRpcReq jerr {
 			.proc         = JobExecProc::DepDirect
 		,	.sync         = Yes
-		,	.comment      = Comment::Decode
+		,	.comment      = c
 		,	.comment_exts = CommentExt::Direct
 		,	.digest       {}                                                                                    // access to node is reported separately
 		,	.date         = New
@@ -370,21 +370,24 @@ namespace Backdoor {
 	}                                                                        // END_OF_NO_COV
 
 	::string Decode::process(Record& r) {
-		RealDigest rd        = _real( r , tab , Comment::Decode )                                ;
-		::string   node      = Codec::CodecFile( false/*Encode*/ , rd.real , ctx , code ).name() ;
-		Fd         rfd       = Record::s_repo_root_fd()                                          ;
-		NfsGuard   nfs_guard { rd.file_sync }                                                    ;
-		::string   res       ;
-		//
-		if (!rd.is_dir) r.report_access( { .comment=Comment::Decode , .digest={.accesses=Access::Reg} , .files={{node,{}}} } , true/*force*/ ) ;
-		r.send_report() ;
+		RealDigest   rd        = _real( r , tab , Comment::Decode )                                ;
+		::string     node      = Codec::CodecFile( false/*Encode*/ , rd.real , ctx , code ).name() ;
+		Fd           rfd       = Record::s_repo_root_fd()                                          ;
+		NfsGuard     nfs_guard { rd.file_sync }                                                    ;
+		AccessDigest ad        { .accesses=Access::Reg }                                           ; ad.flags.extra_dflags |= ExtraDflag::NoHot ; // beware of default flags, ...
+		FileInfo     fi        ;                                                                                                                  // ... we are guarded, so dep cannot be hot
+		::string     res       ;
 	Retry :
 		try {
-			res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                               // if node exists, it contains the reply
-		} catch (::string const&) {                                                               // if node does not exist, create a code
-			throw_if( rd.is_dir || _retry_codec(r,{rfd,rd.real},node)!=Yes , "code not found" ) ;
+			fi  = { {rfd,node} }                                  ;
+			res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                                                                               // if node exists, it contains the reply
+		} catch (::string const&) {                                                                                                               // if node does not exist, create a code
+			throw_if( rd.is_dir || _retry_codec(r,{rfd,rd.real},node,Comment::Decode)!=Yes , "code not found" ) ;
 			goto Retry/*BACKWARD*/ ;
 		}
+		//
+		r.report_access( { .comment=Comment::Decode , .digest=ad , .files={{node,fi}} } , true/*force*/ ) ;                                       // report access after possible update
+		r.send_report() ;
 		return res ;
 	}
 
@@ -405,53 +408,58 @@ namespace Backdoor {
 		Crc          crc  { New , val }                                    ;
 		::string     node = Codec::CodecFile( rd.real , ctx , crc ).name() ;
 		Fd           rfd  = Record::s_repo_root_fd()                       ;
-		AccessDigest ad   { .accesses=Access::Reg }                        ;                               // get default flags
+		AccessDigest ad   { .accesses=Access::Reg }                        ; ad.flags.extra_dflags |= ExtraDflag::NoHot ; // beware of default flags, we are guarded, so dep cannot be hot
+		FileInfo     fi   ;
 		::string     res  ;
 		try {
-			try {                                                                                          // first try with share lock (light weight in case no update is necessary)
-				res = AcFd( {rfd,node} , {.nfs_guard=&::ref(NfsGuard(rd.file_sync))} ).read() ;            // if node exists, it contains the reply
-			} catch (::string const&) {                                                                    // if node does not exist, create a code
-				if (!rd.is_dir) throw_if( _retry_codec(r,{rfd,rd.real},node)==Maybe , "no codec table" ) ; // cannot encode without a codec table
+			try {                                                                                                         // first try with share lock (light weight in case no update is necessary)
+				fi  = { {rfd,node} }                                                          ;
+				res = AcFd( {rfd,node} , {.nfs_guard=&::ref(NfsGuard(rd.file_sync))} ).read() ;                           // if node exists, it contains the reply
+			} catch (::string const&) {                                                                                   // if node does not exist, create a code
+				throw_if( !rd.is_dir && _retry_codec(r,{rfd,rd.real},node,Comment::Decode)==Maybe , "no codec table" ) ;  // cannot encode without a codec table
 				::string              crc_str        = crc.hex()                                   ;
 				::string              new_codes_file = Codec::CodecFile::s_new_codes_file(rd.real) ;
-				Codec::CodecGuardLock lock           { {rfd,rd.real} , {.file_sync=rd.file_sync} } ;       // must hold the lock as we probably need to create a code
+				Codec::CodecGuardLock lock           { {rfd,rd.real} , {.file_sync=rd.file_sync} } ;                      // must hold the lock as we probably need to create a code
 				try {
-					res = AcFd( {rfd,node} , {.nfs_guard=&lock} ).read() ;                                 // repeat test with lock
+					fi  = { {rfd,node} }                                 ;
+					res = AcFd( {rfd,node} , {.nfs_guard=&lock} ).read() ;                                                // repeat test with lock
 				} catch (::string const&) {
 					for( ::string code = crc_str.substr(0,min_len) ; code.size()<=crc_str.size() ; code.push_back(crc_str[code.size()]) ) { // look for shortest possible code
 						::string decode_node = Codec::CodecFile( false/*encode*/ , rd.real , ctx , code ).name() ;
 						if (FileInfo({rfd,decode_node},{.nfs_guard=&lock}).exists()) continue ;
 						// must write to new_codes_file first to allow replay in case of crash
 						::string tmp_sfx         = cat('.',host(),'.',::getpid(),".tmp") ;
-						::string tmp_node        = node       +tmp_sfx                   ;                                      // nodes must be always correct when they exist as there is no read lock
-						::string tmp_decode_node = decode_node+tmp_sfx                   ;                                      // .
+						::string tmp_node        = node       +tmp_sfx                   ;                      // nodes must be always correct when they exist as there is no read lock
+						::string tmp_decode_node = decode_node+tmp_sfx                   ;                      // .
 						//
-						AcFd( {rfd,new_codes_file } , {.flags=O_WRONLY|O_CREAT|O_APPEND,.mod=0666,.perm_ext=rd.perm_ext,.nfs_guard=&lock} ).write(Codec::Entry(ctx,code,val).line(true/*with_nl*/)) ;
-						AcFd( {rfd,tmp_node       } , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=rd.perm_ext,.nfs_guard=&lock} ).write(code                                            ) ;
-						AcFd( {rfd,tmp_decode_node} , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=rd.perm_ext,.nfs_guard=&lock} ).write(val                                             ) ;
+						Fd::Action action { .flags=O_WRONLY|O_CREAT|O_APPEND , .perm_ext=rd.perm_ext , .nfs_guard=&lock } ;
+						if (!rd.is_dir) { action.mod = 0666 ; AcFd( {rfd,new_codes_file } , action ).write(Codec::Entry(ctx,code,val).line(true/*with_nl*/)) ; }
+						/**/              action.mod = 0444 ; AcFd( {rfd,tmp_node       } , action ).write(code                                            ) ;
+						/**/             /**/                 AcFd( {rfd,tmp_decode_node} , action ).write(val                                             ) ;
 						//      src                     dst
 						rename( {rfd,tmp_node       } , {rfd,node       } , {.nfs_guard=&lock} ) ;
 						rename( {rfd,tmp_decode_node} , {rfd,decode_node} , {.nfs_guard=&lock} ) ;
 						//
-						res                    = code                     ;
+						fi         = { {rfd,node} } ;
+						res        = code           ;
 						ad.flags.extra_dflags |= ExtraDflag::CreateEncode ;
 						break ;
 					}
 					throw_unless( ad.flags.extra_dflags[ExtraDflag::CreateEncode] , "no code available" ) ;
 				}
 			}
-			if (!rd.is_dir) r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{node,{}}} } , true/*force*/ ) ;
-			r.send_report() ;                                                                                                   // this includes deps gathered when solving file
+			r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{node,fi}} } , true/*force*/ ) ; // report access after possible update
+			r.send_report() ;                                                                                   // this includes deps gathered when solving file
 			return res ;
 		} catch(::string const&) {
-			if (!rd.is_dir) r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{node,{}}} } , true/*force*/ ) ;
-			r.send_report() ;                                                                                                   // this includes deps gathered when solving file
+			r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{node,fi}} } , true/*force*/ ) ; // report access after possible update
+			r.send_report() ;                                                                                   // this includes deps gathered when solving file
 			throw ;
 		}
 	}
 
 	::string Encode::descr(::string const& reason) const {
-		return cat("encode",reason," value of size ",val.size()," with checksum ",Crc(New,val).hex()," with context ",ctx," in table ",tab) ;
+		return cat("encode ",reason," value of size ",val.size()," with checksum ",Crc(New,val).hex()," with context ",ctx," in table ",tab) ;
 	}
 
 }

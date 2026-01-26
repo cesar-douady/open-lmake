@@ -63,8 +63,8 @@ namespace Backdoor {
 							if (sz>=4) buf.resize(sz-4) ;
 							/**/       buf += " ..." ;
 						}
-						if (pos==0) throw cat("cannot ",args.descr(                                    )) ;
-						else        throw cat("cannot ",args.descr(cat(" (",substr_view(buf,0,pos),')'))) ;
+						if (pos==0) throw cat("cannot ",args.descr(                                   )) ;
+						else        throw cat("cannot ",args.descr(cat('(',substr_view(buf,0,pos),')'))) ;
 					} break ;
 					case BackdoorErr::OfficialReadlinkErr : {
 						Lock lock { Record::s_mutex } ;

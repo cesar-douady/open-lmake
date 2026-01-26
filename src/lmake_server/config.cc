@@ -503,6 +503,12 @@ namespace Engine {
 			}
 		}
 		mk_dir_s( local_admin_dir_s , {.force=true} ) ;
+		//
+		for( auto const& [_,e] : codecs )
+			if (is_dir_name(e.tab)) {
+				SWEAR( !is_lcl(e.tab) , e.tab ) ;
+				ext_codec_dirs_s.push_back(e.tab) ;
+			}
 	}
 
 }

@@ -17,9 +17,10 @@ using namespace Py   ;
 
 namespace Engine {
 
-	SeqId*                    g_seq_id     = nullptr ;
-	StaticUniqPtr<Config    > g_config     ;
-	StaticUniqPtr<::vector_s> g_src_dirs_s ;
+	SeqId*                    g_seq_id         = nullptr ;
+	StaticUniqPtr<Config    > g_config         ;
+	StaticUniqPtr<::vector_s> g_src_dirs_s     ;
+	StaticUniqPtr<::vector_s> g_ext_codec_dirs ;
 
 }
 
@@ -557,7 +558,7 @@ namespace Engine::Persistent {
 		::uset_s             ext_src_dirs_s ;
 		::uset_s             lcl_src_regs   ;
 		bool                 has_codecs     = +g_config->codecs                                                      ;
-		Trace trace("new_srcs") ;
+		Trace trace("new_srcs",src_names.size(),manifest) ;
 		// check and format new srcs
 		size_t      repo_root_depth = ::count(*g_repo_root_s,'/') - 1                                                                                    ; // account for terminating /
 		RealPathEnv rpe             { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=*g_repo_root_s+PRIVATE_ADMIN_DIR_S } ;
@@ -592,10 +593,14 @@ namespace Engine::Persistent {
 			} else {
 				throw_unless( sr.file_loc==FileLoc::Repo , "source ",src," is not in repo" ) ;
 				SWEAR( src==sr.real , src,sr.real ) ;                                          // src is local, canonic and there are no links, what may justify real from being different ?
-				tag = FileInfo(src,{.nfs_guard=&nfs_guard}).tag() ; if (tag==FileTag::Dir) tag = FileTag::None ;                                 // dirs do not officially exist as source
+				tag = FileInfo(src,{.nfs_guard=&nfs_guard}).tag() ;
+				switch (tag) {
+					case FileTag::Dir   : tag = FileTag::None ; break ;                        // dirs do not officially exist as source
+					case FileTag::Empty : tag = FileTag::Reg  ; break ;                        // do not remember file is empty, so it is marked new instead of steady/changed when first seen
+				DN}
 				if ( has_codecs && tag==FileTag::Reg ) lcl_src_regs.insert(src) ;
 			}
-			srcs.emplace_back( Node(New,src,sr.file_loc>FileLoc::Repo) , tag ) ;                                                                 // external src dirs need no uphill dir
+			srcs.emplace_back( Node(New,src,sr.file_loc>FileLoc::Repo) , tag ) ;               // external src dirs need no uphill dir
 		}
 		// format old srcs
 		for( bool is_dir : {false,true} ) for( Node s : Node::s_srcs(is_dir) ) old_srcs.emplace(s,is_dir?FileTag::Dir:FileTag::None) ;           // dont care whether we delete a regular file or a link
@@ -668,7 +673,7 @@ namespace Engine::Persistent {
 			Node::s_srcs(true /*dirs*/,add,sds) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
-		bool invalidate = true || +old_srcs ;
+		bool invalidate = +old_srcs ;
 		{	Trace trace2 ;
 			for( auto [n,t] : old_srcs ) {
 				Node(n)->mk_no_src() ;
@@ -677,8 +682,7 @@ namespace Engine::Persistent {
 			for( Node d : old_src_dirs ) d->mk_no_src() ;
 			for( auto [n,t] : new_srcs ) {
 				if (!( n->buildable==Buildable::Unknown || n->buildable>=Buildable::Yes )) invalidate = true ; // if node was unknown or known buildable, making it a source cannot change matching
-				if (t==FileTag::Empty) t = FileTag::Reg ;                                                      // do not remember file is empty, so it is marked new instead of steady/changed ...
-				Node(n)->mk_src( t==FileTag::Dir?Buildable::SrcDir:Buildable::Src , t ) ;                      // ... when first seen
+				Node(n)->mk_src( t==FileTag::Dir?Buildable::SrcDir:Buildable::Src , t ) ;
 				trace2('+',t==FileTag::Dir?"dir":"",n) ;
 			}
 			for( Node d : new_src_dirs ) d->mk_src( Buildable::Anti , Crc::None ) ;

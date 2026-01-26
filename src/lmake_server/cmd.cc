@@ -296,23 +296,28 @@ namespace Engine {
 		audit( fd , ro , color , l , porcelaine/*as_is*/ , lvl ) ;
 	}
 	static void _audit_deps( Fd fd , ReqOptions const& ro , bool hide , Job job , DepDepth lvl=0 ) {
-		Rule              rule       = job->rule()                   ;
-		bool              porcelaine = ro.flags[ReqFlag::Porcelaine] ;
-		bool              verbose    = ro.flags[ReqFlag::Verbose   ] ;
-		size_t            wc         = 0                             ;
-		size_t            wk         = 0                             ;
-		size_t            wf         = 0                             ;
-		::umap_ss         rev_map    ;
-		::vector<Color  > dep_colors ;                                                                                   // indexed before filtering
-		::vector<NodeIdx> dep_groups ;                                                                                   // indexed after  filtering, deps in given group are parallel
-		NodeIdx           dep_group  = 0                             ;
-		::vmap_s<RegExpr> res        ;
+		using namespace Codec ;
+		//
+		Rule              rule         = job->rule()                   ;
+		bool              porcelaine   = ro.flags[ReqFlag::Porcelaine] ;
+		bool              verbose      = ro.flags[ReqFlag::Verbose   ] ;
+		size_t            w_crc        = 0                             ;
+		size_t            w_key        = 0                             ;
+		size_t            w_file       = 0                             ;
+		size_t            w_codec_file = 0                             ;
+		size_t            w_codec_ctx  = 0                             ;
+		size_t            w_codec_kind = 0                             ;
+		::umap_ss         rev_map      ;
+		::vector<Color  > dep_colors   ;                                                                                 // indexed before filtering
+		::vector<NodeIdx> dep_groups   ;                                                                                 // indexed after  filtering, deps in given group are parallel
+		NodeIdx           dep_group    = 0                             ;
+		::vmap_s<RegExpr> res          ;
 		if (+rule) {
 			Rule::RuleMatch m = job->rule_match() ;
 			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {                                                   // this cannot fail as we already have the job
 				if (rev_map.try_emplace(d.txt,k).second) {                                                               // in case of multiple matches, retain first
-					if (porcelaine) wk = ::max( wk , mk_py_str(k).size() ) ;
-					else            wk = ::max( wk ,           k .size() ) ;
+					if (porcelaine) w_key = ::max( w_key , mk_py_str(k).size() ) ;
+					else            w_key = ::max( w_key ,           k .size() ) ;
 				}
 			}
 			::vector<Pattern> star_patterns = m.star_patterns() ;
@@ -331,18 +336,24 @@ namespace Engine {
 			if ( !d.parallel                      ) dep_group++ ;
 			if ( !verbose && c==Color::HiddenNote ) continue ;
 			dep_groups.push_back(dep_group) ;
-			if (porcelaine) wc = ::max( wc , mk_py_str(d.crc_str()).size() ) ;
-			else            wc = ::max( wc ,           d.crc_str() .size() ) ;
-			if (porcelaine) wf = ::max( wf , mk_py_str(d->name()  ).size() ) ;
-			::string        dn = d->name() ;
-			::string const* dk = nullptr   ;
+			if (porcelaine) w_crc  = ::max( w_crc  , mk_py_str(d.crc_str()).size() ) ;
+			else            w_crc  = ::max( w_crc  ,           d.crc_str() .size() ) ;
+			if (porcelaine) w_file = ::max( w_file , mk_py_str(d->name()  ).size() ) ;
+			::string        dn     = d->name()                                       ;
+			::string const* dk     = nullptr                                         ;
 			if (d.dflags[Dflag::Static])                                                       dk = &rev_map.at(dn) ;
 			else                           for ( auto const& [k,e] : res ) if (+e.match(dn)) { dk = &k              ; break ; }
 			if (dk) {
-				if (porcelaine) wk = ::max( wk , mk_py_str(*dk).size() ) ;
-				else            wk = ::max( wk ,            dk->size() ) ;
+				if (porcelaine) w_key = ::max( w_key , mk_py_str(*dk).size() ) ;
+				else            w_key = ::max( w_key ,            dk->size() ) ;
 			} else {
-				if (porcelaine) wk = ::max( wk , size_t(4/*None*/) ) ;
+				if (porcelaine) w_key = ::max( w_key , size_t(4/*None*/)     ) ;
+			}
+			if ( !porcelaine && CodecFile::s_is_codec(dn,g_config->ext_codec_dirs_s) ) {
+				CodecFile cdf { dn } ;
+				w_codec_file = ::max( w_codec_file , cdf.file.size()                                      ) ;
+				w_codec_ctx  = ::max( w_codec_ctx  , cdf.ctx .size()                                      ) ;
+				w_codec_kind = ::max( w_codec_kind , size_t(cdf.is_encode()?12/*val_checksum*/:4/*code*/) ) ;
 			}
 		}
 		NodeIdx di1          = 0 ;                                                                                       // before filtering
@@ -362,30 +373,35 @@ namespace Engine {
 			if (dep.dflags[Dflag::Static])                                                           dep_key = &rev_map.at(dep_name) ;
 			else                           for ( auto const& [k,e] : res ) if (+e.match(dep_name)) { dep_key = &k                    ; break ; }
 			if (porcelaine) {
-				/**/         dep_str <<"( " <<       mk_py_str(dep.dflags_str  ())     ;
-				/**/         dep_str <<" , "<<       mk_py_str(dep.accesses_str())     ;
-				if (verbose) dep_str <<" , "<< widen(mk_py_str(dep.crc_str     ()),wc) ;
-				if (dep_key) dep_str <<" , "<< widen(mk_py_str(*dep_key          ),wk) ;
-				else         dep_str <<" , "<< widen("None"                       ,wk) ;
-				/**/         dep_str <<" , "<< widen(mk_py_str(dep_name          ),wf) ;
-				/**/         dep_str <<" )"                                            ;
+				/**/         dep_str << "( " <<      mk_py_str(dep.dflags_str  ())         ;
+				/**/         dep_str << " , "<<      mk_py_str(dep.accesses_str())         ;
+				if (verbose) dep_str << " , "<<widen(mk_py_str(dep.crc_str     ()),w_crc ) ;
+				if (dep_key) dep_str << " , "<<widen(mk_py_str(*dep_key          ),w_key ) ;
+				else         dep_str << " , "<<widen("None"                       ,w_key ) ;
+				/**/         dep_str << " , "<<widen(mk_py_str(dep_name          ),w_file) ;
+				/**/         dep_str << " )"                                               ;
 				//                                                                                                       as_is
 				if      (  start_group &&  end_group ) audit( fd , ro , cat(n_dep_groups?',':' '," { ",dep_str," }"   ) , true , lvl ) ;
 				else if (  start_group && !end_group ) audit( fd , ro , cat(n_dep_groups?',':' '," { ",dep_str        ) , true , lvl ) ;
 				else if ( !start_group && !end_group ) audit( fd , ro , cat(' '                 ," , ",dep_str        ) , true , lvl ) ;
 				else                                   audit( fd , ro , cat(' '                 ," , ",dep_str,"\n  }") , true , lvl ) ;
 			} else {
-				using namespace Codec ;
-				//
-				/**/                                                                   dep_str <<            dep.dflags_str  ()                                                                    ;
-				/**/                                                                   dep_str <<' '<<       dep.accesses_str()                                                                    ;
-				if      ( verbose                                                    ) dep_str <<' '<< widen(dep.crc_str     (),wc)                                                                ;
-				if      ( dep_key                                                    ) dep_str <<' '<< widen(*dep_key          ,wk)                                                                ;
-				else                                                                   dep_str <<' '<< widen(""                ,wk)                                                                ;
-				/**/                                                                   dep_str <<' '<< "|\\/ "[2*start_group+end_group]                                                            ;
-				if      (                           !CodecFile::s_is_codec(dep_name) ) dep_str <<' '<< mk_file(dep_name)                                                                           ;
-				else if ( CodecFile cdf{dep_name} ; cdf.is_encode()                  ) dep_str <<' '<< "encode : file="<<cdf.file<<" , context="<<cdf.ctx<<" , val_checksum="<<cdf.val_crc().hex() ;
-				else                                                                   dep_str <<' '<< "decode : file="<<cdf.file<<" , context="<<cdf.ctx<<" , code="        <<cdf.code   ()       ;
+				/**/         dep_str <<            dep.dflags_str  ()         ;
+				/**/         dep_str << ' '<<      dep.accesses_str()         ;
+				if (verbose) dep_str << ' '<<widen(dep.crc_str     (),w_crc)  ;
+				if (dep_key) dep_str << ' '<<widen(*dep_key          ,w_key)  ;
+				else         dep_str << ' '<<widen(""                ,w_key)  ;
+				/**/         dep_str << ' '<<"|\\/ "[2*start_group+end_group] ;
+				if (CodecFile::s_is_codec(dep_name,g_config->ext_codec_dirs_s)) {
+					CodecFile cdf { dep_name } ;
+					/**/                 dep_str << ' '<<(cdf.is_encode()?"encode":"decode")                            ;
+					/**/                 dep_str << " : file="<<widen(cdf.file,w_codec_file)                            ;
+					/**/                 dep_str << " , context="<<widen(cdf.ctx,w_codec_ctx)                           ;
+					if (cdf.is_encode()) dep_str << " , "<<widen("val_checksum",w_codec_kind)<<'='<<cdf.val_crc().hex() ;
+					else                 dep_str << " , "<<widen("code"        ,w_codec_kind)<<'='<<cdf.code   ()       ;
+				} else {
+					dep_str << ' '<<mk_file(dep_name) ;
+				}
 				audit( fd , ro , c , dep_str , false/*as_is*/ , lvl ) ;
 			}
 			n_dep_groups += end_group ;

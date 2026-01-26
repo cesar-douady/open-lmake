@@ -29,7 +29,10 @@ namespace Engine {
 	NodeReqInfo::NodeReqInfo( Req r , Node n ) : ReqInfo{r} {
 		if (!n) return ;
 		n->set_buildable() ;
-		if (n->is_src()) overwritten = FileInfo(n->name()).date>r->start_ddate ;
+		if (n->is_src()) {
+			::string name = n->name() ;
+			if (!Codec::CodecFile::s_is_codec(name,g_config->ext_codec_dirs_s)) overwritten = FileInfo(name).date>r->start_ddate ; // codec are never overwritten as they are supposed stable
+		}
 	}
 
 	//
@@ -148,18 +151,25 @@ namespace Engine {
 			return true/*updated*/ ;
 		} else {
 			if (crc.valid()) { //!                                       updated
-				if (     sig_       ==         sig.sig           ) return false ;                                                          // sig's match
-				if ( Crc(sig_.tag()).match(Crc(sig.sig.tag()),a) ) return false ;                                                          // sig's are enough to match content
+				if (     sig_       ==         sig.sig           ) return false ;      // sig's match
+				if ( Crc(sig_.tag()).match(Crc(sig.sig.tag()),a) ) return false ;      // sig's are enough to match content
 			}
 			Crc  crc_    { name_ , /*out*/sig_ }    ;
 			bool updated = +crc.diff_accesses(crc_) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvv
 			set_crc_date( crc_ , sig_ ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^
-			const char* step = !prev_ok ? "new" : updated ? "changed" : "steady" ;
-			Color       c    = frozen ? Color::Warning : Color::HiddenOk          ;
-			if (updated) for( Req r : reqs() ) { ReqInfo      & ri  = req_info  (r) ; if (fi.date>r->start_ddate                     ) ri.overwritten = true ;                         }
-			/**/         for( Req r : reqs_  ) { ReqInfo const& cri = c_req_info(r) ; if (!cri.done(::max(cri.goal,NodeGoal::Status))) r->audit_job( c , step , lazy_msg() , name_ ) ; }
+			if (!Codec::CodecFile::s_is_codec(name_,g_config->ext_codec_dirs_s)) {     // codec are never overwritten as they are supposed stable and console message are pollution
+				const char* step = !prev_ok ? "new" : updated ? "changed" : "steady" ;
+				Color       c    = frozen ? Color::Warning : Color::HiddenOk         ;
+				if (updated)
+					for( Req r : reqs() )
+						if (fi.date>r->start_ddate) req_info(r).overwritten = true ;
+				for( Req r : reqs_  ) {
+					ReqInfo const& cri = c_req_info(r) ;
+					if (!cri.done(::max(cri.goal,NodeGoal::Status))) r->audit_job( c , step , lazy_msg() , name_ ) ;
+				}
+			}
 			return updated ;
 		}
 	}

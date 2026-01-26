@@ -89,13 +89,10 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 	/**/                                  if ( pd<_allow    && ad.flags.extra_tflags[ExtraTflag::Allow] ) _allow    = pd   ;
 	/**/                                  if ( pd<_required && ad.flags.dflags[Dflag::Required]         ) _required = pd   ;
 	/**/                                  if ( pd<_seen     && di.seen(ad.accesses)                     ) _seen     = pd   ;
+	/**/                                  if ( pd<_no_hot   && ad.flags.extra_dflags[ExtraDflag::NoHot] ) _no_hot   = pd   ;
 	if (+pd) pd-- ;                                                                                                                 // ignore applies to simultaneous accesses
 	/**/                                  if ( pd<_read_ignore  && ad.flags.extra_dflags[ExtraDflag::Ignore] ) _read_ignore  = pd ;
 	/**/                                  if ( pd<_write_ignore && ad.flags.extra_tflags[ExtraTflag::Ignore] ) _write_ignore = pd ;
-}
-
-void Gather::AccessInfo::no_hot( PD pd ) {
-	if (pd<_no_hot) _no_hot = pd ;
 }
 
 //
@@ -192,7 +189,7 @@ Gather::Digest Gather::analyze(Status status) {
 			trace("codec  ",file,cf) ; //!                  with_readdir
 			if (cf.is_encode()) _user_trace( info.first_read(false     ) , Comment::CreateCodec , cat(cf.file,' ',cf.ctx,' ',cf.val_crc().hex()) ) ;
 			else                _user_trace( info.first_read(false     ) , Comment::CreateCodec , cat(cf.file,' ',cf.ctx,' ',cf.code   ()      ) ) ;
-			res.refresh_codecs.insert(Codec::CodecFile(file).file) ;
+			if (is_lcl(file)) res.refresh_codecs.insert(cf.file) ;
 		}
 		//
 		Accesses accesses     = info.accesses()                  ;
@@ -723,8 +720,8 @@ Status Gather::_exec_child() {
 									}
 								} else {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
-									for( auto const& [f,_] : jse.jerr.files )
-										_access_info(::copy(nfs_guard.access(f).file)).second.no_hot(now) ;                    // dep has been built and we are guarded : it cannot be hot from now on
+									for( auto const& [f,_] : jse.jerr.files ) nfs_guard.access(f) ;
+									jse.jerr.digest.flags.extra_dflags |= ExtraDflag::NoHot ;                    // dep has been built and we are guarded : it cannot be hot from now on
 									_user_trace( now , Comment::Depend , CommentExts(CommentExt::Direct,CommentExt::Reply) ) ;
 								}
 								for( auto& [f,_] : jse.jerr.files ) {

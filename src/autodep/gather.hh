@@ -79,7 +79,6 @@ struct Gather {                                                       // NOLINT(
 	public :
 		void update( PD , AccessDigest    , bool late , DI const&   ={} ) ;
 		void update(      AccessDigest ad , bool late , DI const& di={} ) { update( {} , ad , late , di ) ; }
-		void no_hot( PD                                            ) ;
 		bool is_hot( Time::Delay prec                              ) const {
 			// if file date is not comfortable enough, we make it hot and server will ensure job producing dep was done before this job started
 			if (!dep_info.is_a<DepInfoKind::Info>()) return false ;                    // we have a crc, no risk to gather bad crc from sig

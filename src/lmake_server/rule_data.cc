@@ -78,27 +78,14 @@ namespace Engine {
 		return res ;
 	}
 
-	RuleData::RuleData( Special s , ::string const& src_dir_s ) : special{s} , name{snake(s)} {
+	RuleData::RuleData( Special s ) : special{s} , name{snake(s)} {
 		SWEAR(+s) ;
 		//
-		if (s<Special::NUniq) SWEAR( !src_dir_s , s,src_dir_s ) ;               // shared rules cannot have parameters as, precisely, they are shared
 		switch (s) {
 			case Special::Dep          :                break ;
 			case Special::Req          : force = true ; break ;
 			case Special::InfiniteDep  :
 			case Special::InfinitePath :                break ;
-			case Special::GenericSrc :
-				SWEAR( +src_dir_s && is_dir_name(src_dir_s) , s , src_dir_s ) ; // ensure source dir exists and ends with a /
-				name           = "source dir"            ;
-				force          = true                    ;
-				allow_ext      = true                    ;                      // sources may lie outside repo
-				stems          = { {"",".*"}/*static*/ } ;
-				n_static_stems = 1                       ;
-				//
-				job_name                                         = src_dir_s + _stem_mrkr(0) ;
-				matches                                          = { {"",{job_name}} }       ;
-				matches_iotas[false/*star*/][+MatchKind::Target] = {0,1}                     ;
-			break ;
 			case Special::Codec : {
 				using namespace Codec ;
 				static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
@@ -698,7 +685,12 @@ namespace Engine {
 		::string  interpreter ;
 		::string  kill_sigs   ;
 		//
-		{	title = user_name() + " :" + (special==Special::Anti?" AntiRule":special==Special::GenericSrc?" SourceRule":"") ;
+		{	title = user_name() + " :" ;
+			switch (special) {
+				case Special::Anti       : title << " AntiRule"   ; break ;
+				case Special::GenericSrc : title << " SourceRule" ; break ;
+				case Special::Plain      :                          break ;
+			DF}
 			for( bool star : {false,true} )
 				for( VarIdx mi : matches_iotas[star][+MatchKind::Target] )
 					if (job_name_==matches[mi].second.pattern) { job_name_ = "<targets."+matches[mi].first+'>' ; break ; }

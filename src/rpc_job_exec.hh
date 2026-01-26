@@ -173,7 +173,7 @@ namespace Codec {
 			else                                                       return cat(s_pfx_s(d),file) ;
 		}
 		static ::string s_lock_file(::string const& file) {
-			if (Disk::is_dir_name(file)) return file+"lock"                                     ;
+			if (Disk::is_dir_name(file)) return file + PRIVATE_ADMIN_DIR_S "lock"               ;
 			else                         return s_pfx_s(CodecDir::Lock)+mk_printable<'/'>(file) ;
 		}
 		static ::string s_config_file(::string const& file) {
@@ -181,7 +181,7 @@ namespace Codec {
 			return cat(file,AdminDirS,"config.py") ;
 		}
 		//
-		static bool s_is_codec(::string const& node) { return +node && ( !Disk::is_lcl(node) || node.starts_with(s_pfx_s()) ) ; }
+		static bool s_is_codec( ::string const& node , ::vector_s const& codecs ) ;
 		// cxtors & casts
 		CodecFile(               ::string const& f , ::string const& x , Hash::Crc       val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
 		CodecFile(               ::string     && f , ::string     && x , Hash::Crc       val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}

@@ -218,8 +218,9 @@ namespace Engine {
 			else                                    return ConfigDiff::None   ;
 		}
 		// data (derived info not saved on disk)
-		bool     booted            = false ;   // a marker to distinguish clean repository
-		::string local_admin_dir_s ;
+		bool       booted            = false ; // a marker to distinguish clean repository
+		::string   local_admin_dir_s ;
+		::vector_s ext_codec_dirs_s  ;         // derived from codecs
 	} ;
 
 }

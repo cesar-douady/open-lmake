@@ -79,6 +79,13 @@ JobExecRpcReply JobExecRpcReq::mimic_server() && {
 
 namespace Codec {
 
+	bool CodecFile::s_is_codec( ::string const& node , ::vector_s const& codecs ) {
+		if ( !node                                                    ) return false                                                                                          ;
+		if ( is_lcl(node)                                             ) return node.starts_with(s_pfx_s())                                                                    ;
+		if ( !node.ends_with(DecodeSfx) && !node.ends_with(EncodeSfx) ) return false                                                                                          ;
+		/**/                                                            return ::any_of( codecs , [&](::string const& c) { return is_dir_name(c) && node.starts_with(c) ; } ) ;
+	}
+
 	::string& operator+=( ::string& os , CodecFile const& cf ) {         // START_OF_NO_COV
 		/**/                os <<"CodecFile("<< cf.file <<','<< cf.ctx ;
 		if (cf.is_encode()) os <<",E:"<< cf.val_crc()                  ;
@@ -87,10 +94,9 @@ namespace Codec {
 	}                                                                    // END_OF_NO_COV
 
 	CodecFile::CodecFile(::string const& node) {
-		throw_unless( s_is_codec(node) , "not a codec node : ",node ) ;
-		size_t pos1 = s_pfx_s().size()            ;
-		size_t pos3 = node.rfind(CodecSep       ) ; SWEAR( pos1<pos3 && pos3!=Npos && node[pos3-1]=='/' , node,pos1,     pos3 ) ;
-		size_t pos2 = node.rfind(CodecSep,pos3-1) ; SWEAR( pos1<pos2 && pos2<pos3  && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
+		size_t pos1 = is_lcl(node) ? s_pfx_s().size() : 0 ;
+		size_t pos3 = node.rfind(CodecSep       )         ; SWEAR( pos1<pos3 && pos3!=Npos && node[pos3-1]=='/' , node,pos1,     pos3 ) ;
+		size_t pos2 = node.rfind(CodecSep,pos3-1)         ; SWEAR( pos1<pos2 && pos2<pos3  && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
 		//
 		/**/     file = node.substr(pos1,pos2-pos1)          ; if (is_lcl(node)) file.pop_back() ;                                           // if external, it is a dir based codec
 		pos2++ ; ctx  = parse_printable<CodecSep>(node,pos2) ; SWEAR( pos2==pos3 , node,pos1,pos2,pos3 ) ; ctx.resize(ctx.size()-1/* / */) ;
@@ -133,7 +139,8 @@ namespace Codec {
 	}
 
 	CodecGuardLock::CodecGuardLock( FileRef file_ , Action action ) : NfsGuardLock{ action.file_sync , {file_.at,CodecFile::s_lock_file(file_.file)} , {.err_ok=action.err_ok} } {
-		if (!self) return ;                                                                                                                                                        // nothing to lock
+		if (!self                  ) return ;                                                                                                                                      // nothing to lock
+		if (is_dir_name(file_.file)) return ;                                                                                                      // extern dir do not manage new_codes file
 		file = file_ ;
 		//
 		::string new_codes_file    = CodecFile::s_new_codes_file(file.file)                                                                      ;

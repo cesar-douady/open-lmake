@@ -504,7 +504,7 @@ namespace Engine {
 		} ;
 		// cxtors & casts
 		RuleData() = default ;
-		RuleData( Special , ::string const& src_dir_s={} ) ;         // src_dir in case Special is SrcDir
+		RuleData(Special          ) ;
 		RuleData(::string_view str) {
 			serdes(str) ;
 		}

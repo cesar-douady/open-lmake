@@ -83,6 +83,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* add full text from which crc is derived as comments in version.cc
+	- easier to visualize diffs
 * forbid accesses to files :
 	- /dev/random
 	- /dev/urandom

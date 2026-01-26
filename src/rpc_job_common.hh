@@ -50,6 +50,7 @@ enum class ExtraDflag : uint8_t { // flags for deps, not recorded in server book
 ,	ReaddirOk
 ,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 ,	CreateEncode                  // used when creating a codec entry while encoding
+,	NoHot                         // dep access is guarded and cannot be hot
 // aliases
 ,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
 } ;
@@ -60,6 +61,7 @@ static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
 ,	{ ExtraDflag::ReaddirOk    , 'D' }
 ,	{ ExtraDflag::NoStar       , 'x' }
 ,	{ ExtraDflag::CreateEncode , 0   }
+,	{ ExtraDflag::NoHot        , 0   }
 }} ;
 using ExtraDflags = BitMap<ExtraDflag> ;
 static_assert(chk_enum_tab(ExtraDflagChars)) ;
