@@ -115,7 +115,7 @@ if '.config.' in actions :
 					d = { 'file' : codec }
 				else :
 					d = {}
-					exec(open(codec+'/LMAKE/config.py').read(),d,d)
+					exec(open(osp.join(codec,'LMAKE/config.py')).read(),d,d)
 					del d['__builtins__']
 					d['dir'] = codec
 				config.codecs[key] = d

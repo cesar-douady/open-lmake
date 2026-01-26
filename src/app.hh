@@ -37,7 +37,7 @@ SearchRootResult search_root ( AppInitAction const&                            )
 
 inline ::string git_clean_msg() {
 	::string res = "git clean -ffdx" ;
-	if (+*g_startup_dir_s) res << ' '<<Disk::dir_name_s(Disk::mk_lcl(".",*g_startup_dir_s))<<rm_slash ;
+	if (+*g_startup_dir_s) res << ' '<<Disk::mk_canon(Disk::mk_lcl(".",*g_startup_dir_s))<<rm_slash ;
 	return res ;
 }
 

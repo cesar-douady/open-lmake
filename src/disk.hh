@@ -71,20 +71,28 @@ namespace Disk {
 	inline bool is_dir_name(::string const& file) { return !file || file.back()=='/' ; }
 	//
 	template<bool DoBase> ::string _dir_base_name( ::string const& file , FileNameIdx n=1 ) {
+		bool is_dir = is_dir_name(file) ;
 		if (!n) {
-			SWEAR( is_dir_name(file) , file ) ;
-			if (DoBase) return {}   ;
-			else        return file ;
+			if (!is_dir) goto Bad    ;
+			if (DoBase ) return {}   ;
+			else         return file ;
 		}
-		SWEAR(+file    ) ;
-		SWEAR(file!="/") ;
-		size_t slash = file.size()-(file.back()=='/') ;
-		for(; n ; n-- ) {
-			throw_unless( slash!=Npos , "cannot walk uphill ",n," dirs from ",file ) ;
-			slash = file.rfind('/',slash-1) ;
+		if (!file) goto Bad ;
+		{	size_t slash = file.size()-is_dir ;
+			for(; n ; n-- ) {
+				if (slash==Npos)                  goto Bad ;
+				if (slash==0   ) { slash = Npos ; continue ; }
+				size_t prev_slash = slash ;
+				slash = file.rfind('/',slash-1) ;
+				if (slash==Npos) { if (substr_view(file,0    ,prev_slash      )==".." ) goto Bad ; }
+				else             { if (substr_view(file,slash,prev_slash-slash)=="/..") goto Bad ; }
+			}
+			if (DoBase) return slash==Npos ? file : file.substr(slash+1        ) ;
+			else        return slash==Npos ? ""s  : file.substr(0      ,slash+1) ;
 		}
-		if (DoBase) { if (slash==Npos) return file ; else return file.substr(slash+1        ) ; }
-		else        { if (slash==Npos) return {}   ; else return file.substr(0      ,slash+1) ; }
+	Bad :
+		if (n==1) throw cat("cannot walk uphill from "           ,file) ;
+		else      throw cat("cannot walk uphill ",n," dirs from ",file) ;
 	}
 	inline ::string dir_name_s( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<false>(file,n) ; }           // INVARIANT : dir_name_s(file,n)+base_name(file,n)==file
 	inline ::string base_name ( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<true >(file,n) ; }           // .

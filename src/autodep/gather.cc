@@ -953,13 +953,15 @@ void Gather::reorder(bool at_end) {
 			}
 		}
 		bool exists = ai.dep_info.exists()==Yes ;
-		for( ::string dir_s=dir_name_s(file) ; +dir_s&&dir_s!="/" ; dir_s=dir_name_s(dir_s) ) {
-			auto [it,inserted] = dirs.try_emplace(dir_s,exists) ;
-			if (!inserted) {
-				if (it->second>=exists) break ;                                     // all uphill dirs are already inserted if a dir has been inserted
-				it->second = exists ;                                               // record existence of a sub-file as soon as one if found
+		try {
+			for( ::string dir_s=dir_name_s(file) ;; dir_s=dir_name_s(dir_s) ) {     // walk all accessible dirs
+				auto [it,inserted] = dirs.try_emplace(dir_s,exists) ;
+				if (!inserted) {
+					if (it->second>=exists) break ;                                 // all uphill dirs are already inserted if a dir has been inserted
+					it->second = exists ;                                           // record existence of a sub-file as soon as one if found
+				}
 			}
-		}
+		} catch (::string const&) {}
 		if (cpy) accesses[i_dst] = ::move(access) ;
 		i_dst++ ;
 	}

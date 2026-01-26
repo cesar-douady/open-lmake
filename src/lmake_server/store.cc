@@ -547,10 +547,10 @@ namespace Engine::Persistent {
 		//
 		size_t               n_codecs       = g_config->codecs.size() ;
 		size_t               n_old_srcs     = Node::s_srcs(false/*dirs*/).size() + Node::s_srcs(true/*dirs*/).size() ;
-		NfsGuard             nfs_guard      { first_time ? FileSync::None : g_config->file_sync }                    ;            // when dynamic, sources may be modified from jobs
-		::vmap<Node,FileTag> srcs           ; srcs    .reserve(src_names.size()+n_codecs)                            ;            // worst case
+		NfsGuard             nfs_guard      { first_time ? FileSync::None : g_config->file_sync }                    ; // when dynamic, sources may be modified from jobs
+		::vmap<Node,FileTag> srcs           ; srcs    .reserve(src_names.size()+n_codecs)                            ; // worst case
 		::umap<Node,FileTag> old_srcs       ; old_srcs.reserve(n_old_srcs               )                            ;
-		::umap<Node,FileTag> new_srcs       ; new_srcs.reserve(src_names.size()+n_codecs)                            ;            // worst case
+		::umap<Node,FileTag> new_srcs       ; new_srcs.reserve(src_names.size()+n_codecs)                            ; // worst case
 		::uset<Node        > src_dirs       ;
 		::uset<Node        > old_src_dirs   ;
 		::uset<Node        > new_src_dirs   ;
@@ -585,7 +585,7 @@ namespace Engine::Persistent {
 			}
 			FileTag               tag ;
 			RealPath::SolveReport sr  = real_path.solve(src,true/*no_follow*/) ;
-			if (+sr.lnks) throw cat("source ",is_dir_?"dir ":"",src,"/ has symbolic link ",sr.lnks[0]," in its path") ;           // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
+			if (+sr.lnks) throw cat("source ",is_dir_?"dir ":"",src,"/ has symbolic link ",sr.lnks[0]," in its path") ; // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
 			if (is_dir_) {
 				tag = FileTag::Dir ;
 				if (sr.file_loc>FileLoc::Repo) ext_src_dirs_s.insert(with_slash(src)) ;
@@ -611,19 +611,27 @@ namespace Engine::Persistent {
 			FAIL(nn,"is a source dir of no source") ;                                                                                            // NO_COV
 		}
 		for( auto const& [key,val] : g_config->codecs ) {
-				bool is_dir  = is_dir_name(val.tab) ;
-				//
-				if (!is_canon(val.tab)) {
-					if ( ::string c=mk_canon(val.tab) ; c!=val.tab ) throw cat("codec table ",is_dir?"dir":"file"," is not cannonical : ",val.tab," is not canonical (consider ",c,')') ;
-					else                                             throw cat("codec table ",is_dir?"dir":"file"," is not cannonical : ",val.tab                                     ) ;
+			if (!is_canon(val.tab)) {
+				if ( ::string c=mk_canon(val.tab) ; c!=val.tab ) throw cat("codec table is not cannonical : ",val.tab," (consider ",c,')') ;
+				else                                             throw cat("codec table is not cannonical : ",val.tab                    ) ;
+			}
+			//
+			RealPath::SolveReport sr = real_path.solve(no_slash(val.tab),false/*no_follow*/) ;                // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
+			if (+sr.lnks) throw cat("codec table ",val.tab," has symbolic link ",sr.lnks[0]," in its path") ;
+			//
+			if (is_dir_name(val.tab)) {
+				if (is_lcl(val.tab)) throw cat("codec table ",key," must not end with /, consider : lmake.config.codecs.",key," = ",mk_py_str(no_slash(val.tab))) ;
+				try {
+					for( ::string d_s=val.tab ;; d_s=dir_name_s(d_s) )
+						if (ext_src_dirs_s.contains(d_s)) goto CodecFound ;
+				} catch (::string const&) {                                                                                                               // try all accessible uphill dirs
+					throw cat("codec table ",key," must lie within a source dir, consider : lmake.config.extra_sources.append(",mk_py_str(val.tab),')') ;
 				}
-				//
-				RealPath::SolveReport sr  = real_path.solve(no_slash(val.tab),false/*no_follow*/) ;                 // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
-				if (+sr.lnks)   throw cat("codec table ",val.tab," has symbolic link ",sr.lnks[0]," in its path") ;
-				//
-				if (is_dir  ) { for( ::string d_s=val.tab ; d_s!="/" ; d_s=dir_name_s(d_s) ) if (ext_src_dirs_s.contains(d_s    )) goto CodecFound ; }
-				else          {                                                              if (lcl_src_regs  .contains(val.tab)) goto CodecFound ; }                  // solve lazy
-				throw cat("codec table ",key," must ",is_dir?"lie within a source dir":"be a local source",", consider : lmake.config.extra_sources.append(",val,')') ;
+			} else {
+				if (!is_lcl(val.tab)) throw cat("codec table ",key," must end with /, consider : lmake.config.codecs.",key," = ",mk_py_str(with_slash(val.tab))) ;
+				if (lcl_src_regs.contains(val.tab)) goto CodecFound ;
+				throw cat("codec table ",key," must be a source, consider : git add ",mk_shell_str(val.tab)) ;
+			}                                                                                                                                             // solve lazy
 		CodecFound : ;
 		}
 		// compute diff

@@ -40,8 +40,12 @@ bool/*read_only*/ app_init(AppInitAction const& action) {
 	//
 	bool     read_only = false     ;                                                                          // unless proven read-only, assume we can write traces
 	::string exe_path  = get_exe() ;
-	g_exe_name     = new ::string { base_name(exe_path)    } ;
-	g_lmake_root_s = new ::string { dir_name_s(exe_path,2) } ;
+	g_exe_name = new ::string { base_name(exe_path) } ;
+	try {
+		g_lmake_root_s = new ::string { dir_name_s(exe_path,2) } ;
+	} catch (::string const&) {
+		exit(Rc::Usage,"cannot recognize this executable which is not in a standard lmake installation dir :",exe_path) ;
+	}
 	//
 	bool do_trace = action.trace==Yes ;
 	if (action.chk_version!=No) {
