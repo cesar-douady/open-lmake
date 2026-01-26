@@ -32,6 +32,7 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* implement lcodec_repair
 * provide support for all available python releases
 	- generate clmake.xxx.so (including per python release) instead of clmake.so
 	- or ensure single .so is binary compatible with all 3.6-3.14 releases

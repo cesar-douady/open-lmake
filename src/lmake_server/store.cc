@@ -616,22 +616,23 @@ namespace Engine::Persistent {
 				else                                             throw cat("codec table is not cannonical : ",val.tab                    ) ;
 			}
 			//
-			RealPath::SolveReport sr = real_path.solve(no_slash(val.tab),false/*no_follow*/) ;                // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
+			RealPath::SolveReport sr = real_path.solve(no_slash(val.tab),false/*no_follow*/) ;                                         // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
 			if (+sr.lnks) throw cat("codec table ",val.tab," has symbolic link ",sr.lnks[0]," in its path") ;
 			//
 			if (is_dir_name(val.tab)) {
 				if (is_lcl(val.tab)) throw cat("codec table ",key," must not end with /, consider : lmake.config.codecs.",key," = ",mk_py_str(no_slash(val.tab))) ;
 				try {
-					for( ::string d_s=val.tab ;; d_s=dir_name_s(d_s) )
+					for( ::string d_s=val.tab ;; d_s=dir_name_s(d_s) )                                                                 // try all accessible uphill dirs
 						if (ext_src_dirs_s.contains(d_s)) goto CodecFound ;
-				} catch (::string const&) {                                                                                                               // try all accessible uphill dirs
-					throw cat("codec table ",key," must lie within a source dir, consider : lmake.config.extra_sources.append(",mk_py_str(val.tab),')') ;
+				} catch (::string const&) {
+					if (+g_config->extra_manifest) throw cat("codec table ",key," must lie within a source dir, consider : lmake.extra_manifest.append(",mk_py_str(val.tab),')') ;
+					else                           throw cat("codec table ",key," must lie within a source dir, consider : lmake.extra_manifest = ["    ,mk_py_str(val.tab),']') ;
 				}
 			} else {
 				if (!is_lcl(val.tab)) throw cat("codec table ",key," must end with /, consider : lmake.config.codecs.",key," = ",mk_py_str(with_slash(val.tab))) ;
 				if (lcl_src_regs.contains(val.tab)) goto CodecFound ;
 				throw cat("codec table ",key," must be a source, consider : git add ",mk_shell_str(val.tab)) ;
-			}                                                                                                                                             // solve lazy
+			}                                                                                                                          // solve lazy
 		CodecFound : ;
 		}
 		// compute diff
