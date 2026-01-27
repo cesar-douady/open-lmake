@@ -586,10 +586,9 @@ namespace Engine {
 		jd.incremental = digest.incremental ;
 		jd.status      = status             ;
 		//^^^^^^^^^^^^^^^^^^^^^
-		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
-		res.can_upload &= jd.run_status==RunStatus::Ok && ok==Yes ;        // only cache execution without errors
 		//
 		trace("wrap_up",ok,jd.run_status,STR(res.can_upload),digest.upload_key,STR(digest.incremental)) ;
+		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
 		if ( +res.severe_msg || digest.has_msg_stderr ) {
 			JobInfo ji = job_info() ;
 			if (digest.has_msg_stderr) res.msg_stderr = ji.end.msg_stderr ;
@@ -667,6 +666,7 @@ namespace Engine {
 		if (+digest.upload_key) {
 			/**/                                                                          SWEAR( cache_idx1 , cache_idx1 ) ;             // cannot commit/dismiss without cache
 			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ;             // .
+			end_digest.can_upload &= !( jd.missing() || jd.err() ) ;                                                                     // only cache execution without errors
 			try {
 				if (end_digest.can_upload) cache.commit ( self , digest.upload_key , was_missing_audit ) ;
 				else                       cache.dismiss(        digest.upload_key                     ) ;                               // free up temporary storage copied in job_exec

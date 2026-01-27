@@ -66,8 +66,8 @@ CompileDigest::CompileDigest( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps
 				case +Accesses(Access::Reg,Access::Stat) : if ( crc.is_lnk()  ) crc =  Crc::Lnk               ; break ;
 			DN}
 		// we lose 1 bit of crc but we must manage errors and it does not desserv an additional field
-		if (dd.err) { SWEAR(a[Access::Err]) ; crc = +crc |  CrcErr ; }                               // if error are not sensed, lmake engine would stop if dep is in error
-		else                                  crc = +crc & ~CrcErr ;
+		if ( dd.err && a[Access::Err] ) crc = +crc |  CrcErr ;                                       // if not sensed, ignore error status (lmake would stop if not ignored anyway)
+		else                            crc = +crc & ~CrcErr ;
 		//
 		deps_.push_back({
 			.bucket = dd.dflags[Dflag::Static] ? 0 : crc!=Crc::None ? 1 : 2
