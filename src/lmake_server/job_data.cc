@@ -795,14 +795,27 @@ namespace Engine {
 		if (FileInfo(Codec::CodecFile::s_new_codes_file(file->name())).exists()) _submit_codec(req) ;
 	}
 
-	static void _create( Codec::CodecFile const& codec_file , ::string const& code_val , bool is_clean , Job job , bool tmp , NfsGuard* nfs_guard ) {
+	// /!\ this function must stay in sync with Decode::process and Encode::process in backdoor.cc
+	template<bool Encode> static void _create( Codec::CodecFile const& codec_file , ::string const& code_val , Job job , bool tmp , NfsGuard* nfs_guard ) {
+		codec_file.chk() ;
+		//
 		::string  node_name      = codec_file.name()    ;
 		NodeData& nd             = *Node(New,node_name) ;
 		::string  disk_node_name ;
+		bool      retried        = false                ;
 		//
-		if (tmp) { disk_node_name = codec_file.name(true/*tmp*/) ; SWEAR( is_clean , codec_file ) ;  }                // nothing to clean in tmp space
-		else     { disk_node_name = node_name+".tmp"             ; if (!is_clean) unlnk(node_name) ; }
-		AcFd( disk_node_name , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=nfs_guard} ).write( code_val ) ; // ensure node_name is always correct when it exists as there is no read lock
+		if (tmp) disk_node_name = codec_file.name(true/*tmp*/) ; // nothing to clean in tmp space
+		else     disk_node_name = node_name+".tmp"             ; // ensure node_name is always correct when it exists as there is no read lock
+	Retry :
+		try {
+			if (Encode) sym_lnk( disk_node_name , code_val+Codec::DecodeSfx , {.nfs_guard=nfs_guard} )                                 ;
+			else        AcFd   ( disk_node_name , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=nfs_guard} ).write( code_val ) ;
+		} catch (::string const&) {
+			if (retried) throw ;
+			unlnk(disk_node_name) ;                              // in case an old file is there
+			retried = true ;
+			goto Retry/*BACKWARD*/ ;
+		}
 		//
 		nd.set_buildable()                                                          ;
 		nd.set_crc_date( Crc(New,code_val,No/*is_lnk*/) , FileSig(disk_node_name) ) ;
@@ -852,7 +865,7 @@ namespace Engine {
 		if (FileInfo(codec_dir_s).tag()!=FileTag::Dir) {                                                // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
 			trace("fresh") ;
 			::string tmp_codec_dir_s = CodecFile::s_dir_s(filename,CodecDir::Tmp) ;
-			NodeIdx n_ctxs    = 0 ; // for trace only // .
+			NodeIdx n_ctxs    = 0 ;                                                                     // for trace only // .
 			NodeIdx n_entries = 0 ;
 			SWEAR( !old_decode_tab , filename ) ;                                                       // cannot have old codes if not initialized
 			mk_dir_s(tmp_codec_dir_s) ;                                                                 // we want a dir to appear initialized, even if empty
@@ -863,9 +876,9 @@ namespace Engine {
 				for( auto const& [code,val] : d_entry ) {
 					NfsGuard nfs_guard { Engine::g_config->file_sync } ;
 					Crc      crc       { New , val                   } ;
-					n_entries++ ;
-					_create( {false/*encode*/,filename,ctx,code} , val  , true/*is_clean*/ , job , true/*fresh*/ , &nfs_guard ) ;
-					_create( {                filename,ctx,crc } , code , true/*.       */ , job , true/*.    */ , &nfs_guard ) ;
+					n_entries++ ; //!                                                            tmp
+					_create<false/*Encode*/>( {false/*encode*/,filename,ctx,code} , val  , job , true , &nfs_guard ) ;
+					_create<true /*.     */>( {                filename,ctx,crc } , code , job , true , &nfs_guard ) ;
 					manifest <<'\t'<<mk_printable(code)<<'\t'<<crc.hex()<<'\n' ;
 				}
 			}
@@ -895,12 +908,12 @@ namespace Engine {
 					auto dit        = old_d_entry.find(code) ;
 					auto eit        = old_e_entry.find(crc ) ;
 					bool d_is_clean = dit==old_d_entry.end() ;
-					bool e_is_clean = eit==old_e_entry.end() ; //!                                                                   fresh
-					n_entries++ ;
-					if (  d_is_clean || dit->second!=crc  ) _create( {false/*encode*/,filename,ctx,code} , val  , d_is_clean , job , false , &lock ) ;
-					if (  e_is_clean || eit->second!=code ) _create( {                filename,ctx,crc } , code , e_is_clean , job , false , &lock ) ;
-					if ( !d_is_clean                      ) old_d_entry.erase(dit)                                                                   ;
-					if ( !e_is_clean                      ) old_e_entry.erase(eit)                                                                   ;
+					bool e_is_clean = eit==old_e_entry.end() ;
+					n_entries++ ; //!                              Encode                                                      tmp
+					if (  d_is_clean || dit->second!=crc  ) _create<false>( {false/*encode*/,filename,ctx,code} , val  , job , false , &lock ) ;
+					if (  e_is_clean || eit->second!=code ) _create<true >( {                filename,ctx,crc } , code , job , false , &lock ) ;
+					if ( !d_is_clean                      ) old_d_entry.erase(dit)                                                             ;
+					if ( !e_is_clean                      ) old_e_entry.erase(eit)                                                             ;
 					manifest <<'\t'<<mk_printable(code)<<'\t'<<crc.hex()<<'\n' ;
 				}
 				for( auto const& [code,_] : old_d_entry ) { lock.keep_alive() ; _erase( {false/*encode*/,filename,ctx,code} , &lock ) ; } // lock have limited liveness, keep it alive regularly

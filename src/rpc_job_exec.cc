@@ -80,10 +80,12 @@ JobExecRpcReply JobExecRpcReq::mimic_server() && {
 namespace Codec {
 
 	bool CodecFile::s_is_codec( ::string const& node , ::vector_s const& codecs ) {
-		if ( !node                                                    ) return false                                                                                          ;
-		if ( is_lcl(node)                                             ) return node.starts_with(s_pfx_s())                                                                    ;
-		if ( !node.ends_with(DecodeSfx) && !node.ends_with(EncodeSfx) ) return false                                                                                          ;
-		/**/                                                            return ::any_of( codecs , [&](::string const& c) { return is_dir_name(c) && node.starts_with(c) ; } ) ;
+		if ( !node                                                    ) return false ;
+		if ( !node.ends_with(DecodeSfx) && !node.ends_with(EncodeSfx) ) return false ;
+		if (  node.find(CodecSep)==Npos                               ) return false ;
+		//
+		if (is_lcl(node)) return node.starts_with(s_pfx_s())                                                                    ;
+		else              return ::any_of( codecs , [&](::string const& c) { return is_dir_name(c) && node.starts_with(c) ; } ) ;
 	}
 
 	::string& operator+=( ::string& os , CodecFile const& cf ) {         // START_OF_NO_COV
@@ -95,21 +97,32 @@ namespace Codec {
 
 	CodecFile::CodecFile(::string const& node) {
 		size_t pos1 = is_lcl(node) ? s_pfx_s().size() : 0 ;
-		size_t pos3 = node.rfind(CodecSep       )         ; SWEAR( pos1<pos3 && pos3!=Npos && node[pos3-1]=='/' , node,pos1,     pos3 ) ;
-		size_t pos2 = node.rfind(CodecSep,pos3-1)         ; SWEAR( pos1<pos2 && pos2<pos3  && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
+		size_t pos3 = node.rfind('/'            )         ; SWEAR( pos3!=Npos && pos1<pos3                      , node,pos1,     pos3 ) ;
+		size_t pos2 = node.rfind(CodecSep,pos3-1)         ; SWEAR( pos2!=Npos && pos1<pos2 && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
 		//
-		/**/     file = node.substr(pos1,pos2-pos1)          ; if (is_lcl(node)) file.pop_back() ;                                           // if external, it is a dir based codec
-		pos2++ ; ctx  = parse_printable<CodecSep>(node,pos2) ; SWEAR( pos2==pos3 , node,pos1,pos2,pos3 ) ; ctx.resize(ctx.size()-1/* / */) ;
-		pos3++ ;
-		if      (node.ends_with(DecodeSfx)) _code_val_crc = parse_printable<CodecSep>(node.substr(pos3,node.size()-(sizeof(DecodeSfx)-1/*null*/)-pos3)) ;
-		else if (node.ends_with(EncodeSfx)) _code_val_crc = Hash::Crc::s_from_hex    (node.substr(pos3,node.size()-(sizeof(EncodeSfx)-1/*.   */)-pos3)) ;
-		else    FAIL(node) ;
+		file = node.substr(pos1,pos2-pos1) ; if (is_lcl(node)) file.pop_back() ;                                           // if external, it is a dir based codec
+		pos3++/* / */ ;
+		if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-(sizeof(DecodeSfx)-1/*null*/)-pos3 ;                    _code_val_crc = parse_printable<'/'> (node.substr(pos3,sz)) ; }
+		else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-(sizeof(EncodeSfx)-1/*.   */)-pos3 ; SWEAR(sz==16,sz) ; _code_val_crc = Hash::Crc::s_from_hex(node.substr(pos3,sz)) ; }
+		else                                  FAIL(node) ;
+		pos2++/*CodecSep*/ ;
+		ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
+	}
+
+	void CodecFile::chk() const {
+		throw_unless( is_abs(ctx) || is_lcl(ctx) , "context must be a local or absolute filename : ",ctx                                ) ;
+		throw_unless( !is_dir_name(ctx)          , "context must not end with / : "                 ,ctx," (consider ",ctx,rm_slash,')' ) ;
+		if (!is_canon(ctx)) {
+			::string c = mk_canon(ctx) ;
+			if (c==ctx) throw cat("context must be canonical : ",ctx                    ) ;
+			else        throw cat("context must be canonical : ",ctx," (consider ",c,')') ;
+		}
 	}
 
 	// START_OF_VERSIONING
 	::string CodecFile::name(bool tmp) const {
-		if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',CodecSep,val_crc().hex()               ,EncodeSfx) ;
-		else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',CodecSep,mk_printable<CodecSep>(code()),DecodeSfx) ;
+		if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
+		else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
 	}
 	// END_OF_VERSIONING
 

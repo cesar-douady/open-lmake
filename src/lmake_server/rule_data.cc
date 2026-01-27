@@ -90,17 +90,18 @@ namespace Engine {
 				using namespace Codec ;
 				static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 				stems = {
-					{ "File"    , ".*"                    }                                                                                                                           // static
-				,	{ "Ctx"     , cat("[^",CodecSep,"]*") }                                                                                                                           // star
-				,	{ "CodeVal" , cat("[^",CodecSep,"]*") }                                                                                                                           // .
+					{ "File" ,     ".+"                }                                                                                                                  // static
+				,	{ "Ctx"  , cat("[^",CodecSep,"]*") }                                                                                                                  // star
+				,	{ "Code" ,     "[^/]*"             }                                                                                                                  // .
+				,	{ "Val"  ,     "[0-9a-f]{16}"      }                                                                                                                  // .
 				} ;
 				n_static_stems = 1 ;
 				//
 				static ::string pfx = Codec::CodecFile::s_pfx_s() ;
 				job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
-				matches  = { //!                             File                        Ctx                        CodeVal                                       File Ctx CodeVal
-					{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',CodecSep,_stem_mrkr(2    ),DecodeSfx),.flags=IncPhony,.captures={true,true,true }} } // star target
-				,	{ "ENCODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',CodecSep,_stem_mrkr(2    ),EncodeSfx),.flags=IncPhony,.captures={true,true,true }} } // .
+				matches  = { //!                             File                        Ctx                                                                 File Ctx Code/Val
+					{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures={true,true,true  }} } // star target
+				,	{ "ENCODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(3/*Val */),EncodeSfx),.flags=IncPhony,.captures={true,true,true  }} } // .
 				} ;
 				matches_iotas[true/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
 				//
@@ -108,7 +109,7 @@ namespace Engine {
 					{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
 				} ;
 			} break ;
-		DF}                                                                                                                                                                           // NO_COV
+		DF}                                                                                                                                                                  // NO_COV
 		for( auto const& [_,v] : stems ) stem_n_marks.push_back(Re::RegExpr(v,true/*cache*/).n_marks()) ;
 		_set_crcs({}) ;                                                                                   // rules is not necessary for special rules
 	}

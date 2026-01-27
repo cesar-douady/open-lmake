@@ -200,6 +200,7 @@ namespace Codec {
 		Hash::Crc const& val_crc  () const { return get<1>(_code_val_crc)           ; }
 		// services
 		::string name(bool tmp=false) const ;
+		void chk() const ;
 		// data
 		::string file ;
 		::string ctx  ;
