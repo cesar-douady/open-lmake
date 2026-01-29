@@ -76,7 +76,7 @@ struct Child {
 	bool/*done*/ kill    (int sig)       { return kill_process(pid,sig,as_session/*as_group*/) ; }
 	bool         is_alive(       ) const { return ::kill(pid,0/*sig*/)==0                      ; }
 private :
-	[[noreturn]] void _exit( Rc , const char* msg , const char* msg_dir_s=nullptr ) ;
+	[[noreturn]] void _exit( Rc , const char* msg1=nullptr , const char* msg2=nullptr ) ;
 	//data
 public :
 	// spawn parameters

@@ -169,7 +169,7 @@ enum class WakeupState : uint8_t {
 ,	Stop
 } ;
 
-template<bool Flush=true> struct WakeupThread {
+template<bool Flush=true> struct WakeupThread {                    // if Flush, ensure func is called a last time if wakeup was called before _request_stop
 	// statics
 private :
 	static void _s_thread_func( ::stop_token stop , char key , WakeupThread* this_ , ::function<void(::stop_token)> func ) {
@@ -182,15 +182,13 @@ private :
 				this_->_request_stop() ;
 			}
 		} ;
-		for(;;) {
-			this_->_state.wait(WakeupState::Wait) ;
-			switch (this_->_state) {
-				case WakeupState::Proceed : this_->_state = WakeupState::Wait ; func(stop) ; break     ;
-				case WakeupState::Last    : { if (Flush) func(stop) ; }                      goto Done ;
-				case WakeupState::Stop    :                                                  goto Done ;
-			DF}                                                                                          // NO_COV
+		for (;;) {
+			this_->_run.wait(false) ; if (!this_->_run) continue ; // wait may spuriously return while still false
+			this_->_run = false ;
+			Bool3 stop_requested = this_->_stop_requested ;
+			if (stop_requested!=Yes) func(stop) ;
+			if (stop_requested!=No ) break ;
 		}
-	Done :
 		trace("done") ;
 	}
 	// cxtors & casts
@@ -205,21 +203,20 @@ public :
 	void open( char key , ::function<void(::stop_token)> f ) { thread = ::jthread( _s_thread_func , key , this , f                             ) ; }
 	// services
 	void wakeup() {
-		switch (_state) {
-			case WakeupState::Wait : _state = WakeupState::Proceed ; _state.notify_one() ; break ;
-		DN}                                                                                              // NO_COV
+		if (_run) return ;
+		_run = true ;
+		_run.notify_one() ;
 	}
 private :
 	void _request_stop() {
-		switch (_state) {
-			case WakeupState::Proceed : _state = WakeupState::Last ; _state.notify_one() ; break ;
-			case WakeupState::Wait    : _state = WakeupState::Stop ; _state.notify_one() ; break ;
-		DN}                                                                                              // NO_COV
+		_stop_requested = Maybe | !(Flush&&_run) ;                 // if woken up and busy, execute a last call to func if Flush
+		wakeup() ;
 	}
 	// data
-	Atomic<WakeupState,MutexLvl::Inner> _state = WakeupState::Wait ;
+	Atomic<bool ,MutexLvl::Inner> _run            = false ;
+	Atomic<Bool3,MutexLvl::Inner> _stop_requested = No    ;        // Maybe means call func once and exit
 public :
-	::jthread thread ;                                                                                   // ensure thread is last so other fields are constructed when it starts
+	::jthread thread ;                                             // ensure thread is last so other fields are constructed when it starts
 } ;
 
 enum class ServerThreadEventKind : uint8_t {
