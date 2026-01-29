@@ -82,7 +82,7 @@ else :
 
 	ut.lmake( 'codec_sh' , 'codec_py' , steady=2 )
 
-	print('user_val',file=open('../codec_files/tab/*ctx/user_code.decode','w'))
+	print('user_val',file=open('../codec_files/tab/ctx/user_code.decode','w'))
 	os.system('lcodec_repair -fr ../codec_files/tab')
 
 	ut.lmake( 'chk2' , done=1 )

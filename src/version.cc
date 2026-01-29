@@ -1,14 +1,14 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 21      ; // f524c258c399c46227d95387d0db886e
-	uint64_t    constexpr Repo  = 16      ; // 47e0725dd3a4ea0e2784b688fd6904cf
-	uint64_t    constexpr Job   = 7       ; // 1a5e0000d169dd86e5809e8674d240c0
+	uint64_t    constexpr Cache = 22      ; // b20e5cd7c86cead222ff6f2515d59def
+	uint64_t    constexpr Repo  = 17      ; // be3b3636825a0427ef086c77d3a0104a
+	uint64_t    constexpr Job   = 8       ; // 8d5e42a6190f3325a516e39253846700
 	const char* const     Major = "26.01" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : f524c258c399c46227d95387d0db886e *
+// * Cache : b20e5cd7c86cead222ff6f2515d59def *
 // ********************************************
 //
 //	// START_OF_VERSIONING
@@ -110,8 +110,14 @@ namespace Version {
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
 //		::string CodecFile::name(bool tmp) const {
-//			if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
-//			else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
+//			if (is_dir_name(file)) {
+//				SWEAR(!tmp) ;
+//				if (is_encode()) return cat(file,ctx,'/',val_crc().hex()          ,EncodeSfx) ;
+//				else             return cat(file,ctx,'/',mk_printable<'/'>(code()),DecodeSfx) ;
+//			} else {
+//				if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
+//				else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
+//			}
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
@@ -847,7 +853,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 47e0725dd3a4ea0e2784b688fd6904cf *
+// * Repo : be3b3636825a0427ef086c77d3a0104a *
 // *******************************************
 //
 //	// START_OF_VERSIONING
@@ -994,8 +1000,14 @@ namespace Version {
 //			// END_OF_VERSIONING
 //		// START_OF_VERSIONING
 //		::string CodecFile::name(bool tmp) const {
-//			if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
-//			else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
+//			if (is_dir_name(file)) {
+//				SWEAR(!tmp) ;
+//				if (is_encode()) return cat(file,ctx,'/',val_crc().hex()          ,EncodeSfx) ;
+//				else             return cat(file,ctx,'/',mk_printable<'/'>(code()),DecodeSfx) ;
+//			} else {
+//				if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
+//				else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
+//			}
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
@@ -2078,7 +2090,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 1a5e0000d169dd86e5809e8674d240c0 *
+// * Job : 8d5e42a6190f3325a516e39253846700 *
 // ******************************************
 //
 //	// START_OF_VERSIONING
@@ -2147,8 +2159,14 @@ namespace Version {
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
 //		::string CodecFile::name(bool tmp) const {
-//			if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
-//			else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
+//			if (is_dir_name(file)) {
+//				SWEAR(!tmp) ;
+//				if (is_encode()) return cat(file,ctx,'/',val_crc().hex()          ,EncodeSfx) ;
+//				else             return cat(file,ctx,'/',mk_printable<'/'>(code()),DecodeSfx) ;
+//			} else {
+//				if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
+//				else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
+//			}
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING

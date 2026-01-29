@@ -185,11 +185,9 @@ Gather::Digest Gather::analyze(Status status) {
 		}
 		// handle codec
 		if (flags.extra_dflags[ExtraDflag::CreateEncode]) {
-			Codec::CodecFile cf { file } ;
-			trace("codec  ",file,cf) ; //!                  with_readdir
-			if (cf.is_encode()) _user_trace( info.first_read(false     ) , Comment::CreateCodec , cat(cf.file,' ',cf.ctx,' ',cf.val_crc().hex()) ) ;
-			else                _user_trace( info.first_read(false     ) , Comment::CreateCodec , cat(cf.file,' ',cf.ctx,' ',cf.code   ()      ) ) ;
-			if (is_lcl(file)) res.refresh_codecs.insert(cf.file) ;
+			trace("codec  ",file) ;
+			_user_trace( info.first_read(false/*with_readdir*/) , Comment::CreateCodec , file ) ;
+			if (is_lcl(file)) res.refresh_codecs.insert(Codec::CodecFile(file).file) ;
 		}
 		//
 		Accesses accesses     = info.accesses()                  ;

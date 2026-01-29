@@ -169,8 +169,8 @@ namespace Codec {
 		static ::string s_dir_s         ( ::string const& file , CodecDir d=CodecDir::Plain ) { return cat(s_file (file,d),'/'        ) ; }
 		static ::string s_new_codes_file( ::string const& file                              ) { return cat(s_dir_s(file  ),"new_codes") ; }
 		static ::string s_file          ( ::string const& file , CodecDir d=CodecDir::Plain ) {
-			if (Disk::is_dir_name(file)) { SWEAR(d==CodecDir::Plain) ; return no_slash(file)       ; }
-			else                                                       return cat(s_pfx_s(d),file) ;
+			SWEAR( !Disk::is_dir_name(file) , file ) ;
+			return cat(s_pfx_s(d),file) ;
 		}
 		static ::string s_lock_file(::string const& file) {
 			if (Disk::is_dir_name(file)) return file + PRIVATE_ADMIN_DIR_S "lock"               ;
@@ -181,7 +181,7 @@ namespace Codec {
 			return cat(file,AdminDirS,"config.py") ;
 		}
 		//
-		static bool s_is_codec( ::string const& node , ::vector_s const& codecs ) ;
+		static bool s_is_codec( ::string const& node , ::vector_s const& ext_codec_dirs_s={} ) ;
 		// cxtors & casts
 		CodecFile(               ::string const& f , ::string const& x , Hash::Crc       val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
 		CodecFile(               ::string     && f , ::string     && x , Hash::Crc       val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}
@@ -193,7 +193,7 @@ namespace Codec {
 			if (encode) _code_val_crc = Hash::Crc(New,code_val) ;
 			else        _code_val_crc = ::move   (    code_val) ;
 		}
-		CodecFile(::string const& node) ;
+		CodecFile( ::string const& node , ::vector_s const& ext_codec_dirs_s={} ) ;
 		// accesses
 		bool             is_encode() const { return        _code_val_crc.index()==1 ; }
 		::string  const& code     () const { return get<0>(_code_val_crc)           ; }
