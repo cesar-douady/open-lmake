@@ -42,7 +42,6 @@ pid_t get_ppid(pid_t pid) {
 	//
 	size_t start = status.find("\nPPid:") ; throw_unless( start!=Npos , "bad format in ",status_file ) ;
 	start += strlen("\nPPid:") ;
-	while (is_space(status[start])) start++ ;
 	//
 	size_t end = status.find('\n',start) ; throw_unless( end!=Npos , "bad format in ",status_file ) ;
 	//
@@ -69,24 +68,20 @@ mode_t get_umask() {
 	return res ;
 }
 
-[[noreturn]] void Child::_exit( Rc rc , const char* msg , const char* msg_dir_s ) {       // signal-safe
-	if (msg) {                                                                            // msg contains terminating null
-		bool ok = true ;
-		if (_child_args) {
-			for( const char* const* p=_child_args ; *p ; p++ ) {
-				size_t l = ::strlen(*p) ;
-				if (l<=100)   ok &= ::write(2,*p,l )>=0 ;                                 // /!\ cannot use high level I/O because we are only allowed signal-safe functions
-				else        { ok &= ::write(2,*p,97)>=0 ; ok &= ::write(2,"...",3)>=0 ; } // .
-				ok &= ::write(2," ",1)>=0 ;                                               // .
-			}
-		}
-		/**/           ok &= ::write(2,": "     ,2                    )>=0 ;              // .
-		/**/           ok &= ::write(2,msg      ,::strlen(msg)        )>=0 ;              // .
-		if (msg_dir_s) ok &= ::write(2,msg_dir_s,::strlen(msg_dir_s)-1)>=0 ;              // .
-		/**/           ok &= ::write(2,"\n"     ,1                    )>=0 ;              // .
-		if (!ok) rc = Rc::System ;
-	}
-	::_exit(+rc) ;                                                                        // /!\ cannot use exit as we are only allowed signal-safe functions
+[[noreturn]] void Child::_exit( Rc rc , const char* msg1 , const char* msg2 ) {                                                             // signal-safe
+	bool        ok = true              ;
+	const char* e  = ::strerror(errno) ;
+	// /!\ cannot use high level I/O because we are only allowed signal-safe functions
+	/**/                                                                       ok &= ::write(2,"cannot spawn (",14                )>=0 ;
+	/**/                                 { size_t l=::strlen(e             ) ; ok &= ::write(2,e               ,l                 )>=0 ; }
+	/**/                                                                       ok &= ::write(2,") "            ,2                 )>=0 ;
+	if ( _child_args && _child_args[0] ) { size_t l=::strlen(_child_args[0]) ; ok &= ::write(2,_child_args[0]  ,l                 )>=0 ; }
+	if ( _child_args && _child_args[0] )                                       ok &= ::write(2," : "           ,3                 )>=0 ;
+	if ( msg1                          ) { size_t l=::strlen(msg1          ) ; ok &= ::write(2,msg1            ,l-(msg1[l-1]=='/'))>=0 ; } // suppress ending /
+	if ( msg2                          ) { size_t l=::strlen(msg2          ) ; ok &= ::write(2,msg2            ,l-(msg2[l-1]=='/'))>=0 ; } // .
+	/**/                                                                       ok &= ::write(2,"\n"            ,1                 )>=0 ;
+	if (!ok) rc = Rc::System ;
+	::_exit(+rc) ;             // /!\ cannot use exit as we are only allowed signal-safe functions
 }
 
 void Child::spawn() {

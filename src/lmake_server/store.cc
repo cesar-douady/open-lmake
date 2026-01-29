@@ -624,7 +624,7 @@ namespace Engine::Persistent {
 			RealPath::SolveReport sr = real_path.solve(no_slash(val.tab),false/*no_follow*/) ;                                         // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
 			if (+sr.lnks) throw cat("codec table ",val.tab," has symbolic link ",sr.lnks[0]," in its path") ;
 			//
-			if (is_dir_name(val.tab)) {
+			if (val.is_dir()) {
 				if (is_lcl(val.tab)) throw cat("codec table ",key," must not end with /, consider : lmake.config.codecs.",key," = ",mk_py_str(no_slash(val.tab))) ;
 				try {
 					for( ::string d_s=val.tab ;; d_s=dir_name_s(d_s) )                                                                 // try all accessible uphill dirs

@@ -18,14 +18,16 @@ namespace Codec {
 
 	CodecServerSide::CodecServerSide( ::vmap_ss const& dct , FileSync dflt_file_sync ) {
 		Trace trace(CodecChnl,"Codec::Codec",dct.size()) ;
-		bool is_dir = false/*garbage*/ ;                               // necessary to please compiler to avoid a maybe used unitialized warning
+		bool is_dir = false/*garbage*/ ;                                                                                             // avoid unitialized warning
 		for( auto const& [key,val] : dct ) {
+			throw_if( key=="__all__" , "__all__ not supported yet in codec config.py" ) ;                                            // XXX : support (mimic cache)
 			try {
 				switch (key[0]) {
-					case 'd' : if (key=="dir"      ) { tab       =                   val  ; is_dir = true  ; continue ; } break ;
+					case '_' :                                                                                            continue ; // ignore private variables
+					case 'd' : if (key=="dir"      ) { tab       = with_slash       (val) ; is_dir = true  ; continue ; } break    ;
 					case 'f' : if (key=="file"     ) { tab       =                   val  ; is_dir = false ; continue ; }
-					/**/       if (key=="file_sync") { file_sync = mk_enum<FileSync>(val) ;                  continue ; } break ;
-					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >(val) ;                  continue ; } break ;
+					/**/       if (key=="file_sync") { file_sync = mk_enum<FileSync>(val) ;                  continue ; } break    ;
+					case 'p' : if (key=="perm"     ) { perm_ext  = mk_enum<PermExt >(val) ;                  continue ; } break    ;
 				DN}
 			} catch (::string const& e) {
 				trace("bad_val",key,val) ;
@@ -34,16 +36,54 @@ namespace Codec {
 			trace("bad_repo_key",key) ;
 			throw cat("wrong key (",key,") in lmake.config.codecs") ;
 		}
-		throw_unless( +tab , "codec dir or file must be specified" ) ;
-		if (!is_dir) file_sync = dflt_file_sync ;                      // for local codec, file synchro is the same as any other file
+		throw_unless( +tab , "codec table must be specified" ) ;
+		if (!is_dir) {
+			throw_if( is_dir_name(tab) , "codec dir table cannot be local in repo : ",tab ) ;
+			file_sync = dflt_file_sync ;                                                                                             // for local codec, file synchro is the same as any other file
+		}
 		trace("done",tab,file_sync,perm_ext) ;
+	}
+
+
+	CodecServerSide::CodecServerSide( ::string const& dir_s ) {
+		Trace trace(CodecChnl,"Codec::Codec",dir_s) ;
+		try {
+			::string             config_file = cat(dir_s,AdminDirS,"config.py") ;
+			AcFd                 config_fd   { config_file }                    ;
+			Gil                  gil         ;
+			Ptr<Dict>            py_config   = py_run(config_fd.read())         ;
+			::optional<::uset_s> all         ;
+			for( auto const& [py_k,py_v] : *py_config )
+				if (::string(py_k.as_a<Str>())=="__all__") {
+					all = ::uset_s() ;
+					for( Object& py_e : py_v.as_a<Sequence>() ) all->insert(py_e.as_a<Str>()) ;
+					break ;
+				}
+			for( auto const& [k,v] : ::vmap_ss(*py_config) ) {
+				try {
+					if (+all) { if (!all->contains(k)) continue ; } // ignore private variables
+					else      { if (k[0]== '_'       ) continue ; } // .
+					switch (k[0]) {
+						case 'f' : if (k=="file_sync") { file_sync = mk_enum<FileSync>(v) ; continue ; } break ;
+						case 'p' : if (k=="perm"     ) { perm_ext  = mk_enum<PermExt> (v) ; continue ; } break ;
+					DN}
+				} catch (::string const& e) {
+					trace("bad_val",k,v) ;
+					throw cat("wrong value (",e,") for entry ",k," : ",v) ;
+				}
+				trace("bad_codec_key",k) ;
+				throw cat("wrong key (",k,") in ",config_file) ;
+			}
+		} catch (::string const& e) {
+			exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",dir_s,rm_slash," : ",e ) ;
+		}
 	}
 
 	::vmap_ss CodecServerSide::descr() const {
 		return {
-			{ is_dir_name(tab)?"dir":"file" ,           tab        }
-		,	{ "file_sync"                   , snake_str(file_sync) }
-		,	{ "perm_ext"                    , snake_str(perm_ext ) }
+			{ is_dir()?"dir":"file" ,           tab        }
+		,	{ "file_sync"           , snake_str(file_sync) }
+		,	{ "perm_ext"            , snake_str(perm_ext ) }
 		} ;
 	}
 
@@ -505,7 +545,7 @@ namespace Engine {
 		mk_dir_s( local_admin_dir_s , {.force=true} ) ;
 		//
 		for( auto const& [_,e] : codecs )
-			if (is_dir_name(e.tab)) {
+			if (e.is_dir()) {
 				SWEAR( !is_lcl(e.tab) , e.tab ) ;
 				ext_codec_dirs_s.push_back(e.tab) ;
 			}

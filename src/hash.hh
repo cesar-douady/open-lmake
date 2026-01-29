@@ -37,7 +37,8 @@ namespace Hash {
 	struct Crc {
 		friend ::string& operator+=( ::string& , Crc const ) ;
 		using Val = uint64_t ;
-		static constexpr uint8_t NChkBits = 8 ;                                                                  // as Crc may be used w/o protection against collision, ensure we have some margin
+		static constexpr uint8_t HexSz    = 2*sizeof(Val) ;                                                      // 2 chars for each byte
+		static constexpr uint8_t NChkBits = 8             ;                                                      // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
 		static constexpr Val ChkMsk = Val(-1)>>NChkBits ;                                                        // lsb's are used for various manipulations
 		//

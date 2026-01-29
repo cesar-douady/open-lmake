@@ -82,14 +82,14 @@ namespace Hash {
 	}
 
 	Crc Crc::s_from_hex(::string_view sv) {
-		SWEAR( sv.size()==2*sizeof(Val) , sv.size() , sv ) ;
+		throw_unless( sv.size()==2*sizeof(Val) , "bad crc hex : ", sv ) ;
 		Crc res { Val(0) } ;
 		for( size_t i : iota(sizeof(res._val)) ) {
 			char msb = sv[2*i  ] ;
 			char lsb = sv[2*i+1] ;
 			uint8_t b =
-				( '0'<=msb && msb<='9' ? msb-'0' : 'a'<=msb && msb<='f' ? 10+msb-'a' : (FAIL(sv),0) )<<4
-			|	( '0'<=lsb && lsb<='9' ? lsb-'0' : 'a'<=lsb && lsb<='f' ? 10+lsb-'a' : (FAIL(sv),0) )
+				( '0'<=msb && msb<='9' ? msb-'0' : 'a'<=msb && msb<='f' ? 10+msb-'a' : throw cat("bad crc hex : ",sv) )<<4
+			|	( '0'<=lsb && lsb<='9' ? lsb-'0' : 'a'<=lsb && lsb<='f' ? 10+lsb-'a' : throw cat("bad crc hex : ",sv) )
 			;
 			res._val |= Val(b)<<(8*i) ;
 		}

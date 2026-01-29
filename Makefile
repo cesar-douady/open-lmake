@@ -244,9 +244,10 @@ LMAKE_SERVER_BIN_FILES := \
 	bin/lmake                    \
 	bin/lmark                    \
 	bin/lmake_repair             \
+	bin/lmake_server             \
 	bin/lcache_server            \
 	bin/lcache_repair            \
-	bin/lmake_server             \
+	bin/lcodec_repair            \
 	bin/lrun_cc                  \
 	bin/lshow                    \
 	bin/xxhsum
@@ -578,34 +579,17 @@ CACHE_SAN_OBJS := \
 	src/cache/engine$(SAN).o      \
 	src/cache/cache_utils$(SAN).o
 
-bin/lmake_server : \
-	$(SERVER_SAN_OBJS)  \
-	$(BACKEND_SAN_OBJS) \
-	src/lmake_server/main$(SAN).o
-
-bin/lmake_repair : $(SERVER_SAN_OBJS) $(BACKEND_SAN_OBJS) src/lmake_repair$(SAN).o # lmake_repair must be aware of existing backends
-_bin/lmake_dump  : $(SERVER_SAN_OBJS)                     src/lmake_dump$(SAN).o
-_bin/lcache_dump : $(CACHE_SAN_OBJS)                      src/cache/lcache_dump$(SAN).o
-_bin/lkpi        : $(SERVER_SAN_OBJS)                     src/lkpi$(SAN).o
+bin/lmake_server  : $(SERVER_SAN_OBJS) $(BACKEND_SAN_OBJS) src/lmake_server/main$(SAN).o
+bin/lmake_repair  : $(SERVER_SAN_OBJS) $(BACKEND_SAN_OBJS) src/lmake_repair$(SAN).o      # lmake_repair must be aware of existing backends
+_bin/lmake_dump   : $(SERVER_SAN_OBJS)                     src/lmake_dump$(SAN).o
+bin/lcache_server :                    $(CACHE_SAN_OBJS)   src/cache/lcache_server$(SAN).o
+bin/lcache_repair : $(SERVER_SAN_OBJS) $(CACHE_SAN_OBJS)   src/cache/lcache_repair$(SAN).o
+_bin/lcache_dump  :                    $(CACHE_SAN_OBJS)   src/cache/lcache_dump$(SAN).o
+bin/lcodec_repair : $(SERVER_SAN_OBJS) $(CACHE_SAN_OBJS)   src/lcodec_repair$(SAN).o
+_bin/lkpi         : $(SERVER_SAN_OBJS)                     src/lkpi$(SAN).o
 
 LMAKE_DBG_FILES += bin/lmake_server bin/lmake_repair _bin/lmake_dump _bin/lcache_dump _bin/lkpi
-bin/lmake_server bin/lmake_repair _bin/lmake_dump _bin/lcache_dump _bin/lkpi :
-	@mkdir -p $(@D)
-	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
-	@$(SPLIT_DBG_CMD)
-
-bin/lcache_server : $(CACHE_SAN_OBJS) src/cache/lcache_server$(SAN).o
-	@mkdir -p $(@D)
-	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
-	@$(SPLIT_DBG_CMD)
-
-bin/lcache_repair : \
-	$(SERVER_SAN_OBJS)              \
-	src/cache/engine$(SAN).o        \
-	src/cache/cache_utils$(SAN).o   \
-	src/cache/lcache_repair$(SAN).o
+bin/lmake_server bin/lmake_repair _bin/lmake_dump bin/lcache_server bin/lcache_repair _bin/lcache_dump bin/lcodec_repair _bin/lkpi :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)

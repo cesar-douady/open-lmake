@@ -319,7 +319,7 @@ def avoid_ctx(name,*ctxs) :                         # find a non-conflicting nam
 
 def lcl_mod_file(mod) :
 	m = importlib.import_module(mod)
-	try    : return lmake._maybe_lcl(m.__file__) and m.__file__
+	try    : return m.__file__ and lmake._maybe_lcl(m.__file__)
 	except : return False                                       # if __file__ attribute cannot be found, this is a system module
 
 class Handle :

@@ -142,17 +142,10 @@ namespace Py {
 		return res ;
 	}
 
-	static Ptr<Dict> _mk_glbs() {
-		Ptr<Dict> res { New } ;
-		res->set_item( "inf" , *Ptr<Float>(Inf) ) ; // this is how non-finite floats are printed with print
-		res->set_item( "nan" , *Ptr<Float>(Nan) ) ; // .
-		return res ;
-	}
-
 	template<bool Run> static Ptr<::conditional_t<Run,Dict,Object>> _py_eval_run( ::string const& expr , Dict* glbs , Sequence const* sys_path ) {
 		Gil::s_swear_locked() ;
 		Ptr<Dict> fresh_glbs ;
-		if (!glbs) glbs = fresh_glbs = _mk_glbs() ;
+		if (!glbs) glbs = fresh_glbs = New ;
 		WithSysPath  wsp { sys_path } ;
 		WithBuiltins wb  { *glbs    } ;
 		Ptr<> res = PyRun_String( expr.c_str() , Run?Py_file_input:Py_eval_input , glbs->to_py() , glbs->to_py() ) ;
@@ -236,7 +229,7 @@ namespace Py {
 			PyObject    * c =                                           code.to_py()   ;
 		#endif
 		Ptr<Dict> fresh_glbs ;
-		if (!glbs) glbs = fresh_glbs = _mk_glbs() ;
+		if (!glbs) glbs = fresh_glbs = New ;
 		WithSysPath  wsp { sys_path } ;
 		WithBuiltins wb  { *glbs    } ;
 		Ptr<> res = PyEval_EvalCode( c , glbs->to_py() , nullptr ) ;

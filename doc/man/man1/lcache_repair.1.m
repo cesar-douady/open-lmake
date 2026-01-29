@@ -5,24 +5,21 @@ Comment(
 	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 )
 
-Title(lcache_repair,repair a OpenLmake daemon-based cache)
+Title(lcache_repair,repair a open-lmake cache)
 .SH SYNOPSIS
-B(lcache_repair) [I(-n)|I(--dry-run)] I(dir)
+B(lcache_repair) [I(-n)|I(--dry-run)] [I(-f)|I(--force)] I(dir)
 
 .SH DESCRIPTION
 .LP
-B(lcache_repair) is meant to repair a daemon-based cache (a cache whose tag is I(daemon)).
+B(lcache_repair) is meant to repair a cache.
 Its argument specifies the dir to repair.
 .LP
-This may be usedful either because you experience incoherent behaviors and this is less agressive than setting up a fresh dir.
+This may be usedful because you experience incoherent behaviors and this is less agressive than setting up a fresh dir.
 .LP
 Also, if for some management reason you want to dismiss some entries, you can remove any part of the cache and run this command to restore a coherent state.
 The structure of the cache dir is fairly simple: all the data linked to a job is under a dir named after the job name.
 .LP
-When running, B(lcache_repair) generates a trace of its activity.
-These may be:
-.LP
-Item(rm) Any file not necessary for running the cache is removed.
+When running, B(lcache_repair) first prints what it is about to do before actually proceeding with the actions.
 
 .SH "EXIT STATUS"
 .LP
@@ -38,12 +35,13 @@ Item(B(12)) bad cache version, cache needs to be cleaned
 .SH OPTIONS
 .LP
 Item(B(-n),B(--dry-run)) Report actions to carry out but do not actually perform them.
+Item(B(-f),B(--force)) Dont ask for user confirmation before performing the actions.
 
 ClientGeneralities()
 
 .SH EXAMPLES
 .LP
-V(lcache_repair)
+V(lcache_repair /path/to/cache)
 
 .SH FILES
 CommonFiles

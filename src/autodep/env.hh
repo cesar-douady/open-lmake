@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "disk.hh"
 #include "fd.hh"
 #include "real_path.hh"
 #include "serialize.hh"
@@ -19,6 +20,7 @@ namespace Codec {
 		operator ::string() const ;
 		// accesses
 		bool operator==(CodecRemoteSide const&) const = default ;
+		bool is_dir() const { return Disk::is_dir_name(tab) ; }
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,tab      ) ;

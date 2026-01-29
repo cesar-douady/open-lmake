@@ -31,8 +31,8 @@ namespace Engine::Makefiles {
 		::vmap_s<::optional_s> user_env ;
 	} ;
 
-	static constexpr const char* EnvironFile  = ADMIN_DIR_S "environ"  ; // provided to user, contains only variables used in Lmakefile.py
-	static constexpr const char* ManifestFile = ADMIN_DIR_S "manifest" ; // provided to user, contains the list of source files
+	static constexpr const char* EnvironFile  = ADMIN_DIR_S "environ"   ; // provided to user, contains only variables used in Lmakefile.py
+	static constexpr const char* ManifestFile = ADMIN_DIR_S "manifest"  ; // provided to user, contains the list of source files
 
 	static ::string _g_tmp_dir_s    = cat(AdminDirS,"lmakefile_tmp/") ;
 	static ::string _g_user_env_str ;
@@ -184,8 +184,6 @@ namespace Engine::Makefiles {
 		Gather   gather    ;
 		::string tmp_dir_s = cat(_g_tmp_dir_s,action,'/')            ;
 		//
-		set_env( "TMPDIR" , no_slash(*g_repo_root_s+tmp_dir_s) ) ;
-		mk_dir_empty_s(tmp_dir_s) ;                                 // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
 		//
 		gather.autodep_env.fqdn        = fqdn()                                                                                                                    ;
 		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                     ;
@@ -196,7 +194,13 @@ namespace Engine::Makefiles {
 		gather.child_stdout            = Child::PipeFd                                                                                                             ;
 		gather.child_stderr            = Child::JoinFd                                                                                                             ;
 		//
-		{	SavPyLdLibraryPath spllp ;
+		{	struct SavTmpDir {
+				SavTmpDir (::string const& val) { set_env( "TMPDIR" , val ) ; }
+				~SavTmpDir(                   ) { del_env( "TMPDIR"       ) ; }
+			} ;
+			SavPyLdLibraryPath spllp       ;
+			SavTmpDir          sav_tmp_dir { no_slash(*g_repo_root_s+tmp_dir_s) } ;
+			mk_dir_empty_s(tmp_dir_s) ;                                             // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
 			//              vvvvvvvvvvvvvvvvvvv
 			Status status = gather.exec_child() ;
 			//              ^^^^^^^^^^^^^^^^^^^
@@ -206,18 +210,16 @@ namespace Engine::Makefiles {
 				else             throw ::pair( cat("cannot read ",action                           ) , Rc::BadMakefile ) ;
 			}
 		}
-		del_env("TMPDIR") ;
 		//
 		deps.files.reserve(gather.accesses.size()) ;
 		::string   deps_str = AcFd(data_file).read() ;
 		::uset_s   dep_set  ;
 		try                       { py_info = py_eval(deps_str) ; }
-		catch (::string const& e) { FAIL(e) ;                     } // NO_COV
-		for( auto const& [d,ai] : gather.accesses ) {
-			if (ai.first_write()<Pdate::Future) continue ;
-			::string py ; if ( Match m = pyc_re->match(d) ; +m ) py = cat( m.group(d,1/*dir_s*/) , m.group(d,2/*module*/) , ".py" ) ;
-			if (+py) { trace("dep",d,"->",py) ; if (dep_set.insert(py).second) deps.files.push_back(py) ; }
-			else     { trace("dep",d        ) ; if (dep_set.insert(d ).second) deps.files.push_back(d ) ; }
+		catch (::string const& e) { FAIL(e) ;                     }                 // NO_COV
+		for( auto& [d,ai] : gather.accesses ) {
+			/**/             if ( ai.first_write()<Pdate::Future )   continue ;
+			trace("dep",d) ; if ( Match m=pyc_re->match(d) ; +m  ) { d = cat(m.group(d,1/*dir_s*/),m.group(d,2/*module*/),".py") ; trace("dep_py",d) ; }
+			/**/             if ( dep_set.insert(d).second       )   deps.files.push_back(::move(d)) ;
 		}
 		if (py_info->contains("user_environ")) {
 			for( auto const& [py_key,py_val] : py_info->get_item("user_environ").as_a<Dict>() )

@@ -48,38 +48,50 @@ if action=='gen' :
 		tab = {}
 		#
 		for slot in slots :
-			semantic = '\n'.join( m[0] for m in re.findall(fr'(.*//.*START_OF_VERSIONING(.*{to_snake(slot).upper()}.*)?\n[\s\S]*?END_OF_VERSIONING.*)',content) )
-			semantic = re.sub(r'//.*',''    ,semantic)
+			lines    = '\n'.join( m[0] for m in re.findall(fr'(.*//.*START_OF_VERSIONING(.*{to_snake(slot).upper()}.*)?\n[\s\S]*?END_OF_VERSIONING.*)',content) )
+			semantic = re.sub(r'//.*',''    ,lines   )
 			semantic = re.sub(r'/\*.*\*/','',semantic)
 			semantic = re.sub(r'[ \t\n]' ,'',semantic)
 			#
 			h = hashlib.md5()
 			h.update(semantic.encode())
-			tab[slot] = h.hexdigest()
+			tab[slot] = ( h.hexdigest() , lines )
 		return tab
 
 	def merge(prev_tab,new_crcs) :
 		tab = {}
 		for slot,prev in prev_tab.items() :
-			if new_crcs[slot]==prev[1] : tab[slot] = prev
-			else                       : tab[slot] = ( prev[0]+1 , new_crcs[slot] )
+			if new_crcs[slot][0]==prev[1] : tab[slot] = ( prev[0]   , new_crcs[slot] )
+			else                          : tab[slot] = ( prev[0]+1 , new_crcs[slot] )
 		return tab
 
 	def mk_cc(tab) :
 		wk = max( len('Major') , len('Tag') , *(len(slot) for slot in tab.keys()) )
 		wv = len(os.getenv('VERSION'))+2
-		if True                : txt  =  '#include "version.hh"\n'
-		if True                : txt +=  'namespace Version {\n'
-		for slot in tab.keys() : txt += f'\tuint64_t    constexpr {slot   :<{wk}} = { tab[slot][0]        :<{wv   }} ; // {tab[slot][1]}\n'
-		if True                : txt += f'\tconst char* const     {"Major":<{wk}} = "{os.getenv("VERSION"):<{wv-2}}" ;\n'
-		if True                : txt += f'\tuint64_t    constexpr {"Tag"  :<{wk}} = { os.getenv("TAG"    ):<{wv   }} ;\n'
-		if True                : txt +=  '}\n'
+		txt = ''
+		txt +=  '#include "version.hh"\n'
+		txt +=  'namespace Version {\n'
+		for slot,entry in tab.items() :
+			val,(crc,lines) = entry
+			txt += f'\tuint64_t    constexpr {slot:<{wk}} = {val:<{wv}} ; // {crc}\n'
+		txt += f'\tconst char* const     {"Major":<{wk}} = "{os.getenv("VERSION"):<{wv-2}}" ;\n'
+		txt += f'\tuint64_t    constexpr {"Tag"  :<{wk}} = { os.getenv("TAG"    ):<{wv   }} ;\n'
+		txt +=  '}\n'
+		for slot,entry in tab.items() :
+			val,(crc,lines) = entry
+			txt += '\n'
+			txt += f"// **{'*'*len(slot)}***{'*'*len(crc)}**\n"
+			txt += f'// * {slot} : {crc} *\n'
+			txt += f"// **{'*'*len(slot)}***{'*'*len(crc)}**\n"
+			txt += '//\n'
+			txt += '//' + lines.replace('\n','\n//\t').replace('\t\n','\n')
+			if txt[-1]!='\n' : txt += '\n'
 		return txt
 
-	slots    = mk_slots( slots_def           )
-	prev_tab = from_cc ( prev_cc  , slots    )
-	new_crcs = analyze ( src      , slots    )
-	new_tab  = merge   ( prev_tab , new_crcs )
+	slots         = mk_slots( slots_def                )
+	prev_tab      = from_cc ( prev_cc  , slots         )
+	new_crc_lines = analyze ( src      , slots         )
+	new_tab       = merge   ( prev_tab , new_crc_lines )
 	#
 	sys.stdout.write(mk_cc(new_tab))
 

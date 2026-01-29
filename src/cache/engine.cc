@@ -15,7 +15,8 @@ using namespace Py   ;
 using namespace Time ;
 
 CacheConfig g_cache_config ;
-DiskSz      g_reserved_sz  = 0 ;
+DiskSz      g_reserved_sz  = 0                            ;
+::string    g_store_dir_s  = PRIVATE_ADMIN_DIR_S "store/" ;
 
 CkeyFile      _g_key_file       ;
 CjobNameFile  _g_job_name_file  ;
@@ -31,13 +32,6 @@ CcrcsFile     _g_crcs_file      ;
 // aging for entries in different buckets are proportional to its associated rate to minimize overall cpu in case of miss due to victimization
 // higher rates means easier to recompute, so vicimitization is favored
 // to avoid searching all buckets for each victimization, a sorted tab is maintained, but order changes with time, so it is regularly refreshed (at most once every second)
-
-::string store_dir_s(bool for_bck) {
-	::string res = cat(PrivateAdminDirS,"store") ;
-	if (for_bck) res << ".bck" ;
-	add_slash(res) ;
-	return res ;
-}
 
 struct RateCmp {
 	// statics
@@ -134,18 +128,26 @@ void cache_init( bool rescue , bool read_only ) {
 	Trace trace("cache_init",STR(rescue),STR(read_only)) ;
 	//
 	try {
-		::string config_file = ADMIN_DIR_S "config.py" ;
-		AcFd     config_fd   { config_file }           ;
-		Gil      gil         ;
-		for( auto const& [k,v] : ::vmap_ss(*py_run(config_fd.read())) ) {
+		::string             config_file = ADMIN_DIR_S "config.py"  ;
+		AcFd                 config_fd   { config_file }            ;
+		Gil                  gil         ;
+		Ptr<Dict>            py_config   = py_run(config_fd.read()) ;
+		::optional<::uset_s> all         ;
+		for( auto const& [py_k,py_v] : *py_config )
+			if (::string(py_k.as_a<Str>())=="__all__") {
+				all = ::uset_s() ;
+				for( Object& py_e : py_v.as_a<Sequence>() ) all->insert(py_e.as_a<Str>()) ;
+				break ;
+			}
+		for( auto const& [k,v] : ::vmap_ss(*py_config) ) {
 			try {
+				if (+all) { if (!all->contains(k)) continue ; }                                                                                   // ignore private variables
+				else      { if (k[0]=='_'        ) continue ; }                                                                                   // .
 				CacheConfig& ccfg = g_cache_config ;
 				switch (k[0]) {
 					case 'f' : if (k=="file_sync"       ) { ccfg.file_sync        = mk_enum<FileSync>    (v) ;                                                                continue ; } break ;
-					case 'i' : if (k=="inf"             ) {                                                                                                                   continue ; } break ;
 					case 'm' : if (k=="max_rate"        ) { ccfg.max_rate         = from_string_with_unit(v) ; throw_unless( ccfg.max_rate        >0 , "must be positive" ) ; continue ; }
 					/**/       if (k=="max_runs_per_job") { ccfg.max_runs_per_job = from_string<uint16_t>(v) ; throw_unless( ccfg.max_runs_per_job>0 , "must be positive" ) ; continue ; } break ;
-					case 'n' : if (k=="nan"             ) {                                                                                                                   continue ; } break ;
 					case 'p' : if (k=="perm"            ) { ccfg.perm_ext         = mk_enum<PermExt>     (v) ;                                                                continue ; } break ;
 					case 's' : if (k=="size"            ) { ccfg.max_sz           = from_string_with_unit(v) ;                                                                continue ; } break ;
 				DN}
@@ -175,16 +177,15 @@ void cache_init( bool rescue , bool read_only ) {
 	} catch (::string const&) {}                                                                                                                 // best effort
 	//
 	// START_OF_VERSIONING CACHE
-	::string dir_s     = store_dir_s()              ;
-	NfsGuard nfs_guard { g_cache_config.file_sync } ;
-	{ ::string file=dir_s+"key"       ; nfs_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
-	{ ::string file=dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
-	{ ::string file=dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
-	{ ::string file=dir_s+"job"       ; nfs_guard.access(file) ; _g_job_file      .init( file , !read_only ) ; }
-	{ ::string file=dir_s+"run"       ; nfs_guard.access(file) ; _g_run_file      .init( file , !read_only ) ; }
-	{ ::string file=dir_s+"node"      ; nfs_guard.access(file) ; _g_node_file     .init( file , !read_only ) ; }
-	{ ::string file=dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
-	{ ::string file=dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
+	NfsGuard nfs_guard { g_cache_config.file_sync }   ;
+	{ ::string file=g_store_dir_s+"key"       ; nfs_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"job"       ; nfs_guard.access(file) ; _g_job_file      .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"run"       ; nfs_guard.access(file) ; _g_run_file      .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"node"      ; nfs_guard.access(file) ; _g_node_file     .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 	// END_OF_VERSIONING
 	if (rescue) {
 		cache_chk() ;
@@ -203,17 +204,16 @@ void cache_empty_trash() {
 }
 
 void cache_finalize() {
-	::string dir_s     = cat(PrivateAdminDirS,"store/") ;
-	NfsGuard nfs_guard { g_cache_config.file_sync }     ;
-	Trace trace("cache_finalize",dir_s) ;
-	nfs_guard.change(dir_s+"key"      ) ;
-	nfs_guard.change(dir_s+"job_name" ) ;
-	nfs_guard.change(dir_s+"node_name") ;
-	nfs_guard.change(dir_s+"job"      ) ;
-	nfs_guard.change(dir_s+"run"      ) ;
-	nfs_guard.change(dir_s+"node"     ) ;
-	nfs_guard.change(dir_s+"nodes"    ) ;
-	nfs_guard.change(dir_s+"crcs"     ) ;
+	NfsGuard nfs_guard { g_cache_config.file_sync } ;
+	Trace trace("cache_finalize") ;
+	nfs_guard.change(g_store_dir_s+"key"      ) ;
+	nfs_guard.change(g_store_dir_s+"job_name" ) ;
+	nfs_guard.change(g_store_dir_s+"node_name") ;
+	nfs_guard.change(g_store_dir_s+"job"      ) ;
+	nfs_guard.change(g_store_dir_s+"run"      ) ;
+	nfs_guard.change(g_store_dir_s+"node"     ) ;
+	nfs_guard.change(g_store_dir_s+"nodes"    ) ;
+	nfs_guard.change(g_store_dir_s+"crcs"     ) ;
 	trace("done") ;
 }
 
@@ -494,15 +494,15 @@ void CrunData::access() {
 void CrunData::victimize(bool victimize_job) {
 	CrunHdr& hdr = s_hdr() ;
 	Trace trace("victimize",idx(),STR(victimize_job),hdr.total_sz,sz) ;
-	RateCmp::s_tab.erase(rate) ;                                                     // erase from tab before pruning glb_lru chain as lru is necessary for comparison
-	bool last = job_lru.erase( job->lru              , &CrunData::job_lru ) ;        // manage job-local LRU
-	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , &CrunData::glb_lru ) ;        // manage global    LRU
+	RateCmp::s_tab.erase(rate) ;                                              // erase from tab before pruning glb_lru chain as lru is necessary for comparison
+	bool last = job_lru.erase( job->lru              , &CrunData::job_lru ) ; // manage job-local LRU
+	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , &CrunData::glb_lru ) ; // manage global    LRU
 	//
 	if (!RateCmp::s_lrus[rate].newer/*oldest*/) {
 		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[0]  ]) RateCmp::s_iota.bounds[0]++ ;
 		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[1]-1]) RateCmp::s_iota.bounds[1]-- ;
 	} else {
-		RateCmp::s_insert(rate) ;                                                    // erase and re-insert is necessary when glb_lru chain is modified
+		RateCmp::s_insert(rate) ;                                             // erase and re-insert is necessary when glb_lru chain is modified
 	}
 	//
 	/**/                           key.dec()     ;

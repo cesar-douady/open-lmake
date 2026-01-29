@@ -118,6 +118,7 @@ define(`SeeAlsoSection',`
 	ifelse(Name,lcache_repair,,`C(lcache_repair),'                 )
 	ifelse(Name,lcache_server,,`C(lcache_server),'                 )
 	ifelse(Name,lcheck_deps,  ,`C(lcheck_deps),'                   )
+	ifelse(Name,lcodec_repair,,`C(lcodec_repair),'                 )
 	ifelse(Name,lcollect,     ,`C(lcollect),'                      )
 	ifelse(Name,ldebug,       ,`C(ldebug),'                        )
 	ifelse(Name,ldecode,      ,`C(ldecode),'                       )

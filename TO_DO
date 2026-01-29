@@ -59,6 +59,9 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* suppress first * in codec files
+* suppress perm in cache and codec config
+	- spy dir permissions and xattr
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly
@@ -83,8 +86,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* add full text from which crc is derived as comments in version.cc
-	- easier to visualize diffs
+* ensure . or .. cannot be used as codec codes
 * forbid accesses to files :
 	- /dev/random
 	- /dev/urandom

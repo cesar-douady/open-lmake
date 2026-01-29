@@ -36,7 +36,7 @@ def check_version(major,minor=0) :
 	if major!=version[0] or minor>version[1] : raise RuntimeError('required version '+str((major,minor))+' is incompatible with native version '+str(version))
 
 def _maybe_lcl(file) :
-	'fast check for local files, avoiding full absolute path generation'
+	'fast check for local files, avoiding disk access'
 	if not file                             : return True
 	if file.startswith(top_repo_root)       : return True
 	if file[0]=='/'                         : return False

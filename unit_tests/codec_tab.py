@@ -55,6 +55,12 @@ if __name__!='__main__' :
 			assert l[2]==File,f'{l[2]!r} != {File!r}'
 			assert l[3]==File,f'{l[3]!r} != {File!r}'
 
+	class Chk2(PyRule) :
+		target = r'chk2'
+		def cmd() :
+			v = lmake.decode('dir_codec','ctx','user_code')
+			assert v=='user_val\n',f'bad user_val : {v}'
+
 else :
 
 	import ut
@@ -75,3 +81,8 @@ else :
 	os.unlink('codec_py')
 
 	ut.lmake( 'codec_sh' , 'codec_py' , steady=2 )
+
+	print('user_val',file=open('../codec_files/tab/*ctx/user_code.decode','w'))
+	os.system('lcodec_repair -fr ../codec_files/tab')
+
+	ut.lmake( 'chk2' , done=1 )

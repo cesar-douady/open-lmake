@@ -57,6 +57,14 @@ class UserEnvironDict(pdict) :
 	def __delitem__(self,key    ) : raise TypeError('user_environ is read-only'           )
 	def __iter__   (self        ) : raise TypeError('user_environ cannot be iterated over') # record all keys if it turns out to be necessary
 
+def report_user_err(e) :
+	# remove part of the traceback which is internal to open-lmake to avoid message pollution when reporting a user error
+	import traceback
+	tb = e.__traceback__
+	if tb!=None and tb.tb_next!=None : tb = tb.tb_next
+	traceback.print_exception( e.__class__ , e , tb )
+	exit(1)
+
 lmake.user_environ = UserEnvironDict(user_environ)
 
 sys.path.pop   (0  ) # suppress access to _lib (not  for user usage)
@@ -65,10 +73,13 @@ sys.path.append('.') # add access to repo      (only for user usage)
 config = pdict()
 if '.config.' in actions :
 	from importlib.util import find_spec
-	import Lmakefile                               # import only when necessary
-	is_pkg = hasattr(Lmakefile,'__path__')
-	if   callable(getattr(Lmakefile,'config',None)) : Lmakefile.config()
-	elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
+	try :
+		import Lmakefile                           # import only when necessary
+		is_pkg = hasattr(Lmakefile,'__path__')
+		if   callable(getattr(Lmakefile,'config',None)) : Lmakefile.config()
+		elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
+	except Exception as e : report_user_err(e)
+	#
 	config = lmake.config
 	if not isinstance(config,pdict) : config = pdict.mk_deep(config)
 	config.extra_manifest = lmake.extra_manifest
@@ -112,24 +123,38 @@ if '.config.' in actions :
 		if 'codecs' in config :
 			for key,codec in config.codecs.items() :
 				if _maybe_lcl(codec) :
-					d = { 'file' : codec }
+					d = {'file':codec}
 				else :
+					config_file = osp.join(codec,'LMAKE/config.py')
+					try :
+						config_str = open(config_file).read()
+					except Exception as e :
+						print(f'cannot load codec config : {e}',file=sys.stderr)
+						exit(1)
 					d = {}
-					exec(open(osp.join(codec,'LMAKE/config.py')).read(),d,d)
-					del d['__builtins__']
+					try                   : exec(compile(config_str,config_file,'exec'),d)
+					except Exception as e : report_user_err(e)
+					if '__all__' in d :
+						all = set(d['__all__'])
+						d   = { k:v for k,v in d.items() if k in all }
+					else :
+						d = { k:v for k,v in d.items() if not k.startswith('_') }
 					d['dir'] = codec
 				config.codecs[key] = d
 
 srcs = []
 if '.sources.' in actions :
-	if  '.sources_callable.' in actions :
-		import Lmakefile                  # import only when necessary
-		Lmakefile.sources()
-	elif '.sources_import.' in actions :
-		import Lmakefile.sources
-	elif '.sources_dflt.' in actions :
-		import lmake.sources
-		lmake.manifest = lmake.sources.auto_sources()
+	try :
+		if  '.sources_callable.' in actions :
+				import Lmakefile              # import only when necessary
+				Lmakefile.sources()
+		elif '.sources_import.' in actions :
+				import Lmakefile.sources
+		elif '.sources_dflt.' in actions :
+				import lmake.sources
+				lmake.manifest = lmake.sources.auto_sources()
+	except Exception as e : report_user_err(e)
+	#
 	if not lmake.manifest :
 		print('lmake.manifest is empty',file=sys.stderr)
 		exit(1)
@@ -137,11 +162,14 @@ if '.sources.' in actions :
 
 rules = []
 if '.rules.' in actions :
-	if '.rules_callable.' in actions :
-		import Lmakefile                                                                                 # import only when necessary
-		Lmakefile.rules()
-	elif '.rules_import.' in actions :
-		import Lmakefile.rules
+	try :
+		if '.rules_callable.' in actions :
+			import Lmakefile                                                                             # import only when necessary
+			Lmakefile.rules()
+		elif '.rules_import.' in actions :
+			import Lmakefile.rules
+	except Exception as e : report_user_err(e)
+	#
 	fmt_rule.no_imports |= { r.__module__ for r in lmake._rules if fmt_rule.lcl_mod_file(r.__module__) } # transport by value all local modules that contain at least one rule
 	for r in lmake._rules :
 		r2 = fmt_rule.fmt_rule(r)

@@ -54,6 +54,7 @@ namespace Codec {
 		// cxtors & casts
 		using CodecRemoteSide::CodecRemoteSide ;
 		CodecServerSide( ::vmap_ss const& , FileSync dflt_file_sync ) ;
+		CodecServerSide( ::string const& dir_s                      ) ;
 		// services
 		template<IsStream S> void _serdes(S& s) {
 			::serdes( s , static_cast<CodecRemoteSide&>(self) ) ;

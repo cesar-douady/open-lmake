@@ -7,8 +7,6 @@ import sys as _sys
 
 from . import report_import # from clmake
 
-from . import _maybe_lcl
-
 def _fix_path() :
 	try :
 		if not _sys.path[0] : _sys.path.append(_sys.path.pop(0)) # put entry invented by python at the end to avoid too numerous deps

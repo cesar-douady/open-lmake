@@ -702,10 +702,14 @@ namespace Py {
 			#ifndef NDEBUG                             // avoid executing glb.contains if not debugging
 				SWEAR(!dct.contains("__builtins__")) ;
 			#endif
-			dct.set_item("__builtins__",*Dict::s_builtins) ;
+			dct.set_item( "__builtins__" , *Dict::s_builtins ) ;
+			dct.set_item( "inf"          , *Ptr<Float>(Inf)  ) ; // this is how non-finite floats are printed with print
+			dct.set_item( "nan"          , *Ptr<Float>(Nan)  ) ; // .
 		}
 		~WithBuiltins() {
 			dct.del_item("__builtins__") ;
+			dct.del_item( "inf"        ) ;
+			dct.del_item( "nan"        ) ;
 		}
 		// data
 		Dict& dct ;

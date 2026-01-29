@@ -13,12 +13,12 @@
        table   { margin-top: 0; margin-bottom: 0; vertical-align: top }
        h1      { text-align: center }
 </style>
-<title>LCACHE_REPAIR</title>
+<title>LCODEC_REPAIR</title>
 
 </head>
 <body>
 
-<h1 align="center">LCACHE_REPAIR</h1>
+<h1 align="center">LCODEC_REPAIR</h1>
 
 <a href="#NAME">NAME</a><br>
 <a href="#SYNOPSIS">SYNOPSIS</a><br>
@@ -38,8 +38,8 @@
 </h2>
 
 
-<p style="margin-left:9%; margin-top: 1em">lcache_repair -
-repair a open-lmake cache</p>
+<p style="margin-left:9%; margin-top: 1em">lcodec_repair -
+repair a open-lmake codec table dir</p>
 
 <h2>SYNOPSIS
 <a name="SYNOPSIS"></a>
@@ -47,9 +47,9 @@ repair a open-lmake cache</p>
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><b>lcache_repair</b>
+<p style="margin-left:9%; margin-top: 1em"><b>lcodec_repair</b>
 [<i>-n</i>|<i>--dry-run</i>] [<i>-f</i>|<i>--force</i>]
-<i>dir</i></p>
+[<i>-r</i>|<i>--reconstruct</i>] <i>dir</i></p>
 
 <h2>DESCRIPTION
 <a name="DESCRIPTION"></a>
@@ -57,24 +57,54 @@ repair a open-lmake cache</p>
 
 
 
-<p style="margin-left:9%; margin-top: 1em"><i><b>lcache_repair</b></i>
-is meant to repair a cache. Its argument specifies the dir
-to repair.</p>
+<p style="margin-left:9%; margin-top: 1em"><i><b>lcodec_repair</b></i>
+is meant to repair a codec table dir. Its argument specifies
+the dir to repair.</p>
 
 <p style="margin-left:9%; margin-top: 1em">This may be
 usedful because you experience incoherent behaviors and this
 is less agressive than setting up a fresh dir.</p>
 
-<p style="margin-left:9%; margin-top: 1em">Also, if for
-some management reason you want to dismiss some entries, you
-can remove any part of the cache and run this command to
-restore a coherent state. The structure of the cache dir is
-fairly simple: all the data linked to a job is under a dir
-named after the job name.</p>
+<p style="margin-left:9%; margin-top: 1em">Also, if you
+want to dismiss or modify some entries, you can remove or
+modify any part of the table and run this command to restore
+a coherent state. The structure of the codec table dir is
+fairly simple. Each entry consist of 2 files: <br>
+decoding</p>
+
+<p style="margin-left:18%;">: a file named after
+<b>&lt;context&gt;/&lt;code&gt;.decode</b> contains the
+associated value.</p>
+
+<p style="margin-left:9%;">encoding</p>
+
+<p style="margin-left:18%;">: a symbolic link named after
+<b>&lt;context&gt;/&lt;val_crc&gt;.encode</b> points to the
+decoding file.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Note that
+managing the decoding files is much easier as you do not
+have to handle checksums. Using the <i>-r</i> or
+<i>--reconstruct</i> option will restore fully coherent
+encoding files.</p>
 
 <p style="margin-left:9%; margin-top: 1em">When running,
-<b>lcache_repair</b> first prints what it is about to do
+<b>lcodec_repair</b> first prints what it is about to do
 before actually proceeding with the actions.</p>
+
+<p style="margin-left:9%; margin-top: 1em">If <i>-r</i> or
+<i>--reconstruct</i> is not specified, only fully coherent
+entries are kept, that is entries with coherent decoding and
+encoding files.</p>
+
+<p style="margin-left:9%; margin-top: 1em">If <i>-r</i> or
+<i>--reconstruct</i> is specified, only decoding files are
+considered as source of information and the encoding side is
+reconstructed as necessary. When using this option, it is
+possible for 2 entries with different codes to have the same
+associated value. In that case, only a single code is kept,
+which is chosen by giving preference to user given codes,
+then to shorter codes.</p>
 
 <h2>EXIT STATUS
 <a name="EXIT STATUS"></a>
@@ -163,15 +193,21 @@ do not actually perform them.</p>
 <p style="margin-left:18%;">Dont ask for user confirmation
 before performing the actions.</p>
 
+<p style="margin-left:9%;"><b>-r</b>,
+<b>--reconstruct</b></p>
 
-<p style="margin-left:9%; margin-top: 1em"><b>lcache_repair</b>
+<p style="margin-left:18%;">Reconstruct encoding files from
+decoding files.</p>
+
+
+<p style="margin-left:9%; margin-top: 1em"><b>lcodec_repair</b>
 manages a fully coherent dir called a repo. When it starts,
 it first determines the root of the repo (cf. <b>FILES</b>
 below).</p>
 
 <p style="margin-left:9%; margin-top: 1em">Arguments and
 reports are systematically localized to the current working
-dir. For example, if you launch <b>lcache_repair b</b> from
+dir. For example, if you launch <b>lcodec_repair b</b> from
 dir <b>a</b> in your repo, the argument is file <i>a/b</i>
 from the root of the repo and reports containing filenames
 (initially seen from the root of the repo) will be shown
@@ -182,8 +218,8 @@ relative the the current working dir.</p>
 </h2>
 
 
-<p style="margin-left:9%; margin-top: 1em">lcache_repair
-/path/to/cache</p>
+<p style="margin-left:9%; margin-top: 1em">lcodec_repair
+/path/to/codec_table</p>
 
 <h2>FILES
 <a name="FILES"></a>
@@ -196,7 +232,7 @@ searched in the current dir and in parent dirs. If a single
 one is found, this determines the root of the repo. If
 several are found, the existence of an <i>LMAKE</i> dir is
 checked. If a single one is found, this determines the root
-of the repo. In other cases, <b>lcache_repair</b> will not
+of the repo. In other cases, <b>lcodec_repair</b> will not
 start.</p>
 
 <h2>SEE ALSO
@@ -206,13 +242,13 @@ start.</p>
 
 
 <p style="margin-left:9%; margin-top: 1em"><b>lautodep</b>(1),
-<b>lcache_server</b>(1), <b>lcheck_deps</b>(1),
-<b>lcodec_repair</b>(1), <b>lcollect</b>(1),
-<b>ldebug</b>(1), <b>ldecode</b>(1), <b>ldepend</b>(1),
-<b>lencode</b>(1), <b>lforget</b>(1), <b>lmake</b>(1),
-<b>lmark</b>(1), <b>lmake_repair</b>(1),
-<b>lmake_server</b>(1), <b>lrun_cc</b>(1), <b>lshow</b>(1),
-<b>ltarget</b>(1), <b>xxhsum</b>(1)</p>
+<b>lcache_repair</b>(1), <b>lcache_server</b>(1),
+<b>lcheck_deps</b>(1), <b>lcollect</b>(1), <b>ldebug</b>(1),
+<b>ldecode</b>(1), <b>ldepend</b>(1), <b>lencode</b>(1),
+<b>lforget</b>(1), <b>lmake</b>(1), <b>lmark</b>(1),
+<b>lmake_repair</b>(1), <b>lmake_server</b>(1),
+<b>lrun_cc</b>(1), <b>lshow</b>(1), <b>ltarget</b>(1),
+<b>xxhsum</b>(1)</p>
 
 <p style="margin-left:9%; margin-top: 1em">The python
 module <b>lmake</b>.</p>

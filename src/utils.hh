@@ -158,29 +158,26 @@ inline ::string widen( ::string const& s , size_t sz , bool right=false , char f
 	/**/              return        s +f ;
 }
 
-template<::integral I,IsOneOf<::string,::string_view> S> I from_string( S const& txt , bool empty_ok=false , bool hex=false ) {
-	static constexpr bool IsBool = is_same_v<I,bool> ;
+template<class T,IsOneOf<::string,::string_view> S> requires(::is_arithmetic_v<T>) T from_string( S const& txt , bool empty_ok=false , bool hex=false , size_t* end_pos=nullptr ) {
+	static constexpr bool IsBool = is_same_v<T,bool> ;
 	if ( empty_ok && !txt ) return 0 ;
-	::conditional_t<IsBool,size_t,I> res = 0/*garbage*/ ;
-	//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	::from_chars_result rc = ::from_chars( txt.data() , txt.data()+txt.size() , res , hex?16:10 ) ;
-	//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if ( IsBool && res>1 ) throw "bool value must be 0 or 1"s       ;
-	if ( rc.ec!=::errc{} ) throw ::make_error_code(rc.ec).message() ;
-	else                   return res                               ;
+	::conditional_t<IsBool,size_t,T> res   = 0/*garbage*/          ;
+	const char*                      start = txt.data()            ;
+	const char*                      end   = txt.data()+txt.size() ;
+	::from_chars_result              rc    ;
+	while ( start<end   && is_space(*start  ) ) start++ ;
+	while ( end  >start && is_space(*(end-1)) ) end  -- ;
+	//                                                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	if constexpr (::is_integral_v<T>)                 rc = ::from_chars( start , end , res , hex?16:10 ) ;
+	else                              { SWEAR(!hex) ; rc = ::from_chars( start , end , res             ) ; }
+	//                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	if (             rc.ec !=::errc{} ) throw ::make_error_code(rc.ec).message() ;
+	if ( !end_pos && rc.ptr!=end      ) throw "trailing garbage"s                ;
+	if ( IsBool   && res>1            ) throw "bool value must be 0 or 1"s       ;
+	if ( end_pos                      ) *end_pos = rc.ptr - txt.data() ;
+	return res ;
 }
-template<::integral I> I from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<I>( ::string_view(txt) , empty_ok , hex ) ; }
-//
-template<::floating_point F,IsOneOf<::string,::string_view> S> F from_string( S const& txt , bool empty_ok=false ) {
-	if ( empty_ok && !txt ) return 0 ;
-	F res = 0/*garbage*/ ;
-	//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	::from_chars_result rc = ::from_chars( txt.data() , txt.data()+txt.size() , res ) ;
-	//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	if (rc.ec!=::errc{}) throw ::make_error_code(rc.ec).message() ;
-	else                 return res ;
-}
-template<::floating_point F> F from_string( const char* txt , bool empty_ok=false ) { return from_string<F>( ::string_view(txt) , empty_ok ) ; }
+template<class T> requires(::is_arithmetic_v<T>) T from_string( const char* txt , bool empty_ok=false , bool hex=false ) { return from_string<T>( ::string_view(txt) , empty_ok , hex ) ; }
 
 /**/   ::string mk_shell_str(::string_view  ) ;
 /**/   ::string mk_py_str   (::string_view  ) ;

@@ -42,18 +42,18 @@ struct CnodeData ;
 
 extern CacheConfig  g_cache_config ;
 extern Disk::DiskSz g_reserved_sz  ;
+extern ::string     g_store_dir_s  ;
 
 //
 // free functions
 //
 
-::string store_dir_s      ( bool for_bck=false                 ) ;
-void     cache_init       ( bool rescue , bool read_only=false ) ;
-void     cache_empty_trash(                                    ) ;
-void     cache_finalize   (                                    ) ;
-void     cache_chk        (                                    ) ;
-void     mk_room          ( Disk::DiskSz , Cjob keep_job       ) ;
-void     mk_room          ( Disk::DiskSz                       ) ;
+void cache_init       ( bool rescue , bool read_only=false ) ;
+void cache_empty_trash(                                    ) ;
+void cache_finalize   (                                    ) ;
+void cache_chk        (                                    ) ;
+void mk_room          ( Disk::DiskSz , Cjob keep_job       ) ;
+void mk_room          ( Disk::DiskSz                       ) ;
 
 //
 // structs
