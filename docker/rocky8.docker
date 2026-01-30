@@ -27,7 +27,7 @@ RUN  dnf install -y libseccomp
 #RUN dnf install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work
 RUN  dnf install -y strace
 
-RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
+RUN     useradd --uid 1001 --home-dir /home/cdy cdy && chmod a+rx /home/cdy
 USER    1001:1001
 WORKDIR /home/cdy
 ENV     USER=cdy

@@ -474,7 +474,13 @@ static void _mount_bind( ::string const& dst , ::string const& src , ::vector<Us
 	Trace trace("_mount_bind",dst,src) ;
 	::string src_ = no_slash(src) ;
 	::string dst_ = no_slash(dst) ;
-	throw_unless( ::mount( src_.c_str() , dst_.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )==0 , "cannot bind mount ",src_," onto ",dst_," : ",StrErr() ) ;
+	if( ::mount( src_.c_str() , dst_.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0 ) {
+		::string msg ;
+		if      (errno!=ENOENT                    ) {}
+		else if (FileInfo(dst).tag()!=FileTag::Dir) msg << "missing dir "<<dst<<rm_slash ;
+		else if (FileInfo(src).tag()!=FileTag::Dir) msg << "missing dir "<<src<<rm_slash ;
+		throw cat("cannot bind mount (",StrErr(),") ",src_," onto ",dst_,+msg?" : ":"",msg) ;
+	}
 	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Bind , cat(dst_," : ",src_) ) ;
 }
 
@@ -496,18 +502,18 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 		::string dst   = no_slash(dst_s ) ;
 		First    first ;
 		::string                            data  = "userxattr"                                            ;
-		for( ::string const& s_s : srcs_s ) data << first(",upperdir=",",lowerdir=",":")<<no_slash(s_s   ) ;
-		/**/                                data << ",workdir="                         <<no_slash(work_s) ;
+		for( ::string const& s_s : srcs_s ) data << first(",upperdir=",",lowerdir=",":")<<s_s   <<rm_slash ;
+		/**/                                data << ",workdir="                         <<work_s<<rm_slash ;
 		//
 		mk_dir_s(work_s) ;
 		if ( ::mount( "overlay" , dst.c_str() , "overlay" , 0 , data.c_str() )!=0 ) {
-			::string msg = cat(StrErr()) ;
+			::string msg ;
 			/**/                                if (errno!=ENOENT                       )                                             goto Bad2 ;
 			/**/                                if (FileInfo(dst_s ).tag()!=FileTag::Dir) { msg << "missing dir "<<dst_s <<rm_slash ; goto Bad2 ; }
 			for( ::string const& s_s : srcs_s ) if (FileInfo(s_s   ).tag()!=FileTag::Dir) { msg << "missing dir "<<s_s   <<rm_slash ; goto Bad2 ; }
 			/**/                                if (FileInfo(work_s).tag()!=FileTag::Dir) { msg << "missing dir "<<work_s<<rm_slash ; goto Bad2 ; }
 		Bad2 :
-			throw cat("cannot overlay mount ",dst," to ",data," : ",msg) ;
+			throw cat("cannot overlay mount (",StrErr(),") ",data," to ",dst,+msg?" : ":"",msg) ;
 		}
 		user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Overlay , cat(dst," : ",data) ) ;
 		return ;

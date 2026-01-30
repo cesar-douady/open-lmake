@@ -35,7 +35,7 @@ RUN apt-get install -y ed
 RUN apt-get install -y libzstd-dev
 RUN apt-get install -y sudo
 
-RUN     useradd --uid 1001 --home-dir /home/cdy  cdy
+RUN     useradd --uid 1001 --home-dir /home/cdy cdy
 RUN     echo 'cdy ALL = NOPASSWD: ALL' >> /etc/sudoers
 USER    1001:1001
 WORKDIR /home/cdy
