@@ -470,15 +470,27 @@ static void _mount_tmp( ::string const& dst , size_t sz , ::vector<UserTraceEntr
 }
 static void _mount_tmp( ::string const& dst , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { _mount_tmp( dst , 50<<20/*sz*/ , user_trace ) ; } // size must be large enough but is not allocated
 
-static void _mount_bind( ::string const& dst , ::string const& src , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { // src and dst may be files or dirs
+static ::string _mount_chk_dst( ::string const& dst , ::string const& lower_dst_s ) {
+	if (+lower_dst_s) {
+		SWEAR( is_abs(lower_dst_s) , lower_dst_s ) ;
+		for( size_t pos=0 ; pos!=Npos ; pos=lower_dst_s.find('/',pos+1) ) {
+			::string dir_s = lower_dst_s.substr(0,pos+1) ;
+			if (                              ::access( dir_s.c_str() , F_OK )!=0 ) break                                          ; // lower does not exist dir comes from upper
+			if (                              ::access( dir_s.c_str() , X_OK )!=0 ) return "cannot access inside "+no_slash(dir_s) ; // dont use rm_slash as dir_s may be /
+			if ( pos==lower_dst_s.size()-1 && ::access( dir_s.c_str() , R_OK )!=0 ) return "cannot read "         +no_slash(dir_s) ; // .
+		}
+	}
+	if (FileInfo(dst).tag()!=FileTag::Dir) return "missing dir "+no_slash(dst) ;
+	return {} ;
+}
+
+static void _mount_bind( ::string const& dst , ::string const& src , ::vector<UserTraceEntry>&/*inout*/ user_trace , ::string const& lower_dst_s={} ) { // src and dst may be files or dirs
 	Trace trace("_mount_bind",dst,src) ;
 	::string src_ = no_slash(src) ;
 	::string dst_ = no_slash(dst) ;
 	if( ::mount( src_.c_str() , dst_.c_str() , nullptr/*type*/ , MS_BIND|MS_REC , nullptr/*data*/ )!=0 ) {
-		::string msg ;
-		if      (errno!=ENOENT                    ) {}
-		else if (FileInfo(dst).tag()!=FileTag::Dir) msg << "missing dir "<<dst<<rm_slash ;
-		else if (FileInfo(src).tag()!=FileTag::Dir) msg << "missing dir "<<src<<rm_slash ;
+		::string msg = _mount_chk_dst( dst , lower_dst_s ) ;
+		if ( !msg && FileInfo(src).tag()!=FileTag::Dir ) msg << "missing dir "<<src<<rm_slash ;
 		throw cat("cannot bind mount (",StrErr(),") ",src_," onto ",dst_,+msg?" : ":"",msg) ;
 	}
 	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Bind , cat(dst_," : ",src_) ) ;
@@ -490,8 +502,8 @@ static void _mount_proc( ::string const& dst , ::vector<UserTraceEntry>&/*inout*
 	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Proc , no_slash(dst) ) ;
 }
 
-static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s , ::vector<UserTraceEntry>&/*inout*/ user_trace ) {
-	SWEAR( srcs_s.size()>1 , dst_s,srcs_s,work_s ) ;                                                                                                      // use bind mount in that case
+static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , ::string const& work_s , ::vector<UserTraceEntry>&/*inout*/ user_trace , ::string const& lower_dst_s={} ) {
+	SWEAR( srcs_s.size()>1 , dst_s,srcs_s,work_s ) ; // use bind mount in that case
 	//
 	Trace trace("_mount_overlay",dst_s,srcs_s,work_s) ;
 	char sep ;
@@ -507,9 +519,8 @@ static void _mount_overlay( ::string const& dst_s , ::vector_s const& srcs_s , :
 		//
 		mk_dir_s(work_s) ;
 		if ( ::mount( "overlay" , dst.c_str() , "overlay" , 0 , data.c_str() )!=0 ) {
-			::string msg ;
-			/**/                                if (errno!=ENOENT                       )                                             goto Bad2 ;
-			/**/                                if (FileInfo(dst_s ).tag()!=FileTag::Dir) { msg << "missing dir "<<dst_s <<rm_slash ; goto Bad2 ; }
+			::string msg = _mount_chk_dst( dst , lower_dst_s ) ;
+			/**/                                if (+msg                                )                                             goto Bad2 ;
 			for( ::string const& s_s : srcs_s ) if (FileInfo(s_s   ).tag()!=FileTag::Dir) { msg << "missing dir "<<s_s   <<rm_slash ; goto Bad2 ; }
 			/**/                                if (FileInfo(work_s).tag()!=FileTag::Dir) { msg << "missing dir "<<work_s<<rm_slash ; goto Bad2 ; }
 		Bad2 :
@@ -583,9 +594,9 @@ void JobSpace::enter(
 		return ;
 	}
 	//
-	::string chroot_dir = chroot_info.dir_s ; if (+chroot_dir) chroot_dir.pop_back() ;                                             // dont use no_slash to properly manage the '/' case
+	::string user_chroot_dir = chroot_info.dir_s ; if (+user_chroot_dir) user_chroot_dir.pop_back() ;                              // dont use no_slash to properly manage the '/' case
 	//
-	mk_canon( phy_repo_root_s , sub_repo_s , +chroot_dir ) ;
+	mk_canon( phy_repo_root_s , sub_repo_s , +user_chroot_dir ) ;
 	//
 	bool creat = _force_creat!=No ;
 	//
@@ -613,20 +624,21 @@ void JobSpace::enter(
 		) ;
 		phy_repo_super_s_ = dir_name_s(phy_repo_root_s,src_dir_depth) ; SWEAR(phy_repo_super_s_!="/") ;
 	}
-	::string const& phy_repo_super_s   = +repo_view_s ? phy_repo_super_s_ : repo_super_s        ;                                  // fast path : only compute phy_repo_super_s if necessary
-	::string const& lmake_root_s       = lmake_view_s | phy_lmake_root_s                        ;
-	::string const& tmp_dir_s          = tmp_view_s   | phy_tmp_dir_s                           ;
-	bool            bind_lmake         =                 +lmake_view_s || +chroot_dir           ;
-	bool            bind_repo          =                 +repo_view_s  || +chroot_dir           ;
-	bool            bind_tmp           = +tmp_dir_s && ( +tmp_view_s   || +chroot_dir )         ;
-	bool            creat_lmake        = bind_lmake && !FileInfo(chroot_dir+lmake_root_s).tag() ; creat |= creat_lmake ;
-	bool            creat_repo         = bind_repo  && !FileInfo(chroot_dir+repo_super_s).tag() ; creat |= creat_repo  ;
-	bool            creat_tmp          = bind_tmp   && !FileInfo(chroot_dir+tmp_dir_s   ).tag() ; creat |= creat_tmp   ;
-	bool            clean_tmp_dir_here = true                                                   ;
+	::string const& phy_repo_super_s   = +repo_view_s ? phy_repo_super_s_ : repo_super_s             ;                             // fast path : only compute phy_repo_super_s if necessary
+	::string const& lmake_root_s       = lmake_view_s | phy_lmake_root_s                             ;
+	::string const& tmp_dir_s          = tmp_view_s   | phy_tmp_dir_s                                ;
+	bool            bind_lmake         =                 +lmake_view_s || +user_chroot_dir           ;
+	bool            bind_repo          =                 +repo_view_s  || +user_chroot_dir           ;
+	bool            bind_tmp           = +tmp_dir_s && ( +tmp_view_s   || +user_chroot_dir )         ;
+	bool            creat_lmake        = bind_lmake && !FileInfo(user_chroot_dir+lmake_root_s).tag() ; creat |= creat_lmake ;
+	bool            creat_repo         = bind_repo  && !FileInfo(user_chroot_dir+repo_super_s).tag() ; creat |= creat_repo  ;
+	bool            creat_tmp          = bind_tmp   && !FileInfo(user_chroot_dir+tmp_dir_s   ).tag() ; creat |= creat_tmp   ;
+	bool            clean_tmp_dir_here = true                                                        ;
 	::vector_s      creat_views_s      ;
 	for( auto const& [v_s,_] : views ) {
-		if      ( +tmp_dir_s && v_s.starts_with(tmp_dir_s) ) { clean_tmp_dir_here = false ;                                                            }
-		else if ( !is_lcl(v_s)                             ) { if (!FileInfo(chroot_dir+mk_glb(v_s,repo_root_s)).tag()) creat_views_s.push_back(v_s) ; }
+		if      ( +tmp_dir_s && v_s.starts_with(tmp_dir_s)                 ) clean_tmp_dir_here = false ;
+		else if ( is_lcl(v_s)                                              ) {}
+		else if ( !FileInfo(user_chroot_dir+mk_glb(v_s,repo_root_s)).tag() ) creat_views_s.push_back(v_s) ;
 	}
 	creat |= +creat_views_s ;
 	//
@@ -694,12 +706,13 @@ void JobSpace::enter(
 	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;                         // for each line, format is "id_in_namespace id_in_host size_of_range"
 	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;                         // .
 	//
-	bool dev_sys_mapped = false ;
+	bool     dev_sys_mapped = false ;
+	::string chroot_dir     ;
 	//
 	if (creat) {
 		::string work_dir_s = cat("/tmp/",uid,"/open-lmake",phy_repo_root_s,small_id,'/') ;     // /run/user would be ideal instead of /tmp (certain to be usable as upper) but does not always exist
 		try { unlnk_inside_s(work_dir_s,{.abs_ok=true}) ; } catch (::string const&) {}          // if we need a work dir, we must clean it first as it is not cleaned upon exit ...
-		if (+chroot_dir) {                                                                      // ... (ignore errors as dir may not exist)
+		if (+user_chroot_dir) {                                                                 // ... (ignore errors as dir may not exist)
 			::string upper   = work_dir_s+"upper" ;
 			::string root    = work_dir_s+"root"  ;
 			bool     retried = false              ;
@@ -715,9 +728,9 @@ void JobSpace::enter(
 			_prepare_user( upper_s , chroot_info , uid , gid ) ;
 			//
 			try {
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				_mount_overlay( root_s , {upper_s,chroot_dir} , work_dir_s+"work/" , user_trace ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				_mount_overlay( root_s , {upper_s,user_chroot_dir} , work_dir_s+"work/" , user_trace , user_chroot_dir+'/' ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			} catch (::string const& e) {
 				if (retried) throw ;
 				retried = true ;
@@ -746,11 +759,16 @@ void JobSpace::enter(
 					mk_dir_s(private_f_s) ;
 					continue ;                                                                                // these will be mounted below
 				}
-				switch (FileInfo(src_f).tag()) { //!                                                                                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					case FileTag::Dir : trace("mkdir9",private_f_s) ; mk_dir_s( private_f_s                                               ) ; _mount_bind(private_f_s,src_f_s,user_trace) ; break ;
-					case FileTag::Lnk : trace("symlnk",private_f_s) ; sym_lnk ( private_f   , read_lnk(src_f)                             ) ;                                               break ;
-					default           : trace("file"  ,private_f_s) ; AcFd    ( private_f   , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0000} ) ; _mount_bind(private_f  ,src_f  ,user_trace) ;
-				} //!                                                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				try {
+					switch (FileInfo(src_f).tag()) { //!                                                                                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						case FileTag::Dir : trace("mkdir9",private_f_s) ; mk_dir_s( private_f_s                                               ) ; _mount_bind(private_f_s,src_f_s,user_trace) ; break ;
+						case FileTag::Lnk : trace("symlnk",private_f_s) ; sym_lnk ( private_f   , read_lnk(src_f)                             ) ;                                               break ;
+						default           : trace("file"  ,private_f_s) ; AcFd    ( private_f   , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0000} ) ; _mount_bind(private_f  ,src_f  ,user_trace) ;
+					} //!                                                                                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				} catch (::string const&) {
+					if (::access(src_f.c_str(),R_OK|X_OK)!=0) continue ;                                      // no access in the original image, this may be on purpose
+					throw ;
+				}
 			}
 			dev_sys_mapped = true ;
 			auto do_view = [&]( const char* key , ::string const& d_s , FileNameIdx n_uphill=0 ) {
@@ -768,12 +786,15 @@ void JobSpace::enter(
 			if (creat_tmp  )                           do_view( "tmp_view"   , tmp_dir_s                    ) ;
 			for( ::string const& v_s : creat_views_s ) do_view( "view"       , v_s                          ) ;
 		}
-	} //!                                                                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	if (bind_lmake )                                                            _mount_bind( chroot_dir+lmake_root_s , phy_lmake_root_s , user_trace ) ;
-	if (bind_repo  )                                                            _mount_bind( chroot_dir+repo_super_s , phy_repo_super_s , user_trace ) ;
-	if (bind_tmp   )                                                            _mount_bind( chroot_dir+tmp_dir_s    , phy_tmp_dir_s    , user_trace ) ;
-	if (+chroot_dir) for( ::string const& sd_s : src_dirs_s ) if (is_abs(sd_s)) _mount_bind( chroot_dir+sd_s         , sd_s             , user_trace ) ;
-	//                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	} else {
+		chroot_dir = user_chroot_dir ;
+	}
+	//                                                                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	if (bind_lmake )                                                            _mount_bind( chroot_dir+lmake_root_s , phy_lmake_root_s , user_trace , user_chroot_dir+lmake_root_s ) ;
+	if (bind_repo  )                                                            _mount_bind( chroot_dir+repo_super_s , phy_repo_super_s , user_trace , user_chroot_dir+repo_super_s ) ;
+	if (bind_tmp   )                                                            _mount_bind( chroot_dir+tmp_dir_s    , phy_tmp_dir_s    , user_trace , user_chroot_dir+tmp_dir_s    ) ;
+	if (+chroot_dir) for( ::string const& sd_s : src_dirs_s ) if (is_abs(sd_s)) _mount_bind( chroot_dir+sd_s         , sd_s             , user_trace , user_chroot_dir+sd_s         ) ;
+	//                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	auto mk_entry = [&]( ::string const& dir_s , ::string const& abs_dir_s , bool path_is_lcl ) {
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
 		if (path_is_lcl) report.emplace_back(no_slash(dir_s)) ;
@@ -783,10 +804,11 @@ void JobSpace::enter(
 	//
 	size_t work_idx = 0 ;
 	for( auto const& [view_s,descr] : views ) {
-		bool       view_is_tmp = +tmp_dir_s && view_s.starts_with(tmp_dir_s)                                                                 ;
-		bool       view_is_lcl = is_lcl(view_s)                                                                                              ;
-		bool       view_is_ext = !view_is_lcl && !view_is_tmp                                                                                ;
-		::string   abs_view_s  = chroot_dir + ( view_is_tmp ? tmp_view_s+substr_view(view_s,tmp_dir_s.size()) : mk_glb(view_s,repo_root_s) ) ;
+		bool       view_is_tmp = +tmp_dir_s && view_s.starts_with(tmp_dir_s)                                                ;
+		bool       view_is_lcl = is_lcl(view_s)                                                                             ;
+		bool       view_is_ext = !view_is_lcl && !view_is_tmp                                                               ;
+		::string   lcl_view_s  = view_is_tmp ? tmp_view_s+substr_view(view_s,tmp_dir_s.size()) : mk_glb(view_s,repo_root_s) ;
+		::string   abs_view_s  = chroot_dir + lcl_view_s                                                                    ;
 		::vector_s abs_phys_s  ;
 		::vector_s abs_cu_dsts ;
 		//
@@ -825,26 +847,30 @@ void JobSpace::enter(
 		//
 		if ( view_is_tmp && !keep_tmp ) swear_prod( !clean_tmp_dir_here , abs_view_s ) ;                    // ensure we do not clean up dirs mounted tmp upon exit
 		if (abs_phys_s.size()==1) {
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_mount_bind( abs_view_s , abs_phys_s[0] , user_trace ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			_mount_bind( abs_view_s , abs_phys_s[0] , user_trace , user_chroot_dir+lcl_view_s ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		} else {
 			::string const& upper_s = descr.phys_s[0] ;
 			::string        work_s  =                                                                       // if not in the repo, it must be in tmp
 				is_lcl(upper_s) ? cat(phy_repo_root_s,PrivateAdminDirS,"work/",small_id,'.',work_idx++,'/')
 				:                 cat(no_slash(abs_phys_s[0])         ,".work."            ,work_idx++,'/') // upper is in tmp (there may be several views to same upper)
 			;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			_mount_overlay( abs_view_s , abs_phys_s , work_s , user_trace ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			_mount_overlay( abs_view_s , abs_phys_s , work_s , user_trace , user_chroot_dir+lcl_view_s ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 	}
 	if (+chroot_dir) {
-		if (!dev_sys_mapped) { //!                                                        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			{ ::string d_s = chroot_dir+"/dev/"  ; trace("mkdir12",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/"  , user_trace ) ; }
-			{ ::string d_s = chroot_dir+"/sys/"  ; trace("mkdir13",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/"  , user_trace ) ; }
-			{ ::string d_s = chroot_dir+"/proc/" ; trace("mkdir14",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/proc/" , user_trace ) ; }
-		} //!                                                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if (!dev_sys_mapped) {
+			::string d_s ; //!                                                                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try                     { d_s = chroot_dir+"/dev/"  ; trace("mkdir12",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/dev/"  , user_trace ) ; }
+			catch (::string const&) { if (::access((user_chroot_dir+d_s).c_str(),R_OK|X_OK)==0) throw ; }                                               // if not accessible it may be on purpose
+			try                     { d_s = chroot_dir+"/sys/"  ; trace("mkdir13",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/sys/"  , user_trace ) ; }
+			catch (::string const&) { if (::access((user_chroot_dir+d_s).c_str(),R_OK|X_OK)==0) throw ; }                                               // .
+			try                     { d_s = chroot_dir+"/proc/" ; trace("mkdir14",d_s) ; mk_dir_s(d_s) ; _mount_bind( d_s , "/proc/" , user_trace ) ; }
+			catch (::string const&) { if (::access((user_chroot_dir+d_s).c_str(),R_OK|X_OK)==0) throw ; }                                               // .
+		} //!                                                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//vvvvvvvvvvvvvvvvv
 		_chroot(chroot_dir) ;
 		//^^^^^^^^^^^^^^^^^
@@ -858,7 +884,7 @@ void JobSpace::enter(
 		user_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , d ) ;
 	}
 	// only set _tmp_dir_s once tmp mount and chroot are done so as to ensure not to unlink in the underlying dir
-	if (clean_tmp_dir_here) _tmp_dir_s = tmp_dir_s ;                                                        // if we have mounted something in tmp, we cant clean it before unmount
+	if (clean_tmp_dir_here) _tmp_dir_s = tmp_dir_s ;                     // if we have mounted something in tmp, we cant clean it before unmount
 	user_trace.emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 	trace("done",report) ;
 }
@@ -1019,7 +1045,7 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 				break ;
 				case FileTag::Reg :
 				case FileTag::Exe :
-					if (sz) {                                                                                                      // empty executable is not tagged as Empty
+					if (sz) {                                                                                                          // empty executable is not tagged as Empty
 						trace("read_from",tn,sz) ;
 						data_fd.send_from( AcFd(tn,{.flags=O_RDONLY|O_NOFOLLOW}) , sz ) ;
 						throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;                                           // ensure cache entry is reliable by checking file *after* copy

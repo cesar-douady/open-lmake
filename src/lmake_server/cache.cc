@@ -142,9 +142,9 @@ namespace Cache {
 					if (tag==FileTag::None) try { unlnk( tn                  ) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
 					else                          unlnk( tn , {.dir_ok=true} ) ;
 					switch (tag) {
-						case FileTag::None  :                                                                                               break ;
-						case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; sym_lnk( tn , data_fd.read(target_szs[ti]) )                      ; break ;
-						case FileTag::Empty : trace("empty_to",tn   ) ; AcFd   ( tn , {O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,0666/*mod*/} ) ; break ;
+						case FileTag::None  :                                                                                   break ;
+						case FileTag::Lnk   : trace("lnk_to"  ,tn,sz) ; sym_lnk( tn , data_fd.read(target_szs[ti]) )          ; break ;
+						case FileTag::Empty : trace("empty_to",tn   ) ; AcFd   ( tn , {O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW} ) ; break ;
 						case FileTag::Exe   :
 						case FileTag::Reg   : {
 							AcFd fd { tn , { O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , mode_t(tag==FileTag::Exe?0777:0666) } } ;

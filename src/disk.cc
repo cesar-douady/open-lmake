@@ -350,9 +350,9 @@ namespace Disk {
 		//
 		switch (tag) {
 			case FileTag::None  :
-			case FileTag::Dir   : break ;                                                                                              // dirs are like no file
-			case FileTag::Empty :                                                                                                      // fast path : no need to access empty src
-				AcFd( dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=0666,.force=action.force,.nfs_guard=action.nfs_guard} ) ;
+			case FileTag::Dir   : break ;                                                                                    // dirs are like no file
+			case FileTag::Empty :                                                                                            // fast path : no need to access empty src
+				AcFd( dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.force=action.force,.nfs_guard=action.nfs_guard} ) ;
 			break ;
 			case FileTag::Reg :
 			case FileTag::Exe : {
@@ -364,7 +364,7 @@ namespace Disk {
 			case FileTag::Lnk :
 				sym_lnk( dst , read_lnk(src,action.nfs_guard) , {.force=action.force,.nfs_guard=action.nfs_guard} ) ;
 			break ;
-		DF}                                                                                                                            // NO_COV
+		DF}                                                                                                                  // NO_COV
 		return tag ;
 	}
 
@@ -476,4 +476,60 @@ namespace Disk {
 		_ok = true ;
 	}
 
+	//
+	// ACL
+	//
+
+	::vector<AclEntry> acl_entries(FileRef dir_s) {
+		::vector<AclEntry> res ;
+		AcFd               fd  { dir_s , {.flags=O_PATH} }                                           ;
+		ssize_t            sz  = ::fgetxattr(fd,"system.posix_acl_default",nullptr/*buf*/,0/*size*/) ; if (sz<0                                   ) return {} ;
+		::string           buf ;
+		sz = ::lgetxattr(".","system.posix_acl_default",nullptr/*buf*/,0/*size*/) ;                    if (sz<0                                   ) return {} ;
+		buf.resize(sz) ;
+		sz = ::lgetxattr(".","system.posix_acl_default",buf.data(),buf.size()) ;                       if (sz<0                                   ) return {} ;
+		struct ::posix_acl_xattr_header* hdr = reinterpret_cast<posix_acl_xattr_header*>(buf.data()) ; if (hdr->a_version!=POSIX_ACL_XATTR_VERSION) return {} ;
+		for (
+			posix_acl_xattr_entry* entry = reinterpret_cast<posix_acl_xattr_entry*>(hdr+1)
+		;	reinterpret_cast<char*>(entry+1) <= buf.data()+buf.size()
+		;	entry++
+		) {
+			res.push_back(*entry) ;
+		}
+		return res ;
+	}
+
+	PermExt auto_perm_ext( ::string const& dir_s, ::string const& msg ) {
+		// auto-config permissions by analyzing dir permissions
+		PermExt  res ;
+		FileStat st  ; if (::lstat(dir_s.c_str(),&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
+		//
+		throw_unless( (st.st_mode&S_IRWXU)==S_IRWXU , msg," must have full read/write/execute access to ",dir_s,rm_slash ) ;
+		//
+		if      ((st.st_mode&S_IRWXG)!=S_IRWXG) res = PermExt::None  ;
+		else if ((st.st_mode&S_IRWXO)!=S_IRWXO) res = PermExt::Group ;
+		else                                    res = PermExt::Other ;
+		//
+		if (res==PermExt::Group)
+			throw_unless(
+				st.st_mode&S_ISGID
+			,	msg," must have its setgid set for group level accesses to ",dir_s,rm_slash,". Consider : find ",dir_s,rm_slash," -type d -exec chmod g+s {} +"
+			) ;
+		//
+		bool group_ok = false ;
+		bool other_ok = false ;
+		bool mask_ok  = true  ;
+		for( AclEntry const& acl : acl_entries(dir_s) )
+			switch (acl.e_tag) {
+				case ACL_GROUP_OBJ : if ((acl.e_perm&7)==7) group_ok = true  ; break ;
+				case ACL_OTHER     : if ((acl.e_perm&7)==7) other_ok = true  ; break ;
+				case ACL_MASK      : if ((acl.e_perm&7)!=7) mask_ok  = false ; break ;
+			DN}
+		group_ok &= mask_ok ;
+		if      (!group_ok          ) {}
+		else if ( other_ok          ) res = PermExt::None ;
+		else if (res<=PermExt::Group) res = PermExt::None ;
+		//
+		return res ;
+	}
 }

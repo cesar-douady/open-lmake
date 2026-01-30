@@ -3,10 +3,10 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "py.hh" // /!\ must be included first as Python.h must be included first
+#include "py.hh"   // /!\ must be included first as Python.h must be included first
+#include "disk.hh"
 
 #include "cache_utils.hh"
-
 #include "engine.hh"
 
 using namespace Disk ;
@@ -141,14 +141,14 @@ void cache_init( bool rescue , bool read_only ) {
 			}
 		for( auto const& [k,v] : ::vmap_ss(*py_config) ) {
 			try {
-				if (+all) { if (!all->contains(k)) continue ; }                                                                                   // ignore private variables
-				else      { if (k[0]=='_'        ) continue ; }                                                                                   // .
+				if (+all) { if (!all->contains(k)) continue ; }                               // ignore private variables
+				else      { if (k[0]=='_'        ) continue ; }                               // .
 				CacheConfig& ccfg = g_cache_config ;
 				switch (k[0]) {
 					case 'f' : if (k=="file_sync"       ) { ccfg.file_sync        = mk_enum<FileSync>    (v) ;                                                                continue ; } break ;
 					case 'm' : if (k=="max_rate"        ) { ccfg.max_rate         = from_string_with_unit(v) ; throw_unless( ccfg.max_rate        >0 , "must be positive" ) ; continue ; }
 					/**/       if (k=="max_runs_per_job") { ccfg.max_runs_per_job = from_string<uint16_t>(v) ; throw_unless( ccfg.max_runs_per_job>0 , "must be positive" ) ; continue ; } break ;
-					case 'p' : if (k=="perm"            ) { ccfg.perm_ext         = mk_enum<PermExt>     (v) ;                                                                continue ; } break ;
+					case 'p' : if (k=="perm"            ) { Fd::Stderr.write(cat("while configuring cache, perm is now automatic and deprecated : ",cwd_s(),rm_slash,'\n')) ; continue ; } break ;
 					case 's' : if (k=="size"            ) { ccfg.max_sz           = from_string_with_unit(v) ;                                                                continue ; } break ;
 				DN}
 			} catch (::string const& e) {
@@ -159,6 +159,8 @@ void cache_init( bool rescue , bool read_only ) {
 			throw cat("wrong key (",k,") in ",config_file) ;
 		}
 		throw_unless( g_cache_config.max_sz , "size must be defined as non-zero" ) ;
+		// auto-config permissions by analyzing dir permissions
+		g_cache_config.perm_ext = auto_perm_ext( "." , "cache" ) ;
 	} catch (::string const& e) {
 		exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : ",e ) ;
 	}
@@ -169,12 +171,11 @@ void cache_init( bool rescue , bool read_only ) {
 	if (g_cache_config.max_rate        !=ref_config.max_rate        ) sensed_config_str << "max_rate         : "<<g_cache_config.max_rate        <<'\n' ;
 	if (g_cache_config.max_runs_per_job!=ref_config.max_runs_per_job) sensed_config_str << "max_runs_per_job : "<<g_cache_config.max_runs_per_job<<'\n' ;
 	if (g_cache_config.file_sync       !=ref_config.file_sync       ) sensed_config_str << "file_sync        : "<<g_cache_config.file_sync       <<'\n' ;
-	if (g_cache_config.perm_ext        !=ref_config.perm_ext        ) sensed_config_str << "perm             : "<<g_cache_config.perm_ext        <<'\n' ;
 	try {
 		::string sensed_config_file = ADMIN_DIR_S "config" ;
-		unlnk( sensed_config_file                                                                                 )                            ; // in case it exists with insufficient perm
-		AcFd ( sensed_config_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=g_cache_config.perm_ext} ).write( sensed_config_str ) ;
-	} catch (::string const&) {}                                                                                                                 // best effort
+		unlnk( sensed_config_file                              )                            ; // in case it exists with insufficient perm
+		AcFd ( sensed_config_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( sensed_config_str ) ;
+	} catch (::string const&) {}                                                              // best effort
 	//
 	// START_OF_VERSIONING CACHE
 	NfsGuard nfs_guard { g_cache_config.file_sync }   ;

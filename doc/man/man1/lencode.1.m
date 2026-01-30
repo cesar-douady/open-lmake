@@ -42,13 +42,9 @@ In the latter case, such a dir must lie within a source dir and must contain a f
 Item(B(file_sync)) one of B(none), B(dir) (default) or B(sync) for choosing the method to ensure proper consistent operations.
 Item(B(perm))      one of B(none), B(group) or B(other) which specifies who is given permission to access this shared dir.
 .LP
-It is also an error if I(code) cannot be found with the accompanying I(context).
-
-.LP
-Item(B(-x) I(context),B(--context)=I(context)) specifies the context in which to find the value associated with passed code
-
-.LP
 Item(B(-l) I(min_len),B(--min-len)=I(min_len)) specifies the minimum code length to use to encode value
+.LP
+The dir must read/write/execute access to any user needing to use the codec service, and if such accsses are at group level (but not other), it must have its setgid bit set.
 
 .SH EXAMPLES
 .LP

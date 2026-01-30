@@ -182,6 +182,20 @@ else
 fi
 
 #
+# ACL (HAS_ACL)
+#
+cat <<"EOF" >acl.c
+	#include <linux/posix_acl.h>
+	#include <linux/posix_acl_xattr.h>
+	int main() {
+		struct posix_acl_xattr_header h ; (void) h ;
+		struct posix_acl_xattr_entry  e ; (void) e ;
+		return ACL_GROUP_OBJ ;
+	}
+EOF
+HAS_ACL=$(ok cc -o /dev/null -xc acl.c)
+
+#
 # ADDR2LINE (ADDR2LINE)
 #
 case $CXX_FLAVOR in
@@ -510,6 +524,7 @@ cat >$H_FILE <<-EOF
 	//
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_32                      $HAS_32
+	#define HAS_ACL                     $HAS_ACL
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_MEMFD                   $HAS_MEMFD

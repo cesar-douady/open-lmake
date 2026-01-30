@@ -84,7 +84,7 @@ void chk_version( AppInitAction const& action , ::string const& dir_s ) {
 	AcFd     version_fd   { version_file , {.err_ok=true} } ;
 	if (!version_fd) {
 		throw_unless( action.chk_version==Maybe , "repo not initialized, consider : lmake" ) ;
-		AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=action.perm_ext} ).write( cat(action.version,'\n') ) ;
+		AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.perm_ext=action.perm_ext} ).write( cat(action.version,'\n') ) ;
 	} else {
 		::string stored = version_fd.read() ;
 		throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;

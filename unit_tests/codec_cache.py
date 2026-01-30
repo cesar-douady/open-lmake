@@ -37,7 +37,6 @@ else :
 	os.makedirs('CACHE/LMAKE',exist_ok=True)
 	print(textwrap.dedent('''
 		size = 1<<20
-		perm = 'group'
 	''')[1:],file=open('CACHE/LMAKE/config.py','w'))
 
 	open('codec_file','w').write(

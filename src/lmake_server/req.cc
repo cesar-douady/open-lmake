@@ -424,13 +424,13 @@ namespace Engine {
 					}
 				}
 			}
-			log_fd = Fd( log_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ) ;
+			log_fd = Fd( log_file , {O_WRONLY|O_TRUNC|O_CREAT} ) ;
 			try         { sym_lnk(Last,lcl_log_file) ;                                         }
 			catch (...) { exit(Rc::System,"cannot create symlink ",Last," to ",lcl_log_file) ; }
 			start_ddate = FileInfo(log_file).date ;                                              // use log_file as a date marker
 		} else {
 			trace("no_log") ;
-			AcFd( Last , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ) ;                              // use Last as a marker, just to gather its date
+			AcFd( Last , {O_WRONLY|O_TRUNC|O_CREAT} ) ;                                          // use Last as a marker, just to gather its date
 			start_ddate = FileInfo(Last).date ;
 			unlnk(Last) ;
 		}

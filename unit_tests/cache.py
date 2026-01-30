@@ -69,6 +69,7 @@ if __name__!='__main__' :
 else :
 
 	import os
+	import stat
 	import textwrap
 
 	import ut
@@ -84,12 +85,9 @@ else :
 		# cache my_cache must be writable by all users having access to the cache
 		# use setfacl(1) with adequate rights in the default ACL, e.g. :
 		# os.system('setfacl -m d:g::rw,d:o::r CACHE')
-		os.makedirs('CACHE/LMAKE')
-		os.chmod('CACHE'      ,0o775)
-		os.chmod('CACHE/LMAKE',0o775)
+		os.makedirs( 'CACHE/LMAKE' , mode=stat.S_ISGID|stat.S_IRWXU|stat.S_IRWXG )
 		print(textwrap.dedent('''
 			size = 1<<20
-			perm = 'group'
 		''')[1:],file=open('CACHE/LMAKE/config.py','w'))
 
 		ut.lmake( 'hello+auto1.hide.ok' , done=4 , may_rerun=1 , new=2 ) # check target is out of date

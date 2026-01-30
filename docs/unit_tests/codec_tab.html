@@ -152,6 +152,12 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
             <span class="k">assert</span> <span class="n">l</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">==</span><span class="n">File</span><span class="p">,</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">l</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">!r}</span><span class="s1"> != </span><span class="si">{</span><span class="n">File</span><span class="si">!r}</span><span class="s1">&#39;</span>
             <span class="k">assert</span> <span class="n">l</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">==</span><span class="n">File</span><span class="p">,</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">l</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="si">!r}</span><span class="s1"> != </span><span class="si">{</span><span class="n">File</span><span class="si">!r}</span><span class="s1">&#39;</span>
 
+    <span class="k">class</span> <span class="nc">Chk2</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;chk2&#39;</span>
+        <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">lmake</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;dir_codec&#39;</span><span class="p">,</span><span class="s1">&#39;ctx&#39;</span><span class="p">,</span><span class="s1">&#39;user_code&#39;</span><span class="p">)</span>
+            <span class="k">assert</span> <span class="n">v</span><span class="o">==</span><span class="s1">&#39;user_val</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span><span class="sa">f</span><span class="s1">&#39;bad user_val : </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s1">&#39;</span>
+
 <span class="k">else</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">ut</span>
@@ -172,6 +178,11 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="s1">&#39;codec_py&#39;</span><span class="p">)</span>
 
     <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py&#39;</span> <span class="p">,</span> <span class="n">steady</span><span class="o">=</span><span class="mi">2</span> <span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;user_val&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;../codec_files/tab/ctx/user_code.decode&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s1">&#39;lcodec_repair -fr ../codec_files/tab&#39;</span><span class="p">)</span>
+
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;chk2&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>

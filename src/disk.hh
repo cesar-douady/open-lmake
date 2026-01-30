@@ -6,10 +6,19 @@
 #pragma once
 
 #include <dirent.h>
+#include <sys/xattr.h>
 
 #include "fd.hh"
 #include "serialize.hh"
 #include "time.hh"
+
+#if HAS_ACL                            // test must be performed after a local .hh file has been included to have HAS_ACL defined
+	#include <linux/posix_acl.h>
+	#include <linux/posix_acl_xattr.h>
+#else                                  // default to internal copies if official files are not available
+	#include "ext/linux/posix_acl.h"
+	#include "ext/linux/posix_acl_xattr.h"
+#endif
 
 // Special files and dirs
 // can be tailored to fit neeeds
@@ -280,5 +289,14 @@ namespace Disk {
 		AcFd _fd ;
 		bool _ok = false ;
 	} ;
+
+	//
+	// ACL
+	//
+
+	using AclEntry = struct ::posix_acl_xattr_entry ;
+
+	::vector<AclEntry> acl_entries  ( FileRef         dir_s                       ) ;
+	PermExt            auto_perm_ext( ::string const& dir_s , ::string const& msg ) ;
 
 }

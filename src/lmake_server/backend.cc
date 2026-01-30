@@ -833,7 +833,7 @@ namespace Backends {
 					be->config_err = e ;
 					if (!FileInfo(warning_sentinel).exists()) {
 						Fd::Stderr.write(cat("Warning : backend ",t," could not be configured :\n",indent(e),add_nl)) ; // avoid annoying user with warnings when they are already aware of
-						AcFd( warning_sentinel , {O_WRONLY|O_TRUNC|O_CREAT,0000/*mode*/} ) ;
+						AcFd( warning_sentinel , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0000} ) ;
 					}
 					trace("err",t,e) ;
 				} else {

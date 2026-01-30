@@ -35,7 +35,7 @@ namespace Engine::Persistent {
 
 	void RuleBase::_s_save() {
 		SWEAR(+Rule::s_rules) ;
-		AcFd( _g_rules_filename , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( serialize(*Rule::s_rules) ) ;
+		AcFd( _g_rules_filename , {O_WRONLY|O_TRUNC|O_CREAT} ).write( serialize(*Rule::s_rules) ) ;
 	}
 
 	void RuleBase::_s_update_crcs() {
@@ -272,9 +272,9 @@ namespace Engine::Persistent {
 		for( PsfxIdx idx : _g_sfxs_file.lst() ) _g_pfxs_file     .chk(_g_sfxs_file.c_at(idx)) ; // .
 	}
 
-	static void _save_config() { //!                                           mod
-		AcFd( cat(PrivateAdminDirS,"config_store") , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write( serialize(*g_config)   ) ;
-		AcFd( cat(AdminDirS       ,"config"      ) , {O_WRONLY|O_TRUNC|O_CREAT,0666} ).write( g_config->pretty_str() ) ;
+	static void _save_config() {
+		AcFd( cat(PrivateAdminDirS,"config_store") , {O_WRONLY|O_TRUNC|O_CREAT} ).write( serialize(*g_config)   ) ;
+		AcFd( cat(AdminDirS       ,"config"      ) , {O_WRONLY|O_TRUNC|O_CREAT} ).write( g_config->pretty_str() ) ;
 	}
 
 	static void _diff_config(Config const& old_config) {
@@ -523,7 +523,7 @@ namespace Engine::Persistent {
 				match_report_str << key <<" :\n" ;
 				for( RuleTgt rt : rts ) match_report_str <<'\t'<< widen(cat(rt->rule->user_prio),w_prio) <<' '<< widen(rt->rule->user_name(),w_name) <<' '<< rt.key() <<'\n' ;
 			}
-			AcFd( cat(AdminDirS,"matching") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( match_report_str ) ;
+			AcFd( cat(AdminDirS,"matching") , {O_WRONLY|O_TRUNC|O_CREAT} ).write( match_report_str ) ;
 		}
 		// rule report
 		{	::vector<Rule> rules ; for( Rule r : rule_lst() ) rules.push_back(r) ;
@@ -537,7 +537,7 @@ namespace Engine::Persistent {
 			::string content ;
 			for( Rule rule : rules ) if (rule->user_defined())
 				content <<first("","\n")<< rule->pretty_str() ;
-			AcFd( cat(AdminDirS,"rules") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( content ) ;
+			AcFd( cat(AdminDirS,"rules") , {O_WRONLY|O_TRUNC|O_CREAT} ).write( content ) ;
 		}
 		trace("done") ;
 		return invalidate ;
@@ -566,7 +566,7 @@ namespace Engine::Persistent {
 		// user report done before analysis so manifest is available for investigation in case of error
 		{	::string content ;
 			for( ::string const& src : src_names ) content << src <<'\n' ;
-			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( content ) ;
+			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT} ).write( content ) ;
 		}
 		for( ::string& src : src_names ) {
 			throw_unless( +src , "found an empty source" ) ;
@@ -691,7 +691,7 @@ namespace Engine::Persistent {
 		// user report
 		{	::string content ;
 			for( auto [n,t] : srcs ) content << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
-			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( content ) ;
+			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT} ).write( content ) ;
 		}
 		trace("done",srcs.size(),"srcs") ;
 		return invalidate ;

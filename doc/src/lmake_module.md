@@ -121,7 +121,6 @@ Else an exception is raised.
 In the former case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for:
 
 - `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
-- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
 
 Cf. [encode/decode](codec.html).
 
@@ -221,7 +220,6 @@ Else a code is created, of length at least `min_length`, is associated to `val` 
 In the former case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for:
 
 - `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
-- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
 
 Cf. [encode/decode](codec.html).
 

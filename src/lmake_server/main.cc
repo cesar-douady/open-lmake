@@ -141,7 +141,7 @@ static void _record_targets(Job job) {
 		known_targets.push_back(tn) ;
 	}
 	::string content ; for( ::string tn : known_targets ) if (+tn) content << tn <<'\n' ;
-	AcFd( targets_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( content ) ;
+	AcFd( targets_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( content ) ;
 }
 
 struct ReqEntry {
@@ -389,8 +389,8 @@ int main( int argc , char** argv ) {
 	/**/   bool      interrupted = _engine_loop() ;
 	//                             ^^^^^^^^^^^^^^
 	if (_g_server.writable) {
-		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),{.force=true}) ; } catch (::string const&) {}                                // cleanup
-		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( g_kpi.pretty_str() ) ;
+		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),{.force=true}) ; } catch (::string const&) {}                    // cleanup
+		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {O_WRONLY|O_TRUNC|O_CREAT} ).write( g_kpi.pretty_str() ) ;
 	}
 	//
 	Backend::s_finalize() ;

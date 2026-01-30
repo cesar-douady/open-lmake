@@ -16,7 +16,6 @@ It must be initialized with a file `LMAKE/config.py` defining some variables:
 | `file_sync`        | 'dir'        | `'none'`, `'dir'`, `'sync'`                                                | the method used to ensure consistent access to the file system containing the cache |
 | `max_rate`         | '1G'         | any positive `int` or `str` composed of a number followed by a unit suffix | the maximum rate in B/s above which entries are not recorded in the cache           |
 | `max_runs_per_job` | 100          | any positive `int`                                                         | the maximum number of runs kept for a given job                                     |
-| `perm`             | 'none'       | `'none'`, `'group'`, `'other'`                                             | the permissions to use when creating files in the cache, overriding current umask   |
 | `size`             | \<required\> | any `int` or a `str` composed of a number followed by a unit suffix        | the overall size the cache is allowed to occupy                                     |
 
 Unit suffixes can be `k`, `M`, `G` or `T` (powers of 1024).
@@ -24,7 +23,6 @@ Unit suffixes can be `k`, `M`, `G` or `T` (powers of 1024).
 For example `LMAKE/config.py` can contain:
 ```
 max_rate = '100M'
-perm     = 'group'
 size     = '1.5T'
 ```
 
@@ -93,24 +91,18 @@ This is a natural extension of the classical LRU algorithm devised for cases whe
 
 For all users accessing the cache:
 
-- Its root dir and its `LMAKE` dir must have read/write access (including if only download is done to maintain the LRU state).
+- All dirs must have read/write/execute accesses.
 - The `LMAKE/config.py` must have read access.
 
-If the group to use for access permission is not the default group of the users:
+And if such acceses are at group level (but not other), all dirs must have the setgid bit set.
 
-- the root dir must have this group, e.g. with `chgrp -hR <group> <cache_dir>`.
-- its setgid bit must be set, e.g. with `chmod g+s <cache_dir> <cache_dir>/LMAKE` (this allows the group to propagate as sub-dirs are created)
-- the operation above may have to be done recursively if the cache dir is already populated
+When the group has read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:
 
-To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:
+`setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
 
-- The best approach is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
-- Alternatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+Similarly, when all users have read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:
 
-Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:
-
-- The best approach is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
-- Alternatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+`setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
 
 ## Coherence
 

@@ -47,9 +47,9 @@ namespace Store {
 			//
 			_alloc() ;
 			if (+name) {
-				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				_fd = AcFd( name , {writable?O_RDWR|O_CREAT:O_RDONLY,0666/*mod*/} ) ;  // mode is only used if created, which implies writable
-				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				_fd = AcFd( name , {writable?O_RDWR|O_CREAT:O_RDONLY} ) ;              // mode is only used if created, which implies writable
+				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (writable) _chk_rc( ::lseek(_fd,0/*offset*/,SEEK_END) , "lseek" ) ; // ensure writes (when expanding) are done at end of file when resizing
 				SWEAR_PROD(+_fd) ;
 				Disk::FileInfo fi{_fd} ;

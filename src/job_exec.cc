@@ -65,22 +65,22 @@ JobStartRpcReply get_start_info() {
 	return res ;
 }
 
-::string g_to_unlnk ;                                                                         // XXX/ : suppress when CentOS7 bug is fixed
+::string g_to_unlnk ;                                                                   // XXX/ : suppress when CentOS7 bug is fixed
 ::vector_s cmd_line(::string const& repo_root_s) {
 	static const size_t ArgMax = ::sysconf(_SC_ARG_MAX) ;
 	if (g_start_info.use_script) {
 		// XXX/ : fix the bug with CentOS7 where the write seems not to be seen and old script is executed instead of new one
-	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ;             // correct code
+	//	::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_start_info.small_id) ;       // correct code
 		::string cmd_file = cat(PrivateAdminDirS,"cmds/",g_seq_id) ;
-		AcFd( cmd_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( g_start_info.cmd ) ;
-		::vector_s res = ::move(g_start_info.interpreter) ; res.reserve(res.size()+1) ;       // avoid copying as interpreter is used only here
-		res.push_back(mk_glb(cmd_file,repo_root_s)) ;                                         // provide absolute script so as to support cwd
-		g_to_unlnk = ::move(cmd_file) ;                                                       // XXX/ : suppress when CentOS7 bug is fixed
+		AcFd( cmd_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( g_start_info.cmd ) ;
+		::vector_s res = ::move(g_start_info.interpreter) ; res.reserve(res.size()+1) ; // avoid copying as interpreter is used only here
+		res.push_back(mk_glb(cmd_file,repo_root_s)) ;                                   // provide absolute script so as to support cwd
+		g_to_unlnk = ::move(cmd_file) ;                                                 // XXX/ : suppress when CentOS7 bug is fixed
 		Trace("cmd_line","use_script",res) ;
 		return res ;
 	} else {
 		// large commands are forced use_script=true in server
-		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;                // env+cmd line must not be larger than ARG_MAX, keep some margin for env
+		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;          // env+cmd line must not be larger than ARG_MAX, keep some margin for env
 		bool is_simple = mk_simple_cmd_line( /*inout*/g_start_info.interpreter , ::move(g_start_info.cmd) , Bash , g_start_info.env ) ; // interpreter becomes full cmd line
 		Trace("cmd_line",STR(is_simple),g_start_info.interpreter) ;
 		return ::move(g_start_info.interpreter) ;
@@ -334,7 +334,7 @@ int main( int argc , char* argv[] ) {
 		if (!g_start_info.stdout) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
-			g_gather.child_stdout = Fd( g_start_info.stdout , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} ) ;
+			g_gather.child_stdout = Fd( g_start_info.stdout , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ;
 			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ;  // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}

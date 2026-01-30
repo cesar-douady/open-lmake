@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Jan 29 14:00:02 2026 -->
+<!-- CreationDate: Fri Jan 30 23:07:21 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -193,19 +193,16 @@ specifies who is given permission to access this shared
 dir.</p> </td></tr>
 </table>
 
-<p style="margin-left:9%; margin-top: 1em">It is also an
-error if <i>code</i> cannot be found with the accompanying
-<i>context</i>. <b><br>
--x</b> <i>context</i>, <b>--context</b>=<i>context</i></p>
-
-<p style="margin-left:18%;">specifies the context in which
-to find the value associated with passed code</p>
-
 <p style="margin-left:9%;"><b>-l</b> <i>min_len</i>,
 <b>--min-len</b>=<i>min_len</i></p>
 
 <p style="margin-left:18%;">specifies the minimum code
 length to use to encode value</p>
+
+<p style="margin-left:9%; margin-top: 1em">The dir must
+read/write/execute access to any user needing to use the
+codec service, and if such accsses are at group level (but
+not other), it must have its setgid bit set.</p>
 
 <h2>EXAMPLES
 <a name="EXAMPLES"></a>

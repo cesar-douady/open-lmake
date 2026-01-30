@@ -539,7 +539,7 @@ using FileView = _File<::string_view  > ;
 
 struct _FdAction {
 	int       flags     = O_RDONLY ;
-	mode_t    mod       = -1       ;                                                         // default to an invalid mod (0 may be usefully used to create a no-access file)
+	mode_t    mod       = 0666     ;                                                         // default to an invalid mod (0 may be usefully used to create a no-access file)
 	bool      err_ok    = false    ;
 	bool      mk_dir    = true     ;
 	bool      force     = false    ;                                                         // unlink any file on path to file if necessary
@@ -774,7 +774,7 @@ struct _NfsGuardLockAction {
 struct _LockerFd {
 	using Action = _NfsGuardLockAction ;
 	// cxtors & casts
-	_LockerFd( FileRef f , Action a={} ) : fd{ f , {.flags=O_RDWR|O_CREAT,.mod=0666,.err_ok=a.err_ok,.mk_dir=a.mk_dir,.perm_ext=a.perm_ext} } {}
+	_LockerFd( FileRef f , Action a={} ) : fd{ f , {.flags=O_RDWR|O_CREAT,.err_ok=a.err_ok,.mk_dir=a.mk_dir,.perm_ext=a.perm_ext} } {}
 	// accesses
 	bool operator+() const { return +fd ; }
 	// services
@@ -975,7 +975,7 @@ template<class... As> void dbg( ::string const& title , As const&... args ) { db
 template<class... As> void dbg( const char*     title , As const&... args ) { dbg( Fd::Stderr , title , args... ) ; } // disambiguate
 template<class... As> void dbg( NewType , ::string const& file , ::string const& title , As const&... args ) {
 	Save sav_errno { errno } ;
-	dbg( AcFd(file,{O_WRONLY|O_APPEND|O_CREAT,0666}) , title , args... ) ;
+	dbg( AcFd(file,{O_WRONLY|O_APPEND|O_CREAT}) , title , args... ) ;
 }
 
 template<::integral I> I random() {

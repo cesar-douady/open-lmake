@@ -23,7 +23,7 @@ struct RepairDigest {
 RepairDigest repair(::string const& from_dir) {
 	Trace trace("repair",from_dir) ;
 	RepairDigest res           ;
-	AcFd         repaired_jobs { cat(AdminDirS,"repaired_jobs") , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} } ;
+	AcFd         repaired_jobs { cat(AdminDirS,"repaired_jobs") , {O_WRONLY|O_TRUNC|O_CREAT} } ;
 	//
 	::umap<Crc,Rule> rule_tab ; rule_tab.reserve(Rule::s_rules->size()) ;
 	for( Rule r : Persistent::rule_lst() ) { trace("rule",r->crc->cmd,r->name) ; rule_tab[r->crc->cmd] = r ; }
@@ -152,7 +152,7 @@ int main( int argc , char* /*argv*/[] ) {
 	try                       { rename( admin_dir/*src*/ , bck_admin_dir/*dst*/ ) ; }
 	catch (::string const& e) { fail_prod(e) ;                                      }
 	//
-	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
+	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
 	//
 	g_trace_file = new ::string{cat(PrivateAdminDirS,"trace/",*g_exe_name)} ;

@@ -125,7 +125,7 @@ static void _repair(DryRunDigest const& dry_run) {
 		throw_unless( digest.second>=CacheHitInfo::Miss , "conflict" ) ;
 	}
 	::string keys_str ; for( auto const& [old_key,new_key] : keys ) keys_str << +new_key<<' '<<dry_run.keys.at(old_key)<<'\n' ;
-	AcFd(g_repo_keys_file,{.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0666,.perm_ext=g_cache_config.perm_ext}).write(keys_str) ;
+	AcFd(g_repo_keys_file,{O_WRONLY|O_TRUNC|O_CREAT}).write(keys_str) ;
 }
 
 int main( int argc , char* argv[] ) {
@@ -142,8 +142,11 @@ int main( int argc , char* argv[] ) {
 	::string const& top_dir_s = with_slash(cmd_line.args[0]) ;
 	if (::chdir(top_dir_s.c_str())!=0) exit(Rc::System  ,"cannot chdir (",StrErr(),") to ",top_dir_s,rm_slash ) ;
 	//
+	FileStat st ; if (::lstat(".",&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
+	::umask(~st.st_mode) ;                                                         // ensure permissions on top-level dir are propagated to all underlying dirs and files
+	//
 	app_init({
-		.cd_root      = false // we have already chdir'ed to top
+		.cd_root      = false                                                      // we have already chdir'ed to top
 	,	.chk_version  = Yes
 	,	.clean_msg    = cache_clean_msg()
 	,	.read_only_ok = cmd_line.flags[Flag::DryRun]

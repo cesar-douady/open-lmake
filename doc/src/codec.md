@@ -95,30 +95,24 @@ In that case, all associations are stored as individual files within this dir.
 Such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
 
 - `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
-- `perm`      : one of `none`, `group` or `other` which specifies who is given permission to access this shared dir.
 
 ## Permissions
 
 For all users accessing the association table:
 
-- Its root dir and its `LMAKE` dir must have read/write access (read-only access is enough to only decode).
+- Its root dir and its `LMAKE` dir must have read/write/execute access (read-only access is enough to only decode).
 - The `LMAKE/config.py` must have read access.
 
-If the group to use for access permission is not the default group of the users:
+If access permission is at group level, the setgid bit must be set, e.g. using `chmod g+s <cache_dir>`.
+This operation may have to be done recursively if the root dir is already populated.
 
-- the root dir must have this group, e.g. with `chgrp -hR <group> <cache_dir>`.
-- its setgid bit must be set, e.g. with `chmod g+s <cache_dir> <cache_dir>/LMAKE` (this allows the group to propagate as sub-dirs are created)
-- the operation above may have to be done recursively if the root dir is already populated
+When the group has read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:
 
-To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:
+`setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
 
-- Best is to use the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::- <root_dir>`
-- Alternatively, `perm = 'group'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+Similarly, when all users have read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:
 
-Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:
-
-- Best is to the ACL's, e.g. using `setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
-- Alternatively, `perm = 'other'` can be set in `LMAKE/config.py`. This is slightly less performant as additional calls to `chmod` are necessary in that case.
+`setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
 
 ## Coherence
 

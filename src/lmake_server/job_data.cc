@@ -929,7 +929,7 @@ namespace Engine {
 		} else {
 			::string lines ;
 			Crc      crc   = _refresh_codec_file( /*out*/lines , decode_tab ) ;
-			AcFd( filename , {O_WRONLY|O_TRUNC,0666/*mod*/} ).write( lines ) ;
+			AcFd( filename , {O_WRONLY|O_TRUNC} ).write( lines ) ;
 			file->set_crc_date( crc , FileSig(filename) ) ;
 			deps.assign({Dep( file , Access::Reg , crc , false/*err*/ )}) ;
 		}
@@ -938,7 +938,7 @@ namespace Engine {
 			case Maybe : req->audit_job( Color::Note , New , "reformat" , rule() , filename ) ; break ;
 			case Yes   : req->audit_job( Color::Note , New , "update"   , rule() , filename ) ; break ;
 		}
-		AcFd ( manifest_filename , {O_WRONLY|O_CREAT|O_TRUNC,0666/*mod*/} ).write( manifest ) ;
+		AcFd ( manifest_filename , {O_WRONLY|O_CREAT|O_TRUNC} ).write( manifest ) ;
 		status = Status::Ok ;
 		trace("done") ;
 	}

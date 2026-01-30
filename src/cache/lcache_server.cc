@@ -39,7 +39,7 @@ static CacheRpcReply _config( Fd fd , ::string const& repo_key ) {
 	Ckey key      { New , repo_key }                                           ;
 	bool inserted = _g_conn_tab.try_emplace( fd , ConnEntry{.key=key} ).second ; SWEAR( inserted , fd,repo_key ) ;
 	// ensure lcache_repair can retrieve repo keys
-	if (!key->ref_cnt) AcFd(cat(PrivateAdminDirS,"repo_keys"),{.flags=O_WRONLY|O_APPEND|O_CREAT,.mod=0666,.perm_ext=g_cache_config.perm_ext}).write(cat(+key,' ',repo_key,'\n')) ;
+	if (!key->ref_cnt) AcFd(cat(PrivateAdminDirS,"repo_keys"),{O_WRONLY|O_APPEND|O_CREAT}).write(cat(+key,' ',repo_key,'\n')) ;
 	//
 	key.inc() ;
 	return { .proc=CacheRpcProc::Config , .config=g_cache_config , .conn_id=uint32_t(fd.fd+1) } ; // conn_id=0 is reserved to mean no id
@@ -163,8 +163,12 @@ static CacheServer _g_server { ServerMrkr } ;
 
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
+	//
+	FileStat st ; if (::lstat(".",&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
+	::umask(~st.st_mode) ;                                                         // ensure permissions on top-level dir are propagated to all underlying dirs and files
+	//
 	app_init({
-		.cd_root      = false // daemon is always launched at root
+		.cd_root      = false                                                      // daemon is always launched at root
 	,	.chk_version  = Maybe
 	,	.clean_msg    = cache_clean_msg()
 	,	.read_only_ok = false

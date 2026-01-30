@@ -655,7 +655,6 @@ Else an exception is raised.</p>
 <p>In the former case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for:</p>
 <ul>
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
-<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
@@ -757,7 +756,6 @@ Else a code is created, of length at least <code>min_length</code>, is associate
 <p>In the former case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for:</p>
 <ul>
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
-<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
@@ -2746,14 +2744,12 @@ It is also possible to run it manually with the <code>lcache_server</code> comma
 <tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
 <tr><td><code>max_rate</code></td><td>'1G'</td><td>any positive <code>int</code> or <code>str</code> composed of a number followed by a unit suffix</td><td>the maximum rate in B/s above which entries are not recorded in the cache</td></tr>
 <tr><td><code>max_runs_per_job</code></td><td>100</td><td>any positive <code>int</code></td><td>the maximum number of runs kept for a given job</td></tr>
-<tr><td><code>perm</code></td><td>'none'</td><td><code>'none'</code>, <code>'group'</code>, <code>'other'</code></td><td>the permissions to use when creating files in the cache, overriding current umask</td></tr>
 <tr><td><code>size</code></td><td>&lt;required&gt;</td><td>any <code>int</code> or a <code>str</code> composed of a number followed by a unit suffix</td><td>the overall size the cache is allowed to occupy</td></tr>
 </tbody></table>
 </div>
 <p>Unit suffixes can be <code>k</code>, <code>M</code>, <code>G</code> or <code>T</code> (powers of 1024).</p>
 <p>For example <code>LMAKE/config.py</code> can contain:</p>
 <pre><code>max_rate = '100M'
-perm     = 'group'
 size     = '1.5T'
 </code></pre>
 <h2 id="configuration-3"><a class="header" href="#configuration-3">configuration</a></h2>
@@ -2801,25 +2797,14 @@ This is a natural extension of the classical LRU algorithm devised for cases whe
 <h2 id="permissions"><a class="header" href="#permissions">Permissions</a></h2>
 <p>For all users accessing the cache:</p>
 <ul>
-<li>Its root dir and its <code>LMAKE</code> dir must have read/write access (including if only download is done to maintain the LRU state).</li>
+<li>All dirs must have read/write/execute accesses.</li>
 <li>The <code>LMAKE/config.py</code> must have read access.</li>
 </ul>
-<p>If the group to use for access permission is not the default group of the users:</p>
-<ul>
-<li>the root dir must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
-<li>its setgid bit must be set, e.g. with <code>chmod g+s &lt;cache_dir&gt; &lt;cache_dir&gt;/LMAKE</code> (this allows the group to propagate as sub-dirs are created)</li>
-<li>the operation above may have to be done recursively if the cache dir is already populated</li>
-</ul>
-<p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
-<ul>
-<li>The best approach is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></li>
-<li>Alternatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
-</ul>
-<p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
-<ul>
-<li>The best approach is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
-<li>Alternatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
-</ul>
+<p>And if such acceses are at group level (but not other), all dirs must have the setgid bit set.</p>
+<p>When the group has read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
+<p><code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></p>
+<p>Similarly, when all users have read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
+<p><code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></p>
 <h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.</p>
@@ -2917,30 +2902,19 @@ In that case, all associations are stored as individual files within this dir.
 Such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
 <ul>
 <li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
-<li><code>perm</code>      : one of <code>none</code>, <code>group</code> or <code>other</code> which specifies who is given permission to access this shared dir.</li>
 </ul>
 <h2 id="permissions-1"><a class="header" href="#permissions-1">Permissions</a></h2>
 <p>For all users accessing the association table:</p>
 <ul>
-<li>Its root dir and its <code>LMAKE</code> dir must have read/write access (read-only access is enough to only decode).</li>
+<li>Its root dir and its <code>LMAKE</code> dir must have read/write/execute access (read-only access is enough to only decode).</li>
 <li>The <code>LMAKE/config.py</code> must have read access.</li>
 </ul>
-<p>If the group to use for access permission is not the default group of the users:</p>
-<ul>
-<li>the root dir must have this group, e.g. with <code>chgrp -hR &lt;group&gt; &lt;cache_dir&gt;</code>.</li>
-<li>its setgid bit must be set, e.g. with <code>chmod g+s &lt;cache_dir&gt; &lt;cache_dir&gt;/LMAKE</code> (this allows the group to propagate as sub-dirs are created)</li>
-<li>the operation above may have to be done recursively if the root dir is already populated</li>
-</ul>
-<p>To allow the group to have read/write access to all created dirs and files, there are 2 possibilities:</p>
-<ul>
-<li>Best is to use the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;root_dir&gt;</code></li>
-<li>Alternatively, <code>perm = 'group'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
-</ul>
-<p>Similarly, to allow all users to have read/write access to all created dirs and files, there are 2 possibilities:</p>
-<ul>
-<li>Best is to the ACL's, e.g. using <code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></li>
-<li>Alternatively, <code>perm = 'other'</code> can be set in <code>LMAKE/config.py</code>. This is slightly less performant as additional calls to <code>chmod</code> are necessary in that case.</li>
-</ul>
+<p>If access permission is at group level, the setgid bit must be set, e.g. using <code>chmod g+s &lt;cache_dir&gt;</code>.
+This operation may have to be done recursively if the root dir is already populated.</p>
+<p>When the group has read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
+<p><code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></p>
+<p>Similarly, when all users have read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
+<p><code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></p>
 <h2 id="coherence-1"><a class="header" href="#coherence-1">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.</p>

@@ -164,7 +164,7 @@ namespace Engine::Makefiles {
 			if (+val) deps_str <<'='<<key<<'='<<*val<<'\n' ;
 			else      deps_str <<'='<<key           <<'\n' ;
 		}
-		AcFd( new_deps_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( deps_str ) ;
+		AcFd( new_deps_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( deps_str ) ;
 		//
 		_chk_dangling( action , true/*new*/ , startup_dir_s ) ;
 	}
@@ -326,9 +326,9 @@ namespace Engine::Makefiles {
 				for( auto const& [k,v] : user_env )
 					_g_user_env_str << first(""," , ")<< mk_py_str(k) <<":"<< mk_py_str(v) ;
 				_g_user_env_str << " }" ;
-			} //!                                  mod
-			AcFd( EnvironFile  , {O_RDONLY|O_CREAT,0666} ) ;                                       // these are sources, they must exist
-			AcFd( ManifestFile , {O_RDONLY|O_CREAT,0666} ) ;                                       // .
+			}
+			AcFd( EnvironFile  , {O_RDONLY|O_CREAT} ) ;                                            // these are sources, they must exist
+			AcFd( ManifestFile , {O_RDONLY|O_CREAT} ) ;                                            // .
 		}
 		//
 		bool/*done*/ config_digest = _refresh_config( /*out*/msg , /*out*/config , /*out*/py_info , /*out*/config_deps , user_env , startup_dir_s ) ;
@@ -425,7 +425,7 @@ namespace Engine::Makefiles {
 		_refresh( /*out*/msg , rescue , refresh_ , env , startup_dir_s ) ;
 		//
 		if ( first_time && !RegExpr::s_cache.steady() ) {
-			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT,0666/*mod*/} ).write( serialize(RegExpr::s_cache) ) ; } // update persistent cache
+			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( serialize(RegExpr::s_cache) ) ; }             // update persistent cache
 			catch (...) { Fd::Stderr.write(cat("cannot write reg expr cache (no consequences) to ",reg_exprs_file,'\n')) ;       } // perf only, ignore errors (e.g. read-only)
 		}
 		trace("done",msg) ;
