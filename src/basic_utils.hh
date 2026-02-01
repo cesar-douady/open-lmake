@@ -14,6 +14,10 @@
 
 static constexpr size_t Npos = ::string::npos ;
 
+#if HAS_UINT128
+	using uint128_t = __uint128_t ;
+#endif
+
 //
 // meta programming
 //

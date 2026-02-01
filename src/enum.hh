@@ -164,8 +164,10 @@ template<Enum E> void encode_enum( char* p , E e ) { encode_int(p,+e) ;         
 // BitMap
 //
 
+template<UEnum E> struct BitMap ;
+template<UEnum E> ::string& operator+=( ::string& , BitMap<E> ) ;
 template<UEnum E> struct BitMap {
-	template<class> friend ::string& operator+=( ::string& , BitMap const ) ;
+	friend ::string& operator+=<E>( ::string& , BitMap const ) ;
 	using Elem =       E    ;
 	using Val  = Uint<N<E>> ;
 	// cxtors & casts
@@ -203,7 +205,7 @@ template<UEnum E> BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
 	return res ;
 }
 
-template<UEnum E> ::string& operator+=( ::string& os , BitMap<E> const bm ) {
+template<UEnum E> ::string& operator+=( ::string& os , BitMap<E> bm ) {
 	os <<'(' ;
 	bool first = true ;
 	for( E e : iota(All<E>) ) if (bm[e]) {

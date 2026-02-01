@@ -197,7 +197,9 @@ namespace Codec {
 		// accesses
 		bool             is_encode() const { return        _code_val_crc.index()==1 ; }
 		::string  const& code     () const { return get<0>(_code_val_crc)           ; }
+		::string       & code     ()       { return get<0>(_code_val_crc)           ; }
 		Hash::Crc const& val_crc  () const { return get<1>(_code_val_crc)           ; }
+		Hash::Crc      & val_crc  ()       { return get<1>(_code_val_crc)           ; }
 		// services
 		::string name(bool tmp=false) const ;
 		void chk() const ;

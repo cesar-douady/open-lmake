@@ -230,12 +230,14 @@ void NfsGuardDir::flush() {
 
 static constexpr Delay FileLockFileTimeout { 10 } ; // a file based lock that is that old is ignored (fd based lcoks are spontaneously released when process dies)
 
+// fd-based locks
+
 void _LockerFcntl::lock() {
 	struct flock lock {
 		.l_type   = F_WRLCK
 	,	.l_whence = SEEK_SET
 	,	.l_start  = 0
-	,	.l_len    = 1 // ensure a lock exists even if file is empty
+	,	.l_len    = 1 // any length is ok, 1 is easy to identify in /proc/locks
 	,	.l_pid    = 0
 	} ;
 	while (::fcntl(fd,F_SETLKW,&lock)!=0) SWEAR_PROD( errno==EINTR , fd,StrErr() ) ;
@@ -244,6 +246,8 @@ void _LockerFcntl::lock() {
 void _LockerFlock::lock() {
 	while (::flock(fd,LOCK_EX)!=0) SWEAR_PROD( errno==EINTR , fd,StrErr() ) ;
 }
+
+// file-based locks
 
 // use different names for files based and fd based to avoid problems when reconfiguring (fd based leave their files)
 _LockerFile::_LockerFile(FileRef f) : spec{f.at,f.file+"_tmp"} , date{Pdate(New).val()} {}
@@ -266,14 +270,6 @@ _LockerExcl::Trial _LockerExcl::try_lock() {
 	if (errno==EEXIST)                 return Trial::Retry  ;                                  // lock is held by someone else
 	if (errno==ENOENT)                 return Trial::NoDir  ;                                  // lock is held by someone else
 	/**/                               return Trial::Fail   ;                                  // not lockable
-}
-
-_LockerSymlink::Trial _LockerSymlink::try_lock() {
-	int rc = ::symlinkat( "?" , spec.at,spec.file.c_str() ) ;
-	if (rc==0        ) return Trial::Locked ;
-	if (errno==EEXIST) return Trial::Retry  ; // lock is held by someone else
-	if (errno==ENOENT) return Trial::NoDir  ;
-	/**/               return Trial::Fail   ; // not lockable
 }
 
 _LockerLink::Trial _LockerLink::try_lock() {
@@ -309,9 +305,16 @@ _LockerMkdir::Trial _LockerMkdir::try_lock() {
 	if (errno==ENOENT) return Trial::NoDir  ;
 	/**/               return Trial::Fail   ; // not lockable
 }
-
 void _LockerMkdir::unlock(bool err_ok) {
 	_LockerFile::unlock(err_ok,true/*is_dir*/) ;
+}
+
+_LockerSymlink::Trial _LockerSymlink::try_lock() {
+	int rc = ::symlinkat( "?" , spec.at,spec.file.c_str() ) ;
+	if (rc==0        ) return Trial::Locked ;
+	if (errno==EEXIST) return Trial::Retry  ; // lock is held by someone else
+	if (errno==ENOENT) return Trial::NoDir  ;
+	/**/               return Trial::Fail   ; // not lockable
 }
 
 // cannot put this cxtor in .hh file as Pdate is not available
@@ -334,21 +337,24 @@ template<class Locker> _FileLockFile<Locker>::_FileLockFile( FileRef f , Action 
 }
 
 template _FileLockFile<_LockerExcl   >::_FileLockFile( FileRef , Action ) ; // explicit instantiation
-template _FileLockFile<_LockerSymlink>::_FileLockFile( FileRef , Action ) ; // .
 template _FileLockFile<_LockerLink   >::_FileLockFile( FileRef , Action ) ; // .
 template _FileLockFile<_LockerMkdir  >::_FileLockFile( FileRef , Action ) ; // .
+template _FileLockFile<_LockerSymlink>::_FileLockFile( FileRef , Action ) ; // .
 
 NfsGuardLock::NfsGuardLock( FileSync fs , FileRef file , Action a ) : NfsGuard{fs} {
-	switch (fs) {                                                                             // PER_FILE_SYNC : add entry here
-		// XXX/ : _LockerFcntl has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, but seems to exhibit very good behavior with a real lmake case
-		// XXX/ : _LockerFlock has been observed as not working with rocky9/NFSv4 despite NVS being configured to support flock
-		// XXX/ : _LockerMkdir has been observed as not working with rocky9/NFSv4
+	switch (fs) {                                                                               // PER_FILE_SYNC : add entry here
+		// XXX/ : _FileLockFd  <_LockerFcntl  > has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, but seems to exhibit very good behavior with a real lmake case
+		// XXX/ : _FileLockFd  <_LockerFlock  > has been observed as not working with rocky9/NFSv4 despite NVS being configured to support flock
+		// XXX/ : _FileLockFile<_LockerExcl   > seems ok on trials with rocky9/NFSv4
+		// XXX/ : _FileLockFile<_LockerLink   > seems ok on trials with rocky9/NFSv4
+		// XXX/ : _FileLockFile<_LockerMkdir  > has been observed as not working with rocky9/NFSv4
+		// XXX/ : _FileLockFile<_LockerSymlink> seems ok on trials with rocky9/NFSv4
 		// for each FileSync mechanism, we can choose any of the variant alternative (cf struct FileLock in utils.hh)
 		// /!\ monostate fakes locks, for experimental purpose only
-		case FileSync::None : _FileLock::emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
-		case FileSync::Dir  : _FileLock::emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
-		case FileSync::Sync : _FileLock::emplace<_FileLockFd<_LockerFcntl>>(file,a) ; break ;
-	DF}                                                                                       // NO_COV
+		case FileSync::None : _FileLock::emplace<_FileLockFd  <_LockerFcntl>>(file,a) ; break ;
+		case FileSync::Dir  : _FileLock::emplace<_FileLockFile<_LockerExcl >>(file,a) ; break ;
+		case FileSync::Sync : _FileLock::emplace<_FileLockFile<_LockerExcl >>(file,a) ; break ;
+	DF}                                                                                         // NO_COV
 }
 
 //

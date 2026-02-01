@@ -1,14 +1,14 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 22      ; // b20e5cd7c86cead222ff6f2515d59def
-	uint64_t    constexpr Repo  = 17      ; // be3b3636825a0427ef086c77d3a0104a
-	uint64_t    constexpr Job   = 8       ; // 8d5e42a6190f3325a516e39253846700
+	uint64_t    constexpr Cache = 22      ; // 9ac44ea0970c589d1d2952968203b876
+	uint64_t    constexpr Repo  = 17      ; // 9084eb1d72b3e0143634258f17e639d3
+	uint64_t    constexpr Job   = 8       ; // 1cf4a9b1966d5d863e67c03c040baa11
 	const char* const     Major = "26.01" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : b20e5cd7c86cead222ff6f2515d59def *
+// * Cache : 9ac44ea0970c589d1d2952968203b876 *
 // ********************************************
 //
 //	// START_OF_VERSIONING
@@ -69,7 +69,7 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
-//		Crc::Crc(::string const& filename) {
+//		template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 //			self = None ;
 //			if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
@@ -80,8 +80,8 @@ namespace Version {
 //					break ;
 //					case FileTag::Reg :
 //					case FileTag::Exe : {
-//						Xxh      ctx { fi.tag() }                   ;
-//						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+//						_Xxh<Is128> ctx { fi.tag() }                   ;
+//						::string    buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 //						for( size_t sz=fi.sz ;;) {
 //							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
 //							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
@@ -102,7 +102,7 @@ namespace Version {
 //					} break ;
 //				DN}
 //			} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-//				Xxh ctx { FileTag::Lnk } ;
+//				_Xxh<Is128> ctx { FileTag::Lnk } ;
 //				ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 //				self = ctx.digest() ;
 //			}
@@ -853,7 +853,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : be3b3636825a0427ef086c77d3a0104a *
+// * Repo : 9084eb1d72b3e0143634258f17e639d3 *
 // *******************************************
 //
 //	// START_OF_VERSIONING
@@ -899,7 +899,7 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
-//		Crc::Crc(::string const& filename) {
+//		template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 //			self = None ;
 //			if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
@@ -910,8 +910,8 @@ namespace Version {
 //					break ;
 //					case FileTag::Reg :
 //					case FileTag::Exe : {
-//						Xxh      ctx { fi.tag() }                   ;
-//						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+//						_Xxh<Is128> ctx { fi.tag() }                   ;
+//						::string    buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 //						for( size_t sz=fi.sz ;;) {
 //							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
 //							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
@@ -932,7 +932,7 @@ namespace Version {
 //					} break ;
 //				DN}
 //			} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-//				Xxh ctx { FileTag::Lnk } ;
+//				_Xxh<Is128> ctx { FileTag::Lnk } ;
 //				ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 //				self = ctx.digest() ;
 //			}
@@ -2090,7 +2090,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 8d5e42a6190f3325a516e39253846700 *
+// * Job : 1cf4a9b1966d5d863e67c03c040baa11 *
 // ******************************************
 //
 //	// START_OF_VERSIONING
@@ -2118,7 +2118,7 @@ namespace Version {
 //		res <<':'<<      mk_printable     (                  views_s     ,false )      ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
-//		Crc::Crc(::string const& filename) {
+//		template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 //			self = None ;
 //			if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
@@ -2129,8 +2129,8 @@ namespace Version {
 //					break ;
 //					case FileTag::Reg :
 //					case FileTag::Exe : {
-//						Xxh      ctx { fi.tag() }                   ;
-//						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+//						_Xxh<Is128> ctx { fi.tag() }                   ;
+//						::string    buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 //						for( size_t sz=fi.sz ;;) {
 //							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
 //							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
@@ -2151,7 +2151,7 @@ namespace Version {
 //					} break ;
 //				DN}
 //			} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-//				Xxh ctx { FileTag::Lnk } ;
+//				_Xxh<Is128> ctx { FileTag::Lnk } ;
 //				ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 //				self = ctx.digest() ;
 //			}

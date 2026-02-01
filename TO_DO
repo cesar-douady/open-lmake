@@ -32,6 +32,14 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* accept lmake --version outside a repo
+* consider sources as phhony
+	- i.e. accept that they do not exist
+	- including for source dirs
+* option to trace all external accesses
+	- possibly including simple files
+	- possibly as a BOM
+* trace absolute path to repo
 * provide support for all available python releases
 	- generate clmake.xxx.so (including per python release) instead of clmake.so
 	- or ensure single .so is binary compatible with all 3.6-3.14 releases
@@ -58,8 +66,7 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* suppress perm in cache and codec config
-	- spy dir permissions and xattr
+* ascii art congratulating user for discovering bug in case of dirty crash
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly
@@ -145,11 +152,30 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* integrate conan (C/C++)
+	- as a package manager
+	- possibly also pip (python) and the like (rust, go, java etc.)
 * rework codec
+	- lockless
+		- decode link to context-less CAS is the truth
+		- encode link to decode link
+		- new_codes as a dir with symlinks to decode links
+		- ref count in lcodec_repair to know what CAS to keep
+		- implement Crc128 as 64 bits is not obviously enough
 	- provide a env variable for external use
 * consider using fanotify as an autodep method
 	- fanotify_init
 	- fanotify_mark
+* consider CanonicRule
+	- when several file names for the same semantic
+	- accept a "mk_canonic" function for transforming a target into a canonic name
+	- put symbolic links instead when name is not canonic
+* consider TestedRule
+	- when job A is run, put a dep to B to hidden job representing the Req
+	- B is supposed to mean "A is tested"
+	- so dependents of A are run immediately, without waiting for tests
+	- but A is tested nevertheless
+	- this is a kind of forward build
 ? process fstat and decrease accesses in open as do not anticipate fstat
 	- unclear it is better as fstat is quite common and most of the time, open implies full dep anyway
 ? add flags to chroot_dir
@@ -311,6 +337,7 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
+* implement picrov32
 * test chroot actions
 * improve cache test coverage
 	- add a stress test

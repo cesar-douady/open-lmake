@@ -824,10 +824,10 @@ struct _LockerFile {
 	File     spec ;
 	uint64_t date ;                                                      // cant use Pdate here
 } ;
-struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ; ::string tmp ; bool has_tmp=false ; } ;
 struct _LockerExcl    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ;                                     } ;
-struct _LockerSymlink : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ;                                     } ;
+struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ; ::string tmp ; bool has_tmp=false ; } ;
 struct _LockerMkdir   : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ; void unlock(bool err_ok=false) ;    } ;
+struct _LockerSymlink : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ;                                     } ;
 //
 template<class Locker> struct _FileLockFile : Locker {
 	using typename Locker::Action   ;
@@ -851,9 +851,9 @@ using _FileLock =
 	,	_FileLockFd  <_LockerFcntl  >
 	,	_FileLockFd  <_LockerFlock  >
 	,	_FileLockFile<_LockerExcl   >
-	,	_FileLockFile<_LockerSymlink>
 	,	_FileLockFile<_LockerLink   >
 	,	_FileLockFile<_LockerMkdir  >
+	,	_FileLockFile<_LockerSymlink>
 	>
 ;
 struct NfsGuardLock : _FileLock , NfsGuard                                       // NfsGuard must follow _FileLock so that it is flushed before lock is released upon destruction

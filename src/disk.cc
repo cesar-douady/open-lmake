@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <endian.h>
+
 #include "hash.hh"
 #include "process.hh"
 
@@ -483,12 +485,13 @@ namespace Disk {
 	::vector<AclEntry> acl_entries(FileRef dir_s) {
 		::vector<AclEntry> res ;
 		AcFd               fd  { dir_s , {.flags=O_PATH} }                                           ;
-		ssize_t            sz  = ::fgetxattr(fd,"system.posix_acl_default",nullptr/*buf*/,0/*size*/) ; if (sz<0                                   ) return {} ;
+		ssize_t            sz  = ::fgetxattr(fd,"system.posix_acl_default",nullptr/*buf*/,0/*size*/) ; if (sz<0                                            ) return {} ;
 		::string           buf ;
-		sz = ::lgetxattr(".","system.posix_acl_default",nullptr/*buf*/,0/*size*/) ;                    if (sz<0                                   ) return {} ;
+		sz = ::lgetxattr(".","system.posix_acl_default",nullptr/*buf*/,0/*size*/) ;                    if (sz<0                                            ) return {} ;
 		buf.resize(sz) ;
-		sz = ::lgetxattr(".","system.posix_acl_default",buf.data(),buf.size()) ;                       if (sz<0                                   ) return {} ;
-		struct ::posix_acl_xattr_header* hdr = reinterpret_cast<posix_acl_xattr_header*>(buf.data()) ; if (hdr->a_version!=POSIX_ACL_XATTR_VERSION) return {} ;
+		sz = ::lgetxattr(".","system.posix_acl_default",buf.data(),buf.size()) ;                       if (sz<0                                            ) return {} ;
+		struct ::posix_acl_xattr_header* hdr = reinterpret_cast<posix_acl_xattr_header*>(buf.data()) ; if (le32toh(hdr->a_version)!=POSIX_ACL_XATTR_VERSION) return {} ;
+		static_assert(sizeof(hdr->a_version)==4) ;
 		for (
 			posix_acl_xattr_entry* entry = reinterpret_cast<posix_acl_xattr_entry*>(hdr+1)
 		;	reinterpret_cast<char*>(entry+1) <= buf.data()+buf.size()

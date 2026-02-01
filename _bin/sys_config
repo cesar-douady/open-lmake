@@ -447,6 +447,17 @@ if [ "$OBJCOPY" ] ; then
 fi
 
 #
+# UINT128 (HAS_UINT128)
+#
+cat <<"EOF" >uint128.c
+	int main() {
+		__uint128_t x = 0 ;
+		return x ;
+	}
+EOF
+HAS_UINT128=$(ok cc -c -o /dev/null uint128.c )
+
+#
 # ZSTD/ZLIB (HAS_ZSTD+HAS_ZLIB)
 #
 cat <<"EOF" >zlib.cc
@@ -533,6 +544,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_H
+	#define HAS_UINT128                 $HAS_UINT128
 	#define HAS_ZLIB                    $HAS_ZLIB
 	#define HAS_ZSTD                    $HAS_ZSTD
 	#define LD_SO_LIB                   "$LD_SO_LIB"

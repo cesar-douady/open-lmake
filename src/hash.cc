@@ -10,17 +10,90 @@ namespace Hash {
 	using namespace Disk ;
 
 	//
+	// Xxh
+	//
+
+	template<bool Is128> char    _Xxh<Is128>::_s_lnk_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
+	template<bool Is128> char    _Xxh<Is128>::_s_exe_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
+	template<bool Is128> Mutex<> _Xxh<Is128>::_s_salt_init_mutex                  ;
+	template<bool Is128> bool    _Xxh<Is128>::_s_salt_inited                      = false ;
+	//                   Is128
+	template struct _Xxh<false> ; // explicit instanciation of static variables
+	template struct _Xxh<true > ; // .
+
+	// specializations
+	template<> _Xxh<false/*Is128*/>::_Xxh() {
+		XXH3_INITSTATE   (&_state) ;
+		XXH3_64bits_reset(&_state) ;
+	}
+	template<> _Xxh<true/*Is128*/>::_Xxh() {
+		XXH3_INITSTATE   (&_state) ;
+		XXH3_128bits_reset(&_state) ;
+	}
+
+	// specializations
+	template<> _Xxh<false/*Is128*/>::_Xxh(FileTag tag) : is_lnk{No|(tag==FileTag::Lnk)} {
+		XXH3_INITSTATE(&_state) ;
+		switch (tag) {
+			case FileTag::Reg :                  XXH3_64bits_reset           ( &_state                                         ) ; break ;
+			case FileTag::Lnk : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_lnk_secret , sizeof(_s_lnk_secret) ) ; break ;
+			case FileTag::Exe : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_exe_secret , sizeof(_s_exe_secret) ) ; break ;
+		DF}                                                                                                                                 // NO_COV
+	}
+	template<> _Xxh<true/*Is128*/>::_Xxh(FileTag tag) : is_lnk{No|(tag==FileTag::Lnk)} {
+		XXH3_INITSTATE(&_state) ;
+		switch (tag) {
+			case FileTag::Reg :                  XXH3_128bits_reset           ( &_state                                         ) ; break ;
+			case FileTag::Lnk : _s_init_salt() ; XXH3_128bits_reset_withSecret( &_state , _s_lnk_secret , sizeof(_s_lnk_secret) ) ; break ;
+			case FileTag::Exe : _s_init_salt() ; XXH3_128bits_reset_withSecret( &_state , _s_exe_secret , sizeof(_s_exe_secret) ) ; break ;
+		DF}                                                                                                                                 // NO_COV
+	}
+
+	// specializations
+	template<> _Crc<false/*Is128*/> _Xxh<false/*Is128*/>::digest() const {
+		if ( is_lnk==Maybe && !seen_data ) return {}                                       ;
+		else                               return { XXH3_64bits_digest(&_state) , is_lnk } ;
+	}
+	#if HAS_UINT128
+		template<> _Crc<true/*Is128*/> _Xxh<true/*Is128*/>::digest() const {
+			if ( is_lnk==Maybe && !seen_data ) return {} ;
+			XXH128_hash_t d = XXH3_128bits_digest(&_state)        ;
+			uint128_t     v = (uint128_t(d.high64)<<64) | d.low64 ;
+			return { v , is_lnk } ;
+		}
+	#endif
+
+	// specializations
+	template<> _Xxh<false/*Is128*/>& _Xxh<false/*Is128*/>::operator+=(::string_view sv) {
+		seen_data |= sv.size() ;
+		XXH3_64bits_update( &_state , sv.data() , sv.size() ) ;
+		return self ;
+	}
+	template<> _Xxh<true/*Is128*/>& _Xxh<true/*Is128*/>::operator+=(::string_view sv) {
+		seen_data |= sv.size() ;
+		XXH3_128bits_update( &_state , sv.data() , sv.size() ) ;
+		return self ;
+	}
+
+	//
 	// Crc
 	//
 
-	::string& operator+=( ::string& os , Crc const crc ) {                        // START_OF_NO_COV
-		CrcSpecial special{crc} ;
-		if (special==CrcSpecial::Plain) return os << "Crc("<<::string(crc)<<')' ;
-		else                            return os << "Crc("<<special      <<')' ;
-	}                                                                             // END_OF_NO_COV
+	template<bool Is128> ::string& operator+=( ::string& os , _Crc<Is128> const crc ) { // START_OF_NO_COV
+		CrcSpecial special { crc } ;
+		/**/                            os << "Crc"         ;
+		if (Is128/**/                 ) os << "128"         ;
+		/**/                            os << '('           ;
+		if (special==CrcSpecial::Plain) os << ::string(crc) ;
+		else                            os << special       ;
+		return                          os << ')'           ;
+	}                                                                                   // END_OF_NO_COV
+	//!                                                Is128
+	template ::string& operator+=( ::string& os , _Crc<false> const crc ) ;             // explicit instanciation
+	template ::string& operator+=( ::string& os , _Crc<true > const crc ) ;             // .
 
 	// START_OF_VERSIONING
-	Crc::Crc(::string const& filename) {
+	template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 		self = None ;
 		if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
@@ -31,8 +104,8 @@ namespace Hash {
 				break ;
 				case FileTag::Reg :
 				case FileTag::Exe : {
-					Xxh      ctx { fi.tag() }                   ;
-					::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+					_Xxh<Is128> ctx { fi.tag() }                   ;
+					::string    buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 					for( size_t sz=fi.sz ;;) {
 						ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
 						if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
@@ -53,14 +126,17 @@ namespace Hash {
 				} break ;
 			DN}
 		} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-			Xxh ctx { FileTag::Lnk } ;
+			_Xxh<Is128> ctx { FileTag::Lnk } ;
 			ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 			self = ctx.digest() ;
 		}
 	}
 	// END_OF_VERSIONING
+	//            Is128
+	template _Crc<false>::_Crc(::string const& filename) ;                      // explicit instanciation
+	template _Crc<true >::_Crc(::string const& filename) ;                      // .
 
-	Crc::operator ::string() const {
+	template<bool Is128> _Crc<Is128>::operator ::string() const {
 		switch (CrcSpecial(self)) {
 			case CrcSpecial::Unknown : return "unknown"                  ;
 			case CrcSpecial::Lnk     : return "unknown-L"                ;
@@ -69,21 +145,25 @@ namespace Hash {
 			case CrcSpecial::Empty   : return "empty-R"                  ;
 			case CrcSpecial::Plain   : return hex()+(is_lnk()?"-L":"-R") ;
 		DF}                                                                // NO_COV
-	}
+	} //!         Is128
+	template _Crc<false>::operator ::string() const ;                      // explicit instanciation
+	template _Crc<true >::operator ::string() const ;                      // .
 
-	::string Crc::hex() const {
-		::string res ; res.reserve(sizeof(_val)*2+2) ; // +2 to allow suffix addition
+	template<bool Is128> ::string _Crc<Is128>::hex() const {
+		::string res ; res.reserve(sizeof(_val)*2+2) ;       // +2 to allow suffix addition
 		for( size_t i : iota(sizeof(_val)) ) {
 			uint8_t b = _val>>(i*8) ;
 			{ uint8_t d = b>>4  ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
 			{ uint8_t d = b&0xf ; res += char( d<10 ? '0'+d : 'a'+d-10 ) ; }
 		}
 		return res ;
-	}
+	} //!                  Is128
+	template ::string _Crc<false>::hex() const ;             // explicit instanciation
+	template ::string _Crc<true >::hex() const ;             // .
 
-	Crc Crc::s_from_hex(::string_view sv) {
+	template<bool Is128> _Crc<Is128> _Crc<Is128>::s_from_hex(::string_view sv) {
 		throw_unless( sv.size()==2*sizeof(Val) , "bad crc hex : ", sv ) ;
-		Crc res { Val(0) } ;
+		_Crc res { Val(0) } ;
 		for( size_t i : iota(sizeof(res._val)) ) {
 			char msb = sv[2*i  ] ;
 			char lsb = sv[2*i+1] ;
@@ -94,61 +174,33 @@ namespace Hash {
 			res._val |= Val(b)<<(8*i) ;
 		}
 		return res ;
-	}
+	} //!         Is128       Is128
+	template _Crc<false> _Crc<false>::s_from_hex(::string_view sv) ; // explicit instanciation
+	template _Crc<true > _Crc<true >::s_from_hex(::string_view sv) ; // .
 
-	Accesses Crc::diff_accesses( Crc other ) const {
-		if ( valid() && other.valid() ) {            // if either does not represent a precise content, assume contents are different
-			uint64_t diff = _val ^ other._val ;
-			if (! diff                                       ) return {} ;                                                                    // crc's are identical, cannot perceive difference
-			if (!(diff&ChkMsk) && (_plain()||other._plain()) ) fail_prod("near checksum clash, must increase CRC size",self,"versus",other) ;
+	template<bool Is128> Accesses _Crc<Is128>::diff_accesses(_Crc<Is128> crc) const {
+		if ( valid() && crc.valid() ) {                                               // if either does not represent a precise content, assume contents are different
+			uint64_t diff = _val ^ crc._val ;
+			if (! diff                                     ) return {} ;                                                                  // crc's are identical, cannot perceive difference
+			if (!(diff&ChkMsk) && (_plain()||crc._plain()) ) fail_prod("near checksum clash, must increase CRC size",self,"versus",crc) ;
 		}
 		// qualify the accesses that can perceive the difference
 		Accesses res = FullAccesses ;
 		if (is_reg()) {
-			if      (other.is_reg()  ) res =  Access::Reg  ; // regular accesses see modifications of regular files
-			else if (other.is_lnk()  ) res = ~Access::Stat ; // both exist, Stat does not see the difference
-			else if (other==Crc::None) res = ~Access::Lnk  ; // readlink accesses cannot see the difference between no file and a regular file
+			if      (crc.is_reg()   ) res =  Access::Reg  ;           // regular accesses see modifications of regular files
+			else if (crc.is_lnk()   ) res = ~Access::Stat ;           // both exist, Stat does not see the difference
+			else if (crc==_Crc::None) res = ~Access::Lnk  ;           // readlink accesses cannot see the difference between no file and a regular file
 		} else if (is_lnk()) {
-			if      (other.is_reg()  ) res = ~Access::Stat ; // both exist, Stat does not see the difference
-			else if (other.is_lnk()  ) res =  Access::Lnk  ; // only readlink accesses see modifications of links
-			else if (other==Crc::None) res = ~Access::Reg  ; // regular accesses cannot see the difference between no file and a link
-		} else if (self==Crc::None) {
-			if      (other.is_reg()  ) res = ~Access::Lnk  ; // readlink accesses cannot see the difference between no file and a regular file
-			else if (other.is_lnk()  ) res = ~Access::Reg  ; // regular  accesses cannot see the difference between no file and a link
+			if      (crc.is_reg()   ) res = ~Access::Stat ;           // both exist, Stat does not see the difference
+			else if (crc.is_lnk()   ) res =  Access::Lnk  ;           // only readlink accesses see modifications of links
+			else if (crc==_Crc::None) res = ~Access::Reg  ;           // regular accesses cannot see the difference between no file and a link
+		} else if (self==_Crc::None) {
+			if      (crc.is_reg()   ) res = ~Access::Lnk  ;           // readlink accesses cannot see the difference between no file and a regular file
+			else if (crc.is_lnk()   ) res = ~Access::Reg  ;           // regular  accesses cannot see the difference between no file and a link
 		}
 		return res ;
-	}
-
-	//
-	// Xxh
-	//
-
-	char    Xxh::_s_lnk_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
-	char    Xxh::_s_exe_secret[XXH3_SECRET_SIZE_MIN] = {}    ;
-	Mutex<> Xxh::_s_salt_init_mutex                  ;
-	bool    Xxh::_s_salt_inited                      = false ;
-
-	Xxh::Xxh() {
-		XXH3_INITSTATE   (&_state) ;
-		XXH3_64bits_reset(&_state) ;
-	}
-	Xxh::Xxh(FileTag tag) : is_lnk{No|(tag==FileTag::Lnk)} {
-		XXH3_INITSTATE(&_state) ;
-		switch (tag) {
-			case FileTag::Reg :                  XXH3_64bits_reset           ( &_state                                         ) ; break ;
-			case FileTag::Lnk : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_lnk_secret , sizeof(_s_lnk_secret) ) ; break ;
-			case FileTag::Exe : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_exe_secret , sizeof(_s_exe_secret) ) ; break ;
-		DF}                                                                                                                                // NO_COV
-	}
-
-	Crc Xxh::digest() const {
-		if ( is_lnk==Maybe && !seen_data ) return {}                                       ;
-		else                               return { XXH3_64bits_digest(&_state) , is_lnk } ;
-	}
-	Xxh& Xxh::operator+=(::string_view sv) {
-		seen_data |= sv.size() ;
-		XXH3_64bits_update( &_state , sv.data() , sv.size() ) ;
-		return self ;
-	}
+	} //!                  Is128                      Is128
+	template Accesses _Crc<false>::diff_accesses(_Crc<false>) const ; // explicit instanciation
+	template Accesses _Crc<true >::diff_accesses(_Crc<true >) const ; // .
 
 }

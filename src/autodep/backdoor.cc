@@ -429,41 +429,52 @@ namespace Backdoor {
 				fast_encode() ;
 			} catch (::string const&) {                                                                                  // if node does not exist, create a code
 				throw_if( !rd.is_dir && _retry_codec(r,{rfd,rd.real},node,Comment::Decode)==Maybe , "no codec table" ) ; // cannot encode without a codec table
-				::string       crc_str = crc.hex()                                   ;
-				CodecGuardLock lock    { {rfd,rd.real} , {.file_sync=rd.file_sync} } ;                                   // must hold the lock as we probably need to create a code
+				//
+				::string  crc_str    = crc.hex()                                                     ;
+				CodecFile codec_file { false/*encode*/ , rd.real , ctx , crc_str.substr(0,min_len) } ;
+				::string& code       = codec_file.code()                                             ;
+				NfsGuard  nfs_guard  { rd.file_sync                                                } ;
+				//
+				auto find_code = [&](NfsGuard& nfs_guard) {                                                              // look for shortest possible code
+					for(;;) {
+						if (!FileInfo({rfd,codec_file.name()},{.nfs_guard=&nfs_guard}).exists()) break ;
+						throw_unless( code.size()<crc_str.size() , "no code available" ) ;
+						code.push_back(crc_str[code.size()]) ;
+					}
+				} ;
+				//
+				find_code(nfs_guard) ;                                                                                   // pre-look without lock to minimize lock time
+				CodecGuardLock lock { {rfd,rd.real} , {.file_sync=rd.file_sync} } ;                                      // must hold the lock as we probably need to create a code
 				try {
 					fast_encode() ;                                                                                      // repeat trial with lock
 				} catch (::string const&) {
-					for( ::string code = crc_str.substr(0,min_len) ; code.size()<=crc_str.size() ; code.push_back(crc_str[code.size()]) ) { // look for shortest possible code
-						::string decode_node = CodecFile( false/*encode*/ , rd.real , ctx , code ).name() ;
-						if (FileInfo({rfd,decode_node},{.nfs_guard=&lock}).exists()) continue ;
-						::string tmp_sfx         = cat('.',host(),'.',::getpid(),".tmp") ;
-						::string tmp_node        = node       +tmp_sfx                   ;                      // nodes must be always correct when they exist as there is no read lock
-						::string tmp_decode_node = decode_node+tmp_sfx                   ;                      // .
-						//
-						// must write to new_codes_file first (before actual files) to allow replay in case of crash
-						Fd::Action action { .flags=O_WRONLY|O_CREAT|O_APPEND , .perm_ext=rd.perm_ext , .nfs_guard=&lock } ;
-						if (!rd.is_dir) { action.mod = 0666 ; AcFd   ( {rfd,CodecFile::s_new_codes_file(rd.real) } , action ).write(Entry(ctx,code,val).line(true/*with_nl*/)) ; }
-						/**/              action.mod = 0444 ; AcFd   ( {rfd,tmp_decode_node                      } , action ).write(val                                      ) ;
-						/**/                                  sym_lnk( {rfd,tmp_node                             } , code+DecodeSfx , {.nfs_guard=&lock} )                     ;
-						//      src                     dst
-						rename( {rfd,tmp_node       } , {rfd,node       } , {.nfs_guard=&lock} ) ;
-						rename( {rfd,tmp_decode_node} , {rfd,decode_node} , {.nfs_guard=&lock} ) ;
-						//
-						fi                     = { {rfd,node} }           ;
-						res                    = code                     ;
-						ad.flags.extra_dflags |= ExtraDflag::CreateEncode ;
-						break ;
-					}
-					throw_unless( ad.flags.extra_dflags[ExtraDflag::CreateEncode] , "no code available" ) ;
+					find_code(lock) ;                                                                                    // repeat search with lock
+					//
+					::string decode_node     = codec_file.name()                     ;
+					::string tmp_sfx         = cat('.',host(),'.',::getpid(),".tmp") ;
+					::string tmp_node        = node       +tmp_sfx                   ;                                   // nodes must be always correct when they exist as there is no read lock
+					::string tmp_decode_node = decode_node+tmp_sfx                   ;                                   // .
+					//
+					// must write to new_codes_file first (before actual files) to allow replay in case of crash
+					::string entry = Entry(ctx,code,val).line(true/*with_nl*/) ;
+					if (!rd.is_dir) AcFd   ( {rfd,CodecFile::s_new_codes_file(rd.real)} , {.flags=O_WRONLY|O_CREAT|O_APPEND,          .perm_ext=rd.perm_ext,.nfs_guard=&lock} ).write(entry) ;
+					/**/            AcFd   ( {rfd,tmp_decode_node                     } , {.flags=O_WRONLY|O_CREAT|O_TRUNC ,.mod=0444,.perm_ext=rd.perm_ext,.nfs_guard=&lock} ).write(val  ) ;
+					/**/            sym_lnk( {rfd,tmp_node                            } , code+DecodeSfx , {.nfs_guard=&lock} )                                                              ;
+					//      src                     dst
+					rename( {rfd,tmp_node       } , {rfd,node       } , {.nfs_guard=&lock} ) ;
+					rename( {rfd,tmp_decode_node} , {rfd,decode_node} , {.nfs_guard=&lock} ) ;
+					//
+					fi                     = { {rfd,node} }           ;
+					res                    = code                     ;
+					ad.flags.extra_dflags |= ExtraDflag::CreateEncode ;
 				}
 			}
-			r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{node,fi}} } , true/*force*/ ) ; // report access after possible update
-			r.send_report() ;                                                                                   // this includes deps gathered when solving file
+			r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{node,fi}} } , true/*force*/ ) ;          // report access after possible update
+			r.send_report() ;                                                                                            // this includes deps gathered when solving file
 			return res ;
 		} catch(::string const&) {
-			r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{node,fi}} } , true/*force*/ ) ; // report access after possible update
-			r.send_report() ;                                                                                   // this includes deps gathered when solving file
+			r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{node,fi}} } , true/*force*/ ) ;          // report access after possible update
+			r.send_report() ;                                                                                            // this includes deps gathered when solving file
 			throw ;
 		}
 	}
