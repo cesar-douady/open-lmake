@@ -11,8 +11,6 @@
 
 #include "record.hh"
 
-using namespace Disk ;
-
 enum class BackdoorErr : uint8_t {
 	Ok
 ,	OfficialReadlinkErr // value -1 is the normal readlink error and we need to distinguish backdoor errors
@@ -137,8 +135,8 @@ namespace Backdoor {
 			::serdes( s , files,access_digest,no_follow ) ;
 		}
 	protected :
-		::vmap_s<FileInfo> _mk_deps( Record& r , bool sync , ::vector<NodeIdx>* /*out*/ dep_idxs1=nullptr )       ;
-		::string           _descr  (const char* cmd,::string const& reason={}                             ) const { return cat(cmd,reason,' ',files) ; }
+		::vmap_s<Disk::FileInfo> _mk_deps( Record& r , bool sync , ::vector<NodeIdx>* /*out*/ dep_idxs1=nullptr )       ;
+		::string                 _descr  (const char* cmd,::string const& reason={}                             ) const { return cat(cmd,reason,' ',files) ; }
 		// data
 	public :
 		::vector_s   files         = {}    ;
@@ -241,9 +239,9 @@ namespace Backdoor {
 
 	struct Encode {
 		friend ::string& operator+=( ::string& , Encode const& ) ;
-		static constexpr char   Cmd[]              = "encode"                                 ;
-		static constexpr bool   ReliableMaxReplySz = true                                     ;
-		static constexpr size_t MaxReplySz         = sizeof(::optional_s)+sizeof(Hash::Crc)*2 ; // 2 digit per Crc byte
+		static constexpr char   Cmd[]              = "encode"                                    ;
+		static constexpr bool   ReliableMaxReplySz = true                                        ;
+		static constexpr size_t MaxReplySz         = sizeof(::optional_s)+Codec::CodecCrc::HexSz ;
 		// services
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const ;

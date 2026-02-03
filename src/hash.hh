@@ -98,10 +98,9 @@ namespace Hash {
 		#if HAS_UINT128
 			using Val = ::conditional_t<Is128,uint128_t,uint64_t> ;
 		#else
-			static_assert(!Is128) ;
-			using Val = uint64_t ;
+			using Val = uint64_t ;                                                                                // revert to 64 bits if no 128 bits support
 		#endif
-		static constexpr uint8_t HexSz    = 2*sizeof(Val) ;                                                       // 2 chars for each byte
+		static constexpr uint8_t HexSz    = 2*sizeof(Val) ;                                                       // 2 digits for each byte
 		static constexpr uint8_t NChkBits = 8             ;                                                       // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
 		static constexpr Val ChkMsk = Val(-1)>>NChkBits ;                                                         // lsb's are used for various manipulations
@@ -133,15 +132,15 @@ namespace Hash {
 				case FileTag::Empty : self = _Crc::Empty ; break ;
 			DF}                                                                                                   // NO_COV
 		}
-		_Crc( ::string const& filename                             ) ;
-		_Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
+		explicit _Crc( ::string const& filename                             ) ;
+		explicit _Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
 			for(;;) {                                                                                             // restart if file was moving
 				fi   = Disk::FileInfo(filename) ; if (fi.tag()==FileTag::Empty) { self = _Crc::Empty ; return ; } // fast path : minimize stat syscall's
 				self = _Crc(filename)           ;
 				if (fi.sig()==Disk::FileSig(filename)) return ;                                                   // file was stable, we can return result
 			}
 		}
-		_Crc( ::string const& filename , Disk::FileSig&/*out*/ sig ) {
+		explicit _Crc( ::string const& filename , Disk::FileSig&/*out*/ sig ) {
 			Disk::FileInfo fi ;
 			self = _Crc(filename,/*out*/fi) ;
 			sig  = fi.sig()                 ;
@@ -185,7 +184,7 @@ namespace Hash {
 		Val _val = +CrcSpecial::Unknown ;
 	} ;
 	using Crc    = _Crc<false      > ;
-	using Crc128 = _Crc<HAS_UINT128> ; // revert to 64 bits is 128 bits is not supported
+	using Crc128 = _Crc<HAS_UINT128> ;                                                                            // revert to 64 bits is 128 bits is not supported
 
 	// easy, fast and good enough in some situations
 	// cf https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function

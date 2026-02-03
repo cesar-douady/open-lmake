@@ -1027,7 +1027,7 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 	//
 	try {
 		NfsGuard  nfs_guard { file_sync                                                                                                                            } ;
-		AcFd      dfd       { dir_s+reserved_file(reply.upload_key)+"-data" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&nfs_guard} } ;
+		AcFd      dfd       { dir_s+reserved_file(reply.upload_key)+"-data" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.perm_ext=perm_ext} } ;
 		DeflateFd data_fd   { ::move(dfd) , zlvl                                                                                                                   } ;
 		OMsgBuf(target_szs).send( data_fd , {}/*key*/ ) ;
 		//

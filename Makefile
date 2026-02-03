@@ -5,7 +5,7 @@
 
 include sys_config.mk
 
-VERSION        := 26.01
+VERSION        := 26.02
 TAG            := 0
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
@@ -459,21 +459,21 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 # compilation
 #
 
-%.i     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E                                      -o $@ $<
-%-m32.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E               -m32 -DFORCE_32_BITS=1 -o $@ $<
-%-py2.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E                                      -o $@ $<
-%-san.i : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -E               $(SAN_FLAGS)           -o $@ $<
+%.i     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E                            -o $@ $<
+%-m32.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E               -m32         -o $@ $<
+%-py2.i : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -E                            -o $@ $<
+%-san.i : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -E               $(SAN_FLAGS) -o $@ $<
 
-%.s     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm                        -o $@ $<
-%-m32.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm -m32 -DFORCE_32_BITS=1 -o $@ $<
-%-py2.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm                        -o $@ $<
-%-san.s : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S -fverbose-asm $(SAN_FLAGS)           -o $@ $<
+%.s     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm              -o $@ $<
+%-m32.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm -m32         -o $@ $<
+%-py2.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm              -o $@ $<
+%-san.s : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S -fverbose-asm $(SAN_FLAGS) -o $@ $<
 
 COMPILE_O = $(COMPILE) -c -frtti -fPIC
-%.o     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                                       -o $@ $<
-%-m32.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                -m32 -DFORCE_32_BITS=1 -o $@ $<
-%-py2.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                                       -o $@ $<
-%-san.o : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O)                $(SAN_FLAGS)           -o $@ $<
+%.o     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                             -o $@ $<
+%-m32.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                -m32         -o $@ $<
+%-py2.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                             -o $@ $<
+%-san.o : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O)                $(SAN_FLAGS) -o $@ $<
 
 %.chk   : %.cc
 	@echo $(LINT) $(USER_FLAGS) to $@

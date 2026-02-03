@@ -5,11 +5,13 @@
 
 #include "disk.hh"
 #include "hash.hh"
+#include "time.hh"
 
 #include "rpc_job_exec.hh"
 
 using namespace Disk ;
 using namespace Hash ;
+using namespace Time ;
 
 //
 // AccessDigest
@@ -79,12 +81,29 @@ JobExecRpcReply JobExecRpcReq::mimic_server() && {
 
 namespace Codec {
 
+	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , PermExt perm_ext , NfsGuard* nfs_guard ) {
+		SWEAR( crc_str.size()==CodecCrc::HexSz , dir_s,crc_str ) ;
+		::string data = cat(dir_s.file,"store/",crc_str) ;
+		if (!FileInfo(data).exists()) {
+			uint64_t r        = random<uint64_t>() ;
+			::string tmp_data = cat(data,'-',r)    ;
+			AcFd( {dir_s.at,tmp_data} , {.flags=O_WRONLY|O_CREAT,.mod=0444,.perm_ext=perm_ext} ).write( val ) ;
+			rename( {dir_s.at,tmp_data} , {dir_s.at,data} , {.nfs_guard=nfs_guard} ) ;                          // ok even if created concurrently as this is content addressable
+		}
+	}
+
 	bool CodecFile::s_is_codec( ::string const& node , ::vector_s const& ext_codec_dirs_s ) {
 		if ( !node                                                    ) return false ;
 		if ( !node.ends_with(DecodeSfx) && !node.ends_with(EncodeSfx) ) return false ;
 		//
-		if (is_lcl(node)) return node.find(CodecSep)!=Npos && node.starts_with(s_pfx_s())                               ;
-		else              return ::any_of( ext_codec_dirs_s , [&](::string const& c) { return node.starts_with(c) ; } ) ;
+		if (is_lcl(node))
+			return node.rfind(CodecSep)!=Npos && node.starts_with(s_pfx_s()) ;
+		//
+		for( ::string const& dir_s : ext_codec_dirs_s ) {
+			if (!node.starts_with(dir_s)                          ) continue    ;
+			if (substr_view(node,dir_s.size()).starts_with("tab/")) return true ;
+		}
+		return false ;
 	}
 
 	::string& operator+=( ::string& os , CodecFile const& cf ) {         // START_OF_NO_COV
@@ -102,22 +121,31 @@ namespace Codec {
 			//
 			file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
 			pos3++/* / */ ;
-			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-(sizeof(DecodeSfx)-1/*null*/)-pos3 ;                    _code_val_crc = parse_printable<'/'> (node.substr(pos3,sz)) ; }
-			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-(sizeof(EncodeSfx)-1/*.   */)-pos3 ; SWEAR(sz==16,sz) ; _code_val_crc = Hash::Crc::s_from_hex(node.substr(pos3,sz)) ; }
+			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
 			else                                  FAIL(node) ;
 			pos2++/*CodecSep*/ ;
 			ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
 		} else {
 			size_t pos3 = node.rfind('/') ; SWEAR( pos3!=Npos && 0<pos3 , node,pos3 ) ;
-			size_t pos2 = 0               ; for( ::string const& d_s : ext_codec_dirs_s ) if (node.starts_with(d_s)) { pos2 = d_s.size() ; break ; }
-			throw_unless( pos2 , node," is not a codec" ) ;
+			size_t pos2 = 0               ;
+			for( ::string const& d_s : ext_codec_dirs_s ) {
+				SWEAR(+d_s) ;
+				if (node.starts_with(d_s)) {
+					pos2 = d_s.size() ;
+					throw_unless( substr_view(node,pos2).starts_with("tab/") , node,"is not a codec file" ) ;
+					break ;
+				}
+			}
 			//
 			file = node.substr(0,pos2) ;
 			pos3++/* / */ ;
-			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-(sizeof(DecodeSfx)-1/*null*/)-pos3 ;                    _code_val_crc = parse_printable<'/'> (node.substr(pos3,sz)) ; }
-			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-(sizeof(EncodeSfx)-1/*.   */)-pos3 ; SWEAR(sz==16,sz) ; _code_val_crc = Hash::Crc::s_from_hex(node.substr(pos3,sz)) ; }
+			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
 			else                                  FAIL(node) ;
-			ctx = node.substr( pos2 , pos3-1/* / */-pos2 ) ;
+			pos3 -= 1/* / */                        ;
+			pos2 += 4/*tab/ */                      ;
+			ctx   = node.substr( pos2 , pos3-pos2 ) ;
 		}
 	}
 
@@ -137,15 +165,18 @@ namespace Codec {
 	}
 
 	// START_OF_VERSIONING
+	::string CodecFile::ctx_dir_s(bool tmp) const {
+		::string res = s_dir_s(file,tmp) ;
+		if (is_dir_name(file)) res << "tab/"  <<                       ctx  ;
+		else                   res << CodecSep<<mk_printable<CodecSep>(ctx) ;
+		/**/                   res << '/'                                   ;
+		return res ;
+	}
 	::string CodecFile::name(bool tmp) const {
-		if (is_dir_name(file)) {
-			SWEAR(!tmp) ;
-			if (is_encode()) return cat(file,ctx,'/',val_crc().hex()          ,EncodeSfx) ;
-			else             return cat(file,ctx,'/',mk_printable<'/'>(code()),DecodeSfx) ;
-		} else {
-			if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
-			else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
-		}
+		::string res = ctx_dir_s(tmp) ;
+		if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+		else             res << mk_printable<'/'>(code())<<DecodeSfx ;
+		return res ;
 	}
 	// END_OF_VERSIONING
 
@@ -167,60 +198,66 @@ namespace Codec {
 		return res ;
 	}
 
-	// while lock is held, lock_file contains the size of new_codes_file at the time of the lock
-	// in case of interruption, this info is used to determine last action to be replayed
+	//
+	// CodecLock
+	//
 
-	void s_init() {
-		try { unlnk_inside_s(CodecFile::s_pfx_s(CodecDir::Lock)) ; } catch (::string const&) {} // if dir does not exist, nothing to do
+	static ::string _lock_dir_s() { return cat(PrivateAdminDirS,"codec_lock/") ; }
+
+	void CodecLock::s_init() {
+		mk_dir_empty_s( _lock_dir_s() ) ; // assumes cwd is root
 	}
 
-	CodecGuardLock::CodecGuardLock( FileRef file_ , Action action ) : NfsGuardLock{ action.file_sync , {file_.at,CodecFile::s_lock_file(file_.file)} , {.err_ok=action.err_ok} } {
-		if (!self                  ) return ;                                                                                                                                      // nothing to lock
-		if (is_dir_name(file_.file)) return ;                                                                                                     // extern dir do not manage new_codes file
-		file = file_ ;
-		//
-		::string new_codes_file    = CodecFile::s_new_codes_file(file.file)                                                            ;
-		::string new_codes_sz_file = new_codes_file+"_sz"                                                                              ;
-		DiskSz   actual_sz         = FileInfo( {file.at,new_codes_file   } , {                                   .nfs_guard=this} ).sz ;
-		AcFd     known_sz_fd       {           {file.at,new_codes_sz_file} , {.flags=O_RDWR|O_CREAT,.err_ok=true,.nfs_guard=this} }    ;
-		::string known_sz_str      = known_sz_fd.read(sizeof(DiskSz))                                                                  ;
-		if (+known_sz_str) {                                                                                                                      // empty means nothing to replay
-			/**/                                                        SWEAR( known_sz_str.size()==sizeof(DiskSz) , file,known_sz_str.size() ) ;
-			DiskSz known_sz = decode_int<DiskSz>(known_sz_str.data()) ; SWEAR( known_sz           <=actual_sz      , file,known_sz,actual_sz  ) ;
-			//
-			if (actual_sz>known_sz) {
-				AcFd     new_codes_fd { {file.at,new_codes_file}} ; ::lseek( new_codes_fd , known_sz , SEEK_SET ) ;
-				::string line         = new_codes_fd.read()  ;                                                      // no more than a single action can be on going
-				if (line.back()=='\n') {                                                                            // action is valid, replay it
-					line.pop_back() ; //!      encode
-					Entry e      { line                                                     } ;
-					File  dn     { file.at , CodecFile(false,file.file,e.ctx,e.code).name() } ;
-					File  en     { file.at , CodecFile(true ,file.file,e.ctx,e.val ).name() } ;
-					File  dn_tmp { file.at , dn.file+".tmp"                                 } ;                     // ensure nodes are always correct if they exist
-					File  en_tmp { file.at , en.file+".tmp"                                 } ;                     // .
-					AcFd( dn_tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=this} ).write( e.code ) ;  // .
-					AcFd( en_tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0444,.nfs_guard=this} ).write( e.val  ) ;  // .
-					//      src     dst
-					rename( dn_tmp , dn , {.nfs_guard=this} ) ;
-					rename( en_tmp , en , {.nfs_guard=this} ) ;
-				} else {                                                                                            // action is invalid, forget it as no file has been created and info is incomplete
-					int rc = ::ftruncate( new_codes_fd , known_sz ) ; SWEAR( rc==0 , file,rc ) ;
-					actual_sz = known_sz ;
-					change({file.at,new_codes_file}) ;
+	CodecLock::~CodecLock() {
+		switch (_num) {
+			case 0     :                                                                                                 return ;
+			case _Excl : for( uint8_t n : iota(1,_NId+1) ) unlnk( { _root_fd , cat(_lock_dir_s(),_tab.hex(),'-',n) } ) ; return ;
+			default :
+				Pdate    now { New                                               } ;
+				File     lnk { _root_fd , cat(_lock_dir_s(),_tab.hex(),'-',_num) } ;
+				FileInfo fi  { lnk                                               } ;
+				SWEAR( fi.date.val() >= (now-_SharedTimeout).val() , now,fi.date,_tab ) ; // if this fires, increase _SharedTimeout
+				unlnk(lnk) ;
+		}
+	}
+
+	void CodecLock::lock_shared(::string const& id) {                                                                 // lock one lock at random
+		SWEAR( !_num , _num,_tab ) ;
+		uint8_t r = (Pdate(New).val()%_NId)+1 ;                                                                       // random, 0 reserved to mean not locked
+		for(;;) {
+			for( uint8_t i : iota(_NId) ) {
+				_num = r+i ; if (_num>_NId) _num -= _NId ;
+				File lnk { _root_fd , cat(_lock_dir_s(),_tab.hex(),'-',_num) } ;
+			Retry :
+				try {
+					sym_lnk( lnk , "shared-"+id , {.mk_dir=false} ) ;
+					return ;                                                                                          // locked
+				} catch (::string const&) {
+					if ( read_lnk(lnk)=="excl"                                        )                break      ;   // if held exclusively, no hope for now
+					if ( FileInfo(lnk).date.val() < (Pdate(New)-_SharedTimeout).val() ) { unlnk(lnk) ; goto Retry ; }
+				}                                                                                                     // try another id
+			}
+			Delay(1).sleep_for() ;                                                                                    // if all locks are taken, server is probably holding exclusive lock, try later
+		}
+	}
+
+	void CodecLock::lock_excl() {    // lock all locks
+		SWEAR( !_num , _num,_tab ) ;
+		bool done[_NId] = {} ;
+		for( uint8_t n_done=0 ; n_done<_NId ;)
+			for( uint8_t i : iota(_NId) ) {
+				if (done[i]) continue ;
+			Retry :
+				File lnk { _root_fd , cat(_lock_dir_s(),_tab.hex(),'-',i+1) } ;
+				try {
+					sym_lnk( lnk , "excl" , {.mk_dir=false} ) ;
+					done[i] = true ;
+					n_done++ ;
+				} catch (::string const&) {
+					if ( FileInfo(lnk).date.val() < (Pdate(New)-_SharedTimeout).val() ) { unlnk(lnk) ; goto Retry ; }
 				}
 			}
-			::lseek( known_sz_fd , 0 , SEEK_SET ) ;
-		} else {
-			known_sz_str.resize(sizeof(DiskSz)) ;
-		}
-		encode_int<DiskSz>( known_sz_str.data() , actual_sz ) ; // record new_codes_file size for next locker to replay in case of crash before closing cleanly
-		known_sz_fd.write(known_sz_str)                       ;
-	}
-
-	CodecGuardLock::~CodecGuardLock() {
-		if (!self     ) return ;
-		if (!file.file) return ;
-		unlnk( {file.at,CodecFile::s_new_codes_file(file.file)+"_sz"} , {.abs_ok=is_dir_name(file.file)} ) ;
+		_num = _Excl ;
 	}
 
 }

@@ -91,6 +91,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* implement version for codec
 * forbid accesses to files :
 	- /dev/random
 	- /dev/urandom
@@ -156,12 +157,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- as a package manager
 	- possibly also pip (python) and the like (rust, go, java etc.)
 * rework codec
-	- lockless
-		- decode link to context-less CAS is the truth
-		- encode link to decode link
-		- new_codes as a dir with symlinks to decode links
-		- ref count in lcodec_repair to know what CAS to keep
-		- implement Crc128 as 64 bits is not obviously enough
 	- provide a env variable for external use
 * consider using fanotify as an autodep method
 	- fanotify_init
@@ -328,6 +323,7 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
+* document codec dir table format
 * make a tutorial
 * give an example of Rule using the paths attribute
 ? add hard limits

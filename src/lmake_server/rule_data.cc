@@ -90,10 +90,10 @@ namespace Engine {
 				using namespace Codec ;
 				static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 				stems = {
-					{ "File" ,     ".+"                }                                                                                                                  // static
-				,	{ "Ctx"  , cat("[^",CodecSep,"]*") }                                                                                                                  // star
-				,	{ "Code" ,     "[^/]*"             }                                                                                                                  // .
-				,	{ "Val"  ,     "[0-9a-f]{16}"      }                                                                                                                  // .
+					{ "File" ,     ".+"                                    } // static
+				,	{ "Ctx"  , cat("[^",CodecSep,"]*")                     } // star
+				,	{ "Code" ,     "[^/]*"                                 } // .
+				,	{ "Val"  , cat("[0-9a-f]{",Codec::CodecCrc::HexSz,'}') } // .
 				} ;
 				n_static_stems = 1 ;
 				//
@@ -109,7 +109,7 @@ namespace Engine {
 					{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
 				} ;
 			} break ;
-		DF}                                                                                                                                                                  // NO_COV
+		DF}                                                                                                                                                                       // NO_COV
 		for( auto const& [_,v] : stems ) stem_n_marks.push_back(Re::RegExpr(v,true/*cache*/).n_marks()) ;
 		_set_crcs({}) ;                                                                                   // rules is not necessary for special rules
 	}

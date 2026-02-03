@@ -241,8 +241,8 @@ namespace Disk {
 		if (action.nfs_guard) action.nfs_guard->change(file) ;
 	Retry :
 		if (::symlinkat(target.c_str(),file.at,file.file.c_str())!=0) {
-			if ( errno==ENOENT && first ) {
-				first = false ;              // ensure we retry at most once
+			if ( action.mk_dir && errno==ENOENT && first ) {
+				first = false ;                              // ensure we retry at most once
 				dir_guard( file , action ) ;
 				goto Retry/*BACKWARD*/ ;
 			}
@@ -324,8 +324,8 @@ namespace Disk {
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
-					if (has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;         // retry after parent is created
-					else              { msg = "cannot create top dir" ; goto Bad ; } // if ENOTDIR, a parent is not a dir, it will not be fixed up
+					if ( action.mk_dir && has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;         // retry after parent is created
+					else                                { msg = "cannot create top dir" ; goto Bad ; } // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break  ;
 				default :
 					msg = "cannot create dir" ;
@@ -352,21 +352,22 @@ namespace Disk {
 		//
 		switch (tag) {
 			case FileTag::None  :
-			case FileTag::Dir   : break ;                                                                                    // dirs are like no file
-			case FileTag::Empty :                                                                                            // fast path : no need to access empty src
-				AcFd( dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.force=action.force,.nfs_guard=action.nfs_guard} ) ;
+			case FileTag::Dir   : break ;                                                                                                          // dirs are like no file
+			case FileTag::Empty :                                                                                                                  // fast path : no need to access empty src
+				AcFd( dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.force=action.force,.mk_dir=action.mk_dir,.nfs_guard=action.nfs_guard} ) ;
 			break ;
 			case FileTag::Reg :
 			case FileTag::Exe : {
-				AcFd rfd { src , {                                                                                    .force=action.force,.nfs_guard=action.nfs_guard} } ;
-				AcFd wfd { dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.mod=mode_t(tag==FileTag::Exe?0777:0666),.force=action.force,.nfs_guard=action.nfs_guard} } ;
-				int  rc  = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                                                           ;
+				Fd::Action a = action ;
+				/**/                                                                                      AcFd rfd { src , a } ;
+				a.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW ; a.mod=mode_t(tag==FileTag::Exe?0777:0666) ; AcFd wfd { dst , a } ;
+				int rc = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                                                                                 ;
 				if (rc!=0) throw cat("cannot copy ",src," to ",dst) ;
 			} break ;
 			case FileTag::Lnk :
-				sym_lnk( dst , read_lnk(src,action.nfs_guard) , {.force=action.force,.nfs_guard=action.nfs_guard} ) ;
+				sym_lnk( dst , read_lnk(src,action.nfs_guard) , action ) ;
 			break ;
-		DF}                                                                                                                  // NO_COV
+		DF}                                                                                                                                        // NO_COV
 		return tag ;
 	}
 
@@ -379,8 +380,8 @@ namespace Disk {
 	Retry :
 		int rc = ::renameat( src.at , src.file.c_str() , dst.at , dst.file.c_str() ) ;
 		if (rc!=0) {
-			if ( errno==ENOENT && first ) {
-				dir_guard( dst , action ) ; // hope error is due to destination (else penalty is just retrying once, not a big deal)
+			if ( action.mk_dir && errno==ENOENT && first ) {
+				dir_guard( dst , action ) ;                  // hope error is due to destination (else penalty is just retrying once, not a big deal)
 				first = false ;
 				goto Retry ;
 			}

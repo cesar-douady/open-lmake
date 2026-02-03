@@ -226,12 +226,14 @@ namespace Disk {
 
 	struct _CreatAction {
 		bool      force     = false   ; // unlink any file on the path to dst
-		PermExt   perm_ext  = {}      ;
+		bool      mk_dir    = true    ;
 		NfsGuard* nfs_guard = nullptr ;
+		PermExt   perm_ext  = {}      ;
+		operator Fd::Action() const { return { .force=force , .mk_dir=mk_dir , .nfs_guard=nfs_guard , .perm_ext=perm_ext } ; }
 	} ;
 
-	::vector_s    lst_dir_s( FileRef dir_s , ::string const& pfx={} , NfsGuard* nfs_guard=nullptr ) ; // list files within dir with prefix in front of each entry
-	size_t/*pos*/ mk_dir_s ( FileRef dir_s ,                          _CreatAction action={}      ) ;
+	::vector_s    lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , NfsGuard* nfs_guard=nullptr ) ; // list files within dir with prefix in front of each entry
+	size_t/*pos*/ mk_dir_s ( FileRef dir_s         ,                          _CreatAction action={}      ) ;
 	//
 	inline ::string const& dir_guard( FileRef file , _CreatAction action={} ) {
 		if (has_dir(file.file)) mk_dir_s( {file.at,dir_name_s(file.file)} , action ) ;
@@ -259,7 +261,7 @@ namespace Disk {
 	// deep list files whose tag matches FileTags within dir with pfx in front of each entry, return a single entry {pfx} if file is not a dir (including if file does not exist)
 	// prune is called on each directory which is not traversed if return value is true
 	::vmap_s<FileTag> walk(
-		FileRef
+		FileRef                                     = Fd::Cwd
 	,	FileTags                                    = ~FileTags()
 	,	::string const&                       pfx   = {}
 	,	::function<bool(::string const& dir)> prune = [](::string const&)->bool { return false ; }

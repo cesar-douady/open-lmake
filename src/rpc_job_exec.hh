@@ -11,12 +11,6 @@
 
 #include "rpc_job_common.hh"
 
-enum class CodecDir : uint8_t {
-	Plain
-,	Tmp
-,	Lock
-} ;
-
 enum class JobExecProc : uint8_t {
 	None
 ,	ChkDeps
@@ -122,7 +116,6 @@ struct JobExecRpcReq {
 struct JobExecRpcReply {
 	friend ::string& operator+=( ::string& , JobExecRpcReply const& ) ;
 	using Proc = JobExecProc ;
-	using Crc  = Hash::Crc   ;
 	// accesses
 	bool operator+() const { return proc!=Proc::None ; }
 	// services
@@ -154,60 +147,58 @@ struct JobExecRpcReply {
 namespace Codec {
 
 	// START_OF_VERSIONING
-	static constexpr char Pfx      [] = PRIVATE_ADMIN_DIR_S "codec" ;
-	static constexpr char CodecSep    = '*'                         ;
-	static constexpr char DecodeSfx[] = ".decode"                   ;
-	static constexpr char EncodeSfx[] = ".encode"                   ;
+	using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+	static constexpr char CodecSep    = '*'       ; //!                                                    null
+	static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
+	static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 	// END_OF_VERSIONING
 
-	void s_init() ;
+	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , PermExt , NfsGuard* ) ; // ensure data exist in store
 
 	struct CodecFile {
 		friend ::string& operator+=( ::string& , CodecFile const& ) ;
 		// statics
-		static ::string s_pfx_s         (                        CodecDir d=CodecDir::Plain ) { return cat(Pfx,'_',d,'/'              ) ; }
-		static ::string s_dir_s         ( ::string const& file , CodecDir d=CodecDir::Plain ) { return cat(s_file (file,d),'/'        ) ; }
-		static ::string s_new_codes_file( ::string const& file                              ) { return cat(s_dir_s(file  ),"new_codes") ; }
-		static ::string s_file          ( ::string const& file , CodecDir d=CodecDir::Plain ) {
-			SWEAR( !Disk::is_dir_name(file) , file ) ;
-			return cat(s_pfx_s(d),file) ;
+		static ::string s_pfx_s(bool tmp=false) {
+			if (tmp) return cat(PrivateAdminDirS,"codec_tmp/") ;
+			else     return cat(PrivateAdminDirS,"codec/"    ) ;
 		}
-		static ::string s_lock_file(::string const& file) {
-			if (Disk::is_dir_name(file)) return file + PRIVATE_ADMIN_DIR_S "lock"               ;
-			else                         return s_pfx_s(CodecDir::Lock)+mk_printable<'/'>(file) ;
+		static ::string s_dir_s( ::string const& tab , bool tmp=false ) {
+			if (Disk::is_dir_name(tab)) { SWEAR( !tmp , tab ) ; return with_slash(             tab          ) ; }
+			else                                                return cat       (s_pfx_s(tmp),tab,add_slash) ;
 		}
-		static ::string s_config_file(::string const& file) {
-			SWEAR(Disk::is_dir_name(file)) ;
-			return cat(file,AdminDirS,"config.py") ;
+		static ::string s_config_file(::string const& tab) {
+			SWEAR(Disk::is_dir_name(tab)) ;
+			return cat(tab,AdminDirS,"config.py") ;
 		}
 		//
 		static bool s_is_codec( ::string const& node , ::vector_s const& ext_codec_dirs_s={} ) ;
 		// cxtors & casts
-		CodecFile(               ::string const& f , ::string const& x , Hash::Crc       val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
-		CodecFile(               ::string     && f , ::string     && x , Hash::Crc       val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}
+		CodecFile(               ::string const& f , ::string const& x , CodecCrc        val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
+		CodecFile(               ::string     && f , ::string     && x , CodecCrc        val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}
 		CodecFile( bool encode , ::string const& f , ::string const& x , ::string const& code_val ) : file{       f } , ctx{       x } {
-			if (encode) _code_val_crc = Hash::Crc(New,code_val) ;
-			else        _code_val_crc =               code_val  ;
+			if (encode) _code_val_crc = CodecCrc(New,code_val) ;
+			else        _code_val_crc =              code_val  ;
 		}
 		CodecFile( bool encode , ::string&& f , ::string&& x , ::string&& code_val ) : file{::move(f)} , ctx{::move(x)} {
-			if (encode) _code_val_crc = Hash::Crc(New,code_val) ;
-			else        _code_val_crc = ::move   (    code_val) ;
+			if (encode) _code_val_crc = CodecCrc(New,code_val) ;
+			else        _code_val_crc = ::move  (    code_val) ;
 		}
 		CodecFile( ::string const& node , ::vector_s const& ext_codec_dirs_s={} ) ;
-		// accesses
-		bool             is_encode() const { return        _code_val_crc.index()==1 ; }
-		::string  const& code     () const { return get<0>(_code_val_crc)           ; }
-		::string       & code     ()       { return get<0>(_code_val_crc)           ; }
-		Hash::Crc const& val_crc  () const { return get<1>(_code_val_crc)           ; }
-		Hash::Crc      & val_crc  ()       { return get<1>(_code_val_crc)           ; }
+		// acceses
+		bool            is_encode() const { return        _code_val_crc.index()==1 ; }
+		::string const& code     () const { return get<0>(_code_val_crc)           ; }
+		::string      & code     ()       { return get<0>(_code_val_crc)           ; }
+		CodecCrc const& val_crc  () const { return get<1>(_code_val_crc)           ; }
+		CodecCrc      & val_crc  ()       { return get<1>(_code_val_crc)           ; }
 		// services
-		::string name(bool tmp=false) const ;
+		::string ctx_dir_s(bool tmp=false) const ;
+		::string name     (bool tmp=false) const ;
 		void chk() const ;
 		// data
 		::string file ;
 		::string ctx  ;
 	private :
-		::variant<::string/*decode*/,Hash::Crc/*encode*/> _code_val_crc ;
+		::variant<::string/*decode*/,CodecCrc/*encode*/> _code_val_crc ;
 	} ;
 
 	struct Entry {
@@ -224,19 +215,31 @@ namespace Codec {
 		::string val  ;
 	} ;
 
-	// this lock ensures correct operation even in case of crash
-	// principle is that new_codes_file is updated before creating actual files and last action is replayed if it was interupted
-	struct _LockAction {
-		bool     err_ok    = false          ;
-		FileSync file_sync = FileSync::Dflt ;
-	} ;
-	struct CodecGuardLock : NfsGuardLock {
-		using Action = _LockAction ;
-		// ctxors & casts
-		CodecGuardLock ( FileRef , Action={} ) ;
-		~CodecGuardLock(                     ) ;
+	struct CodecLock {
+	private :
+		static constexpr uint8_t     _NId           = 16   ;
+		static constexpr uint8_t     _Excl          = -1   ;
+		static constexpr Time::Delay _SharedTimeout { 10 } ; // shared locks older than that are deemed lost
+		// statics
+	public :
+		static void s_init() ;
+		// cxtors & casts
+		CodecLock( Fd root_fd , ::string const& tab={} ) : _root_fd{root_fd} , _tab{New,tab} {}
+		CodecLock(              ::string const& tab={} ) : CodecLock{Fd::Cwd,tab}            {}
+		~CodecLock() ;
+		// accesses
+		CodecLock& operator=(CodecLock const&)       = default ;
+		CodecLock& operator=(CodecLock     &&)       = default ;
+		bool       operator+(                ) const { return +_root_fd ; }
+		bool       locked   (                ) const { return _num      ; }
+		// services
+		void lock_shared(::string const& id={}) ;            // id is for debug purpose only
+		void lock_excl  (                     ) ;            // .
 		// data
-		File file ;
+	private :
+		Fd          _root_fd ;
+		Hash::Crc   _tab     ;
+		uint8_t     _num     = 0 ;                           // 0 means unlocked, -1 means exclusive, 1 to _NId means shared
 	} ;
 
 }

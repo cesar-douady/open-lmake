@@ -195,7 +195,7 @@ namespace Cache {
 		job_info.cache_cleanup() ;                    // defensive programming : remove useless/meaningless info
 		::string job_info_str = serialize(job_info) ;
 		{	NfsGuard nfs_guard    { file_sync                                                                                                                          } ;
-			AcFd     ifd          { {_dir_fd,reserved_file(upload_key)+"-info"} , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.perm_ext=perm_ext,.nfs_guard=&nfs_guard} } ;
+			AcFd     ifd          { {_dir_fd,reserved_file(upload_key)+"-info"} , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.perm_ext=perm_ext} } ;
 			ifd.write(job_info_str) ;
 		}
 		//

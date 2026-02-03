@@ -50,6 +50,15 @@ enum class FileSync : uint8_t { // method used to ensure real close-to-open file
 } ;
 // END_OF_VERSIONING
 
+// working and non-working locking techniques
+// ::fcntl  ( <fd> , F_SETLKW , &{.l_type=F_WRLCK} )                     : has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, and possibly block
+// ::fcntl  ( <fd> , F_OFD_SETLKW , &{.l_type=F_WRLCK} )                 : has not been tried, probably similar to F_SETLKW
+// ::flock  ( <fd> , LOCK_EX )                                           : has been observed as not working with rocky9/NFSv4 despite NVS being configured to support flock
+// ::open   (         <file> , O_WRONLY|O_CREAT|O_EXCL , 0000/*mod*/ )   : seems ok on trials with rocky9/NFSv4
+// ::link   ( <tmp> , <file> ) (either succeed or link count=2 on <tmp>) : seems ok on trials with rocky9/NFSv4
+// ::mkdir  (         <dir>  , 0777/*mod*/ )                             : has been observed as not working with rocky9/NFSv4
+// ::symlink( "..." , <file> )                                           : seems ok on trials with rocky9/NFSv4
+
 // prevent dead locks by associating a level to each mutex, so we can verify the absence of dead-locks even in absence of race
 // use of identifiers (in the form of an enum) allows easy identification of the origin of misorder
 enum class MutexLvl : uint8_t { // identify who is owning the current level to ease debugging
@@ -541,11 +550,11 @@ struct _FdAction {
 	int       flags     = O_RDONLY ;
 	mode_t    mod       = 0666     ;                                                         // default to an invalid mod (0 may be usefully used to create a no-access file)
 	bool      err_ok    = false    ;
-	bool      mk_dir    = true     ;
 	bool      force     = false    ;                                                         // unlink any file on path to file if necessary
-	PermExt   perm_ext  = {}       ;
+	bool      mk_dir    = true     ;
 	bool      no_std    = false    ;
 	NfsGuard* nfs_guard = nullptr  ;
+	PermExt   perm_ext  = {}       ;
 } ;
 struct Fd {
 	friend ::string& operator+=( ::string& , Fd const& ) ;
@@ -745,142 +754,6 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 1 : ::get<1>(self).flush() ; break ;
 			case 2 : ::get<2>(self).flush() ; break ;
 		DF}                                                       // NO_COV
-	}
-} ;
-
-//
-// NfsGuardLock
-//
-
-// several methods are implemented :
-// - fd based
-//   - using fcntl
-//   - using flock
-// - file based
-//   - using O_CREAT|O_EXCL options in open
-//   - creating a tmp file and using link to create the lock
-//   - using mkdir
-// dont know yet which are faster and which actually work even under heavy loads
-
-struct _NfsGuardLockAction {
-	bool    err_ok   = false ; // ok if the lock cannot be created
-	bool    mk_dir   = true  ; // create dir chain as needed
-	PermExt perm_ext = {}    ; // used for fd based to ensure lock file can be adequately accessed
-} ;
-
-//
-// fd based locks
-//
-struct _LockerFd {
-	using Action = _NfsGuardLockAction ;
-	// cxtors & casts
-	_LockerFd( FileRef f , Action a={} ) : fd{ f , {.flags=O_RDWR|O_CREAT,.err_ok=a.err_ok,.mk_dir=a.mk_dir,.perm_ext=a.perm_ext} } {}
-	// accesses
-	bool operator+() const { return +fd ; }
-	// services
-	void lock      () = delete ; // must be provided by child
-	void keep_alive() {}
-	// data
-	AcFd fd ;
-} ;
-//
-struct _LockerFcntl : _LockerFd { using _LockerFd::_LockerFd ; void lock() ; } ;
-struct _LockerFlock : _LockerFd { using _LockerFd::_LockerFd ; void lock() ; } ;
-//
-template<class Locker> struct _FileLockFd : Locker {
-	using typename Locker::Action ;
-	using          Locker::lock   ;
-	using          Locker::fd     ;
-	// cxtors & casts
-	_FileLockFd() = default ;
-	_FileLockFd( FileRef f , Action a={} ) : Locker{f,a} {
-		if (!fd) return ;
-		lock() ;
-	}
-} ;
-
-//
-// file based locks
-//
-enum class _FileLockFileTrial {
-	Locked
-,	NoDir
-,	Retry
-,	Fail
-} ;
-//
-struct _LockerFile {
-	using Action = _NfsGuardLockAction ;
-	using Trial  = _FileLockFileTrial  ;
-	// cxtors & casts
-	_LockerFile(FileRef) ;
-	// accesses
-	bool operator+() const { return +spec ; }
-	// services
-	Trial try_lock  (                                       ) = delete ; // must be provided by child
-	void  unlock    ( bool err_ok=false , bool is_dir=false ) ;
-	void  keep_alive(                                       ) ;
-	// data
-	File     spec ;
-	uint64_t date ;                                                      // cant use Pdate here
-} ;
-struct _LockerExcl    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ;                                     } ;
-struct _LockerLink    : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ; ::string tmp ; bool has_tmp=false ; } ;
-struct _LockerMkdir   : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ; void unlock(bool err_ok=false) ;    } ;
-struct _LockerSymlink : _LockerFile { using _LockerFile::_LockerFile ; Trial try_lock() ;                                     } ;
-//
-template<class Locker> struct _FileLockFile : Locker {
-	using typename Locker::Action   ;
-	using          Locker::try_lock ;
-	using          Locker::spec     ;
-	using          Locker::unlock   ;
-	// cxtors & casts
-	_FileLockFile( FileRef , Action ) ;
-	~_FileLockFile() {
-		if (!spec.at) return ;
-		unlock() ;
-	}
-} ;
-
-//
-// actual class to be used
-//
-using _FileLock =
-	::variant<
-		::monostate                                                              // /!\ fake locks, for experimental purpose only
-	,	_FileLockFd  <_LockerFcntl  >
-	,	_FileLockFd  <_LockerFlock  >
-	,	_FileLockFile<_LockerExcl   >
-	,	_FileLockFile<_LockerLink   >
-	,	_FileLockFile<_LockerMkdir  >
-	,	_FileLockFile<_LockerSymlink>
-	>
-;
-struct NfsGuardLock : _FileLock , NfsGuard                                       // NfsGuard must follow _FileLock so that it is flushed before lock is released upon destruction
-{
-	using Action = _NfsGuardLockAction ;
-	NfsGuardLock( FileSync , FileRef , Action={} ) ;
-	bool operator+() const {
-		switch (_FileLock::index()) {                                            // PER_FILE_SYNC : add entry here
-			case 0 : return true                                         ;       // NO_COV, pretend lock is taken
-			case 1 : return +get<1>(static_cast<_FileLock const&>(self)) ;
-			case 2 : return +get<2>(static_cast<_FileLock const&>(self)) ;
-			case 3 : return +get<3>(static_cast<_FileLock const&>(self)) ;
-			case 4 : return +get<4>(static_cast<_FileLock const&>(self)) ;
-			case 5 : return +get<5>(static_cast<_FileLock const&>(self)) ;
-			case 6 : return +get<6>(static_cast<_FileLock const&>(self)) ;
-		DF}                                                                      // NO_COV
-	}
-	void keep_alive() {
-		switch (_FileLock::index()) {                                            // PER_FILE_SYNC : add entry here
-			case 0 : return                                                    ; // NO_COV
-			case 1 : return get<1>(static_cast<_FileLock&>(self)).keep_alive() ;
-			case 2 : return get<2>(static_cast<_FileLock&>(self)).keep_alive() ;
-			case 3 : return get<3>(static_cast<_FileLock&>(self)).keep_alive() ;
-			case 4 : return get<4>(static_cast<_FileLock&>(self)).keep_alive() ;
-			case 5 : return get<5>(static_cast<_FileLock&>(self)).keep_alive() ;
-			case 6 : return get<6>(static_cast<_FileLock&>(self)).keep_alive() ;
-		DF}                                                                      // NO_COV
 	}
 } ;
 

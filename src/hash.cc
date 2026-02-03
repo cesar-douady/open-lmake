@@ -21,59 +21,57 @@ namespace Hash {
 	template struct _Xxh<false> ; // explicit instanciation of static variables
 	template struct _Xxh<true > ; // .
 
-	// specializations
-	template<> _Xxh<false/*Is128*/>::_Xxh() {
-		XXH3_INITSTATE   (&_state) ;
-		XXH3_64bits_reset(&_state) ;
-	}
-	template<> _Xxh<true/*Is128*/>::_Xxh() {
-		XXH3_INITSTATE   (&_state) ;
-		XXH3_128bits_reset(&_state) ;
-	}
+	template<bool Is128> _Xxh<Is128>::_Xxh() {
+		/**/       XXH3_INITSTATE    (&_state) ;
+		if (Is128) XXH3_128bits_reset(&_state) ;
+		else       XXH3_64bits_reset (&_state) ;
+	} //!         Is128
+	template _Xxh<false>::_Xxh() ; // explicit instanciation
+	template _Xxh<true >::_Xxh() ; // .
 
-	// specializations
-	template<> _Xxh<false/*Is128*/>::_Xxh(FileTag tag) : is_lnk{No|(tag==FileTag::Lnk)} {
+	template<bool Is128> _Xxh<Is128>::_Xxh(FileTag tag) : is_lnk{No|(tag==FileTag::Lnk)} {
 		XXH3_INITSTATE(&_state) ;
-		switch (tag) {
-			case FileTag::Reg :                  XXH3_64bits_reset           ( &_state                                         ) ; break ;
-			case FileTag::Lnk : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_lnk_secret , sizeof(_s_lnk_secret) ) ; break ;
-			case FileTag::Exe : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_exe_secret , sizeof(_s_exe_secret) ) ; break ;
-		DF}                                                                                                                                 // NO_COV
-	}
-	template<> _Xxh<true/*Is128*/>::_Xxh(FileTag tag) : is_lnk{No|(tag==FileTag::Lnk)} {
-		XXH3_INITSTATE(&_state) ;
-		switch (tag) {
-			case FileTag::Reg :                  XXH3_128bits_reset           ( &_state                                         ) ; break ;
-			case FileTag::Lnk : _s_init_salt() ; XXH3_128bits_reset_withSecret( &_state , _s_lnk_secret , sizeof(_s_lnk_secret) ) ; break ;
-			case FileTag::Exe : _s_init_salt() ; XXH3_128bits_reset_withSecret( &_state , _s_exe_secret , sizeof(_s_exe_secret) ) ; break ;
-		DF}                                                                                                                                 // NO_COV
-	}
+		if (Is128)
+			switch (tag) {
+				case FileTag::Reg :                  XXH3_128bits_reset           ( &_state                                         ) ; break ;
+				case FileTag::Lnk : _s_init_salt() ; XXH3_128bits_reset_withSecret( &_state , _s_lnk_secret , sizeof(_s_lnk_secret) ) ; break ;
+				case FileTag::Exe : _s_init_salt() ; XXH3_128bits_reset_withSecret( &_state , _s_exe_secret , sizeof(_s_exe_secret) ) ; break ;
+			DF}                                                                                                                                 // NO_COV
+		else
+			switch (tag) {
+				case FileTag::Reg :                  XXH3_64bits_reset           ( &_state                                         ) ; break ;
+				case FileTag::Lnk : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_lnk_secret , sizeof(_s_lnk_secret) ) ; break ;
+				case FileTag::Exe : _s_init_salt() ; XXH3_64bits_reset_withSecret( &_state , _s_exe_secret , sizeof(_s_exe_secret) ) ; break ;
+			DF}                                                                                                                                 // NO_COV
+	} //!         Is128
+	template _Xxh<false>::_Xxh(FileTag tag) ;                                                                                                   // explicit instanciation
+	template _Xxh<true >::_Xxh(FileTag tag) ;                                                                                                   // .
 
-	// specializations
-	template<> _Crc<false/*Is128*/> _Xxh<false/*Is128*/>::digest() const {
-		if ( is_lnk==Maybe && !seen_data ) return {}                                       ;
-		else                               return { XXH3_64bits_digest(&_state) , is_lnk } ;
-	}
-	#if HAS_UINT128
-		template<> _Crc<true/*Is128*/> _Xxh<true/*Is128*/>::digest() const {
+	template<bool Is128> _Crc<Is128> _Xxh<Is128>::digest() const {
+		if                ( is_lnk==Maybe && !seen_data ) return {}                                        ;
+		else if constexpr ( !Is128                      ) return { XXH3_64bits_digest(&_state) , is_lnk } ;
+		else {
 			if ( is_lnk==Maybe && !seen_data ) return {} ;
-			XXH128_hash_t d = XXH3_128bits_digest(&_state)        ;
-			uint128_t     v = (uint128_t(d.high64)<<64) | d.low64 ;
+			XXH128_hash_t d = XXH3_128bits_digest(&_state) ;
+			#if HAS_UINT128
+				uint128_t v = (uint128_t(d.high64)<<64) | d.low64 ;
+			#else
+				uint64_t  v =            d.high64       ^ d.low64 ; // stay in 64 bits, prevent compiler from complaining if we kept 64
+			#endif
 			return { v , is_lnk } ;
 		}
-	#endif
+	} //!         Is128       Is128
+	template _Crc<false> _Xxh<false>::digest() const ;              // explicit instanciation
+	template _Crc<true > _Xxh<true >::digest() const ;              // .
 
-	// specializations
-	template<> _Xxh<false/*Is128*/>& _Xxh<false/*Is128*/>::operator+=(::string_view sv) {
+	template<bool Is128> _Xxh<Is128>& _Xxh<Is128>::operator+=(::string_view sv) {
 		seen_data |= sv.size() ;
-		XXH3_64bits_update( &_state , sv.data() , sv.size() ) ;
+		if (Is128) XXH3_128bits_update( &_state , sv.data() , sv.size() ) ;
+		else       XXH3_64bits_update ( &_state , sv.data() , sv.size() ) ;
 		return self ;
-	}
-	template<> _Xxh<true/*Is128*/>& _Xxh<true/*Is128*/>::operator+=(::string_view sv) {
-		seen_data |= sv.size() ;
-		XXH3_128bits_update( &_state , sv.data() , sv.size() ) ;
-		return self ;
-	}
+	} //!         Is128        Is128
+	template _Xxh<false>& _Xxh<false>::operator+=(::string_view sv) ; // explicit instanciation
+	template _Xxh<true >& _Xxh<true >::operator+=(::string_view sv) ; // .
 
 	//
 	// Crc
@@ -162,14 +160,14 @@ namespace Hash {
 	template ::string _Crc<true >::hex() const ;             // .
 
 	template<bool Is128> _Crc<Is128> _Crc<Is128>::s_from_hex(::string_view sv) {
-		throw_unless( sv.size()==2*sizeof(Val) , "bad crc hex : ", sv ) ;
+		throw_unless( sv.size()==HexSz , "bad size : ",sv.size(),"!=",HexSz ) ;
 		_Crc res { Val(0) } ;
 		for( size_t i : iota(sizeof(res._val)) ) {
 			char msb = sv[2*i  ] ;
 			char lsb = sv[2*i+1] ;
 			uint8_t b =
-				( '0'<=msb && msb<='9' ? msb-'0' : 'a'<=msb && msb<='f' ? 10+msb-'a' : throw cat("bad crc hex : ",sv) )<<4
-			|	( '0'<=lsb && lsb<='9' ? lsb-'0' : 'a'<=lsb && lsb<='f' ? 10+lsb-'a' : throw cat("bad crc hex : ",sv) )
+				( '0'<=msb && msb<='9' ? msb-'0' : 'a'<=msb && msb<='f' ? 10+msb-'a' : throw cat("bad hex digit : ",msb) )<<4
+			|	( '0'<=lsb && lsb<='9' ? lsb-'0' : 'a'<=lsb && lsb<='f' ? 10+lsb-'a' : throw cat("bad hex digit : ",lsb) )
 			;
 			res._val |= Val(b)<<(8*i) ;
 		}

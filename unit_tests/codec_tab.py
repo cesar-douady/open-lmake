@@ -20,7 +20,7 @@ if __name__!='__main__' :
 	)
 
 	lmake.config.codecs.src_codec = 'codec_file'
-	lmake.config.codecs.dir_codec = '../codec_files/tab/'
+	lmake.config.codecs.dir_codec = '../codec_files/sub/'
 
 	class CodecSh(Rule) :
 		target = r'{File:.*}_sh'
@@ -65,8 +65,8 @@ else :
 
 	import ut
 
-	os.makedirs('codec_files/tab/LMAKE',exist_ok=True)
-	print('',file=open('codec_files/tab/LMAKE/config.py','w'))
+	os.makedirs('codec_files/sub/LMAKE',exist_ok=True)
+	print('',file=open('codec_files/sub/LMAKE/config.py','w'))
 
 	os.makedirs('repo/LMAKE'       ,exist_ok=True)
 	os.symlink('../Lmakefile.py','repo/Lmakefile.py')
@@ -82,7 +82,7 @@ else :
 
 	ut.lmake( 'codec_sh' , 'codec_py' , steady=2 )
 
-	print('user_val',file=open('../codec_files/tab/ctx/user_code.decode','w'))
-	os.system('lcodec_repair -fr ../codec_files/tab')
+	print('user_val',file=open('../codec_files/sub/tab/ctx/user_code.decode','w'))
+	os.system('lcodec_repair -fr ../codec_files/sub')
 
 	ut.lmake( 'chk2' , done=1 )

@@ -75,8 +75,8 @@ namespace JobSupport {
 		return Backdoor::call<Backdoor::Decode>({ .tab=::move(tab) , .ctx=::move(ctx) , .code=::move(code) }) ;
 	}
 	::string encode( ::string&& tab , ::string&& ctx , ::string&& val  , uint8_t min_len ) {
-		throw_unless( min_len>=1             , "min_len (",min_len,") must be at least 1"                                  ) ;
-		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",sizeof(Crc)*2,')' ) ;     // codes are output in hex, 4 bits/digit
+		throw_unless( min_len>=1             , "min_len (",min_len,") must be at least 1"                                           ) ;
+		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",Codec::CodecCrc::HexSz,')' ) ; // codes are output in hex, 4 bits/digit
 		return Backdoor::call<Backdoor::Encode>({ .tab=::move(tab) , .ctx=::move(ctx) , .val=::move(val) , .min_len=min_len }) ;
 	}
 

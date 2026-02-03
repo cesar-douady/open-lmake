@@ -383,8 +383,8 @@ int main( int argc , char** argv ) {
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
 	if (_g_server.writable) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+*g_exe_name ) ;
-	Job::s_init() ;
-	Codec::s_init() ;
+	Codec::CodecLock::s_init() ;
+	Job             ::s_init() ;
 	//                             vvvvvvvvvvvvvv
 	/**/   bool      interrupted = _engine_loop() ;
 	//                             ^^^^^^^^^^^^^^

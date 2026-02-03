@@ -7,7 +7,7 @@
 
 #include "serialize.hh"
 
-#if FORCE_32_BITS
+#if __SIZEOF_POINTER__!=8
 	#undef HAS_PCRE
 	#define HAS_PCRE 0 // PCRE is only supported in 64 bits
 #endif

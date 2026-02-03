@@ -289,8 +289,8 @@ namespace Engine {
 		//
 		// refresh codec files
 		for( ::string const& f : self->refresh_codecs ) {
-			trace("refresh_codecs",self->refresh_codecs) ;
-			Job job { Rule(Special::Codec) , Codec::CodecFile::s_file(f) } ;
+			trace("refresh_codec",f) ;
+			Job job { Rule(Special::Codec) , no_slash(Codec::CodecFile::s_dir_s(f)) } ;
 			if (!job) continue ;                                                        // ignore errors as there is nothing much we can do
 			job->refresh_codec(self) ;
 		}

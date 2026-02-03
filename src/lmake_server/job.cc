@@ -456,7 +456,7 @@ namespace Engine {
 						//
 						if (is_src_anti) {                                                                  // source may have been modified
 							old_srcs.try_emplace( target , ::pair(target->sig.sig,target->crc) ) ;          // if it is also a dep, at best the dep will see old sig, and we want to associate old crc
-							if (!crc.valid()) crc = {target->name()} ;                                      // force crc computation if updating a source
+							if (!crc.valid()) crc = Crc(target->name()) ;                                   // force crc computation if updating a source
 							//
 							switch (target->buildable) {
 								case Buildable::DynSrc :

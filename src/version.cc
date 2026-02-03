@@ -1,14 +1,14 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 22      ; // 9ac44ea0970c589d1d2952968203b876
-	uint64_t    constexpr Repo  = 17      ; // 9084eb1d72b3e0143634258f17e639d3
-	uint64_t    constexpr Job   = 8       ; // 1cf4a9b1966d5d863e67c03c040baa11
-	const char* const     Major = "26.01" ;
+	uint64_t    constexpr Cache = 22      ; // 7c2b57693ddb3eafbea5c80308dca91e
+	uint64_t    constexpr Repo  = 17      ; // 92d13a32234792f3ab5580a40da6a2c8
+	uint64_t    constexpr Job   = 8       ; // a3dc527fda90918e25b0bc893c7f45b2
+	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 9ac44ea0970c589d1d2952968203b876 *
+// * Cache : 7c2b57693ddb3eafbea5c80308dca91e *
 // ********************************************
 //
 //	// START_OF_VERSIONING
@@ -109,15 +109,18 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
+//		::string CodecFile::ctx_dir_s(bool tmp) const {
+//			::string res = s_dir_s(file,tmp) ;
+//			if (is_dir_name(file)) res << "tab/"  <<                       ctx  ;
+//			else                   res << CodecSep<<mk_printable<CodecSep>(ctx) ;
+//			/**/                   res << '/'                                   ;
+//			return res ;
+//		}
 //		::string CodecFile::name(bool tmp) const {
-//			if (is_dir_name(file)) {
-//				SWEAR(!tmp) ;
-//				if (is_encode()) return cat(file,ctx,'/',val_crc().hex()          ,EncodeSfx) ;
-//				else             return cat(file,ctx,'/',mk_printable<'/'>(code()),DecodeSfx) ;
-//			} else {
-//				if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
-//				else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
-//			}
+//			::string res = ctx_dir_s(tmp) ;
+//			if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+//			else             res << mk_printable<'/'>(code())<<DecodeSfx ;
+//			return res ;
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
@@ -801,10 +804,10 @@ namespace Version {
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING
-//		static constexpr char Pfx      [] = PRIVATE_ADMIN_DIR_S "codec" ;
-//		static constexpr char CodecSep    = '*'                         ;
-//		static constexpr char DecodeSfx[] = ".decode"                   ;
-//		static constexpr char EncodeSfx[] = ".encode"                   ;
+//		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+//		static constexpr char CodecSep    = '*'       ; //!                                                    null
+//		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
+//		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO CACHE
 //				constexpr size_t CacheLineSz = 64                                                               ; // hint only, defined independently of ::hardware_destructive_interference_size ...
@@ -853,7 +856,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 9084eb1d72b3e0143634258f17e639d3 *
+// * Repo : 92d13a32234792f3ab5580a40da6a2c8 *
 // *******************************************
 //
 //	// START_OF_VERSIONING
@@ -999,15 +1002,18 @@ namespace Version {
 //			RuleBase::s_match_gen = _g_rule_crc_file.c_hdr() ;
 //			// END_OF_VERSIONING
 //		// START_OF_VERSIONING
+//		::string CodecFile::ctx_dir_s(bool tmp) const {
+//			::string res = s_dir_s(file,tmp) ;
+//			if (is_dir_name(file)) res << "tab/"  <<                       ctx  ;
+//			else                   res << CodecSep<<mk_printable<CodecSep>(ctx) ;
+//			/**/                   res << '/'                                   ;
+//			return res ;
+//		}
 //		::string CodecFile::name(bool tmp) const {
-//			if (is_dir_name(file)) {
-//				SWEAR(!tmp) ;
-//				if (is_encode()) return cat(file,ctx,'/',val_crc().hex()          ,EncodeSfx) ;
-//				else             return cat(file,ctx,'/',mk_printable<'/'>(code()),DecodeSfx) ;
-//			} else {
-//				if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
-//				else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
-//			}
+//			::string res = ctx_dir_s(tmp) ;
+//			if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+//			else             res << mk_printable<'/'>(code())<<DecodeSfx ;
+//			return res ;
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
@@ -2038,10 +2044,10 @@ namespace Version {
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING
-//		static constexpr char Pfx      [] = PRIVATE_ADMIN_DIR_S "codec" ;
-//		static constexpr char CodecSep    = '*'                         ;
-//		static constexpr char DecodeSfx[] = ".decode"                   ;
-//		static constexpr char EncodeSfx[] = ".encode"                   ;
+//		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+//		static constexpr char CodecSep    = '*'       ; //!                                                    null
+//		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
+//		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO CACHE
 //				constexpr size_t CacheLineSz = 64                                                               ; // hint only, defined independently of ::hardware_destructive_interference_size ...
@@ -2090,7 +2096,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 1cf4a9b1966d5d863e67c03c040baa11 *
+// * Job : a3dc527fda90918e25b0bc893c7f45b2 *
 // ******************************************
 //
 //	// START_OF_VERSIONING
@@ -2158,15 +2164,18 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
+//		::string CodecFile::ctx_dir_s(bool tmp) const {
+//			::string res = s_dir_s(file,tmp) ;
+//			if (is_dir_name(file)) res << "tab/"  <<                       ctx  ;
+//			else                   res << CodecSep<<mk_printable<CodecSep>(ctx) ;
+//			/**/                   res << '/'                                   ;
+//			return res ;
+//		}
 //		::string CodecFile::name(bool tmp) const {
-//			if (is_dir_name(file)) {
-//				SWEAR(!tmp) ;
-//				if (is_encode()) return cat(file,ctx,'/',val_crc().hex()          ,EncodeSfx) ;
-//				else             return cat(file,ctx,'/',mk_printable<'/'>(code()),DecodeSfx) ;
-//			} else {
-//				if (is_encode()) return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',val_crc().hex()          ,EncodeSfx) ;
-//				else             return cat(s_file(file,tmp?CodecDir::Tmp:CodecDir::Plain),'/',CodecSep,mk_printable<CodecSep>(ctx),'/',mk_printable<'/'>(code()),DecodeSfx) ;
-//			}
+//			::string res = ctx_dir_s(tmp) ;
+//			if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+//			else             res << mk_printable<'/'>(code())<<DecodeSfx ;
+//			return res ;
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING
@@ -2439,10 +2448,10 @@ namespace Version {
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING
-//		static constexpr char Pfx      [] = PRIVATE_ADMIN_DIR_S "codec" ;
-//		static constexpr char CodecSep    = '*'                         ;
-//		static constexpr char DecodeSfx[] = ".decode"                   ;
-//		static constexpr char EncodeSfx[] = ".encode"                   ;
+//		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+//		static constexpr char CodecSep    = '*'       ; //!                                                    null
+//		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
+//		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING
 //	// FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway

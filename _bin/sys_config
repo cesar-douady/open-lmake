@@ -455,7 +455,14 @@ cat <<"EOF" >uint128.c
 		return x ;
 	}
 EOF
-HAS_UINT128=$(ok cc -c -o /dev/null uint128.c )
+has_uint128_64=$(ok cc -c -o /dev/null      uint128.c )
+has_uint128_32=$(ok cc -c -o /dev/null -m32 uint128.c )
+case $has_uint128_64/$has_uint128_32 in
+	0/0) HAS_UINT128="0"                       ;;
+	0/1) HAS_UINT128="(__SIZEOF_POINTER__==4)" ;;
+	1/0) HAS_UINT128="(__SIZEOF_POINTER__==8)" ;;
+	1/1) HAS_UINT128="1"                       ;;
+esac
 
 #
 # ZSTD/ZLIB (HAS_ZSTD+HAS_ZLIB)
