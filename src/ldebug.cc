@@ -29,10 +29,7 @@ using namespace Py   ;
 }
 
 int main( int argc , char* argv[] ) {
-	repo_app_init({.read_only_ok=false}) ;
-	Py::init(*g_lmake_root_s)            ;
-	Trace trace("main") ;
-	//
+	Py::init() ;                       // init before python is used to compute keys
 	ReqSyntax syntax {{
 		{ ReqFlag::Key    , { .short_name='k' , .has_arg=true  , .doc="entry into config.debug to specify debug method\n"                 } }
 	,	{ ReqFlag::NoExec , { .short_name='n' , .has_arg=false , .doc="dont execute, just generate files"                                 } }
@@ -44,6 +41,9 @@ int main( int argc , char* argv[] ) {
 	//
 	if ( cmd_line.args.size()<1 ) syntax.usage(    "need a target to debug"                                ) ;
 	if ( cmd_line.args.size()>1 ) syntax.usage(cat("cannot debug ",cmd_line.args.size()," targets at once")) ;
+	//
+	repo_app_init({.read_only_ok=false}) ;
+	Trace trace("main") ;
 	//
 	::vector_s script_files ;
 	//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

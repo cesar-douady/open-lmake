@@ -164,7 +164,7 @@ LINT_OPTS  := '--header-filter=.*' $(LINT_CHKS)
 # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
 CC_FLAGS := -iquote ext -iquote src -iquote src/lmake_server -iquote . -idirafter /usr/include/linux
 
-Z_LIB    := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
+Z_LIB := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
 
 PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -I
 PY3_INC_DIRS :=                 $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))  # .
@@ -720,11 +720,11 @@ _bin/job_exec bin/lautodep :
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps
-bin/ldecode     : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/ldecode.o
-bin/ldepend     : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/ldepend.o
-bin/lencode     : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/lencode.o
-bin/ltarget     : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/ltarget.o
-bin/lcheck_deps : $(REMOTE_OBJS) src/autodep/job_support.o src/py.o src/autodep/lcheck_deps.o
+bin/ldecode     : $(REMOTE_OBJS) src/autodep/job_support.o src/autodep/ldecode.o
+bin/ldepend     : $(REMOTE_OBJS) src/autodep/job_support.o src/autodep/ldepend.o
+bin/lencode     : $(REMOTE_OBJS) src/autodep/job_support.o src/autodep/lencode.o
+bin/ltarget     : $(REMOTE_OBJS) src/autodep/job_support.o src/autodep/ltarget.o
+bin/lcheck_deps : $(REMOTE_OBJS) src/autodep/job_support.o src/autodep/lcheck_deps.o
 
 bin/% :
 	@mkdir -p $(@D)

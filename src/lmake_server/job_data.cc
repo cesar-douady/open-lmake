@@ -829,7 +829,7 @@ namespace Engine {
 				::string val_crc = CodecCrc( New , code_val ).hex()        ;
 				::string dir_s   = CodecFile::s_dir_s(codec_file.file,tmp) ;
 				target = mk_rel( dir_s+"store/"+val_crc , dir_name_s(disk_node_name) ) ;
-				creat_store( dir_s , val_crc , code_val , {}/*perm_ext*/ , nfs_guard ) ;
+				creat_store( dir_s , val_crc , code_val , -1/*umask*/ , nfs_guard ) ;
 			}
 			sym_lnk( disk_node_name , target , {.nfs_guard=nfs_guard} ) ;
 			nd.set_crc_date( Crc(New,target,Yes/*is_lnk*/) , FileSig(disk_node_name) ) ;

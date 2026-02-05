@@ -98,8 +98,6 @@ static ::vmap_ss _mk_env( ::string const& env ) {
 
 int main( int argc , char* argv[] ) {
     block_sigs({SIGCHLD}) ;
-	repo_app_init({.cd_root=false}) ;
-	Py::init(*g_lmake_root_s) ;
 	//
 	Syntax<CmdKey,CmdFlag> syntax {{
 		// PER_AUTODEP_METHOD : complete doc on line below
@@ -123,6 +121,9 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Views         , { .short_name='V' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}"   } }
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
+	//
+	repo_app_init({.cd_root=false}) ;
+	Py::init(*g_lmake_root_s) ;
 	//
 	JobStartRpcReply jsrr        ;
 	JobSpace  &      job_space   = jsrr.job_space   ;

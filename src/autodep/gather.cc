@@ -349,13 +349,14 @@ void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
 
 Fd Gather::_spawn_child() {
 	SWEAR(+cmd_line) ;
-	Trace trace("_spawn_child",child_stdin,child_stdout,child_stderr) ;
 	//
 	Fd   child_fd  ;
 	Fd   report_fd ;
 	bool is_ptrace = method==AutodepMethod::Ptrace ;
 	//
 	autodep_env.fast_mail = mail() ;
+	//
+	Trace trace("_spawn_child",child_stdin,child_stdout,child_stderr,method,autodep_env) ;
 	//
 	_add_env              = { {"LMAKE_AUTODEP_ENV",autodep_env} } ; // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session     = as_session                            ;
@@ -384,6 +385,7 @@ Fd Gather::_spawn_child() {
 			DF}                                                                                                                                                   // NO_COV
 			if (env) { if (env->contains(env_var                  )) _add_env[env_var] += ':' + env->at(env_var) ; }
 			else     { if (has_env      (env_var,false/*empty_ok*/)) _add_env[env_var] += ':' + get_env(env_var) ; }
+			trace("ld",env_var,_add_env.at(env_var)) ;
 		}
 		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
 	}
@@ -517,6 +519,7 @@ Status Gather::_exec_child() {
 			else if (kill_step<=kill_sigs.size()) kill_msg << "been killed "<<kill_step       <<" times"                                  ;
 			else if (+kill_sigs.size()          ) kill_msg << "been killed "<<kill_sigs.size()<<" times followed by SIGKILL"              ;
 			else                                  kill_msg << "been killed with SIGKILL"                                                  ;
+			kill_msg << '\n' ;
 			set_status( Status::Err , kill_msg ) ;
 			break ;                                              // exit loop
 		}

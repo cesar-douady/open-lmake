@@ -19,7 +19,6 @@ namespace Codec {
 	CodecServerSide::CodecServerSide( ::vmap_ss const& dct , FileSync dflt_file_sync ) {
 		Trace trace(CodecChnl,"Codec::Codec",dct.size()) ;
 		bool is_dir    = false/*garbage*/ ;                                                                                          // avoid unitialized warning
-		bool seen_perm = false            ;
 		for( auto const& [key,val] : dct ) {
 			throw_if( key=="__all__" , "__all__ not supported yet in codec config.py" ) ;                                            // XXX : support (mimic cache)
 			try {
@@ -28,7 +27,6 @@ namespace Codec {
 					case 'd' : if (key=="dir"      ) { tab       = with_slash       (val) ; is_dir = true  ; continue ; } break    ;
 					case 'f' : if (key=="file"     ) { tab       =                   val  ; is_dir = false ; continue ; }
 					/**/       if (key=="file_sync") { file_sync = mk_enum<FileSync>(val) ;                  continue ; } break    ;
-					case 'p' : if (key=="perm"     ) { seen_perm = true                   ;                  continue ; } break    ;
 				DN}
 			} catch (::string const& e) {
 				trace("bad_val",key,val) ;
@@ -42,9 +40,8 @@ namespace Codec {
 			throw_if( is_dir_name(tab) , "codec dir table cannot be local in repo : ",tab ) ;
 			file_sync = dflt_file_sync ;                                                                                             // for local codec, file synchro is the same as any other file
 		}
-		if (seen_perm) Fd::Stderr.write(cat("while configuring codec table, perm is now automatic and deprecated : ",tab,rm_slash,'\n')) ;
-		if (is_dir   ) perm_ext = auto_perm_ext( tab , "codec dir table" ) ;
-		trace("done",tab,file_sync,perm_ext) ;
+		if (is_dir   ) umask = auto_umask( tab , "codec dir table" ) ;
+		trace("done",tab,file_sync,umask) ;
 	}
 
 
@@ -68,7 +65,6 @@ namespace Codec {
 					else      { if (k[0]== '_'       ) continue ; } // .
 					switch (k[0]) {
 						case 'f' : if (k=="file_sync") { file_sync = mk_enum<FileSync>(v) ; continue ; } break ;
-						case 'p' : if (k=="perm"     ) { perm_ext  = mk_enum<PermExt> (v) ; continue ; } break ;
 					DN}
 				} catch (::string const& e) {
 					trace("bad_val",k,v) ;
@@ -86,7 +82,6 @@ namespace Codec {
 		return {
 			{ is_dir()?"dir":"file" ,           tab        }
 		,	{ "file_sync"           , snake_str(file_sync) }
-		,	{ "perm_ext"            , snake_str(perm_ext ) }
 		} ;
 	}
 

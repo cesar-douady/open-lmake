@@ -12,15 +12,15 @@
 using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
-	repo_app_init({.read_only_ok=false}) ;
-	Trace trace("main") ;
-	//
 	ReqSyntax syntax {
 		{	{ ReqFlag::DryRun , { .short_name='n' , .doc="report actions but dont execute them" } }
 		}
 	,	~ReqFlag::Job // passed args are typically dirs, jobs are non-sens
 	} ;
 	ReqCmdLine cmd_line { syntax , argc , argv } ;
+	//
+	repo_app_init({.read_only_ok=false}) ;
+	Trace trace("main") ;
 	//
 	//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Rc rc = out_proc( ReqProc::Collect , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line ) ;

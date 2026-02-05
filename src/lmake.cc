@@ -65,8 +65,6 @@ static void _handle_int(bool start) {
 
 int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
-	repo_app_init({ .chk_version=Maybe , .read_only_ok=false }) ;
-	//
 	ReqSyntax syntax {{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated"   } }
 	,	{ ReqFlag::CacheMethod     , { .short_name='c' , .has_arg=true  , .doc="cache method (none, download, check or plain)" } }
@@ -90,11 +88,13 @@ int main( int argc , char* argv[] ) {
 	::vector<const char*> args     = {argv[0]} ; args.reserve(env_args.size()+argc) ;
 	for( ::string const& a : env_args     ) args.push_back(a.c_str()) ;
 	for( int             i : iota(1,argc) ) args.push_back(argv[i]  ) ;
+	//
+	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
+	//
+	repo_app_init({ .chk_version=Maybe , .read_only_ok=false }) ;
 	Trace trace("main",::span<char*>(argv,argc)) ;
 	/**/  trace(       env_args                ) ;
 	/**/  trace(       args                    ) ;
-	//
-	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
 	//
 	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                                                         }
 	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+cmd_line.flag_args[+ReqFlag::Jobs]) ;                               }

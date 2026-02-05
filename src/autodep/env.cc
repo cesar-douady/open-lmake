@@ -10,40 +10,34 @@ using namespace Disk ;
 namespace Codec {
 
 	CodecRemoteSide::CodecRemoteSide(::string const& descr) {
-		SWEAR( descr.size()>=2 , descr ) ;
-		tab = descr.substr(0,descr.size()-2) ;
-		switch (descr[descr.size()-2]) {
+		SWEAR( descr.size()>=6            , descr ) ;
+		SWEAR( descr[descr.size()-6]==':' , descr ) ;
+		tab = descr.substr(0,descr.size()-6) ;
+		switch (descr[descr.size()-5]) {
 			case 'N' : file_sync = FileSync::None ; break ;
 			case 'D' : file_sync = FileSync::Dir  ; break ;
 			case 'S' : file_sync = FileSync::Sync ; break ;
 		DF}
-		switch (descr[descr.size()-1]) {
-			case 'N' : perm_ext = PermExt::None  ; break ;
-			case 'G' : perm_ext = PermExt::Group ; break ;
-			case 'O' : perm_ext = PermExt::Other ; break ;
-		DF}
+		umask = mod_from_str(descr.substr(descr.size()-4)) ;
 	}
 
 	CodecRemoteSide::operator ::string() const {
 		::string res = tab ;
+		res << ':' ;
 		switch (file_sync) {
 			case FileSync::None : res << 'N' ; break ;
 			case FileSync::Dir  : res << 'D' ; break ;
 			case FileSync::Sync : res << 'S' ; break ;
 		DF}
-		switch (perm_ext) {
-			case PermExt::None  : res << 'N' ; break ;
-			case PermExt::Group : res << 'G' ; break ;
-			case PermExt::Other : res << 'O' ; break ;
-		DF}
+		res << mod_to_str(umask) ;
 		return res ;
 	}
 
 	::string& operator+=( ::string& os , CodecRemoteSide const& crs ) { // START_OF_NO_COV
-		/**/                os << "Codec("<<crs.tab  ;
-		if (+crs.file_sync) os << ','<<crs.file_sync ;
-		if (+crs.perm_ext ) os << ','<<crs.perm_ext  ;
-		return              os << ')'                ;
+		/**/                        os << "Codec("<<crs.tab          ;
+		if (+crs.file_sync        ) os << ','<<crs.file_sync         ;
+		if ( crs.umask!=mode_t(-1)) os << ','<<mod_to_str(crs.umask) ;
+		return                      os << ')'                        ;
 	}                                                                   // END_OF_NO_COV
 
 }

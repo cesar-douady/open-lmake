@@ -331,7 +331,7 @@ int main( int argc , char** argv ) {
 	g_writable            = !repo_app_init({ .cd_root=false  ,.chk_version=Maybe }) ;                                                // server is always launched at root
 	if (Record::s_is_simple(*g_repo_root_s)) exit(Rc::Usage,"cannot use lmake inside a system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
 	_chk_os() ;
-	::umap_ss user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ;
+	::umap_ss user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ; // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
 	AutodepEnv ade ;
 	ade.repo_root_s         = *g_repo_root_s ;
@@ -353,9 +353,9 @@ int main( int argc , char** argv ) {
 			}
 		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax :",*g_exe_name," [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
-	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                 //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
-	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ; // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
-	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;            // ... must be done before any thread is launched so that all threads block the signal
+	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                        //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
+	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;        // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
+	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;                   // ... must be done before any thread is launched so that all threads block the signal
 	try {
 		_g_server.handle_int = true       ;
 		_g_server.is_daemon  = is_daemon  ;
@@ -378,7 +378,7 @@ int main( int argc , char** argv ) {
 	//
 	if (+msg      ) Fd::Stderr.write(with_nl(msg)) ;
 	if (+rc.second) exit( rc.second , rc.first )   ;
-	if (!is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)  ;              // once we have reported we have started, lmake will send us a message to kill us
+	if (!is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)  ;                     // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;

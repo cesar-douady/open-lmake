@@ -143,7 +143,7 @@ int main( int argc , char* argv[] ) {
 	if (::chdir(top_dir_s.c_str())!=0) exit(Rc::System  ,"cannot chdir (",StrErr(),") to ",top_dir_s,rm_slash ) ;
 	//
 	FileStat st ; if (::lstat(".",&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
-	::umask(~st.st_mode) ;                                                         // ensure permissions on top-level dir are propagated to all underlying dirs and files
+	::umask(~st.st_mode&0777) ;                                                    // ensure permissions on top-level dir are propagated to all underlying dirs and files
 	//
 	app_init({
 		.cd_root      = false                                                      // we have already chdir'ed to top
@@ -177,7 +177,7 @@ int main( int argc , char* argv[] ) {
 		}
 	}
 	//
-	for( auto const& [file,reason] : drd.to_rm ) unlnk( file          , {.dir_ok=is_dir_name(file),.abs_ok=true} ) ;
+	for( auto const& [file,reason] : drd.to_rm ) unlnk( file          , {.abs_ok=true,.dir_ok=is_dir_name(file)} ) ;
 	/**/                                         unlnk( g_store_dir_s , {.dir_ok=true                          } ) ;
 	cache_init(false/*rescue*/) ;
 	//vvvvvvvvvv

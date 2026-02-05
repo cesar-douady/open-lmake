@@ -91,18 +91,10 @@ This is a natural extension of the classical LRU algorithm devised for cases whe
 
 For all users accessing the cache:
 
-- All dirs must have read/write/execute accesses.
+- All dirs must have read/write/execute accesses (when the cache is created, only the top level and the LMAKE dir).
 - The `LMAKE/config.py` must have read access.
 
-And if such acceses are at group level (but not other), all dirs must have the setgid bit set.
-
-When the group has read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:
-
-`setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
-
-Similarly, when all users have read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:
-
-`setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
+And if such accesses are at group level (but not other), all dirs must have the setgid bit set.
 
 ## Coherence
 

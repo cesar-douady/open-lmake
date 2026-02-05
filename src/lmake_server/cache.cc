@@ -57,18 +57,18 @@ namespace Cache {
 		max_rate  = reply.config.max_rate  ;
 		conn_id   = reply.conn_id          ;
 		file_sync = reply.config.file_sync ;
-		perm_ext  = reply.config.perm_ext  ;
-		trace("done",max_rate,conn_id,file_sync,perm_ext) ;
+		umask     = reply.config.umask     ;
+		trace("done",max_rate,conn_id,file_sync,umask) ;
 	}
 
 	::vmap_ss CacheServerSide::descr() const {
 		return {
-			{ "dir_s"     ,                     dir_s           }
-		,	{ "file_sync" , snake_str          (file_sync)      }
-		,	{ "max_rate"  , to_string_with_unit(max_rate )      }
-		,	{ "perm_ext"  , snake_str          (perm_ext )      }
-		,	{ "repo_key"  ,                     repo_key        }
-		,	{ "service"   ,                     service  .str() }
+			{ "dir_s"     , dir_s                          }
+		,	{ "file_sync" , snake_str(file_sync)           }
+		,	{ "max_rate"  , to_string_with_unit(max_rate ) }
+		,	{ "umask"     , mod_to_str(umask)              }
+		,	{ "repo_key"  , repo_key                       }
+		,	{ "service"   , service.str()                  }
 		} ;
 	}
 
@@ -194,8 +194,8 @@ namespace Cache {
 		}
 		job_info.cache_cleanup() ;                    // defensive programming : remove useless/meaningless info
 		::string job_info_str = serialize(job_info) ;
-		{	NfsGuard nfs_guard    { file_sync                                                                                                                          } ;
-			AcFd     ifd          { {_dir_fd,reserved_file(upload_key)+"-info"} , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.perm_ext=perm_ext} } ;
+		{	NfsGuard nfs_guard { file_sync                                                                                                                    } ;
+			AcFd     ifd       { {_dir_fd,reserved_file(upload_key)+"-info"} , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.umask=umask} } ;
 			ifd.write(job_info_str) ;
 		}
 		//

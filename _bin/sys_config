@@ -399,6 +399,17 @@ HAS_SECCOMP=$(ok cc -idirafter /usr/include/linux -o /dev/null -xc seccomp.c -l:
 [ $HAS_SECCOMP = 1 ] || echo "no seccomp support, fall back to (slower when autodep=ptrace) ptrace to trace jobs" >>$SUM_FILE
 
 #
+# SINGLE_THREADED (HAS_SINGLE_THREADED)
+#
+cat <<"EOF" >single_threaded.c
+	#include <sys/single_threaded.h>
+	int main() {
+		return __libc_single_threaded ;
+	}
+EOF
+HAS_SINGLE_THREADED=$(ok cc -o /dev/null -xc single_threaded.c)
+
+#
 # STACK (HAS_STACKTRACE+HAS_STACKTRACE_32+LIB_STACKTRACE+LIB_STACKTACE_32+STACK_GROWS_DOWNWARD)
 #
 cat <<"EOF" >stacktrace.cc
@@ -550,6 +561,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_PCRE_ENDANCHORED        $HAS_PCRE_ENDANCHORED
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_SECCOMP                 $HAS_SECCOMP
+	#define HAS_SINGLE_THREADED         $HAS_SINGLE_THREADED
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_H
 	#define HAS_UINT128                 $HAS_UINT128
 	#define HAS_ZLIB                    $HAS_ZLIB

@@ -99,7 +99,7 @@ namespace Cache {
 		Disk::DiskSz max_rate         = 1<<30 ; // in B/s, maximum rate (total_sz/exe_time) above which run is not cached
 		uint16_t     max_runs_per_job = 100   ;
 		FileSync     file_sync        = {}    ;
-		PermExt      perm_ext         = {}    ;
+		mode_t       umask            = -1    ;
 		// END_OF_VERSIONING
 	} ;
 

@@ -8,9 +8,6 @@
 #include "rpc_client.hh"
 
 int main( int argc , char* argv[] ) {
-	repo_app_init({.read_only_ok=false}) ;
-	Trace trace("main") ;
-	//
 	ReqSyntax syntax {{
 		{ ReqKey::None      , { .short_name=0   , .doc="rerun files provided in arguments"                   } }
 	,	{ ReqKey::Resources , { .short_name='r' , .doc="rerun jobs with new resources, even if not in error" } }
@@ -19,6 +16,9 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::Targets , { .short_name='t' , .doc="forget about targets" } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
+	//
+	repo_app_init({.read_only_ok=false}) ;
+	Trace trace("main") ;
 	//
 	bool refresh = cmd_line.key==ReqKey::Resources ;
 	if ( refresh && +cmd_line.args ) syntax.usage("must not have targets when forgetting resources" ) ;

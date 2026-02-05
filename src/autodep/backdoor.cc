@@ -321,7 +321,7 @@ namespace Backdoor {
 
 	struct RealDigest {
 		::string real      = {}    ;
-		PermExt  perm_ext  = {}    ;
+		mode_t   umask     = {}    ;
 		FileSync file_sync = {}    ;
 		bool     is_dir    = false ;
 	} ;
@@ -335,7 +335,7 @@ namespace Backdoor {
 			auto it = autodep_env.codecs.find(tab) ;
 			if (it!=autodep_env.codecs.end()) {
 				res.real      = it->second.tab        ;
-				res.perm_ext  = it->second.perm_ext   ;
+				res.umask     = it->second.umask      ;
 				res.file_sync = it->second.file_sync  ;
 				res.is_dir    = is_dir_name(res.real) ;
 				return res ;
@@ -439,19 +439,19 @@ namespace Backdoor {
 					goto Retry ;
 				}
 				::string dir_s = with_slash(CodecFile::s_dir_s(rd.real)) ;
-				creat_store( {rfd,dir_s} , crc_str , val , rd.perm_ext , &nfs_guard ) ;                                 // ensure data exist in store
+				creat_store( {rfd,dir_s} , crc_str , val , rd.umask , &nfs_guard ) ;                                    // ensure data exist in store
 				//
 				CodecFile dcf       { false/*encode*/ , rd.real , ctx , crc_str.substr(0,min_len) } ;
 				::string& code      = dcf.code()                                                    ;
 				::string  ctx_dir_s = dir_name_s(node)                                              ;
 				::string  rel_data  = mk_lcl( cat(dir_s,"store/",crc_str) , ctx_dir_s )             ;
-				mk_dir_s( {rfd,ctx_dir_s} , {.perm_ext=rd.perm_ext} ) ;
+				mk_dir_s( {rfd,ctx_dir_s} , {.umask=rd.umask} ) ;
 				// find code
 				for(; code.size()<crc_str.size() ; code.push_back(crc_str[code.size()]) ) {
 					::string decode_node = dcf.name() ;
 					try {
-						sym_lnk( {rfd,decode_node} , rel_data       , {.nfs_guard=&nfs_guard,.perm_ext=rd.perm_ext} ) ;
-						sym_lnk( {rfd,node       } , code+DecodeSfx , {.nfs_guard=&nfs_guard,.perm_ext=rd.perm_ext} ) ; // create the encode side
+						sym_lnk( {rfd,decode_node} , rel_data       , {.nfs_guard=&nfs_guard,.umask=rd.umask} ) ;
+						sym_lnk( {rfd,node       } , code+DecodeSfx , {.nfs_guard=&nfs_guard,.umask=rd.umask} ) ; // create the encode side
 						//
 						if (!rd.is_dir) {
 							::string new_code = cat(dir_s,"new_codes/",CodecCrc(New,decode_node).hex()) ;

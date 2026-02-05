@@ -1,6 +1,6 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 22      ; // 7c2b57693ddb3eafbea5c80308dca91e
+	uint64_t    constexpr Cache = 22      ; // 4d013ef8bc3b003406007fbb7b30b22e
 	uint64_t    constexpr Repo  = 17      ; // 92d13a32234792f3ab5580a40da6a2c8
 	uint64_t    constexpr Job   = 8       ; // a3dc527fda90918e25b0bc893c7f45b2
 	const char* const     Major = "26.02" ;
@@ -8,7 +8,7 @@ namespace Version {
 }
 
 // ********************************************
-// * Cache : 7c2b57693ddb3eafbea5c80308dca91e *
+// * Cache : 4d013ef8bc3b003406007fbb7b30b22e *
 // ********************************************
 //
 //	// START_OF_VERSIONING
@@ -215,7 +215,7 @@ namespace Version {
 //			Disk::DiskSz max_rate         = 1<<30 ; // in B/s, maximum rate (total_sz/exe_time) above which run is not cached
 //			uint16_t     max_runs_per_job = 100   ;
 //			FileSync     file_sync        = {}    ;
-//			PermExt      perm_ext         = {}    ;
+//			mode_t       umask            = -1    ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING CACHE
 //			CacheRpcProc                      proc           = {}    ;

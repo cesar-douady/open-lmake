@@ -764,7 +764,7 @@ struct CacheRemoteSide {
 	Disk::DiskSz max_rate  = 0  ;
 	uint32_t     conn_id   = 0  ;   // id given by cache to server upon connection
 	FileSync     file_sync = {} ;
-	PermExt      perm_ext  = {} ;
+	mode_t       umask     = -1 ;
 } ;
 
 struct JobRpcReq {

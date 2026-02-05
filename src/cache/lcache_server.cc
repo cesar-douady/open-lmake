@@ -165,7 +165,7 @@ int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
 	//
 	FileStat st ; if (::lstat(".",&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
-	::umask(~st.st_mode) ;                                                         // ensure permissions on top-level dir are propagated to all underlying dirs and files
+	::umask(~st.st_mode&0777) ;                                                    // ensure permissions on top-level dir are propagated to all underlying dirs and files
 	//
 	app_init({
 		.cd_root      = false                                                      // daemon is always launched at root

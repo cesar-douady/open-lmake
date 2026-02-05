@@ -16,6 +16,12 @@
 	#include <execinfo.h> // backtrace
 #endif
 
+#if HAS_SINGLE_THREADED
+	#include <sys/single_threaded.h>
+#else
+	static char constexpr __libc_single_threaded = 0 ;
+#endif
+
 #include "disk.hh"
 #include "fd.hh"
 #include "hash.hh"
@@ -56,15 +62,76 @@ template size_t _File<::string_view  >::hash() const ;
 // Fd
 //
 
+mode_t get_umask() {
+	static mode_t s_umask = -1 ;
+	if (s_umask==mode_t(-1)) {
+		if (__libc_single_threaded) {
+			s_umask = ::umask(0000   ) ; SWEAR( !(s_umask&~0777) , s_umask ) ;
+			/**/      ::umask(s_umask) ;                                       // restore umask
+		} else {                                                               // if multi-threaded, we cannot set umask, even fugitively, to get old value
+			::string status_file = "/proc/self/status"      ;
+			::string status      = AcFd(status_file).read() ;                  // should not recurse as there is no need of umask to perform reading without explicit umask
+			//
+			size_t start = status.find("\nUmask:") ; throw_unless( start!=Npos , "bad format in ",status_file ) ;
+			/**/                                                                start += strlen("\nUmask:") ;
+			while (is_space(status[start]))                                     start++ ;
+			throw_unless( status[start]=='0' , "bad format in ",status_file ) ; start++ ;
+			//
+			size_t end = status.find('\n',start) ; throw_unless( end!=Npos , "bad format in ",status_file ) ;
+			//
+			s_umask = 0 ;
+			for( char c : substr_view( status , start , end-start ) ) {
+				throw_unless( c>='0' || c<'8' , "bad format in ",status_file ) ;
+				s_umask = (s_umask<<3)+c-'0' ;
+			}
+		}
+	}
+	return s_umask ;
+}
+
+mode_t _action_mod1( mode_t mod , mode_t umask ) {
+	if (umask==mode_t(-1)) return mod          ;
+	else                   return mod & ~umask ;
+}
+
+mode_t _action_mod2( mode_t mod , mode_t umask ) {
+	static mode_t s_umask = -1 ;
+	if ( !__libc_single_threaded && s_umask==mode_t(-1) ) s_umask = get_umask() ; // if single threaded, get umask as soon as possible as it is very cheap now and may be expensive later
+	if (                            umask  ==mode_t(-1) ) return 0 ;
+	if (                            s_umask==mode_t(-1) ) s_umask = get_umask() ;
+	if ( (mod&~umask) & ~(mod&~s_umask)                 ) return mod&~umask ;
+	/**/                                                  return 0          ;
+}
+
+mode_t mod_from_str(::string const& s) {
+	SWEAR( s.size()==4 , s ) ;
+	if (s=="auto") return -1 ;
+	SWEAR( s[0]=='0' , s ) ;
+	mode_t res = 0 ;
+	{ char c = s[s.size()-3] ; SWEAR( '0'<=c && c<='7' , s ) ; res |= (c-'0')<<6 ; } // user
+	{ char c = s[s.size()-2] ; SWEAR( '0'<=c && c<='7' , s ) ; res |= (c-'0')<<3 ; } // group
+	{ char c = s[s.size()-1] ; SWEAR( '0'<=c && c<='7' , s ) ; res |= (c-'0')    ; } // other
+	return res ;
+}
+
+::string mod_to_str(mode_t m) {
+	::string res ;
+	if (m==mode_t(-1)) {
+		res = "auto" ;
+	} else {
+		res <<      '0'              ;
+		res << char('0'+((m>>6)&07)) ; // user
+		res << char('0'+((m>>3)&07)) ; // group
+		res << char('0'+((m   )&07)) ; // other
+	}
+	SWEAR( res.size()==4 , res ) ;     // size must be predictible
+	return res ;
+}
+
 ::string& operator+=( ::string& os , Fd   const& fd ) { return fd.append_to_str( os , "Fd"   ) ; }
 ::string& operator+=( ::string& os , AcFd const& fd ) { return fd.append_to_str( os , "AcFd" ) ; }
 
 int Fd::_s_mk_fd( FileRef file , Action action ) {
-	bool creat = action.flags&O_CREAT ;
-	if (creat) {
-		SWEAR(   action.mod!=mode_t(-1) , file,action.flags ) ;                                                                          // mod must be specified if creating
-		SWEAR( !(action.mod&~0777)      , file,action.mod   ) ;                                                                          // mod must only specify perm
-	}
 	if (action.nfs_guard) {
 		if (action.flags&O_DIRECTORY) {
 			/**/                                                                 action.nfs_guard->access_dir_s({file.at,with_slash(file.file)}) ;
@@ -73,41 +140,25 @@ int Fd::_s_mk_fd( FileRef file , Action action ) {
 			if ( (action.flags&O_ACCMODE)!=O_RDONLY                            ) action.nfs_guard->change      (                    file       ) ;
 		}
 	}
-	int  res   ;
-	bool first = true ;
+	int  res     ;
+	bool retried = false ;
 Retry :
-	if      (+file.file      ) res = ::openat( file.at , file.file.c_str() , action.flags|O_CLOEXEC , action.mod ) ;
-	else if (file.at==Fd::Cwd) res = ::openat( file.at , "."               , action.flags|O_CLOEXEC , action.mod ) ;
-	else                       res = ::dup   ( file.at                                                           ) ;
-	if (res<0) {
-		if ( errno==ENOENT && creat && first && action.mk_dir ) {
-			if (action.flags&O_TMPFILE) mk_dir_s ( {file.at,with_slash(file.file)} , {.force=action.force,.perm_ext=action.perm_ext} ) ;
-			else                        dir_guard(  file                           , {.force=action.force,.perm_ext=action.perm_ext} ) ;
-			first = false ;                                                                                                              // ensure we retry at most once
+	if      (+file.file      ) res = ::openat( file.at , file.file.c_str() , action.flags|O_CLOEXEC , action.mod1() ) ;
+	else if (file.at==Fd::Cwd) res = ::openat( file.at , "."               , action.flags|O_CLOEXEC , action.mod1() ) ;
+	else                       res = ::dup   ( file.at                                                              ) ;
+	if (res>=0) {
+		if (action.flags&O_CREAT) {
+			if ( mode_t mod2=action.mod2() ; !mod2 ) ::fchmod( res , mod2 ) ;
+		}
+	} else {
+		if ( errno==ENOENT && (action.flags&O_CREAT) && !retried && action.mk_dir ) {
+			if (action.flags&O_TMPFILE) mk_dir_s ( {file.at,with_slash(file.file)} , action ) ;
+			else                        dir_guard(  file                           , action ) ;
+			retried = true ;                                                                    // ensure we retry at most once
 			goto Retry ;
 		}
 		throw_if( !action.err_ok , "cannot open (",StrErr(),") : ",file ) ;
-		return res ;
 	}
-	//
-	if ( creat && +action.perm_ext ) {
-		static mode_t umask_ = get_umask() ;
-		switch (action.perm_ext) {
-			case PermExt::Other : if (!((action.mod&umask_)     )) goto PermOk ; break ;
-			case PermExt::Group : if (!((action.mod&umask_)&0770)) goto PermOk ; break ;
-		DN}
-		//
-		FileStat st ; throw_unless( ::fstat(res,&st)==0 , "cannot stat (",StrErr(),") to extend permissions : ",file ) ;
-		//
-		mode_t usr_mod = (st.st_mode>>6)&07 ;
-		mode_t new_mod = st.st_mode         ;
-		switch (action.perm_ext) {
-			case PermExt::Other : new_mod |= usr_mod    ; [[fallthrough]] ;
-			case PermExt::Group : new_mod |= usr_mod<<3 ; break           ;
-		DN}
-		if (new_mod!=st.st_mode) throw_unless( ::fchmod(res,new_mod)==0 , "cannot chmod (",StrErr(),") to extend permissions : ",file ) ;
-	}
-PermOk :
 	return res ;
 }
 

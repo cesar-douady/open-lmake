@@ -95,12 +95,6 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 ,	PdateNew                    // may need time anywhere, even during syscall processing
 } ;
 
-enum class PermExt : uint8_t {
-	None
-,	Group
-,	Other
-} ;
-
 enum class Rc : uint8_t {
 	Ok
 ,	Fail
@@ -535,7 +529,6 @@ private :
 
 //
 // Fd
-// necessary here in utils.hh, so cannot be put in higher level include such as fd.hh
 //
 
 struct NfsGuard ;
@@ -546,16 +539,48 @@ using File     = _File<::string       > ;
 using FileRef  = _File<::string const&> ;
 using FileView = _File<::string_view  > ;
 
-struct _FdAction {
-	int       flags     = O_RDONLY ;
-	mode_t    mod       = 0666     ;                                                         // default to an invalid mod (0 may be usefully used to create a no-access file)
-	bool      err_ok    = false    ;
-	bool      force     = false    ;                                                         // unlink any file on path to file if necessary
-	bool      mk_dir    = true     ;
-	bool      no_std    = false    ;
-	NfsGuard* nfs_guard = nullptr  ;
-	PermExt   perm_ext  = {}       ;
+mode_t get_umask   (                 ) ;
+mode_t mod_from_str( ::string const& ) ;
+::string mod_to_str( mode_t          ) ; // size is always 4
+
+mode_t _action_mod1( mode_t mod , mode_t umask ) ; // return mod to use in system call
+mode_t _action_mod2( mode_t mod , mode_t umask ) ; // return mod to pass to ::chmod to extend permissions, if 0, dont need to call ::chmod
+
+struct _FdAction ;
+struct _CreatAction {
+	// cxtors & casts
+	operator _FdAction() const ;
+	// services
+	mode_t mod1() const { return _action_mod1(mod,umask) ; }
+	mode_t mod2() const { return _action_mod1(mod,umask) ; }
+	// data
+	mode_t    mod       = 0666    ;                          // default to an invalid mod (0 may be usefully used to create a no-access file)
+	bool      force     = false   ;                          // unlink any file on the path to dst
+	bool      mk_dir    = true    ;
+	NfsGuard* nfs_guard = nullptr ;
+	mode_t    umask     = -1      ;                          // -1 means use standard umask
 } ;
+struct _FdAction {
+	// cxtors & casts
+	operator _CreatAction() const ;
+	// services
+	mode_t mod1() const { return _action_mod1(mod,umask) ; } // copy _CreatAction as inheriting would prevent aggregate init
+	mode_t mod2() const { return _action_mod1(mod,umask) ; } // .
+	// data
+	int       flags     = O_RDONLY ;
+	//
+	mode_t    mod       = 0666     ;                         // copy _CreatAction as inheriting would prevent aggregate init
+	bool      force     = false    ;                         // .
+	bool      mk_dir    = true     ;                         // .
+	NfsGuard* nfs_guard = nullptr  ;                         // .
+	mode_t    umask     = -1       ;                         // .
+	//
+	bool      err_ok    = false    ;
+	bool      no_std    = false    ;
+} ;
+inline _CreatAction::operator _FdAction   () const { return { .mod=mod , .force=force , .mk_dir=mk_dir , .nfs_guard=nfs_guard , .umask=umask } ; }
+inline _FdAction   ::operator _CreatAction() const { return { .mod=mod , .force=force , .mk_dir=mk_dir , .nfs_guard=nfs_guard , .umask=umask } ; }
+
 struct Fd {
 	friend ::string& operator+=( ::string& , Fd const& ) ;
 	//

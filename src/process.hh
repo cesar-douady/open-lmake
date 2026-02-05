@@ -39,8 +39,7 @@ inline int/*exit_code*/ mimic_wstatus(int wstatus) {                 // transfor
 /**/   bool/*done*/   kill_process ( pid_t pid , int sig , bool as_group=false ) ;
 inline bool/*exists*/ sense_process( pid_t pid                                 ) { return kill_process( pid , 0 ) ; }
 
-pid_t  get_ppid (pid_t pid) ;
-mode_t get_umask(         ) ;
+pid_t  get_ppid(pid_t pid) ;
 
 struct Child {
 	static constexpr size_t StackSz = 16<<10 ;        // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k

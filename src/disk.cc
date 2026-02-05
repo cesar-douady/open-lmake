@@ -237,12 +237,12 @@ namespace Disk {
 	}
 
 	void sym_lnk( FileRef file , ::string const& target , _CreatAction action ) {
-		bool first = true ;
+		bool retried = false ;
 		if (action.nfs_guard) action.nfs_guard->change(file) ;
 	Retry :
 		if (::symlinkat(target.c_str(),file.at,file.file.c_str())!=0) {
-			if ( action.mk_dir && errno==ENOENT && first ) {
-				first = false ;                              // ensure we retry at most once
+			if ( errno==ENOENT && !retried && action.mk_dir ) {
+				retried = true ;                                // ensure we retry at most once
 				dir_guard( file , action ) ;
 				goto Retry/*BACKWARD*/ ;
 			}
@@ -283,40 +283,22 @@ namespace Disk {
 	}
 
 	size_t/*pos*/ mk_dir_s( FileRef dir_s , _CreatAction action ) {
-		if (!dir_s.file) return Npos ;                                                           // nothing to create
+		if (!dir_s.file) return Npos ;                                                                             // nothing to create
+		//
+		action.mod = 0777 ;                                                                                        // generally speaking restring dirs is useless, use whatever umask says
 		//
 		::vector_s  to_mk_s { dir_s.file }              ;
 		const char* msg     = nullptr                   ;
-		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                        // return the pos of the / between existing and new components
+		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                                          // return the pos of the / between existing and new components
 		while (+to_mk_s) {
-			::string& d_s = to_mk_s.back() ;                                                     // parents are after children in to_mk
-			if (action.nfs_guard                    ) action.nfs_guard->change({dir_s.at,d_s}) ;
-			if (::mkdirat(dir_s.at,d_s.c_str(),0777/*mod*/)==0) {
-				if (+action.perm_ext) {
-					static mode_t umask_ = get_umask() ;
-					switch (action.perm_ext) {
-						case PermExt::Other : if (!(umask_     )) goto PermOk ; break ;
-						case PermExt::Group : if (!(umask_&0770)) goto PermOk ; break ;
-					DN}
-					//
-					if (action.nfs_guard) action.nfs_guard->access_dir_s({dir_s.at,d_s}) ;
-					FileStat st ;
-					if ( ::fstatat(dir_s.at,d_s.c_str(),&st,0/*flags*/)!=0 ) throw cat("cannot stat (",StrErr(),") to extend permissions : ",File(dir_s.at,no_slash(::move(d_s)))) ;
-					//
-					mode_t usr_mod = (st.st_mode>>6)&07 ;
-					mode_t new_mod = st.st_mode         ;
-					switch (action.perm_ext) {
-						case PermExt::Other : new_mod |= usr_mod    ; [[fallthrough]] ;
-						case PermExt::Group : new_mod |= usr_mod<<3 ; break           ;
-					DN}
-					if (new_mod!=st.st_mode)
-						if ( ::fchmodat(dir_s.at,d_s.c_str(),new_mod,0/*flags*/)!=0 ) throw cat("cannot chmod (",StrErr(),") to extend permissions : ",File(dir_s.at,no_slash(::move(d_s)))) ;
-				}
-			PermOk :
+			::string& d_s = to_mk_s.back() ;                                                                       // parents are after children in to_mk
+			if (action.nfs_guard                                ) action.nfs_guard->change({dir_s.at,d_s}) ;
+			if (::mkdirat(dir_s.at,d_s.c_str(),action.mod1())==0) {
+				if ( mode_t mod2=action.mod2() ; !mod2 ) { [[maybe_unused]] int rc = ::fchmodat( dir_s.at , d_s.c_str() , mod2 , 0/*flags*/ ) ; }
 				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                    // done
+			}                                                                                                      // done
 			switch (errno) {
 				case EEXIST :
 					if ( action.force && FileInfo({dir_s.at,d_s},{.nfs_guard=action.nfs_guard}).tag()!=FileTag::Dir )   unlnk({dir_s.at,d_s},{.abs_ok=true,.nfs_guard=action.nfs_guard} ) ;   // retry
@@ -324,14 +306,13 @@ namespace Disk {
 				break ;
 				case ENOENT  :
 				case ENOTDIR :
-					if ( action.mk_dir && has_dir(d_s))   to_mk_s.push_back(dir_name_s(d_s)) ;         // retry after parent is created
-					else                                { msg = "cannot create top dir" ; goto Bad ; } // if ENOTDIR, a parent is not a dir, it will not be fixed up
-				break  ;
+					if ( action.mk_dir && has_dir(d_s)) to_mk_s.push_back(dir_name_s(d_s)) ; // retry after parent is created
+					else                                msg = "cannot create top dir" ;      // if ENOTDIR, a parent is not a dir, it will not be fixed up
+				break ;
 				default :
 					msg = "cannot create dir" ;
-				Bad :
-					throw cat(msg," (",StrErr(),") ",File(dir_s.at.fd,no_slash(::move(d_s)))) ;
 			}
+			if (msg) throw cat(msg," (",StrErr(),") ",File(dir_s.at.fd,no_slash(::move(d_s)))) ;
 		}
 		return pos ;
 	}
@@ -352,37 +333,40 @@ namespace Disk {
 		//
 		switch (tag) {
 			case FileTag::None  :
-			case FileTag::Dir   : break ;                                                                                                          // dirs are like no file
-			case FileTag::Empty :                                                                                                                  // fast path : no need to access empty src
-				AcFd( dst , {.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW,.force=action.force,.mk_dir=action.mk_dir,.nfs_guard=action.nfs_guard} ) ;
-			break ;
+			case FileTag::Dir   : break ;                                               // dirs are like no file
+			case FileTag::Empty : {                                                     // fast path : no need to access empty src
+				Fd::Action a = action ; a.flags = O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW ;
+				AcFd( dst , a ) ;
+			} break ;
 			case FileTag::Reg :
 			case FileTag::Exe : {
 				Fd::Action a = action ;
-				/**/                                                                                      AcFd rfd { src , a } ;
-				a.flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW ; a.mod=mode_t(tag==FileTag::Exe?0777:0666) ; AcFd wfd { dst , a } ;
+				AcFd rfd { src , a } ;
+				/**/                   a.flags  = O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW ;
+				if (tag==FileTag::Exe) a.mod   |= a.mod>>2                            ; // copy read access to exec access
+				AcFd wfd { dst , a } ;
 				int rc = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                                                                                 ;
 				if (rc!=0) throw cat("cannot copy ",src," to ",dst) ;
 			} break ;
 			case FileTag::Lnk :
 				sym_lnk( dst , read_lnk(src,action.nfs_guard) , action ) ;
 			break ;
-		DF}                                                                                                                                        // NO_COV
+		DF}                                                                             // NO_COV
 		return tag ;
 	}
 
 	void rename( FileRef src , FileRef dst , _CreatAction action ) {
-		int first = true ;
 		if (action.nfs_guard) {
 			action.nfs_guard->update(src) ;
 			action.nfs_guard->change(dst) ;
 		}
+		int retried = false ;
 	Retry :
 		int rc = ::renameat( src.at , src.file.c_str() , dst.at , dst.file.c_str() ) ;
 		if (rc!=0) {
-			if ( action.mk_dir && errno==ENOENT && first ) {
-				dir_guard( dst , action ) ;                  // hope error is due to destination (else penalty is just retrying once, not a big deal)
-				first = false ;
+			if ( errno==ENOENT && !retried && action.mk_dir ) {
+				dir_guard( dst , action ) ;                     // hope error is due to destination (else penalty is just retrying once, not a big deal)
+				retried = true ;
 				goto Retry ;
 			}
 			throw cat("cannot rename (",StrErr(),") ",src," into ",dst) ;
@@ -503,37 +487,11 @@ namespace Disk {
 		return res ;
 	}
 
-	PermExt auto_perm_ext( ::string const& dir_s, ::string const& msg ) {
-		// auto-config permissions by analyzing dir permissions
-		PermExt  res ;
-		FileStat st  ; if (::lstat(dir_s.c_str(),&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
+	mode_t auto_umask( ::string const& dir_s, ::string const& msg ) {
+		FileStat st ; if (::lstat(dir_s.c_str(),&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
 		//
 		throw_unless( (st.st_mode&S_IRWXU)==S_IRWXU , msg," must have full read/write/execute access to ",dir_s,rm_slash ) ;
 		//
-		if      ((st.st_mode&S_IRWXG)!=S_IRWXG) res = PermExt::None  ;
-		else if ((st.st_mode&S_IRWXO)!=S_IRWXO) res = PermExt::Group ;
-		else                                    res = PermExt::Other ;
-		//
-		if (res==PermExt::Group)
-			throw_unless(
-				st.st_mode&S_ISGID
-			,	msg," must have its setgid set for group level accesses to ",dir_s,rm_slash,". Consider : find ",dir_s,rm_slash," -type d -exec chmod g+s {} +"
-			) ;
-		//
-		bool group_ok = false ;
-		bool other_ok = false ;
-		bool mask_ok  = true  ;
-		for( AclEntry const& acl : acl_entries(dir_s) )
-			switch (acl.e_tag) {
-				case ACL_GROUP_OBJ : if ((acl.e_perm&7)==7) group_ok = true  ; break ;
-				case ACL_OTHER     : if ((acl.e_perm&7)==7) other_ok = true  ; break ;
-				case ACL_MASK      : if ((acl.e_perm&7)!=7) mask_ok  = false ; break ;
-			DN}
-		group_ok &= mask_ok ;
-		if      (!group_ok          ) {}
-		else if ( other_ok          ) res = PermExt::None ;
-		else if (res<=PermExt::Group) res = PermExt::None ;
-		//
-		return res ;
+		return ~st.st_mode&0777 ;
 	}
 }

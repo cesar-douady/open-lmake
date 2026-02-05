@@ -153,7 +153,7 @@ namespace Codec {
 	static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 	// END_OF_VERSIONING
 
-	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , PermExt , NfsGuard* ) ; // ensure data exist in store
+	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , mode_t umask , NfsGuard* ) ; // ensure data exist in store
 
 	struct CodecFile {
 		friend ::string& operator+=( ::string& , CodecFile const& ) ;

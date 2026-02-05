@@ -106,14 +106,6 @@ For all users accessing the association table:
 If access permission is at group level, the setgid bit must be set, e.g. using `chmod g+s <cache_dir>`.
 This operation may have to be done recursively if the root dir is already populated.
 
-When the group has read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:
-
-`setfacl -d -R -m u::rwX,g::rwX,o::- <cache_dir>`
-
-Similarly, when all users have read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:
-
-`setfacl -d -R -m u::rwX,g::rwX,o::rwX <cache_dir>`
-
 ## Coherence
 
 Some file systems, such as NFS, lack coherence.

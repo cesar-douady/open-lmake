@@ -286,9 +286,9 @@ int main( int argc , char* argv[] ) {
 	}
 	CodecServerSide config { ""/*root_dir_s*/ } ;
 	//
-	for( auto const& [file,reason] : drd.to_rm                              ) unlnk  ( file ,          {.dir_ok=is_dir_name(file),.abs_ok=true} ) ;
+	for( auto const& [file,reason] : drd.to_rm                              ) unlnk  ( file ,          {.abs_ok=true,.dir_ok=is_dir_name(file)} ) ;
 	for( auto const& [src ,dst   ] : drd.to_rename                          ) rename ( src  , dst                                               ) ;
-	for( auto const& [lnk ,target] : drd.to_lnk                             ) sym_lnk( lnk  , target , {.perm_ext=config.perm_ext}              ) ;
+	for( auto const& [lnk ,target] : drd.to_lnk                             ) sym_lnk( lnk  , target , {.umask=config.umask}                    ) ;
 	for( auto it=drd.to_rmdir_s.rbegin() ; it!=drd.to_rmdir_s.rend() ; it++ ) ::rmdir( it->c_str()                                              ) ;
 	//
 	exit(Rc::Ok) ;

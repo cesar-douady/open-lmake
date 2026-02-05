@@ -3,8 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "py.hh" // /!\ must be included first as Python.h must be included first
-
 #include "app.hh"
 #include "disk.hh"
 #include "hash.hh"
@@ -41,8 +39,6 @@ int main( int argc , char* argv[]) {
 		try                       { min_len = from_string<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ; }
 		catch (::string const& e) { syntax.usage("bad min len value : "+e) ;                            }
 	}
-	//
-	Py::init() ;
 	//
 	try {
 		auto&    fa    = cmd_line.flag_args                                                                                       ;

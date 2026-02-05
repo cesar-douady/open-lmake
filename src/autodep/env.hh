@@ -25,12 +25,12 @@ namespace Codec {
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,tab      ) ;
 			::serdes(s,file_sync) ;
-			::serdes(s,perm_ext ) ;
+			::serdes(s,umask    ) ;
 		}
 		// data
 		::string tab       ;      // source file if is_lcl(tab), else external dir
 		FileSync file_sync = {} ; // valid if external dir
-		PermExt  perm_ext  = {} ; // .
+		mode_t   umask     = -1 ; // .
 	} ;
 }
 

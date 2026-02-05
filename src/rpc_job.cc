@@ -655,7 +655,7 @@ void JobSpace::enter(
 				Fd::Stderr.write(cat("cannot wait (",StrErr(),") for job to finsh")) ;
 				::_exit(+Rc::System) ;                                                          // all the cleanup is done by the child, so nothing to do here
 			}
-			unlnk( phy_tmp_dir_s , {.dir_ok=true,.abs_ok=true} ) ;                              // clean tmp from outside namespace when child is done
+			unlnk( phy_tmp_dir_s , {.abs_ok=true,.dir_ok=true} ) ;                              // clean tmp from outside namespace when child is done
 			::_exit(mimic_wstatus(wstatus)) ;                                                   // all the cleanup is done by the child, so nothing to do here
 		}
 	}
@@ -719,11 +719,11 @@ void JobSpace::enter(
 		Retry :
 			::string upper_s = with_slash(upper) ; trace("mkdir1",upper_s) ; mk_dir_s(upper_s) ;
 			::string root_s  = with_slash(root ) ; trace("mkdir2",root_s ) ; mk_dir_s(root_s ) ;
-			if (creat_lmake)                                              { trace("mkdir3",lmake_root_s) ; mk_dir_s(upper+lmake_root_s) ; }
-			if (creat_repo )                                              { trace("mkdir4",repo_super_s) ; mk_dir_s(upper+repo_super_s) ; }
-			if (creat_tmp  )                                              { trace("mkdir5",tmp_dir_s   ) ; mk_dir_s(upper+tmp_dir_s   ) ; }
-			for( ::string const& v_s  : creat_views_s )                   { trace("mkdir6",v_s         ) ; mk_dir_s(upper+v_s         ) ; }
-			for( ::string const& sd_s : src_dirs_s    ) if (is_abs(sd_s)) { trace("mkdir7",sd_s        ) ; mk_dir_s(upper+sd_s        ) ; }
+			if (creat_lmake)                                              { ::string d_s = upper+lmake_root_s ; trace("mkdir3",d_s) ; mk_dir_s(d_s) ; }
+			if (creat_repo )                                              { ::string d_s = upper+repo_super_s ; trace("mkdir4",d_s) ; mk_dir_s(d_s) ; }
+			if (creat_tmp  )                                              { ::string d_s = upper+tmp_dir_s    ; trace("mkdir5",d_s) ; mk_dir_s(d_s) ; }
+			for( ::string const& v_s  : creat_views_s )                   { ::string d_s = upper+v_s          ; trace("mkdir6",d_s) ; mk_dir_s(d_s) ; }
+			for( ::string const& sd_s : src_dirs_s    ) if (is_abs(sd_s)) { ::string d_s = upper+sd_s         ; trace("mkdir7",d_s) ; mk_dir_s(d_s) ; }
 			//
 			_prepare_user( upper_s , chroot_info , uid , gid ) ;
 			//
@@ -771,15 +771,14 @@ void JobSpace::enter(
 				}
 			}
 			dev_sys_mapped = true ;
-			auto do_view = [&]( const char* key , ::string const& d_s , FileNameIdx n_uphill=0 ) {
-				if (has_dir(d_s)) {                                                                           // XXX : implement non-top lvl non-existing views
-					::string                                               msg =  key                                                                                 ;
-					for( [[maybe_unused]] FileNameIdx i : iota(n_uphill) ) msg << "/.."                                                                               ;
-					/**/                                                   msg << " must be a top level dir or already exist (not yet implemented) : "<<d_s<<rm_slash ;
+			auto do_view = [&]( const char* key , ::string const& dir_s , FileNameIdx n_uphill=0 ) {
+				if (has_dir(dir_s)) {                                                                           // XXX : implement non-top lvl non-existing views
+					::string                                               msg =  key                                                                                   ;
+					for( [[maybe_unused]] FileNameIdx i : iota(n_uphill) ) msg << "/.."                                                                                 ;
+					/**/                                                   msg << " must be a top level dir or already exist (not yet implemented) : "<<dir_s<<rm_slash ;
 					throw msg ;
 				}
-				trace("mkdir10",d_s) ;
-				mk_dir_s(chroot_dir+d_s) ;
+				{ ::string d_s = chroot_dir+dir_s ; trace("mkdir10",d_s) ; mk_dir_s(d_s) ; }
 			} ;
 			if (creat_lmake)                           do_view( "lmake_view" , lmake_root_s                 ) ;
 			if (creat_repo )                           do_view( "repo_view"  , repo_super_s , src_dir_depth ) ;
@@ -891,7 +890,7 @@ void JobSpace::enter(
 
 void JobSpace::exit() {
 	Trace trace("JobSpace::exit",_tmp_dir_s) ;
-	if (+_tmp_dir_s) try { unlnk(_tmp_dir_s,{.dir_ok=true,.abs_ok=true}) ; } catch (::string const&) {} // best effort
+	if (+_tmp_dir_s) try { unlnk(_tmp_dir_s,{.abs_ok=true,.dir_ok=true}) ; } catch (::string const&) {} // best effort
 }
 
 // XXX! : implement recursive views
@@ -990,13 +989,13 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 
 ::string& operator+=( ::string& os , CacheRemoteSide const& crs ) {
 	First first ;
-	/**/                os << "CacheRemoteSide("           ;
-	if (+crs.dir_s    ) os << first("",",")<<crs.dir_s     ;
-	if (+crs.service  ) os << first("",",")<<crs.service   ;
-	if (+crs.max_rate ) os << first("",",")<<crs.max_rate  ;
-	if (+crs.file_sync) os << first("",",")<<crs.file_sync ;
-	if (+crs.perm_ext ) os << first("",",")<<crs.perm_ext  ;
-	return              os << ')'                          ;
+	/**/                        os << "CacheRemoteSide("                   ;
+	if (+crs.dir_s            ) os << first("",",")<<crs.dir_s             ;
+	if (+crs.service          ) os << first("",",")<<crs.service           ;
+	if (+crs.max_rate         ) os << first("",",")<<crs.max_rate          ;
+	if (+crs.file_sync        ) os << first("",",")<<crs.file_sync         ;
+	if ( crs.umask!=mode_t(-1)) os << first("",",")<<mod_to_str(crs.umask) ;
+	return                      os << ')'                                  ;
 }
 
 CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay exe_time , ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) const {
@@ -1026,9 +1025,9 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 	throw_unless(  reply.upload_key , reply.msg             ) ;
 	//
 	try {
-		NfsGuard  nfs_guard { file_sync                                                                                                                            } ;
-		AcFd      dfd       { dir_s+reserved_file(reply.upload_key)+"-data" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.perm_ext=perm_ext} } ;
-		DeflateFd data_fd   { ::move(dfd) , zlvl                                                                                                                   } ;
+		NfsGuard  nfs_guard { file_sync                                                                                                                      } ;
+		AcFd      dfd       { dir_s+reserved_file(reply.upload_key)+"-data" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.umask=umask} } ;
+		DeflateFd data_fd   { ::move(dfd) , zlvl                                                                                                             } ;
 		OMsgBuf(target_szs).send( data_fd , {}/*key*/ ) ;
 		//
 		for( NodeIdx ti : iota(targets.size()) ) {

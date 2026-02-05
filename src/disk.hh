@@ -223,15 +223,6 @@ namespace Disk {
 		Time::Pdate date ;
 	} ;
 
-
-	struct _CreatAction {
-		bool      force     = false   ; // unlink any file on the path to dst
-		bool      mk_dir    = true    ;
-		NfsGuard* nfs_guard = nullptr ;
-		PermExt   perm_ext  = {}      ;
-		operator Fd::Action() const { return { .force=force , .mk_dir=mk_dir , .nfs_guard=nfs_guard , .perm_ext=perm_ext } ; }
-	} ;
-
 	::vector_s    lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , NfsGuard* nfs_guard=nullptr ) ; // list files within dir with prefix in front of each entry
 	size_t/*pos*/ mk_dir_s ( FileRef dir_s         ,                          _CreatAction action={}      ) ;
 	//
@@ -241,8 +232,8 @@ namespace Disk {
 	}
 
 	struct _UnlnkAction {
+		bool      abs_ok    = false   ; // unless abs_ok, absolute paths are not accepted to avoid catastrophic unlinks when dir_ok
 		bool      dir_ok    = false   ; // if dir_ok <=> unlink whole dir if it is one
-		bool      abs_ok    = false   ;
 		bool      force     = false   ;
 		NfsGuard* nfs_guard = nullptr ;
 	} ;
@@ -298,7 +289,7 @@ namespace Disk {
 
 	using AclEntry = struct ::posix_acl_xattr_entry ;
 
-	::vector<AclEntry> acl_entries  ( FileRef         dir_s                       ) ;
-	PermExt            auto_perm_ext( ::string const& dir_s , ::string const& msg ) ;
+	::vector<AclEntry> acl_entries( FileRef         dir_s                       ) ;
+	mode_t             auto_umask ( ::string const& dir_s , ::string const& msg ) ;
 
 }

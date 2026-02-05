@@ -160,7 +160,7 @@ void cache_init( bool rescue , bool read_only ) {
 		}
 		throw_unless( g_cache_config.max_sz , "size must be defined as non-zero" ) ;
 		// auto-config permissions by analyzing dir permissions
-		g_cache_config.perm_ext = auto_perm_ext( "." , "cache" ) ;
+		g_cache_config.umask = auto_umask( "." , "cache" ) ;
 	} catch (::string const& e) {
 		exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : ",e ) ;
 	}

@@ -81,14 +81,14 @@ JobExecRpcReply JobExecRpcReq::mimic_server() && {
 
 namespace Codec {
 
-	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , PermExt perm_ext , NfsGuard* nfs_guard ) {
+	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , mode_t umask , NfsGuard* nfs_guard ) {
 		SWEAR( crc_str.size()==CodecCrc::HexSz , dir_s,crc_str ) ;
 		::string data = cat(dir_s.file,"store/",crc_str) ;
 		if (!FileInfo(data).exists()) {
 			uint64_t r        = random<uint64_t>() ;
 			::string tmp_data = cat(data,'-',r)    ;
-			AcFd( {dir_s.at,tmp_data} , {.flags=O_WRONLY|O_CREAT,.mod=0444,.perm_ext=perm_ext} ).write( val ) ;
-			rename( {dir_s.at,tmp_data} , {dir_s.at,data} , {.nfs_guard=nfs_guard} ) ;                          // ok even if created concurrently as this is content addressable
+			AcFd( {dir_s.at,tmp_data} , {.flags=O_WRONLY|O_CREAT,.mod=0444,.umask=umask} ).write( val ) ;
+			rename( {dir_s.at,tmp_data} , {dir_s.at,data} , {.nfs_guard=nfs_guard} ) ;                    // ok even if created concurrently as this is content addressable
 		}
 	}
 

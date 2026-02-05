@@ -49,26 +49,7 @@ pid_t get_ppid(pid_t pid) {
 	catch (...) { throw cat("bad format in ",status_file)                              ; }
 }
 
-mode_t get_umask() {
-	::string status_file = "/proc/self/status"      ;
-	::string status      = AcFd(status_file).read() ;
-	//
-	size_t start = status.find("\nUmask:") ; throw_unless( start!=Npos , "bad format in ",status_file ) ;
-	/**/                                                                start += strlen("\nUmask:") ;
-	while (is_space(status[start]))                                     start++ ;
-	throw_unless( status[start]=='0' , "bad format in ",status_file ) ; start++ ;
-	//
-	size_t end = status.find('\n',start) ; throw_unless( end!=Npos , "bad format in ",status_file ) ;
-	//
-	mode_t res = 0 ;
-	for( char c : substr_view( status , start , end-start ) ) {
-		throw_unless( c>='0' || c<'8' , "bad format in ",status_file ) ;
-		res = (res<<3)+c-'0' ;
-	}
-	return res ;
-}
-
-[[noreturn]] void Child::_exit( Rc rc , const char* msg1 , const char* msg2 ) {                                                             // signal-safe
+[[noreturn]] void Child::_exit( Rc rc , const char* msg1 , const char* msg2 ) {                                                            // signal-safe
 	bool        ok = true              ;
 	const char* e  = ::strerror(errno) ;
 	// /!\ cannot use high level I/O because we are only allowed signal-safe functions
@@ -122,20 +103,20 @@ void Child::spawn() {
 	/**/                                cmd_line_vec.push_back(nullptr  ) ;                          // sentinel
 	_child_args = cmd_line_vec.data() ;
 	// pre_exec may modify parent's memory
-	pid_t pid_ = pre_exec ? ::fork() : ::vfork() ; // NOLINT(clang-analyzer-security.insecureAPI.vfork,clang-analyzer-unix.Vfork) faster than anything else
-	if (pid_==0) {                                 // in child
+	pid_t       pid_       = pre_exec ? ::fork() : ::vfork() ; // NOLINT(clang-analyzer-security.insecureAPI.vfork,clang-analyzer-unix.Vfork) faster than anything else
+	::string    nice_str   = cat(nice)                       ;
+	const char* nice_c_str = nice_str.c_str()                ;
+	if (pid_==0) {                                             // in child
 		// /!\ this section must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
-		if (as_session) ::setsid() ;               // if we are here, we are the init process and we must be in the new session to receive the kill signal
+		if (as_session) ::setsid() ;                         // if we are here, we are the init process and we must be in the new session to receive the kill signal
 		if (nice) {
-			if (as_session) try {
-				AcFd("/proc/self/autogroup",{.flags=O_WRONLY|O_TRUNC}).write(cat(nice)) ;               // as_session creates a new autogroup, apply nice_val to it, not between processes within it
-				goto NiceDone ;
-			} catch (::string const& e) {}                                                              // best effort
-			{ [[maybe_unused]] int nice_val = ::nice(nice) ; }                                          // ignore error if any, as we cant do much about it
-		NiceDone : ;
+			/**/             int fd  = ::open ( "/proc/self/autogroup" , O_WRONLY|O_TRUNC ) ;           // ignore error if any, as we cant do much about it
+			[[maybe_unused]] int rc1 = ::write( fd , nice_c_str , nice_str.size()         ) ;           // .
+			/**/                       ::close( fd                                        ) ;           // .
+			[[maybe_unused]] int rc2 = ::nice ( nice                                      ) ;           // .
 		}
 		//
-		sigset_t full_mask ; sigfillset(&full_mask) ;                                                   // sigfillset may be a macro
+		sigset_t full_mask ; ::sigfillset(&full_mask) ;                                                 // sigfillset may be a macro
 		::sigprocmask(SIG_UNBLOCK,&full_mask,nullptr/*oldset*/) ;                                       // restore default behavior
 		//
 		switch (stdin.fd) {
@@ -202,22 +183,22 @@ void AutoServerBase::start() {
 		throw ::pair_s<Rc>( {}/*msg*/ , Rc::Ok ) ;
 	}
 	if (file_mrkr.second) {
-		if (sense_process(file_mrkr.second)) {                                   // another server exists on same host
+		if (sense_process(file_mrkr.second)) {                                  // another server exists on same host
 			trace("already_existing",file_mrkr) ;
 			throw ::pair_s<Rc>( {}/*msg*/ , Rc::Ok ) ;
 		}
-		unlnk(File(server_mrkr)) ;                                               // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		unlnk(File(server_mrkr)) ;                                              // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		rescue = true ;
 		trace("vanished",file_mrkr) ;
 	}
 	server_fd = { 0/*backlog*/ , false/*reuse_addr*/ } ;
-	if (!is_daemon) Fd::Stdout.write(serialize(server_fd.service(0/*addr*/))) ;  // pass connection info to client, no need for addr as client is necessarily local
+	if (!is_daemon) Fd::Stdout.write(serialize(server_fd.service(0/*addr*/))) ; // pass connection info to client, no need for addr as client is necessarily local
 	::close(Fd::Stdout) ;
 	if (writable) {
 		SWEAR(+server_mrkr) ;
-		static mode_t mod    = 0666 & ~((get_umask()&0222)<<1)                 ; // if we have access to server, we grant write access, so suppress read access for those that do not have write access
-		::string      tmp    = cat(server_mrkr,'.',mrkr.first,'.',mrkr.second) ;
-		AcFd          tmp_fd { tmp , {O_WRONLY|O_TRUNC|O_CREAT,mod} }          ;
+		mode_t   mod    = 0666 & ~((get_umask()&0222)<<1)                    ;  // if we have access to server, we grant write access, so suppress read access for those not having write access
+		::string tmp    = cat(server_mrkr,'.',mrkr.first,'.',mrkr.second)    ;
+		AcFd     tmp_fd { tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=mod} } ;
 		tmp_fd.write(cat(
 			server_fd.service_str(mrkr.first) , '\n'
 		,	mrkr.second                       , '\n'

@@ -247,11 +247,14 @@ namespace Backends::Sge {
 			pid_t pid = ::vfork() ;                                                                             // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
 			if (!pid) {                                                                                         // in child
+				// /!\ this section must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 				::close(Fd::Stdin ) ;                                                                           // ensure no stdin (defensive programming)
 				::close(Fd::Stdout) ;
 				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(_sge_env.get()) ) ;
-				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;                                        // NO_COV defensive programming
-				::_exit(+Rc::System) ;                                                                          // NO_COV in case exec fails
+				{ [[maybe_unused]] int rc = ::write( 2 , "cannot exec " , 12                     ) ; }          // NO_COV in case exec fails
+				{ [[maybe_unused]] int rc = ::write( 2 , cmd_line_[0]   , ::strlen(cmd_line_[0]) ) ; }          // NO_COV .
+				{ [[maybe_unused]] int rc = ::write( 2 , "\n"           , 1                      ) ; }          // NO_COV .
+				::_exit(+Rc::System) ;                                                                          // NO_COV .
 			}
 			SWEAR(pid>0) ;
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
@@ -278,6 +281,7 @@ namespace Backends::Sge {
 			pid_t  pid = ::vfork() ;                                                                            // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
 			if (!pid) {                                                                                         // in child
+				// /!\ this section must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 				SWEAR( c2p.read .fd>Fd::Std.fd , c2p.read  ) ;                                                  // ensure we can safely close what needs to be closed
 				SWEAR( c2p.write.fd>Fd::Std.fd , c2p.write ) ;                                                  // .
 				::dup2(c2p.write,Fd::Stdout) ;
@@ -285,8 +289,10 @@ namespace Backends::Sge {
 				::close(c2p.read ) ;                                                                            // dont touch c2p object as it is shared with parent
 				::close(c2p.write) ;                                                                            // .
 				::execve( cmd_line_[0] , const_cast<char**>(cmd_line_) , const_cast<char**>(_sge_env.get()) ) ;
-				Fd::Stderr.write(cat("cannot exec ",cmd_line[0],'\n')) ;                                        // NO_COV defensive programming
-				::_exit(+Rc::System) ;                                                                          // NO_COV in case exec fails
+				{ [[maybe_unused]] int rc = ::write( 2 , "cannot exec " , 12                     ) ; }          // NO_COV in case exec fails
+				{ [[maybe_unused]] int rc = ::write( 2 , cmd_line_[0]   , ::strlen(cmd_line_[0]) ) ; }          // NO_COV .
+				{ [[maybe_unused]] int rc = ::write( 2 , "\n"           , 1                      ) ; }          // NO_COV .
+				::_exit(+Rc::System) ;                                                                          // NO_COV .
 			}
 			SWEAR(pid>0) ;                   // ensure vfork worked
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
