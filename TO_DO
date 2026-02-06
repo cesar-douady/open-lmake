@@ -33,9 +33,6 @@ items (also used in XXX comments) :
 ****************************************************************************************************
 
 * suppress overlayfs in rpc_job
-* consider sources as phhony
-	- i.e. accept that they do not exist
-	- including for source dirs
 * option to trace all external accesses
 	- possibly including simple files
 	- possibly as a BOM
@@ -43,6 +40,9 @@ items (also used in XXX comments) :
 * provide support for all available python releases
 	- generate clmake.xxx.so (including per python release) instead of clmake.so
 	- or ensure single .so is binary compatible with all 3.6-3.14 releases
+? consider sources as optional
+	- i.e. accept that they do not exist
+	- including for source dirs
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -66,7 +66,6 @@ items (also used in XXX comments) :
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* when file unexpected written, only generate consider line once.
 * ascii art congratulating user for discovering bug in case of dirty crash
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
@@ -154,8 +153,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* rework codec
-	- provide a env variable for external use
+* provide a env variable for external codec use
+	- or support external dirs in codec calls
 * integrate conan (C/C++)
 	- as a package manager
 	- possibly also pip (python) and the like (rust, go, java etc.)
@@ -252,11 +251,6 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* work without umask
-	- replace by a static in Fd
-	- and set umask to 0
-	- then provide a flag no_umask
-	- use it in lieu of perm_ext
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case

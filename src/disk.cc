@@ -246,7 +246,7 @@ namespace Disk {
 				dir_guard( file , action ) ;
 				goto Retry/*BACKWARD*/ ;
 			}
-			throw cat("cannot create symlink from ",file," to ",target) ;
+			throw cat("cannot create symlink (",StrErr(),") from ",file," to ",target) ;
 		}
 	}
 

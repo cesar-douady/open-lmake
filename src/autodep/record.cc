@@ -433,10 +433,10 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 	if (+guards) r.report_guard( mk_vmap(guards) ) ;
 	//
 	Pdate now { New } ;
-	/**/         r.report_access( { .comment=c , .comment_exts=CommentExt::Read  , .digest={             .accesses=DataAccesses} ,                  .date=now , .files=::move(reads ) } ) ;
-	/**/         r.report_access( { .comment=c , .comment_exts=CommentExt::Stat  , .digest={             .accesses=Access::Stat} ,                  .date=now , .files=::move(stats ) } ) ;
-	confirm_id = r.report_access( { .comment=c , .comment_exts=CommentExt::Unlnk , .digest={.write=Maybe,.accesses=DataAccesses} ,                  .date=now , .files=::move(unlnks) } ) ;
-	confirm_id = r.report_access( { .comment=c , .comment_exts=CommentExt::Write , .digest={.write=Maybe                       } , .id=confirm_id , .date=now , .files=::move(writes) } ) ;
+	/**/         r.report_access( { .comment=c , .comment_exts=CommentExt::Read   , .digest={             .accesses=DataAccesses} ,                  .date=now , .files=::move(reads ) } ) ;
+	/**/         r.report_access( { .comment=c , .comment_exts=CommentExt::Stat   , .digest={             .accesses=Access::Stat} ,                  .date=now , .files=::move(stats ) } ) ;
+	confirm_id = r.report_access( { .comment=c , .comment_exts=CommentExt::Unlink , .digest={.write=Maybe,.accesses=DataAccesses} ,                  .date=now , .files=::move(unlnks) } ) ;
+	confirm_id = r.report_access( { .comment=c , .comment_exts=CommentExt::Write  , .digest={.write=Maybe                       } , .id=confirm_id , .date=now , .files=::move(writes) } ) ;
 	confirm_fd = r.send_report() ;
 }
 

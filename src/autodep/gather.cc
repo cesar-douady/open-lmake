@@ -156,9 +156,10 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 
 Gather::Digest Gather::analyze(Status status) {
 	Trace trace("analyze",status,accesses.size()) ;
-	Digest  res             ;                 res.deps.reserve(accesses.size()) ;                                       // typically most of accesses are deps
-	Pdate   prev_first_read = Pdate::Future ;
-	bool    readdir_warned  = false         ;
+	Digest  res                   ;                 res.deps.reserve(accesses.size()) ;                                 // typically most of accesses are deps
+	Pdate   prev_first_read       = Pdate::Future ;
+	bool    readdir_warned        = false         ;
+	bool    seen_unexpected_write = false         ;
 	//
 	reorder(status!=Status::New) ;
 	for( auto& [file,info] : accesses ) {
@@ -248,8 +249,8 @@ Gather::Digest Gather::analyze(Status status) {
 			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {                                                // if SourceOk => ok to simultaneously be a dep and a target
 				const char* write_msg = unlnk ? "unlink of" : was_written ? "write to" : "target declaration of" ;
 				if (flags.dflags[Dflag::Static]) {
-					if (unlnk) _user_trace( Comment::StaticDepAndTarget , CommentExt::Unlnk , file ) ;
-					else       _user_trace( Comment::StaticDepAndTarget ,                     file ) ;
+					if (unlnk) _user_trace( Comment::StaticDepAndTarget , CommentExt::Unlink , file ) ;
+					else       _user_trace( Comment::StaticDepAndTarget ,                      file ) ;
 					res.msg << write_msg<<" static dep "<<mk_file(file)<<'\n' ;
 					if (!flags.extra_tflags[ExtraTflag::SourceOk]) {
 						res.msg << "  if file is a source, consider calling :\n"                                  ;
@@ -272,9 +273,12 @@ Gather::Digest Gather::analyze(Status status) {
 						/**/          res.msg << "unexpected "<<write_msg<<" file after it has been "<<read<<" : "<<mk_file(file)<<'\n'  ;
 						if (read_lnk) res.msg << "  note : readlink is implicit when writing to a file while following symbolic links\n" ;
 					}
-					res.msg << "  consider calling before file is accessed :\n"                ;
-					res.msg << "       lmake.target("<<mk_file(file,FileDisplay::Py   )<<")\n" ;
-					res.msg << "    or ltarget "     <<mk_file(file,FileDisplay::Shell)<<'\n'  ;
+					if (!seen_unexpected_write) {                                                                           // only give a single advice to avoid pullution
+						res.msg << "  consider calling before file is accessed :\n"                ;
+						res.msg << "       lmake.target("<<mk_file(file,FileDisplay::Py   )<<")\n" ;
+						res.msg << "    or ltarget "     <<mk_file(file,FileDisplay::Shell)<<'\n'  ;
+						seen_unexpected_write = true ;
+					}
 				}
 			}
 			if (unlnk) {
@@ -722,7 +726,7 @@ Status Gather::_exec_child() {
 								} else {
 									NfsGuard nfs_guard { autodep_env.file_sync } ;
 									for( auto const& [f,_] : jse.jerr.files ) nfs_guard.access(f) ;
-									jse.jerr.digest.flags.extra_dflags |= ExtraDflag::NoHot ;                    // dep has been built and we are guarded : it cannot be hot from now on
+									jse.jerr.digest.flags.extra_dflags |= ExtraDflag::NoHot ;                                  // dep has been built and we are guarded : it cannot be hot from now on
 									_user_trace( now , Comment::Depend , CommentExts(CommentExt::Direct,CommentExt::Reply) ) ;
 								}
 								for( auto& [f,_] : jse.jerr.files ) {
@@ -748,7 +752,7 @@ Status Gather::_exec_child() {
 									ces |= CommentExt::Err ;
 								break ;
 							DN}
-							_user_trace( is_target?Comment::ChkTargets:Comment::ChkDeps , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
+							_user_trace( is_target?Comment::CheckTargets:Comment::CheckDeps , CommentExts(CommentExt::Reply) , jmrr.txt ) ;
 						} break ;
 						case JobMngtProc::AddLiveOut : {
 							trace("add_live_out",STR(live_out),live_out_pos) ;

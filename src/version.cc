@@ -1,14 +1,14 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 22      ; // 4d013ef8bc3b003406007fbb7b30b22e
-	uint64_t    constexpr Repo  = 17      ; // 92d13a32234792f3ab5580a40da6a2c8
-	uint64_t    constexpr Job   = 8       ; // a3dc527fda90918e25b0bc893c7f45b2
+	uint64_t    constexpr Cache = 23      ; // cc87125feeba0a7833da05308de2ef51
+	uint64_t    constexpr Repo  = 18      ; // ded9e312cc49ff019883a675426dec27
+	uint64_t    constexpr Job   = 9       ; // 8ee0e2eb62278ab9683674f5a4780fbc
 	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 4d013ef8bc3b003406007fbb7b30b22e *
+// * Cache : cc87125feeba0a7833da05308de2ef51 *
 // ********************************************
 //
 //	// START_OF_VERSIONING
@@ -744,14 +744,14 @@ namespace Version {
 //	,	__xstat                , __xstat64
 //	// lmake functions
 //	,	Analyzed
-//	,	ChkDeps            , ChkTargets
+//	,	CheckDeps        , CheckTargets // not Chk... as name is seen by user
 //	,	ComputedCrcs
-//	,	CreateCodec
+//	,	CreateCodec                     // not Creat... as name is seen by user
 //	,	Decode
 //	,	DepAndTarget
 //	,	Depend
 //	,	Encode
-//	,	EndJob             , EndOverhead
+//	,	EndJob           , EndOverhead
 //	,	EnteredNamespace
 //	,	Hot
 //	,	Kill
@@ -760,13 +760,12 @@ namespace Version {
 //	,	OsInfo
 //	,	Panic
 //	,	StartInfo
-//	,	StartJob           , StartOverhead
-//	,	StaticDep          , StaticDepAndTarget
+//	,	StartJob         , StartOverhead
+//	,	StaticDep        , StaticDepAndTarget
 //	,	StaticExec
 //	,	StaticMatch
 //	,	StaticTarget
-//	,	StaticUnlnk
-//	,	Stderr             , Stdin              , Stdout
+//	,	Stderr           , Stdin              , Stdout
 //	,	StillAlive
 //	,	Timeout
 //	,	Target
@@ -775,19 +774,20 @@ namespace Version {
 //	,	UnexpectedTarget
 //	,	Unstable
 //	,	UploadedToCache
-//	,	Wash               , Washed
+//	,	Wash             , Washed
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING
 //	enum class CommentExt : uint8_t {
 //		Bind
+//	,	Dir
 //	,	Direct
 //	,	Err
 //	,	File
 //	,	Last
 //	,	LdLibraryPath
 //	,	Killed
-//	,	Lnk
+//	,	Link     // not Lnk as name is seen by user
 //	,	NoFollow
 //	,	Orig
 //	,	Overlay
@@ -797,7 +797,7 @@ namespace Version {
 //	,	Reply
 //	,	Stat
 //	,	Tmp
-//	,	Unlnk
+//	,	Unlink   // not Unlnk as name is seen by user
 //	,	Verbose
 //	,	Write
 //	} ;
@@ -856,7 +856,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 92d13a32234792f3ab5580a40da6a2c8 *
+// * Repo : ded9e312cc49ff019883a675426dec27 *
 // *******************************************
 //
 //	// START_OF_VERSIONING
@@ -1984,14 +1984,14 @@ namespace Version {
 //	,	__xstat                , __xstat64
 //	// lmake functions
 //	,	Analyzed
-//	,	ChkDeps            , ChkTargets
+//	,	CheckDeps        , CheckTargets // not Chk... as name is seen by user
 //	,	ComputedCrcs
-//	,	CreateCodec
+//	,	CreateCodec                     // not Creat... as name is seen by user
 //	,	Decode
 //	,	DepAndTarget
 //	,	Depend
 //	,	Encode
-//	,	EndJob             , EndOverhead
+//	,	EndJob           , EndOverhead
 //	,	EnteredNamespace
 //	,	Hot
 //	,	Kill
@@ -2000,13 +2000,12 @@ namespace Version {
 //	,	OsInfo
 //	,	Panic
 //	,	StartInfo
-//	,	StartJob           , StartOverhead
-//	,	StaticDep          , StaticDepAndTarget
+//	,	StartJob         , StartOverhead
+//	,	StaticDep        , StaticDepAndTarget
 //	,	StaticExec
 //	,	StaticMatch
 //	,	StaticTarget
-//	,	StaticUnlnk
-//	,	Stderr             , Stdin              , Stdout
+//	,	Stderr           , Stdin              , Stdout
 //	,	StillAlive
 //	,	Timeout
 //	,	Target
@@ -2015,19 +2014,20 @@ namespace Version {
 //	,	UnexpectedTarget
 //	,	Unstable
 //	,	UploadedToCache
-//	,	Wash               , Washed
+//	,	Wash             , Washed
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING
 //	enum class CommentExt : uint8_t {
 //		Bind
+//	,	Dir
 //	,	Direct
 //	,	Err
 //	,	File
 //	,	Last
 //	,	LdLibraryPath
 //	,	Killed
-//	,	Lnk
+//	,	Link     // not Lnk as name is seen by user
 //	,	NoFollow
 //	,	Orig
 //	,	Overlay
@@ -2037,7 +2037,7 @@ namespace Version {
 //	,	Reply
 //	,	Stat
 //	,	Tmp
-//	,	Unlnk
+//	,	Unlink   // not Unlnk as name is seen by user
 //	,	Verbose
 //	,	Write
 //	} ;
@@ -2096,7 +2096,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : a3dc527fda90918e25b0bc893c7f45b2 *
+// * Job : 8ee0e2eb62278ab9683674f5a4780fbc *
 // ******************************************
 //
 //	// START_OF_VERSIONING
@@ -2388,14 +2388,14 @@ namespace Version {
 //	,	__xstat                , __xstat64
 //	// lmake functions
 //	,	Analyzed
-//	,	ChkDeps            , ChkTargets
+//	,	CheckDeps        , CheckTargets // not Chk... as name is seen by user
 //	,	ComputedCrcs
-//	,	CreateCodec
+//	,	CreateCodec                     // not Creat... as name is seen by user
 //	,	Decode
 //	,	DepAndTarget
 //	,	Depend
 //	,	Encode
-//	,	EndJob             , EndOverhead
+//	,	EndJob           , EndOverhead
 //	,	EnteredNamespace
 //	,	Hot
 //	,	Kill
@@ -2404,13 +2404,12 @@ namespace Version {
 //	,	OsInfo
 //	,	Panic
 //	,	StartInfo
-//	,	StartJob           , StartOverhead
-//	,	StaticDep          , StaticDepAndTarget
+//	,	StartJob         , StartOverhead
+//	,	StaticDep        , StaticDepAndTarget
 //	,	StaticExec
 //	,	StaticMatch
 //	,	StaticTarget
-//	,	StaticUnlnk
-//	,	Stderr             , Stdin              , Stdout
+//	,	Stderr           , Stdin              , Stdout
 //	,	StillAlive
 //	,	Timeout
 //	,	Target
@@ -2419,19 +2418,20 @@ namespace Version {
 //	,	UnexpectedTarget
 //	,	Unstable
 //	,	UploadedToCache
-//	,	Wash               , Washed
+//	,	Wash             , Washed
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING
 //	enum class CommentExt : uint8_t {
 //		Bind
+//	,	Dir
 //	,	Direct
 //	,	Err
 //	,	File
 //	,	Last
 //	,	LdLibraryPath
 //	,	Killed
-//	,	Lnk
+//	,	Link     // not Lnk as name is seen by user
 //	,	NoFollow
 //	,	Orig
 //	,	Overlay
@@ -2441,7 +2441,7 @@ namespace Version {
 //	,	Reply
 //	,	Stat
 //	,	Tmp
-//	,	Unlnk
+//	,	Unlink   // not Unlnk as name is seen by user
 //	,	Verbose
 //	,	Write
 //	} ;

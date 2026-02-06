@@ -250,7 +250,7 @@ int main( int argc , char* argv[] ) {
 				RealPath::SolveReport sr = real_path.solve(no_slash(::move(d_s)),true/*no_follow*/) ;
 				for( ::string& l : sr.lnks ) {
 					FileInfo fi { l } ;                                                                                                  // capture before l is moved
-					g_gather.new_access( washed , ::move(l) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Lnk ) ;
+					g_gather.new_access( washed , ::move(l) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Link ) ;
 				}
 				if ( sr.file_loc<=FileLoc::Dep && sr.file_accessed==Yes ) {
 					FileInfo fi { sr.real } ;                                                                                            // capture before l is moved

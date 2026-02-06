@@ -237,7 +237,7 @@ namespace Backdoor {
 	}                                                          // END_OF_NO_COV
 
 	Bool3 ChkDeps::process(Record& r) {
-		return r.report_sync({ .proc=JobExecProc::ChkDeps , .sync=No|sync , .comment=Comment::ChkDeps , .date=Pdate(New)+delay }).ok ;
+		return r.report_sync({ .proc=JobExecProc::ChkDeps , .sync=No|sync , .comment=Comment::CheckDeps , .date=Pdate(New)+delay }).ok ;
 	}
 
 	//

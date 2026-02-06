@@ -248,7 +248,7 @@ public :
 			//
 			if (sr.file_accessed==Yes) accesses = Access::Lnk ;
 			//                                                                                                                                   store
-			for( ::string& lnk : sr.lnks )                              handle_dep( FileLoc::Dep , ::move(lnk)                   , Access::Lnk , false , CommentExt::Lnk  ) ;
+			for( ::string& lnk : sr.lnks )                              handle_dep( FileLoc::Dep , ::move(lnk)                   , Access::Lnk , false , CommentExt::Link ) ;
 			if ( !read && sr.file_accessed==Maybe && has_dir(sr.real) ) handle_dep( sr.file_loc  , no_slash(dir_name_s(sr.real)) , Access::Lnk , false , CommentExt::Last ) ; // real dir is not ...
 			/**/                                                        handle_dep( sr.file_loc  , ::move(sr.real)               , {}          , true  , CommentExt::File ) ; // ... protected by real
 			//

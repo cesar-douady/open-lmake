@@ -243,14 +243,14 @@ enum class Comment : uint8_t {
 ,	__xstat                , __xstat64
 // lmake functions
 ,	Analyzed
-,	ChkDeps            , ChkTargets
+,	CheckDeps        , CheckTargets // not Chk... as name is seen by user
 ,	ComputedCrcs
-,	CreateCodec
+,	CreateCodec                     // not Creat... as name is seen by user
 ,	Decode
 ,	DepAndTarget
 ,	Depend
 ,	Encode
-,	EndJob             , EndOverhead
+,	EndJob           , EndOverhead
 ,	EnteredNamespace
 ,	Hot
 ,	Kill
@@ -259,13 +259,12 @@ enum class Comment : uint8_t {
 ,	OsInfo
 ,	Panic
 ,	StartInfo
-,	StartJob           , StartOverhead
-,	StaticDep          , StaticDepAndTarget
+,	StartJob         , StartOverhead
+,	StaticDep        , StaticDepAndTarget
 ,	StaticExec
 ,	StaticMatch
 ,	StaticTarget
-,	StaticUnlnk
-,	Stderr             , Stdin              , Stdout
+,	Stderr           , Stdin              , Stdout
 ,	StillAlive
 ,	Timeout
 ,	Target
@@ -274,20 +273,21 @@ enum class Comment : uint8_t {
 ,	UnexpectedTarget
 ,	Unstable
 ,	UploadedToCache
-,	Wash               , Washed
+,	Wash             , Washed
 } ;
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING
 enum class CommentExt : uint8_t {
 	Bind
+,	Dir
 ,	Direct
 ,	Err
 ,	File
 ,	Last
 ,	LdLibraryPath
 ,	Killed
-,	Lnk
+,	Link     // not Lnk as name is seen by user
 ,	NoFollow
 ,	Orig
 ,	Overlay
@@ -297,7 +297,7 @@ enum class CommentExt : uint8_t {
 ,	Reply
 ,	Stat
 ,	Tmp
-,	Unlnk
+,	Unlink   // not Unlnk as name is seen by user
 ,	Verbose
 ,	Write
 } ;

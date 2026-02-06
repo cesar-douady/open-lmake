@@ -223,7 +223,7 @@ namespace Disk {
 		Time::Pdate date ;
 	} ;
 
-	::vector_s    lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , NfsGuard* nfs_guard=nullptr ) ; // list files within dir with prefix in front of each entry
+	::vector_s    lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , NfsGuard* nfs_guard=nullptr ) ; // list files within dir with pfx in front of each entry
 	size_t/*pos*/ mk_dir_s ( FileRef dir_s         ,                          _CreatAction action={}      ) ;
 	//
 	inline ::string const& dir_guard( FileRef file , _CreatAction action={} ) {
