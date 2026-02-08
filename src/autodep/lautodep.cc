@@ -162,6 +162,8 @@ int main( int argc , char* argv[] ) {
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
+	autodep_env.fqdn = fqdn() ;
+	//
 	Status status ;
 	try {
 		BlockedSig blocked{{SIGINT}} ;
