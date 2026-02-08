@@ -117,10 +117,10 @@ Else an exception is raised.
 
 - a key found in `lmake.config.codecs` in which case it is a local source file or an external dir
 - a local source file (symbolic links are followed) recording the association table
+- an external dir (symbolic links are followed) recording the association table
 
-In the former case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for:
-
-- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
+In the former case, an external dir must lie within a source dir.
+When an external dir, it must contain a file `LMAKE/file_sync` containing one of `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
 
 Cf. [encode/decode](codec.html).
 
@@ -216,10 +216,10 @@ Else a code is created, of length at least `min_length`, is associated to `val` 
 
 - a key found in `lmake.config.codecs` in which case it is a local source file or an external dir
 - a local source file (symbolic links are followed) recording the association table
+- an external dir (symbolic links are followed) recording the association table
 
-In the former case, such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for:
-
-- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
+In the former case, an external dir must lie within a source dir.
+When an external dir, it must contain a file `LMAKE/file_sync` containing one of `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
 
 Cf. [encode/decode](codec.html).
 

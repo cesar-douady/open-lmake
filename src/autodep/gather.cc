@@ -188,7 +188,7 @@ Gather::Digest Gather::analyze(Status status) {
 		if (flags.extra_dflags[ExtraDflag::CreateEncode]) {
 			trace("codec  ",file) ;
 			_user_trace( info.first_read(false/*with_readdir*/) , Comment::CreateCodec , file ) ;
-			if (is_lcl(file)) res.refresh_codecs.insert(Codec::CodecFile(file).file) ;
+			if (is_lcl(file)) res.refresh_codecs.insert(Codec::CodecFile(New,file).file) ;
 		}
 		//
 		Accesses accesses     = info.accesses()                  ;
@@ -213,9 +213,10 @@ Gather::Digest Gather::analyze(Status status) {
 			bool      unstable = false                                                    ;
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
-			dd.hot          = info.is_hot(ddate_prec)                                 ;
-			dd.parallel     = first_read<Pdate::Future && first_read==prev_first_read ;
-			prev_first_read = first_read                                              ;
+			dd.hot           = info.is_hot(ddate_prec)                                 ;
+			dd.parallel      = first_read<Pdate::Future && first_read==prev_first_read ;
+			dd.create_encode = flags.extra_dflags[ExtraDflag::CreateEncode]            ;
+			prev_first_read  = first_read                                              ;
 			// try to transform date into crc as far as possible
 			if      ( dd.is_crc                         )   {}                                                // already a crc => nothing to do
 			else if ( !accesses                         )   {}                                                // no access     => nothing to do

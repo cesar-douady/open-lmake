@@ -30,7 +30,7 @@
 static constexpr char AdminDirS       [] = ADMIN_DIR_S         ;
 static constexpr char PrivateAdminDirS[] = PRIVATE_ADMIN_DIR_S ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 enum class Access : uint8_t {                                                         // in all cases, dirs are deemed non-existing
 	Lnk                                                                               // file is accessed with readlink              , regular files are deemed non-existing
 ,	Reg                                                                               // file is accessed with open                  , symlinks      are deemed non-existing
@@ -214,7 +214,7 @@ namespace Disk {
 		friend ::string& operator+=( ::string& , SigDate const& ) ;
 		// cxtors & casts
 		SigDate() = default ;
-		SigDate( FileSig s , Time::Pdate d=New ) : sig{s} , date{d  } {}
+		SigDate( FileSig s , Time::Pdate d=New ) : sig{s} , date{d} {}
 		// accesses
 		bool operator==(SigDate const&) const = default ;
 		bool operator+ (              ) const { return +date || +sig ; }
@@ -223,13 +223,9 @@ namespace Disk {
 		Time::Pdate date ;
 	} ;
 
-	::vector_s    lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , NfsGuard* nfs_guard=nullptr ) ; // list files within dir with pfx in front of each entry
-	size_t/*pos*/ mk_dir_s ( FileRef dir_s         ,                          _CreatAction action={}      ) ;
-	//
-	inline ::string const& dir_guard( FileRef file , _CreatAction action={} ) {
-		if (has_dir(file.file)) mk_dir_s( {file.at,dir_name_s(file.file)} , action ) ;
-		return file.file ;
-	}
+	::vector_s      lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , NfsGuard*   =nullptr ) ; // list files within dir with pfx in front of each entry
+	size_t/*pos*/   mk_dir_s ( FileRef dir_s         ,                          _CreatAction={}      ) ;
+	::string const& dir_guard( FileRef file          ,                          _CreatAction={}      ) ;
 
 	struct _UnlnkAction {
 		bool      abs_ok    = false   ; // unless abs_ok, absolute paths are not accepted to avoid catastrophic unlinks when dir_ok
@@ -284,12 +280,23 @@ namespace Disk {
 	} ;
 
 	//
-	// ACL
+	// misc
 	//
 
 	using AclEntry = struct ::posix_acl_xattr_entry ;
 
 	::vector<AclEntry> acl_entries( FileRef         dir_s                       ) ;
 	mode_t             auto_umask ( ::string const& dir_s , ::string const& msg ) ;
+
+	struct VersionAction {
+		Bool3    chk       = Yes ; // Maybe means it is ok to initialize
+		::string key       = {}  ; // short id (e.g. repo)
+		::string init_msg  = {}  ;
+		::string clean_msg = {}  ;
+		mode_t   umask     = -1  ; // right to apply if initializing
+		uint64_t version   ;
+	} ;
+
+	void chk_version( ::string const& dir_s , VersionAction const& action ) ;
 
 }

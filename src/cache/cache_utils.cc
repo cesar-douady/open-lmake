@@ -39,7 +39,7 @@ CompileDigest::CompileDigest( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps
 	for( auto& [n,dd] : repo_deps ) {
 		bool      is_name = n.is_name()                                              ;
 		CnodeIdx* dep_id  = is_name && dep_ids ? &dep_ids->emplace_back(0) : nullptr ;
-		Accesses  a       = dd.accesses                                              ;
+		Accesses  a       = dd.accesses()                                            ;
 		if      (!dd.dflags[Dflag::Full] )   a = {} ;                                                // dep is used for resources only, no real accesses
 		else if (!for_download           )   SWEAR( !dd.never_match()     , n,dd ) ;                 // meaningless, should not have reached here
 		if      (dd.dflags[Dflag::Static]) { SWEAR( n_statics<Max<VarIdx>        ) ; n_statics++ ; }

@@ -197,9 +197,9 @@ namespace Engine {
 		bool up_to_date () const ;
 		void acquire_crc()       ;
 		//
-		void full_refresh( bool report_no_file , ::vector<Req> const& reqs={} ) const ; // reqs are for reporting only
+		void full_refresh( bool report_no_file , Job , ::vector<Req> const& ={} ) const ; // job is only used if create_encode, reqs are for reporting only
 	} ;
-	static_assert(sizeof(Dep)==16) ;                                                    // ensure size is a power of 2 for improved cache perf
+	static_assert(sizeof(Dep)==16) ;                                                      // ensure size is a power of 2 for improved cache perf
 
 	union GenericDep {
 		static constexpr uint8_t NodesPerDep = sizeof(Dep)/sizeof(Node) ;
@@ -249,8 +249,8 @@ namespace Engine {
 			// - if i_chunk==hdr->sz : refer to header
 			SWEAR(hdr) ;
 			if (i_chunk==hdr->hdr.sz) return hdr->hdr ;
-			static_cast<Node&>(tmpl) = hdr[1].chunk[i_chunk]             ;
-			tmpl.accesses            = Accesses(hdr->hdr.chunk_accesses) ;
+			static_cast<Node&>(tmpl) = hdr[1].chunk[i_chunk]    ;
+			tmpl.accesses_           = hdr->hdr.chunk_accesses_ ;
 			return tmpl ;
 		}
 		DepsIter& operator++(int) { return ++self ; }
@@ -396,7 +396,7 @@ namespace Engine {
 		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return actual_job==j                      ; }
 		//
 		Manual           manual          ( FileSig         , Accesses=FullAccesses                                              ) const ;
-		Manual           manual_refresh  (                   Accesses              , Req                                        )       ; // refresh date if file was updated but steady
+		Manual           manual_refresh  (                   Accesses              , Req={}                                     )       ; // refresh date if file was updated but steady
 		bool/*modified*/ refresh_src_anti( ::string const& , Accesses              , ::vector<Req> const& , bool report_no_file )       ; // Req's are for reporting only
 		//
 		RuleIdx    conform_idx    (              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
@@ -497,12 +497,12 @@ namespace Engine {
 		// data
 		// START_OF_VERSIONING REPO
 	public :
-		//NodeName name   ;                                         //         32 bits, inherited
+	//	NodeName  name                       ;                      //         32 bits, inherited
 		Watcher   asking                     ;                      //         32 bits,           last watcher needing this node
 		Crc       crc                        = Crc::None          ; // ~45   < 64 bits,           disk file CRC when file mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second
 		SigDate   sig                        ;                      // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
 		Node      dir                        ;                      //  31   < 32 bits, shared
-		JobTgts   job_tgts                   ;                      //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (used as a reservoir to avoid matching)
+		JobTgts   job_tgts                   ;                      //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (a reservoir to avoid matching)
 		RuleTgts  rule_tgts                  ;                      // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 		RuleTgts  rejected_rule_tgts         ;                      // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
 		Job       actual_job                 ;                      //  31   < 32 bits, shared,   job that generated node
@@ -512,9 +512,9 @@ namespace Engine {
 		Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
 		Polluted  polluted :NBits<Polluted > = Polluted::Clean    ; //          2 bits,           reason for pollution
 		bool      busy     :1                = false              ; //          1 bit ,           a job is running with this node as target
-		Tflags    actual_tflags ;                                   //   6   <  8 bits,           tflags associated with actual_job
+		Tflags    actual_tflags              ;                      //   6   <  8 bits,           tflags associated with actual_job
 	private :
-		RuleIdx _conform_idx = -+NodeStatus::Unknown ;              //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		RuleIdx _conform_idx = -+NodeStatus::Unknown ;              //         16 bits,            index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 		// END_OF_VERSIONING
 	} ;
 	static_assert(sizeof(NodeData)==64) ;                           // ensure size is a power of 2 to maximize cache perf
@@ -619,8 +619,8 @@ namespace Engine {
 	//
 
 	inline bool Dep::up_to_date() const {
-		if ( accesses[Access::Err] && err!=(self->ok()==No) ) return false                                         ;
-		/**/                                                  return is_crc && crc().match( self->crc , accesses ) ;
+		if ( accesses()[Access::Err] && err!=(self->ok()==No) ) return false                                           ;
+		/**/                                                    return is_crc && crc().match( self->crc , accesses() ) ;
 	}
 
 	inline void Dep::acquire_crc() {

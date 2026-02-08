@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "version.hh"
+
 #include "env.hh"
 
 using namespace Disk ;
@@ -19,6 +21,24 @@ namespace Codec {
 			case 'S' : file_sync = FileSync::Sync ; break ;
 		DF}
 		umask = mod_from_str(descr.substr(descr.size()-4)) ;
+	}
+
+	CodecRemoteSide::CodecRemoteSide( NewType , ::string const& dir_s ) {
+		SWEAR( is_dir_name(dir_s) , dir_s ) ;
+		//
+		FileStat st ; throw_unless( ::lstat( +dir_s?dir_s.c_str():"." , &st )==0 , "cannot access (",StrErr(),") ",dir_s,rm_slash ) ;
+		/**/          throw_unless( S_ISDIR(st.st_mode)           , "not a dir : "                                ,dir_s,rm_slash ) ;
+		umask = ~st.st_mode & 0777 ; // ensure permissions on top-level dir are propagated to all underlying dirs and files
+		//
+		::string init_msg  = cat("echo <val> >",dir_s,AdminDirS,"file_sync # with <val> being one of none, dir or sync") ;
+		::string clean_msg = cat("rm -rf ",dir_s,rm_slash," ; mkdir ",dir_s,AdminDirS,rm_slash," ; ",init_msg          ) ;
+		chk_version( dir_s , { .chk=Maybe , .key="codec dir" , .init_msg=init_msg , .clean_msg=clean_msg , .umask=umask , .version=Version::Codec } ) ;
+		//
+		::string fs_file = cat(dir_s,AdminDirS,"file_sync") ;
+		::string fs_str  = strip(AcFd(fs_file).read())      ; throw_unless( can_mk_enum<FileSync>(fs_str) , "unrecognized file_sync : ",fs_str ) ;
+		//
+		tab       = dir_s                     ;
+		file_sync = mk_enum<FileSync>(fs_str) ;
 	}
 
 	CodecRemoteSide::operator ::string() const {
@@ -120,7 +140,7 @@ AutodepEnv::operator ::string() const {
 	res <<':'<< '"'<<mk_printable<'"'>(fast_mail       )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(fast_report_pipe)<<'"' ;
 	// options
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING CACHE REPO JOB
 	res << ':' ;
 	if (!enable    ) res << 'd' ;
 	if (readdir_ok ) res << 'D' ;

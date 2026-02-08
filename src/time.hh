@@ -12,19 +12,18 @@ namespace chrono = std::chrono ;
 
 #include "utils.hh"
 
-// START_OF_VERSIONING
-// FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
-enum class FileTag : uint8_t {
+// START_OF_VERSIONING CACHE JOB REPO
+enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
 	None
 ,	Unknown
 ,	Dir
 ,	Lnk
-,	Reg          // >=Reg means file is a regular file
-,	Empty        // empty and not executable
-,	Exe          // a regular file with exec permission
+,	Reg                        // >=Reg means file is a regular file
+,	Empty                      // empty and not executable
+,	Exe                        // a regular file with exec permission
 //
 // aliases
-,	Target = Lnk // >=Target means file can be generated as a target
+,	Target = Lnk               // >=Target means file can be generated as a target
 } ;
 // END_OF_VERSIONING
 using FileTags = BitMap<FileTag> ;

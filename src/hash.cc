@@ -90,7 +90,7 @@ namespace Hash {
 	template ::string& operator+=( ::string& os , _Crc<false> const crc ) ;             // explicit instanciation
 	template ::string& operator+=( ::string& os , _Crc<true > const crc ) ;             // .
 
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING CACHE JOB REPO
 	template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 		self = None ;

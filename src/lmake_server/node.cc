@@ -15,24 +15,22 @@ namespace Engine {
 	// NodeReqInfo
 	//
 
-	::string& operator+=( ::string& os , NodeReqInfo const& ri ) {                   // START_OF_NO_COV
-		/**/                          os << "NRI(" << ri.req <<','<< ri.goal <<',' ;
-		if (ri.prio_idx==Node::NoIdx) os << "NoIdx"                                ;
-		else                          os <<                  ri.prio_idx           ;
-		if (+ri.done_               ) os <<",Done@"       << ri.done_              ;
-		if ( ri.n_wait              ) os <<",wait:"       << ri.n_wait             ;
-		if ( ri.overwritten         ) os <<",overwritten"                          ;
-		if (+ri.manual              ) os <<','            << ri.manual             ;
-		return                        os <<')'                                     ;
-	}                                                                                // END_OF_NO_COV
+	::string& operator+=( ::string& os , NodeReqInfo const& ri ) {         // START_OF_NO_COV
+		/**/                          os << "NRI("<<ri.req<<','<<ri.goal ;
+		if (ri.prio_idx==Node::NoIdx) os << ",NoIdx"                     ;
+		else                          os << ','<<ri.prio_idx             ;
+		if (+ri.done_               ) os << ",Done@"<<ri.done_           ;
+		if ( ri.n_wait              ) os << ",wait:"<<ri.n_wait          ;
+		if ( ri.overwritten         ) os << ",overwritten"               ;
+		if (+ri.manual              ) os << ','<<ri.manual               ;
+		return                        os << ')'                          ;
+	}                                                                      // END_OF_NO_COV
 
 	NodeReqInfo::NodeReqInfo( Req r , Node n ) : ReqInfo{r} {
 		if (!n) return ;
-		n->set_buildable() ;
-		if (n->is_src()) {
-			::string name = n->name() ;
-			if (!Codec::CodecFile::s_is_codec(name,g_config->ext_codec_dirs_s)) overwritten = FileInfo(name).date>r->start_ddate ; // codec are never overwritten as they are supposed stable
-		}
+		NodeData& nd = *n ;
+		nd.set_buildable() ;
+		if ( nd.is_src() && !nd.actual_job ) overwritten = FileInfo(nd.name()).date>r->start_ddate ; // if a source has an actual job, it is dynamically created and overwritten is not tracked
 	}
 
 	//
@@ -159,13 +157,13 @@ namespace Engine {
 			//vvvvvvvvvvvvvvvvvvvvvvvvv
 			set_crc_date( crc_ , sig_ ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (!Codec::CodecFile::s_is_codec(name_,g_config->ext_codec_dirs_s)) {     // codec are never overwritten as they are supposed stable and console message are pollution
+			if (!actual_job) {                                                         // if a source has an actual job, it is dynamically created and overwritten is not tracked
 				const char* step = !prev_ok ? "new" : updated ? "changed" : "steady" ;
 				Color       c    = frozen ? Color::Warning : Color::HiddenOk         ;
 				if (updated)
 					for( Req r : reqs() )
 						if (fi.date>r->start_ddate) req_info(r).overwritten = true ;
-				for( Req r : reqs_  ) {
+				for( Req r : reqs_ ) {
 					ReqInfo const& cri = c_req_info(r) ;
 					if (!cri.done(::max(cri.goal,NodeGoal::Status))) r->audit_job( c , step , lazy_msg() , name_ ) ;
 				}
@@ -851,8 +849,8 @@ namespace Engine {
 	::string& operator+=( ::string& os , GenericDep const& gd ) { // START_OF_NO_COV
 		os << "GenericDep(" ;
 		if (gd.hdr.sz) {
-			os << Accesses(gd.hdr.chunk_accesses)  <<',' ;
-			os << ::span((&gd)[1].chunk,gd.hdr.sz) <<',' ;
+			os << gd.hdr.chunk_accesses()         <<',' ;
+			os << ::span((&gd)[1].chunk,gd.hdr.sz)<<',' ;
 		}
 		os << gd.hdr ;
 		return os << ')' ;
@@ -860,7 +858,8 @@ namespace Engine {
 
 	::string Dep::accesses_str() const {
 		::string res ; res.reserve(N<Access>) ;
-		for( Access a : iota(All<Access>) ) res.push_back( accesses[a] ? AccessChars[+a].second : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX/ : for some reason, clang-tidy fires up here
+		for( Access a : iota(All<Access>) )
+			res.push_back( accesses()[a] ? AccessChars[+a].second : '-' ) ; // NOLINT(clang-analyzer-core.CallAndMessage) XXX/ : for some reason, clang-tidy fires up here
 		return res ;
 	}
 
@@ -875,12 +874,16 @@ namespace Engine {
 		else        return ::string(Crc()) ;
 	}
 
-	void Dep::full_refresh( bool report_no_file , ::vector<Req> const& reqs ) const {       // reqs are for reporting only
+	void Dep::full_refresh( bool report_no_file , Job j , ::vector<Req> const& reqs ) const {         // reqs are for reporting only
 		NodeData& nd = *Node(self) ;
-		if (+reqs           ) nd.set_buildable(reqs[0])                                   ;
-		else                  nd.set_buildable(       )                                   ;
-		if (nd.is_src_anti()) nd.refresh_src_anti(nd.name(),accesses,reqs,report_no_file) ;
-		else                  nd.manual_refresh  (          accesses,{}/*Req*/          ) ; // no manual_steady diagnostic as this may be because of another job
+		if (+reqs) nd.set_buildable(reqs[0]) ;
+		else       nd.set_buildable(       ) ;
+		if (nd.is_src_anti()) {
+			if (create_encode) { SWEAR( +j , self ) ; nd.actual_job = j ; }
+			nd.refresh_src_anti( nd.name() , accesses() , reqs , report_no_file ) ;
+		} else {
+			nd.manual_refresh(accesses()) ; // no manual_steady diagnostic as this may be because of another job
+		}
 	}
 
 	//
@@ -894,42 +897,42 @@ namespace Engine {
 	static void _append_dep( ::vector<GenericDep>& deps , Dep const& dep , size_t& hole ) {
 		bool can_compress = dep.is_crc && dep.crc()==Crc::None && dep.dflags==DflagsDfltDyn && !dep.parallel ;
 		if (hole==Npos) {
-			if (can_compress) {                                                              // create new open chunk
+			if (can_compress) {                                                               // create new open chunk
 				/**/ hole                         = deps.size()             ;
 				Dep& hdr                          = deps.emplace_back().hdr ;
 				/**/ hdr.sz                       = 1                       ;
-				/**/ hdr.chunk_accesses           = +dep.accesses           ;
+				/**/ hdr.chunk_accesses_          = dep.accesses_           ;
 				/**/ deps.emplace_back().chunk[0] = dep                     ;
-			} else {                                                                         // create a chunk just for dep
+			} else {                                                                          // create a chunk just for dep
 				deps.push_back(dep) ;
-				deps.back().hdr.sz             = 0 ;                                         // dep may have a non-null sz (which is not significant as far as the dep alone is concerned)
-				deps.back().hdr.chunk_accesses = 0 ;                                         // useless, just to avoid a random value hanging around
+				deps.back().hdr.sz              = 0 ;                                         // dep may have a non-null sz (which is not significant as far as the dep alone is concerned)
+				deps.back().hdr.chunk_accesses_ = 0 ;                                         // useless, just to avoid a random value hanging around
 			}
 		} else {
 			Dep& hdr = deps[hole].hdr ;
-			if ( can_compress && +dep.accesses==hdr.chunk_accesses && hdr.sz<uint8_t(-1) ) { // append dep to open chunk
+			if ( can_compress && dep.accesses_==hdr.chunk_accesses_ && hdr.sz<uint8_t(-1) ) { // append dep to open chunk
 				uint8_t i = hdr.sz%GenericDep::NodesPerDep ;
 				if (i==0) deps.emplace_back() ;
 				deps.back().chunk[i] = dep ;
 				hdr.sz++ ;
-			} else {                                                                         // close chunk : copy dep to hdr, excetp sz and chunk_accesses fields
-				uint8_t       sz                 = hdr.sz             ;
-				Accesses::Val chunk_accesses     = hdr.chunk_accesses ;
-				/**/          hdr                = dep                ;
-				/**/          hdr.sz             = sz                 ;
-				/**/          hdr.chunk_accesses = chunk_accesses     ;
-				/**/          hole               = Npos               ;
+			} else {                                                                          // close chunk : copy dep to hdr, excetp sz and chunk_accesses fields
+				uint8_t       sz                  = hdr.sz              ;
+				Accesses::Val chunk_accesses      = hdr.chunk_accesses_ ;
+				/**/          hdr                 = dep                 ;
+				/**/          hdr.sz              = sz                  ;
+				/**/          hdr.chunk_accesses_ = chunk_accesses      ;
+				/**/          hole                = Npos                ;
 			}
 		}
 	}
 
 	static void _fill_hole(GenericDep& hdr) {
 		SWEAR(hdr.hdr.sz>0) ;
-		uint8_t       sz                     = hdr.hdr.sz-1                                                                          ;
-		Accesses::Val chunk_accesses         = hdr.hdr.chunk_accesses                                                                ;
-		/**/          hdr.hdr                = { (&hdr)[1].chunk[sz] , Accesses(hdr.hdr.chunk_accesses) , Crc::None , false/*err*/ } ;
-		/**/          hdr.hdr.sz             = sz                                                                                    ;
-		/**/          hdr.hdr.chunk_accesses = chunk_accesses                                                                        ;
+		uint8_t       sz                      = hdr.hdr.sz-1                                                                  ;
+		Accesses::Val chunk_accesses          = hdr.hdr.chunk_accesses_                                                       ;
+		/**/          hdr.hdr                 = { (&hdr)[1].chunk[sz] , hdr.hdr.chunk_accesses() , Crc::None , false/*err*/ } ;
+		/**/          hdr.hdr.sz              = sz                                                                            ;
+		/**/          hdr.hdr.chunk_accesses_ = chunk_accesses                                                                ;
 	}
 	static void _fill_hole( ::vector<GenericDep>& deps , size_t hole ) {
 		if (hole==Npos) return ;

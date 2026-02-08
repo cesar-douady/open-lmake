@@ -120,27 +120,6 @@ if '.config.' in actions :
 				try    : key += ' '+sp.check_output((git,'rev-parse','--verify','-q','HEAD'),universal_newlines=True).strip()
 				except : pass                                                                                                 # if not under git, ignore
 				cache['repo_key'] = key
-		if 'codecs' in config :
-			for key,codec in config.codecs.items() :
-				if _maybe_lcl(codec) :
-					d = {'file':codec}
-				else :
-					config_file = osp.join(codec,'LMAKE/config.py')
-					try :
-						config_str = open(config_file).read()
-					except Exception as e :
-						print(f'cannot load codec config : {e}',file=sys.stderr)
-						exit(1)
-					d = {}
-					try                   : exec(compile(config_str,config_file,'exec'),d)
-					except Exception as e : report_user_err(e)
-					if '__all__' in d :
-						all = set(d['__all__'])
-						d   = { k:v for k,v in d.items() if k in all }
-					else :
-						d = { k:v for k,v in d.items() if not k.startswith('_') }
-					d['dir'] = codec
-				config.codecs[key] = d
 
 srcs = []
 if '.sources.' in actions :

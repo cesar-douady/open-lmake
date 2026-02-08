@@ -185,7 +185,7 @@ int main( int argc , char* argv[] ) {
 	g_user_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(g_phy_repo_root_s) ) ;
 	Trace::s_sz = 10<<20 ;                                                                                     // this is more than enough
 	block_sigs({SIGCHLD}) ;                                                                                    // necessary to capture it using signalfd
-	repo_app_init({ .chk_version=No , .trace=Yes }) ;                                                          // dont check version for perf, but trace nevertheless
+	app_init({ .chk_version=No , .trace=Yes }) ;                                                               // dont check version for perf, but trace nevertheless
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
@@ -290,7 +290,7 @@ int main( int argc , char* argv[] ) {
 		if (!g_start_info.method)                                                                             // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,dd_edf] : g_start_info.deps ) if (dd_edf.first.dflags[Dflag::Static]) {
 				DepDigest& dd = dd_edf.first ;
-				dd.accesses = FullAccesses ;
+				dd.accesses_ = +FullAccesses ;
 				if ( dd.is_crc && !dd.crc().valid() ) dd.set_sig(FileSig(d)) ;
 			}
 		//
@@ -299,10 +299,10 @@ int main( int argc , char* argv[] ) {
 			ExtraDflags& edf      = dd_edf.second         ;
 			bool         is_stdin = d==g_start_info.stdin ;
 			if (is_stdin) {                                                                                   // stdin is read
-				if (!dd.accesses) dd.set_sig(FileInfo(d)) ;                                                   // record now if not previously accessed
-				dd.accesses |= Access::Reg ;
+				if (!dd.accesses()) dd.set_sig(FileInfo(d)) ;                                                 // record now if not previously accessed
+				dd.accesses_ |= +Accesses(Access::Reg) ;
 			}
-			g_gather.new_access( washed , ::move(d) , {.accesses=dd.accesses,.flags{.dflags=dd.dflags,.extra_dflags=edf}} , dd , is_stdin?Comment::Stdin:Comment::StaticDep ) ;
+			g_gather.new_access( washed , ::move(d) , {.accesses=dd.accesses(),.flags{.dflags=dd.dflags,.extra_dflags=edf}} , dd , is_stdin?Comment::Stdin:Comment::StaticDep ) ;
 		}
 		for( auto& [dt,mf] : g_start_info.static_matches ) {
 			if (mf.tflags[Tflag::Target]) {

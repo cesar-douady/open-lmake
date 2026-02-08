@@ -283,22 +283,22 @@ namespace Disk {
 	}
 
 	size_t/*pos*/ mk_dir_s( FileRef dir_s , _CreatAction action ) {
-		if (!dir_s.file) return Npos ;                                                                             // nothing to create
+		if (!dir_s.file) return Npos ;                                                                       // nothing to create
 		//
-		action.mod = 0777 ;                                                                                        // generally speaking restring dirs is useless, use whatever umask says
+		action.mod = 0777 ;                                                                                  // generally speaking restring dirs is useless, use whatever umask says
 		//
 		::vector_s  to_mk_s { dir_s.file }              ;
 		const char* msg     = nullptr                   ;
-		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                                          // return the pos of the / between existing and new components
+		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                                    // return the pos of the / between existing and new components
 		while (+to_mk_s) {
-			::string& d_s = to_mk_s.back() ;                                                                       // parents are after children in to_mk
+			::string& d_s = to_mk_s.back() ;                                                                 // parents are after children in to_mk
 			if (action.nfs_guard                                ) action.nfs_guard->change({dir_s.at,d_s}) ;
 			if (::mkdirat(dir_s.at,d_s.c_str(),action.mod1())==0) {
 				if ( mode_t mod2=action.mod2() ; !mod2 ) { [[maybe_unused]] int rc = ::fchmodat( dir_s.at , d_s.c_str() , mod2 , 0/*flags*/ ) ; }
 				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                                      // done
+			}                                                                                                // done
 			switch (errno) {
 				case EEXIST :
 					if ( action.force && FileInfo({dir_s.at,d_s},{.nfs_guard=action.nfs_guard}).tag()!=FileTag::Dir )   unlnk({dir_s.at,d_s},{.abs_ok=true,.nfs_guard=action.nfs_guard} ) ;   // retry
@@ -315,6 +315,11 @@ namespace Disk {
 			if (msg) throw cat(msg," (",StrErr(),") ",File(dir_s.at.fd,no_slash(::move(d_s)))) ;
 		}
 		return pos ;
+	}
+
+	::string const& dir_guard( FileRef file , _CreatAction action ) {
+		if (has_dir(file.file)) mk_dir_s( {file.at,dir_name_s(file.file)} , action ) ;
+		return file.file ;
 	}
 
 	::string read_lnk( FileRef file , NfsGuard* nfs_guard ) {
@@ -464,7 +469,7 @@ namespace Disk {
 	}
 
 	//
-	// ACL
+	// misc
 	//
 
 	::vector<AclEntry> acl_entries(FileRef dir_s) {
@@ -494,4 +499,25 @@ namespace Disk {
 		//
 		return ~st.st_mode&0777 ;
 	}
+
+	void chk_version( ::string const& dir_s , VersionAction const& action ) {
+		if (action.chk==No) return ;
+		SWEAR( action.version ) ;                                 // 0 is never a version
+		::string version_file = cat(dir_s,AdminDirS,"version")  ;
+		AcFd     version_fd   { version_file , {.err_ok=true} } ;
+		if (!version_fd) {
+			throw_unless( action.chk==Maybe , action.key," not initialized, consider : ",action.init_msg ) ;
+			AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.umask=action.umask} ).write( cat(action.version,'\n') ) ;
+		} else {
+			::string stored = version_fd.read() ;
+			throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
+			stored.pop_back() ;
+			if (from_string<uint64_t>(stored)!=action.version) {
+				::string msg = action.clean_msg ;
+				if (msg.find('\n')==Npos) throw cat("version mismatch, consider : " ,       msg )  ;
+				else                      throw cat("version mismatch, consider :\n",indent(msg)) ;
+			}
+		}
+	}
+
 }

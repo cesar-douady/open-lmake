@@ -13,6 +13,8 @@ B(ldecode) may be used to ask for a value (typically rather large, up to a few k
 This must have been generated using the command C(lencode,1) with the same table and context.
 The value corresponding to I(code) is output on stdout.
 .LP
+Associations are usually created using B(lencode) or B(lmake.encode) but not necessarily (they can be created by hand).
+.LP
 Usage and use cases are more extensively documented in the full OpenLmake documentation.
 
 .SH OPTIONS
@@ -21,12 +23,12 @@ Item(B(-t) I(table),B(--table)=I(table))
 I(table) may be:
 Item(a key) found in B(lmake.config.codecs) in which case it is a local source file or an external dir.
 Item(a local source file) (symbolic links are followed) recording the association table.
+Item(an external dir) recording the association table.
 .LP
-In the former case, when an external dir, it must lie within a source dir and must contain a file I(LMAKE/config.py) containing definitions for:
+In the former case, when an external dir, it must lie within a source dir.
+An external dir must contain a file I(LMAKE/file_sync) containing one of B(none), B(dir) or B(sync) for choosing the method to ensure proper consistent operations.
 .LP
-Item(B(file_sync)) one of B(none), B(dir) (default) or B(sync) for choosing the method to ensure proper consistent operations.
-.LP
-The dir must read/write/execute access to any user needing to use the codec service, and if such accsses are at group level (but not other), it must have its setgid bit set.
+The dir must have read/write/execute access to any user needing to use the codec service, and if such accsses are at group level (but not other), it must have its setgid bit set.
 .LP
 It is also an error if I(code) cannot be found with the accompanying I(context).
 

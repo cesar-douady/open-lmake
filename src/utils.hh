@@ -39,7 +39,7 @@ inline constexpr Bool3  common    ( Bool3  b1 , bool  b2 ) {                retu
 inline constexpr Bool3  common    ( bool   b1 , Bool3 b2 ) {                return b1      ? (b2==Yes?Yes:Maybe) :          ( b2==No?No:Maybe)         ; }
 inline constexpr Bool3  common    ( bool   b1 , bool  b2 ) {                return b1      ? (b2     ?Yes:Maybe) :          (!b2    ?No:Maybe)         ; }
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 // PER_FILE_SYNC : add entry here
 enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 	None

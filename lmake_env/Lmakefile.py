@@ -176,19 +176,6 @@ def sys_config(key) :
 	try    : return open(f'sys_config.dir/{key}').read().strip()
 	except : return ''
 
-class VersionH(BaseRule) :
-	target    = 'version.hh'
-	deps      = { 'EXE'     :  '_bin/version'       }
-	side_deps = { 'EXE_DIR' : ('_bin','readdir_ok') }
-	environ = {
-		'VERSION' : '0.0'
-	,	'TAG'     : 0
-	}
-	cmd = '''
-		>$TMPDIR/version_src
-		./{EXE} '' $TMPDIR/version_src
-	'''
-
 opt_tab = {}
 class GenOpts(BaseRule,PyRule) :
 	targets = { 'OPTS' : '{File}.opts' }

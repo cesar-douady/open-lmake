@@ -146,7 +146,7 @@ struct JobExecRpcReply {
 
 namespace Codec {
 
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING CACHE JOB REPO CODEC
 	using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
 	static constexpr char CodecSep    = '*'       ; //!                                                    null
 	static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
@@ -170,9 +170,8 @@ namespace Codec {
 			SWEAR(Disk::is_dir_name(tab)) ;
 			return cat(tab,AdminDirS,"config.py") ;
 		}
-		//
-		static bool s_is_codec( ::string const& node , ::vector_s const& ext_codec_dirs_s={} ) ;
 		// cxtors & casts
+		CodecFile() = default ;
 		CodecFile(               ::string const& f , ::string const& x , CodecCrc        val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
 		CodecFile(               ::string     && f , ::string     && x , CodecCrc        val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}
 		CodecFile( bool encode , ::string const& f , ::string const& x , ::string const& code_val ) : file{       f } , ctx{       x } {
@@ -183,7 +182,8 @@ namespace Codec {
 			if (encode) _code_val_crc = CodecCrc(New,code_val) ;
 			else        _code_val_crc = ::move  (    code_val) ;
 		}
-		CodecFile( ::string const& node , ::vector_s const& ext_codec_dirs_s={} ) ;
+		CodecFile( NewType , ::string const& node                                   ) ; // for local    file codec
+		CodecFile( NewType , ::string const& node , ::string const& ext_codec_dir_s ) ; // for external dir  codec
 		// acceses
 		bool            is_encode() const { return        _code_val_crc.index()==1 ; }
 		::string const& code     () const { return get<0>(_code_val_crc)           ; }

@@ -102,7 +102,7 @@ namespace Engine {
 		}
 		//
 		::pair_s</*msg*/::vmap_s<DepSpec>> digest          ;
-		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ;                                                                  // contains holes
+		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ;                                                                    // contains holes
 		try {
 			digest = rule->deps_attrs.eval(match) ;
 		} catch (MsgStderr const& msg_err) {
@@ -116,7 +116,7 @@ namespace Engine {
 		::vector<Dep>       deps ; deps.reserve(dep_specs_holes.size()) ;
 		::umap<Node,VarIdx> dis  ; dis .reserve(dep_specs_holes.size()) ;
 		for( auto const& k_ds : dep_specs_holes ) {
-			DepSpec const& ds = k_ds.second                                                     ; if (!ds.txt) { trace("hole") ; continue ; } // filter out holes
+			DepSpec const& ds = k_ds.second                                                     ; if (!ds.txt) { trace("hole") ; continue ; }   // filter out holes
 			Node           d  { New , ds.txt }                                                  ;
 			Accesses       a  = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : FullAccesses ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -128,7 +128,7 @@ namespace Engine {
 				return ;
 			}
 			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , ds.dflags , true/*parallel*/ ) ;
-			else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses &= a ; } // uniquify deps by combining accesses and flags
+			else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses_ &= +a ; } // uniquify deps by combining accesses and flags
 		}
 		if (+digest.first) {                                                        // only bother user for bad deps if job otherwise applies, so handle them once static deps have been analyzed
 			req->audit_job   ( Color::Warning , "bad_dep" , rule , match.name() ) ;
@@ -261,7 +261,7 @@ namespace Engine {
 				case JobMngtProc::DepVerbose :
 					res.verbose_infos.reserve(ecjm.deps.size()) ;
 					for( Dep const& dep : ecjm.deps ) {
-						dep.full_refresh( false/*report_no_file*/ , reqs ) ;
+						dep.full_refresh( false/*report_no_file*/ , self , reqs ) ;
 						Bool3 dep_ok = No|(dep->ok()!=No) ;
 						trace("dep_info",dep,dep_ok,dep->crc) ;
 						res.verbose_infos.push_back({ .ok=dep_ok , .crc=dep->crc }) ;
@@ -287,7 +287,7 @@ namespace Engine {
 						trace("target",t) ;
 					}
 					for( Dep const& dep : ecjm.deps ) {
-						dep.full_refresh( false/*report_no_file*/ , reqs ) ;
+						dep.full_refresh( false/*report_no_file*/ , self , reqs ) ;
 						if ( dep->buildable!=Buildable::Codec && dep.hot && !old_deps.contains(dep) ) { // hot deps are out-of-date if they are just discovered, but codec files are always correct
 							trace("hot",dep) ;
 							res.ok  = Maybe       ;
@@ -295,8 +295,8 @@ namespace Engine {
 							goto EndChkDeps ;
 						}
 						for( Req req : reqs ) {
-							NodeReqInfo& dri  = dep->req_info(req)                               ;
-							NodeGoal     goal = +dep.accesses ? NodeGoal::Dsk : NodeGoal::Status ;      // if no access, we do not care about file on disk
+							NodeReqInfo& dri  = dep->req_info(req)                                 ;
+							NodeGoal     goal = +dep.accesses() ? NodeGoal::Dsk : NodeGoal::Status ;    // if no access, we do not care about file on disk
 							Node(dep)->make(dri,NodeMakeAction::Query) ;
 							if      (!dri.done(goal)                                     ) { trace("waiting",dep,req) ; res.ok = Maybe ; res.txt = dep->name() ; goto EndChkDeps ; }
 							else if (dep->ok(dri)==No && !dep.dflags[Dflag::IgnoreError] ) { trace("bad"    ,dep,req) ; res.ok = No    ; res.txt = dep->name() ;                   }
@@ -535,36 +535,37 @@ namespace Engine {
 			/**/                     dep_crcs.reserve(digest.deps.size()) ;
 			for( Dep const& d : jd.deps )
 				for( Node dd=d ; +dd ; dd=dd->dir )
-					if (!old_deps.insert(dd).second) break ;                                                // record old deps and all uphill dirs as these are implicit deps
+					if (!old_deps.insert(dd).second) break ;                                              // record old deps and all uphill dirs as these are implicit deps
 			for( auto& [dn,dd] : digest.deps ) {
-				Dep dep { dn , dd } ;
-				dep->set_buildable() ;
+				Dep       dep { dn , dd } ;
+				NodeData& nd  = *dep      ;
+				nd.set_buildable() ;
 				if (!old_deps.contains(dep)) {
 					res.has_new_deps = true ;
 					// dep.hot means dep has been accessed within g_config->date_prc after its mtime (according to Pdate::now()).
 					// Because of disk date granularity (usually a few ms) and because of date discrepancy between executing host and disk server (usually a few ms when using NTP).
 					// This means that the file could actually have been accessed before and have gotten wrong data.
 					// If this occurs, consider dep as unstable if it was not a known dep (we know known deps have been finished before job started).
-					if ( dep->buildable!=Buildable::Codec && dep.hot ) {                                    // codec files are always correct
+					if ( nd.buildable!=Buildable::Codec && dep.hot ) {                                    // codec files are always correct
 						trace("reset",dep) ;
 						dep.del_crc() ;
-						res.can_upload = false ;                                                            // dont upload cache with unstable execution
+						res.can_upload = false ;                                                          // dont upload cache with unstable execution
 					}
 				}
 				bool updated_dep_crc = false ;
 				if (!dep.is_crc) {
-					dep.full_refresh( true/*report_no_file*/ , res.running_reqs ) ;
+					dep.full_refresh( true/*report_no_file*/ , self , res.running_reqs ) ;
 					dep.acquire_crc() ;
 					if (!dep.is_crc) {
 						auto it = old_srcs.find(dep) ;
 						if ( it!=old_srcs.end() && dep.sig()==it->second.first ) dep.set_crc(it->second.second,false/*err*/) ;
 					}
-					if (dep.is_crc) {                                                                       // if a dep has become a crc, update digest so that ancillary file reflects it
+					if (dep.is_crc) {                                                                     // if a dep has become a crc, update digest so that ancillary file reflects it
 						dd.set_crc_sig(dep) ;
 						updated_dep_crc = true ;
 					}
 				} else if (dep.never_match()) {
-					if (dep->is_src_anti()) dep.full_refresh( true/*report_no_file*/ , res.running_reqs ) ; // the goal is to detect overwritten
+					if (nd.is_src_anti()) dep.full_refresh( true/*report_no_file*/ , self , res.running_reqs ) ; // the goal is to detect overwritten
 					res.has_unstable_deps = true ;
 				}
 				trace("dep",dep,STR(dep.is_crc),STR(dep.is_crc&&dep.crc().valid())) ;
@@ -579,8 +580,8 @@ namespace Engine {
 		//
 		// wrap up
 		//
-		jd.set_exec_ok() ;                                                                                  // effect of old cmd has gone away with job execution
-		fence() ;                                                                                           // only update status once other info is set to anticipate crashes
+		jd.set_exec_ok() ;                                                                                // effect of old cmd has gone away with job execution
+		fence() ;                                                                                         // only update status once other info is set to anticipate crashes
 		if ( !lost && +res.target_reason && status>Status::Garbage ) status = Status::BadTarget ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		jd.incremental = digest.incremental ;
@@ -810,11 +811,11 @@ namespace Engine {
 
 	void JobInfo::update_digest() {
 		Trace trace("update_digest",dep_crcs.size()) ;
-		if (!dep_crcs) return ;                                                                                                                               // nothing to update
+		if (!dep_crcs) return ;                                                                                                                                 // nothing to update
 		SWEAR( dep_crcs.size()==end.digest.deps.size() , dep_crcs.size(),end.digest.deps.size() ) ;
 		for( NodeIdx i : iota(end.digest.deps.size()) )
-			if ( dep_crcs[i].first.valid() || !end.digest.deps[i].second.accesses ) end.digest.deps[i].second.set_crc(dep_crcs[i].first,dep_crcs[i].second) ;
-		dep_crcs.clear() ;                                                                                                                                    // dep crcs are now recorded in digest
+			if ( dep_crcs[i].first.valid() || !end.digest.deps[i].second.accesses() ) end.digest.deps[i].second.set_crc(dep_crcs[i].first,dep_crcs[i].second) ;
+		dep_crcs.clear() ;                                                                                                                                      // dep crcs are now recorded in digest
 	}
 
 	void JobInfo::cache_cleanup() {

@@ -71,7 +71,7 @@ namespace Codec {
 		for( ::string const& new_code_file : lst_dir_s(new_codes_dir_s,new_codes_dir_s,nfs_guard) ) {
 			Entry     e           ;
 			::string  encode_node = read_lnk(new_code_file) ; SWEAR( encode_node.starts_with("../") , tab,encode_node ) ; encode_node = encode_node.substr(3/*../ */) ;
-			CodecFile cf          { encode_node }           ;
+			CodecFile cf          { New , encode_node }     ;
 			//
 			e.ctx  = cf.ctx                                       ;
 			e.code = read_lnk(encode_node)                        ; SWEAR( e.code.ends_with(DecodeSfx) , tab,encode_node,e.code ) ; e.code.resize( e.code.size() - DecodeSfxSz ) ;
@@ -516,17 +516,17 @@ namespace Engine {
 				}
 				if (seen_all             ) break ;
 				if (stamped_seen_critical) break ;
-				NodeData &         dnd         = *Node(dep)                                   ;
-				bool               dep_modif   = false                                        ;
-				RunStatus          dep_err     = RunStatus::Ok                                ;
-				bool               is_static   =  dep.dflags[Dflag::Static     ]              ;
-				bool               required    =  dep.dflags[Dflag::Required   ]              ;
-				bool               sense_err   = !dep.dflags[Dflag::IgnoreError]              ;
-				bool               is_critical = +dep.accesses && dep.dflags[Dflag::Critical] ;
-				bool               modif       = state.stamped.modif || ri.force              ;
-				bool               may_care    = +dep.accesses || (modif&&is_static)          ;       // if previous modif, consider static deps as fully accessed, as initially
-				NodeReqInfo const* cdri        = &dep->c_req_info(req)                        ;       // avoid allocating req_info as long as not necessary
-				NodeReqInfo      * dri         = nullptr                                      ;       // .
+				NodeData &         dnd         = *Node(dep)                                     ;
+				bool               dep_modif   = false                                          ;
+				RunStatus          dep_err     = RunStatus::Ok                                  ;
+				bool               is_static   =  dep.dflags[Dflag::Static     ]                ;
+				bool               required    =  dep.dflags[Dflag::Required   ]                ;
+				bool               sense_err   = !dep.dflags[Dflag::IgnoreError]                ;
+				bool               is_critical = +dep.accesses() && dep.dflags[Dflag::Critical] ;
+				bool               modif       = state.stamped.modif || ri.force                ;
+				bool               may_care    = +dep.accesses() || (modif&&is_static)          ;     // if previous modif, consider static deps as fully accessed, as initially
+				NodeReqInfo const* cdri        = &dep->c_req_info(req)                          ;     // avoid allocating req_info as long as not necessary
+				NodeReqInfo      * dri         = nullptr                                        ;     // .
 				NodeGoal           dep_goal    =
 					query                                        ? NodeGoal::Dsk
 				:	(may_care&&!no_run_reason(state)) || archive ? NodeGoal::Dsk
@@ -753,7 +753,7 @@ namespace Engine {
 				case Maybe : if (  dep.dflags[Dflag::Required   ] || dep.dflags[Dflag::Static] ) { proto_speculate |= Maybe ; continue ; } break ;
 				case No    : if ( !dep.dflags[Dflag::IgnoreError] || cdri.overwritten          ) { proto_speculate |= Maybe ; continue ; } break ;
 			}
-			if ( +dep.accesses && !dep.up_to_date() ) proto_speculate = Yes ;
+			if ( +dep.accesses() && !dep.up_to_date() ) proto_speculate = Yes ;
 		}
 	}
 
@@ -1061,8 +1061,8 @@ namespace Engine {
 			req->audit_stderr(                              job , { with_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
 		}
 		for( auto& [k,dd] : early_deps ) { // suppress sensitiviy to read files as ancillary has no impact on job result nor status, just record deps to trigger building on a best effort basis
-			dd.accesses = {} ;
-			dd.dflags   = {} ;
+			dd.accesses_ = 0  ;
+			dd.dflags    = {} ;
 		}
 		CacheIdx cache_idx1 = 0 ;
 		if (!submit_ancillary_attrs.cache_name) { cache_hit_info = CacheHitInfo::NoCache    ; goto CacheDone ; }

@@ -10,7 +10,7 @@
 #include "rpc_client.hh"
 
 int main( int argc , char* argv[] ) {
-	bool read_only = repo_app_init() ;
+	bool read_only = app_init() ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax {{

@@ -12,7 +12,7 @@
 using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
-	repo_app_init({.read_only_ok=false}) ;
+	app_init({.read_only_ok=false}) ;
 	Trace trace("main") ;
 	//
 	ReqSyntax syntax {{

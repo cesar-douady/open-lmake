@@ -550,19 +550,19 @@ namespace Engine {
 			Job   asking_job ;                                        //     32 bits
 		} ;
 	public :
-		//JobName        name                               ;         //     32 bits, inherited
+	//	JobName          name                               ;         //     32 bits, inherited
 		Deps             deps                               ;         // 31<=32 bits, owned
 		RuleCrc          rule_crc                           ;         //     32 bits
-		Tokens1          tokens1                            = 0     ; //      8 bits, for plain jobs, number of tokens - 1 for eta estimation
-		mutable MatchGen match_gen                          = 0     ; //      8 bits, if <Rule::s_match_gen => deemed !sure
+		Tokens1          tokens1                            = 0     ; //      8 bits,           for plain jobs, number of tokens - 1 for eta estimation
+		mutable MatchGen match_gen                          = 0     ; //      8 bits,           if <Rule::s_match_gen => deemed !sure
 		RunStatus        run_status    :NBits<RunStatus   > = {}    ; //      3 bits
-		BackendTag       backend       :NBits<BackendTag  > = {}    ; //      2 bits  backend asked for last execution
+		BackendTag       backend       :NBits<BackendTag  > = {}    ; //      2 bits            backend asked for last execution
 		CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //      3 bits
 		Status           status        :NBits<Status      > = {}    ; //      4 bits
-		bool             incremental   :1                   = false ; //      1 bit , job was last run with existing incremental targets
+		bool             incremental   :1                   = false ; //      1 bit ,           job was last run with existing incremental targets
 	private :
 		mutable bool _sure          :1 = false ;                      //      1 bit
-		Bool3        _reliable_stats:2 = No    ;                      //      2 bits, if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+		Bool3        _reliable_stats:2 = No    ;                      //      2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 	public :
 		union {
 			IfPlain  _if_plain = {} ;                                 //     96 bits

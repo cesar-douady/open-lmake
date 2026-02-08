@@ -328,6 +328,7 @@ namespace Engine {
 					i++ ;
 				}
 		}
+		::umap<Node,CodecFile> codec_files ;
 		for( Dep const& d : job->deps ) {
 			Color c = _node_color( d , (Maybe&!d.dflags[Dflag::Required])|hide ) ;
 			if ( !d.up_to_date()                      ) c = ::max( c , Color::Warning ) ;
@@ -349,11 +350,13 @@ namespace Engine {
 			} else {
 				if (porcelaine) w_key = ::max( w_key , size_t(4/*None*/)     ) ;
 			}
-			if ( !porcelaine && CodecFile::s_is_codec(dn,g_config->ext_codec_dirs_s) ) {
-				CodecFile cdf { dn , g_config->ext_codec_dirs_s } ;
-				w_codec_file = ::max( w_codec_file , cdf.file.size()                                      ) ;
-				w_codec_ctx  = ::max( w_codec_ctx  , cdf.ctx .size()                                      ) ;
-				w_codec_kind = ::max( w_codec_kind , size_t(cdf.is_encode()?12/*val_checksum*/:4/*code*/) ) ;
+			if ( !porcelaine && d.dflags[Dflag::Codec] ) {
+				if (is_lcl(dn)) {
+					CodecFile const& cdf = codec_files.try_emplace( d , CodecFile(New,dn) ).first->second ;
+					w_codec_file = ::max( w_codec_file , cdf.file.size()                                      ) ;
+					w_codec_ctx  = ::max( w_codec_ctx  , cdf.ctx .size()                                      ) ;
+					w_codec_kind = ::max( w_codec_kind , size_t(cdf.is_encode()?12/*val_checksum*/:4/*code*/) ) ;
+				}
 			}
 		}
 		NodeIdx di1          = 0 ;                                                                                       // before filtering
@@ -392,8 +395,8 @@ namespace Engine {
 				if (dep_key) dep_str << ' '<<widen(*dep_key          ,w_key)  ;
 				else         dep_str << ' '<<widen(""                ,w_key)  ;
 				/**/         dep_str << ' '<<"|\\/ "[2*start_group+end_group] ;
-				if (CodecFile::s_is_codec(dep_name,g_config->ext_codec_dirs_s)) {
-					CodecFile cdf { dep_name , g_config->ext_codec_dirs_s } ;
+				if ( dep.dflags[Dflag::Codec] && codec_files.contains(dep) ) {
+					CodecFile const& cdf = codec_files.at(dep) ;
 					/**/                 dep_str << ' '<<(cdf.is_encode()?"encode":"decode")                            ;
 					/**/                 dep_str << " : file="<<widen(cdf.file,w_codec_file)                            ;
 					/**/                 dep_str << " , context="<<widen(cdf.ctx,w_codec_ctx)                           ;

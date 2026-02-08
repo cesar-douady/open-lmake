@@ -71,7 +71,11 @@ static DryRunDigest _dry_run(bool from_decode) {
 		res.to_rm.emplace_back( ::move(file) , "unexpected top-level" ) ;
 	}
 	for( ::string& file : lst_dir_s( ::string(AdminDirS) ) ) {
-		if (file!="config.py") res.to_rm.emplace_back( ::move(file) , "in admin dir" ) ;
+		switch (file[0]) {
+			case 'f' : if (file=="file_sync") continue ; break ;
+			case 'v' : if (file=="version"  ) continue ; break ;
+		DN}
+		res.to_rm.emplace_back( cat(AdminDirS,file) , "in admin dir" ) ;
 	}
 	for( ::string const& crc_str : lst_dir_s( "store/"s ) ) {
 		::string file = "store/"+crc_str ;
@@ -96,10 +100,10 @@ static DryRunDigest _dry_run(bool from_decode) {
 	//
 	for( auto const& [file,tag] : files ) {
 		if (tag==FileTag::Dir        ) continue ;                                                                                               // already processed
-		if (file.ends_with(EncodeSfx)) continue ;                                                                                               // process in wencode pass
+		if (file.ends_with(EncodeSfx)) continue ;                                                                                               // process in encode pass
 		try {
-			::string  abs_file   = mk_glb( file , here_s ) ; throw_unless( CodecFile::s_is_codec(abs_file,{here_s}) , "unrecognized suffix" ) ; // use abs name to avoid being recognized as local table
-			CodecFile codec_file { abs_file , {here_s} }   ;
+			throw_unless( file.ends_with(DecodeSfx) , "unrecognized suffix" ) ;
+			CodecFile codec_file { New , mk_glb(file,here_s) , here_s } ;
 			CodecCrc  crc        ;
 			switch (tag) {
 				case FileTag::Lnk : {
@@ -130,16 +134,15 @@ static DryRunDigest _dry_run(bool from_decode) {
 	// encode side
 	//
 	for( auto const& [file,tag] : files ) {
-		if (tag==FileTag::Dir         )                                                       continue ;                                        // already processed
+		if (tag==FileTag::Dir         )                                                       continue ;                                        // already processed in decode pass
 		if (!file.ends_with(EncodeSfx))                                                       continue ;                                        // .
 		if (tag!=FileTag::Lnk         ) { res.to_rm.emplace_back( file , "not a sym link" ) ; continue ; }
 		try {
 			res.n_spurious++ ;                                                                                                                  // until file has been qualified, it is spurious
-			::string  abs_file   = mk_glb( file , here_s ) ; throw_unless( CodecFile::s_is_codec(abs_file,{here_s}) , "unrecognized suffix" ) ; // use abs name to avoid being recognized as local table
-			CodecFile codec_file { abs_file , {here_s} }   ;
-			::string code        = read_lnk(file) ; throw_unless( +code                      , "cannot read sym link" ) ;
-			/**/                                    throw_unless(  code.ends_with(DecodeSfx) , "bad encode link"      ) ;
-			code.resize(code.size()-DecodeSfxSz) ;  throw_unless(  code.find('/')==Npos      , "bad encode link"      ) ;
+			CodecFile codec_file { New , mk_glb(file,here_s) , here_s } ;
+			::string  code       = read_lnk(file)                       ; throw_unless( +code                      , "cannot read sym link" ) ;
+			/**/                                                          throw_unless(  code.ends_with(DecodeSfx) , "bad encode link"      ) ;
+			code.resize(code.size()-DecodeSfxSz) ;                        throw_unless(  code.find('/')==Npos      , "bad encode link"      ) ;
 			res.n_spurious-- ;                                                                                                                  // file has been qualified, not spurious any more
 			//
 			auto        it1   = decode_tab .find(codec_file.ctx) ; if (it1==decode_tab .end()         ) { res.n_encode_only ++ ; throw "no decode entry"s     ; }
@@ -161,7 +164,7 @@ static DryRunDigest _dry_run(bool from_decode) {
 			if (!res.to_rmdir_s.erase(d)) break ;
 	} ;
 	for( auto const& [ctx,ctx_tab] : decode_tab ) {
-		::umap<CodecCrc,::pair_s<bool/*encoded*/>> encode_tab ;                                                               // val crc -> (code,encoded)
+		::umap<CodecCrc,::pair_s<bool/*encoded*/>> encode_tab ;                                                           // val crc -> (code,encoded)
 		for( auto const& [code,entry] : ctx_tab ) {
 			if (!entry.encoded) continue ;
 			use_node( ctx , code , entry ) ;
@@ -187,7 +190,7 @@ static DryRunDigest _dry_run(bool from_decode) {
 				::tuple(crc_str.starts_with(code           ),true             ,code           .size(),code           )
 			<	::tuple(crc_str.starts_with(prev_code.first),!prev_code.second,prev_code.first.size(),prev_code.first)
 			;
-			res.n_decode_only++ ;                                                                                             // finally no new code
+			res.n_decode_only++ ;                                                                                         // finally no new code
 			if (better_code) {
 				if (prev_code.second) res.to_rm.emplace_back( cat(ctx,'/',entry.crc.hex(),EncodeSfx) , "conflict with "+code ) ;
 				/**/                  res.to_rm.emplace_back( cat(ctx,'/',prev_code.first,DecodeSfx) , "conflict with "+code ) ;
@@ -216,10 +219,10 @@ static DryRunDigest _dry_run(bool from_decode) {
 static ::string _codec_clean_msg() {
 	::string cwd_s_ = Disk::cwd_s() ;
 	return cat(
-		"cfg=$(cat    "  ,cwd_s_,"LMAKE/config.py)",'\n'
-	,	"rm -rf       "  ,cwd_s_,rm_slash          ,'\n'
-	,	"mkdir -p     "  ,cwd_s_,"LMAKE"           ,'\n'
-	,	"echo \"$cfg\" >",cwd_s_,"LMAKE/config.py"
+		"file_sync=$(cat ",cwd_s_,AdminDirS,"file_sync)",'\n'
+	,	"rm -rf          ",cwd_s_,rm_slash              ,'\n'
+	,	"mkdir -p        ",cwd_s_,AdminDirS,rm_slash    ,'\n'
+	,	"echo \"$cfg\"  >",cwd_s_,AdminDirS,"file_sync"
 	) ;
 }
 
@@ -238,11 +241,11 @@ int main( int argc , char* argv[] ) {
 	//
 	app_init({
 		.cd_root      = false                                                                                          // we have already chdir'ed to top
-	,	.chk_version  = No
+	,	.chk_version  = Yes
 	,	.clean_msg    = _codec_clean_msg()
 	,	.read_only_ok = cmd_line.flags[Flag::DryRun]
-	,	.root_mrkrs   = { cat(AdminDirS,"config.py") }
-	,	.version      = Version::Cache
+	,	.root_mrkrs   = { cat(AdminDirS,"file_sync") }
+	,	.version      = Version::Codec
 	}) ;
 	Py::init(*g_lmake_root_s) ;
 	//
@@ -284,7 +287,9 @@ int main( int argc , char* argv[] ) {
 			if (user_reply=="y") break        ;
 		}
 	}
-	CodecServerSide config { ""/*root_dir_s*/ } ;
+	CodecRemoteSide config ;
+	try                       { config = { New , ""/*root_dir_s*/ } ; }
+	catch (::string const& e) { exit(Rc::BadMakefile,e) ;             }
 	//
 	for( auto const& [file,reason] : drd.to_rm                              ) unlnk  ( file ,          {.abs_ok=true,.dir_ok=is_dir_name(file)} ) ;
 	for( auto const& [src ,dst   ] : drd.to_rename                          ) rename ( src  , dst                                               ) ;

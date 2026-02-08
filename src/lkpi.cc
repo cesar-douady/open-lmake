@@ -17,7 +17,7 @@ int main( int argc , char* /*argv*/[] ) {
 	size_t n_nodes[N<Buildable> ] = {} ;
 	//
 	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
-	repo_app_init() ;
+	app_init() ;
 	Py::init(*g_lmake_root_s) ;
 	//
 	try                       { Persistent::new_config({}/*config*/,false/*dyn*/) ; }

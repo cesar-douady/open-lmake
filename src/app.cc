@@ -61,8 +61,16 @@ bool/*read_only*/ app_init(AppInitAction const& action) {
 		read_only = ::access(g_repo_root_s->c_str(),W_OK)!=0 ;
 		if ( read_only && !action.read_only_ok ) exit(Rc::Perm,"cannot run in read-only repository") ;
 		//
-		try                       { chk_version(action) ; }
-		catch (::string const& e) { exit(Rc::Version,e) ; }
+		try {
+			chk_version( {}/*dir_s*/ , {
+				.chk       = action.chk_version
+			,	.key       = action.key
+			,	.init_msg  = action.init_msg
+			,	.clean_msg = action.clean_msg|git_clean_msg()
+			,	.umask     = action.umask
+			,	.version   = action.version
+			} ) ;
+		} catch (::string const& e) { exit(Rc::Version,e) ;                                                                                                                                           }
 		//
 		do_trace |= action.trace==Maybe ;
 	}
@@ -76,25 +84,6 @@ bool/*read_only*/ app_init(AppInitAction const& action) {
 	}
 	Trace trace("app_init",action.chk_version,STR(action.cd_root),+g_startup_dir_s?*g_startup_dir_s:""s) ;
 	return read_only ;
-}
-
-void chk_version( AppInitAction const& action , ::string const& dir_s ) {
-	if (action.chk_version==No) return ;
-	::string version_file = cat(dir_s,AdminDirS,"version")  ;
-	AcFd     version_fd   { version_file , {.err_ok=true} } ;
-	if (!version_fd) {
-		throw_unless( action.chk_version==Maybe , "repo not initialized, consider : lmake" ) ;
-		AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.umask=action.umask} ).write( cat(action.version,'\n') ) ;
-	} else {
-		::string stored = version_fd.read() ;
-		throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
-		stored.pop_back() ;
-		if (from_string<uint64_t>(stored)!=action.version) {
-			::string msg = action.clean_msg | git_clean_msg() ;
-			if (msg.find('\n')==Npos) throw "version mismatch, consider : " +       msg  ;
-			else                      throw "version mismatch, consider :\n"+indent(msg) ;
-		}
-	}
 }
 
 SearchRootResult search_root(AppInitAction const& action) {

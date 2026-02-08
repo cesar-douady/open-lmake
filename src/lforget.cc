@@ -17,7 +17,7 @@ int main( int argc , char* argv[] ) {
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
-	repo_app_init({.read_only_ok=false}) ;
+	app_init({.read_only_ok=false}) ;
 	Trace trace("main") ;
 	//
 	bool refresh = cmd_line.key==ReqKey::Resources ;

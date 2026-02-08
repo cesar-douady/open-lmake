@@ -88,6 +88,7 @@ namespace Engine {
 			case Special::InfinitePath :                break ;
 			case Special::Codec : {
 				using namespace Codec ;
+				// START_OF_VERSIONING REPO CACHE CODEC
 				static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 				stems = {
 					{ "File" ,     ".+"                                    } // static
@@ -108,6 +109,7 @@ namespace Engine {
 				deps_attrs.spec.deps = {
 					{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
 				} ;
+				// END_OF_VERSIONING
 			} break ;
 		DF}                                                                                                                                                                       // NO_COV
 		for( auto const& [_,v] : stems ) stem_n_marks.push_back(Re::RegExpr(v,true/*cache*/).n_marks()) ;

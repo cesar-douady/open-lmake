@@ -183,7 +183,7 @@ namespace Cache {
 		for( auto const& [dn,dd] : job_info.end.digest.deps ) {
 			if ( +dd.is_crc && !dd.never_match() ) {
 				repo_deps.emplace_back(dn,dd) ;
-			} else if (!dd.accesses) {
+			} else if (!dd.accesses()) {
 				DepDigest dd2 = dd ; dd2.set_crc( Crc::None , dd.err ) ; // no need for a crc if dep is not accessed
 				repo_deps.emplace_back(dn,dd2) ;
 			} else {

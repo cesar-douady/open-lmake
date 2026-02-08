@@ -113,35 +113,25 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
     <span class="p">,</span>   <span class="s1">&#39;../codec_files/&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;codec_file&#39;</span>
     <span class="p">)</span>
-
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">codecs</span><span class="o">.</span><span class="n">src_codec</span> <span class="o">=</span> <span class="s1">&#39;codec_file&#39;</span>
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">codecs</span><span class="o">.</span><span class="n">dir_codec</span> <span class="o">=</span> <span class="s1">&#39;../codec_files/sub/&#39;</span>
 
     <span class="k">class</span> <span class="nc">CodecSh</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;{File:.*}_sh&#39;</span>
         <span class="n">shell</span>  <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;/bin/bash&#39;</span><span class="p">,</span><span class="s1">&#39;-e&#39;</span><span class="p">)</span>
         <span class="n">autodep</span><span class="o">=</span><span class="s1">&#39;ld_preload&#39;</span>
         <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">            src_code=$( echo </span><span class="si">{File}</span><span class="s1">_sh | lencode -t src_codec -x ctx -l 4 )</span>
-<span class="s1">            dir_code=$( echo </span><span class="si">{File}</span><span class="s1">_sh | lencode -t dir_codec -x ctx -l 4 )</span>
-<span class="s1">            echo $src_code</span>
+<span class="s1">            dir_code=$( echo </span><span class="si">{File}</span><span class="s1">_sh | lencode -t ../codec_files/sub/ -x ctx -l 4 )</span>
 <span class="s1">            echo $dir_code</span>
-<span class="s1">            ldecode -t src_codec -x ctx -c $src_code</span>
-<span class="s1">            ldecode -t dir_codec -x ctx -c $dir_code</span>
+<span class="s1">            ldecode -t ../codec_files/sub/ -x ctx -c $dir_code</span>
 <span class="s1">            lcheck_deps</span>
 <span class="s1">        &#39;&#39;&#39;</span>
 
     <span class="k">class</span> <span class="nc">CodecPy</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;{File:.*}_py&#39;</span>
         <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
-            <span class="n">src_code</span> <span class="o">=</span> <span class="n">lmake</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span> <span class="s1">&#39;src_codec&#39;</span> <span class="p">,</span> <span class="s1">&#39;ctx&#39;</span> <span class="p">,</span> <span class="n">File</span><span class="o">+</span><span class="s1">&#39;_py</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="p">,</span> <span class="mi">3</span> <span class="p">)</span>
-            <span class="n">dir_code</span> <span class="o">=</span> <span class="n">lmake</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span> <span class="s1">&#39;dir_codec&#39;</span> <span class="p">,</span> <span class="s1">&#39;ctx&#39;</span> <span class="p">,</span> <span class="n">File</span><span class="o">+</span><span class="s1">&#39;_py</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="p">,</span> <span class="mi">3</span> <span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="n">src_code</span><span class="p">)</span>
+            <span class="n">dir_code</span> <span class="o">=</span> <span class="n">lmake</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span> <span class="s1">&#39;../codec_files/sub/&#39;</span> <span class="p">,</span> <span class="s1">&#39;ctx&#39;</span> <span class="p">,</span> <span class="n">File</span><span class="o">+</span><span class="s1">&#39;_py</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="p">,</span> <span class="mi">3</span> <span class="p">)</span>
             <span class="nb">print</span><span class="p">(</span><span class="n">dir_code</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;src_codec&#39;</span><span class="p">,</span><span class="s1">&#39;ctx&#39;</span><span class="p">,</span><span class="n">src_code</span><span class="p">),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;dir_codec&#39;</span><span class="p">,</span><span class="s1">&#39;ctx&#39;</span><span class="p">,</span><span class="n">dir_code</span><span class="p">),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;../codec_files/sub/&#39;</span><span class="p">,</span><span class="s1">&#39;ctx&#39;</span><span class="p">,</span><span class="n">dir_code</span><span class="p">),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
             <span class="n">lmake</span><span class="o">.</span><span class="n">check_deps</span><span class="p">()</span>
 
     <span class="k">class</span> <span class="nc">Chk</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
@@ -149,13 +139,12 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">dep</span>    <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{File}</span><span class="s1">&#39;</span>
         <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
             <span class="n">l</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdin</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">)</span>
-            <span class="k">assert</span> <span class="n">l</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">==</span><span class="n">File</span><span class="p">,</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">l</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="si">!r}</span><span class="s1"> != </span><span class="si">{</span><span class="n">File</span><span class="si">!r}</span><span class="s1">&#39;</span>
-            <span class="k">assert</span> <span class="n">l</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="o">==</span><span class="n">File</span><span class="p">,</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">l</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span><span class="si">!r}</span><span class="s1"> != </span><span class="si">{</span><span class="n">File</span><span class="si">!r}</span><span class="s1">&#39;</span>
+            <span class="k">assert</span> <span class="n">l</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">==</span><span class="n">File</span><span class="p">,</span><span class="sa">f</span><span class="s1">&#39;</span><span class="si">{</span><span class="n">l</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">!r}</span><span class="s1"> != </span><span class="si">{</span><span class="n">File</span><span class="si">!r}</span><span class="s1">&#39;</span>
 
     <span class="k">class</span> <span class="nc">Chk2</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;chk2&#39;</span>
         <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
-            <span class="n">v</span> <span class="o">=</span> <span class="n">lmake</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;dir_codec&#39;</span><span class="p">,</span><span class="s1">&#39;ctx&#39;</span><span class="p">,</span><span class="s1">&#39;user_code&#39;</span><span class="p">)</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="n">lmake</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;../codec_files/sub/&#39;</span><span class="p">,</span><span class="s1">&#39;ctx&#39;</span><span class="p">,</span><span class="s1">&#39;user_code&#39;</span><span class="p">)</span>
             <span class="k">assert</span> <span class="n">v</span><span class="o">==</span><span class="s1">&#39;user_val</span><span class="se">\n</span><span class="s1">&#39;</span><span class="p">,</span><span class="sa">f</span><span class="s1">&#39;bad user_val : </span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s1">&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
@@ -165,14 +154,12 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;codec_files/sub/LMAKE&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;none&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;codec_files/sub/LMAKE/file_sync&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
 
-    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;repo/LMAKE&#39;</span>       <span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;repo/LMAKE&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="s1">&#39;../Lmakefile.py&#39;</span><span class="p">,</span><span class="s1">&#39;repo/Lmakefile.py&#39;</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="s1">&#39;repo&#39;</span><span class="p">)</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;codec_file&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh.ok&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py.ok&#39;</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">reformat</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">4</span> <span class="p">,</span> <span class="n">update</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh.ok&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py.ok&#39;</span>                                          <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh.ok&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py.ok&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">4</span> <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh.ok&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py.ok&#39;</span>          <span class="p">)</span>
 
     <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="s1">&#39;codec_sh&#39;</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="s1">&#39;codec_py&#39;</span><span class="p">)</span>

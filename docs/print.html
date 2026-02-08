@@ -651,11 +651,10 @@ Else an exception is raised.</p>
 <ul>
 <li>a key found in <code>lmake.config.codecs</code> in which case it is a local source file or an external dir</li>
 <li>a local source file (symbolic links are followed) recording the association table</li>
+<li>an external dir (symbolic links are followed) recording the association table</li>
 </ul>
-<p>In the former case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for:</p>
-<ul>
-<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
-</ul>
+<p>In the former case, an external dir must lie within a source dir.
+When an external dir, it must contain a file <code>LMAKE/file_sync</code> containing one of <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
 <h3 id="depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a href="unit_tests/critical.html#:~:text=lmake%2Edepend%28%27src1%27%2C%27src2%27%20%2Cread%3DTrue%2Ccritical%3DTrue%29"><code>depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></a></h3>
@@ -752,11 +751,10 @@ Else a code is created, of length at least <code>min_length</code>, is associate
 <ul>
 <li>a key found in <code>lmake.config.codecs</code> in which case it is a local source file or an external dir</li>
 <li>a local source file (symbolic links are followed) recording the association table</li>
+<li>an external dir (symbolic links are followed) recording the association table</li>
 </ul>
-<p>In the former case, such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for:</p>
-<ul>
-<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
-</ul>
+<p>In the former case, an external dir must lie within a source dir.
+When an external dir, it must contain a file <code>LMAKE/file_sync</code> containing one of <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
 <p>Returns whether autodep is currently active or not.</p>
@@ -2797,14 +2795,10 @@ This is a natural extension of the classical LRU algorithm devised for cases whe
 <h2 id="permissions"><a class="header" href="#permissions">Permissions</a></h2>
 <p>For all users accessing the cache:</p>
 <ul>
-<li>All dirs must have read/write/execute accesses.</li>
+<li>All dirs must have read/write/execute accesses (when the cache is created, only the top level and the LMAKE dir).</li>
 <li>The <code>LMAKE/config.py</code> must have read access.</li>
 </ul>
-<p>And if such acceses are at group level (but not other), all dirs must have the setgid bit set.</p>
-<p>When the group has read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
-<p><code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></p>
-<p>Similarly, when all users have read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
-<p><code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></p>
+<p>And if such accesses are at group level (but not other), all dirs must have the setgid bit set.</p>
 <h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.</p>
@@ -2899,10 +2893,25 @@ If 2 externally generated codes collide, a numerical suffix is appended or incre
 <h1 id="association-table-as-a-shared-dir"><a class="header" href="#association-table-as-a-shared-dir">association table as a shared dir</a></h1>
 <p>Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
 In that case, all associations are stored as individual files within this dir.
-Such a dir must lie within a source dir and must contain a file <code>LMAKE/config.py</code> containing definitions for :</p>
+Such a dir must contain a file <code>LMAKE/file_sync</code> containing one of <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+<h2 id="format"><a class="header" href="#format">format</a></h2>
+<p>A dir containing an association table can be edited by hand to customize codes.
+Each assocation <code>code</code>&lt;-&gt;<code>value</code> is recorded as :</p>
 <ul>
-<li><code>file_sync</code> : one of <code>none</code>, <code>dir</code> (default) or <code>sync</code> for choosing the method to ensure proper consistent operations.</li>
+<li>Let <code>checksum</code> be a 128-bits checksum computed after <code>value</code> as a hex string (of size 32).</li>
+<li>The file <code>store/checksum</code> contains <code>value</code>.</li>
+<li>There is a symbolic link in <code>tab/context/code.decode</code> pointing to this file, e.g. <code>../../store/checksum</code> if context has no embedded <code>/</code>.
+This file is used for decoding, i.e. for getting <code>value</code> given <code>code</code>.</li>
+<li>There is a symbolic link in <code>tab/context/checksum.encode</code> pointing to the decode link, i.e. <code>code.decode</code>.</li>
 </ul>
+<p>To edit table by hand :</p>
+<ul>
+<li>handle only the decode links.</li>
+<li>new values can be created as regular files instead of links.</li>
+<li>run <code>lcodec_repair dir</code>.</li>
+</ul>
+<p><code>lcodec_repair</code> will reconstruct encode links and the <code>store</code> directory and generally speaking will restore a coherent state from any content of this dir.
+Everything it does not understand will be <code>rm</code>ed.</p>
 <h2 id="permissions-1"><a class="header" href="#permissions-1">Permissions</a></h2>
 <p>For all users accessing the association table:</p>
 <ul>
@@ -2911,10 +2920,6 @@ Such a dir must lie within a source dir and must contain a file <code>LMAKE/conf
 </ul>
 <p>If access permission is at group level, the setgid bit must be set, e.g. using <code>chmod g+s &lt;cache_dir&gt;</code>.
 This operation may have to be done recursively if the root dir is already populated.</p>
-<p>When the group has read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
-<p><code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></p>
-<p>Similarly, when all users have read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
-<p><code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></p>
 <h2 id="coherence-1"><a class="header" href="#coherence-1">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.</p>

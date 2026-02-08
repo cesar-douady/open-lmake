@@ -53,21 +53,21 @@ RepairDigest repair(::string const& from_dir) {
 				t->set_crc_date( td.crc , {td.sig,{}} ) ;                                                                  // if file does not exist, the Epoch as a date is fine
 				targets.emplace_back( t , td.tflags ) ;
 			}
-			::sort(targets) ;                                                                              // ease search in targets
+			::sort(targets) ;                                                                                // ease search in targets
 			// find deps
 			::vector_s    src_dirs_s ; for( Node s : Node::s_srcs(true/*dirs*/) ) src_dirs_s.push_back(with_slash(s->name())) ;
 			::vector<Dep> deps       ; deps.reserve(job_info.end.digest.deps.size()) ;
-			job_info.update_digest() ;                                                                     // gather newer dep crcs
+			job_info.update_digest() ;                                                                       // gather newer dep crcs
 			for( auto const& [dn,dd] : job_info.end.digest.deps ) {
 				if (!is_lcl(dn)) {
-					for( ::string const& sd_s : src_dirs_s ) if (lies_within(dn,sd_s)) goto KeepDep ;      // this could be optimized by searching the longest match in the name prefix tree
+					for( ::string const& sd_s : src_dirs_s ) if (lies_within(dn,sd_s)) goto KeepDep ;        // this could be optimized by searching the longest match in the name prefix tree
 					trace("non-local dep",jd,dn) ;
-					goto NextJob ;                                                                         // this should never happen as src_dirs_s are part of cmd definition
+					goto NextJob ;                                                                           // this should never happen as src_dirs_s are part of cmd definition
 				KeepDep : ;
 				}
 				Dep dep { Node(New,dn) , dd } ;
-				if ( !dep.is_crc                         ) { trace("no_dep_crc" ,jd,dn) ; goto NextJob ; } // dep could not be identified when job ran, hum, better not to repair that
-				if ( +dep.accesses && !dep.crc().valid() ) { trace("invalid_dep",jd,dn) ; goto NextJob ; } // no valid crc, no interest to repair as job will rerun anyway
+				if ( !dep.is_crc                           ) { trace("no_dep_crc" ,jd,dn) ; goto NextJob ; } // dep could not be identified when job ran, hum, better not to repair that
+				if ( +dep.accesses() && !dep.crc().valid() ) { trace("invalid_dep",jd,dn) ; goto NextJob ; } // no valid crc, no interest to repair as job will rerun anyway
 				deps.push_back(dep) ;
 			}
 			// set job
@@ -77,7 +77,7 @@ RepairDigest repair(::string const& from_dir) {
 			job->targets().assign(targets) ;
 			job->deps     .assign(deps   ) ;
 			job->status = job_info.end.digest.status ;
-			job->set_exec_ok() ;                                                                           // pretend job just ran
+			job->set_exec_ok() ;                                                                             // pretend job just ran
 			// set target actual_job's
 			for( Target t : targets ) {
 				t->actual_job    = job      ;
@@ -85,7 +85,7 @@ RepairDigest repair(::string const& from_dir) {
 			}
 			// adjust job_info
 			job_info.start.pre_start.job           = +job ;
-			job_info.start.submit_info.reason.node = 0    ;                                                // reason node is stored as a idx, not a name, cannot restore it
+			job_info.start.submit_info.reason.node = 0    ;                                                  // reason node is stored as a idx, not a name, cannot restore it
 			// restore job_data
 			job.record(job_info) ;
 			::string jn = job->name() ;
@@ -122,7 +122,7 @@ int main( int argc , char* /*argv*/[] ) {
 		if ( +phy_lad && +bck_phy_lad ) SWEAR( phy_lad!=bck_phy_lad , phy_lad , bck_phy_lad ) ;
 	} ;
 	//
-	repo_app_init({.read_only_ok=false}) ;
+	app_init({.read_only_ok=false}) ;
 	//
 	if (argc!=1                            ) exit(Rc::Usage   ,"must be called without arg"                                                      ) ;
 	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
@@ -177,7 +177,7 @@ int main( int argc , char* /*argv*/[] ) {
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	Persistent::chk() ;
-	chk_repo_version({ .chk_version=Maybe , .read_only_ok=false }) ;                                                                       // mark repo as initialized
+	chk_version( {}/*dir_s*/ , { .chk=Maybe , .key="repo" , .clean_msg=git_clean_msg() , .version=Version::Repo } ) ;            // mark repo as initialized
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
 		msg <<                                                                                                                                  '\n' ;

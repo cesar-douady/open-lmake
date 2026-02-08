@@ -170,6 +170,7 @@ int main( int argc , char** argv ) {
 	app_init({
 		.cd_root      = false                                                      // daemon is always launched at root
 	,	.chk_version  = Maybe
+	,	.key          = "cache dir"
 	,	.clean_msg    = cache_clean_msg()
 	,	.read_only_ok = false
 	,	.root_mrkrs   = { cat(AdminDirS,"config.py") }

@@ -32,11 +32,9 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* suppress overlayfs in rpc_job
 * option to trace all external accesses
 	- possibly including simple files
 	- possibly as a BOM
-* trace absolute path to repo
 * provide support for all available python releases
 	- generate clmake.xxx.so (including per python release) instead of clmake.so
 	- or ensure single .so is binary compatible with all 3.6-3.14 releases
@@ -91,7 +89,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* implement version for codec
 * forbid accesses to files :
 	- /dev/random
 	- /dev/urandom
@@ -153,8 +150,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* provide a env variable for external codec use
-	- or support external dirs in codec calls
 * integrate conan (C/C++)
 	- as a package manager
 	- possibly also pip (python) and the like (rust, go, java etc.)

@@ -83,27 +83,17 @@ namespace Codec {
 
 	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , mode_t umask , NfsGuard* nfs_guard ) {
 		SWEAR( crc_str.size()==CodecCrc::HexSz , dir_s,crc_str ) ;
+		// START_OF_VERSIONING CODEC
 		::string data = cat(dir_s.file,"store/",crc_str) ;
+		// END_OF_VERSIONING
 		if (!FileInfo(data).exists()) {
 			uint64_t r        = random<uint64_t>() ;
 			::string tmp_data = cat(data,'-',r)    ;
+			// START_OF_VERSIONING CODEC
 			AcFd( {dir_s.at,tmp_data} , {.flags=O_WRONLY|O_CREAT,.mod=0444,.umask=umask} ).write( val ) ;
+			// END_OF_VERSIONING
 			rename( {dir_s.at,tmp_data} , {dir_s.at,data} , {.nfs_guard=nfs_guard} ) ;                    // ok even if created concurrently as this is content addressable
 		}
-	}
-
-	bool CodecFile::s_is_codec( ::string const& node , ::vector_s const& ext_codec_dirs_s ) {
-		if ( !node                                                    ) return false ;
-		if ( !node.ends_with(DecodeSfx) && !node.ends_with(EncodeSfx) ) return false ;
-		//
-		if (is_lcl(node))
-			return node.rfind(CodecSep)!=Npos && node.starts_with(s_pfx_s()) ;
-		//
-		for( ::string const& dir_s : ext_codec_dirs_s ) {
-			if (!node.starts_with(dir_s)                          ) continue    ;
-			if (substr_view(node,dir_s.size()).starts_with("tab/")) return true ;
-		}
-		return false ;
 	}
 
 	::string& operator+=( ::string& os , CodecFile const& cf ) {         // START_OF_NO_COV
@@ -113,58 +103,60 @@ namespace Codec {
 		return              os <<')'                                   ;
 	}                                                                    // END_OF_NO_COV
 
-	CodecFile::CodecFile( ::string const& node , ::vector_s const& ext_codec_dirs_s ) {
-		if (is_lcl(node)) {
-			size_t pos1 = s_pfx_s().size()            ;
-			size_t pos3 = node.rfind('/'            ) ; SWEAR( pos3!=Npos && pos1<pos3                      , node,pos1,     pos3 ) ;
-			size_t pos2 = node.rfind(CodecSep,pos3-1) ; SWEAR( pos2!=Npos && pos1<pos2 && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
-			//
-			file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
-			pos3++/* / */ ;
-			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
-			else                                  FAIL(node) ;
-			pos2++/*CodecSep*/ ;
-			ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
-		} else {
-			size_t pos3 = node.rfind('/') ; SWEAR( pos3!=Npos && 0<pos3 , node,pos3 ) ;
-			size_t pos2 = 0               ;
-			for( ::string const& d_s : ext_codec_dirs_s ) {
-				SWEAR(+d_s) ;
-				if (node.starts_with(d_s)) {
-					pos2 = d_s.size() ;
-					throw_unless( substr_view(node,pos2).starts_with("tab/") , node,"is not a codec file" ) ;
-					break ;
-				}
-			}
-			//
-			file = node.substr(0,pos2) ;
-			pos3++/* / */ ;
-			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
-			else                                  FAIL(node) ;
-			pos3 -= 1/* / */                        ;
-			pos2 += 4/*tab/ */                      ;
-			ctx   = node.substr( pos2 , pos3-pos2 ) ;
-		}
+	CodecFile::CodecFile( NewType , ::string const& node ) {
+		// START_OF_VERSIONING CACHE JOB REPO
+		SWEAR( is_lcl(node) , node ) ;
+		size_t pos1 = s_pfx_s().size()            ;
+		size_t pos3 = node.rfind('/'            ) ; SWEAR( pos3!=Npos && pos1<pos3                      , node,pos1,     pos3 ) ;
+		size_t pos2 = node.rfind(CodecSep,pos3-1) ; SWEAR( pos2!=Npos && pos1<pos2 && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
+		//
+		file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
+		pos3++/* / */ ;
+		if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+		else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+		else                                  FAIL(node) ;
+		pos2++/*CodecSep*/ ;
+		ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
+		// END_OF_VERSIONING
+	}
+
+	CodecFile::CodecFile( NewType , ::string const& node , ::string const& ext_codec_dir_s ) {
+		// START_OF_VERSIONING CACHE JOB REPO CODEC
+		SWEAR( !is_lcl(node) , node ) ;
+		size_t pos3 = node.rfind('/')        ; SWEAR( pos3!=Npos && 0<pos3              , node,pos3            ) ;
+		size_t pos2 = ext_codec_dir_s.size() ; SWEAR( node.starts_with(ext_codec_dir_s) , node,ext_codec_dir_s ) ;
+		throw_unless( substr_view(node,pos2).starts_with("tab/") , node,"is not a codec file" ) ;
+		//
+		file = node.substr(0,pos2) ;
+		pos3++/* / */ ;
+		if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+		else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+		else                                  FAIL(node) ;
+		pos3 -= 1/* / */                        ;
+		pos2 += 4/*tab/ */                      ;
+		ctx   = node.substr( pos2 , pos3-pos2 ) ;
+		// END_OF_VERSIONING
 	}
 
 	void CodecFile::chk() const {
+		// START_OF_VERSIONING CODEC
 		static const ::string DecodeSfxS = with_slash(DecodeSfx) ;
 		static const ::string EncodeSfxS = with_slash(EncodeSfx) ;
-		if (          is_abs     (ctx)                              ) throw cat("context must be a local filename : "                            ,ctx," (consider ",ctx.substr(1),')') ;
-		if ( +ctx &&  is_dir_name(ctx)                              ) throw cat("context must not end with / : "                                 ,ctx," (consider ",ctx,rm_slash ,')') ;
-		if (         !is_lcl     (ctx)                              ) throw cat("context must be a local filename : "                            ,ctx                                ) ;
+		if (          is_abs     (ctx)                              ) throw cat("context must be a local filename"                         ," : ",ctx," (consider ",ctx.substr(1),')') ;
+		if ( +ctx &&  is_dir_name(ctx)                              ) throw cat("context must not end with /"                              ," : ",ctx," (consider ",ctx,rm_slash ,')') ;
+		if (         !is_lcl     (ctx)                              ) throw cat("context must be a local filename"                         ," : ",ctx                                ) ;
 		if ( ctx.find(DecodeSfxS)!=Npos || ctx.ends_with(DecodeSfx) ) throw cat("context must not contain component ending with ",DecodeSfx," : ",ctx                                ) ;
 		if ( ctx.find(EncodeSfxS)!=Npos || ctx.ends_with(EncodeSfx) ) throw cat("context must not contain component ending with ",EncodeSfx," : ",ctx                                ) ;
+		if ( with_slash(ctx).starts_with(AdminDirS)                 ) throw cat("context must not start with ",no_slash(AdminDirS)         ," : ",ctx                                ) ;
 		if (!is_canon(ctx)) {
 			::string c = mk_canon(ctx) ;
 			if (c==ctx) throw cat("context must be canonical : ",ctx                    ) ;
 			else        throw cat("context must be canonical : ",ctx," (consider ",c,')') ;
 		}
+		// END_OF_VERSIONING
 	}
 
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING CACHE JOB REPO CODEC
 	::string CodecFile::ctx_dir_s(bool tmp) const {
 		::string res = s_dir_s(file,tmp) ;
 		if (is_dir_name(file)) res << "tab/"  <<                       ctx  ;
@@ -185,17 +177,21 @@ namespace Codec {
 	}                                                                     // END_OF_NO_COV
 
 	Entry::Entry(::string const& line) {
+		// START_OF_VERSIONING CODEC
 		size_t pos = 0 ;
 		/**/                               throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
 		code = parse_printable(line,pos) ; throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
 		ctx  = parse_printable(line,pos) ; throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
 		val  = parse_printable(line,pos) ; throw_unless( line[pos]==0    , "bad codec line format : ",line ) ;
+		// END_OF_VERSIONING
 	}
 
 	::string Entry::line(bool with_nl_) const {
+		// START_OF_VERSIONING CODEC
 		::string res = cat('\t',mk_printable(code),'\t',mk_printable(ctx),'\t',mk_printable(val)) ;
 		if (with_nl_) add_nl(res) ;
 		return res ;
+		// END_OF_VERSIONING
 	}
 
 	//

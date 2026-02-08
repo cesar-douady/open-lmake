@@ -21,7 +21,7 @@ enum class FileLoc : uint8_t {
 ,	Dep = SrcDir // <=Dep means that file must be reported as a dep
 } ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 enum class LnkSupport : uint8_t {
 	None
 ,	File
@@ -35,7 +35,7 @@ struct RealPathEnv {
 	FileLoc file_loc(::string const& file) const ;
 	void    chk     (bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING CACHE JOB REPO
 	LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
 	FileSync   file_sync   = FileSync::Dflt   ;
 	::string   repo_root_s = {}               ;

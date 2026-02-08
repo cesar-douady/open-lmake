@@ -16,66 +16,18 @@ using namespace Time  ;
 
 namespace Codec {
 
-	CodecServerSide::CodecServerSide( ::vmap_ss const& dct , FileSync dflt_file_sync ) {
-		Trace trace(CodecChnl,"Codec::Codec",dct.size()) ;
-		bool is_dir    = false/*garbage*/ ;                                                                                          // avoid unitialized warning
-		for( auto const& [key,val] : dct ) {
-			throw_if( key=="__all__" , "__all__ not supported yet in codec config.py" ) ;                                            // XXX : support (mimic cache)
-			try {
-				switch (key[0]) {
-					case '_' :                                                                                            continue ; // ignore private variables
-					case 'd' : if (key=="dir"      ) { tab       = with_slash       (val) ; is_dir = true  ; continue ; } break    ;
-					case 'f' : if (key=="file"     ) { tab       =                   val  ; is_dir = false ; continue ; }
-					/**/       if (key=="file_sync") { file_sync = mk_enum<FileSync>(val) ;                  continue ; } break    ;
-				DN}
-			} catch (::string const& e) {
-				trace("bad_val",key,val) ;
-				throw cat("wrong value for entry ",key," : ",val) ;
-			}
-			trace("bad_repo_key",key) ;
-			throw cat("wrong key (",key,") in lmake.config.codecs") ;
+	CodecServerSide::CodecServerSide( ::string const& tab_ , FileSync file_sync_ ) { // file_sync is used only for local tab
+		Trace trace(CodecChnl,"Codec::Codec",tab_,file_sync_) ;
+		throw_unless( +tab_ , "codec table must be specified" ) ;
+		if (is_dir_name(tab_)) {
+			throw_unless( !is_lcl(tab_) , "codec dir table cannot be local in repo : ",tab_,"\n  to mean a local file, consider ",tab_,rm_slash ) ;
+			CodecRemoteSide::operator=({New,tab_}) ;
+		} else {
+			throw_unless( is_lcl(tab_) , "codec file table must be local in repo : ",tab_,"\n  to mean an external dir, consider ",tab_,add_slash ) ;
+			tab       = tab_       ;
+			file_sync = file_sync_ ;                                                 // for local codec, file synchro is the same as any other file
 		}
-		throw_unless( +tab , "codec table must be specified" ) ;
-		if (!is_dir) {
-			throw_if( is_dir_name(tab) , "codec dir table cannot be local in repo : ",tab ) ;
-			file_sync = dflt_file_sync ;                                                                                             // for local codec, file synchro is the same as any other file
-		}
-		if (is_dir   ) umask = auto_umask( tab , "codec dir table" ) ;
 		trace("done",tab,file_sync,umask) ;
-	}
-
-
-	CodecServerSide::CodecServerSide( ::string const& dir_s ) {
-		Trace trace(CodecChnl,"Codec::Codec",dir_s) ;
-		try {
-			::string             config_file = cat(dir_s,AdminDirS,"config.py") ;
-			AcFd                 config_fd   { config_file }                    ;
-			Gil                  gil         ;
-			Ptr<Dict>            py_config   = py_run(config_fd.read())         ;
-			::optional<::uset_s> all         ;
-			for( auto const& [py_k,py_v] : *py_config )
-				if (::string(py_k.as_a<Str>())=="__all__") {
-					all = ::uset_s() ;
-					for( Object& py_e : py_v.as_a<Sequence>() ) all->insert(py_e.as_a<Str>()) ;
-					break ;
-				}
-			for( auto const& [k,v] : ::vmap_ss(*py_config) ) {
-				try {
-					if (+all) { if (!all->contains(k)) continue ; } // ignore private variables
-					else      { if (k[0]== '_'       ) continue ; } // .
-					switch (k[0]) {
-						case 'f' : if (k=="file_sync") { file_sync = mk_enum<FileSync>(v) ; continue ; } break ;
-					DN}
-				} catch (::string const& e) {
-					trace("bad_val",k,v) ;
-					throw cat("wrong value (",e,") for entry ",k," : ",v) ;
-				}
-				trace("bad_codec_key",k) ;
-				throw cat("wrong key (",k,") in ",config_file) ;
-			}
-		} catch (::string const& e) {
-			exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",dir_s,rm_slash," : ",e ) ;
-		}
 	}
 
 	::vmap_ss CodecServerSide::descr() const {
@@ -222,10 +174,10 @@ namespace Engine {
 			if (py_map.contains(fields[0])) {
 				fields.emplace_back() ;
 				for( auto const& [py_key,py_val] : py_map[fields[0]].as_a<Dict>() ) {
-					fields[1] = py_key.as_a<Str>() ; throw_unless( +fields[1]                 , "codec key cannot be empty"   ) ;
-					/**/                             throw_unless(  fields[1].find('/')==Npos , "codec key cannot constain /" ) ;
+					fields[1] = py_key.as_a<Str>() ; throw_unless( +fields[1]                 , "codec key cannot be empty"  ) ;
+					/**/                             throw_unless(  fields[1].find('/')==Npos , "codec key cannot contain /" ) ;
 					//
-					codecs.emplace_back( fields[1] , CodecServerSide(::vmap_ss(py_val.as_a<Dict>()),file_sync) ) ;
+					codecs.emplace_back( fields[1] , CodecServerSide(py_val.as_a<Str>(),file_sync) ) ;
 				}
 				fields.pop_back() ;
 			}

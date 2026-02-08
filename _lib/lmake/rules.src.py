@@ -59,71 +59,71 @@ class _RuleBase :
 	side_deps    = {}            # .
 
 class Rule(_RuleBase) :
-#	auto_mkdir          = False                     # auto mkdir dir in case of chdir
-#	autodep             = 'ld_audit'                # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace
-#	backend             = 'local'                   # may be set anywhere in the inheritance hierarchy if execution must be remote
-#	check_abs_paths     = False                     # check that absolute paths inside the repo are not stored in targets
-#	chroot_dir          = '/'                       # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)
-#	chroot_actions      = ()                        # actions to carry out when chroot to chroot_dir, a list/tuple of : 'user_name', 'resolve_conf'
-#	cache               = None                      # cache used to store results for this rule. None means no caching
-#	cmd                                             # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
-#	compression         = None                      # compression to use when caching :
-	#                                               # - if None  : no compression
-	#                                               # - if a str : the compression method : zlib or zstd, level defaults to 1
-	#                                               # - if a int : the compression level : a int between 0 (no compression) and 9 (best and slowest), method defaults zstd if supported, else zlib
-	#                                               # - if a tuple : (method,level), as described above
-#	cwd                 = ''                        # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
-	#                                               #   defaults to the nearest root dir of the module in which the rule is defined
-	deps                = {}                        # patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {'SRC':'{File}.c'}
-	#                                               #   deps may have flags (use - to reset), e.g. {'TOOL':('tool','Critical','-Essential')}, flags may be :
-	#                                               #   flag        | default | description
-	#                                               #   ------------+---------+--------------------------------------------------------------------------------------------
-	#                                               #   Essential   | x       | show in graphic flow
-	#                                               #   Critical    |         | following deps are ignored if this dep is modified
-	#                                               #   IgnoreError |         | accept dep even if generated in error
-#	dep                                             # syntactic sugar for deps = {'<stdin>':<value>} (except that it is allowed)
-#	ete                 = 0                         # Estimated Time Enroute, initial guess for job exec time (in s)
-#	force               = False                     # if set, jobs are never up-to-date, they are rebuilt every time they are needed
-#	keep_tmp            = False                     # keep tmp dir after job execution
-#	kill_daemons        = False                     # ensure no process survive after job end
-	kill_sigs           = ()                        # signals to use to kill jobs (send them in turn followed by SIGKILL), 1 second apart, until job dies
-	#                                               #   0's may be used to set a larger delay between 2 trials)
-#	lmake_root          = '/my/installs/open-lmake' # absolute path of the open-lmake installation dir to be used by job (default is current installation dir)
-	#                                               #   dir is first searched in chroot_dir then in the native root
-#	lmake_view          = '/lmake'                  # absolute path under which the open-lmake installation dir is seen (if None, empty, or absent, no bind mount is done)
-	max_retries_on_lost =   1                       # max number of retries in case of job lost. 1 is a reasonable value
-#	max_runs            =   0                       # maximum number a job can be run in a single lmake command, unlimited if None or 0
-	max_stderr_len      = 100                       # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
-	max_submits         =  10                       # maximum number a job can be submitted in a single lmake command, unlimited if None or 0
-#	prio                = 0                         # in case of ambiguity, rules are selected with highest prio first
-	python              = ('$PYTHON',)              # python used for callable cmd
-#	readdir_ok          = False                     # if set, listing a local non-ignored dir is not an error
-#	repo_view           = '/repo'                   # absolute path under which the root dir of the repo is seen (if None, empty, or absent, no bind mount is done)
-	shell               = ('$SHELL',)               # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
-	start_delay         = 3                         # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
-#	stderr_ok           = False                     # if set, writing to stderr is not an error but a warning
-#	timeout             = None                      # timeout allocated to job execution (in s), must be None or an int
-#	tmp_view            = '/tmp'                    # view under which tmp dir is seen, may be :
-	#                                               #   - not specified, '' or None : do not mount tmp dir
-	#                                               #   - str                       : must be an absolute path which tmp dir is mounted on.
-	#                                               #   physical tmp dir is :
-	#                                               #   -      a private sub-dir in $TMPDIR if provided in the environment
-	#                                               #   - else a private sub-dir in the LMAKE dir
-#	use_script          = False                     # use a script to run job rather than calling interpreter with -c
-	environ = pdict(                                # job execution environment, handled as part of cmd (trigger rebuild upon modification)
-		HOME = '$REPO_ROOT'                         # favor repeatability by hiding use home dir some tools use at start up time
+#	auto_mkdir          = False                    # auto mkdir dir in case of chdir
+#	autodep             = 'ld_audit'               # autodep method : none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace
+#	backend             = 'local'                  # may be set anywhere in the inheritance hierarchy if execution must be remote
+#	check_abs_paths     = False                    # check that absolute paths inside the repo are not stored in targets
+#	chroot_dir          = '/'                      # chroot dir to execute cmd (if None, empty or absent, no chroot is not done)
+#	chroot_actions      = ()                       # actions to carry out when chroot to chroot_dir, a list/tuple of : 'user_name', 'resolve_conf'
+#	cache               = None                     # cache used to store results for this rule. None means no caching
+#	cmd                                            # runnable if set anywhere in the inheritance hierarchy (as shell str or python function), chained if several definitions
+#	compression         = None                     # compression to use when caching :
+	#                                              # - if None  : no compression
+	#                                              # - if a str : the compression method : zlib or zstd, level defaults to 1
+	#                                              # - if a int : the compression level : a int between 0 (no compression) and 9 (best and slowest), method defaults zstd if supported, else zlib
+	#                                              # - if a tuple : (method,level), as described above
+#	cwd                 = ''                       # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir
+	#                                              #   defaults to the nearest root dir of the module in which the rule is defined
+	deps                = {}                       # patterns used to express explicit depencies, full f-string notation with stems and targets defined, e.g. {'SRC':'{File}.c'}
+	#                                              #   deps may have flags (use - to reset), e.g. {'TOOL':('tool','Critical','-Essential')}, flags may be :
+	#                                              #   flag        | default | description
+	#                                              #   ------------+---------+--------------------------------------------------------------------------------------------
+	#                                              #   Essential   | x       | show in graphic flow
+	#                                              #   Critical    |         | following deps are ignored if this dep is modified
+	#                                              #   IgnoreError |         | accept dep even if generated in error
+#	dep                                            # syntactic sugar for deps = {'<stdin>':<value>} (except that it is allowed)
+#	ete                 = 0                        # Estimated Time Enroute, initial guess for job exec time (in s)
+#	force               = False                    # if set, jobs are never up-to-date, they are rebuilt every time they are needed
+#	keep_tmp            = False                    # keep tmp dir after job execution
+#	kill_daemons        = False                    # ensure no process survive after job end
+	kill_sigs           = ()                       # signals to use to kill jobs (send them in turn followed by SIGKILL), 1 second apart, until job dies
+	#                                              #   0's may be used to set a larger delay between 2 trials)
+#	lmake_root          = '/path/to/open-lmake'    # absolute path of the open-lmake installation dir to be used by job (default is current installation dir)
+	#                                              #   dir is first searched in chroot_dir then in the native root
+#	lmake_view          = '/lmake'                 # absolute path under which the open-lmake installation dir is seen (if None, empty, or absent, no bind mount is done)
+	max_retries_on_lost =   1                      # max number of retries in case of job lost. 1 is a reasonable value
+#	max_runs            =   0                      # maximum number a job can be run in a single lmake command, unlimited if None or 0
+	max_stderr_len      = 100                      # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
+	max_submits         =  10                      # maximum number a job can be submitted in a single lmake command, unlimited if None or 0
+#	prio                = 0                        # in case of ambiguity, rules are selected with highest prio first
+	python              = ('$PYTHON',)             # python used for callable cmd
+#	readdir_ok          = False                    # if set, listing a local non-ignored dir is not an error
+#	repo_view           = '/repo'                  # absolute path under which the root dir of the repo is seen (if None, empty, or absent, no bind mount is done)
+	shell               = ('$SHELL',)              # shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)
+	start_delay         = 3                        # delay before sending a start message if job is not done by then, 3 is a reasonable compromise
+#	stderr_ok           = False                    # if set, writing to stderr is not an error but a warning
+#	timeout             = None                     # timeout allocated to job execution (in s), must be None or an int
+#	tmp_view            = '/tmp'                   # view under which tmp dir is seen, may be :
+	#                                              #   - not specified, '' or None : do not mount tmp dir
+	#                                              #   - str                       : must be an absolute path which tmp dir is mounted on.
+	#                                              #   physical tmp dir is :
+	#                                              #   -      a private sub-dir in $TMPDIR if provided in the environment
+	#                                              #   - else a private sub-dir in the LMAKE dir
+#	use_script          = False                    # use a script to run job rather than calling interpreter with -c
+	environ = pdict(                               # job execution environment, handled as part of cmd (trigger rebuild upon modification)
+		HOME = '$REPO_ROOT'                        # favor repeatability by hiding use home dir some tools use at start up time
 	,	PATH = '$LMAKE_ROOT/bin:$STD_PATH'
 	)
-	environ_resources = pdict()                     # job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)
-	environ_ancillary = pdict(                      # job execution environment, does not trigger rebuild upon modification
-		UID  = str(_os.getuid())                    # this may be necessary by some tools and usually does not lead to user specific configuration
-	,	USER = _pwd.getpwuid(_os.getuid()).pw_name  # .
+	environ_resources = pdict()                    # job execution environment, handled as resources (trigger rebuild upon modification for jobs in error)
+	environ_ancillary = pdict(                     # job execution environment, does not trigger rebuild upon modification
+		UID  = str(_os.getuid())                   # this may be necessary by some tools and usually does not lead to user specific configuration
+	,	USER = _pwd.getpwuid(_os.getuid()).pw_name # .
 	)
-	resources = {                                   # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
-		'cpu' : 1                                   # number of cpu's to allocate to job
-#	,	'mem' : '100M'                              # memory to allocate to job
-#	,	'tmp' : '1G'                                # temporary disk space to allocate to job
-	}                                               # follow the same syntax as deps
+	resources = {                                  # used in conjunction with backend to inform it of the necessary resources to execute the job, same syntax as deps
+		'cpu' : 1                                  # number of cpu's to allocate to job
+#	,	'mem' : '100M'                             # memory to allocate to job
+#	,	'tmp' : '1G'                               # temporary disk space to allocate to job
+	}                                              # follow the same syntax as deps
 
 class AntiRule(_RuleBase) :
 	__special__ = 'anti'       # AntiRule's are not executed, but defined at high enough prio, prevent other rules from being selected

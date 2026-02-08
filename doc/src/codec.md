@@ -92,9 +92,27 @@ This has the following properties:
 
 Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
 In that case, all associations are stored as individual files within this dir.
-Such a dir must lie within a source dir and must contain a file `LMAKE/config.py` containing definitions for :
+Such a dir must contain a file `LMAKE/file_sync` containing one of `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
 
-- `file_sync` : one of `none`, `dir` (default) or `sync` for choosing the method to ensure proper consistent operations.
+## format
+
+A dir containing an association table can be edited by hand to customize codes.
+Each assocation `code`<->`value` is recorded as :
+
+- Let `checksum` be a 128-bits checksum computed after `value` as a hex string (of size 32).
+- The file `store/checksum` contains `value`.
+- There is a symbolic link in `tab/context/code.decode` pointing to this file, e.g. `../../store/checksum` if context has no embedded `/`.
+This file is used for decoding, i.e. for getting `value` given `code`.
+- There is a symbolic link in `tab/context/checksum.encode` pointing to the decode link, i.e. `code.decode`.
+
+To edit table by hand :
+
+- handle only the decode links.
+- new values can be created as regular files instead of links.
+- run `lcodec_repair dir`.
+
+`lcodec_repair` will reconstruct encode links and the `store` directory and generally speaking will restore a coherent state from any content of this dir.
+Everything it does not understand will be `rm`ed.
 
 ## Permissions
 

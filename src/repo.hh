@@ -14,7 +14,7 @@
 static constexpr uint8_t NJobGuardBits  = 2 ; // one to define JobTgt, the other to put it in a Crunch vector
 static constexpr uint8_t NNodeGuardBits = 1 ; // to be able to make Target
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 
 // NXxxBits are used to dimension address space, and hence max number of objects for each category.
 // can be tailored to fit neeeds
@@ -56,7 +56,7 @@ using RuleCrcIdx  = Uint<NRuleCrcIdxBits                > ;
 using RuleTgtsIdx = Uint<NRuleTgtsIdxBits               > ;
 using TargetsIdx  = Uint<NTargetsIdxBits                > ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 
 // can be tailored to fit neeeds
 using VarIdx = uint8_t ; // used to index stems, targets, deps & rsrcs within a Rule
@@ -105,11 +105,3 @@ static constexpr int JobExecBacklog = 4096 ; // max usual value as set in /proc/
 using WatcherIdx = Largest<JobIdx,NodeIdx> ;
 
 static constexpr char ServerMrkr[] = ADMIN_DIR_S "server" ;
-
-static void _dflt_app_init_action(AppInitAction& action) {
-	if (!action.root_mrkrs) action.root_mrkrs = { "Lmakefile.py" , "Lmakefile/__init__.py" } ;
-	if (!action.version   ) action.version    = Version::Repo                                ;
-}
-inline bool/*read_only*/ repo_app_init   ( AppInitAction&& action={}                            ) { _dflt_app_init_action(action) ; return app_init   ( action         ) ; }
-inline void              chk_repo_version( AppInitAction&& action={} , ::string const& dir_s={} ) { _dflt_app_init_action(action) ; return chk_version( action , dir_s ) ; }
-inline SearchRootResult  search_repo_root( AppInitAction&& action={}                            ) { _dflt_app_init_action(action) ; return search_root( action         ) ; }

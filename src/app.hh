@@ -15,14 +15,16 @@ extern StaticUniqPtr<::string> g_lmake_root_s  ; // absolute                 , i
 extern StaticUniqPtr<::string> g_exe_name      ; //                            executable name for user messages
 
 struct AppInitAction {
-	bool       cd_root      = true  ; // if false, ensure we are at root level
-	Bool3      chk_version  = Yes   ; // Maybe means it is ok to initialize
-	::string   clean_msg    = {}    ;
-	mode_t     umask        = -1    ; // right to apply if initializing
-	bool       read_only_ok = true  ;
-	::vector_s root_mrkrs   = {}    ;
-	Bool3      trace        = Maybe ; // if Maybe, trace if chk_version!=No
-	uint64_t   version      = {}    ;
+	bool       cd_root      = true                                         ; // if false, ensure we are at root level
+	Bool3      chk_version  = Yes                                          ; // Maybe means it is ok to initialize
+	::string   key          = "repo"                                       ;
+	::string   init_msg     = "lmake"                                      ;
+	::string   clean_msg    = {}                                           ;
+	mode_t     umask        = -1                                           ; // right to apply if initializing
+	bool       read_only_ok = true                                         ;
+	::vector_s root_mrkrs   = { "Lmakefile.py" , "Lmakefile/__init__.py" } ;
+	Bool3      trace        = Maybe                                        ; // if Maybe, trace if chk_version!=No
+	uint64_t   version      = Version::Repo                                ;
 } ;
 
 struct SearchRootResult {
@@ -31,9 +33,8 @@ struct SearchRootResult {
 	::string startup_s ;
 } ;
 
-bool/*read_only*/ app_init   ( AppInitAction const&                            ) ;
-void              chk_version( AppInitAction const& , ::string const& dir_s={} ) ;
-SearchRootResult search_root ( AppInitAction const&                            ) ;
+bool/*read_only*/ app_init  (AppInitAction const& ={}) ;
+SearchRootResult search_root(AppInitAction const& ={}) ;
 
 inline ::string git_clean_msg() {
 	::string res = "git clean -ffdx" ;

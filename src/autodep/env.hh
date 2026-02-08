@@ -16,7 +16,8 @@ namespace Codec {
 		friend ::string& operator+=( ::string& , CodecRemoteSide const& ) ;
 		// cxtors & casts
 		CodecRemoteSide() = default ;
-		CodecRemoteSide(::string  const&) ;
+		CodecRemoteSide(           ::string const& descr ) ; // used when read from $LMAKE_AUTODEP_ENV
+		CodecRemoteSide( NewType , ::string const& dir_s ) ; // used when directly using and external dir
 		operator ::string() const ;
 		// accesses
 		bool operator==(CodecRemoteSide const&) const = default ;
@@ -65,7 +66,7 @@ struct AutodepEnv : RealPathEnv {
 	ClientSockFd slow_report_fd (                    ) const ;
 	void         chk            (bool for_cache=false) const ;
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING CACHE REPO JOB
 	bool                             auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
 	bool                             enable           = true  ; // if false <=> no automatic report
 	::string                         fqdn             ;

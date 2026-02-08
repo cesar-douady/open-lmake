@@ -1,17 +1,18 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 23      ; // cc87125feeba0a7833da05308de2ef51
-	uint64_t    constexpr Repo  = 18      ; // ded9e312cc49ff019883a675426dec27
-	uint64_t    constexpr Job   = 9       ; // 8ee0e2eb62278ab9683674f5a4780fbc
+	uint64_t    constexpr Cache = 24      ; // 7a0a3df78e23a6a52f4822b1b13f310d
+	uint64_t    constexpr Codec = 1       ; // f105615fdb1a2a8603c0dbf0c22f0ffe
+	uint64_t    constexpr Repo  = 19      ; // 117ec814c897ac358501f8914382a75e
+	uint64_t    constexpr Job   = 10      ; // cbbcda503564c3666c9148f0fa067334
 	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : cc87125feeba0a7833da05308de2ef51 *
+// * Cache : 7a0a3df78e23a6a52f4822b1b13f310d *
 // ********************************************
 //
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
 //		if (!enable    ) res << 'd' ;
 //		if (readdir_ok ) res << 'D' ;
@@ -68,7 +69,7 @@ namespace Version {
 //			DF}                                                                                                // NO_COV
 //		}
 //		// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO
 //		template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 //			self = None ;
@@ -108,7 +109,58 @@ namespace Version {
 //			}
 //		}
 //		// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//					// START_OF_VERSIONING REPO CACHE CODEC
+//					static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
+//					stems = {
+//						{ "File" ,     ".+"                                    } // static
+//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                     } // star
+//					,	{ "Code" ,     "[^/]*"                                 } // .
+//					,	{ "Val"  , cat("[0-9a-f]{",Codec::CodecCrc::HexSz,'}') } // .
+//					} ;
+//					n_static_stems = 1 ;
+//					//
+//					static ::string pfx = Codec::CodecFile::s_pfx_s() ;
+//					job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
+//					matches  = { //!                             File                        Ctx                                                                 File Ctx Code/Val
+//						{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures={true,true,true  }} } // star target
+//					,	{ "ENCODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(3/*Val */),EncodeSfx),.flags=IncPhony,.captures={true,true,true  }} } // .
+//					} ;
+//					matches_iotas[true/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
+//					//
+//					deps_attrs.spec.deps = {
+//						{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
+//					} ;
+//					// END_OF_VERSIONING
+//			// START_OF_VERSIONING CACHE JOB REPO
+//			SWEAR( is_lcl(node) , node ) ;
+//			size_t pos1 = s_pfx_s().size()            ;
+//			size_t pos3 = node.rfind('/'            ) ; SWEAR( pos3!=Npos && pos1<pos3                      , node,pos1,     pos3 ) ;
+//			size_t pos2 = node.rfind(CodecSep,pos3-1) ; SWEAR( pos2!=Npos && pos1<pos2 && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
+//			//
+//			file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
+//			pos3++/* / */ ;
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			else                                  FAIL(node) ;
+//			pos2++/*CodecSep*/ ;
+//			ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
+//			// END_OF_VERSIONING
+//			// START_OF_VERSIONING CACHE JOB REPO CODEC
+//			SWEAR( !is_lcl(node) , node ) ;
+//			size_t pos3 = node.rfind('/')        ; SWEAR( pos3!=Npos && 0<pos3              , node,pos3            ) ;
+//			size_t pos2 = ext_codec_dir_s.size() ; SWEAR( node.starts_with(ext_codec_dir_s) , node,ext_codec_dir_s ) ;
+//			throw_unless( substr_view(node,pos2).starts_with("tab/") , node,"is not a codec file" ) ;
+//			//
+//			file = node.substr(0,pos2) ;
+//			pos3++/* / */ ;
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			else                                  FAIL(node) ;
+//			pos3 -= 1/* / */                        ;
+//			pos2 += 4/*tab/ */                      ;
+//			ctx   = node.substr( pos2 , pos3-pos2 ) ;
+//			// END_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO CODEC
 //		::string CodecFile::ctx_dir_s(bool tmp) const {
 //			::string res = s_dir_s(file,tmp) ;
 //			if (is_dir_name(file)) res << "tab/"  <<                       ctx  ;
@@ -123,7 +175,7 @@ namespace Version {
 //			return res ;
 //		}
 //		// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE REPO JOB
 //		bool                             auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
 //		bool                             enable           = true  ; // if false <=> no automatic report
 //		::string                         fqdn             ;
@@ -242,7 +294,7 @@ namespace Version {
 //			CacheUploadKey     upload_key  = 0     ;                                                                // if proc = Upload
 //			::string           msg         = {}    ;                                                                // if proc = Upload and upload_key=0
 //			// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Access : uint8_t {                                                         // in all cases, dirs are deemed non-existing
 //		Lnk                                                                               // file is accessed with readlink              , regular files are deemed non-existing
 //	,	Reg                                                                               // file is accessed with open                  , symlinks      are deemed non-existing
@@ -285,21 +337,21 @@ namespace Version {
 //			JobEndRpcReq                            end      ;
 //			::vector<::pair<Hash::Crc,bool/*err*/>> dep_crcs ; // optional, if not provided in end.digest.deps
 //			// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class LnkSupport : uint8_t {
 //		None
 //	,	File
 //	,	Full
 //	} ;
 //	// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO
 //		LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
 //		FileSync   file_sync   = FileSync::Dflt   ;
 //		::string   repo_root_s = {}               ;
 //		::string   tmp_dir_s   = {}               ;
 //		::vector_s src_dirs_s  = {}               ;
 //		// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //
 //	// NXxxBits are used to dimension address space, and hence max number of objects for each category.
 //	// can be tailored to fit neeeds
@@ -320,7 +372,7 @@ namespace Version {
 //	static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets
 //
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //
 //	// can be tailored to fit neeeds
 //	using VarIdx = uint8_t ; // used to index stems, targets, deps & rsrcs within a Rule
@@ -518,18 +570,19 @@ namespace Version {
 //		using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
-//		uint8_t       sz                       = 0          ;                                //   8 bits, number of items in chunk following header (semantically before)
-//		Accesses      accesses                 ;                                             // 3<8 bits
-//		Dflags        dflags                   = DflagsDflt ;                                // 5<8 bits
-//		bool          parallel      :1         = false      ;                                //   1 bit , dep is parallel with prev dep
-//		bool          is_crc        :1         = true       ;                                //   1 bit
-//		bool          hot           :1         = false      ;                                //   1 bit , if true <= file date was very close from access date (within date granularity)
-//		Accesses::Val chunk_accesses:N<Access> = 0          ;                                //   4 bits
-//		bool          err           :1         = false      ;                                //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+//		uint8_t       sz                        = 0          ;                                        //   8 bits, number of items in chunk following header (semantically before)
+//		Dflags        dflags                    = DflagsDflt ;                                        // 7<8 bits
+//		Accesses::Val accesses_      :N<Access> = 0          ;                                        //   4 bits
+//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                                        //   4 bits
+//		bool          parallel       :1         = false      ;                                        //   1 bit , dep is parallel with prev dep
+//		bool          is_crc         :1         = true       ;                                        //   1 bit
+//		bool          hot            :1         = false      ;                                        //   1 bit , if true <= file date was very close from access date (within date granularity)
+//		bool          err            :1         = false      ;                                        //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+//		bool          create_encode  :1         = false      ;                                        //   1 bit , if true <=> dep has been created because of encode
 //	private :
 //		union {
-//			Crc     _crc = {} ;                                                              // ~45<64 bits
-//			FileSig _sig ;                                                                   // ~40<64 bits
+//			Crc     _crc = {} ;                                                                       // ~45<64 bits
+//			FileSig _sig ;                                                                            // ~40<64 bits
 //		} ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
@@ -615,13 +668,14 @@ namespace Version {
 //		::vector<UserTraceEntry> user_trace    ;
 //		int                      wstatus       = 0 ;
 //		// END_OF_VERSIONING)
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Dflag : uint8_t { // flags for deps, recorded in server book-keeping
 //		Critical                 // if modified, ignore following deps
 //	,	Essential                // show when generating user oriented graphs
 //	,	IgnoreError              // dont propagate error if dep is in error (Error instead of Err because name is visible from user)
 //	,	Required                 // dep must be buildable (static deps are always required)
 //	,	Static                   // is static dep, for internal use only
+//	,	Codec                    // acquired with codec
 //	,	Full                     // if false, dep is only necessary to compute resources
 //	//
 //	// aliases
@@ -629,7 +683,7 @@ namespace Version {
 //	,	NDyn  = Static           // number of Dflag's allowed in side flags
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class ExtraDflag : uint8_t { // flags for deps, not recorded in server book-keeping
 //		Top
 //	,	Ignore
@@ -641,7 +695,7 @@ namespace Version {
 //	,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Tflag : uint8_t { // flags for targets, recorded in server book-keeping
 //		Essential                // show when generating user oriented graphs
 //	,	Incremental              // reads are allowed (before earliest write if any)
@@ -655,7 +709,7 @@ namespace Version {
 //	,	NDyn  = Phony            // number of Tflag's allowed inside flags
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	// not recorded in server book-keeping
 //	enum class ExtraTflag : uint8_t { // flags for targets, not recorded in server book-keeping
 //		Top
@@ -669,13 +723,13 @@ namespace Version {
 //	,	NRule = Allow                 // number of Tflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO
 //		Tflags      tflags       = {} ;                                   // if kind>=Target
 //		Dflags      dflags       = {} ;                                   // if kind>=Dep
 //		ExtraTflags extra_tflags = {} ;                                   // if kind>=Target
 //		ExtraDflags extra_dflags = {} ;                                   // if kind>=Dep
 //		// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Comment : uint8_t {
 //		None
 //	// syscalls
@@ -777,7 +831,7 @@ namespace Version {
 //	,	Wash             , Washed
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class CommentExt : uint8_t {
 //		Bind
 //	,	Dir
@@ -803,7 +857,7 @@ namespace Version {
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO CODEC
 //		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
@@ -813,22 +867,21 @@ namespace Version {
 //				constexpr size_t CacheLineSz = 64                                                               ; // hint only, defined independently of ::hardware_destructive_interference_size ...
 //				constexpr size_t Offset0     = round_up<CacheLineSz>( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ) ; // ... to ensure inter-operability
 //				// END_OF_VERSIONING
-//	// START_OF_VERSIONING
-//	// FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
-//	enum class FileTag : uint8_t {
+//	// START_OF_VERSIONING CACHE JOB REPO
+//	enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
 //		None
 //	,	Unknown
 //	,	Dir
 //	,	Lnk
-//	,	Reg          // >=Reg means file is a regular file
-//	,	Empty        // empty and not executable
-//	,	Exe          // a regular file with exec permission
+//	,	Reg                        // >=Reg means file is a regular file
+//	,	Empty                      // empty and not executable
+//	,	Exe                        // a regular file with exec permission
 //	//
 //	// aliases
-//	,	Target = Lnk // >=Target means file can be generated as a target
+//	,	Target = Lnk               // >=Target means file can be generated as a target
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	// PER_FILE_SYNC : add entry here
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 //		None
@@ -855,11 +908,154 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 
+// ********************************************
+// * Codec : f105615fdb1a2a8603c0dbf0c22f0ffe *
+// ********************************************
+//
+//			// START_OF_VERSIONING CODEC
+//				res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                                         // if node exists, it contains the reply
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING CODEC
+//				res = read_lnk( {rfd,node} , &nfs_guard ) ;
+//				if (+res) {
+//					throw_unless( res.ends_with(DecodeSfx) , "bad encode link" ) ;
+//					res.resize( res.size() - DecodeSfxSz )                       ;
+//				} else {
+//					if (_retry_codec(r,crs,node,Comment::Encode)) goto Retry/*BACKWARD*/ ;
+//					if ( !crs.is_dir() && !lock ) {
+//						lock = {rfd,cf.file} ;
+//						lock.lock_shared( cat(host(),'-',::getpid()) ) ;                                                                       // passed id is for debug only
+//						goto Retry ;
+//					}
+//					::string dir_s = with_slash(CodecFile::s_dir_s(crs.tab)) ;
+//					creat_store( {rfd,dir_s} , crc_str , val , crs.umask , &nfs_guard ) ;                                                      // ensure data exist in store
+//					//
+//					CodecFile dcf       { false/*encode*/ , crs.tab , ctx , crc_str.substr(0,min_len) } ;
+//					::string& code      = dcf.code()                                                    ;
+//					::string  ctx_dir_s = dir_name_s(node)                                              ;
+//					::string  rel_data  = mk_lcl( cat(dir_s,"store/",crc_str) , ctx_dir_s )             ;
+//					// find code
+//					for(; code.size()<crc_str.size() ; code.push_back(crc_str[code.size()]) ) {
+//						::string decode_node = dcf.name() ;
+//						try {
+//							sym_lnk( {rfd,decode_node} , rel_data       , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;
+//							sym_lnk( {rfd,node       } , code+DecodeSfx , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;                         // create the encode side
+//							//
+//							if (!crs.is_dir()) {
+//								::string new_code = cat(dir_s,"new_codes/",CodecCrc(New,decode_node).hex()) ;
+//								sym_lnk( {rfd,new_code} , "../"+node , {.nfs_guard=&nfs_guard} ) ;                                             // tell server
+//							}
+//							ad.flags.extra_dflags |= ExtraDflag::CreateEncode ;
+//							r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{decode_node,FileInfo()}} } , true/*force*/ ) ; // report no access, but with create_encode flag
+//							goto Found ;                                                                                                       // if sym_lnk succeeds, we have created the code ...
+//						} catch (::string const& e) {                                                                                          // ... (atomicity works even on NFS)
+//							::string tgt = read_lnk({rfd,decode_node}) ;
+//							if (tgt==rel_data) goto Found ;                                                     // if decode_node already exists with the correct content, ...
+//						}                                                                                       // ... it has been created concurrently
+//					}
+//					throw "no available code"s ;
+//				Found :
+//					fi  = { {rfd,node} } ;                                                                      // update date after create
+//					res = ::move(code)   ;
+//				}
+//				// END_OF_VERSIONING
+//					// START_OF_VERSIONING REPO CACHE CODEC
+//					static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
+//					stems = {
+//						{ "File" ,     ".+"                                    } // static
+//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                     } // star
+//					,	{ "Code" ,     "[^/]*"                                 } // .
+//					,	{ "Val"  , cat("[0-9a-f]{",Codec::CodecCrc::HexSz,'}') } // .
+//					} ;
+//					n_static_stems = 1 ;
+//					//
+//					static ::string pfx = Codec::CodecFile::s_pfx_s() ;
+//					job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
+//					matches  = { //!                             File                        Ctx                                                                 File Ctx Code/Val
+//						{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures={true,true,true  }} } // star target
+//					,	{ "ENCODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(3/*Val */),EncodeSfx),.flags=IncPhony,.captures={true,true,true  }} } // .
+//					} ;
+//					matches_iotas[true/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
+//					//
+//					deps_attrs.spec.deps = {
+//						{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
+//					} ;
+//					// END_OF_VERSIONING
+//			// START_OF_VERSIONING CODEC
+//			::string data = cat(dir_s.file,"store/",crc_str) ;
+//			// END_OF_VERSIONING
+//				// START_OF_VERSIONING CODEC
+//				AcFd( {dir_s.at,tmp_data} , {.flags=O_WRONLY|O_CREAT,.mod=0444,.umask=umask} ).write( val ) ;
+//				// END_OF_VERSIONING
+//			// START_OF_VERSIONING CACHE JOB REPO CODEC
+//			SWEAR( !is_lcl(node) , node ) ;
+//			size_t pos3 = node.rfind('/')        ; SWEAR( pos3!=Npos && 0<pos3              , node,pos3            ) ;
+//			size_t pos2 = ext_codec_dir_s.size() ; SWEAR( node.starts_with(ext_codec_dir_s) , node,ext_codec_dir_s ) ;
+//			throw_unless( substr_view(node,pos2).starts_with("tab/") , node,"is not a codec file" ) ;
+//			//
+//			file = node.substr(0,pos2) ;
+//			pos3++/* / */ ;
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			else                                  FAIL(node) ;
+//			pos3 -= 1/* / */                        ;
+//			pos2 += 4/*tab/ */                      ;
+//			ctx   = node.substr( pos2 , pos3-pos2 ) ;
+//			// END_OF_VERSIONING
+//			// START_OF_VERSIONING CODEC
+//			static const ::string DecodeSfxS = with_slash(DecodeSfx) ;
+//			static const ::string EncodeSfxS = with_slash(EncodeSfx) ;
+//			if (          is_abs     (ctx)                              ) throw cat("context must be a local filename"                         ," : ",ctx," (consider ",ctx.substr(1),')') ;
+//			if ( +ctx &&  is_dir_name(ctx)                              ) throw cat("context must not end with /"                              ," : ",ctx," (consider ",ctx,rm_slash ,')') ;
+//			if (         !is_lcl     (ctx)                              ) throw cat("context must be a local filename"                         ," : ",ctx                                ) ;
+//			if ( ctx.find(DecodeSfxS)!=Npos || ctx.ends_with(DecodeSfx) ) throw cat("context must not contain component ending with ",DecodeSfx," : ",ctx                                ) ;
+//			if ( ctx.find(EncodeSfxS)!=Npos || ctx.ends_with(EncodeSfx) ) throw cat("context must not contain component ending with ",EncodeSfx," : ",ctx                                ) ;
+//			if ( with_slash(ctx).starts_with(AdminDirS)                 ) throw cat("context must not start with ",no_slash(AdminDirS)         ," : ",ctx                                ) ;
+//			if (!is_canon(ctx)) {
+//				::string c = mk_canon(ctx) ;
+//				if (c==ctx) throw cat("context must be canonical : ",ctx                    ) ;
+//				else        throw cat("context must be canonical : ",ctx," (consider ",c,')') ;
+//			}
+//			// END_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO CODEC
+//		::string CodecFile::ctx_dir_s(bool tmp) const {
+//			::string res = s_dir_s(file,tmp) ;
+//			if (is_dir_name(file)) res << "tab/"  <<                       ctx  ;
+//			else                   res << CodecSep<<mk_printable<CodecSep>(ctx) ;
+//			/**/                   res << '/'                                   ;
+//			return res ;
+//		}
+//		::string CodecFile::name(bool tmp) const {
+//			::string res = ctx_dir_s(tmp) ;
+//			if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+//			else             res << mk_printable<'/'>(code())<<DecodeSfx ;
+//			return res ;
+//		}
+//		// END_OF_VERSIONING
+//			// START_OF_VERSIONING CODEC
+//			size_t pos = 0 ;
+//			/**/                               throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
+//			code = parse_printable(line,pos) ; throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
+//			ctx  = parse_printable(line,pos) ; throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
+//			val  = parse_printable(line,pos) ; throw_unless( line[pos]==0    , "bad codec line format : ",line ) ;
+//			// END_OF_VERSIONING
+//			// START_OF_VERSIONING CODEC
+//			::string res = cat('\t',mk_printable(code),'\t',mk_printable(ctx),'\t',mk_printable(val)) ;
+//			if (with_nl_) add_nl(res) ;
+//			return res ;
+//			// END_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO CODEC
+//		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+//		static constexpr char CodecSep    = '*'       ; //!                                                    null
+//		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
+//		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
+//		// END_OF_VERSIONING
+
 // *******************************************
-// * Repo : ded9e312cc49ff019883a675426dec27 *
+// * Repo : 117ec814c897ac358501f8914382a75e *
 // *******************************************
 //
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
 //		if (!enable    ) res << 'd' ;
 //		if (readdir_ok ) res << 'D' ;
@@ -901,7 +1097,7 @@ namespace Version {
 //			DF}                                                                                                // NO_COV
 //		}
 //		// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO
 //		template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 //			self = None ;
@@ -941,6 +1137,28 @@ namespace Version {
 //			}
 //		}
 //		// END_OF_VERSIONING
+//					// START_OF_VERSIONING REPO CACHE CODEC
+//					static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
+//					stems = {
+//						{ "File" ,     ".+"                                    } // static
+//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                     } // star
+//					,	{ "Code" ,     "[^/]*"                                 } // .
+//					,	{ "Val"  , cat("[0-9a-f]{",Codec::CodecCrc::HexSz,'}') } // .
+//					} ;
+//					n_static_stems = 1 ;
+//					//
+//					static ::string pfx = Codec::CodecFile::s_pfx_s() ;
+//					job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
+//					matches  = { //!                             File                        Ctx                                                                 File Ctx Code/Val
+//						{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures={true,true,true  }} } // star target
+//					,	{ "ENCODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(3/*Val */),EncodeSfx),.flags=IncPhony,.captures={true,true,true  }} } // .
+//					} ;
+//					matches_iotas[true/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
+//					//
+//					deps_attrs.spec.deps = {
+//						{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
+//					} ;
+//					// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			::vmap_s<bool> targets ;
 //			for( bool star : {false,true} )
@@ -1001,7 +1219,36 @@ namespace Version {
 //			// Rule
 //			RuleBase::s_match_gen = _g_rule_crc_file.c_hdr() ;
 //			// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//			// START_OF_VERSIONING CACHE JOB REPO
+//			SWEAR( is_lcl(node) , node ) ;
+//			size_t pos1 = s_pfx_s().size()            ;
+//			size_t pos3 = node.rfind('/'            ) ; SWEAR( pos3!=Npos && pos1<pos3                      , node,pos1,     pos3 ) ;
+//			size_t pos2 = node.rfind(CodecSep,pos3-1) ; SWEAR( pos2!=Npos && pos1<pos2 && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
+//			//
+//			file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
+//			pos3++/* / */ ;
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			else                                  FAIL(node) ;
+//			pos2++/*CodecSep*/ ;
+//			ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
+//			// END_OF_VERSIONING
+//			// START_OF_VERSIONING CACHE JOB REPO CODEC
+//			SWEAR( !is_lcl(node) , node ) ;
+//			size_t pos3 = node.rfind('/')        ; SWEAR( pos3!=Npos && 0<pos3              , node,pos3            ) ;
+//			size_t pos2 = ext_codec_dir_s.size() ; SWEAR( node.starts_with(ext_codec_dir_s) , node,ext_codec_dir_s ) ;
+//			throw_unless( substr_view(node,pos2).starts_with("tab/") , node,"is not a codec file" ) ;
+//			//
+//			file = node.substr(0,pos2) ;
+//			pos3++/* / */ ;
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			else                                  FAIL(node) ;
+//			pos3 -= 1/* / */                        ;
+//			pos2 += 4/*tab/ */                      ;
+//			ctx   = node.substr( pos2 , pos3-pos2 ) ;
+//			// END_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO CODEC
 //		::string CodecFile::ctx_dir_s(bool tmp) const {
 //			::string res = s_dir_s(file,tmp) ;
 //			if (is_dir_name(file)) res << "tab/"  <<                       ctx  ;
@@ -1016,7 +1263,7 @@ namespace Version {
 //			return res ;
 //		}
 //		// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE REPO JOB
 //		bool                             auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
 //		bool                             enable           = true  ; // if false <=> no automatic report
 //		::string                         fqdn             ;
@@ -1028,7 +1275,7 @@ namespace Version {
 //		::umap_s<Codec::CodecRemoteSide> codecs           ;
 //		::vmap_s<::vector_s>             views_s          ;
 //		// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Access : uint8_t {                                                         // in all cases, dirs are deemed non-existing
 //		Lnk                                                                               // file is accessed with readlink              , regular files are deemed non-existing
 //	,	Reg                                                                               // file is accessed with open                  , symlinks      are deemed non-existing
@@ -1166,19 +1413,19 @@ namespace Version {
 //				Job   asking_job ;                                        //     32 bits
 //			} ;
 //		public :
-//			//JobName        name                               ;         //     32 bits, inherited
+//		//	JobName          name                               ;         //     32 bits, inherited
 //			Deps             deps                               ;         // 31<=32 bits, owned
 //			RuleCrc          rule_crc                           ;         //     32 bits
-//			Tokens1          tokens1                            = 0     ; //      8 bits, for plain jobs, number of tokens - 1 for eta estimation
-//			mutable MatchGen match_gen                          = 0     ; //      8 bits, if <Rule::s_match_gen => deemed !sure
+//			Tokens1          tokens1                            = 0     ; //      8 bits,           for plain jobs, number of tokens - 1 for eta estimation
+//			mutable MatchGen match_gen                          = 0     ; //      8 bits,           if <Rule::s_match_gen => deemed !sure
 //			RunStatus        run_status    :NBits<RunStatus   > = {}    ; //      3 bits
-//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //      2 bits  backend asked for last execution
+//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //      2 bits            backend asked for last execution
 //			CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //      3 bits
 //			Status           status        :NBits<Status      > = {}    ; //      4 bits
-//			bool             incremental   :1                   = false ; //      1 bit , job was last run with existing incremental targets
+//			bool             incremental   :1                   = false ; //      1 bit ,           job was last run with existing incremental targets
 //		private :
 //			mutable bool _sure          :1 = false ;                      //      1 bit
-//			Bool3        _reliable_stats:2 = No    ;                      //      2 bits, if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+//			Bool3        _reliable_stats:2 = No    ;                      //      2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 //		public :
 //			union {
 //				IfPlain  _if_plain = {} ;                                 //     96 bits
@@ -1213,12 +1460,12 @@ namespace Version {
 //	// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //		public :
-//			//NodeName name   ;                                         //         32 bits, inherited
+//		//	NodeName  name                       ;                      //         32 bits, inherited
 //			Watcher   asking                     ;                      //         32 bits,           last watcher needing this node
 //			Crc       crc                        = Crc::None          ; // ~45   < 64 bits,           disk file CRC when file mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second
 //			SigDate   sig                        ;                      // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
 //			Node      dir                        ;                      //  31   < 32 bits, shared
-//			JobTgts   job_tgts                   ;                      //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (used as a reservoir to avoid matching)
+//			JobTgts   job_tgts                   ;                      //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (a reservoir to avoid matching)
 //			RuleTgts  rule_tgts                  ;                      // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 //			RuleTgts  rejected_rule_tgts         ;                      // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
 //			Job       actual_job                 ;                      //  31   < 32 bits, shared,   job that generated node
@@ -1228,9 +1475,9 @@ namespace Version {
 //			Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
 //			Polluted  polluted :NBits<Polluted > = Polluted::Clean    ; //          2 bits,           reason for pollution
 //			bool      busy     :1                = false              ; //          1 bit ,           a job is running with this node as target
-//			Tflags    actual_tflags ;                                   //   6   <  8 bits,           tflags associated with actual_job
+//			Tflags    actual_tflags              ;                      //   6   <  8 bits,           tflags associated with actual_job
 //		private :
-//			RuleIdx _conform_idx = -+NodeStatus::Unknown ;              //         16 bits,           index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+//			RuleIdx _conform_idx = -+NodeStatus::Unknown ;              //         16 bits,            index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
 //			// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO
 //
@@ -1525,21 +1772,21 @@ namespace Version {
 //						::serdes(is,keys ) ;
 //						::serdes(is,bytes) ;
 //						// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class LnkSupport : uint8_t {
 //		None
 //	,	File
 //	,	Full
 //	} ;
 //	// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO
 //		LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
 //		FileSync   file_sync   = FileSync::Dflt   ;
 //		::string   repo_root_s = {}               ;
 //		::string   tmp_dir_s   = {}               ;
 //		::vector_s src_dirs_s  = {}               ;
 //		// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //
 //	// NXxxBits are used to dimension address space, and hence max number of objects for each category.
 //	// can be tailored to fit neeeds
@@ -1560,7 +1807,7 @@ namespace Version {
 //	static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets
 //
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //
 //	// can be tailored to fit neeeds
 //	using VarIdx = uint8_t ; // used to index stems, targets, deps & rsrcs within a Rule
@@ -1758,18 +2005,19 @@ namespace Version {
 //		using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
-//		uint8_t       sz                       = 0          ;                                //   8 bits, number of items in chunk following header (semantically before)
-//		Accesses      accesses                 ;                                             // 3<8 bits
-//		Dflags        dflags                   = DflagsDflt ;                                // 5<8 bits
-//		bool          parallel      :1         = false      ;                                //   1 bit , dep is parallel with prev dep
-//		bool          is_crc        :1         = true       ;                                //   1 bit
-//		bool          hot           :1         = false      ;                                //   1 bit , if true <= file date was very close from access date (within date granularity)
-//		Accesses::Val chunk_accesses:N<Access> = 0          ;                                //   4 bits
-//		bool          err           :1         = false      ;                                //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+//		uint8_t       sz                        = 0          ;                                        //   8 bits, number of items in chunk following header (semantically before)
+//		Dflags        dflags                    = DflagsDflt ;                                        // 7<8 bits
+//		Accesses::Val accesses_      :N<Access> = 0          ;                                        //   4 bits
+//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                                        //   4 bits
+//		bool          parallel       :1         = false      ;                                        //   1 bit , dep is parallel with prev dep
+//		bool          is_crc         :1         = true       ;                                        //   1 bit
+//		bool          hot            :1         = false      ;                                        //   1 bit , if true <= file date was very close from access date (within date granularity)
+//		bool          err            :1         = false      ;                                        //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+//		bool          create_encode  :1         = false      ;                                        //   1 bit , if true <=> dep has been created because of encode
 //	private :
 //		union {
-//			Crc     _crc = {} ;                                                              // ~45<64 bits
-//			FileSig _sig ;                                                                   // ~40<64 bits
+//			Crc     _crc = {} ;                                                                       // ~45<64 bits
+//			FileSig _sig ;                                                                            // ~40<64 bits
 //		} ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
@@ -1855,13 +2103,14 @@ namespace Version {
 //		::vector<UserTraceEntry> user_trace    ;
 //		int                      wstatus       = 0 ;
 //		// END_OF_VERSIONING)
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Dflag : uint8_t { // flags for deps, recorded in server book-keeping
 //		Critical                 // if modified, ignore following deps
 //	,	Essential                // show when generating user oriented graphs
 //	,	IgnoreError              // dont propagate error if dep is in error (Error instead of Err because name is visible from user)
 //	,	Required                 // dep must be buildable (static deps are always required)
 //	,	Static                   // is static dep, for internal use only
+//	,	Codec                    // acquired with codec
 //	,	Full                     // if false, dep is only necessary to compute resources
 //	//
 //	// aliases
@@ -1869,7 +2118,7 @@ namespace Version {
 //	,	NDyn  = Static           // number of Dflag's allowed in side flags
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class ExtraDflag : uint8_t { // flags for deps, not recorded in server book-keeping
 //		Top
 //	,	Ignore
@@ -1881,7 +2130,7 @@ namespace Version {
 //	,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Tflag : uint8_t { // flags for targets, recorded in server book-keeping
 //		Essential                // show when generating user oriented graphs
 //	,	Incremental              // reads are allowed (before earliest write if any)
@@ -1895,7 +2144,7 @@ namespace Version {
 //	,	NDyn  = Phony            // number of Tflag's allowed inside flags
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	// not recorded in server book-keeping
 //	enum class ExtraTflag : uint8_t { // flags for targets, not recorded in server book-keeping
 //		Top
@@ -1909,13 +2158,13 @@ namespace Version {
 //	,	NRule = Allow                 // number of Tflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO
 //		Tflags      tflags       = {} ;                                   // if kind>=Target
 //		Dflags      dflags       = {} ;                                   // if kind>=Dep
 //		ExtraTflags extra_tflags = {} ;                                   // if kind>=Target
 //		ExtraDflags extra_dflags = {} ;                                   // if kind>=Dep
 //		// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Comment : uint8_t {
 //		None
 //	// syscalls
@@ -2017,7 +2266,7 @@ namespace Version {
 //	,	Wash             , Washed
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class CommentExt : uint8_t {
 //		Bind
 //	,	Dir
@@ -2043,7 +2292,7 @@ namespace Version {
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO CODEC
 //		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
@@ -2053,22 +2302,21 @@ namespace Version {
 //				constexpr size_t CacheLineSz = 64                                                               ; // hint only, defined independently of ::hardware_destructive_interference_size ...
 //				constexpr size_t Offset0     = round_up<CacheLineSz>( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ) ; // ... to ensure inter-operability
 //				// END_OF_VERSIONING
-//	// START_OF_VERSIONING
-//	// FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
-//	enum class FileTag : uint8_t {
+//	// START_OF_VERSIONING CACHE JOB REPO
+//	enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
 //		None
 //	,	Unknown
 //	,	Dir
 //	,	Lnk
-//	,	Reg          // >=Reg means file is a regular file
-//	,	Empty        // empty and not executable
-//	,	Exe          // a regular file with exec permission
+//	,	Reg                        // >=Reg means file is a regular file
+//	,	Empty                      // empty and not executable
+//	,	Exe                        // a regular file with exec permission
 //	//
 //	// aliases
-//	,	Target = Lnk // >=Target means file can be generated as a target
+//	,	Target = Lnk               // >=Target means file can be generated as a target
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	// PER_FILE_SYNC : add entry here
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 //		None
@@ -2096,10 +2344,10 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 8ee0e2eb62278ab9683674f5a4780fbc *
+// * Job : cbbcda503564c3666c9148f0fa067334 *
 // ******************************************
 //
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
 //		if (!enable    ) res << 'd' ;
 //		if (readdir_ok ) res << 'D' ;
@@ -2123,7 +2371,7 @@ namespace Version {
 //		res <<':'<<      mk_printable     (mk_vmap<::string>(codecs     ),false )      ;
 //		res <<':'<<      mk_printable     (                  views_s     ,false )      ;
 //		// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO
 //		template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 //			self = None ;
@@ -2163,7 +2411,36 @@ namespace Version {
 //			}
 //		}
 //		// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//			// START_OF_VERSIONING CACHE JOB REPO
+//			SWEAR( is_lcl(node) , node ) ;
+//			size_t pos1 = s_pfx_s().size()            ;
+//			size_t pos3 = node.rfind('/'            ) ; SWEAR( pos3!=Npos && pos1<pos3                      , node,pos1,     pos3 ) ;
+//			size_t pos2 = node.rfind(CodecSep,pos3-1) ; SWEAR( pos2!=Npos && pos1<pos2 && node[pos2-1]=='/' , node,pos1,pos2,pos3 ) ;
+//			//
+//			file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
+//			pos3++/* / */ ;
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			else                                  FAIL(node) ;
+//			pos2++/*CodecSep*/ ;
+//			ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
+//			// END_OF_VERSIONING
+//			// START_OF_VERSIONING CACHE JOB REPO CODEC
+//			SWEAR( !is_lcl(node) , node ) ;
+//			size_t pos3 = node.rfind('/')        ; SWEAR( pos3!=Npos && 0<pos3              , node,pos3            ) ;
+//			size_t pos2 = ext_codec_dir_s.size() ; SWEAR( node.starts_with(ext_codec_dir_s) , node,ext_codec_dir_s ) ;
+//			throw_unless( substr_view(node,pos2).starts_with("tab/") , node,"is not a codec file" ) ;
+//			//
+//			file = node.substr(0,pos2) ;
+//			pos3++/* / */ ;
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			else                                  FAIL(node) ;
+//			pos3 -= 1/* / */                        ;
+//			pos2 += 4/*tab/ */                      ;
+//			ctx   = node.substr( pos2 , pos3-pos2 ) ;
+//			// END_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO CODEC
 //		::string CodecFile::ctx_dir_s(bool tmp) const {
 //			::string res = s_dir_s(file,tmp) ;
 //			if (is_dir_name(file)) res << "tab/"  <<                       ctx  ;
@@ -2178,7 +2455,7 @@ namespace Version {
 //			return res ;
 //		}
 //		// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE REPO JOB
 //		bool                             auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
 //		bool                             enable           = true  ; // if false <=> no automatic report
 //		::string                         fqdn             ;
@@ -2190,7 +2467,7 @@ namespace Version {
 //		::umap_s<Codec::CodecRemoteSide> codecs           ;
 //		::vmap_s<::vector_s>             views_s          ;
 //		// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Access : uint8_t {                                                         // in all cases, dirs are deemed non-existing
 //		Lnk                                                                               // file is accessed with readlink              , regular files are deemed non-existing
 //	,	Reg                                                                               // file is accessed with open                  , symlinks      are deemed non-existing
@@ -2201,21 +2478,21 @@ namespace Version {
 //	,	Data = Err                                                                        // <= Data means refer to file content
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class LnkSupport : uint8_t {
 //		None
 //	,	File
 //	,	Full
 //	} ;
 //	// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO
 //		LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
 //		FileSync   file_sync   = FileSync::Dflt   ;
 //		::string   repo_root_s = {}               ;
 //		::string   tmp_dir_s   = {}               ;
 //		::vector_s src_dirs_s  = {}               ;
 //		// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //
 //	// NXxxBits are used to dimension address space, and hence max number of objects for each category.
 //	// can be tailored to fit neeeds
@@ -2236,7 +2513,7 @@ namespace Version {
 //	static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets
 //
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //
 //	// can be tailored to fit neeeds
 //	using VarIdx = uint8_t ; // used to index stems, targets, deps & rsrcs within a Rule
@@ -2259,13 +2536,14 @@ namespace Version {
 //	using MatchGen = uint8_t ;
 //
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Dflag : uint8_t { // flags for deps, recorded in server book-keeping
 //		Critical                 // if modified, ignore following deps
 //	,	Essential                // show when generating user oriented graphs
 //	,	IgnoreError              // dont propagate error if dep is in error (Error instead of Err because name is visible from user)
 //	,	Required                 // dep must be buildable (static deps are always required)
 //	,	Static                   // is static dep, for internal use only
+//	,	Codec                    // acquired with codec
 //	,	Full                     // if false, dep is only necessary to compute resources
 //	//
 //	// aliases
@@ -2273,7 +2551,7 @@ namespace Version {
 //	,	NDyn  = Static           // number of Dflag's allowed in side flags
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class ExtraDflag : uint8_t { // flags for deps, not recorded in server book-keeping
 //		Top
 //	,	Ignore
@@ -2285,7 +2563,7 @@ namespace Version {
 //	,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Tflag : uint8_t { // flags for targets, recorded in server book-keeping
 //		Essential                // show when generating user oriented graphs
 //	,	Incremental              // reads are allowed (before earliest write if any)
@@ -2299,7 +2577,7 @@ namespace Version {
 //	,	NDyn  = Phony            // number of Tflag's allowed inside flags
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	// not recorded in server book-keeping
 //	enum class ExtraTflag : uint8_t { // flags for targets, not recorded in server book-keeping
 //		Top
@@ -2313,13 +2591,13 @@ namespace Version {
 //	,	NRule = Allow                 // number of Tflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO
 //		Tflags      tflags       = {} ;                                   // if kind>=Target
 //		Dflags      dflags       = {} ;                                   // if kind>=Dep
 //		ExtraTflags extra_tflags = {} ;                                   // if kind>=Target
 //		ExtraDflags extra_dflags = {} ;                                   // if kind>=Dep
 //		// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Comment : uint8_t {
 //		None
 //	// syscalls
@@ -2421,7 +2699,7 @@ namespace Version {
 //	,	Wash             , Washed
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class CommentExt : uint8_t {
 //		Bind
 //	,	Dir
@@ -2447,28 +2725,27 @@ namespace Version {
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
-//		// START_OF_VERSIONING
+//		// START_OF_VERSIONING CACHE JOB REPO CODEC
 //		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
-//	// START_OF_VERSIONING
-//	// FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
-//	enum class FileTag : uint8_t {
+//	// START_OF_VERSIONING CACHE JOB REPO
+//	enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
 //		None
 //	,	Unknown
 //	,	Dir
 //	,	Lnk
-//	,	Reg          // >=Reg means file is a regular file
-//	,	Empty        // empty and not executable
-//	,	Exe          // a regular file with exec permission
+//	,	Reg                        // >=Reg means file is a regular file
+//	,	Empty                      // empty and not executable
+//	,	Exe                        // a regular file with exec permission
 //	//
 //	// aliases
-//	,	Target = Lnk // >=Target means file can be generated as a target
+//	,	Target = Lnk               // >=Target means file can be generated as a target
 //	} ;
 //	// END_OF_VERSIONING
-//	// START_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE JOB REPO
 //	// PER_FILE_SYNC : add entry here
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 //		None

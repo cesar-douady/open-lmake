@@ -39,8 +39,8 @@ def mk_slots(file) :
 
 if action=='gen' :
 
-	prev_cc   = '$3'
-	src       = '$4'
+	prev_cc = '$3'
+	src     = '$4'
 
 	def analyze(file,slots) :
 		content = open(file).read()
@@ -48,7 +48,7 @@ if action=='gen' :
 		tab = {}
 		#
 		for slot in slots :
-			lines    = '\n'.join( m[0] for m in re.findall(fr'(.*//.*START_OF_VERSIONING(.*{to_snake(slot).upper()}.*)?\n[\s\S]*?END_OF_VERSIONING.*)',content) )
+			lines    = '\n'.join( m[0] for m in re.findall(fr'(.*//.*START_OF_VERSIONING(.*{to_snake(slot).upper()}.*)\n[\s\S]*?END_OF_VERSIONING.*)',content) )
 			semantic = re.sub(r'//.*',''    ,lines   )
 			semantic = re.sub(r'/\*.*\*/','',semantic)
 			semantic = re.sub(r'[ \t\n]' ,'',semantic)

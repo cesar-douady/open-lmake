@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Fri Jan 30 23:07:21 2026 -->
+<!-- CreationDate: Sun Feb  8 17:35:21 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -98,32 +98,20 @@ recording the association table.</p>
 
 <p style="margin-left:9%;">an external dir</p>
 
+<p style="margin-left:18%;">recording the association
+table.</p>
+
 <p style="margin-left:9%; margin-top: 1em">In the former
-case, such a dir must lie within a source dir and must
-contain a file <i>LMAKE/config.py</i> containing definitions
-for: <b><br>
-file_sync</b></p>
+case, when an external dir, it must lie within a source dir.
+An external dir must contain a file <i>LMAKE/file_sync</i>
+containing one of <b>none</b>, <b>dir</b> or <b>sync</b> for
+choosing the method to ensure proper consistent
+operations.</p>
 
-<p style="margin-left:18%;">one of <b>none</b>, <b>dir</b>
-(default) or <b>sync</b> for choosing the method to ensure
-proper consistent operations.</p>
-
-<table width="100%" border="0" rules="none" frame="void"
-       cellspacing="0" cellpadding="0">
-<tr valign="top" align="left">
-<td width="9%"></td>
-<td width="5%">
-
-
-<p><b>perm</b></p></td>
-<td width="4%"></td>
-<td width="82%">
-
-
-<p>one of <b>none</b>, <b>group</b> or <b>other</b> which
-specifies who is given permission to access this shared
-dir.</p> </td></tr>
-</table>
+<p style="margin-left:9%; margin-top: 1em">The dir must
+have read/write/execute access to any user needing to use
+the codec service, and if such accsses are at group level
+(but not other), it must have its setgid bit set.</p>
 
 <p style="margin-left:9%; margin-top: 1em">Associations are
 usually created using <b>lencode</b> or <b>lmake.encode</b>

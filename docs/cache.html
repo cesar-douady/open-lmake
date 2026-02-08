@@ -218,14 +218,10 @@ This is a natural extension of the classical LRU algorithm devised for cases whe
 <h2 id="permissions"><a class="header" href="#permissions">Permissions</a></h2>
 <p>For all users accessing the cache:</p>
 <ul>
-<li>All dirs must have read/write/execute accesses.</li>
+<li>All dirs must have read/write/execute accesses (when the cache is created, only the top level and the LMAKE dir).</li>
 <li>The <code>LMAKE/config.py</code> must have read access.</li>
 </ul>
-<p>And if such acceses are at group level (but not other), all dirs must have the setgid bit set.</p>
-<p>When the group has read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
-<p><code>setfacl -d -R -m u::rwX,g::rwX,o::- &lt;cache_dir&gt;</code></p>
-<p>Similarly, when all users have read/write/execute access, best (performance wise) is to set the default ACL, e.g. using:</p>
-<p><code>setfacl -d -R -m u::rwX,g::rwX,o::rwX &lt;cache_dir&gt;</code></p>
+<p>And if such accesses are at group level (but not other), all dirs must have the setgid bit set.</p>
 <h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
 In that case, precautions must be taken to ensure coherence.</p>

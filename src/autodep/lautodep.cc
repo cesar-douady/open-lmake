@@ -122,7 +122,7 @@ int main( int argc , char* argv[] ) {
 	}} ;
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
 	//
-	repo_app_init({.cd_root=false}) ;
+	app_init({.cd_root=false}) ;
 	Py::init(*g_lmake_root_s) ;
 	//
 	JobStartRpcReply jsrr        ;

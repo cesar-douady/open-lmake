@@ -436,9 +436,9 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	using Base::Base ;
 	//
 	template<class B> DepInfo(DepDigestBase<B> const& ddb) {
-		if      (!ddb.accesses) self = Crc()     ;
-		else if ( ddb.is_crc  ) self = ddb.crc() ;
-		else                    self = ddb.sig() ;
+		if      (!ddb.accesses_) self = Crc()     ;
+		else if ( ddb.is_crc   ) self = ddb.crc() ;
+		else                     self = ddb.sig() ;
 	}
 	// accesses
 	bool operator==(DepInfo const& di) const { // if true => self and di are identical (but there may be false negative if one is a Crc)
@@ -489,34 +489,45 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	using FileSig  = Disk::FileSig  ;
 	using FileInfo = Disk::FileInfo ;
 	//cxtors & casts
-	constexpr DepDigestBase(                                                                             bool p=false ) :                                       parallel{p} { del_crc    (    ) ; }
-	constexpr DepDigestBase(          Accesses a ,                               Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { del_crc    (    ) ; }
-	constexpr DepDigestBase(          Accesses a , Crc             c  , bool e , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { set_crc    (c ,e) ; }
-	constexpr DepDigestBase(          Accesses a , FileInfo const& fi ,          Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { set_sig    (fi  ) ; }
-	constexpr DepDigestBase(          Accesses a , DepInfo  const& di , bool e , Dflags dfs=DflagsDflt , bool p=false ) :           accesses{a} , dflags(dfs) , parallel{p} { set_crc_sig(di,e) ; }
-	constexpr DepDigestBase( Base b , Accesses a ,                               Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { del_crc    (    ) ; }
-	constexpr DepDigestBase( Base b , Accesses a , Crc             c  , bool e , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { set_crc    (c ,e) ; }
-	constexpr DepDigestBase( Base b , Accesses a , FileInfo const& fi ,          Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { set_sig    (fi  ) ; }
-	constexpr DepDigestBase( Base b , Accesses a , DepInfo  const& di , bool e , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , accesses{a} , dflags(dfs) , parallel{p} { set_crc_sig(di,e) ; }
+	constexpr DepDigestBase(                                                                             bool p=false ) :                                         parallel{p} { del_crc    (    ) ; }
+	constexpr DepDigestBase(          Accesses a ,                               Dflags dfs=DflagsDflt , bool p=false ) :           dflags(dfs) , accesses_{+a} , parallel{p} { del_crc    (    ) ; }
+	constexpr DepDigestBase(          Accesses a , Crc             c  , bool e , Dflags dfs=DflagsDflt , bool p=false ) :           dflags(dfs) , accesses_{+a} , parallel{p} { set_crc    (c ,e) ; }
+	constexpr DepDigestBase(          Accesses a , FileInfo const& fi ,          Dflags dfs=DflagsDflt , bool p=false ) :           dflags(dfs) , accesses_{+a} , parallel{p} { set_sig    (fi  ) ; }
+	constexpr DepDigestBase(          Accesses a , DepInfo  const& di , bool e , Dflags dfs=DflagsDflt , bool p=false ) :           dflags(dfs) , accesses_{+a} , parallel{p} { set_crc_sig(di,e) ; }
+	constexpr DepDigestBase( Base b , Accesses a ,                               Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , dflags(dfs) , accesses_{+a} , parallel{p} { del_crc    (    ) ; }
+	constexpr DepDigestBase( Base b , Accesses a , Crc             c  , bool e , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , dflags(dfs) , accesses_{+a} , parallel{p} { set_crc    (c ,e) ; }
+	constexpr DepDigestBase( Base b , Accesses a , FileInfo const& fi ,          Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , dflags(dfs) , accesses_{+a} , parallel{p} { set_sig    (fi  ) ; }
+	constexpr DepDigestBase( Base b , Accesses a , DepInfo  const& di , bool e , Dflags dfs=DflagsDflt , bool p=false ) : Base{b} , dflags(dfs) , accesses_{+a} , parallel{p} { set_crc_sig(di,e) ; }
 	// initializing _crc in all cases (which crc_sig does not do) is important to please compiler (gcc-11 -O3)
-	template<class B2> constexpr DepDigestBase(          DepDigestBase<B2> const& dd ) :         accesses{dd.accesses},dflags(dd.dflags),parallel{dd.parallel},hot{dd.hot},_crc{} { set_crc_sig(dd) ; }
-	template<class B2> constexpr DepDigestBase( Base b , DepDigestBase<B2> const& dd ) : Base{b},accesses{dd.accesses},dflags(dd.dflags),parallel{dd.parallel},hot{dd.hot},_crc{} { set_crc_sig(dd) ; }
+	template<class B2> constexpr DepDigestBase(Base b,DepDigestBase<B2> const& dd) :
+		Base          { b                }
+	,	dflags        ( dd.dflags        )
+	,	accesses_     { dd.accesses_     }
+	,	parallel      { dd.parallel      }
+	,	hot           { dd.hot           }
+	,	err           { dd.err           }
+	,	create_encode { dd.create_encode }
+	,	_crc          {                  }
+	{ set_crc_sig(dd) ; }
+	template<class B2> constexpr DepDigestBase( DepDigestBase<B2> const& dd) : DepDigestBase( {} , dd ) {}
 	//
 	constexpr bool operator==(DepDigestBase const& ddb) const {
 		SWEAR( !sz     , self ) ;
 		SWEAR( !ddb.sz , ddb  ) ;
-		if constexpr (HasBase) if (Base::operator!=(ddb) ) return false          ;
-		/**/                   if (dflags  !=ddb.dflags  ) return false          ;
-		/**/                   if (accesses!=ddb.accesses) return false          ;
-		/**/                   if (parallel!=ddb.parallel) return false          ;
-		/**/                   if (is_crc  !=ddb.is_crc  ) return false          ;
-		/**/                   if (is_crc                ) return _crc==ddb._crc ;
-		/**/                                               return _sig==ddb._sig ;
+		if constexpr (HasBase) if (Base::operator!=(ddb)   ) return false          ;
+		/**/                   if (dflags   !=ddb.dflags   ) return false          ;
+		/**/                   if (accesses_!=ddb.accesses_) return false          ;
+		/**/                   if (parallel !=ddb.parallel ) return false          ;
+		/**/                   if (is_crc   !=ddb.is_crc   ) return false          ;
+		/**/                   if (is_crc                  ) return _crc==ddb._crc ;
+		/**/                                                 return _sig==ddb._sig ;
 	}
 	// accesses
-	constexpr Crc     crc        () const { SWEAR( is_crc) ; return _crc                       ; }
-	constexpr FileSig sig        () const { SWEAR(!is_crc) ; return _sig                       ; }
-	constexpr bool    never_match() const { SWEAR( is_crc) ; return _crc.never_match(accesses) ; }
+	constexpr Accesses accesses      () const {                  return Accesses(accesses_      )    ; }
+	constexpr Accesses chunk_accesses() const {                  return Accesses(chunk_accesses_)    ; }
+	constexpr Crc      crc           () const { SWEAR( is_crc) ; return _crc                         ; }
+	constexpr FileSig  sig           () const { SWEAR(!is_crc) ; return _sig                         ; }
+	constexpr bool     never_match   () const { SWEAR( is_crc) ; return _crc.never_match(accesses()) ; }
 	//
 	constexpr void set_crc    ( Crc             c  , bool e ) { is_crc = true  ; _crc = c        ; err = e ; }
 	constexpr void set_sig    ( FileSig  const& s           ) { is_crc = false ; _sig = s        ;           }
@@ -526,71 +537,77 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		else                             set_sig(di.sig()  ) ;
 	}
 	template<class B2> constexpr void set_crc_sig( DepDigestBase<B2> const& dd ) {
-		if (!dd.accesses) return ;
-		if ( dd.is_crc  ) set_crc(dd.crc(),dd.err) ;
-		else              set_sig(dd.sig()       ) ;
-	} //!                                                                                                                                                 err
-	constexpr void del_crc        (                 ) {                                                                                    set_crc    ({},false) ; }
-	constexpr void may_set_crc    (Crc            c ) { if (!(                                c       .valid() && accesses[Access::Err] )) set_crc    (c ,false) ; } // only set crc if err is useless
-	constexpr void may_set_crc_sig(DepInfo const& di) { if (!( di.is_a<DepInfoKind::Crc>() && di.crc().valid() && accesses[Access::Err] )) set_crc_sig(di,false) ; } // .
+		if (!dd.accesses_) return ;
+		if ( dd.is_crc   ) set_crc(dd.crc(),dd.err) ;
+		else               set_sig(dd.sig()       ) ;
+	} //!                                                                                                                                                   err
+	constexpr void del_crc        (                 ) {                                                                                      set_crc    ({},false) ; }
+	constexpr void may_set_crc    (Crc            c ) { if (!(                                c       .valid() && accesses()[Access::Err] )) set_crc    (c ,false) ; } // only set crc if err is useless
+	constexpr void may_set_crc_sig(DepInfo const& di) { if (!( di.is_a<DepInfoKind::Crc>() && di.crc().valid() && accesses()[Access::Err] )) set_crc_sig(di,false) ; } // .
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes( s , sz,accesses,dflags ) ;
+		::serdes( s , sz,dflags ) ;
 		// bitfields cannot be serialized directly as no ref is allowed
-		/**/                bool      parallel_ ; bool    is_crc_ ; bool hot_ ; Accesses::Val   chunk_accesses_ ; bool err_ ;
-		if (IsOStream<S>) { parallel_=parallel  ; is_crc_=is_crc  ; hot_=hot  ; chunk_accesses_=chunk_accesses  ; err_=err  ; }
-		::serdes( s ,       parallel_           , is_crc_         , hot_      , chunk_accesses_                 , err_      ) ;
-		if (IsIStream<S>) { parallel =parallel_ ; is_crc =is_crc_ ; hot =hot_ ; chunk_accesses =chunk_accesses_ ; err =err_ ; }
+		/**/                Accesses::Val accesses__ ; Accesses::Val    chunk_accesses__ ; bool      parallel_ ; bool    is_crc_ ; bool hot_ ; bool err_ ; bool create_encode_           ;
+		if (IsOStream<S>) { accesses__=   accesses_  ; chunk_accesses__=chunk_accesses_  ; parallel_=parallel  ; is_crc_=is_crc  ; hot_=hot  ; err_=err  ; create_encode_=create_encode  ; }
+		::serdes( s ,       accesses__               , chunk_accesses__                  , parallel_           , is_crc_         , hot_      , err_      , create_encode_                ) ;
+		if (IsIStream<S>) { accesses_ =   accesses__ ; chunk_accesses_ =chunk_accesses__ ; parallel =parallel_ ; is_crc =is_crc_ ; hot =hot_ ; err =err_ ; create_encode =create_encode_ ; }
 		//
 		if (is_crc) ::serdes( s , _crc ) ;
 		else        ::serdes( s , _sig ) ;
 	}
-	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {                      // assumes ddb has been accessed after us
+	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {                               // assumes ddb has been accessed after us
 		if constexpr (HasBase) SWEAR( Base::operator==(ddb) , self,ddb ) ;
 		/**/                   SWEAR( !sz                   , self     ) ;
 		/**/                   SWEAR( !ddb.sz               , ddb      ) ;
-		if (!accesses) {
+		if (!accesses_) {
 			set_crc_sig(ddb) ;
 			parallel = ddb.parallel ;
-		} else if (+ddb.accesses) {
-			if      (is_crc!=ddb.is_crc)                         del_crc() ;             // destroy info if digests disagree
-			else if (is_crc            ) { if (crc()!=ddb.crc()) del_crc() ; }           // .
-			else                         { if (sig()!=ddb.sig()) del_crc() ; }           // .
+		} else if (ddb.accesses_) {
+			if      (is_crc!=ddb.is_crc)                         del_crc() ;                      // destroy info if digests disagree
+			else if (is_crc            ) { if (crc()!=ddb.crc()) del_crc() ; }                    // .
+			else                         { if (sig()!=ddb.sig()) del_crc() ; }                    // .
 			// parallel is kept untouched as ddb follows us
 		}
-		dflags   |= ddb.dflags   ;
-		accesses |= ddb.accesses ;
+		dflags        |= ddb.dflags        ;
+		accesses_     |= ddb.accesses_     ;
+		hot           |= ddb.hot           ;
+		err           |= ddb.err           ;
+		create_encode |= ddb.create_encode ;
 		return self ;
 	}
 	// data
 	// START_OF_VERSIONING REPO CACHE
-	uint8_t       sz                       = 0          ;                                //   8 bits, number of items in chunk following header (semantically before)
-	Accesses      accesses                 ;                                             // 3<8 bits
-	Dflags        dflags                   = DflagsDflt ;                                // 5<8 bits
-	bool          parallel      :1         = false      ;                                //   1 bit , dep is parallel with prev dep
-	bool          is_crc        :1         = true       ;                                //   1 bit
-	bool          hot           :1         = false      ;                                //   1 bit , if true <= file date was very close from access date (within date granularity)
-	Accesses::Val chunk_accesses:N<Access> = 0          ;                                //   4 bits
-	bool          err           :1         = false      ;                                //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+	uint8_t       sz                        = 0          ;                                        //   8 bits, number of items in chunk following header (semantically before)
+	Dflags        dflags                    = DflagsDflt ;                                        // 7<8 bits
+	Accesses::Val accesses_      :N<Access> = 0          ;                                        //   4 bits
+	Accesses::Val chunk_accesses_:N<Access> = 0          ;                                        //   4 bits
+	bool          parallel       :1         = false      ;                                        //   1 bit , dep is parallel with prev dep
+	bool          is_crc         :1         = true       ;                                        //   1 bit
+	bool          hot            :1         = false      ;                                        //   1 bit , if true <= file date was very close from access date (within date granularity)
+	bool          err            :1         = false      ;                                        //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+	bool          create_encode  :1         = false      ;                                        //   1 bit , if true <=> dep has been created because of encode
 private :
 	union {
-		Crc     _crc = {} ;                                                              // ~45<64 bits
-		FileSig _sig ;                                                                   // ~40<64 bits
+		Crc     _crc = {} ;                                                                       // ~45<64 bits
+		FileSig _sig ;                                                                            // ~40<64 bits
 	} ;
 	// END_OF_VERSIONING
 } ;
-template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& dd ) {    // START_OF_NO_COV
-	const char* sep = "" ;
-	/**/                                          os << "D("                           ;
-	if constexpr ( !::is_void_v<B>            ) { os <<sep<< static_cast<B const&>(dd) ; sep = "," ; }
-	if           ( +dd.accesses               ) { os <<sep<< dd.accesses               ; sep = "," ; }
-	if           (  dd.dflags!=DflagsDflt     ) { os <<sep<< dd.dflags                 ; sep = "," ; }
-	if           (  dd.parallel               ) { os <<sep<< "parallel"                ; sep = "," ; }
-	if           ( +dd.accesses && !dd.is_crc ) { os <<sep<< dd.sig()                  ; sep = "," ; }
-	else if      ( +dd.accesses && +dd.crc()  ) { os <<sep<< dd.crc()                  ; sep = "," ; }
-	if           (  dd.hot                    )   os <<sep<< "hot"                     ;
-	return                                        os <<')'                             ;
-}                                                                                        // END_OF_NO_COV
+template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& dd ) {             // START_OF_NO_COV
+	First first ;
+	/**/                                         os << "D("                                     ;
+	if constexpr ( !::is_void_v<B>             ) os << first("",",")<<static_cast<B const&>(dd) ;
+	if           (  dd.accesses_               ) os << first("",",")<<dd.accesses()             ;
+	if           (  dd.dflags!=DflagsDflt      ) os << first("",",")<<dd.dflags                 ;
+	if           (  dd.parallel                ) os << first("",",")<<"parallel"                ;
+	if           (  dd.accesses_ && !dd.is_crc ) os << first("",",")<<dd.sig()                  ;
+	else if      (  dd.accesses_ && +dd.crc()  ) os << first("",",")<<dd.crc()                  ;
+	if           (  dd.hot                     ) os << first("",",")<<"hot"                     ;
+	if           (  dd.err                     ) os << first("",",")<<"err"                     ;
+	if           (  dd.create_encode           ) os << first("",",")<<"create_encode"           ;
+	return                                       os << ')'                                      ;
+}                                                                                                 // END_OF_NO_COV
 
 using DepDigest = DepDigestBase<void> ;
 static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, we do not have to bother about union member cxtor/dxtor
@@ -661,9 +678,9 @@ template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 	}
 	throw_unless( status<All<Status> , "bad status" ) ;
 	if (for_cache)
-		for( auto const& [_,d] : deps ) {
-			throw_unless( d.is_crc                       , "dep not crc" ) ;
-			throw_unless( !d.accesses || d.crc().valid() , "bad dep crc" ) ;
+		for( auto const& [_,dd] : deps ) {
+			throw_unless( dd.is_crc                         , "dep not crc" ) ;
+			throw_unless( !dd.accesses_ || dd.crc().valid() , "bad dep crc" ) ;
 		}
 }
 

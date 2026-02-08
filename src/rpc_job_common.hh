@@ -14,13 +14,14 @@
 
 #include "autodep/env.hh"
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 enum class Dflag : uint8_t { // flags for deps, recorded in server book-keeping
 	Critical                 // if modified, ignore following deps
 ,	Essential                // show when generating user oriented graphs
 ,	IgnoreError              // dont propagate error if dep is in error (Error instead of Err because name is visible from user)
 ,	Required                 // dep must be buildable (static deps are always required)
 ,	Static                   // is static dep, for internal use only
+,	Codec                    // acquired with codec
 ,	Full                     // if false, dep is only necessary to compute resources
 //
 // aliases
@@ -34,6 +35,7 @@ static constexpr ::amap<Dflag,char,N<Dflag>> DflagChars {{
 ,	{ Dflag::IgnoreError , 'e' }
 ,	{ Dflag::Required    , 'r' }
 ,	{ Dflag::Static      , 'S' }
+,	{ Dflag::Codec       , 'C' }
 ,	{ Dflag::Full        , 'F' }
 }} ;
 using Dflags = BitMap<Dflag> ;
@@ -43,7 +45,7 @@ static constexpr Dflags DflagsDfltStatic = DflagsDflt|Dflag::Essential|Dflag::St
 static constexpr Dflags DflagsDfltDyn    = DflagsDflt                                ;
 static constexpr Dflags DflagsDfltDepend = DflagsDflt|Dflag::Required                ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 enum class ExtraDflag : uint8_t { // flags for deps, not recorded in server book-keeping
 	Top
 ,	Ignore
@@ -70,7 +72,7 @@ static constexpr ExtraDflags ExtraDflagsDfltStatic = ExtraDflagsDflt|ExtraDflag:
 static constexpr ExtraDflags ExtraDflagsDfltDyn    = ExtraDflagsDflt                    ;
 static constexpr ExtraDflags ExtraDflagsDfltDepend = ExtraDflagsDflt|ExtraDflag::NoStar ;
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 enum class Tflag : uint8_t { // flags for targets, recorded in server book-keeping
 	Essential                // show when generating user oriented graphs
 ,	Incremental              // reads are allowed (before earliest write if any)
@@ -98,7 +100,7 @@ inline bool static_phony(Tflags tf) {
 	return tf[Tflag::Target] && (tf[Tflag::Static]||tf[Tflag::Phony]) ;
 }
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 // not recorded in server book-keeping
 enum class ExtraTflag : uint8_t { // flags for targets, not recorded in server book-keeping
 	Top
@@ -157,7 +159,7 @@ struct MatchFlags {
 		;
 	}
 	// data
-	// START_OF_VERSIONING
+	// START_OF_VERSIONING CACHE JOB REPO
 	Tflags      tflags       = {} ;                                   // if kind>=Target
 	Dflags      dflags       = {} ;                                   // if kind>=Dep
 	ExtraTflags extra_tflags = {} ;                                   // if kind>=Target
@@ -174,7 +176,7 @@ inline ::string& operator+=( ::string& os , MatchFlags const& mfs ) { // START_O
 	return                 os <<')'                              ;
 }                                                                     // END_OF_NO_COV
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 enum class Comment : uint8_t {
 	None
 // syscalls
@@ -277,7 +279,7 @@ enum class Comment : uint8_t {
 } ;
 // END_OF_VERSIONING
 
-// START_OF_VERSIONING
+// START_OF_VERSIONING CACHE JOB REPO
 enum class CommentExt : uint8_t {
 	Bind
 ,	Dir

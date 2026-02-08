@@ -91,7 +91,7 @@ int main( int argc , char* argv[] ) {
 	//
 	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
 	//
-	repo_app_init({ .chk_version=Maybe , .read_only_ok=false }) ;
+	app_init({ .chk_version=Maybe , .read_only_ok=false }) ;
 	Trace trace("main",::span<char*>(argv,argc)) ;
 	/**/  trace(       env_args                ) ;
 	/**/  trace(       args                    ) ;

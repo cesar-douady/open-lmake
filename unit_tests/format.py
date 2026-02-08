@@ -48,5 +48,5 @@ else :
 	assert 1<=cnt.rerun and cnt.rerun<=2                    # there may be a spurious rerun on dut.ok because dut may be hot
 	ut.lmake( 'dut.ok'                                    ) # check build is stable
 
-	open('dut','a').write('\n')                           # mimic an edit session
-	ut.lmake( 'dut.ok' , changed=1 , rerun=1 , steady=2 ) # check reformat is redone
+	open('dut','a').write('\n')               # mimic an edit session
+	ut.lmake( 'dut.ok' , rerun=1 , steady=2 ) # check reformat is redone

@@ -42,7 +42,7 @@ int main( int argc , char* argv[] ) {
 	if ( cmd_line.args.size()<1 ) syntax.usage(    "need a target to debug"                                ) ;
 	if ( cmd_line.args.size()>1 ) syntax.usage(cat("cannot debug ",cmd_line.args.size()," targets at once")) ;
 	//
-	repo_app_init({.read_only_ok=false}) ;
+	app_init({.read_only_ok=false}) ;
 	Trace trace("main") ;
 	//
 	::vector_s script_files ;

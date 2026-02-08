@@ -7,6 +7,7 @@
 #include "utils.hh"
 namespace Version {
 	extern uint64_t    const Cache ;
+	extern uint64_t    const Codec ;
 	extern uint64_t    const Repo  ;
 	extern uint64_t    const Job   ;
 	extern const char* const Major ;

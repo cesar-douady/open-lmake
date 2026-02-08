@@ -148,7 +148,7 @@ void optimize(::vector<Line>& lines) {
 }
 
 int main( int argc , char* argv[] ) {
-	app_init({.chk_version=No}) ;
+	app_init({.chk_version=No,.version=0}) ;
 	//
 	if ( argc<4 || argc>5 ) exit(Rc::Usage,"usage : ",argv[0]," tab_width max_line_size comment_sign [file]") ;
 	g_tab_width    = from_string<size_t>(argv[1]) ;
