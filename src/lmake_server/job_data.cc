@@ -35,10 +35,6 @@ namespace Codec {
 		/**/                                            return a.code<=>b.code ;
 	}
 
-	static ::string _manifest_file(::string const& file) {
-		return cat(g_config->local_admin_dir_s,"codec/",file,"/manifest") ;
-	}
-
 	static FileNameIdx _code_prio( ::string const& code , ::string const& crc ) {
 		static_assert( 2*PATH_MAX<=Max<FileNameIdx> ) ;                           // ensure highest possible value fits in range
 		SWEAR( code.size()<=PATH_MAX , code ) ;
@@ -55,9 +51,9 @@ namespace Codec {
 			if (line[0]!='\t') {
 				ctx = parse_printable(line) ;
 			} else {
-				size_t   pos  = 1                                        ;                                       // skip initial \t
-				::string code = parse_printable(line,pos)                ; SWEAR( line[pos]=='\t' , pos,line ) ;
-				CodecCrc crc  = CodecCrc::s_from_hex(line.substr(pos+1)) ;
+				size_t   pos  = 1                                           ;                                       // skip initial \t
+				::string code = parse_printable(line,pos)                   ; SWEAR( line[pos]=='\t' , pos,line ) ;
+				CodecCrc crc  = CodecCrc::s_from_base64(line.substr(pos+1)) ;
 				res[ctx].try_emplace( ::move(code) , crc ) ;
 			}
 		}
@@ -66,16 +62,19 @@ namespace Codec {
 	}
 
 	static void _read_new_codes( ::vector<Entry>&/*inout*/ entries , ::string const& new_codes_dir_s , NfsGuard* nfs_guard ) {
-		::string tab = dir_name_s(new_codes_dir_s) ;
+		::string tab     = dir_name_s(new_codes_dir_s) ;
+		::string store_s = tab+"store/"                ;
 		Trace trace("_read_new_codes",new_codes_dir_s,tab) ;
 		for( ::string const& new_code_file : lst_dir_s(new_codes_dir_s,new_codes_dir_s,nfs_guard) ) {
-			Entry     e           ;
-			::string  encode_node = read_lnk(new_code_file) ; SWEAR( encode_node.starts_with("../") , tab,encode_node ) ; encode_node = encode_node.substr(3/*../ */) ;
-			CodecFile cf          { New , encode_node }     ;
+			Entry     e          ;
+			::string  enc_node   = read_lnk(new_code_file)                                  ; SWEAR( enc_node.starts_with("../") , tab,enc_node ) ; enc_node = enc_node.substr(3/*../ */) ;
+			CodecFile cf         { New , enc_node }                                         ;
+			::string  crc        = cf.val_crc().base64()                                    ;
+			::string  store_file = cat(store_s,substr_view(crc,0,2),'/',substr_view(crc,2)) ;
 			//
-			e.ctx  = cf.ctx                                       ;
-			e.code = read_lnk(encode_node)                        ; SWEAR( e.code.ends_with(DecodeSfx) , tab,encode_node,e.code ) ; e.code.resize( e.code.size() - DecodeSfxSz ) ;
-			e.val  = AcFd(tab+"store/"+cf.val_crc().hex()).read() ;
+			e.ctx  = cf.ctx                  ;
+			e.code = read_lnk(enc_node)      ; SWEAR( e.code.ends_with(DecodeSfx) , tab,enc_node,e.code ) ; e.code.resize( e.code.size() - DecodeSfxSz ) ;
+			e.val  = AcFd(store_file).read() ;
 			//
 			entries.push_back(::move(e)) ;
 		}
@@ -112,7 +111,7 @@ namespace Codec {
 					trace("val_conflict",it->second,entry.code,"keep") ;
 				} else {
 					has_new_codes |= Maybe ;
-					::string crc = CodecCrc(New,entry.val).hex() ;
+					::string crc = CodecCrc(New,entry.val).base64() ;
 					if (_code_prio(entry.code,crc)>_code_prio(it->second,crc)) { trace("val_conflict",it->second,entry.code,"keep"  ) ; it->second = entry.code ; } // keep best code
 					else                                                         trace("val_conflict",it->second,entry.code,"forget") ;
 				}
@@ -158,7 +157,7 @@ namespace Codec {
 				trace("clashes",clashes.size()) ;
 				for( auto const& [code,vals] : clashes )
 					for( ::string const& val : vals ) {
-						::string crc      = CodecCrc(val).hex()           ;
+						::string crc      = CodecCrc(val).base64()        ;
 						uint8_t  d        = ::min(code.size(),crc.size()) ; while (!code.ends_with(substr_view(crc,0,d))) d-- ;
 						::string new_code = code                          ; new_code.reserve(code.size()+1)                   ; // most of the time, adding a single char is enough
 						for( char c : substr_view(crc,d) ) {
@@ -826,9 +825,9 @@ namespace Engine {
 			if (Encode) {
 				target = code_val+Codec::DecodeSfx ;
 			} else {
-				::string val_crc = CodecCrc( New , code_val ).hex()        ;
+				::string val_crc = CodecCrc( New , code_val ).base64()     ;
 				::string dir_s   = CodecFile::s_dir_s(codec_file.file,tmp) ;
-				target = mk_rel( dir_s+"store/"+val_crc , dir_name_s(disk_node_name) ) ;
+				target = mk_rel( cat(dir_s,"store/",substr_view(val_crc,0,2),'/',substr_view(val_crc,2)) , dir_name_s(disk_node_name) ) ;
 				creat_store( dir_s , val_crc , code_val , -1/*umask*/ , nfs_guard ) ;
 			}
 			sym_lnk( disk_node_name , target , {.nfs_guard=nfs_guard} ) ;
@@ -874,9 +873,10 @@ namespace Engine {
 			return ;
 		}
 		//
-		::string                                    manifest_filename   = _manifest_file(filename)                                                               ;
+		::string                                    manifest_filename   = cat(g_config->local_admin_dir_s,"codec/",filename,"/manifest")                         ;
 		::string                                    manifest            ; //!                                                                       partial_ok
 		::vector_s                                  lines               =                          AcFd(filename                        ).read_lines(false   )   ;
+		FileInfo                                    file_fi             { filename }                                                                             ;
 		::umap_s/*ctx*/<::umap_s/*code*/<CodecCrc>> old_decode_tab      = _prepare_old_decode_tab( AcFd(manifest_filename,{.err_ok=true}).read_lines(false   ) ) ;
 		Bool3                                       has_new_codes       ;
 		::map_s /*ctx*/<::map_ss/*val ->code*/>     encode_tab          = _prepare_encode_tab    ( lines , /*out*/has_new_codes )                                ;
@@ -903,7 +903,7 @@ namespace Engine {
 					n_entries++ ; //!                                                            tmp
 					_create<false/*Encode*/>( {false/*encode*/,filename,ctx,code} , val  , job , true , &nfs_guard ) ;
 					_create<true /*.     */>( {                filename,ctx,crc } , code , job , true , &nfs_guard ) ;
-					manifest <<'\t'<<mk_printable(code)<<'\t'<<crc.hex()<<'\n' ;
+					manifest <<'\t'<<mk_printable(code)<<'\t'<<crc.base64()<<'\n' ;
 				}
 			}
 			mk_dir_s(tmp_codec_dir_s+"store/")                    ;
@@ -947,7 +947,7 @@ namespace Engine {
 					if (  e_is_clean || eit->second!=code ) _create<true >( {                filename,ctx,crc } , code , job , false , &nfs_guard ) ;
 					if ( !d_is_clean                      ) old_d_entry.erase(dit)                                                                  ;
 					if ( !e_is_clean                      ) old_e_entry.erase(eit)                                                                  ;
-					manifest <<'\t'<<mk_printable(code)<<'\t'<<crc.hex()<<'\n' ;
+					manifest <<'\t'<<mk_printable(code)<<'\t'<<crc.base64()<<'\n' ;
 				}
 				for( auto const& [code,_] : old_d_entry ) { _erase( {false/*encode*/,filename,ctx,code} , &nfs_guard ) ; }
 				for( auto const& [crc ,_] : old_e_entry ) { _erase( {                filename,ctx,crc } , &nfs_guard ) ; }
@@ -974,6 +974,8 @@ namespace Engine {
 		AcFd ( manifest_filename , {O_WRONLY|O_CREAT|O_TRUNC} ).write( manifest ) ;
 		//
 		if (codec_dir_exists) unlnk( new_codes_bck_dir_s , {.dir_ok=true,.nfs_guard=&nfs_guard} ) ; // cleanup once everything went smooth so as to retry in case of crash
+		//
+		touch( codec_dir_s+"stamp" , file_fi.date , {.nfs_guard=&nfs_guard} ) ;                     // mark update date to be used when encoding/decoding to ensure proper overwritten detection
 		//
 		status = Status::Ok ;
 		trace("done",has_new_codes) ;

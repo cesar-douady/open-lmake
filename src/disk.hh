@@ -239,9 +239,9 @@ namespace Disk {
 	void         rmdir_s       ( FileRef dir_s ,                          NfsGuard*   =nullptr ) ;
 	void         mk_dir_empty_s( FileRef dir_s ,                          _UnlnkAction={}      ) ;
 	void         sym_lnk       ( FileRef file  , ::string const& target , _CreatAction={}      ) ;
-	void         touch         ( FileRef path  , Time::Pdate            , NfsGuard*   =nullptr ) ;
-	//
-	inline void touch( FileRef path , NfsGuard* ng=nullptr ) { touch( path , New , ng ) ; }
+	void         touch         ( FileRef file  , Time::Ddate            , _CreatAction={}      ) ;
+	void         touch         ( FileRef file  , Time::Pdate            , _CreatAction={}      ) ;
+	void         touch         ( FileRef file  ,                          _CreatAction={}      ) ;
 
 	::string read_lnk( FileRef file , NfsGuard* =nullptr ) ;
 

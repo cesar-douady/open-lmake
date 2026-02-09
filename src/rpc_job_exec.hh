@@ -147,7 +147,7 @@ struct JobExecRpcReply {
 namespace Codec {
 
 	// START_OF_VERSIONING CACHE JOB REPO CODEC
-	using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+	using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
 	static constexpr char CodecSep    = '*'       ; //!                                                    null
 	static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 	static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
@@ -163,8 +163,8 @@ namespace Codec {
 			else     return cat(PrivateAdminDirS,"codec/"    ) ;
 		}
 		static ::string s_dir_s( ::string const& tab , bool tmp=false ) {
-			if (Disk::is_dir_name(tab)) { SWEAR( !tmp , tab ) ; return with_slash(             tab          ) ; }
-			else                                                return cat       (s_pfx_s(tmp),tab,add_slash) ;
+			if (Disk::is_dir_name(tab)) { SWEAR( !tmp , tab ) ; return                  tab            ; }
+			else                                                return cat(s_pfx_s(tmp),tab,add_slash) ;
 		}
 		static ::string s_config_file(::string const& tab) {
 			SWEAR(Disk::is_dir_name(tab)) ;

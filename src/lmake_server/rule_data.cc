@@ -91,10 +91,10 @@ namespace Engine {
 				// START_OF_VERSIONING REPO CACHE CODEC
 				static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 				stems = {
-					{ "File" ,     ".+"                                    } // static
-				,	{ "Ctx"  , cat("[^",CodecSep,"]*")                     } // star
-				,	{ "Code" ,     "[^/]*"                                 } // .
-				,	{ "Val"  , cat("[0-9a-f]{",Codec::CodecCrc::HexSz,'}') } // .
+					{ "File" ,     ".+"                                            } // static
+				,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             } // star
+				,	{ "Code" ,     "[^/]*"                                         } // .
+				,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') } // .      /!\ - must be first or last char in []
 				} ;
 				n_static_stems = 1 ;
 				//

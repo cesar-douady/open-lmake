@@ -15,6 +15,7 @@
 static constexpr size_t Npos = ::string::npos ;
 
 #if HAS_UINT128
+	using int128_t  = __int128_t  ;
 	using uint128_t = __uint128_t ;
 #endif
 
@@ -351,6 +352,10 @@ template<class A,class B> ::string& operator+=( ::string& os , ::pair<A,B> const
 //
 template<class T> ::string& operator+=( ::string& os , ::optional<T> const& o ) { return +o ? os<<*o : os<<"<none>" ; }
 //
+#if HAS_UINT128
+	inline ::string& operator+=( ::string& os , uint128_t i ) { return os << uint64_t(i>>64)<<'-'<<uint64_t(i) ; } // non-standard, XXX : make a clean output
+	inline ::string& operator+=( ::string& os , int128_t  i ) { return os << int64_t (i>>64)<<'-'<<uint64_t(i) ; } // .
+#endif
 inline ::string& operator+=( ::string& os , uint8_t i ) { return os << uint32_t(i) ; } // avoid output a char when actually a int
 inline ::string& operator+=( ::string& os , int8_t  i ) { return os << int32_t (i) ; } // .
 

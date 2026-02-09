@@ -318,7 +318,6 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
-* document codec dir table format
 * make a tutorial
 * give an example of Rule using the paths attribute
 ? add hard limits

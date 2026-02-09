@@ -239,9 +239,9 @@ namespace Backdoor {
 
 	struct Encode {
 		friend ::string& operator+=( ::string& , Encode const& ) ;
-		static constexpr char   Cmd[]              = "encode"                                    ;
-		static constexpr bool   ReliableMaxReplySz = true                                        ;
-		static constexpr size_t MaxReplySz         = sizeof(::optional_s)+Codec::CodecCrc::HexSz ;
+		static constexpr char   Cmd[]              = "encode"                                       ;
+		static constexpr bool   ReliableMaxReplySz = true                                           ;
+		static constexpr size_t MaxReplySz         = sizeof(::optional_s)+Codec::CodecCrc::Base64Sz ;
 		// services
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const ;

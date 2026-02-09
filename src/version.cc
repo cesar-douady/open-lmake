@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 24      ; // 7a0a3df78e23a6a52f4822b1b13f310d
-	uint64_t    constexpr Codec = 1       ; // f105615fdb1a2a8603c0dbf0c22f0ffe
-	uint64_t    constexpr Repo  = 19      ; // 117ec814c897ac358501f8914382a75e
-	uint64_t    constexpr Job   = 10      ; // cbbcda503564c3666c9148f0fa067334
+	uint64_t    constexpr Cache = 25      ; // d982af294ec49eb6a5ca323325cc517a
+	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
+	uint64_t    constexpr Repo  = 20      ; // aa50831cb55ac93f26564b6661da3856
+	uint64_t    constexpr Job   = 11      ; // be19fc7c40550a6863a4b82934cd57fc
 	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 7a0a3df78e23a6a52f4822b1b13f310d *
+// * Cache : d982af294ec49eb6a5ca323325cc517a *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -70,7 +70,7 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
+//		template<uint8_t Sz> _Crc<Sz>::_Crc(::string const& filename) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 //			self = None ;
 //			if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
@@ -81,8 +81,8 @@ namespace Version {
 //					break ;
 //					case FileTag::Reg :
 //					case FileTag::Exe : {
-//						_Xxh<Is128> ctx { fi.tag() }                   ;
-//						::string    buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+//						_Xxh<Sz> ctx { fi.tag() }                   ;
+//						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 //						for( size_t sz=fi.sz ;;) {
 //							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
 //							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
@@ -103,7 +103,7 @@ namespace Version {
 //					} break ;
 //				DN}
 //			} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-//				_Xxh<Is128> ctx { FileTag::Lnk } ;
+//				_Xxh<Sz> ctx { FileTag::Lnk } ;
 //				ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 //				self = ctx.digest() ;
 //			}
@@ -112,10 +112,10 @@ namespace Version {
 //					// START_OF_VERSIONING REPO CACHE CODEC
 //					static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 //					stems = {
-//						{ "File" ,     ".+"                                    } // static
-//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                     } // star
-//					,	{ "Code" ,     "[^/]*"                                 } // .
-//					,	{ "Val"  , cat("[0-9a-f]{",Codec::CodecCrc::HexSz,'}') } // .
+//						{ "File" ,     ".+"                                            } // static
+//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             } // star
+//					,	{ "Code" ,     "[^/]*"                                         } // .
+//					,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') } // .      /!\ - must be first or last char in []
 //					} ;
 //					n_static_stems = 1 ;
 //					//
@@ -139,8 +139,8 @@ namespace Version {
 //			//
 //			file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
 //			pos3++/* / */ ;
-//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                    _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz))    ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::Base64Sz,sz) ; _code_val_crc = CodecCrc::s_from_base64(node.substr(pos3,sz)) ; }
 //			else                                  FAIL(node) ;
 //			pos2++/*CodecSep*/ ;
 //			ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
@@ -153,8 +153,8 @@ namespace Version {
 //			//
 //			file = node.substr(0,pos2) ;
 //			pos3++/* / */ ;
-//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                    _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz))    ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::Base64Sz,sz) ; _code_val_crc = CodecCrc::s_from_base64(node.substr(pos3,sz)) ; }
 //			else                                  FAIL(node) ;
 //			pos3 -= 1/* / */                        ;
 //			pos2 += 4/*tab/ */                      ;
@@ -170,7 +170,7 @@ namespace Version {
 //		}
 //		::string CodecFile::name(bool tmp) const {
 //			::string res = ctx_dir_s(tmp) ;
-//			if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+//			if (is_encode()) res << val_crc().base64()       <<EncodeSfx ;
 //			else             res << mk_printable<'/'>(code())<<DecodeSfx ;
 //			return res ;
 //		}
@@ -858,7 +858,7 @@ namespace Version {
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO CODEC
-//		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+//		using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
@@ -909,7 +909,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ********************************************
-// * Codec : f105615fdb1a2a8603c0dbf0c22f0ffe *
+// * Codec : 603a8fc6deb9a767ed591521309aef40 *
 // ********************************************
 //
 //			// START_OF_VERSIONING CODEC
@@ -927,22 +927,26 @@ namespace Version {
 //						lock.lock_shared( cat(host(),'-',::getpid()) ) ;                                                                       // passed id is for debug only
 //						goto Retry ;
 //					}
-//					::string dir_s = with_slash(CodecFile::s_dir_s(crs.tab)) ;
-//					creat_store( {rfd,dir_s} , crc_str , val , crs.umask , &nfs_guard ) ;                                                      // ensure data exist in store
+//					::string dir_s = CodecFile::s_dir_s(crs.tab) ;
+//					creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                      // ensure data exist in store
 //					//
-//					CodecFile dcf       { false/*encode*/ , crs.tab , ctx , crc_str.substr(0,min_len) } ;
-//					::string& code      = dcf.code()                                                    ;
-//					::string  ctx_dir_s = dir_name_s(node)                                              ;
-//					::string  rel_data  = mk_lcl( cat(dir_s,"store/",crc_str) , ctx_dir_s )             ;
+//					CodecFile dcf       { false/*encode*/ , crs.tab , ctx , crc_hex.substr(0,min_len) }                                       ;
+//					::string& code      = dcf.code()                                                                                          ;
+//					::string  ctx_dir_s = dir_name_s(node)                                                                                    ;
+//					::string  rel_data  = mk_lcl( cat(dir_s,"store/",substr_view(crc_base64,0,2),'/',substr_view(crc_base64,2)) , ctx_dir_s ) ;
 //					// find code
-//					for(; code.size()<crc_str.size() ; code.push_back(crc_str[code.size()]) ) {
+//					for(; code.size()<crc_hex.size() ; code.push_back(crc_hex[code.size()]) ) {
 //						::string decode_node = dcf.name() ;
 //						try {
 //							sym_lnk( {rfd,decode_node} , rel_data       , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;
 //							sym_lnk( {rfd,node       } , code+DecodeSfx , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;                         // create the encode side
 //							//
+//							FileInfo stamp_fi { dir_s+"stamp" , {.nfs_guard=&nfs_guard} } ;                                                    // stamp created links to logical date to ensure proper ...
+//							touch( {rfd,decode_node} , stamp_fi.date , {.nfs_guard=&nfs_guard} ) ;                                             // ... overwritten detection in lmake engine ...
+//							touch( {rfd,node       } , stamp_fi.date , {.nfs_guard=&nfs_guard} ) ;                                             // ... if no stamp, date is the epoch, which is fine
+//							//
 //							if (!crs.is_dir()) {
-//								::string new_code = cat(dir_s,"new_codes/",CodecCrc(New,decode_node).hex()) ;
+//								::string new_code = cat(dir_s,"new_codes/",CodecCrc(New,decode_node).base64()) ;
 //								sym_lnk( {rfd,new_code} , "../"+node , {.nfs_guard=&nfs_guard} ) ;                                             // tell server
 //							}
 //							ad.flags.extra_dflags |= ExtraDflag::CreateEncode ;
@@ -955,17 +959,17 @@ namespace Version {
 //					}
 //					throw "no available code"s ;
 //				Found :
-//					fi  = { {rfd,node} } ;                                                                      // update date after create
+//					fi  = { {rfd,node} , {.nfs_guard=&nfs_guard} } ;                                            // update date after create
 //					res = ::move(code)   ;
 //				}
 //				// END_OF_VERSIONING
 //					// START_OF_VERSIONING REPO CACHE CODEC
 //					static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 //					stems = {
-//						{ "File" ,     ".+"                                    } // static
-//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                     } // star
-//					,	{ "Code" ,     "[^/]*"                                 } // .
-//					,	{ "Val"  , cat("[0-9a-f]{",Codec::CodecCrc::HexSz,'}') } // .
+//						{ "File" ,     ".+"                                            } // static
+//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             } // star
+//					,	{ "Code" ,     "[^/]*"                                         } // .
+//					,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') } // .      /!\ - must be first or last char in []
 //					} ;
 //					n_static_stems = 1 ;
 //					//
@@ -982,7 +986,7 @@ namespace Version {
 //					} ;
 //					// END_OF_VERSIONING
 //			// START_OF_VERSIONING CODEC
-//			::string data = cat(dir_s.file,"store/",crc_str) ;
+//			::string data = cat(dir_s.file,"store/",substr_view(crc_str,0,2),'/',substr_view(crc_str,2)) ;
 //			// END_OF_VERSIONING
 //				// START_OF_VERSIONING CODEC
 //				AcFd( {dir_s.at,tmp_data} , {.flags=O_WRONLY|O_CREAT,.mod=0444,.umask=umask} ).write( val ) ;
@@ -995,8 +999,8 @@ namespace Version {
 //			//
 //			file = node.substr(0,pos2) ;
 //			pos3++/* / */ ;
-//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                    _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz))    ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::Base64Sz,sz) ; _code_val_crc = CodecCrc::s_from_base64(node.substr(pos3,sz)) ; }
 //			else                                  FAIL(node) ;
 //			pos3 -= 1/* / */                        ;
 //			pos2 += 4/*tab/ */                      ;
@@ -1027,7 +1031,7 @@ namespace Version {
 //		}
 //		::string CodecFile::name(bool tmp) const {
 //			::string res = ctx_dir_s(tmp) ;
-//			if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+//			if (is_encode()) res << val_crc().base64()       <<EncodeSfx ;
 //			else             res << mk_printable<'/'>(code())<<DecodeSfx ;
 //			return res ;
 //		}
@@ -1045,14 +1049,14 @@ namespace Version {
 //			return res ;
 //			// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO CODEC
-//		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+//		using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 117ec814c897ac358501f8914382a75e *
+// * Repo : aa50831cb55ac93f26564b6661da3856 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1098,7 +1102,7 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
+//		template<uint8_t Sz> _Crc<Sz>::_Crc(::string const& filename) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 //			self = None ;
 //			if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
@@ -1109,8 +1113,8 @@ namespace Version {
 //					break ;
 //					case FileTag::Reg :
 //					case FileTag::Exe : {
-//						_Xxh<Is128> ctx { fi.tag() }                   ;
-//						::string    buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+//						_Xxh<Sz> ctx { fi.tag() }                   ;
+//						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 //						for( size_t sz=fi.sz ;;) {
 //							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
 //							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
@@ -1131,7 +1135,7 @@ namespace Version {
 //					} break ;
 //				DN}
 //			} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-//				_Xxh<Is128> ctx { FileTag::Lnk } ;
+//				_Xxh<Sz> ctx { FileTag::Lnk } ;
 //				ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 //				self = ctx.digest() ;
 //			}
@@ -1140,10 +1144,10 @@ namespace Version {
 //					// START_OF_VERSIONING REPO CACHE CODEC
 //					static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 //					stems = {
-//						{ "File" ,     ".+"                                    } // static
-//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                     } // star
-//					,	{ "Code" ,     "[^/]*"                                 } // .
-//					,	{ "Val"  , cat("[0-9a-f]{",Codec::CodecCrc::HexSz,'}') } // .
+//						{ "File" ,     ".+"                                            } // static
+//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             } // star
+//					,	{ "Code" ,     "[^/]*"                                         } // .
+//					,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') } // .      /!\ - must be first or last char in []
 //					} ;
 //					n_static_stems = 1 ;
 //					//
@@ -1227,8 +1231,8 @@ namespace Version {
 //			//
 //			file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
 //			pos3++/* / */ ;
-//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                    _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz))    ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::Base64Sz,sz) ; _code_val_crc = CodecCrc::s_from_base64(node.substr(pos3,sz)) ; }
 //			else                                  FAIL(node) ;
 //			pos2++/*CodecSep*/ ;
 //			ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
@@ -1241,8 +1245,8 @@ namespace Version {
 //			//
 //			file = node.substr(0,pos2) ;
 //			pos3++/* / */ ;
-//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                    _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz))    ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::Base64Sz,sz) ; _code_val_crc = CodecCrc::s_from_base64(node.substr(pos3,sz)) ; }
 //			else                                  FAIL(node) ;
 //			pos3 -= 1/* / */                        ;
 //			pos2 += 4/*tab/ */                      ;
@@ -1258,7 +1262,7 @@ namespace Version {
 //		}
 //		::string CodecFile::name(bool tmp) const {
 //			::string res = ctx_dir_s(tmp) ;
-//			if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+//			if (is_encode()) res << val_crc().base64()       <<EncodeSfx ;
 //			else             res << mk_printable<'/'>(code())<<DecodeSfx ;
 //			return res ;
 //		}
@@ -2293,7 +2297,7 @@ namespace Version {
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO CODEC
-//		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+//		using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
@@ -2344,7 +2348,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : cbbcda503564c3666c9148f0fa067334 *
+// * Job : be19fc7c40550a6863a4b82934cd57fc *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2372,7 +2376,7 @@ namespace Version {
 //		res <<':'<<      mk_printable     (                  views_s     ,false )      ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		template<bool Is128> _Crc<Is128>::_Crc(::string const& filename) {
+//		template<uint8_t Sz> _Crc<Sz>::_Crc(::string const& filename) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
 //			self = None ;
 //			if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
@@ -2383,8 +2387,8 @@ namespace Version {
 //					break ;
 //					case FileTag::Reg :
 //					case FileTag::Exe : {
-//						_Xxh<Is128> ctx { fi.tag() }                   ;
-//						::string    buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+//						_Xxh<Sz> ctx { fi.tag() }                   ;
+//						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
 //						for( size_t sz=fi.sz ;;) {
 //							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
 //							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
@@ -2405,7 +2409,7 @@ namespace Version {
 //					} break ;
 //				DN}
 //			} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-//				_Xxh<Is128> ctx { FileTag::Lnk } ;
+//				_Xxh<Sz> ctx { FileTag::Lnk } ;
 //				ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
 //				self = ctx.digest() ;
 //			}
@@ -2419,8 +2423,8 @@ namespace Version {
 //			//
 //			file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
 //			pos3++/* / */ ;
-//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                    _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz))    ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::Base64Sz,sz) ; _code_val_crc = CodecCrc::s_from_base64(node.substr(pos3,sz)) ; }
 //			else                                  FAIL(node) ;
 //			pos2++/*CodecSep*/ ;
 //			ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
@@ -2433,8 +2437,8 @@ namespace Version {
 //			//
 //			file = node.substr(0,pos2) ;
 //			pos3++/* / */ ;
-//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+//			if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                    _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz))    ; }
+//			else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::Base64Sz,sz) ; _code_val_crc = CodecCrc::s_from_base64(node.substr(pos3,sz)) ; }
 //			else                                  FAIL(node) ;
 //			pos3 -= 1/* / */                        ;
 //			pos2 += 4/*tab/ */                      ;
@@ -2450,7 +2454,7 @@ namespace Version {
 //		}
 //		::string CodecFile::name(bool tmp) const {
 //			::string res = ctx_dir_s(tmp) ;
-//			if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+//			if (is_encode()) res << val_crc().base64()       <<EncodeSfx ;
 //			else             res << mk_printable<'/'>(code())<<DecodeSfx ;
 //			return res ;
 //		}
@@ -2726,7 +2730,7 @@ namespace Version {
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO CODEC
-//		using CodecCrc = Hash::Crc128 ;                                                                             // 64 bits is enough, but not easy to prove
+//		using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;

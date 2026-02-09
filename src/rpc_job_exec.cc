@@ -82,9 +82,9 @@ JobExecRpcReply JobExecRpcReq::mimic_server() && {
 namespace Codec {
 
 	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , mode_t umask , NfsGuard* nfs_guard ) {
-		SWEAR( crc_str.size()==CodecCrc::HexSz , dir_s,crc_str ) ;
+		SWEAR( crc_str.size()==CodecCrc::Base64Sz , dir_s,crc_str ) ;
 		// START_OF_VERSIONING CODEC
-		::string data = cat(dir_s.file,"store/",crc_str) ;
+		::string data = cat(dir_s.file,"store/",substr_view(crc_str,0,2),'/',substr_view(crc_str,2)) ;
 		// END_OF_VERSIONING
 		if (!FileInfo(data).exists()) {
 			uint64_t r        = random<uint64_t>() ;
@@ -112,8 +112,8 @@ namespace Codec {
 		//
 		file = node.substr(pos1,pos2-pos1) ; file.pop_back() ;
 		pos3++/* / */ ;
-		if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-		else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+		if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                    _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz))    ; }
+		else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::Base64Sz,sz) ; _code_val_crc = CodecCrc::s_from_base64(node.substr(pos3,sz)) ; }
 		else                                  FAIL(node) ;
 		pos2++/*CodecSep*/ ;
 		ctx = parse_printable<CodecSep>( node.substr( pos2 , pos3-1/* / */-pos2 ) ) ;
@@ -129,8 +129,8 @@ namespace Codec {
 		//
 		file = node.substr(0,pos2) ;
 		pos3++/* / */ ;
-		if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                 _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz)) ; }
-		else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::HexSz,sz) ; _code_val_crc = CodecCrc::s_from_hex(node.substr(pos3,sz)) ; }
+		if      (node.ends_with(DecodeSfx)) { size_t sz = node.size()-DecodeSfxSz-pos3 ;                                    _code_val_crc = parse_printable<'/'>(node.substr(pos3,sz))    ; }
+		else if (node.ends_with(EncodeSfx)) { size_t sz = node.size()-EncodeSfxSz-pos3 ; SWEAR(sz==CodecCrc::Base64Sz,sz) ; _code_val_crc = CodecCrc::s_from_base64(node.substr(pos3,sz)) ; }
 		else                                  FAIL(node) ;
 		pos3 -= 1/* / */                        ;
 		pos2 += 4/*tab/ */                      ;
@@ -166,7 +166,7 @@ namespace Codec {
 	}
 	::string CodecFile::name(bool tmp) const {
 		::string res = ctx_dir_s(tmp) ;
-		if (is_encode()) res << val_crc().hex()          <<EncodeSfx ;
+		if (is_encode()) res << val_crc().base64()       <<EncodeSfx ;
 		else             res << mk_printable<'/'>(code())<<DecodeSfx ;
 		return res ;
 	}

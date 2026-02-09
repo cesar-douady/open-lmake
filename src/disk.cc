@@ -225,11 +225,22 @@ namespace Disk {
 		if (::unlinkat(dir_s.at,dir_s.file.c_str(),AT_REMOVEDIR)!=0) throw cat("cannot rmdir ",dir_s) ;
 	}
 
-	void touch( FileRef path , Pdate date , NfsGuard* nfs_guard ) {
-		TimeSpec time_specs[2] { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , {.tv_sec=time_t(date.sec()),.tv_nsec=int32_t(date.nsec_in_s())} } ;
-		::utimensat( path.at , path.file.c_str() , time_specs , AT_SYMLINK_NOFOLLOW ) ;
-		if (nfs_guard) nfs_guard->change(path) ;
+	static void _touch( FileRef file , TimeSpec date , _CreatAction action ) {
+		bool     retried       = false                                    ;
+		TimeSpec time_specs[2] { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , date } ;
+		if ( action.nfs_guard                                                                 ) action.nfs_guard->change(file) ;
+	Retry :
+		if ( ::utimensat( file.at , file.file.c_str() , time_specs , AT_SYMLINK_NOFOLLOW )!=0 ) {
+			if ( errno==ENOENT && !retried && action.mk_dir ) {
+				retried = true ;                                // ensure we retry at most once
+				dir_guard( file , action ) ;
+				goto Retry/*BACKWARD*/ ;
+			}
+		}
 	}
+	void touch( FileRef file , Ddate date , _CreatAction action ) { _touch( file , {.tv_sec=time_t(date.sec()),.tv_nsec=int32_t(date.nsec_in_s())} , action ) ; }
+	void touch( FileRef file , Pdate date , _CreatAction action ) { _touch( file , {.tv_sec=time_t(date.sec()),.tv_nsec=int32_t(date.nsec_in_s())} , action ) ; }
+	void touch( FileRef file ,              _CreatAction action ) { _touch( file , {.tv_sec=0                 ,.tv_nsec=UTIME_NOW                } , action ) ; }
 
 	void mk_dir_empty_s( FileRef dir_s , _UnlnkAction action ) {
 		try                     { unlnk_inside_s(dir_s,action                       ) ; }

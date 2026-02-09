@@ -415,21 +415,22 @@ namespace Backdoor {
 	// /!\ this function must stay in sync with Engine::_create in job_data.cc
 	::string Encode::process(Record& r) {
 		using namespace Codec ;
-		CodecRemoteSide crs       = _real( r , tab , Comment::Encode ) ;
-		CodecCrc        crc       { New  , val }                       ;
-		::string        crc_str   = crc.hex()                          ;
-		CodecFile       cf        { crs.tab , ctx , crc }              ; cf.chk() ;
-		::string        node      = cf.name()                          ;
-		AccessDigest    ad        { .accesses=Access::Lnk }            ; ad.flags.dflags |= Dflag::Codec ; ad.flags.extra_dflags |= ExtraDflag::NoHot ; // beware of default flags, dep is guarded
-		FileInfo        fi        ;
-		::string        res       ;
-		::string        msg       ;
-		CodecLock       lock      ;                                      // for use with local to ensure server maintenance is not on-going
-		NfsGuard        nfs_guard { crs.file_sync }                    ;
-		Fd              rfd       = Record::s_repo_root_fd()           ;
+		CodecRemoteSide crs        = _real( r , tab , Comment::Encode ) ;
+		CodecCrc        crc        { New  , val }                       ;
+		::string        crc_base64 = crc.base64()                       ;
+		::string        crc_hex    = crc.hex   ()                       ;
+		CodecFile       cf         { crs.tab , ctx , crc }              ; cf.chk() ;
+		::string        node       = cf.name()                          ;
+		AccessDigest    ad         ;                                      ad.flags.dflags |= Dflag::Codec ; ad.flags.extra_dflags |= ExtraDflag::NoHot ; // beware of default flags, dep is guarded
+		FileInfo        fi         ;
+		::string        res        ;
+		::string        msg        ;
+		CodecLock       lock       ;                                      // for use with local to ensure server maintenance is not on-going
+		NfsGuard        nfs_guard  { crs.file_sync }                    ;
+		Fd              rfd        = Record::s_repo_root_fd()           ;
 		try {
 		Retry :
-			fi  = { {rfd,node} }                      ;                                                                                    // get date before access to be pessimistic
+			fi = { {rfd,node} , {.nfs_guard=&nfs_guard} } ;                                                                                // get date before access to be pessimistic
 			// START_OF_VERSIONING CODEC
 			res = read_lnk( {rfd,node} , &nfs_guard ) ;
 			if (+res) {
@@ -442,22 +443,26 @@ namespace Backdoor {
 					lock.lock_shared( cat(host(),'-',::getpid()) ) ;                                                                       // passed id is for debug only
 					goto Retry ;
 				}
-				::string dir_s = with_slash(CodecFile::s_dir_s(crs.tab)) ;
-				creat_store( {rfd,dir_s} , crc_str , val , crs.umask , &nfs_guard ) ;                                                      // ensure data exist in store
+				::string dir_s = CodecFile::s_dir_s(crs.tab) ;
+				creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                      // ensure data exist in store
 				//
-				CodecFile dcf       { false/*encode*/ , crs.tab , ctx , crc_str.substr(0,min_len) } ;
-				::string& code      = dcf.code()                                                    ;
-				::string  ctx_dir_s = dir_name_s(node)                                              ;
-				::string  rel_data  = mk_lcl( cat(dir_s,"store/",crc_str) , ctx_dir_s )             ;
+				CodecFile dcf       { false/*encode*/ , crs.tab , ctx , crc_hex.substr(0,min_len) }                                       ;
+				::string& code      = dcf.code()                                                                                          ;
+				::string  ctx_dir_s = dir_name_s(node)                                                                                    ;
+				::string  rel_data  = mk_lcl( cat(dir_s,"store/",substr_view(crc_base64,0,2),'/',substr_view(crc_base64,2)) , ctx_dir_s ) ;
 				// find code
-				for(; code.size()<crc_str.size() ; code.push_back(crc_str[code.size()]) ) {
+				for(; code.size()<crc_hex.size() ; code.push_back(crc_hex[code.size()]) ) {
 					::string decode_node = dcf.name() ;
 					try {
 						sym_lnk( {rfd,decode_node} , rel_data       , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;
 						sym_lnk( {rfd,node       } , code+DecodeSfx , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;                         // create the encode side
 						//
+						FileInfo stamp_fi { dir_s+"stamp" , {.nfs_guard=&nfs_guard} } ;                                                    // stamp created links to logical date to ensure proper ...
+						touch( {rfd,decode_node} , stamp_fi.date , {.nfs_guard=&nfs_guard} ) ;                                             // ... overwritten detection in lmake engine ...
+						touch( {rfd,node       } , stamp_fi.date , {.nfs_guard=&nfs_guard} ) ;                                             // ... if no stamp, date is the epoch, which is fine
+						//
 						if (!crs.is_dir()) {
-							::string new_code = cat(dir_s,"new_codes/",CodecCrc(New,decode_node).hex()) ;
+							::string new_code = cat(dir_s,"new_codes/",CodecCrc(New,decode_node).base64()) ;
 							sym_lnk( {rfd,new_code} , "../"+node , {.nfs_guard=&nfs_guard} ) ;                                             // tell server
 						}
 						ad.flags.extra_dflags |= ExtraDflag::CreateEncode ;
@@ -470,7 +475,7 @@ namespace Backdoor {
 				}
 				throw "no available code"s ;
 			Found :
-				fi  = { {rfd,node} } ;                                                                      // update date after create
+				fi  = { {rfd,node} , {.nfs_guard=&nfs_guard} } ;                                            // update date after create
 				res = ::move(code)   ;
 			}
 			// END_OF_VERSIONING
@@ -485,7 +490,7 @@ namespace Backdoor {
 	}
 
 	::string Encode::descr(::string const& reason) const {
-		return cat("encode ",reason," value of size ",val.size()," with checksum ",Codec::CodecCrc(New,val).hex()," with context ",ctx," in table ",tab) ;
+		return cat("encode ",reason," value of size ",val.size()," with checksum ",Codec::CodecCrc(New,val).base64()," with context ",ctx," in table ",tab) ;
 	}
 
 }

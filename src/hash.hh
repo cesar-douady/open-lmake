@@ -35,14 +35,14 @@ namespace Hash {
 	template<class K        > struct IsUnstableIterableHelper<::uset<K  >> { static constexpr bool value = true ; } ; // .
 	template<class T> concept IsUnstableIterable = IsUnstableIterableHelper<T>::value ;
 
-	template<bool Is128> struct _Crc ;
+	template<uint8_t Sz> struct _Crc ;
 
 	//
 	// Xxh
 	//
 
 	template<class T> concept _SimpleUpdate = sizeof(T)==alignof(T) && !::is_empty_v<T> && ::is_trivially_copyable_v<T> ; // if sizeof==alignof, there is a single field and hence no padding
-	template<bool Is128> struct _Xxh {
+	template<uint8_t Sz> struct _Xxh {
 		// statics
 	private :
 		static void _s_init_salt() {
@@ -64,7 +64,7 @@ namespace Hash {
 		_Xxh(FileTag t) ;
 		template<class T> _Xxh( NewType , T const& x ) : _Xxh{} { self += x ; }
 		// services
-		_Crc<Is128> digest() const ;
+		_Crc<Sz> digest() const ;
 		//
 		_Xxh& operator+=(::string_view) ;                                                                                 // low level interface compatible with serialization
 		//
@@ -81,9 +81,9 @@ namespace Hash {
 		bool  seen_data = false ;
 	private :
 		XXH3_state_t _state ;
-	} ; //!             Is128
-	using Xxh    = _Xxh<false> ;
-	using Xxh128 = _Xxh<true > ;
+	} ; //!            Sz
+	using Xxh   = _Xxh<64> ;
+	using Xxh96 = _Xxh<96> ;
 
 	template<class T> concept IsHash = ::is_base_of_v<Xxh,T> ;
 
@@ -91,19 +91,22 @@ namespace Hash {
 	// Crc
 	//
 
-	template<bool Is128> struct _Crc ;
-	template<bool Is128> ::string& operator+=( ::string& , _Crc<Is128> const ) ;
-	template<bool Is128> struct _Crc {
-		friend ::string& operator+=<Is128>( ::string& , _Crc<Is128> const ) ;
+	template<uint8_t Sz> struct _Crc ;
+	template<uint8_t Sz> ::string& operator+=( ::string& , _Crc<Sz> const ) ;
+	template<uint8_t Sz> struct _Crc {
+		static_assert( Sz>0 ) ;                                                                                   // meaningless and painful to code
+		friend ::string& operator+=<Sz>( ::string& , _Crc<Sz> const ) ;
 		#if HAS_UINT128
-			using Val = ::conditional_t<Is128,uint128_t,uint64_t> ;
+			using Val = ::conditional_t<(Sz>64),uint128_t,uint64_t> ;
 		#else
 			using Val = uint64_t ;                                                                                // revert to 64 bits if no 128 bits support
 		#endif
-		static constexpr uint8_t HexSz    = 2*sizeof(Val) ;                                                       // 2 digits for each byte
-		static constexpr uint8_t NChkBits = 8             ;                                                       // as Crc may be used w/o protection against collision, ensure we have some margin
+		static constexpr Val     Msk      = (Val(1)<<(::min(Sz,uint8_t(sizeof(Val)*8))-1)<<1)-1 ;                 // if Sz is too large, we cant simply take 1<<Sz
+		static constexpr uint8_t HexSz    = div_up<8>(Sz)*2                                     ;                 // hex are processed byte after byte
+		static constexpr uint8_t Base64Sz = div_up<6>(Sz)                                       ;
+		static constexpr uint8_t NChkBits = 8                                                   ;                 // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
-		static constexpr Val ChkMsk = Val(-1)>>NChkBits ;                                                         // lsb's are used for various manipulations
+		static constexpr Val ChkMsk = Msk>>NChkBits ;                                                             // lsb's are used for various manipulations
 		//
 		static const _Crc Unknown ;
 		static const _Crc Lnk     ;
@@ -111,7 +114,8 @@ namespace Hash {
 		static const _Crc None    ;
 		static const _Crc Empty   ;
 		// statics
-		static _Crc s_from_hex(::string_view sv) ;                                                                // inverse of hex()
+		static _Crc s_from_hex   (::string_view sv) ;                                                             // inverse of hex   ()
+		static _Crc s_from_base64(::string_view sv) ;                                                             // inverse of base64()
 		static bool s_sense( Accesses a , FileTag t ) {                                                           // return whether accesses a can see the difference between files with tag t
 			_Crc crc{t} ;
 			return !crc.match(crc,a) ;
@@ -154,6 +158,7 @@ namespace Hash {
 	public :
 		explicit operator ::string() const ;
 		::string hex              () const ;
+		::string base64           () const ;
 		//
 		constexpr bool              operator== (_Crc const&) const = default ;
 		constexpr ::strong_ordering operator<=>(_Crc const&) const = default ;
@@ -183,8 +188,8 @@ namespace Hash {
 	private :
 		Val _val = +CrcSpecial::Unknown ;
 	} ;
-	using Crc    = _Crc<false      > ;
-	using Crc128 = _Crc<HAS_UINT128> ;                                                                            // revert to 64 bits is 128 bits is not supported
+	using Crc   = _Crc<64> ;
+	using Crc96 = _Crc<96> ;                                                                                      // revert to 64 bits is 128 bits is not supported
 
 	// easy, fast and good enough in some situations
 	// cf https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
@@ -200,17 +205,17 @@ namespace Hash {
 	// implementation
 	//
 
-	template<bool Is128> constexpr _Crc<Is128> _Crc<Is128>::Unknown{CrcSpecial::Unknown} ;
-	template<bool Is128> constexpr _Crc<Is128> _Crc<Is128>::Lnk    {CrcSpecial::Lnk    } ;
-	template<bool Is128> constexpr _Crc<Is128> _Crc<Is128>::Reg    {CrcSpecial::Reg    } ;
-	template<bool Is128> constexpr _Crc<Is128> _Crc<Is128>::None   {CrcSpecial::None   } ;
-	template<bool Is128> constexpr _Crc<Is128> _Crc<Is128>::Empty  {CrcSpecial::Empty  } ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Unknown{CrcSpecial::Unknown} ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Lnk    {CrcSpecial::Lnk    } ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Reg    {CrcSpecial::Reg    } ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::None   {CrcSpecial::None   } ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Empty  {CrcSpecial::Empty  } ;
 
-	template<bool Is128> template<class T> _Crc<Is128>::_Crc( NewType , T const& x , Bool3 is_lnk ) : _Crc{_Xxh<Is128>(New,x).digest()} {
+	template<uint8_t Sz> template<class T> _Crc<Sz>::_Crc( NewType , T const& x , Bool3 is_lnk ) : _Crc{_Xxh<Sz>(New,x).digest()} {
 		_set_is_lnk(is_lnk) ;
 	}
 
-	template<bool Is128> bool _Crc<Is128>::never_match(Accesses a) const {
+	template<uint8_t Sz> bool _Crc<Sz>::never_match(Accesses a) const {
 		switch (CrcSpecial(self)) {
 			case CrcSpecial::Unknown : return +a              ;
 			case CrcSpecial::Lnk     : return  a[Access::Lnk] ;

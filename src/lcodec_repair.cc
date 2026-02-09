@@ -54,6 +54,10 @@ struct DryRunDigest {
 	size_t    n_spurious      = 0 ;
 } ;
 
+static ::string _store_file(CodecCrc crc) {
+	::string crc_base64 = crc.base64() ;
+	return cat("store/",substr_view(crc_base64,0,2),'/',substr_view(crc_base64,2)) ;
+}
 static DryRunDigest _dry_run(bool from_decode) {
 	Trace trace("_dry_run") ;
 	DryRunDigest res ;
@@ -68,6 +72,9 @@ static DryRunDigest _dry_run(bool from_decode) {
 		if (file==AdminDir) continue ;
 		if (file=="store" ) continue ;
 		if (file=="tab"   ) continue ;
+		if (file=="stamp" ) continue ;
+		//
+		if (FileInfo(file).tag()==FileTag::Dir) add_slash(file) ;
 		res.to_rm.emplace_back( ::move(file) , "unexpected top-level" ) ;
 	}
 	for( ::string& file : lst_dir_s( ::string(AdminDirS) ) ) {
@@ -75,16 +82,32 @@ static DryRunDigest _dry_run(bool from_decode) {
 			case 'f' : if (file=="file_sync") continue ; break ;
 			case 'v' : if (file=="version"  ) continue ; break ;
 		DN}
-		res.to_rm.emplace_back( cat(AdminDirS,file) , "in admin dir" ) ;
+		::string f      = cat(AdminDirS,file)             ;
+		if (FileInfo(f).tag()==FileTag::Dir) add_slash(f) ;
+		res.to_rm.emplace_back( ::move(f) , "in admin dir" ) ;
 	}
-	for( ::string const& crc_str : lst_dir_s( "store/"s ) ) {
-		::string file = "store/"+crc_str ;
-		CodecCrc crc  ;
-		try                                     { crc = CodecCrc::s_from_hex(crc_str) ;                                      }
-		catch (::string const& e)               { res.to_rm.emplace_back( ::move(file) , cat("bad name : ",e) ) ; continue ; }
-		if (FileInfo(file).tag()!=FileTag::Reg) { res.to_rm.emplace_back( ::move(file) , "not a regular file" ) ; continue ; }
-		//
-		bool inserted = store.try_emplace( crc , StoreEntry({.exists=true}) ).second ; SWEAR( inserted , crc ) ;
+	for( ::string const& pfx : lst_dir_s( "store/"s ) ) {
+		::string dir_s = "store/"+pfx+'/'      ;
+		FileTag  tag   = FileInfo(dir_s).tag() ;
+		if (pfx.size()!=2) {
+			if (tag!=FileTag::Dir) rm_slash(dir_s) ;
+			res.to_rm.emplace_back( ::move(dir_s) , "bad name for first level" ) ;
+			continue ;
+		}
+		bool seen = false ;
+		for( ::string const& crc_sfx : lst_dir_s(dir_s) ) {
+			::string file       = dir_s+crc_sfx        ;
+			::string crc_base64 = pfx  +crc_sfx        ;
+			FileTag  tag        = FileInfo(file).tag() ;
+			CodecCrc crc        ;
+			if (tag!=FileTag::Reg)    { if (tag==FileTag::Dir) add_slash(file) ; res.to_rm.emplace_back( ::move(file) , "not a regular file" ) ; continue ; }
+			try                       {                                          crc = CodecCrc::s_from_base64(crc_base64) ;                                }
+			catch (::string const& e) {                                          res.to_rm.emplace_back( ::move(file) , cat("bad name : ",e) ) ; continue ; }
+			//
+			bool inserted = store.try_emplace( crc , StoreEntry({.exists=true}) ).second ; SWEAR( inserted , crc ) ;
+			seen = true ;
+		}
+		if (!seen) res.to_rmdir_s.insert(dir_s) ;                                                                                                      // nothing kept
 	}
 	::string           here_s    = cwd_s()                         ;
 	::vmap_s<FileTag>  files     = walk("tab/"s,~FileTags(),"tab") ; ::sort(files) ;
@@ -93,8 +116,8 @@ static DryRunDigest _dry_run(bool from_decode) {
 	//
 	for( auto const& [file,tag] : files )
 		if (tag==FileTag::Dir)
-			for( ::string d=with_slash(file) ; +d ; d=dir_name_s(d) )
-				if (!res.to_rmdir_s.insert(d).second) break ;
+			for( ::string d_s=with_slash(file) ; +d_s ; d_s=dir_name_s(d_s) )
+				if (!res.to_rmdir_s.insert(d_s).second) break ;
 	//
 	// decode side
 	//
@@ -107,11 +130,14 @@ static DryRunDigest _dry_run(bool from_decode) {
 			CodecCrc  crc        ;
 			switch (tag) {
 				case FileTag::Lnk : {
-					::string  rel_target = read_lnk(file)                          ; throw_unless( +rel_target                  , "cannot read sym link"      ) ;
-					::string  target     = mk_glb( rel_target , dir_name_s(file) ) ; throw_unless( target.starts_with("store/") , "bad sym link not to store" ) ;
+					::string  rel_target = read_lnk(file)                                    ; throw_unless( +rel_target                                         , "cannot read sym link"      ) ;
+					::string  target     = mk_glb( rel_target , dir_name_s(file) )           ; throw_unless( target.starts_with("store/")                        , "bad sym link not to store" ) ;
+					                                                                           throw_unless( target.size()==9/*store/XX/ */+CodecCrc::Base64Sz-2 , "bad sym link format"       ) ;
+					                                                                           throw_unless( target[8/*store/XX*/=='/']                          , "bad sym link format"       ) ;
+					::string  crc_base64 = target.substr(6/*store*/,2)+substr_view(target,9) ;
 					//
-					try                       { crc = CodecCrc::s_from_hex(target.substr(6/*store/ */)) ; }
-					catch (::string const& e) { throw cat("bad sym link is not a checksum : ",e) ;        }
+					try                       { crc = CodecCrc::s_from_base64(crc_base64) ;        }
+					catch (::string const& e) { throw cat("bad sym link is not a checksum : ",e) ; }
 					throw_unless( store.contains(crc) , "decode checksum not in store" ) ;
 				} break ;
 				case FileTag::Reg : {
@@ -127,7 +153,7 @@ static DryRunDigest _dry_run(bool from_decode) {
 			decode_tab[::move(codec_file.ctx)][::move(codec_file.code())].crc = crc ;
 		} catch (::string const& e) {
 			res.n_spurious++ ;
-			res.to_rm.emplace_back(file,e) ;
+			res.to_rm.emplace_back( file , e ) ;
 		}
 	}
 	//
@@ -150,7 +176,7 @@ static DryRunDigest _dry_run(bool from_decode) {
 			CodecEntry& entry = it2->second                      ; if (entry.crc!=codec_file.val_crc()) { res.n_inconsistent++ ; throw "inconsistent encode"s ; }
 			entry.encoded = true ;
 		} catch (::string const& e) {
-			res.to_rm.emplace_back(file,e) ;
+			res.to_rm.emplace_back( file , e ) ;
 		}
 	}
 	//
@@ -158,13 +184,13 @@ static DryRunDigest _dry_run(bool from_decode) {
 	//
 	auto use_node = [&]( ::string const& ctx , ::string const& code , CodecEntry const& entry ) {
 		::string ctx_s = cat("tab/",ctx,'/') ;
-		if (entry.is_reg) res.to_lnk.emplace_back( cat(ctx_s,code,DecodeSfx) , mk_rel("store/"+entry.crc.hex(),ctx_s) ) ; // node is moved to store or unlinked, so we must recreate it ...
-		store[entry.crc].used = true ;                                                                                    // ... as a link to store
+		if (entry.is_reg) res.to_lnk.emplace_back( cat(ctx_s,code,DecodeSfx) , mk_rel(_store_file(entry.crc),ctx_s) ) ; // node is moved to store or unlinked, so we must recreate it ...
+		store[entry.crc].used = true ;                                                                                           // ... as a link to store
 		for( ::string d = ctx_s ; +d ; d=dir_name_s(d) )
 			if (!res.to_rmdir_s.erase(d)) break ;
 	} ;
 	for( auto const& [ctx,ctx_tab] : decode_tab ) {
-		::umap<CodecCrc,::pair_s<bool/*encoded*/>> encode_tab ;                                                           // val crc -> (code,encoded)
+		::umap<CodecCrc,::pair_s<bool/*encoded*/>> encode_tab ;                                                                  // val crc -> (code,encoded)
 		for( auto const& [code,entry] : ctx_tab ) {
 			if (!entry.encoded) continue ;
 			use_node( ctx , code , entry ) ;
@@ -190,10 +216,10 @@ static DryRunDigest _dry_run(bool from_decode) {
 				::tuple(crc_str.starts_with(code           ),true             ,code           .size(),code           )
 			<	::tuple(crc_str.starts_with(prev_code.first),!prev_code.second,prev_code.first.size(),prev_code.first)
 			;
-			res.n_decode_only++ ;                                                                                         // finally no new code
+			res.n_decode_only++ ;                                                                                                // finally no new code
 			if (better_code) {
-				if (prev_code.second) res.to_rm.emplace_back( cat(ctx,'/',entry.crc.hex(),EncodeSfx) , "conflict with "+code ) ;
-				/**/                  res.to_rm.emplace_back( cat(ctx,'/',prev_code.first,DecodeSfx) , "conflict with "+code ) ;
+				if (prev_code.second) res.to_rm.emplace_back( cat(ctx,'/',entry.crc.base64(),EncodeSfx) , "conflict with "+code ) ;
+				/**/                  res.to_rm.emplace_back( cat(ctx,'/',prev_code.first   ,DecodeSfx) , "conflict with "+code ) ;
 				prev_code = {code,false/*encoded*/} ;
 			} else {
 				res.to_rm.emplace_back( cat(ctx,code,DecodeSfx) , "conflict with "+prev_code.first ) ;
@@ -204,13 +230,13 @@ static DryRunDigest _dry_run(bool from_decode) {
 			::string const& code = code_encoded.first ;
 			use_node( ctx , code , ctx_tab.at(code) ) ;
 			res.n_reconstructed++ ;
-			res.to_lnk.emplace_back( cat("tab/",ctx,'/',crc.hex(),EncodeSfx) , code+DecodeSfx ) ;
+			res.to_lnk.emplace_back( cat("tab/",ctx,'/',crc.base64(),EncodeSfx) , code+DecodeSfx ) ;
 		}
 		for( auto [crc,entry] : store ) {
 			bool is_reg = new_store.contains(crc) ;
-			if ( !is_reg && !entry.used ) res.to_rm    .emplace_back(                     "store/"+crc.hex() , "unused"         ) ;
-			if (  is_reg &&  entry.used ) res.to_rename.emplace_back( new_store.at(crc) , "store/"+crc.hex()                    ) ;
-			if (  is_reg && !entry.used ) res.to_rm    .emplace_back( new_store.at(crc) ,                      "unused regular" ) ;
+			if ( !is_reg && !entry.used ) res.to_rm    .emplace_back(                     _store_file(crc) , "unused"         ) ;
+			if (  is_reg &&  entry.used ) res.to_rename.emplace_back( new_store.at(crc) , _store_file(crc)                    ) ;
+			if (  is_reg && !entry.used ) res.to_rm    .emplace_back( new_store.at(crc) ,                    "unused regular" ) ;
 		}
 	}
 	return res ;
@@ -240,7 +266,7 @@ int main( int argc , char* argv[] ) {
 	if (::chdir(top_dir_s.c_str())!=0) exit( Rc::System  , "cannot chdir (",StrErr(),") to ",top_dir_s,rm_slash ) ;
 	//
 	app_init({
-		.cd_root      = false                                                                                          // we have already chdir'ed to top
+		.cd_root      = false                                                                                                       // we have already chdir'ed to top
 	,	.chk_version  = Yes
 	,	.clean_msg    = _codec_clean_msg()
 	,	.read_only_ok = cmd_line.flags[Flag::DryRun]
@@ -262,17 +288,20 @@ int main( int argc , char* argv[] ) {
 	//
 	#define W(s) Fd::Stdout.write(s)
 	#define S(s) mk_shell_str    (s)
-	size_t w1 = ::max<size_t>( drd.to_rm     , [](::pair_ss        const& f_r) { return S(f_r.first )  .size() ; } ) ;
-	size_t w2 = ::max<size_t>( drd.to_rename , [](::pair_ss        const& s_d) { return S(s_d.first )  .size() ; } ) ;
-	size_t w3 = ::max<size_t>( drd.to_lnk    , [](::pair_ss        const& l_t) { return S(l_t.second)  .size() ; } ) ;
-	size_t w4 = ::max<size_t>( summary       , [](::pair_s<size_t> const& k_v) { return     k_v.first  .size() ; } ) ;
-	size_t w5 = ::max<size_t>( summary       , [](::pair_s<size_t> const& k_v) { return cat(k_v.second).size() ; } ) ;
-	bool   nl = false                                                                                                ; // generate new line between categories
-	for( auto     const& [file,reason] : drd.to_rm      ) { W(cat("rm "   ,widen(S(file),w1)," # ",reason         ,'\n')) ; nl=true ; } if ( nl && +drd.to_rename  ) { W("\n") ; nl=false ; }
-	for( auto     const& [src ,dst   ] : drd.to_rename  ) { W(cat("mv "   ,widen(S(src ),w2),' '  ,S(dst)         ,'\n')) ; nl=true ; } if ( nl && +drd.to_lnk     ) { W("\n") ; nl=false ; }
-	for( auto     const& [lnk ,tgt   ] : drd.to_lnk     ) { W(cat("ln -s ",widen(S(tgt ),w3),' '  ,S(lnk)         ,'\n')) ; nl=true ; } if ( nl && +drd.to_rmdir_s ) { W("\n") ; nl=false ; }
-	for( ::string const&  dir_s        : drd.to_rmdir_s ) { W(cat("rmdir ",S(no_slash(dir_s))                     ,'\n')) ; nl=true ; } if ( nl && +summary        ) { W("\n") ; nl=false ; }
-	for( auto     const& [k   ,v     ] : summary        ) { W(cat(widen(k,w4)," : ",widen(cat(v),w5,true/*right*/),'\n')) ; nl=true ; }
+	bool        rm_has_dir = ::any_of     ( drd.to_rm     , [](::pair_ss        const& f_r) { return is_dir_name(f_r.first) ; } ) ;
+	size_t      w1         = ::max<size_t>( drd.to_rm     , [](::pair_ss        const& f_r) { return S(f_r.first )  .size() ; } ) ;
+	size_t      w2         = ::max<size_t>( drd.to_rename , [](::pair_ss        const& s_d) { return S(s_d.first )  .size() ; } ) ;
+	size_t      w3         = ::max<size_t>( drd.to_lnk    , [](::pair_ss        const& l_t) { return S(l_t.second)  .size() ; } ) ;
+	size_t      w4         = ::max<size_t>( summary       , [](::pair_s<size_t> const& k_v) { return     k_v.first  .size() ; } ) ;
+	size_t      w5         = ::max<size_t>( summary       , [](::pair_s<size_t> const& k_v) { return cat(k_v.second).size() ; } ) ;
+	bool        nl         = false                                                                                                ; // generate new line between categories
+	const char* rm[2]      = { rm_has_dir?"rm -f  ":"rm -f " , "rm -rf " }                                                        ;
+	for( auto     const& [f  ,rsn] : drd.to_rm      ) { W(cat(rm[is_dir_name(f)],widen(S(no_slash(f  )),w1)," # ",rsn   ,'\n')) ; nl=true ; } if ( nl && +drd.to_rename  ) { W("\n") ; nl=false ; }
+	for( auto     const& [src,dst] : drd.to_rename  ) { W(cat("mv "             ,widen(S(src          ),w2),' '  ,S(dst),'\n')) ; nl=true ; } if ( nl && +drd.to_lnk     ) { W("\n") ; nl=false ; }
+	for( auto     const& [lnk,tgt] : drd.to_lnk     ) { W(cat("ln -s "          ,widen(S(tgt          ),w3),' '  ,S(lnk),'\n')) ; nl=true ; } if ( nl && +drd.to_rmdir_s ) { W("\n") ; nl=false ; }
+	for( ::string const&  d_s      : drd.to_rmdir_s ) { W(cat("rmdir "          ,      S(no_slash(d_s))                 ,'\n')) ; nl=true ; } if ( nl && +summary        ) { W("\n") ; nl=false ; }
+	//
+	for( auto const& [k,v] : summary ) { W(cat(widen(k,w4)," : ",widen(cat(v),w5,true/*right*/),'\n')) ; nl=true ; }
 	#undef S
 	#undef W
 	//
@@ -295,6 +324,8 @@ int main( int argc , char* argv[] ) {
 	for( auto const& [src ,dst   ] : drd.to_rename                          ) rename ( src  , dst                                               ) ;
 	for( auto const& [lnk ,target] : drd.to_lnk                             ) sym_lnk( lnk  , target , {.umask=config.umask}                    ) ;
 	for( auto it=drd.to_rmdir_s.rbegin() ; it!=drd.to_rmdir_s.rend() ; it++ ) ::rmdir( it->c_str()                                              ) ;
+	//
+	touch( "stamp"s ) ;
 	//
 	exit(Rc::Ok) ;
 }

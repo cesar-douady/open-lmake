@@ -3,17 +3,19 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-import os
+import ut
 
 if __name__!='__main__' :
 
 	import sys
+	import time
 
 	import lmake
 	from lmake.rules import Rule,PyRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
+	,	'ut.py'
 	,	'../codec_files/'
 	)
 
@@ -36,6 +38,27 @@ if __name__!='__main__' :
 			print(lmake.decode('../codec_files/sub/','ctx',dir_code),end='')
 			lmake.check_deps()
 
+	class CodecPy1(PyRule) :
+		target = r'{File:.*}_py1'
+		def cmd() :
+			ut.wait_sync(0)
+			dir_code = lmake.encode( '../codec_files/sub/' , 'ctx' , File+'_py\n' , 3 )
+			print(dir_code)
+			print(lmake.decode('../codec_files/sub/','ctx',dir_code),end='')
+			ut.trigger_sync(1)
+			lmake.check_deps()
+
+	class CodecPy2(PyRule) :
+		target = r'{File:.*}_py2'
+		def cmd() :
+			dir_code = lmake.encode( '../codec_files/sub/' , 'ctx' , File+'_py\n' , 3 )
+			print(dir_code)
+			print(lmake.decode('../codec_files/sub/','ctx',dir_code),end='')
+			ut.trigger_sync(0)
+			ut.wait_sync   (1)
+			time.sleep(1)      # ensure CodecPy1 job has had time to report
+			lmake.check_deps()
+
 	class Chk(PyRule) :
 		target = r'{File:.*}.ok'
 		dep    = '{File}'
@@ -51,7 +74,7 @@ if __name__!='__main__' :
 
 else :
 
-	import ut
+	import os
 
 	os.makedirs('codec_files/sub/LMAKE',exist_ok=True)
 	print('none',file=open('codec_files/sub/LMAKE/file_sync','w'))
@@ -60,8 +83,11 @@ else :
 	os.symlink('../Lmakefile.py','repo/Lmakefile.py')
 	os.chdir('repo')
 
-	ut.lmake( 'codec_sh.ok' , 'codec_py.ok' , done=4 )
-	ut.lmake( 'codec_sh.ok' , 'codec_py.ok'          )
+	ut.mk_syncs(2)
+
+	ut.lmake( 'codec_py1'   , 'codec_py2'   , new=1 , done=2 )
+	ut.lmake( 'codec_sh.ok' , 'codec_py.ok' ,         done=4 )
+	ut.lmake( 'codec_sh.ok' , 'codec_py.ok'                  )
 
 	os.unlink('codec_sh')
 	os.unlink('codec_py')
@@ -69,6 +95,6 @@ else :
 	ut.lmake( 'codec_sh' , 'codec_py' , steady=2 )
 
 	print('user_val',file=open('../codec_files/sub/tab/ctx/user_code.decode','w'))
-	os.system('lcodec_repair -fr ../codec_files/sub')
+	assert os.system('lcodec_repair -fr ../codec_files/sub')==0
 
-	ut.lmake( 'chk2' , new=1 , done=1 )
+	ut.lmake( 'chk2' , done=1 )

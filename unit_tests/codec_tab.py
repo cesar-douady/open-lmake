@@ -83,6 +83,6 @@ else :
 	ut.lmake( 'codec_sh' , 'codec_py' , steady=2 )
 
 	print('user_val',file=open('../codec_files/sub/tab/ctx/user_code.decode','w'))
-	os.system('lcodec_repair -fr ../codec_files/sub')
+	assert os.system('lcodec_repair -fr ../codec_files/sub')==0
 
-	ut.lmake( 'chk2' , new=1 , done=1 )
+	ut.lmake( 'chk2' , done=1 )

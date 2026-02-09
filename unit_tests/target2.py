@@ -40,7 +40,7 @@ else :
 	print('hello',file=open('a_source','w'))
 
 	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'dut' , done=1 , failed=1 , rc=1 )
+	ut.lmake( 'dut' , done=1 , dep_error=1 , rc=1 )
 
 	print('step=2',file=open('step.py','w'))
 	ut.lmake( 'dut' , done=1 , steady=1 )

@@ -30,7 +30,7 @@ namespace Engine {
 		if (!n) return ;
 		NodeData& nd = *n ;
 		nd.set_buildable() ;
-		if ( nd.is_src() && !nd.actual_job ) overwritten = FileInfo(nd.name()).date>r->start_ddate ; // if a source has an actual job, it is dynamically created and overwritten is not tracked
+		if (nd.is_src()) overwritten = FileInfo(nd.name()).date>r->start_ddate ; // if a source has an actual job, it is dynamically created and overwritten is not tracked
 	}
 
 	//
@@ -157,12 +157,12 @@ namespace Engine {
 			//vvvvvvvvvvvvvvvvvvvvvvvvv
 			set_crc_date( crc_ , sig_ ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (!actual_job) {                                                         // if a source has an actual job, it is dynamically created and overwritten is not tracked
+			if (updated)
+				for( Req r : reqs() )
+					if (fi.date>r->start_ddate) req_info(r).overwritten = true ;
+			if (!actual_job) {                                                         // if a source has an actual job, it is dynamically created and not reported as source
 				const char* step = !prev_ok ? "new" : updated ? "changed" : "steady" ;
 				Color       c    = frozen ? Color::Warning : Color::HiddenOk         ;
-				if (updated)
-					for( Req r : reqs() )
-						if (fi.date>r->start_ddate) req_info(r).overwritten = true ;
 				for( Req r : reqs_ ) {
 					ReqInfo const& cri = c_req_info(r) ;
 					if (!cri.done(::max(cri.goal,NodeGoal::Status))) r->audit_job( c , step , lazy_msg() , name_ ) ;
@@ -879,7 +879,8 @@ namespace Engine {
 		if (+reqs) nd.set_buildable(reqs[0]) ;
 		else       nd.set_buildable(       ) ;
 		if (nd.is_src_anti()) {
-			if (create_encode) { SWEAR( +j , self ) ; nd.actual_job = j ; }
+			// record job creating node but in all cases codec nodes must have a job to avoid being reported as source
+			if ( dflags[Dflag::Codec] && (create_encode||!nd.actual_job) ) { SWEAR( +j , self ) ; nd.actual_job = j ; }
 			nd.refresh_src_anti( nd.name() , accesses() , reqs , report_no_file ) ;
 		} else {
 			nd.manual_refresh(accesses()) ; // no manual_steady diagnostic as this may be because of another job
