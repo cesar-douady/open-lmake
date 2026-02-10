@@ -245,16 +245,17 @@ namespace Engine {
 		void update( Py::Dict const& py_dct ) {
 			using namespace Attrs ;
 			dyn_env = false ;                                                                                                                                 // update solves dynamic val
-			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"  ) ;
-			Attrs::acquire_env     ( env                    , py_dct , "env"         ) ;
-			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat" ) ;
-			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter" ) ;
-			Attrs::acquire_from_dct( readdir_ok             , py_dct , "readdir_ok"  ) ;
-			Attrs::acquire_from_dct( stderr_ok              , py_dct , "stderr_ok"   ) ;
-			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"  ) ; if (+job_space.lmake_view_s)              add_slash(job_space.lmake_view_s) ;
-			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"   ) ; if (+job_space.repo_view_s )              add_slash(job_space.repo_view_s ) ;
-			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"    ) ; if (+job_space.tmp_view_s  )              add_slash(job_space.tmp_view_s  ) ;
-			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"       ) ; for( auto& [view_s,_] : job_space.views ) add_slash(view_s                ) ;
+			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"      ) ;
+			Attrs::acquire_env     ( env                    , py_dct , "env"             ) ;
+			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat"     ) ;
+			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter"     ) ;
+			Attrs::acquire_from_dct( mount_chroot_ok        , py_dct , "mount_chroot_ok" ) ;
+			Attrs::acquire_from_dct( readdir_ok             , py_dct , "readdir_ok"      ) ;
+			Attrs::acquire_from_dct( stderr_ok              , py_dct , "stderr_ok"       ) ;
+			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"      ) ; if (+job_space.lmake_view_s)              add_slash(job_space.lmake_view_s) ;
+			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"       ) ; if (+job_space.repo_view_s )              add_slash(job_space.repo_view_s ) ;
+			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"        ) ; if (+job_space.tmp_view_s  )              add_slash(job_space.tmp_view_s  ) ;
+			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"           ) ; for( auto& [view_s,_] : job_space.views ) add_slash(view_s                ) ;
 			//
 			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
 			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
@@ -265,15 +266,16 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		bool       dyn_env     = false ;
-		bool       dyn_views   = false ;
-		bool       auto_mkdir  = false ;
-		::vmap_ss  env         ;
-		bool       ignore_stat = false ;
-		::vector_s interpreter ;
-		bool       readdir_ok  = false ;
-		bool       stderr_ok   = false ;
-		JobSpace   job_space   ;
+		bool       dyn_env         = false ;
+		bool       dyn_views       = false ;
+		bool       auto_mkdir      = false ;
+		::vmap_ss  env             ;
+		bool       ignore_stat     = false ;
+		::vector_s interpreter     ;
+		bool       mount_chroot_ok = false ;
+		bool       readdir_ok      = false ;
+		bool       stderr_ok       = false ;
+		JobSpace   job_space       ;
 		// END_OF_VERSIONING
 	} ;
 

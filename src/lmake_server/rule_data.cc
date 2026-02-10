@@ -741,6 +741,7 @@ namespace Engine {
 			if ( start_ancillary_attrs .spec.max_stderr_len            ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_ancillary_attrs .spec.max_stderr_len         ) ) ;
 			if ( n_runs                                                ) entries.emplace_back( "max_runs"            , ::to_string(n_runs                                             ) ) ;
 			if ( n_submits                                             ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                          ) ) ;
+			if ( start_cmd_attrs       .spec.mount_chroot_ok           ) entries.emplace_back( "mount_chroot_ok"     , cat        (start_cmd_attrs       .spec.mount_chroot_ok        ) ) ;
 			if ( start_cmd_attrs       .spec.readdir_ok                ) entries.emplace_back( "readdir_ok"          , cat        (start_cmd_attrs       .spec.readdir_ok             ) ) ;
 			if (+start_cmd_attrs       .spec.job_space.repo_view_s     ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs       .spec.job_space.repo_view_s  ) ) ;
 			if (+start_ancillary_attrs .spec.start_delay               ) entries.emplace_back( "start_delay"         ,             start_ancillary_attrs .spec.start_delay.short_str()  ) ;

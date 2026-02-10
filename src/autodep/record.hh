@@ -201,7 +201,7 @@ public :
 	} ; //!            Writable
 	using Path  = _Path<false > ;
 	using WPath = _Path<true  > ;
-	template<bool Send=false,bool Writable=false,bool ChkSimple=false> struct Solve : _Path<Writable> {
+	template<bool Send=false,bool Writable=false,Bool3 ChkSimple=No> struct Solve : _Path<Writable> {               // Maybe means empty is not simple
 		using Base = _Path<Writable> ;
 		using Base::at   ;
 		using Base::file ;
@@ -210,9 +210,11 @@ public :
 		Solve()= default ;
 		Solve( Record& r , Base&& path , bool no_follow , bool read , bool create , Comment c , CommentExts ces={} ) : Base{::move(path)} {
 			using namespace Disk ;
-			if ( ChkSimple && s_is_simple(file) ) return ;
+			if ( ChkSimple!=No && s_is_simple(file,ChkSimple==Yes/*empty_is_simple*/) ) return ;
 			//
 			SolveReport sr = r._real_path.solve( { at , file?(::string_view(file)):(::string_view()) } , no_follow ) ;
+			//
+			if ( ChkSimple==Maybe && (!file||!*file) && s_is_simple(sr.real.c_str()) ) return ;                     // for empty string, there cannot be any link, so give a 2nd chance for simple
 			//
 			auto handle_dep = [&]( FileLoc fl , ::string&& file_ , Accesses a , bool store , CommentExt exts ) {
 				if ( ::vmap_s<::vector_s> const& views_s = s_autodep_env().views_s ; +views_s ) {
@@ -335,20 +337,23 @@ public :
 		#endif
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 	} ;
-	template<bool Send,bool ChkSimple> struct Exec : Solve<false/*Send*/,false/*Writable*/,ChkSimple> {
-		using Base = Solve<false/*Send*/,false/*Writable*/,ChkSimple> ;
+	template<bool Send,bool ChkSimple> struct Exec
+	:	             Solve<false/*Send*/,false/*Writable*/,No|ChkSimple>
+	{	using Base = Solve<false/*.   */,false/*.       */,No|ChkSimple> ;
 		using Base::file_loc    ;
 		using Base::real        ;
 		using Base::send_report ;
 		// cxtors & casts
 		Exec() = default ;
 		Exec( Record& r , Path&& path , bool no_follow , Comment c ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
-			if ( ChkSimple && !real ) return ;
-			SolveReport sr {.real=real,.file_loc=file_loc} ;
-			try {
-				for( auto&& [file,a] : r._real_path.exec(::move(sr)) )
-					r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .files={{::move(file),{}}} } ) ;
-			} catch (::string& e) { r.report_panic(::move(e)) ; }
+			// if !ChkSimple => +real is always true hence no need to check
+			if ( !ChkSimple || +real ) {
+				SolveReport sr {.real=real,.file_loc=file_loc} ;
+				try {
+					for( auto&& [file,a] : r._real_path.exec(::move(sr)) )
+						r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .files={{::move(file),{}}} } ) ;
+				} catch (::string& e) { r.report_panic(::move(e)) ; }
+			}
 			if (Send) send_report(r) ;
 		}
 	} ;
@@ -371,34 +376,34 @@ public :
 		Mkdir() = default ;
 		Mkdir( Record& , Path&& , Comment ) ;
 	} ;
-	struct Mount {
+	struct Mount : Solve<> {
 		Mount() = default ;
-		Mount( Record& , Path&& src , Path&& dst , Comment ) ;
+		Mount( Record& , Path&& dst , Comment ) ;
 		int operator()( Record& , int rc ) { return rc ; }
-		// data
-		Solve<> src ;
-		Solve<> dst ;
 	} ;
 	struct Open : SolveModify {
 		// cxtors & casts
 		Open() = default ;
 		Open( Record& , Path&& , int flags , Comment ) ;
 	} ;
-	template<bool Send,bool ChkSimple=false> struct Read : Solve<false/*Send*/,false/*Writable*/,ChkSimple> {
-		using Base = Solve<false/*Send*/,false/*Writable*/,ChkSimple> ;
+	template<bool Send,bool ChkSimple=false> struct Read
+	:	             Solve<false/*Send*/,false/*Writable*/,No|ChkSimple>
+	{	using Base = Solve<false/*.   */,false/*.       */,No|ChkSimple> ;
 		using Base::real        ;
 		using Base::file_loc    ;
 		using Base::accesses    ;
 		using Base::send_report ;
 		Read() = default ;
 		Read( Record& r , Path&& path , bool no_follow , bool keep_real , Comment c , CommentExts ces={} ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c,ces} {
-			if ( ChkSimple && !real ) return ;
-			r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|Access::Reg} , .files={{keep_real?(::copy(real)):(::move(real)),{}}} } ) ;
+			// if !ChkSimple => +real is alway true hence no need to check
+			if ( !ChkSimple || +real )
+				r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|Access::Reg} , .files={{keep_real?(::copy(real)):(::move(real)),{}}} } ) ;
 			if (Send) send_report(r) ;
 		}
 	} ;
-	struct ReadDir : Solve<true/*Send*/> {
-		using Base = Solve<true/*Send*/> ;
+	struct ReadDir //!     Send Writable ChkSimple
+	:	             Solve<true,false   ,Maybe   >                                          // Maybe means empty is not simple
+	{	using Base = Solve<true,false   ,Maybe   > ;
 		using Base::real     ;
 		using Base::file_loc ;
 		// cxtors & casts
@@ -411,12 +416,12 @@ public :
 			if      constexpr (::is_integral_v<T>) ok = rc<0 ;
 			else if constexpr (::is_pointer_v <T>) ok = rc   ;
 			//
-			if ( ok && !s_autodep_env().readdir_ok ) {
+			SWEAR( !s_autodep_env().readdir_ok , file_loc,real,comment ) ;                  // else should have already been filtered out
+			if ( ok && +real ) {
 				if (file_loc==FileLoc::RepoRoot) r.report_access( FileLoc::Repo , { .comment=comment , .digest={.read_dir=true} , .files={{"."         ,{}}} } ) ; // repo root must be analyzed ...
-				else                             r.report_access( file_loc      , { .comment=comment , .digest={.read_dir=true} , .files={{::move(real),{}}} } ) ; // ... whenreading it
+				else                             r.report_access( file_loc      , { .comment=comment , .digest={.read_dir=true} , .files={{::move(real),{}}} } ) ; // ... when reading it
 			}
 			send_report(r) ;
-			//
 			return rc ;
 		}
 		// data
@@ -484,18 +489,18 @@ private :
 	Bool3        _is_slow   = No    ;       // valid when +_buf, if Yes => must be sent over slow connection, if Maybe => used connection must be known
 } ;
 
-template<bool Send,bool Writable,bool ChkSimple> constexpr size_t Record::Solve<Send,Writable,ChkSimple>::MaxSz = 2*PATH_MAX+sizeof(Solve<Send,Writable,ChkSimple>) ;
+template<bool Send,bool Writable,Bool3 ChkSimple> constexpr size_t Record::Solve<Send,Writable,ChkSimple>::MaxSz = 2*PATH_MAX+sizeof(Solve<Send,Writable,ChkSimple>) ;
 
-template<bool Writable=false> ::string& operator+=( ::string& os , Record::_Path<Writable> const& p ) { // START_OF_NO_COV
+template<bool Writable> ::string& operator+=( ::string& os , Record::_Path<Writable> const& p ) { // START_OF_NO_COV
 	const char* sep = "" ;
 	/**/                       os << "Path("     ;
 	if ( p.at!=Fd::Cwd     ) { os <<      p.at   ; sep = "," ; }
 	if ( p.file && *p.file )   os <<sep<< p.file ;
 	return                     os <<')'          ;
-}                                                                                                       // END_OF_NO_COV
+}                                                                                                 // END_OF_NO_COV
 
-template<bool Send,bool Writable=false,bool ChkSimple=false> ::string& operator+=( ::string& os , Record::Solve<Send,Writable,ChkSimple> const& s ) { // START_OF_NO_COV
+template<bool Send,bool Writable,Bool3 ChkSimple> ::string& operator+=( ::string& os , Record::Solve<Send,Writable,ChkSimple> const& s ) { // START_OF_NO_COV
 	/**/          os << "Solve("<< s.real <<','<< s.file_loc <<','<< s.accesses ;
 	if (+s.real0) os <<','<< s.real0 <<','<< s.file_loc0                        ;
 	return        os <<')'                                                      ;
-}                                                                                                                                                     // END_OF_NO_COV
+}                                                                                                                                          // END_OF_NO_COV

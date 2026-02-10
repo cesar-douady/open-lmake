@@ -24,7 +24,6 @@ namespace JobSupport {
 	}
 
 	::pair<::vector<VerboseInfo>,bool/*ok*/> depend( ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr , bool direct , bool verbose ) {
-		bool readdir_ok = ad.flags.extra_dflags[ExtraDflag::ReaddirOk] ;
 		throw_if( regexpr + verbose + direct > 1 , "regexpr, verbose and direct are mutually exclusive" ) ;
 		if (regexpr) {
 			SWEAR(ad.write==No) ;
@@ -32,7 +31,7 @@ namespace JobSupport {
 			throw_if( +ad.accesses , "regexpr and read are exclusive"            ) ;
 			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                              // it is meaningless to exclude regexpr when we are a regexpr
 		}
-		if (readdir_ok) {
+		if (ad.flags.extra_dflags[ExtraDflag::ReaddirOk]) {
 			ad.flags.dflags &= ~Dflag::Required ;                                       // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
 			ad.read_dir     |= +ad.accesses     ;                                       // if reading and allow dir access, assume user meant reading a dir
 		}

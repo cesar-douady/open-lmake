@@ -279,7 +279,7 @@ Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comm
 }
 
 Record::Chroot::Chroot( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	r.report_panic("chroot to"+real) ;
+	r.report_direct({.proc=JobExecProc::Chroot,.comment=Comment::chroot,.files={{real,{}}}}) ;
 	send_report(r) ;
 }
 
@@ -327,14 +327,10 @@ Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve<>{ r , ::mov
 	send_report(r) ;
 }
 
-Record::Mount::Mount( Record& r , Path&& src_ , Path&& dst_ , Comment c ) :
-	//                     no_follow read   create
-	src { r , ::move(src_) , true  , false , false , c , CommentExt::Read  }
-,	dst { r , ::move(dst_) , true  , false , false , c , CommentExt::Write }
-{
-	if (src.file_loc<=FileLoc::Dep) r.report_panic("mount from "+src.real) ;
-	if (dst.file_loc<=FileLoc::Dep) r.report_panic("mount to "  +dst.real) ;
-	dst.send_report(r) ;
+Record::Mount::Mount( Record& r , Path&& dst_ , Comment c ) : Solve<>{r,::move(dst_),true/*no_follow*/ ,false/*read*/,false/*create*/,c} {
+	if (file_loc>FileLoc::Dep) return ;
+	r.report_direct({.proc=JobExecProc::Mount,.comment=Comment::mount,.files={{real,FileInfo(real)}}}) ;
+	send_report(r) ;
 }
 
 static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )                     ; }

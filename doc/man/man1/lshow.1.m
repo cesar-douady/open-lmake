@@ -134,6 +134,7 @@ Show various info about a job, as it last ran (unless stated otherwise):
 	Bullet B(autodep)            : the autodep method used.
 	bullet B(backend)            : the backend used to launch job.
 	bullet B(check_abs_paths)    : true if absolute paths inside the repo are checked (generate and error if found in targets).
+	Bullet B(mount_chroot_ok)    : true if C(mount,2) and C(chroot,2) are allowed.
 	Bullet B(readdir_ok)         : true if C(readdir,3) is allowed on local not B(ignore)d nor B(incremental) dirs.
 	Bullet B(timeout)            : the timeout after which job would have/has been killed.
 	Bullet B(use_script)         : true if a script was used to launch job (rather than directly using the I(-c) option to the interpreter).

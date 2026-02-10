@@ -33,6 +33,7 @@ enum class CmdFlag : uint8_t {
 ,	LinkSupport
 ,	LmakeRoot
 ,	LmakeView
+,	MountChrootOk
 ,	Out
 ,	ReaddirOk
 ,	RepoView
@@ -111,6 +112,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                             } }
 	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                        } }
 	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                        } }
+	,	{ CmdFlag::MountChrootOk , { .short_name='M' , .has_arg=false , .doc="allow mount and chroot"                                                                                      } }
 	,	{ CmdFlag::DomainName    , { .short_name='N' , .has_arg=true  , .doc="domain name to use for processes to contact this host (as host.domain_name) if network does not provide fqdn"} }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                        } }
 	,	{ CmdFlag::LmakeRoot     , { .short_name='r' , .has_arg=true  , .doc="open-lmake installation dir to use"                                                                          } }
@@ -144,20 +146,22 @@ int main( int argc , char* argv[] ) {
 		throw_if( !tmp_dir                                                                                    , "tmp dir must be specified"                                              ) ;
 		throw_if(                                        !is_abs(tmp_dir                                    ) , "tmp dir must be absolute : "   ,tmp_dir                                 ) ;
 		//
-		/**/                                        jsrr.keep_tmp           =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
-		/**/                                        jsrr.key                =                        "debug"                                      ;
-		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method             = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
-		if (cmd_line.flags[CmdFlag::ChrootDir    ]) jsrr.chroot_info.dir_s  = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
-		if (cmd_line.flags[CmdFlag::LinkSupport  ]) jsrr.domain_name        =                        cmd_line.flag_args[+CmdFlag::DomainName   ]  ;
-		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.phy_lmake_root_s   = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
-		else                                        jsrr.phy_lmake_root_s   =                        *g_lmake_root_s                              ;
-		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s  = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
-		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s   = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
-		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s    = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;
-		/**/                                        autodep_env.auto_mkdir  =                        cmd_line.flags    [ CmdFlag::AutoMkdir    ]  ;
-		if (cmd_line.flags[CmdFlag::Cwd          ]) autodep_env.sub_repo_s  = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;
-		if (cmd_line.flags[CmdFlag::LinkSupport  ]) autodep_env.lnk_support = mk_enum<LnkSupport>   (cmd_line.flag_args[+CmdFlag::LinkSupport  ]) ;
-		/**/                                        autodep_env.views_s     = job_space.flat_phys_s()                                             ;
+		/**/                                        jsrr.keep_tmp               =                        cmd_line.flags    [ CmdFlag::KeepTmp      ]  ;
+		/**/                                        jsrr.key                    =                        "debug"                                      ;
+		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method                 = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
+		if (cmd_line.flags[CmdFlag::ChrootDir    ]) jsrr.chroot_info.dir_s      = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
+		if (cmd_line.flags[CmdFlag::LinkSupport  ]) jsrr.domain_name            =                        cmd_line.flag_args[+CmdFlag::DomainName   ]  ;
+		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.phy_lmake_root_s       = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
+		else                                        jsrr.phy_lmake_root_s       =                        *g_lmake_root_s                              ;
+		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s      = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
+		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s       = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
+		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s        = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;
+		/**/                                        autodep_env.auto_mkdir      =                        cmd_line.flags    [ CmdFlag::AutoMkdir    ]  ;
+		/**/                                        autodep_env.mount_chroot_ok =                        cmd_line.flags    [ CmdFlag::MountChrootOk]  ;
+		/**/                                        autodep_env.readdir_ok      =                        cmd_line.flags    [ CmdFlag::ReaddirOk    ]  ;
+		if (cmd_line.flags[CmdFlag::Cwd          ]) autodep_env.sub_repo_s      = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;
+		if (cmd_line.flags[CmdFlag::LinkSupport  ]) autodep_env.lnk_support     = mk_enum<LnkSupport>   (cmd_line.flag_args[+CmdFlag::LinkSupport  ]) ;
+		/**/                                        autodep_env.views_s         = job_space.flat_phys_s()                                             ;
 		//
 		try { jsrr.env               = _mk_env       (cmd_line.flag_args[+CmdFlag::Env       ]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
 		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]) ; } catch (::string const& e) { throw "bad views format : "      +e ; }

@@ -1734,6 +1734,14 @@ The default value should be both comfortable (avoid hitting it in normal situati
 Unlimited if <code>0</code>.
 Contrarily to the <code>max_runs</code> attribute, cache accesses are counted when counting submits.</p>
 <p>If <code>max_runs</code> is specified, <code>max_submits</code> is forced to be at least the value of <code>max_runs</code>.</p>
+<h3 id="mount_chroot_ok"><a class="header" href="#mount_chroot_ok"><code>mount_chroot_ok</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute has a false value, unless <code>autodep</code> is <code>'none'</code>, any call to <a href="https://man7.org/linux/man-pages/man2/mount.2.html"><code>mount</code></a>
+or <a href="https://man7.org/linux/man-pages/man2/chroot.2.html"><code>chroot</code></a> is forbidden as these mess up the autodep mechanism.</p>
+<p>If it is true, such calls are allowed and it is the user responsibility to ensure that they are properly called so as to transport names to the chrooted environment.</p>
 <h3 id="name"><a class="header" href="#name"><a href="unit_tests/name.html#:~:text=name%20%3D%20f%27expand%7Bstep%7D%27"><code>name</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>None</td><td><code>str</code></td><td><code>cls.__name__</code></td><td>No</td><td></td></tr>
@@ -2058,6 +2066,15 @@ files may or may not have been already built, or previously built files that are
 <p>Ideally, listing a dir would lead to all buildable files (or sub-dirs), but this is not doable in the generic case as such list may be infinite.
 So open-lmake reverts to letting the user deal with this question, using an opt-in approach so the user cannot miss it.</p>
 <p>Note that if such a dir is marked as <code>incremental</code>, the user already has the responsibility of handling its past history and there is no need for an additional flag.</p>
+<h3 id="mounts-and-chroot"><a class="header" href="#mounts-and-chroot">mounts and chroot</a></h3>
+<p>As soon as autodep feature is on:</p>
+<ul>
+<li>Doing any kind of <a href="https://man7.org/linux/man-pages/man2/mount.2.html"><code>mount</code></a> to a directory or a file which is tracked by the autodep engine is forbidden by default.</li>
+<li>Doing any <a href="https://man7.org/linux/man-pages/man2/chroot.2.html"><code>chroot</code></a> is forbidden by default.</li>
+</ul>
+<p>This is because open-lmake cannot track accesses as reported files will have their mounted names rather than their real underlying names.</p>
+<p>Setting the <code>mount_chroot_ok</code> rule attribute allow both.
+Although separately such calls cannot be reliable, doing both in a sound way can restore consistency if names are transported to a chrooted environment through bind mounts.</p>
 <h3 id="being-a-target"><a class="header" href="#being-a-target">Being a target</a></h3>
 <p>A file may be a target from the begining of the job execution, or it may become a target during job execution.
 In the latter case, it is not a target until the point where it becomes one.

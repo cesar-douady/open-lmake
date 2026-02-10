@@ -534,6 +534,17 @@ Contrarily to the `max_runs` attribute, cache accesses are counted when counting
 
 If `max_runs` is specified, `max_submits` is forced to be at least the value of `max_runs`.
 
+### `mount_chroot_ok`
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a false value, unless `autodep` is `'none'`, any call to [`mount`](https://man7.org/linux/man-pages/man2/mount.2.html)
+or [`chroot`](https://man7.org/linux/man-pages/man2/chroot.2.html) is forbidden as these mess up the autodep mechanism.
+
+If it is true, such calls are allowed and it is the user responsibility to ensure that they are properly called so as to transport names to the chrooted environment.
+
 ### [`name`](unit_tests/name.html#:~:text=name%20%3D%20f%27expand%7Bstep%7D%27)
 
 | Inheritance | Type  | Default        | Dynamic | Example |

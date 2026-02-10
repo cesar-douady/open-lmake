@@ -149,7 +149,7 @@ using Glob     = AuditAction<Record::Glob               ,0   > ;
 using Hide     = AuditAction<Record::Hide               ,0   > ;
 using Mkdir    = AuditAction<Record::Mkdir              ,1   > ;
 using Lnk      = AuditAction<Record::Lnk                ,2   > ;
-using Mount    = AuditAction<Record::Mount              ,2   > ;
+using Mount    = AuditAction<Record::Mount              ,1   > ;
 using Open     = AuditAction<Record::Open               ,1   > ;
 using ReadDir  = AuditAction<Record::ReadDir            ,1   > ;
 using Readlink = AuditAction<Record::Readlink           ,1   > ;
@@ -371,12 +371,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int fchmodat(int d,CC* p,mode_t m,int f) NE { HDR1(fchmodat,p,(d,p,m,f)) ; NO_SERVER(fchmodat) Chmod r{{d,p},EXE(m),ASLNF(f),Comment::fchmodat} ; return r(orig(d,p,m,f)) ; }
 
 	// chroot
-	int chroot(CC* path) {
-		HDR0( chroot , (path) ) ;
-		NO_SERVER(chroot) ;
-		Chroot r{path,Comment::chroot} ;
-		return r(orig(path)) ;
-	}
+	int chroot(CC* path) { HDR0( chroot , (path) ) ; NO_SERVER(chroot) ; Chroot r{path,Comment::chroot} ; return r(orig(path)) ; }
 
 	// clone
 	// cf fork about why this wrapper is necessary
@@ -530,12 +525,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int mkostemps64(char* t,int f,int sl) { HDR0(mkostemps64,(t,f,sl)) ; Mkstemp r{t,sl,Comment::mkostemps64} ; return r(orig(t,f,sl)) ; }
 
 	// mount
-	int mount(CC* sp,CC* tp,CC* fst,ulong f,const void* d) {
-		HDR( mount , !(f&MS_BIND) || (Record::s_is_simple(sp)&&Record::s_is_simple(tp)) , (sp,tp,fst,f,d) ) ;
-		NO_SERVER(mount) ;
-		Mount r { sp , tp , Comment::mount } ;
-		return r(orig(sp,tp,fst,f,d)) ;
-		}
+	int mount(CC* sp,CC* tp,CC* fst,ulong f,const void* d) { HDR0(mount,(sp,tp,fst,f,d)) ; NO_SERVER(mount) ; Mount r{tp,Comment::mount} ; return r(orig(sp,tp,fst,f,d)) ; }
 
 	// name_to_handle_at
 	int name_to_handle_at( int d , CC* p , struct ::file_handle *h , int *mount_id , int f ) NE {

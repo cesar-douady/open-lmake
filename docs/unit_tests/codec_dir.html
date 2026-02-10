@@ -101,17 +101,19 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1"># This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).</span>
 <span class="c1"># This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.</span>
 
-<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">ut</span>
 
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">sys</span>
+    <span class="kn">import</span> <span class="nn">time</span>
 
     <span class="kn">import</span> <span class="nn">lmake</span>
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;ut.py&#39;</span>
     <span class="p">,</span>   <span class="s1">&#39;../codec_files/&#39;</span>
     <span class="p">)</span>
 
@@ -134,6 +136,27 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
             <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;../codec_files/sub/&#39;</span><span class="p">,</span><span class="s1">&#39;ctx&#39;</span><span class="p">,</span><span class="n">dir_code</span><span class="p">),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
             <span class="n">lmake</span><span class="o">.</span><span class="n">check_deps</span><span class="p">()</span>
 
+    <span class="k">class</span> <span class="nc">CodecPy1</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;{File:.*}_py1&#39;</span>
+        <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
+            <span class="n">ut</span><span class="o">.</span><span class="n">wait_sync</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">dir_code</span> <span class="o">=</span> <span class="n">lmake</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span> <span class="s1">&#39;../codec_files/sub/&#39;</span> <span class="p">,</span> <span class="s1">&#39;ctx&#39;</span> <span class="p">,</span> <span class="n">File</span><span class="o">+</span><span class="s1">&#39;_py</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="p">,</span> <span class="mi">3</span> <span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">dir_code</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;../codec_files/sub/&#39;</span><span class="p">,</span><span class="s1">&#39;ctx&#39;</span><span class="p">,</span><span class="n">dir_code</span><span class="p">),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="n">ut</span><span class="o">.</span><span class="n">trigger_sync</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">lmake</span><span class="o">.</span><span class="n">check_deps</span><span class="p">()</span>
+
+    <span class="k">class</span> <span class="nc">CodecPy2</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;{File:.*}_py2&#39;</span>
+        <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
+            <span class="n">dir_code</span> <span class="o">=</span> <span class="n">lmake</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span> <span class="s1">&#39;../codec_files/sub/&#39;</span> <span class="p">,</span> <span class="s1">&#39;ctx&#39;</span> <span class="p">,</span> <span class="n">File</span><span class="o">+</span><span class="s1">&#39;_py</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="p">,</span> <span class="mi">3</span> <span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">dir_code</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s1">&#39;../codec_files/sub/&#39;</span><span class="p">,</span><span class="s1">&#39;ctx&#39;</span><span class="p">,</span><span class="n">dir_code</span><span class="p">),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="n">ut</span><span class="o">.</span><span class="n">trigger_sync</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">ut</span><span class="o">.</span><span class="n">wait_sync</span>   <span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>      <span class="c1"># ensure CodecPy1 job has had time to report</span>
+            <span class="n">lmake</span><span class="o">.</span><span class="n">check_deps</span><span class="p">()</span>
+
     <span class="k">class</span> <span class="nc">Chk</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;{File:.*}.ok&#39;</span>
         <span class="n">dep</span>    <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{File}</span><span class="s1">&#39;</span>
@@ -149,7 +172,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
 <span class="k">else</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">ut</span>
+    <span class="kn">import</span> <span class="nn">os</span>
 
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;codec_files/sub/LMAKE&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;none&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;codec_files/sub/LMAKE/file_sync&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
@@ -158,8 +181,11 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="s1">&#39;../Lmakefile.py&#39;</span><span class="p">,</span><span class="s1">&#39;repo/Lmakefile.py&#39;</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="s1">&#39;repo&#39;</span><span class="p">)</span>
 
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh.ok&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py.ok&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">4</span> <span class="p">)</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh.ok&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py.ok&#39;</span>          <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">mk_syncs</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_py1&#39;</span>   <span class="p">,</span> <span class="s1">&#39;codec_py2&#39;</span>   <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">2</span> <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh.ok&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py.ok&#39;</span> <span class="p">,</span>         <span class="n">done</span><span class="o">=</span><span class="mi">4</span> <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh.ok&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py.ok&#39;</span>                  <span class="p">)</span>
 
     <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="s1">&#39;codec_sh&#39;</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="s1">&#39;codec_py&#39;</span><span class="p">)</span>
@@ -167,9 +193,9 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;codec_sh&#39;</span> <span class="p">,</span> <span class="s1">&#39;codec_py&#39;</span> <span class="p">,</span> <span class="n">steady</span><span class="o">=</span><span class="mi">2</span> <span class="p">)</span>
 
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;user_val&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;../codec_files/sub/tab/ctx/user_code.decode&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s1">&#39;lcodec_repair -fr ../codec_files/sub&#39;</span><span class="p">)</span>
+    <span class="k">assert</span> <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s1">&#39;lcodec_repair -fr ../codec_files/sub&#39;</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span>
 
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;chk2&#39;</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;chk2&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>

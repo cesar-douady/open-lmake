@@ -63,6 +63,9 @@ Mimic setting the config attribute B(link_support)=I(key).
 Item(B(-m) I(key),B(--autodep-method)=I(key))
 Mimic setting the rule attribute B(autodep)=I(key).
 
+Item(B(-M),B(--mount-chroot-ok))
+Mimic setting the rule attribute B(mount_chroot_ok)=I(True).
+
 Item(B(-o) I(file),B(--out)=I(file))
 Write access info (deps and targets) to I(file).
 

@@ -1,23 +1,24 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 25      ; // d982af294ec49eb6a5ca323325cc517a
+	uint64_t    constexpr Cache = 26      ; // 8e3840e6e8f4cf6e297b404546d4a479
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 20      ; // aa50831cb55ac93f26564b6661da3856
-	uint64_t    constexpr Job   = 11      ; // be19fc7c40550a6863a4b82934cd57fc
+	uint64_t    constexpr Repo  = 21      ; // e5efbf5a54d596966e4e83f431a29449
+	uint64_t    constexpr Job   = 12      ; // f3268f3e78124ecd620f327a5378672a
 	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : d982af294ec49eb6a5ca323325cc517a *
+// * Cache : 8e3840e6e8f4cf6e297b404546d4a479 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
-//		if (!enable    ) res << 'd' ;
-//		if (readdir_ok ) res << 'D' ;
-//		if (ignore_stat) res << 'i' ;
-//		if (auto_mkdir ) res << 'm' ;
+//		if (!enable        ) res << 'd' ;
+//		if (readdir_ok     ) res << 'D' ;
+//		if (ignore_stat    ) res << 'i' ;
+//		if (auto_mkdir     ) res << 'm' ;
+//		if (mount_chroot_ok) res << 'M' ;
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -176,16 +177,17 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO JOB
-//		bool                             auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
-//		bool                             enable           = true  ; // if false <=> no automatic report
-//		::string                         fqdn             ;
-//		bool                             ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
-//		bool                             readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
-//		::string                         fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
+//		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
+//		bool                             enable           = true  ;                   // if false <=> no automatic report
+//		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
+//		bool                             mount_chroot_ok  = false ;
+//		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
+//		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 //		KeyedService                     service          ;
-//		::string                         sub_repo_s       ;         // relative to repo_root_s
+//		::string                         sub_repo_s       ;                           // relative to repo_root_s
 //		::umap_s<Codec::CodecRemoteSide> codecs           ;
 //		::vmap_s<::vector_s>             views_s          ;
+//		::string                         fqdn             ;                           // not transported
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE
 //	struct LruEntry {
@@ -858,7 +860,7 @@ namespace Version {
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO CODEC
-//		using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
+//		using CodecCrc = Hash::Crc96 ;                                                                              // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
@@ -1049,22 +1051,23 @@ namespace Version {
 //			return res ;
 //			// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO CODEC
-//		using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
+//		using CodecCrc = Hash::Crc96 ;                                                                              // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : aa50831cb55ac93f26564b6661da3856 *
+// * Repo : e5efbf5a54d596966e4e83f431a29449 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
-//		if (!enable    ) res << 'd' ;
-//		if (readdir_ok ) res << 'D' ;
-//		if (ignore_stat) res << 'i' ;
-//		if (auto_mkdir ) res << 'm' ;
+//		if (!enable        ) res << 'd' ;
+//		if (readdir_ok     ) res << 'D' ;
+//		if (ignore_stat    ) res << 'i' ;
+//		if (auto_mkdir     ) res << 'm' ;
+//		if (mount_chroot_ok) res << 'M' ;
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -1268,16 +1271,17 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO JOB
-//		bool                             auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
-//		bool                             enable           = true  ; // if false <=> no automatic report
-//		::string                         fqdn             ;
-//		bool                             ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
-//		bool                             readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
-//		::string                         fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
+//		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
+//		bool                             enable           = true  ;                   // if false <=> no automatic report
+//		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
+//		bool                             mount_chroot_ok  = false ;
+//		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
+//		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 //		KeyedService                     service          ;
-//		::string                         sub_repo_s       ;         // relative to repo_root_s
+//		::string                         sub_repo_s       ;                           // relative to repo_root_s
 //		::umap_s<Codec::CodecRemoteSide> codecs           ;
 //		::vmap_s<::vector_s>             views_s          ;
+//		::string                         fqdn             ;                           // not transported
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Access : uint8_t {                                                         // in all cases, dirs are deemed non-existing
@@ -1559,15 +1563,16 @@ namespace Version {
 //			::string cache_name ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			bool       dyn_env     = false ;
-//			bool       dyn_views   = false ;
-//			bool       auto_mkdir  = false ;
-//			::vmap_ss  env         ;
-//			bool       ignore_stat = false ;
-//			::vector_s interpreter ;
-//			bool       readdir_ok  = false ;
-//			bool       stderr_ok   = false ;
-//			JobSpace   job_space   ;
+//			bool       dyn_env         = false ;
+//			bool       dyn_views       = false ;
+//			bool       auto_mkdir      = false ;
+//			::vmap_ss  env             ;
+//			bool       ignore_stat     = false ;
+//			::vector_s interpreter     ;
+//			bool       mount_chroot_ok = false ;
+//			bool       readdir_ok      = false ;
+//			bool       stderr_ok       = false ;
+//			JobSpace   job_space       ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			bool          dyn_env        = false               ;
@@ -2297,7 +2302,7 @@ namespace Version {
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO CODEC
-//		using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
+//		using CodecCrc = Hash::Crc96 ;                                                                              // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
@@ -2348,15 +2353,16 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : be19fc7c40550a6863a4b82934cd57fc *
+// * Job : f3268f3e78124ecd620f327a5378672a *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
-//		if (!enable    ) res << 'd' ;
-//		if (readdir_ok ) res << 'D' ;
-//		if (ignore_stat) res << 'i' ;
-//		if (auto_mkdir ) res << 'm' ;
+//		if (!enable        ) res << 'd' ;
+//		if (readdir_ok     ) res << 'D' ;
+//		if (ignore_stat    ) res << 'i' ;
+//		if (auto_mkdir     ) res << 'm' ;
+//		if (mount_chroot_ok) res << 'M' ;
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -2460,16 +2466,17 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO JOB
-//		bool                             auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
-//		bool                             enable           = true  ; // if false <=> no automatic report
-//		::string                         fqdn             ;
-//		bool                             ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
-//		bool                             readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
-//		::string                         fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
+//		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
+//		bool                             enable           = true  ;                   // if false <=> no automatic report
+//		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
+//		bool                             mount_chroot_ok  = false ;
+//		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
+//		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 //		KeyedService                     service          ;
-//		::string                         sub_repo_s       ;         // relative to repo_root_s
+//		::string                         sub_repo_s       ;                           // relative to repo_root_s
 //		::umap_s<Codec::CodecRemoteSide> codecs           ;
 //		::vmap_s<::vector_s>             views_s          ;
+//		::string                         fqdn             ;                           // not transported
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Access : uint8_t {                                                         // in all cases, dirs are deemed non-existing
@@ -2730,7 +2737,7 @@ namespace Version {
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO CODEC
-//		using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
+//		using CodecCrc = Hash::Crc96 ;                                                                              // 64 bits is enough, but not easy to prove
 //		static constexpr char CodecSep    = '*'       ; //!                                                    null
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;

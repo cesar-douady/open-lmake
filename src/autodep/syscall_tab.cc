@@ -57,11 +57,11 @@
 	}
 	}
 
-template<bool At> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args , bool simple_ok=false ) {
+template<bool At,bool KeepSimple=false> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args ) {
 	::string arg = _get_str(pid,args[At]) ;
-	if ( !simple_ok && Record::s_is_simple(arg) ) throw ""s                    ;
-	if ( At                                     ) return { Fd(args[0]) , arg } ;
-	else                                          return {               arg } ;
+	if ( !KeepSimple && Record::s_is_simple(arg) ) throw ""s                    ;
+	if ( At                                      ) return { Fd(args[0]) , arg } ;
+	else                                           return {               arg } ;
 }
 
 static constexpr int FlagAlways = -1 ;
@@ -77,8 +77,8 @@ template<int FlagArg> [[maybe_unused]] static bool _flag( uint64_t args[6] , int
 // chdir
 template<bool At> [[maybe_unused]] static void _entry_chdir( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		if (At) { Record::Chdir* cd = new Record::Chdir{ r , Fd(args[0])                             , c } ; ctx = cd ; }
-		else    { Record::Chdir* cd = new Record::Chdir{ r , _path<At>(pid,args+0,true/*simple_ok*/) , c } ; ctx = cd ; }
+		if (At) { Record::Chdir* cd = new Record::Chdir{ r , Fd(args[0])                              , c } ; ctx = cd ; }
+		else    { Record::Chdir* cd = new Record::Chdir{ r , _path<At,true/*KeepSimple*/>(pid,args+0) , c } ; ctx = cd ; }
 	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -124,7 +124,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& 
 // must be called before actual syscall execution as after execution, info is no more available
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		Record::Exec<true/*Send*/,false/*ChkSimple*/>( r , _path<At>(pid,args+0,true/*simple_ok*/) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
+		Record::Exec<true/*Send*/,false/*ChkSimple*/>( r , _path<At,true/*KeepSimple*/>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
 	} catch (::string const&) {}
 }
 
@@ -144,7 +144,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void*&
 // hard link
 template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Lnk{ r , _path<At>(pid,args+0,true/*simple_ok*/) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
+		ctx = new Record::Lnk{ r , _path<At,true/*KeepSimple*/>(pid,args+0) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
 	} catch (::string const&) {}
 }
 [[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
@@ -166,7 +166,7 @@ template<bool At> [[maybe_unused]] static void _entry_mkdir( void*& /*ctx*/ , Re
 // mount
 [[maybe_unused]] static void _entry_mount( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
 	try {
-		if (args[3]&MS_BIND) Record::Mount( r , _path<false>(pid,args+0,true/*simple_ok*/) , _path<false>(pid,args+1) , c ) ;
+		Record::Mount( r , _path<false>(pid,args+1) , c ) ;
 	} catch (::string const&) {}
 }
 

@@ -94,6 +94,18 @@ So open-lmake reverts to letting the user deal with this question, using an opt-
 
 Note that if such a dir is marked as `incremental`, the user already has the responsibility of handling its past history and there is no need for an additional flag.
 
+### mounts and chroot
+
+As soon as autodep feature is on:
+
+- Doing any kind of [`mount`](https://man7.org/linux/man-pages/man2/mount.2.html) to a directory or a file which is tracked by the autodep engine is forbidden by default.
+- Doing any [`chroot`](https://man7.org/linux/man-pages/man2/chroot.2.html) is forbidden by default.
+
+This is because open-lmake cannot track accesses as reported files will have their mounted names rather than their real underlying names.
+
+Setting the `mount_chroot_ok` rule attribute allow both.
+Although separately such calls cannot be reliable, doing both in a sound way can restore consistency if names are transported to a chrooted environment through bind mounts.
+
 ### Being a target
 
 A file may be a target from the begining of the job execution, or it may become a target during job execution.

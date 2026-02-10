@@ -198,7 +198,6 @@ public :
 	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> pattern_flags    ;                       // apply flags to matching accesses
 	pid_t                                     pid              = -1                  ; // pid to kill
 	::string                                  rule             ;
-	bool                                      seen_tmp         = false               ;
 	SeqId                                     seq_id           = 0                   ;
 	ServerSockFd                              server_master_fd ;
 	KeyedService                              service_mngt     ;                       // no server if empty

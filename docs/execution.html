@@ -229,6 +229,15 @@ files may or may not have been already built, or previously built files that are
 <p>Ideally, listing a dir would lead to all buildable files (or sub-dirs), but this is not doable in the generic case as such list may be infinite.
 So open-lmake reverts to letting the user deal with this question, using an opt-in approach so the user cannot miss it.</p>
 <p>Note that if such a dir is marked as <code>incremental</code>, the user already has the responsibility of handling its past history and there is no need for an additional flag.</p>
+<h3 id="mounts-and-chroot"><a class="header" href="#mounts-and-chroot">mounts and chroot</a></h3>
+<p>As soon as autodep feature is on:</p>
+<ul>
+<li>Doing any kind of <a href="https://man7.org/linux/man-pages/man2/mount.2.html"><code>mount</code></a> to a directory or a file which is tracked by the autodep engine is forbidden by default.</li>
+<li>Doing any <a href="https://man7.org/linux/man-pages/man2/chroot.2.html"><code>chroot</code></a> is forbidden by default.</li>
+</ul>
+<p>This is because open-lmake cannot track accesses as reported files will have their mounted names rather than their real underlying names.</p>
+<p>Setting the <code>mount_chroot_ok</code> rule attribute allow both.
+Although separately such calls cannot be reliable, doing both in a sound way can restore consistency if names are transported to a chrooted environment through bind mounts.</p>
 <h3 id="being-a-target"><a class="header" href="#being-a-target">Being a target</a></h3>
 <p>A file may be a target from the begining of the job execution, or it may become a target during job execution.
 In the latter case, it is not a target until the point where it becomes one.

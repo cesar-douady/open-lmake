@@ -116,9 +116,7 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 }                                                                         // END_OF_NO_COV
 
 ::string& operator+=( ::string& os , Gather const& gd ) { // START_OF_NO_COV
-	/**/             os << "Gather(" << gd.accesses ;
-	if (gd.seen_tmp) os <<",seen_tmp"               ;
-	return           os << ')'                      ;
+	return os << "Gather("<<gd.accesses<<')' ;
 }                                                         // END_OF_NO_COV
 
 void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Bool3 late , Comment c , CommentExts ces ) {
@@ -425,23 +423,25 @@ Status Gather::_exec_child() {
 	using Event = Epoll<Kind>::Event ;
 	Trace trace("exec_child",STR(as_session),method,autodep_env,cmd_line) ;
 	//
-	bool                        has_server     = +service_mngt  ;
-	ServerSockFd                job_master_fd  { 0/*backlog*/ } ;
-	AcFd                        fast_report_fd ;                        // always open, never waited for
-	AcFd                        child_fd       ;
-	Epoll<Kind>                 epoll          { New          } ;
-	Status                      status         = Status::New    ;
-	::map<PD,::pair<Fd,Jerr>>   delayed_jerrs  ;                        // events that analyze deps and targets are delayed until all accesses are processed to ensure complete info
-	size_t                      live_out_pos   = 0              ;
-	::umap<Fd,ServerSlaveEntry> server_slaves  ;
-	::umap<Fd,JobSlaveEntry   > job_slaves     ;                        // Jerr's waiting for confirmation
-	bool                        panic_seen     = false          ;
-	PD                          end_timeout    = PD::Future     ;
-	PD                          end_child      = PD::Future     ;
-	PD                          end_kill       = PD::Future     ;
-	PD                          end_heartbeat  = PD::Future     ;       // heartbeat to probe server when waiting for it
-	bool                        timeout_fired  = false          ;
-	size_t                      kill_step      = 0              ;
+	bool                        has_server        = +service_mngt  ;
+	ServerSockFd                job_master_fd     { 0/*backlog*/ } ;
+	AcFd                        fast_report_fd    ;                        // always open, never waited for
+	AcFd                        child_fd          ;
+	Epoll<Kind>                 epoll             { New          } ;
+	Status                      status            = Status::New    ;
+	::map<PD,::pair<Fd,Jerr>>   delayed_jerrs     ;                        // events that analyze deps and targets are delayed until all accesses are processed to ensure complete info
+	size_t                      live_out_pos      = 0              ;
+	::umap<Fd,ServerSlaveEntry> server_slaves     ;
+	::umap<Fd,JobSlaveEntry   > job_slaves        ;                        // Jerr's waiting for confirmation
+	PD                          end_timeout       = PD::Future     ;
+	PD                          end_child         = PD::Future     ;
+	PD                          end_kill          = PD::Future     ;
+	PD                          end_heartbeat     = PD::Future     ;       // heartbeat to probe server when waiting for it
+	bool                        timeout_fired     = false          ;
+	size_t                      kill_step         = 0              ;
+	bool                        seen_mount_chroot = false          ;
+	bool                        seen_panic        = false          ;
+	bool                        seen_tmp          = false          ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} ) {
 		if (status==Status::New) status = status_ ;                     // only record first status
@@ -821,15 +821,6 @@ Status Gather::_exec_child() {
 								delayed_jerrs.try_emplace(jerr.date,::pair(fd,::move(jerr))) ;
 								sync_ = false ;                                                // if sync, reply is delayed
 							break ;
-							case Proc::DepDirect  :
-							case Proc::DepVerbose :
-								trace(kind,fd,proc) ;
-								if (has_server) { _send_to_server( fd , ::move(jerr) , jse ) ; sync_ = false ; }                                       // if sent to server, reply is delayed
-							break ;
-							case Proc::Guard      :
-								trace(kind,fd,proc,jerr.files.size()) ;
-								for( auto& [f,_] : jerr.files ) guards.insert(::move(f)) ;
-							break ;
 							case Proc::Confirm : {
 								trace(kind,fd,proc,jerr.digest.write,jerr.id) ;
 								Trace trace2 ;
@@ -843,15 +834,6 @@ Status Gather::_exec_child() {
 								}
 								jse.to_confirm.erase(it) ;
 							} break ;
-							case Proc::Access :
-								// for read accesses, trying is enough to trigger a dep, so confirm is useless
-								if (jerr.digest.write==Maybe) { trace(kind,fd,proc,"maybe",jerr) ; jse.to_confirm[jerr.id].push_back(::move(jerr)) ; } // delay until confirmed/infirmed
-								else                            _new_accesses(fd,::move(jerr)) ;
-							break ;
-							case Proc::AccessPattern :
-								trace(kind,fd,proc,jerr.date,jerr.digest,jerr.files) ;
-								for( auto const& [f,_] : jerr.files ) pattern_flags.emplace_back( f/*pattern*/ , ::pair(jerr.date,jerr.digest.flags) ) ;
-							break ;
 							case Proc::Tmp :
 								if (!seen_tmp) {
 									trace(kind,fd,proc) ;
@@ -865,19 +847,65 @@ Status Gather::_exec_child() {
 									seen_tmp = true ;
 								}
 							break ;
+							case Proc::Chroot :
+							case Proc::Mount  : {
+								::string const& dst = jerr.files[0].first                            ;
+								::string        msg = cat("forbidden ",jerr.comment," to ",dst,'\n') ;
+								trace(kind,fd,proc) ;
+								_user_trace( New , jerr.comment , CommentExt::Err , dst ) ;
+								if (!seen_mount_chroot) {
+									msg << "  mount and chroot make deps recording unreliable, but carefully used, a combination of them may be reliable"<<'\n' ;
+									if (proc==Proc::Mount) {
+										static constexpr char Pfx[] = "  consider a reliable alternative to " ;
+										::string d = no_slash(dst) ;
+										switch (jerr.files[0].second.tag()) {
+											case FileTag::Dir : msg << Pfx<<"mount source_dir as " <<dst<<" :\n  - "<<rule<<".views = { "<<mk_py_str   (d+'/')<<" : 'source_dir/' }"<<'\n' ; break ;
+											case FileTag::Lnk : msg << Pfx<<"copy source_link to " <<dst<<" :\n  - cp source_lnk "       <<mk_shell_str(d    )                      <<'\n' ; break ;
+											case FileTag::Reg : msg << Pfx<<"mount source_file as "<<dst<<" :\n  - "<<rule<<".views = { "<<mk_py_str   (d    )<<" : 'source_file' }"<<'\n' ; break ;
+										DF}
+									}
+									msg << "  consider, if you are certain you want to proceed with "<<jerr.comment<<" :"<<'\n' ;
+									msg << "  - "<<rule<<".mount_chroot_ok = True"                                       <<'\n' ;
+									msg << "  consider, if you are ready to manage deps by hand :"                       <<'\n' ;
+									msg << "  - "<<rule<<".autodep = 'none'"                                             <<'\n' ;
+								}
+								set_status(Status::Err,msg) ;
+								if (!seen_mount_chroot) {
+									seen_mount_chroot = true ;
+									kill() ;
+								}
+							} break ;
+							case Proc::DepDirect  :
+							case Proc::DepVerbose :
+								trace(kind,fd,proc) ;
+								if (has_server) { _send_to_server( fd , ::move(jerr) , jse ) ; sync_ = false ; }                                       // if sent to server, reply is delayed
+							break ;
+							case Proc::Guard      :
+								trace(kind,fd,proc,jerr.files.size()) ;
+								for( auto& [f,_] : jerr.files ) guards.insert(::move(f)) ;
+							break ;
 							case Proc::Panic :                                                                                                         // START_OF_NO_COV defensive programming
-								if (!panic_seen) {                                                                                                     // report only first panic
+								if (!seen_panic) {                                                                                                     // report only first panic
 									trace(kind,fd,proc,jerr.txt()) ;
 									_user_trace( jerr.date , Comment::Panic , jerr.txt() ) ;
 									set_status(Status::Err,jerr.txt()) ;
 									kill() ;
-									panic_seen = true ;
+									seen_panic = true ;
 								}
 							[[fallthrough]] ;                                                                                                          // END_OF_NO_COV
 							case Proc::Trace :                                                                                                         // START_OF_NO_COV debug only
 								trace(kind,fd,proc,jerr.txt()) ;
 								_user_trace( jerr.date , Comment::Trace , jerr.txt() ) ;
 							break ;                                                                                                                    // END_OF_NO_COV
+							case Proc::Access :
+								// for read accesses, trying is enough to trigger a dep, so confirm is useless
+								if (jerr.digest.write==Maybe) { trace(kind,fd,proc,"maybe",jerr) ; jse.to_confirm[jerr.id].push_back(::move(jerr)) ; } // delay until confirmed/infirmed
+								else                            _new_accesses(fd,::move(jerr)) ;
+							break ;
+							case Proc::AccessPattern :
+								trace(kind,fd,proc,jerr.date,jerr.digest,jerr.files) ;
+								for( auto const& [f,_] : jerr.files ) pattern_flags.emplace_back( f/*pattern*/ , ::pair(jerr.date,jerr.digest.flags) ) ;
+							break ;
 						DF}                                                                                                                            // NO_COV
 						if (sync_) sync( fd , ::move(jerr).mimic_server() ) ;
 					}

@@ -193,6 +193,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1">#   max_runs            =   0                      # maximum number a job can be run in a single lmake command, unlimited if None or 0</span>
     <span class="n">max_stderr_len</span>      <span class="o">=</span> <span class="mi">100</span>                      <span class="c1"># maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise</span>
     <span class="n">max_submits</span>         <span class="o">=</span>  <span class="mi">10</span>                      <span class="c1"># maximum number a job can be submitted in a single lmake command, unlimited if None or 0</span>
+<span class="c1">#   mount_chroot_ok     = False                    # if set, mount and chroot is not an error</span>
 <span class="c1">#   prio                = 0                        # in case of ambiguity, rules are selected with highest prio first</span>
     <span class="n">python</span>              <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;$PYTHON&#39;</span><span class="p">,)</span>             <span class="c1"># python used for callable cmd</span>
 <span class="c1">#   readdir_ok          = False                    # if set, listing a local non-ignored dir is not an error</span>

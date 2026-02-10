@@ -35,6 +35,7 @@ class Job :
 	cwd             = None
 	lmake_root      = None
 	lmake_view      = None
+	mount_chroot_ok = False
 	readdir_ok      = False
 	repo_view       = None
 	simple_cmd_line = None
@@ -131,25 +132,26 @@ class Job :
 		#
 		simple = True
 		res    = ''
-		if True             :          res =         res+mk_shell_str(autodep)
-		if self.auto_mkdir  : simple , res = False , res+ ' -a'
-		if self.chroot_dir  : simple , res = False , res+f' -c{mk_shell_str(     self.chroot_dir            )}'
-		if self.chroot_user :          res =         res+f' -C{mk_shell_str(     self.chroot_user           )}'
-		if self.cwd         : simple , res = False , res+f' -d{mk_shell_str(     self.cwd                   )}'
-		if self.readdir_ok  :          res =         res+ ' -D'
-		if True             :          res =         res+f' -e{mk_shell_str(repr(keep_env                  ))}'
-		if True             :          res =         res+f' -k'
-		if True             :          res =         res+f' -l{                  self.link_support           }'
-		if self.lmake_root  : simple , res = False , res+f' -r{mk_shell_str(     self.lmake_root            )}'
-		if self.lmake_view  : simple , res = False , res+f' -L{mk_shell_str(     self.lmake_view            )}'
-		if True             :          res =         res+f' -m{                  self.autodep_method         }'
-		if True             :          res =         res+f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
-		if self.repo_view   : simple , res = False , res+f' -R{mk_shell_str(     self.repo_view             )}'
-		if self.source_dirs : simple , res = False , res+f' -s{mk_shell_str(repr(self.source_dirs          ))}'
-		if self.tmp_dir     :          res =         res+f' -t{mk_shell_str(     self.tmp_dir               )}'
-		if self.tmp_view    : simple , res = False , res+f' -T{mk_shell_str(     self.tmp_view              )}'
-		if self.views       : simple , res = False , res+f' -V{mk_shell_str(repr(self.views                ))}'
-		if True             :          res =         res+ ' -- \\\n'
+		if True                 :          res =         res+mk_shell_str(autodep)
+		if self.auto_mkdir      : simple , res = False , res+ ' -a'
+		if self.chroot_dir      : simple , res = False , res+f' -c{mk_shell_str(     self.chroot_dir            )}'
+		if self.chroot_user     :          res =         res+f' -C{mk_shell_str(     self.chroot_user           )}'
+		if self.cwd             : simple , res = False , res+f' -d{mk_shell_str(     self.cwd                   )}'
+		if self.mount_chroot_ok :          res =         res+ ' -M'
+		if self.readdir_ok      :          res =         res+ ' -D'
+		if True                 :          res =         res+f' -e{mk_shell_str(repr(keep_env                  ))}'
+		if True                 :          res =         res+ ' -k'
+		if True                 :          res =         res+f' -l{                  self.link_support           }'
+		if self.lmake_root      : simple , res = False , res+f' -r{mk_shell_str(     self.lmake_root            )}'
+		if self.lmake_view      : simple , res = False , res+f' -L{mk_shell_str(     self.lmake_view            )}'
+		if True                 :          res =         res+f' -m{                  self.autodep_method         }'
+		if True                 :          res =         res+f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
+		if self.repo_view       : simple , res = False , res+f' -R{mk_shell_str(     self.repo_view             )}'
+		if self.source_dirs     : simple , res = False , res+f' -s{mk_shell_str(repr(self.source_dirs          ))}'
+		if self.tmp_dir         :          res =         res+f' -t{mk_shell_str(     self.tmp_dir               )}'
+		if self.tmp_view        : simple , res = False , res+f' -T{mk_shell_str(     self.tmp_view              )}'
+		if self.views           : simple , res = False , res+f' -V{mk_shell_str(repr(self.views                ))}'
+		if True                 :          res =         res+ ' -- \\\n'
 		#
 		if True        : res += ' '.join(x for x in args)                                # must be before redirections to files if args contains redirections
 		#

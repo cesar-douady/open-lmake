@@ -70,6 +70,7 @@ namespace Codec {
 	if (+ade.fqdn            ) os << ','<<ade.fqdn                                       ;
 	if ( ade.enable          ) os << ",enable"                                           ;
 	if ( ade.auto_mkdir      ) os << ",auto_mkdir"                                       ;
+	if ( ade.mount_chroot_ok ) os << ",mount_chroot_ok"                                  ;
 	if ( ade.readdir_ok      ) os << ",readdir_ok"                                       ;
 	if (+ade.sub_repo_s      ) os << ','<<ade.sub_repo_s                                 ;
 	if (+ade.codecs          ) os << ','<<ade.codecs                                     ;
@@ -93,10 +94,11 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (env[pos++]!=':') goto Fail ;
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
-			case 'd' : enable      = false ; break ;
-			case 'D' : readdir_ok  = true  ; break ;
-			case 'i' : ignore_stat = true  ; break ;
-			case 'm' : auto_mkdir  = true  ; break ;
+			case 'd' : enable          = false ; break ;
+			case 'D' : readdir_ok      = true  ; break ;
+			case 'i' : ignore_stat     = true  ; break ;
+			case 'm' : auto_mkdir      = true  ; break ;
+			case 'M' : mount_chroot_ok = true  ; break ;
 			case 'l' :
 				pos++ ;
 				switch (env[pos]) {
@@ -142,10 +144,11 @@ AutodepEnv::operator ::string() const {
 	// options
 	// START_OF_VERSIONING CACHE REPO JOB
 	res << ':' ;
-	if (!enable    ) res << 'd' ;
-	if (readdir_ok ) res << 'D' ;
-	if (ignore_stat) res << 'i' ;
-	if (auto_mkdir ) res << 'm' ;
+	if (!enable        ) res << 'd' ;
+	if (readdir_ok     ) res << 'D' ;
+	if (ignore_stat    ) res << 'i' ;
+	if (auto_mkdir     ) res << 'm' ;
+	if (mount_chroot_ok) res << 'M' ;
 	switch (lnk_support) {
 		case LnkSupport::None : res << "ln" ; break ;
 		case LnkSupport::File : res << "lf" ; break ;

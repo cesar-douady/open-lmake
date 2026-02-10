@@ -15,21 +15,23 @@ enum class JobExecProc : uint8_t {
 	None
 ,	ChkDeps
 ,	Confirm
-,	List                    // list deps/targets
-,	Tmp                     // write activity in tmp has been detected (hence clean up is required)
+,	List                 // list deps/targets
+,	Tmp                  // write activity in tmp has been detected (hence clean up is required)
 // with file
+,	Chroot               // forbidden chroot
 ,	DepDirect
 ,	DepVerbose
 ,	Guard
-,	Panic                   // ensure job is in error
-,	Trace                   // no algorithmic info, just for tracing purpose
+,	Panic                // ensure job is in error
+,	Trace                // no algorithmic info, just for tracing purpose
 // with file info
 ,	Access
-,	AccessPattern           // pass flags on a regexpr basis
+,	AccessPattern        // pass flags on a regexpr basis
+,	Mount                // forbidden mount
 //
 // aliases
-,	HasFile     = DepDirect // >=HasFile     means files[*].first  fields are significative
-,	HasFileInfo = Access    // >=HasFileInfo means files[*].second fields are significative
+,	HasFile     = Chroot // >=HasFile     means files[*].first  fields are significative
+,	HasFileInfo = Access // >=HasFileInfo means files[*].second fields are significative
 } ;
 
 struct JobExecRpcReq   ;
@@ -72,6 +74,8 @@ struct JobExecRpcReq {
 			case Proc::Tmp           : SWEAR(              !digest            &&  !id                       && +date                    , self ) ; break ;
 			case Proc::Confirm       : SWEAR(              !digest.has_read() && ( id&&digest.write!=Maybe) && !date                    , self ) ; break ;
 			case Proc::List          : SWEAR( sync==Yes && !digest.has_read() &&  !id                       && +date                    , self ) ; break ;
+			case Proc::Chroot        :
+			case Proc::Mount         : SWEAR(              !digest            &&  !id                       && !date && files.size()==1 , self ) ; break ;
 			case Proc::DepDirect     :
 			case Proc::DepVerbose    : SWEAR( sync==Yes &&                        !id                       && +date                    , self ) ; break ;
 			case Proc::Guard         : SWEAR(              !digest            &&  !id                       && +date                    , self ) ; break ;
@@ -92,6 +96,8 @@ struct JobExecRpcReq {
 			case Proc::Tmp           : ::serdes( s ,                     date ) ; break ;
 			case Proc::Confirm       : ::serdes( s , digest.write , id        ) ; break ;
 			case Proc::List          : ::serdes( s , digest.write ,      date ) ; break ;
+			case Proc::Chroot        :
+			case Proc::Mount         :                                            break ;
 			case Proc::DepDirect     :
 			case Proc::DepVerbose    : ::serdes( s , digest       ,      date ) ; break ;
 			case Proc::Guard         : ::serdes( s ,                     date ) ; break ;
@@ -147,7 +153,7 @@ struct JobExecRpcReply {
 namespace Codec {
 
 	// START_OF_VERSIONING CACHE JOB REPO CODEC
-	using CodecCrc = Hash::Crc96 ;                                                                             // 64 bits is enough, but not easy to prove
+	using CodecCrc = Hash::Crc96 ;                                                                              // 64 bits is enough, but not easy to prove
 	static constexpr char CodecSep    = '*'       ; //!                                                    null
 	static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 	static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;

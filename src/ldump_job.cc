@@ -45,30 +45,31 @@ void print_pre_start(JobStartRpcReq const& jsrr) {
 void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "--start--\n" ;
 	//
-	g_out << "auto_mkdir       : " << jsrr.autodep_env.auto_mkdir <<'\n' ;
-	g_out << "cache            : " << jsrr.cache                  <<'\n' ;
-	g_out << "check_abs_paths  : " << jsrr.chk_abs_paths          <<'\n' ;
-	g_out << "chroot_actions   : " << jsrr.chroot_info.actions    <<'\n' ;
-	g_out << "chroot_dir_s     : " << jsrr.chroot_info.dir_s      <<'\n' ;
-	g_out << "ddate_prec       : " << jsrr.ddate_prec             <<'\n' ;
-	g_out << "interpreter      : " << jsrr.interpreter            <<'\n' ;
-	g_out << "keep_tmp         : " << jsrr.keep_tmp               <<'\n' ;
-	g_out << "key              : " << jsrr.key                    <<'\n' ;
-	g_out << "kill_sigs        : " << jsrr.kill_sigs              <<'\n' ;
-	g_out << "live_out         : " << jsrr.live_out               <<'\n' ;
-	g_out << "lmake_view_s     : " << jsrr.job_space.lmake_view_s <<'\n' ;
-	g_out << "method           : " << jsrr.method                 <<'\n' ;
-	g_out << "phy_lmake_root_s : " << jsrr.phy_lmake_root_s       <<'\n' ;
-	g_out << "readdir_ok       : " << jsrr.autodep_env.readdir_ok <<'\n' ;
-	g_out << "repo_view_s      : " << jsrr.job_space.repo_view_s  <<'\n' ;
-	g_out << "small_id         : " << jsrr.small_id               <<'\n' ;
-	g_out << "stdin            : " << jsrr.stdin                  <<'\n' ;
-	g_out << "stdout           : " << jsrr.stdout                 <<'\n' ;
-	g_out << "sub_repo_s       : " << jsrr.autodep_env.sub_repo_s <<'\n' ;
-	g_out << "timeout          : " << jsrr.timeout                <<'\n' ;
-	g_out << "tmp_dir_s        : " << jsrr.autodep_env.tmp_dir_s  <<'\n' ; // tmp directory on disk
-	g_out << "tmp_view_s       : " << jsrr.job_space.tmp_view_s   <<'\n' ;
-	g_out << "use_script       : " << jsrr.use_script             <<'\n' ;
+	g_out << "auto_mkdir       : " << jsrr.autodep_env.auto_mkdir      <<'\n' ;
+	g_out << "cache            : " << jsrr.cache                       <<'\n' ;
+	g_out << "check_abs_paths  : " << jsrr.chk_abs_paths               <<'\n' ;
+	g_out << "chroot_actions   : " << jsrr.chroot_info.actions         <<'\n' ;
+	g_out << "chroot_dir_s     : " << jsrr.chroot_info.dir_s           <<'\n' ;
+	g_out << "ddate_prec       : " << jsrr.ddate_prec                  <<'\n' ;
+	g_out << "interpreter      : " << jsrr.interpreter                 <<'\n' ;
+	g_out << "keep_tmp         : " << jsrr.keep_tmp                    <<'\n' ;
+	g_out << "key              : " << jsrr.key                         <<'\n' ;
+	g_out << "kill_sigs        : " << jsrr.kill_sigs                   <<'\n' ;
+	g_out << "live_out         : " << jsrr.live_out                    <<'\n' ;
+	g_out << "lmake_view_s     : " << jsrr.job_space.lmake_view_s      <<'\n' ;
+	g_out << "method           : " << jsrr.method                      <<'\n' ;
+	g_out << "phy_lmake_root_s : " << jsrr.phy_lmake_root_s            <<'\n' ;
+	g_out << "mount_chroot_ok  : " << jsrr.autodep_env.mount_chroot_ok <<'\n' ;
+	g_out << "readdir_ok       : " << jsrr.autodep_env.readdir_ok      <<'\n' ;
+	g_out << "repo_view_s      : " << jsrr.job_space.repo_view_s       <<'\n' ;
+	g_out << "small_id         : " << jsrr.small_id                    <<'\n' ;
+	g_out << "stdin            : " << jsrr.stdin                       <<'\n' ;
+	g_out << "stdout           : " << jsrr.stdout                      <<'\n' ;
+	g_out << "sub_repo_s       : " << jsrr.autodep_env.sub_repo_s      <<'\n' ;
+	g_out << "timeout          : " << jsrr.timeout                     <<'\n' ;
+	g_out << "tmp_dir_s        : " << jsrr.autodep_env.tmp_dir_s       <<'\n' ; // tmp directory on disk
+	g_out << "tmp_view_s       : " << jsrr.job_space.tmp_view_s        <<'\n' ;
+	g_out << "use_script       : " << jsrr.use_script                  <<'\n' ;
 	//
 	g_out << "cmd :\n"            ; g_out << indent(jsrr.cmd) <<add_nl ;
 	g_out << "deps :\n"           ; _print_map  (jsrr.deps           ) ;

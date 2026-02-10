@@ -95,6 +95,7 @@ class Rule(_RuleBase) :
 #	max_runs            =   0                      # maximum number a job can be run in a single lmake command, unlimited if None or 0
 	max_stderr_len      = 100                      # maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise
 	max_submits         =  10                      # maximum number a job can be submitted in a single lmake command, unlimited if None or 0
+#	mount_chroot_ok     = False                    # if set, mount and chroot is not an error
 #	prio                = 0                        # in case of ambiguity, rules are selected with highest prio first
 	python              = ('$PYTHON',)             # python used for callable cmd
 #	readdir_ok          = False                    # if set, listing a local non-ignored dir is not an error

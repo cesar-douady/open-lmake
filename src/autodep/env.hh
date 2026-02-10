@@ -29,9 +29,9 @@ namespace Codec {
 			::serdes(s,umask    ) ;
 		}
 		// data
-		::string tab       ;      // source file if is_lcl(tab), else external dir
-		FileSync file_sync = {} ; // valid if external dir
-		mode_t   umask     = -1 ; // .
+		::string tab       ;                                 // source file if is_lcl(tab), else external dir
+		FileSync file_sync = {} ;                            // valid if external dir
+		mode_t   umask     = -1 ;                            // .
 	} ;
 }
 
@@ -52,6 +52,7 @@ struct AutodepEnv : RealPathEnv {
 		/**/                        ::serdes(s,auto_mkdir                     ) ;
 		/**/                        ::serdes(s,enable                         ) ;
 		/**/                        ::serdes(s,ignore_stat                    ) ;
+		/**/                        ::serdes(s,mount_chroot_ok                ) ;
 		/**/                        ::serdes(s,readdir_ok                     ) ;
 		/**/                        ::serdes(s,fast_report_pipe               ) ;
 		/**/                        ::serdes(s,service                        ) ;
@@ -67,17 +68,18 @@ struct AutodepEnv : RealPathEnv {
 	void         chk            (bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING CACHE REPO JOB
-	bool                             auto_mkdir       = false ; // if true  <=> auto mkdir in case of chdir
-	bool                             enable           = true  ; // if false <=> no automatic report
-	::string                         fqdn             ;
-	bool                             ignore_stat      = false ; // if true  <=> stat-like syscalls do not trigger dependencies
-	bool                             readdir_ok       = false ; // if true  <=> allow reading local non-ignored dirs
-	::string                         fast_report_pipe ;         // pipe to report accesses, faster than sockets, but does not allow replies
+	bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
+	bool                             enable           = true  ;                   // if false <=> no automatic report
+	bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
+	bool                             mount_chroot_ok  = false ;
+	bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
+	::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 	KeyedService                     service          ;
-	::string                         sub_repo_s       ;         // relative to repo_root_s
+	::string                         sub_repo_s       ;                           // relative to repo_root_s
 	::umap_s<Codec::CodecRemoteSide> codecs           ;
 	::vmap_s<::vector_s>             views_s          ;
+	::string                         fqdn             ;                           // not transported
 	// END_OF_VERSIONING
 	// not transported
-	::string fast_mail ;                                        // host on which fast_report_pipe can be used
+	::string fast_mail ;                                                          // host on which fast_report_pipe can be used
 } ;
