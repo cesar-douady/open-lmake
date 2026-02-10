@@ -1,9 +1,18 @@
 open-lmake ($VERSION_TAG-$DEBIAN_RELEASE) $OS_CODENAME; urgency=low
 
-  * new lcollect tool
-  * suppress multi_strip function (use standard textwrapper.dedent instead)
-
+  * Cache is now operational (no more experimental)
+    - no more dir based cache, always require a daemon which is automatically launched if necessary
+  * Codec is now operational (no more experimental)
+  * Chroot is now operational
+  * minor improvements :
+    - lcheck_deps now check existing targets, so that if it passes, open-lmake is not aware of any reason for rerun at the time lcheck_deps is called
+    - lcheck_deps --delay to delay lcheck_deps for cases where a tool reads its input early while not letting you run lcheck_deps after reading
+    - ldepend --direct to suspend job while dep is being rebuilt
+    - ltargets --list and ldepend --list to list targets/deps
+    - introduce domain_name in config and use it when fqdn is required and network answers with no domain name
+    - introduce extra_manifest in config to easily add a few files/dirs on top of auto-listing typically from git
   * bug fixes
+  * improved error messages
   * improve perf
 
  -- Cesar Douady <cesar.douady@doliam.fr>  $DATE

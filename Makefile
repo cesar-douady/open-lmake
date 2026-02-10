@@ -970,8 +970,10 @@ install : $(LMAKE_ALL_FILES) $(EXAMPLE_FILES)
 
 clean :
 	@echo -n cleaning ...
-	@rm -rf Manifest.inc_stamp sys_config.log sys_config.trial sys_config.mk sys_config.h sys_config.sum sys_config.err
-	@find . -name '*.d' -type f | xargs rm -f
+	@rm -f  Manifest.inc_stamp
+	@rm -rf sys_config.err sys_config.h sys_config.log sys_config.mk sys_config.py sys_config.sum sys_config.trial
+	@rm -f  src/version.cc.stamp version.src
+	@find src -type f \( -name '*.d' -o -name '*.v' -o -name '*.v.stamp' \) -delete
 	@rm -f $(SLURM_SRCS)
 	@echo '' done
 

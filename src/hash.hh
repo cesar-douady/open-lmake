@@ -94,19 +94,20 @@ namespace Hash {
 	template<uint8_t Sz> struct _Crc ;
 	template<uint8_t Sz> ::string& operator+=( ::string& , _Crc<Sz> const ) ;
 	template<uint8_t Sz> struct _Crc {
-		static_assert( Sz>0 ) ;                                                                                   // meaningless and painful to code
+		static_assert( Sz>0 ) ;                                                                   // meaningless and painful to code
 		friend ::string& operator+=<Sz>( ::string& , _Crc<Sz> const ) ;
 		#if HAS_UINT128
 			using Val = ::conditional_t<(Sz>64),uint128_t,uint64_t> ;
 		#else
-			using Val = uint64_t ;                                                                                // revert to 64 bits if no 128 bits support
+			using Val = ::conditional_t<(Sz>64),uint64_t,uint64_t> ;                              // XXX/ : work around a bug in g++13 with -Wall : force defer the evaluation of N<CrcSpecial> below
+		//	using Val = uint64_t ;                                                                // revert to 64 bits if no 128 bits support (normal code)
 		#endif
-		static constexpr Val     Msk      = (Val(1)<<(::min(Sz,uint8_t(sizeof(Val)*8))-1)<<1)-1 ;                 // if Sz is too large, we cant simply take 1<<Sz
-		static constexpr uint8_t HexSz    = div_up<8>(Sz)*2                                     ;                 // hex are processed byte after byte
+		static constexpr Val     Msk      = (Val(1)<<(::min(Sz,uint8_t(sizeof(Val)*8))-1)<<1)-1 ; // if Sz is too large, we cant simply take 1<<Sz
+		static constexpr uint8_t HexSz    = div_up<8>(Sz)*2                                     ; // hex are processed byte after byte
 		static constexpr uint8_t Base64Sz = div_up<6>(Sz)                                       ;
-		static constexpr uint8_t NChkBits = 8                                                   ;                 // as Crc may be used w/o protection against collision, ensure we have some margin
+		static constexpr uint8_t NChkBits = 8                                                   ; // as Crc may be used w/o protection against collision, ensure we have some margin
 		//
-		static constexpr Val ChkMsk = Msk>>NChkBits ;                                                             // lsb's are used for various manipulations
+		static constexpr Val ChkMsk = Msk>>NChkBits ;                                             // lsb's are used for various manipulations
 		//
 		static const _Crc Unknown ;
 		static const _Crc Lnk     ;
@@ -114,9 +115,9 @@ namespace Hash {
 		static const _Crc None    ;
 		static const _Crc Empty   ;
 		// statics
-		static _Crc s_from_hex   (::string_view sv) ;                                                             // inverse of hex   ()
-		static _Crc s_from_base64(::string_view sv) ;                                                             // inverse of base64()
-		static bool s_sense( Accesses a , FileTag t ) {                                                           // return whether accesses a can see the difference between files with tag t
+		static _Crc s_from_hex   (::string_view sv) ;                                             // inverse of hex   ()
+		static _Crc s_from_base64(::string_view sv) ;                                             // inverse of base64()
+		static bool s_sense( Accesses a , FileTag t ) {                                           // return whether accesses a can see the difference between files with tag t
 			_Crc crc{t} ;
 			return !crc.match(crc,a) ;
 		}
@@ -134,7 +135,7 @@ namespace Hash {
 				case FileTag::Reg   :
 				case FileTag::Exe   : self = _Crc::Reg   ; break ;
 				case FileTag::Empty : self = _Crc::Empty ; break ;
-			DF}                                                                                                   // NO_COV
+			DF}                                                                                   // NO_COV
 		}
 		explicit _Crc( ::string const& filename                             ) ;
 		explicit _Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
