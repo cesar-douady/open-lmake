@@ -676,13 +676,10 @@ void JobSpace::enter(
 	if (+repo_view_s) {
 		::string repo_base_s     = base_name(repo_root_s    ,src_dir_depth) ;
 		::string phy_repo_base_s = base_name(phy_repo_root_s,src_dir_depth) ;
-		// XXX : implement repo/view mismatch
-		// if view and repo do not match, we should :
-		// - mount view
-		// - mount an empty dir on phy repo to ensure no local deps are accessed that appear to be external
+		// if view and repo do not match within the common dir of the relative src dirs, then sym links in src_dirs could be dangling
 		throw_unless(
 			repo_base_s==phy_repo_base_s
-		,	"the ",src_dir_depth," last dirs of repo root (",phy_repo_base_s,rm_slash,") and view (",repo_base_s,rm_slash,") must match (not yet implemented) to access relative source dirs"
+		,	"the ",src_dir_depth," last dirs of repo root (",phy_repo_base_s,rm_slash,") and view (",repo_base_s,rm_slash,") must match to access relative source dirs"
 		) ;
 		phy_repo_super_s_ = dir_name_s(phy_repo_root_s,src_dir_depth) ; SWEAR(phy_repo_super_s_!="/") ;
 	}

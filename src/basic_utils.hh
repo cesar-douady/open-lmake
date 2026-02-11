@@ -294,6 +294,19 @@ private :
 
 template<class T> ::string& operator<<( ::string& s , T&& x ) ;
 
+inline ::string widen( ::string && s , size_t sz , bool right=false , char fill=' ' ) {
+	if (s.size()>=sz) return ::move(s)   ;
+	::string f ( sz-s.size() , fill ) ;
+	if (right       ) return ::move(f)+s ;
+	/**/              return ::move(s)+f ;
+}
+inline ::string widen( ::string const& s , size_t sz , bool right=false , char fill=' ' ) {
+	if (s.size()>=sz) return        s    ;
+	::string f ( sz-s.size() , fill ) ;
+	if (right       ) return ::move(f)+s ;
+	/**/              return        s +f ;
+}
+
 // START_OF_NO_COV for debug/trace only
 
 template<::unsigned_integral I> ::string to_hex( I v , uint8_t width=sizeof(I)*2 ) {
@@ -308,10 +321,10 @@ template<::unsigned_integral I> ::string to_hex( I v , uint8_t width=sizeof(I)*2
 	return res ;
 }
 
-template<class F> concept _CanDoFunc    = requires(::string s,F* f) { f(s) ; }              ;
-template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>     ;
-template<class T> concept _CanDoToHex   = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
 template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ; // use a template to avoid having too high a priority when compiler selects an overload
+template<class F> concept _CanDoFunc    = requires(::string s,F* f) { f(s) ; }              ;
+template<class T> concept _CanDoPtr     = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
+template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>     ;
 
 #if __cplusplus<202600L
 	inline ::string operator+( ::string     && s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return ::move(s) ; }
@@ -325,10 +338,10 @@ template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>        
 #endif
 inline                    ::string& operator+=( ::string& s , nullptr_t   ) { return s += "(null)"                                                    ; }
 template<_CanDoBool    B> ::string& operator+=( ::string& s , B         b ) { return s +=  b?"true":"false"                                           ; }
-template<_CanDoToHex   T> ::string& operator+=( ::string& s , T*        p ) { return s += p ? "0x"+to_hex(reinterpret_cast<uintptr_t>(p)) : "(null)"s ; }
+template<_CanDoPtr     T> ::string& operator+=( ::string& s , T*        p ) { return s += p ? "0x"+to_hex(reinterpret_cast<uintptr_t>(p)) : "(null)"s ; }
 template<_CanDoToChars N> ::string& operator+=( ::string& s , N         n ) {
 	size_t old_sz = s.size()  ;
-	size_t new_sz = old_sz+30 ;                                                        // more than enough to print a number
+	size_t new_sz = old_sz+30 ;                                                                                                                                    // more than enough to print a number
 	s.resize(new_sz) ;
 	::to_chars_result rc = ::to_chars( s.data()+old_sz , s.data()+new_sz , n ) ; SWEAR(rc.ec==::errc()) ; SWEAR(rc.ptr<=s.data()+new_sz) ;
 	s.resize(rc.ptr-s.data()) ;
@@ -353,8 +366,23 @@ template<class A,class B> ::string& operator+=( ::string& os , ::pair<A,B> const
 template<class T> ::string& operator+=( ::string& os , ::optional<T> const& o ) { return +o ? os<<*o : os<<"<none>" ; }
 //
 #if HAS_UINT128
-	inline ::string& operator+=( ::string& os , uint128_t i ) { return os << uint64_t(i>>64)<<'-'<<uint64_t(i) ; } // non-standard, XXX : make a clean output
-	inline ::string& operator+=( ::string& os , int128_t  i ) { return os << int64_t (i>>64)<<'-'<<uint64_t(i) ; } // .
+	inline ::string& operator+=( ::string& os , uint128_t i ) {                                                                                                    // non-standard
+		static constexpr uint64_t Max10 = uint64_t(10)*uint64_t(1000000000)*uint64_t(1000000000) ; static_assert( Max<uint64_t>/2<Max10 && Max10<Max<uint64_t> ) ; // 10^19
+		// try easy case
+		if (i<=Max<uint64_t>) return os << uint64_t(i) ;
+		// do complex case
+		uint128_t msb     = i/Max10 ;
+		uint64_t  lsb     = i%Max10 ;
+		::string  lsb_str ;           lsb_str << lsb ;
+		::string  s       ;
+		s << msb                                         ;
+		s << widen(lsb_str,19,true/*right*/,'0'/*fill*/) ;
+		return os << s ;
+	}
+	inline ::string& operator+=( ::string& os , int128_t  i ) {                                                                                                    // non-standard
+		if (i>=0) return os <<     uint128_t( i) ;
+		else      return os <<'-'<<uint128_t(-i) ;
+	}
 #endif
 inline ::string& operator+=( ::string& os , uint8_t i ) { return os << uint32_t(i) ; } // avoid output a char when actually a int
 inline ::string& operator+=( ::string& os , int8_t  i ) { return os << int32_t (i) ; } // .

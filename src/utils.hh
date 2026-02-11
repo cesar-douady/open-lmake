@@ -148,19 +148,6 @@ inline ::string        operator| ( ::string     && a , ::string     && b ) { ret
 inline ::string      & operator|=( ::string      & a , ::string const& b ) { if (!a) a =        b  ; return a ;  }
 inline ::string      & operator|=( ::string      & a , ::string     && b ) { if (!a) a = ::move(b) ; return a ;  }
 
-inline ::string widen( ::string && s , size_t sz , bool right=false , char fill=' ' ) {
-	if (s.size()>=sz) return ::move(s)   ;
-	::string f ( sz-s.size() , fill ) ;
-	if (right       ) return ::move(f)+s ;
-	/**/              return ::move(s)+f ;
-}
-inline ::string widen( ::string const& s , size_t sz , bool right=false , char fill=' ' ) {
-	if (s.size()>=sz) return        s    ;
-	::string f ( sz-s.size() , fill ) ;
-	if (right       ) return ::move(f)+s ;
-	/**/              return        s +f ;
-}
-
 template<class T,IsOneOf<::string,::string_view> S> requires(::is_arithmetic_v<T>) T from_string( S const& txt , bool empty_ok=false , bool hex=false , size_t* end_pos=nullptr ) {
 	static constexpr bool IsBool = is_same_v<T,bool> ;
 	if ( empty_ok && !txt ) return 0 ;
