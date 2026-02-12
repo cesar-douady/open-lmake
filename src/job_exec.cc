@@ -106,11 +106,11 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 			*msg <<add_nl<< "absolute path of repo ("<<phy_repo_root<<") found in target "<<tn ;
 			bool warned = abs_path_warned.exchange(true) ;
 			if (!warned) {
-				/**/                     *msg <<"\n\tconsider :"                                                                                  ;
-				/**/                     *msg <<"\n\t  - "<<g_start_info.rule<<".cmd             = <script that generates no such absolute path>" ;
-				/**/                     *msg <<"\n\t  - "<<g_start_info.rule<<".repo_view       = '/repo'"                                       ;
-				if (+g_start_info.cache) *msg <<"\n\t  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache= None"   ;
-				else                     *msg <<"\n\t  - "<<g_start_info.rule<<".check_abs_paths = False"                                         ;
+				/**/                     *msg <<"\n  consider :"                                                                                  ;
+				/**/                     *msg <<"\n  - "<<g_start_info.rule<<".cmd             = <script that generates no such absolute path>" ;
+				/**/                     *msg <<"\n  - "<<g_start_info.rule<<".repo_view       = '/repo'"                                       ;
+				if (+g_start_info.cache) *msg <<"\n  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache= None"   ;
+				else                     *msg <<"\n  - "<<g_start_info.rule<<".check_abs_paths = False"                                         ;
 			}
 		}
 		try {

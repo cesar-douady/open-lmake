@@ -185,8 +185,8 @@ namespace Engine {
 	//
 
 	struct Dep : DepDigestBase<Node> {
-		friend ::string& operator+=( ::string& , Dep const& ) ;
 		using Base = DepDigestBase<Node> ;
+		friend ::string& operator+=( ::string& , Dep const& ) ;
 		// cxtors & casts
 		using Base::Base ;
 		// accesses

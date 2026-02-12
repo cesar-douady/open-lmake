@@ -3,20 +3,18 @@
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 
-# Autodep
-
 Autodep is a mechanism through which jobs are spied to automatically detect disk accesses.
 From this information open-lmake can determine if accesses were within the constraints provided by the rule and can list all deps.
 
-## Spying methods
+# Spying methods
 
 There exists two classes of spying methods.
 Not all methods are supported on all systems, though.
 
-### Spying methods based on `libc` calls
+## Spying methods based on `libc` calls
 
 This consists in spying all calls the the `libc`.
-Several mechanisms can be used to do so.
+Several mechanisms are provided by [`ld.so`](https://man7.org/linux/man-pages/man8/ld.so.8.html) to do so.
 
 All of them consist in diverting the calls to the `libc` that access files (typically `open`, but there are about a hundred of them) to a wrapper code
 that records the access before handling over to the real `libc`.
@@ -55,9 +53,11 @@ The use of `jemalloc` creates a chicken and egg problem at start up.
 The reason is that the spying code requires the use of `malloc` at start up, and `jemalloc` (which is called in lieu of `malloc`) accesses a configuration file at start up.
 A special implementation has been devised to handle this case, but is too fragile and complex to make it the default `$LD_PRELOAD` method.
 
-### Spying methods based on system calls
+## Spying methods based on system calls
 
-The principle is to use `ptrace` (the system call used by the `strace` utility) to spy user code activity.
+### ptrace
+
+The principle is to use [`ptrace`](https://man7.org/linux/man-pages/man2/ptrace.2.html) (the system call used by the `strace` utility) to spy user code activity.
 
 This is almost non-intrusive.
 In one case, we have seen a commercial tool reading `/proc/self/status` to detect such a `ptrace`ing process, and it stopped, thinking it was being reverse engineered.

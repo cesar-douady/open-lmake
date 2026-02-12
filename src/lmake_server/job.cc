@@ -62,8 +62,8 @@ namespace Engine {
 		return                 os <<')'                   ;
 	}                                                             // END_OF_NO_COV
 
-	void JobReqInfo::step( Step s , Job j ) {
-		if (_step==s) return ;                // fast path
+	void JobReqInfo::set_step( Step s , Job j ) {
+		if (_step==s) return ;                    // fast path
 		//
 		if ( _step>=Step::MinCurStats && _step<Step::MaxCurStats1 ) { req->stats.cur(_step)-- ; if (_step==Step::Dep) req->stats.waiting_cost -= j->c_cost() ; }
 		if ( s    >=Step::MinCurStats && s    <Step::MaxCurStats1 ) { req->stats.cur(s    )++ ; if (s    ==Step::Dep) req->stats.waiting_cost += j->c_cost() ; }
@@ -75,6 +75,20 @@ namespace Engine {
 	//
 
 	QueueThread<::pair<Job,JobInfo1>,true/*Flush*/,true/*QueueAccess*/> Job::s_record_thread ;
+	StaticUniqPtr<RealPath>                                             Job::s_real_path     ;
+	//
+	StaticUniqPtr<RealPathEnv> Job::_s_rpe ;
+
+	void Job::s_init() {
+		s_record_thread.open('J',
+			[](::pair<Job,JobInfo1> const& jji)->void {
+				Trace trace("s_record_thread",jji.first,jji.second.kind()) ;
+				jji.first.record(jji.second) ;
+			}
+		) ;
+		_s_rpe      = new RealPathEnv { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=*g_repo_root_s+PRIVATE_ADMIN_DIR_S , .src_dirs_s=*g_src_dirs_s } ;
+		s_real_path = new RealPath    { *_s_rpe                                                                                                                                      } ;
+	}
 
 	::string& operator+=( ::string& os , Job j ) { // START_OF_NO_COV
 		/**/    os << "J(" ;
@@ -228,7 +242,7 @@ namespace Engine {
 		JobData& jd = *self ;
 		if (+req) {
 			ReqInfo& ri = jd.req_info(req) ;
-			ri.step(Step::End,self)            ;                                                                           // ensure no confusion with previous run
+			ri.set_step(Step::End,self)        ;                                                                           // ensure no confusion with previous run
 			jd.make( ri , MakeAction::GiveUp ) ;
 			if      (!jd.running_reqs(false/*with_zombies*/)) for( Node t : self->targets() ) t->busy = false ;            // if job does not continue, targets are no more busy
 			else if (report                                 ) req->audit_job(Color::Note,"continue",self,true/*at_end*/) ; // generate a continue line if some other req is still active
@@ -376,7 +390,7 @@ namespace Engine {
 			ReqInfo& ri = self->req_info(req) ;
 			ri.start_reported = false ;
 			if (report) report_start( ri , report_unlnks , msg_stderr ) ;
-			ri.step(JobStep::Exec,self) ;
+			ri.set_step(JobStep::Exec,self) ;
 		}
 	}
 
@@ -535,7 +549,7 @@ namespace Engine {
 			/**/                     dep_crcs.reserve(digest.deps.size()) ;
 			for( Dep const& d : jd.deps )
 				for( Node dd=d ; +dd ; dd=dd->dir )
-					if (!old_deps.insert(dd).second) break ;                                              // record old deps and all uphill dirs as these are implicit deps
+					if (!old_deps.insert(dd).second) break ;                                                     // record old deps and all uphill dirs as these are implicit deps
 			for( auto& [dn,dd] : digest.deps ) {
 				Dep       dep { dn , dd } ;
 				NodeData& nd  = *dep      ;
@@ -546,10 +560,10 @@ namespace Engine {
 					// Because of disk date granularity (usually a few ms) and because of date discrepancy between executing host and disk server (usually a few ms when using NTP).
 					// This means that the file could actually have been accessed before and have gotten wrong data.
 					// If this occurs, consider dep as unstable if it was not a known dep (we know known deps have been finished before job started).
-					if ( nd.buildable!=Buildable::Codec && dep.hot ) {                                    // codec files are always correct
+					if ( nd.buildable!=Buildable::Codec && dep.hot ) {                                           // codec files are always correct
 						trace("reset",dep) ;
 						dep.del_crc() ;
-						res.can_upload = false ;                                                          // dont upload cache with unstable execution
+						res.can_upload = false ;                                                                 // dont upload cache with unstable execution
 					}
 				}
 				bool updated_dep_crc = false ;
@@ -560,7 +574,7 @@ namespace Engine {
 						auto it = old_srcs.find(dep) ;
 						if ( it!=old_srcs.end() && dep.sig()==it->second.first ) dep.set_crc(it->second.second,false/*err*/) ;
 					}
-					if (dep.is_crc) {                                                                     // if a dep has become a crc, update digest so that ancillary file reflects it
+					if (dep.is_crc) {                                                                            // if a dep has become a crc, update digest so that ancillary file reflects it
 						dd.set_crc_sig(dep) ;
 						updated_dep_crc = true ;
 					}
@@ -580,8 +594,8 @@ namespace Engine {
 		//
 		// wrap up
 		//
-		jd.set_exec_ok() ;                                                                                // effect of old cmd has gone away with job execution
-		fence() ;                                                                                         // only update status once other info is set to anticipate crashes
+		jd.set_exec_ok() ;                                                                                       // effect of old cmd has gone away with job execution
+		fence() ;                                                                                                // only update status once other info is set to anticipate crashes
 		if ( !lost && +res.target_reason && status>Status::Garbage ) status = Status::BadTarget ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		jd.incremental = digest.incremental ;
@@ -610,7 +624,7 @@ namespace Engine {
 			ri.modified |= modified ;                                      // accumulate modifications until reported
 			if (!ri.running()) continue ;
 			SWEAR(ri.step()==Step::Exec) ;
-			ri.step(Step::End,self) ;                                      // ensure no confusion with previous run, all steps must be updated before any make() is called
+			ri.set_step(Step::End,self) ;                                  // ensure no confusion with previous run, all steps must be updated before any make() is called
 		}
 		//
 		if (+digest.refresh_codecs) {

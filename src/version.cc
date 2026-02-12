@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 26      ; // 8e3840e6e8f4cf6e297b404546d4a479
+	uint64_t    constexpr Cache = 26      ; // d09ff768ddb77cfe078448e8432a6220
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 21      ; // e5efbf5a54d596966e4e83f431a29449
+	uint64_t    constexpr Repo  = 22      ; // 93d10980bed89ffe520b0d2caa47cc3c
 	uint64_t    constexpr Job   = 12      ; // f3268f3e78124ecd620f327a5378672a
 	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 8e3840e6e8f4cf6e297b404546d4a479 *
+// * Cache : d09ff768ddb77cfe078448e8432a6220 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -401,11 +401,23 @@ namespace Version {
 //	// PER_AUTODEP_METHOD : add entry here
 //	// >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 //	// by default, use a compromize between speed an reliability
+//	enum class AutodepMethod : uint8_t {
+//		None
+//	,	Ptrace
 //	#if HAS_LD_AUDIT
-//		enum class AutodepMethod : uint8_t { None , Ptrace , LdAudit , LdPreload , LdPreloadJemalloc , Ld=LdAudit   , Dflt=LdAudit   } ;
-//	#else
-//		enum class AutodepMethod : uint8_t { None , Ptrace ,           LdPreload , LdPreloadJemalloc , Ld=LdPreload , Dflt=LdPreload } ;
+//		,	LdAudit
 //	#endif
+//	,	LdPreload
+//	,	LdPreloadJemalloc
+//	// aliases
+//	#if HAS_LD_AUDIT
+//		,	Ld   = LdAudit
+//		,	Dflt = LdAudit
+//	#else
+//		,	Ld   = LdPreload
+//		,	Dflt = LdPreload
+//	#endif
+//	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
 //	enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
@@ -1058,7 +1070,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : e5efbf5a54d596966e4e83f431a29449 *
+// * Repo : 93d10980bed89ffe520b0d2caa47cc3c *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1698,6 +1710,10 @@ namespace Version {
 //			::serdes(s,stdin_idx ) ;
 //			::serdes(s,allow_ext ) ;
 //			::serdes(s,deps_attrs) ;
+//			::serdes(s,force     ) ;
+//			::serdes(s,n_losts   ) ;
+//			::serdes(s,n_runs    ) ;
+//			::serdes(s,n_submits ) ;
 //			if (special==Special::Plain) {
 //				::serdes(s,submit_rsrcs_attrs    ) ;
 //				::serdes(s,submit_ancillary_attrs) ;
@@ -1706,10 +1722,6 @@ namespace Version {
 //				::serdes(s,start_ancillary_attrs ) ;
 //				::serdes(s,cmd                   ) ;
 //				::serdes(s,is_python             ) ;
-//				::serdes(s,force                 ) ;
-//				::serdes(s,n_losts               ) ;
-//				::serdes(s,n_runs                ) ;
-//				::serdes(s,n_submits             ) ;
 //				// stats
 //				::serdes(s,cost_per_token        ) ;
 //				::serdes(s,exe_time              ) ;
@@ -1843,11 +1855,23 @@ namespace Version {
 //	// PER_AUTODEP_METHOD : add entry here
 //	// >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 //	// by default, use a compromize between speed an reliability
+//	enum class AutodepMethod : uint8_t {
+//		None
+//	,	Ptrace
 //	#if HAS_LD_AUDIT
-//		enum class AutodepMethod : uint8_t { None , Ptrace , LdAudit , LdPreload , LdPreloadJemalloc , Ld=LdAudit   , Dflt=LdAudit   } ;
-//	#else
-//		enum class AutodepMethod : uint8_t { None , Ptrace ,           LdPreload , LdPreloadJemalloc , Ld=LdPreload , Dflt=LdPreload } ;
+//		,	LdAudit
 //	#endif
+//	,	LdPreload
+//	,	LdPreloadJemalloc
+//	// aliases
+//	#if HAS_LD_AUDIT
+//		,	Ld   = LdAudit
+//		,	Dflt = LdAudit
+//	#else
+//		,	Ld   = LdPreload
+//		,	Dflt = LdPreload
+//	#endif
+//	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
 //	enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend

@@ -353,61 +353,67 @@ void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
 Fd Gather::_spawn_child() {
 	SWEAR(+cmd_line) ;
 	//
-	Fd   child_fd  ;
-	Fd   report_fd ;
-	bool is_ptrace = method==AutodepMethod::Ptrace ;
+	Fd       res       ;
+	Fd       report_fd ;
+	bool     retried   = false ;
+	::string env_var   ;
+	::string env_val   ;
 	//
 	autodep_env.fast_mail = mail() ;
 	//
 	Trace trace("_spawn_child",child_stdin,child_stdout,child_stderr,method,autodep_env) ;
 	//
-	_add_env              = { {"LMAKE_AUTODEP_ENV",autodep_env} } ; // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
-	_child.as_session     = as_session                            ;
-	_child.nice           = nice                                  ;
-	_child.stdin          = child_stdin                           ;
-	_child.stdout         = child_stdout                          ;
-	_child.stderr         = child_stderr                          ;
-	if (is_ptrace) {                                                // PER_AUTODEP_METHOD : handle case
-		// we split the responsability into 2 threads :
-		// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
-		// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
-		AcPipe pipe { New , 0/*flags*/ , true/*no_std*/ } ;
-		child_fd  = pipe.read .detach() ;
-		report_fd = pipe.write.detach() ;
-	} else {
-		if (method>=AutodepMethod::Ld) {                                                                                                                          // PER_AUTODEP_METHOD : handle case
-			::string env_var ;
-			switch (method) {                                                                                                                                     // PER_AUTODEP_METHOD : handle case
-				#if HAS_LD_AUDIT
-					case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; _add_env[env_var] = lmake_root_s + "_d$LIB/ld_audit.so"            ; break ;
-				#endif
-				#if 1                                                                                                                                             // LD_PRELOAD is always available
-					case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; _add_env[env_var] = lmake_root_s + "_d$LIB/ld_preload.so"          ; break ;
-					case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; _add_env[env_var] = lmake_root_s + "_d$LIB/ld_preload_jemalloc.so" ; break ;
-				#endif
-			DF}                                                                                                                                                   // NO_COV
-			if (env) { if (env->contains(env_var                  )) _add_env[env_var] += ':' + env->at(env_var) ; }
-			else     { if (has_env      (env_var,false/*empty_ok*/)) _add_env[env_var] += ':' + get_env(env_var) ; }
-			trace("ld",env_var,_add_env.at(env_var)) ;
-		}
-		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
+	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_child.as_session = as_session                            ;
+	_child.nice       = nice                                  ;
+	_child.stdin      = child_stdin                           ;
+	_child.stdout     = child_stdout                          ;
+	_child.stderr     = child_stderr                          ;
+	// PER_AUTODEP_METHOD : handle case
+Retry :
+	switch (method) {
+		case AutodepMethod::Ptrace : {
+			// we split the responsability into 2 threads :
+			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
+			// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
+			AcPipe pipe { New , 0/*flags*/ , true/*no_std*/ } ;
+			res       = pipe.read .detach() ;
+			report_fd = pipe.write.detach() ;
+		} break ;
+		#if HAS_LD_AUDIT
+			case AutodepMethod::LdAudit : env_var = "LD_AUDIT" ; env_val = lmake_root_s + "_d$LIB/ld_audit.so" ; break ;
+		#endif
+		case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; env_val = lmake_root_s + "_d$LIB/ld_preload.so"          ; break ;
+		case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; env_val = lmake_root_s + "_d$LIB/ld_preload_jemalloc.so" ; break ;
+		default :
+			SWEAR( !retried , method ) ;                                            // ensure no infinite loop
+			method  = AutodepMethod::Dflt ;                                         // fall-back if method is not supported, which can occur with chroot'ed jobs
+			retried = true                ;
+			goto Retry/*BACKWARD*/ ;
+	}
+	if (+env_var) {
+		::string& entry = _add_env[env_var] ;                    entry =  ::move(env_val)       ;
+		if (env) { if (env->contains(env_var                  )) entry << ':'<<env->at(env_var) ; }
+		else     { if (has_env      (env_var,false/*empty_ok*/)) entry << ':'<<get_env(env_var) ; }
+		trace("ld",method,env_var,entry) ;
 	}
 	start_date      = New                    ;                                      // record job start time as late as possible
 	_child.cmd_line = cmd_line               ;
 	_child.env      = env                    ;
 	_child.add_env  = &_add_env              ;
 	_child.cwd_s    = autodep_env.sub_repo_s ;
-	if (is_ptrace) {
-		::latch ready{1} ;
+	if (method==AutodepMethod::Ptrace) {
+		::latch ready { 1 } ;
 		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ; // /!\ _child must be spawned from tracing thread
 		ready.wait() ;                                                              // wait until _child.pid is available
 	} else {
+		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
 		//vvvvvvvvvvvv
 		_child.spawn() ;
 		//^^^^^^^^^^^^
 	}
 	trace("child_pid",_child.pid) ;
-	return child_fd ;                                                               // child_fd is only used with ptrace
+	return res ;                                                                    // used with fanotify and ptrace
 }
 
 Status Gather::exec_child() {
@@ -425,18 +431,18 @@ Status Gather::_exec_child() {
 	//
 	bool                        has_server        = +service_mngt  ;
 	ServerSockFd                job_master_fd     { 0/*backlog*/ } ;
-	AcFd                        fast_report_fd    ;                        // always open, never waited for
-	AcFd                        child_fd          ;
+	AcFd                        fast_report_fd    ;                     // always open, never waited for
+	AcFd                        notify_fd         ;
 	Epoll<Kind>                 epoll             { New          } ;
 	Status                      status            = Status::New    ;
-	::map<PD,::pair<Fd,Jerr>>   delayed_jerrs     ;                        // events that analyze deps and targets are delayed until all accesses are processed to ensure complete info
+	::map<PD,::pair<Fd,Jerr>>   delayed_jerrs     ;                     // events that analyze deps and targets are delayed until all accesses are processed to ensure complete info
 	size_t                      live_out_pos      = 0              ;
 	::umap<Fd,ServerSlaveEntry> server_slaves     ;
-	::umap<Fd,JobSlaveEntry   > job_slaves        ;                        // Jerr's waiting for confirmation
+	::umap<Fd,JobSlaveEntry   > job_slaves        ;                     // Jerr's waiting for confirmation
 	PD                          end_timeout       = PD::Future     ;
 	PD                          end_child         = PD::Future     ;
 	PD                          end_kill          = PD::Future     ;
-	PD                          end_heartbeat     = PD::Future     ;       // heartbeat to probe server when waiting for it
+	PD                          end_heartbeat     = PD::Future     ;    // heartbeat to probe server when waiting for it
 	bool                        timeout_fired     = false          ;
 	size_t                      kill_step         = 0              ;
 	bool                        seen_mount_chroot = false          ;
@@ -586,7 +592,7 @@ Status Gather::_exec_child() {
 				}
 			} else if (_wait[Kind::ChildStart]) {                // handle case where we are killed before starting : create child when we have processed waiting connections from server
 				try {
-					child_fd = _spawn_child() ;
+					notify_fd = _spawn_child() ;                 // if method==ptrace, notify end of child, if method==fanotify, notify events
 				} catch(::string const& e) {
 					trace("spawn_failed",e) ;
 					if (child_stderr==Child::PipeFd) stderr = with_nl(e) ;
@@ -599,11 +605,11 @@ Status Gather::_exec_child() {
 				trace("started","wait",_wait,+epoll) ;
 				started = true ;
 				//
-				if (child_stdout==Child::PipeFd) { epoll.add_read( _child.stdout , Kind::Stdout     ) ; _wait |= Kind::Stdout   ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
-				if (child_stderr==Child::PipeFd) { epoll.add_read( _child.stderr , Kind::Stderr     ) ; _wait |= Kind::Stderr   ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
-				if (+child_fd                  ) { epoll.add_read( child_fd      , Kind::ChildEndFd ) ; _wait |= Kind::ChildEnd ; trace("read_child     ",child_fd      ,"wait",_wait,+epoll) ; }
-				else                             { epoll.add_pid ( _child.pid    , Kind::ChildEnd   ) ; _wait |= Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
-				/**/                               epoll.add_read( job_master_fd , Kind::JobMaster  ) ;                           trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
+				if (child_stdout==Child::PipeFd  ) { epoll.add_read( _child.stdout , Kind::Stdout     ) ; _wait |= Kind::Stdout   ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
+				if (child_stderr==Child::PipeFd  ) { epoll.add_read( _child.stderr , Kind::Stderr     ) ; _wait |= Kind::Stderr   ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
+				if (method==AutodepMethod::Ptrace) { epoll.add_read( notify_fd     , Kind::ChildEndFd ) ; _wait |= Kind::ChildEnd ; trace("read_ptrace    ",notify_fd     ,"wait",_wait,+epoll) ; }
+				else                               { epoll.add_pid ( _child.pid    , Kind::ChildEnd   ) ; _wait |= Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
+				/**/                                 epoll.add_read( job_master_fd , Kind::JobMaster  ) ;                           trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
 				_wait &= ~Kind::ChildStart ;
 			} else if (!must_wait) {
 				break ;                                          // we are done, exit loop

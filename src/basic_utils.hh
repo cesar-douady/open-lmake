@@ -121,6 +121,10 @@ template<class T> T& grow( ::vector<T>& v , size_t i ) {
 	return v[i] ;
 }
 
+template<typename T> void append_move( ::vector<T>& dst, ::vector<T>&& src ) {
+    if (!dst) dst = ::move(src) ;
+    else      dst.insert( dst.end() , ::make_move_iterator(src.begin()) , ::make_move_iterator(src.end()) ) ;
+}
 //
 // assert
 //

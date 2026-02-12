@@ -106,6 +106,7 @@ using std::jthread                             ;
 using std::latch                               ;
 using std::launder                             ;
 using std::make_error_code                     ;
+using std::make_move_iterator                  ;
 using std::make_signed_t                       ;
 using std::make_unsigned_t                     ;
 using std::map                                 ;

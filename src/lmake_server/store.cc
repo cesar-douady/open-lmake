@@ -636,7 +636,7 @@ namespace Engine::Persistent {
 			} else {
 				if (!is_lcl(val.tab)) throw cat("codec table ",key," must end with /, consider : lmake.config.codecs.",key," = ",mk_py_str(with_slash(val.tab))) ;
 				if (lcl_src_regs.contains(val.tab)) goto CodecFound ;
-				throw cat("codec table ",key," must be a source, consider : git add ",mk_shell_str(val.tab)) ;
+				throw cat("codec table ",key," must be a source, consider : git add ",mk_file(val.tab,FileDisplay::Shell)) ;
 			}                                                                                                                          // solve lazy
 		CodecFound : ;
 		}

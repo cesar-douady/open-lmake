@@ -163,14 +163,10 @@ namespace Engine {
 	private :
 		template<class T> requires(IsOneOf<T,Node,::string>) ::vector<T> _targets( bool as_deps , bool root_ok ) const {
 			SWEAR(!is_job()) ;
-			RealPathEnv rpe           { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=*g_repo_root_s+PRIVATE_ADMIN_DIR_S , .src_dirs_s=*g_src_dirs_s } ;
-			RealPath    real_path     { rpe                                                                                                                                          } ;
 			//
-			::vector<T> targets       ; targets.reserve(files.size()) ; // typically, there is no bads
-			::string    err_ext_str   ;
-			::string    err_admin_str ;
+			::vector<T> targets ; targets.reserve(files.size()) ;                                                                                       // typically, there is no bads
 			for( ::string const& target : files ) {
-				RealPath::SolveReport rp = real_path.solve(target,true/*no_follow*/) ;                                                                  // we may refer to a sym link
+				RealPath::SolveReport rp = Job::s_real_path->solve(target,true/*no_follow*/) ;                                                          // we may refer to a sym link
 				switch (rp.file_loc) {
 					case FileLoc::Repo     :                                                                                                    break ;
 					case FileLoc::SrcDir   :                  throw_unless( as_deps , "file is in a source dir"," : ",Disk::mk_file(target) ) ; break ;

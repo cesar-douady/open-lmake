@@ -347,6 +347,7 @@ namespace Engine {
 		Idx                  idx_by_start   = Idx(-1)           ;
 		Idx                  idx_by_eta     = Idx(-1)           ;
 		Job                  job            ;                     // owned if job->rule->special==Special::Req
+		::vector_s           files          ;
 		::umap<Job,JobAudit> missing_audits ;
 		ReqStats             stats          ;
 		Fd                   audit_fd       ;                     // to report to user

@@ -41,6 +41,7 @@ namespace Engine {
 		data.idx_by_eta   = s_n_reqs()  ;         // initially, eta is far future
 		data.options      = ecr.options ;
 		data.audit_fd     = ecr.fd      ;
+		data.files        = ecr.files   ;
 		data.jobs .set_dflt(self) ;
 		data.nodes.set_dflt(self) ;
 		//
@@ -58,8 +59,8 @@ namespace Engine {
 			if (ecr.options.flags[ReqFlag::Nice        ]) data.nice         = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::Nice        ]                 ) ;
 			if (ecr.options.flags[ReqFlag::CacheMethod ]) data.cache_method = mk_enum<CacheMethod>(ecr.options.flag_args[+ReqFlag::CacheMethod ]                 ) ;
 			JobIdx                                        n_jobs            = from_string<JobIdx >(ecr.options.flag_args[+ReqFlag::Jobs        ],true/*empty_ok*/) ;
-			if (ecr.is_job()) data.job = ecr.job()                                                                                ;
-			else              data.job = Job( Special::Req , Deps(ecr.targets(),FullAccesses,DflagsDfltStatic,true/*parallel*/) ) ;
+			if (ecr.is_job()) data.job = ecr.job()         ;
+			else              data.job = Job(Special::Req) ;
 			Backend::s_open_req( +self , n_jobs ) ;
 			data.has_backend = true ;
 			trace("job",data.job) ;
@@ -282,10 +283,10 @@ namespace Engine {
 	}
 
 	void Req::_do_chk_end() {
-		Job               job     = self->job               ;
-		JobReqInfo const& cri     = job->c_req_info(self)   ;
-		bool              job_err = job->status!=Status::Ok ;
-		Trace trace("chk_end",self,cri,job,job->status) ;
+		Job  job     = self->job                    ;
+		bool done    = job->c_req_info(self).done() ;
+		bool job_err = !done || job->err()          ;
+		Trace trace("chk_end",self,job,STR(job_err),job->run_status,job->status,STR(done)) ;
 		//
 		// refresh codec files
 		for( ::string const& f : self->refresh_codecs ) {
@@ -299,10 +300,10 @@ namespace Engine {
 		self->audit_stats  (       ) ;
 		self->audit_summary(job_err) ;
 		//
-		if (zombie()                     ) { trace("zombie") ; goto Done ; }
-		if (!job_err                     ) { trace("ok"    ) ; goto Done ; }
+		if (zombie()) { trace("zombie") ; goto Done ; }
+		if (!job_err) { trace("ok"    ) ; goto Done ; }
 		//
-		if (!job->c_req_info(self).done()) {
+		if (!done) {
 			for( Dep const& d : job->deps )
 				if (!d->done(self)) { _report_cycle(d) ; trace("cycle") ; goto Done ; }
 			fail_prod("job not done but all deps are done :",job->name()) ;             // NO_COV
@@ -505,7 +506,7 @@ namespace Engine {
 				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->user_name())+" -J "+mk_file(job->name(),FileDisplay::Shell) ) ;
 			} else {
 				::string dl ;
-				for( Dep const& d : job->deps ) dl<<' '<<mk_shell_str(d->name()) ;
+				for( Dep const& d : job->deps ) dl<<' '<<mk_file(d->name(),FileDisplay::Shell) ;
 				audit_info( Color::Warning , "consider : lmake"+dl ) ;
 			}
 		}
@@ -577,7 +578,7 @@ namespace Engine {
 		//
 		if (node->buildable==Buildable::PathTooLong) {
 			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
-			audit_info( Color::Note    , cat("consider : lmake.config.max_path = ",name.size()," (or larger)") , lvl+1 ) ;
+			audit_info( Color::Note    , cat("consider : lmake.config.max_path = ",name.size()," # or larger") , lvl+1 ) ;
 			return ;
 		}
 		//

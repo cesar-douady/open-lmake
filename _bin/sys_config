@@ -206,11 +206,9 @@ esac
 
 #
 # CLOSE_RANGE (HAS_CLOSE_RANGE)
-# test whether we can include linux/close_range.h
 #
 HAS_CLOSE_RANGE=$(ok cc -E --include 'linux/close_range.h' -o /dev/null -xc /dev/null )
 
-#
 #
 # INC_DIRS (STD_INC_DIRS)
 #

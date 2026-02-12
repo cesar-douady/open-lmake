@@ -413,21 +413,19 @@ namespace Engine::Makefiles {
 		//
 		if (first_time) {
 			AcFd fd { reg_exprs_file ,{.err_ok=true} } ;
-			if (+fd) {
-				try         { deserialize( ::string_view(fd.read()) , RegExpr::s_cache ) ;                                      }  // load from persistent cache
-				catch (...) { Fd::Stderr.write(cat("cannot read reg expr cache (no consequences) from ",reg_exprs_file,'\n')) ; }  // perf only, ignore errors (e.g. first time)
-			}
+			if (+fd)
+				try         { deserialize( ::string_view(fd.read()) , RegExpr::s_cache ) ;                                      } // load from persistent cache
+				catch (...) { Fd::Stderr.write(cat("cannot read reg expr cache (no consequences) from ",reg_exprs_file,'\n')) ; } // perf only, ignore errors (e.g. first time)
 		}
 		//
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
-		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;                 // dir_s is \1, module is \2, matches both python 2 & 3
+		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;                // dir_s is \1, module is \2, matches both python 2 & 3
 		//
 		_refresh( /*out*/msg , rescue , refresh_ , env , startup_dir_s ) ;
 		//
-		if ( first_time && !RegExpr::s_cache.steady() ) {
-			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( serialize(RegExpr::s_cache) ) ; }             // update persistent cache
-			catch (...) { Fd::Stderr.write(cat("cannot write reg expr cache (no consequences) to ",reg_exprs_file,'\n')) ;       } // perf only, ignore errors (e.g. read-only)
-		}
+		if ( first_time && !RegExpr::s_cache.steady() )
+			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( serialize(RegExpr::s_cache) ) ;       }      // update persistent cache
+			catch (...) { Fd::Stderr.write(cat("cannot write reg expr cache (no consequences) to ",reg_exprs_file,'\n')) ; }      // perf only, ignore errors (e.g. read-only)
 		trace("done",msg) ;
 	}
 

@@ -959,6 +959,10 @@ namespace Engine {
 		::serdes(s,stdin_idx ) ;
 		::serdes(s,allow_ext ) ;
 		::serdes(s,deps_attrs) ;
+		::serdes(s,force     ) ;
+		::serdes(s,n_losts   ) ;
+		::serdes(s,n_runs    ) ;
+		::serdes(s,n_submits ) ;
 		if (special==Special::Plain) {
 			::serdes(s,submit_rsrcs_attrs    ) ;
 			::serdes(s,submit_ancillary_attrs) ;
@@ -967,10 +971,6 @@ namespace Engine {
 			::serdes(s,start_ancillary_attrs ) ;
 			::serdes(s,cmd                   ) ;
 			::serdes(s,is_python             ) ;
-			::serdes(s,force                 ) ;
-			::serdes(s,n_losts               ) ;
-			::serdes(s,n_runs                ) ;
-			::serdes(s,n_submits             ) ;
 			// stats
 			::serdes(s,cost_per_token        ) ;
 			::serdes(s,exe_time              ) ;

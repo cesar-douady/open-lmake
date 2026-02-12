@@ -149,13 +149,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * integrate conan (C/C++)
 	- as a package manager
 	- possibly also pip (python) and the like (rust, go, java etc.)
-* consider using fanotify as an autodep method
-	- fanotify_init
-	- fanotify_mark
-* consider CanonicRule
-	- when several file names for the same semantic
-	- accept a "mk_canonic" function for transforming a target into a canonic name
-	- put symbolic links instead when name is not canonic
 * consider TestedRule
 	- when job A is run, put a dep to B to hidden job representing the Req
 	- B is supposed to mean "A is tested"
@@ -229,6 +222,15 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ? add a new autodep mechanism based on syscall user dispatch
 	? cf man 2 prctl, PR_SET_SYSCALL_USER_DISPATCH
 	? seems to be highly architecture dependent, is it worth ?
+X consider using fanotify as an autodep method
+	- does not work because symbolic links used during path resolution must be recorded but are lost by fanotify
+	- fanotify_init
+	- fanotify_mark
+X consider CanonicRule
+	- rejected because it is too specific to user case (too difficult to generalize)
+	- when several file names for the same semantic
+	- accept a "mk_canonic" function for transforming a target into a canonic name
+	- put symbolic links instead when name is not canonic
 M implement fuse as an autodep method
 	- does not seem doable because read foo/bar first does a lookup(foo)
 M port to Darwin

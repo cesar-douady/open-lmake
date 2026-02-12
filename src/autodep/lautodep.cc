@@ -100,6 +100,11 @@ static ::vmap_ss _mk_env( ::string const& env ) {
 int main( int argc , char* argv[] ) {
     block_sigs({SIGCHLD}) ;
 	//
+	::string autodep_method_doc = "method used to detect deps (none, " ;
+	#if HAS_LD_AUDIT
+		autodep_method_doc << "ld_audit, " ;
+	#endif
+	autodep_method_doc << "ld_preload, ld_preload_jemalloc, ptrace)" ;
 	Syntax<CmdKey,CmdFlag> syntax {{
 		// PER_AUTODEP_METHOD : complete doc on line below
 		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                         } }
@@ -111,7 +116,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::KeepTmp       , { .short_name='k' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                          } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                             } }
 	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                        } }
-	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc="method used to detect deps (none, ld_audit, ld_preload, ld_preload_jemalloc, ptrace)"                        } }
+	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc=autodep_method_doc                                                                                            } }
 	,	{ CmdFlag::MountChrootOk , { .short_name='M' , .has_arg=false , .doc="allow mount and chroot"                                                                                      } }
 	,	{ CmdFlag::DomainName    , { .short_name='N' , .has_arg=true  , .doc="domain name to use for processes to contact this host (as host.domain_name) if network does not provide fqdn"} }
 	,	{ CmdFlag::Out           , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                        } }

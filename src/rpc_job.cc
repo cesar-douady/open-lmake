@@ -266,9 +266,9 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 	} ;
 	//
 	Trace trace("do_file_actions") ;
-	unlnks.reserve(unlnks.size()+pre_actions.size()) ;                                                                        // most actions are unlinks
-	for( auto const& [f,a] : pre_actions ) {                                                                                  // pre_actions are adequately sorted
-		SWEAR(+f) ;                                                                                                           // acting on root dir is non-sense
+	unlnks.reserve(unlnks.size()+pre_actions.size()) ;                                                                                     // most actions are unlinks
+	for( auto const& [f,a] : pre_actions ) {                                                                                               // pre_actions are adequately sorted
+		SWEAR(+f) ;                                                                                                                        // acting on root dir is non-sense
 		switch (a.tag) {
 			case FileActionTag::None           :
 			case FileActionTag::Unlink         :
@@ -276,30 +276,28 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 			case FileActionTag::UnlinkPolluted : {
 				if (nfs_guard) nfs_guard->access(f) ;
 				FileStat fs ;
-				if (::lstat(f.c_str(),&fs)!=0) {                                                                              // file does not exist, nothing to do
+				if (::lstat(f.c_str(),&fs)!=0) {                                                                                           // file does not exist, nothing to do
 					trace(a.tag,"no_file",f) ;
 					continue ;
 				}
-				dir_exists(f) ;                                                                                               // if a file exists, its dir necessarily exists
-				FileSig sig         { fs } ;
-				bool    quarantine_ ;
-				if (!sig) {
-					trace(a.tag,"awkward",f,sig.tag()) ;
-					quarantine_ = true ;
-				} else {
-					quarantine_ =
-						sig!=a.sig
-					&&	sig.tag()!=Crc::Empty
-					&&	( a.crc==Crc::None || !a.crc.valid() || !a.crc.match(Crc(f)) )                                        // only compute crc if file has been modified
-					;
-				}
+				dir_exists(f) ;                                                                                                            // if a file exists, its dir necessarily exists
+				FileSig sig         { fs }                                                                                               ;
+				bool    empty       = sig.tag()==FileTag::Empty                                                                          ;
+				bool    quarantine_ = +sig && ( sig!=a.sig && !empty && ( a.crc==Crc::None || !a.crc.valid() || !a.crc.match(Crc(f)) ) ) ; // only compute crc if file has been modified
+				if (!sig) trace(a.tag,"awkward",f,sig.tag()) ;
 				if (quarantine_) {
 					quarantine( f , nfs_guard ) ;
 					msg << "quarantined "<<mk_file(f)<<'\n' ;
 				} else {
 					SWEAR(is_lcl(f)) ;
-					unlnk(f,{.nfs_guard=nfs_guard}) ;
-					if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) msg <<"unlinked "<<mk_file(f)<<'\n' ;    // if a file has been unlinked, its dir necessarily exists
+					unlnk(f,{.dir_ok=true,.nfs_guard=nfs_guard}) ;
+					if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) {                                                     // if a file has been unlinked, its dir necessarily exists
+						/**/                              msg << "unlinked "      ;
+						if      (empty                  ) msg << "(empty) "       ;
+						else if (sig.tag()==FileTag::Dir) msg << "(dir) "         ;
+						else if (!sig                   ) msg << "(awkward) "     ;
+						/**/                              msg << mk_file(f)<<'\n' ;
+					}
 				}
 				trace(a.tag,STR(quarantine_),f) ;
 				if (+sig) unlnks.push_back(f) ;
@@ -607,7 +605,7 @@ struct ChrootFiles {
 			::string d_s = with_slash(file) ;
 			auto     it  = store.find(d_s)  ;
 			if (it!=store.end()) {
-				if ( !it->second && FileInfo(user_chroot_dir+file).tag()==FileTag::Dir ) // do dir fusion only if upper is an implied dir and lower is a dir
+				if ( !it->second && FileInfo(user_chroot_dir+file).tag()==FileTag::Dir )                                        // do dir fusion only if upper is an implied dir and lower is a dir
 					fill(d_s) ;
 			} else {
 				::string src_file = user_chroot_dir+file ;
@@ -627,7 +625,7 @@ struct ChrootFiles {
 	::string                  chroot_dir      = {}      ;
 	::string                  user_chroot_dir = {}      ;
 	::vector<UserTraceEntry>* user_trace      = nullptr ;
-	::umap_s<bool/*created*/> store           = {}      ;                                                                      // Maybe means dir, Yes means file, No means uphill of created dir/file
+	::umap_s<bool/*created*/> store           = {}      ;                                                                       // Maybe means dir, Yes means file, No means uphill of created dir/file
 } ;
 
 void JobSpace::enter(
@@ -649,7 +647,6 @@ void JobSpace::enter(
 	bool need_chroot = +self || +chroot_info.dir_s ;
 	repo_root_s = repo_view_s | phy_repo_root_s ;
 	if ( !need_chroot && !kill_daemons ) {
-		if (+sub_repo_s) _chdir(sub_repo_s) ;
 		_tmp_dir_s = phy_tmp_dir_s ;
 		trace("not_done",repo_root_s) ;
 		return ;
@@ -860,12 +857,11 @@ void JobSpace::enter(
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		user_trace.emplace_back( New/*date*/ , Comment::chroot , CommentExts() , created_files.chroot_dir ) ;
 	}
-	if ( +repo_view_s || +created_files.chroot_dir || +sub_repo_s ) {
-		::string d = no_slash(repo_root_s+sub_repo_s) ;
-		//vvvvvvv
-		_chdir(d) ;
-		//^^^^^^^
-		user_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , d ) ;
+	if ( +repo_view_s || +created_files.chroot_dir ) {
+		//vvvvvvvvvvvvvvvvv
+		_chdir(repo_root_s) ;
+		//^^^^^^^^^^^^^^^^^
+		user_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(repo_root_s) ) ;
 	}
 	// only set _tmp_dir_s once tmp mount and chroot are done so as to ensure not to unlink in the underlying dir
 	if (clean_tmp_dir_here) _tmp_dir_s = tmp_dir_s ;                                                        // if we have mounted something in tmp, we cant clean it before unmount

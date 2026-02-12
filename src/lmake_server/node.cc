@@ -447,13 +447,14 @@ namespace Engine {
 			default                     :                                break        ;
 		}
 		//
-		if ( ReqInfo& dri = dir->req_info(req) ; !dir->done(dri,NodeGoal::Status) ) {                     // fast path : no need to call make if dir is done
+		if ( ReqInfo& dri = dir->req_info(req) ; !dir->done(dri,ri.goal) ) {                              // fast path : no need to call make if dir is done
 			if (!dri.waiting()) {
 				ReqInfo::WaitInc sav_n_wait{ri} ;                                                         // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 				dir->asking = idx() ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				dir->make( dri , query?MakeAction::Query:MakeAction::Status , ri.speculate ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				MakeAction dma = query ? MakeAction::Query : ri.goal<=NodeGoal::Status ? MakeAction::Status : MakeAction::Dsk ;
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				dir->make( dri , dma , ri.speculate ) ;
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			trace("dir",dir,STR(dir->done(dri,NodeGoal::Status)),ri) ;
 			//
@@ -511,7 +512,7 @@ namespace Engine {
 		{	set_crc_date() ;                                                                                     // if depending on a transient node, a job must be rerun in all cases
 			set_status(NodeStatus::Transient) ;
 			actual_job = {} ;
-			goto DoneDsk ;
+			goto Done ;
 		}
 		FAIL() ;                                                                                                 // NO_COV
 	NoSrc :
@@ -874,7 +875,7 @@ namespace Engine {
 		else        return ::string(Crc()) ;
 	}
 
-	void Dep::full_refresh( bool report_no_file , Job j , ::vector<Req> const& reqs ) const {         // reqs are for reporting only
+	void Dep::full_refresh( bool report_no_file , Job j , ::vector<Req> const& reqs ) const { // reqs are for reporting only
 		NodeData& nd = *Node(self) ;
 		if (+reqs) nd.set_buildable(reqs[0]) ;
 		else       nd.set_buildable(       ) ;
@@ -883,7 +884,7 @@ namespace Engine {
 			if ( dflags[Dflag::Codec] && (create_encode||!nd.actual_job) ) { SWEAR( +j , self ) ; nd.actual_job = j ; }
 			nd.refresh_src_anti( nd.name() , accesses() , reqs , report_no_file ) ;
 		} else {
-			nd.manual_refresh(accesses()) ; // no manual_steady diagnostic as this may be because of another job
+			nd.manual_refresh(accesses()) ;                                                   // no manual_steady diagnostic as this may be because of another job
 		}
 	}
 

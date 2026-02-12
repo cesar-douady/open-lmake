@@ -16,8 +16,7 @@ if __name__!='__main__' :
 
 	class Lnk(Rule) :
 		targets = { 'LNK' : r'{File:.*}.lnk' }
-		deps    = { 'SRC' :  '{File   }'     }
-		cmd     = 'ln -s {SRC} {LNK}'
+		cmd     = 'ln -s {File} {LNK}'
 
 	class Cat(Rule) :
 		target = r'hello+{File:.*}'
@@ -41,6 +40,8 @@ if __name__!='__main__' :
 
 else :
 
+	import os
+
 	import ut
 
 	print('hello',file=open('hello','w'))
@@ -50,3 +51,7 @@ else :
 
 	ut.lmake( 'd/e' , may_rerun=1 , done=2 ) # check we acquire dep to a/b/c although we write to it (a/b/c cant be written up front)
 	ut.lmake( 'b2'  , may_rerun=1 , done=2 ) # check we acquire dep to a     although we write to it (a2    can  be written up front)
+
+	ut.lmake( 'a.lnk/b/c' , done  =1 )
+	os.unlink('a.lnk')
+	ut.lmake( 'a.lnk/b/c' , steady=1 )

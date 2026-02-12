@@ -97,13 +97,19 @@ namespace Engine {
 		static void s_init() ;
 		// static data
 		static QueueThread<::pair<Job,JobInfo1>,true/*Flush*/,true/*QueueAccess*/> s_record_thread ;
+		static StaticUniqPtr<RealPath>                                             s_real_path     ;
+	private :
+		static StaticUniqPtr<RealPathEnv> _s_rpe ;
+
 		// cxtors & casts
+	public :
 		using JobBase::JobBase ;
 		Job( Rule::RuleMatch&&                                 , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting
 		Job( RuleTgt , ::string const& t  , Bool3 chk_psfx=Yes , Req={} , DepDepth lvl=0 ) ; // plain Job, chk_psfx=Maybe means check size only, match on target
 		Job( Rule    , ::string const& jn , Bool3 chk_psfx=Yes , Req={} , DepDepth lvl=0 ) ; // plain Job, chk_psfx=Maybe means check size only, match on name, for repairing or job in command line
 		//
-		Job( Special ,               Deps deps               ) ;                             // Job used to represent a Req
+		Job( Special                                         ) ;                             // Job used to represent a Req
+		Job( Special ,               Deps deps               ) ;                             // Job used to represent a deps when used to implemment dep-direct
 		Job( Special , Node target , Deps deps               ) ;                             // special job
 		Job( Special , Node target , ::vector<JobTgt> const& ) ;                             // multi
 		//
@@ -235,15 +241,15 @@ namespace Engine {
 		}
 		bool done() const { return step()>=Step::Done ; }
 		//
-		Step step(          ) const { return _step ; }
-		void step(Step s,Job) ;
+		Step step    (          ) const { return _step ; }
+		void set_step(Step s,Job)       ;
 		// services
 		void reset( Job j , bool has_run=false ) {
 			if (has_run) {
 				force  = false ;                                       // cmd has been executed, it is not new any more
 				reason = {}    ;                                       // reasons were to trigger the ending job, there are none now
 			}
-			if (step()>Step::Dep) step(Step::Dep,j) ;
+			if (step()>Step::Dep) set_step(Step::Dep,j) ;
 			iter  = {} ;
 			state = {} ;
 		}
@@ -532,10 +538,11 @@ namespace Engine {
 	private :
 		void _propag_speculate(ReqInfo const&) const ;
 		//
-		void _submit_codec   ( Req                             )       ;
-		void _submit_special ( ReqInfo&                        )       ;
-		void _submit_plain   ( ReqInfo& , CoarseDelay pressure )       ;
-		void _do_set_pressure( ReqInfo& , CoarseDelay          ) const ;
+		void                   _submit_codec   ( Req                             )       ;
+		void                   _submit_req     ( Req                             )       ;
+		bool/*maybe_new_deps*/ _submit_special ( ReqInfo&                        )       ;
+		bool/*maybe_new_deps*/ _submit_plain   ( ReqInfo& , CoarseDelay pressure )       ;
+		void                   _do_set_pressure( ReqInfo& , CoarseDelay          ) const ;
 		// data
 		// START_OF_VERSIONING REPO
 		struct IfPlain {
@@ -588,20 +595,12 @@ namespace Engine {
 	inline Job::Job( RuleTgt rt , ::string const& t  , Bool3 chk_psfx , Req req , DepDepth lvl ) : Job{Rule::RuleMatch(rt,t ,chk_psfx),req,lvl} {} // chk_psfx=Maybe means check size only
 	inline Job::Job( Rule    r  , ::string const& jn , Bool3 chk_psfx , Req req , DepDepth lvl ) : Job{Rule::RuleMatch(r ,jn,chk_psfx),req,lvl} {} // .
 	//
-	inline Job::Job( Special sp ,          Deps deps ) : Job{                                 New , sp,deps } { SWEAR( sp==Special::Req || sp==Special::Dep , sp ) ; }
-	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp)->job_sfx()},New , sp,deps } { SWEAR( sp!=Special::Plain                        ) ; }
+	inline Job::Job( Special sp                      ) : Job{                                 New , sp      } { SWEAR( sp==Special::Req   , sp ) ; }
+	inline Job::Job( Special sp ,          Deps deps ) : Job{                                 New , sp,deps } { SWEAR( sp==Special::Dep   , sp ) ; }
+	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp)->job_sfx()},New , sp,deps } { SWEAR( sp!=Special::Plain      ) ; }
 
 	inline bool Job::is_plain(bool frozen_ok) const {
 		return +self && self->is_plain(frozen_ok) ;
-	}
-
-	inline void Job::s_init() {
-		s_record_thread.open('J',
-			[](::pair<Job,JobInfo1> const& jji)->void {
-				Trace trace("s_record_thread",jji.first,jji.second.kind()) ;
-				jji.first.record(jji.second) ;
-			}
-		) ;
 	}
 
 	//

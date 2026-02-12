@@ -21,11 +21,23 @@
 // PER_AUTODEP_METHOD : add entry here
 // >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
 // by default, use a compromize between speed an reliability
+enum class AutodepMethod : uint8_t {
+	None
+,	Ptrace
 #if HAS_LD_AUDIT
-	enum class AutodepMethod : uint8_t { None , Ptrace , LdAudit , LdPreload , LdPreloadJemalloc , Ld=LdAudit   , Dflt=LdAudit   } ;
-#else
-	enum class AutodepMethod : uint8_t { None , Ptrace ,           LdPreload , LdPreloadJemalloc , Ld=LdPreload , Dflt=LdPreload } ;
+	,	LdAudit
 #endif
+,	LdPreload
+,	LdPreloadJemalloc
+// aliases
+#if HAS_LD_AUDIT
+	,	Ld   = LdAudit
+	,	Dflt = LdAudit
+#else
+	,	Ld   = LdPreload
+	,	Dflt = LdPreload
+#endif
+} ;
 // END_OF_VERSIONING
 
 // START_OF_VERSIONING REPO CACHE

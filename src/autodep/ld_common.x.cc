@@ -681,8 +681,10 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	// dirs
 	//
 
-	#define HDR0_DIR(libcall,     args) HDR( libcall , (auditor(),Record::s_autodep_env().readdir_ok)     , args ) // call auditor() to ensure s_autodep_env() is initialized
-	#define HDR1_DIR(libcall,path,args) HDR( libcall , Record::s_is_simple(path,false/*empty_is_simple*/) , args ) // if empty, we may read dir provided by path.at
+	// call auditor() to ensure s_autodep_env() is initialized
+	// for HDR1_DIR, if path is empty, we may read dir provided by path.at
+	#define HDR0_DIR(libcall,     args) HDR( libcall , (auditor(),Record::s_autodep_env().readdir_ok)                                                     , args )
+	#define HDR1_DIR(libcall,path,args) HDR( libcall , (auditor(),Record::s_autodep_env().readdir_ok)&&Record::s_is_simple(path,false/*empty_is_simple*/) , args )
 
 	// getdents
 	ssize_t getdents64(int fd,void* dirp,size_t cnt) NE { HDR0_DIR(getdents64,(fd,dirp,cnt)) ; ReadDir r{fd,Comment::getdents64} ; return r(orig(fd,dirp,cnt)) ; }

@@ -407,7 +407,7 @@ namespace Engine {
 		// /!\ no_run_reason_tag and inc_submits must stay in sync
 		auto no_run_reason_tag = [&](JobReasonTag const& jrt) {                                                      // roughly equivalent to !jrt||jrt>=Err but give reason and take care of limits
 			switch (jrt) {
-				case JobReasonTag::None      :                             return NoRunReason::Dep ;
+				case JobReasonTag::None      :                             return NoRunReason::Dep ;                 // reason for not rerun is that deps are ok
 				case JobReasonTag::Retry     :
 				case JobReasonTag::LostRetry :                             goto Retry              ;
 				default                      : if (jrt>=JobReasonTag::Err) return NoRunReason::Dep ;
@@ -465,7 +465,7 @@ namespace Engine {
 		}
 		if (ri.step()==Step::None) {
 			estimate_stats() ;                              // initial guestimate to accumulate waiting costs while resources are not fully known yet
-			ri.step(Step::Dep,idx()) ;
+			ri.set_step(Step::Dep,idx()) ;
 			JobReasonTag jrt = {} ;
 			if      ( r->force                                                                         ) jrt = JobReasonTag::Force  ;
 			else if ( !cmd_ok()                                                                        ) jrt = JobReasonTag::Cmd    ;
@@ -489,8 +489,8 @@ namespace Engine {
 			bool           sure                  = true     ;
 			ReqInfo::State state                 = ri.state ;
 			//
-			ri.speculative_wait = false                  ;                                            // initially, we are not waiting at all
-			report_reason       = {}                     ;
+			ri.speculative_wait = false ;                                                             // initially, we are not waiting at all
+			report_reason       = {}    ;
 			if ( incremental && ro.flags[ReqFlag::NoIncremental] ) pre_reason  = JobReasonTag::WasIncremental     ;
 			/**/                                                   pre_reason |= _mk_pre_reason(status,ri.reason) ;
 			if ( pre_reason.tag==JobReasonTag::Lost && !at_end   ) pre_reason  = JobReasonTag::WasLost            ;
@@ -645,7 +645,7 @@ namespace Engine {
 			case NoRunReason::RunLoopRule    : trace("run_loop_rule"   ,ri) ; status     = Status::RunLoop                                                   ; report_loop = true ; break ;
 			case NoRunReason::SubmitLoopReq  : trace("submit_loop_req" ,ri) ; status     = Status::SubmitLoop                                                ; report_loop = true ; break ;
 			case NoRunReason::SubmitLoopRule : trace("submit_loop_rule",ri) ; status     = Status::SubmitLoop                                                ; report_loop = true ; break ;
-			default :
+			default : {
 				report_reason = ri.reason = reason(ri.state) ;                           // ensure we have a reason to report that we would have run if not queried
 				trace("run",ri,STR(query),pre_reason,run_status) ;
 				if (query) goto Return ;
@@ -654,33 +654,38 @@ namespace Engine {
 					ri.reset(idx()) ;
 					goto RestartAnalysis/*BACKWARD*/ ;
 				}
+				bool         maybe_new_deps ;
+				JobReasonTag rt             = ri.reason.tag ;                            // sample before _submit_plain as it may modify ri.reason
 				if (!is_plain()) {
-					//vvvvvvvvvvvvvvvvv
-					_submit_special(ri) ;
-					//^^^^^^^^^^^^^^^^^
-					ri.reason = {} ;                                                     // flash execution
-					ri.reset(idx()) ;
-				} else {
-					JobReasonTag rt = ri.reason.tag ;
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					_submit_plain( ri , dep_pressure ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					inc_submits( rt , cache_hit_info>=CacheHitInfo::Miss ) ;
-					if (ri.waiting()                       ) goto Wait ;
-					if (cache_hit_info<CacheHitInfo::Miss) {                             // if cached, there may be new deps, we must re-analyze
-						SWEAR(!ri.running()) ;
-						make_action = MakeAction::End ;                                  // restart analysis as if called by end() as in case of flash execution, submit has called end()
-						ri.inc_wait() ;                                                  // .
-						asked_reason = {} ;                                              // .
-						ri.reason    = {} ;                                              // .
-						trace("restart_analysis",ri) ;
-						goto RestartFullAnalysis/*BACKWARD*/ ;
+					//               vvvvvvvvvvvvvvvvvvv
+					maybe_new_deps = _submit_special(ri) ;
+					//               ^^^^^^^^^^^^^^^^^^^
+					if (maybe_new_deps) {
+						inc_submits( rt , true/*has_run*/ ) ;
+					} else {
+						ri.reason = {} ;                                                 // flash execution
+						ri.reset(idx()) ;
 					}
+				} else {
+					//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					maybe_new_deps = _submit_plain( ri , dep_pressure ) ;
+					//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					inc_submits( rt , cache_hit_info>=CacheHitInfo::Miss ) ;
+					if (ri.waiting()) goto Wait ;
 				}
+				if (maybe_new_deps) {                                                    // if cached, there may be new deps, we must re-analyze
+					SWEAR(!ri.running()) ;
+					make_action  = MakeAction::End ;                                     // restart analysis as if called by end() as in case of flash execution, submit has called end()
+					asked_reason = {}              ;                                     // .
+					ri.inc_wait() ;                                                      // .
+					trace("restart_analysis",ri) ;
+					goto RestartFullAnalysis/*BACKWARD*/ ;
+				}
+			}
 		}
 	Done :
 		SWEAR( !ri.running() && !ri.waiting() , idx() , ri ) ;
-		ri.step(Step::Done,idx()) ;
+		ri.set_step(Step::Done,idx()) ;
 		ri.reason = {} ;                                                                 // no more reason to run as analysis showed it is ok now
 	Wakeup :
 		if ( auto it = req->missing_audits.find(idx()) ; it!=req->missing_audits.end() && !req.zombie() ) {
@@ -768,10 +773,10 @@ namespace Engine {
 				if (+node) return {.msg="frozen file does not exist while not phony : "+node->name()+'\n'} ;
 				else       return {.msg="frozen file does not exist while not phony\n"                   } ;
 			case Special::InfiniteDep  :
-				msg << cat("max dep depth limit (",g_config->max_dep_depth,") reached, consider : lmake.config.max_dep_depth = ",g_config->max_dep_depth+1     ," (or larger)") ;
+				msg << cat("max dep depth limit (",g_config->max_dep_depth,") reached, consider : lmake.config.max_dep_depth = ",g_config->max_dep_depth+1     ," # or larger") ;
 				goto DoInfinite ;
 			case Special::InfinitePath : {
-				msg << cat("max path limit ("     ,g_config->path_max     ,") reached, consider : lmake.config.max_path = "     ,(*deps.begin())->name().size()," (or larger)") ;
+				msg << cat("max path limit ("     ,g_config->path_max     ,") reached, consider : lmake.config.max_path = "     ,(*deps.begin())->name().size()," # or larger") ;
 			DoInfinite :
 				if (short_msg) {
 					auto gen_dep = [&](::string const& dn) {
@@ -981,17 +986,48 @@ namespace Engine {
 		trace("done",has_new_codes) ;
 	}
 
-	void JobData::_submit_special(ReqInfo& ri) {                   // never report new deps
-		Req     req     = ri.req          ;
-		Special special = rule()->special ;
-		bool    frozen_ = idx().frozen()  ;
+	void JobData::_submit_req(Req req) {
+		Trace trace("_submit_req",req,req->files) ;
+		::vector<Dep> lnk_vector ;
+		::vector<Dep> dep_vector ; dep_vector.reserve(req->files.size()) ; // typically, all are deps
+		bool          first      = true                                  ;
+		//
+		status = Status::EarlyErr ;                                        // defensive programming : only set status=Ok when deps are checked
+		for( ::string const& file : req->files ) {
+			RealPath::SolveReport rp  = Job::s_real_path->solve(file,true/*no_follow*/) ;
+			for( ::string& l : rp.lnks ) {
+				Dep d { {New,l} , Access::Lnk , FileInfo(l) } ;
+				d.acquire_crc() ;
+				lnk_vector.push_back(::move(d)) ;
+			}
+			if (rp.file_loc>FileLoc::Dep) {
+				req->audit_info( Color::Err , cat("target outside repo and all source dirs : ",mk_file(rp.real)) ) ;
+				status = Status::Err ;
+				continue ;
+			}
+			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real) , DflagsDflt|Dflag::Essential|Dflag::Required , !first/*parallel*/ } ;
+			first = false ;
+			d.acquire_crc() ;
+			dep_vector.push_back(::move(d)) ;
+		}
+		append_move( lnk_vector , ::move(dep_vector) ) ;
+		deps.assign(lnk_vector)                        ;
+		if (status==Status::EarlyErr) status = Status::Ok ;
+		trace("done") ;
+	}
+
+	bool/*maybe_new_deps*/ JobData::_submit_special(ReqInfo& ri) { // never report new deps
+		Req     req            = ri.req          ;
+		Special special        = rule()->special ;
+		bool    frozen_        = idx().frozen()  ;
+		bool    maybe_new_deps = false           ;
 		Trace trace("_submit_special",idx(),special,ri) ;
 		//
 		if (frozen_) req->frozen_jobs.push(idx()) ;                // record to repeat in summary
 		//
 		switch (special) {
-			case Special::Req          :
 			case Special::Dep          : status = Status::Ok  ;                                                                break ;
+			case Special::Req          : _submit_req(req) ; maybe_new_deps = true ;                                            break ;
 			case Special::InfiniteDep  :
 			case Special::InfinitePath : status = Status::Err ; audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ; break ;
 			case Special::Codec        : _submit_codec(req) ;                                                                  break ;
@@ -1022,9 +1058,10 @@ namespace Engine {
 				audit_end_special( req , special_step , modified , worst_target ) ;
 			} break ;
 		DF}                                                                                                               // NO_COV
+		return maybe_new_deps ;
 	}
 
-	void JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
+	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
 		using Step = JobStep ;
 		Rule            r     = rule() ;
 		Req             req   = ri.req ;
@@ -1035,7 +1072,7 @@ namespace Engine {
 		SWEAR( !ri.running() , ri ) ;
 		for( Req rr : running_reqs() ) if (rr!=req) {
 			ReqInfo const& cri = c_req_info(rr) ;
-			ri.step(cri.step(),job) ;                                                  // Exec or Queued, same as other reqs
+			ri.set_step(cri.step(),job) ;                                              // Exec or Queued, same as other reqs
 			ri.inc_wait() ;
 			if (ri.step()==Step::Exec) req->audit_job(Color::Note,"started",job) ;
 			SubmitInfo si = {
@@ -1048,7 +1085,7 @@ namespace Engine {
 			//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("other_req",rr,ri) ;
 			SWEAR( cache_hit_info>=CacheHitInfo::Miss , cache_hit_info ) ;             // how can job be running if it is cached ?
-			return ;
+			return false/*maybe_new_deps*/ ;
 		}
 		//
 		for( Node t : targets() ) t->set_buildable() ;                                 // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
@@ -1094,8 +1131,7 @@ namespace Engine {
 					case CacheHitInfo::Hit : {
 						//
 						if (+cache_digest.file_actions_msg) {
-							req->audit_job ( Color::Note , "wash" , job                             ) ;
-							req->audit_info( Color::Note , cache_digest.file_actions_msg , 1/*lvl*/ ) ;
+							req->audit_info( Color::Note , cache_digest.file_actions_msg , 0/*lvl*/ ) ;
 							trace("hit_msg",cache_digest.file_actions_msg,ri) ;
 						}
 						//
@@ -1107,7 +1143,7 @@ namespace Engine {
 						Job::s_record_thread.emplace(job,::move(job_info.start)) ;
 						Job::s_record_thread.emplace(job,::move(job_info.end  )) ;
 						//
-						ri.step(Step::Hit,job) ;
+						ri.set_step(Step::Hit,job) ;
 						JobExec je { job , New } ;                                                                  // job starts and ends, no host
 						je.max_stderr_len = job->rule()->start_ancillary_attrs.spec.max_stderr_len ;                // in case it is not dynamic
 						if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
@@ -1127,7 +1163,7 @@ namespace Engine {
 					break ;
 				DF}                                                                                                 // NO_COV
 				for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
-				return ;                                                                                            // ... so we have to ensure ri.iter is still a legal iterator
+				return true/*maybe_new_deps*/ ;                                                                     // ... so we have to ensure ri.iter is still a legal iterator
 			}
 		}
 	CacheDone :
@@ -1142,7 +1178,7 @@ namespace Engine {
 			req->audit_stderr(                         job , { with_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
 			run_status = RunStatus::Error ;
 			trace("no_rsrcs",ri) ;
-			return ;
+			return false/*maybe_new_deps*/ ;
 		}
 		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ; // mark new deps as resources only
 		for( auto const& [dn,dd] : early_deps ) {
@@ -1153,11 +1189,11 @@ namespace Engine {
 		}
 		if (ri.waiting()) {
 			trace("waiting_rsrcs") ;
-			return ;
+			return false/*maybe_new_deps*/ ;
 		}
 		//
 		ri.inc_wait() ;                                                                                           // set before calling submit call back as in case of flash execution, we must be clean
-		ri.step(Step::Queued,job) ;
+		ri.set_step(Step::Queued,job) ;
 		backend = submit_rsrcs_attrs.backend ;
 		if (!has_upload(req->cache_method)) cache_idx1 = 0 ;
 		try {
@@ -1178,14 +1214,15 @@ namespace Engine {
 			for( Node t : targets() ) t->busy = true ;                                                            // make targets busy once we are sure job is submitted
 		} catch (::string const& e) {
 			ri.dec_wait() ;                                                                                       // restore n_wait as we prepared to wait
-			ri.step(Step::None,job) ;
+			ri.set_step(Step::None,job) ;
 			status  = Status::EarlyErr ;
 			req->audit_job ( Color::Err  , "failed" , job ) ;
 			req->audit_info( Color::Note , e , 1/*lvl*/   ) ;
 			trace("submit_err",ri) ;
-			return ;
+			return false/*maybe_new_deps*/ ;
 		} ;
 		trace("submitted",ri) ;
+		return false/*maybe_new_deps*/ ;
 	}
 
 	void JobData::audit_end_special( Req req , SpecialStep step , Bool3 modified , Node node ) const {
