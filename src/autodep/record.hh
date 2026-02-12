@@ -416,8 +416,7 @@ public :
 			if      constexpr (::is_integral_v<T>) ok = rc<0 ;
 			else if constexpr (::is_pointer_v <T>) ok = rc   ;
 			//
-			SWEAR( !s_autodep_env().readdir_ok , file_loc,real,comment ) ;                  // else should have already been filtered out
-			if ( ok && +real ) {
+			if ( ok && +real && !s_autodep_env().readdir_ok ) {                             // readdir_ok may be false when ptrace as it is inaccessible upfront
 				if (file_loc==FileLoc::RepoRoot) r.report_access( FileLoc::Repo , { .comment=comment , .digest={.read_dir=true} , .files={{"."         ,{}}} } ) ; // repo root must be analyzed ...
 				else                             r.report_access( file_loc      , { .comment=comment , .digest={.read_dir=true} , .files={{::move(real),{}}} } ) ; // ... when reading it
 			}
