@@ -329,7 +329,6 @@ int main( int argc , char** argv ) {
 	//
 	Trace::s_backup_trace = true                                               ;
 	g_writable            = !app_init({ .cd_root=false  ,.chk_version=Maybe }) ;                                                // server is always launched at root
-	if (Record::s_is_simple(*g_repo_root_s)) exit(Rc::Usage,"cannot use lmake inside a system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
 	_chk_os() ;
 	::umap_ss user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ; // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
@@ -385,6 +384,9 @@ int main( int argc , char** argv ) {
 	if (_g_server.writable) Trace::s_new_trace_file( g_config->local_admin_dir_s+"trace/"+*g_exe_name ) ;
 	Codec::CodecLock::s_init() ;
 	Job             ::s_init() ;
+	//
+	if ( Record::s_is_simple( *g_repo_root_s , No/*deps_in_system*/ ) )
+		exit(Rc::Usage,"cannot use lmake inside a system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
 	//                             vvvvvvvvvvvvvv
 	/**/   bool      interrupted = _engine_loop() ;
 	//                             ^^^^^^^^^^^^^^

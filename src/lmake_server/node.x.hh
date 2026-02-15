@@ -156,7 +156,6 @@ namespace Engine {
 		static Hash::Crc _s_src_dirs_crc ;
 		// cxtors & casts
 		using NodeBase::NodeBase ;
-		explicit operator ::string() const ;
 	} ;
 
 	//
@@ -530,7 +529,7 @@ namespace Engine {
 	// Node
 	//
 
-	inline Node::operator ::string() const { return self->name() ; }
+//	inline Node::operator ::string() const { return self->name() ; }
 
 	//
 	// NodeData

@@ -185,14 +185,15 @@ namespace Engine::Makefiles {
 		::string tmp_dir_s = cat(_g_tmp_dir_s,action,'/')            ;
 		//
 		//
-		gather.autodep_env.fqdn        = fqdn()                                                                                                                    ;
-		gather.autodep_env.src_dirs_s  = {"/"}                                                                                                                     ;
-		gather.autodep_env.repo_root_s = *g_repo_root_s                                                                                                            ;
-		gather.cmd_line                = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , cat('.',action,".top.") , sub_repos } ;
-		gather.lmake_root_s            = *g_lmake_root_s                                                                                                           ;
-		gather.child_stdin             = Child::NoneFd                                                                                                             ;
-		gather.child_stdout            = Child::PipeFd                                                                                                             ;
-		gather.child_stderr            = Child::JoinFd                                                                                                             ;
+		gather.autodep_env.fqdn           = fqdn()                                                                                                                    ;
+		gather.autodep_env.src_dirs_s     = {"/"}                                                                                                                     ;
+		gather.autodep_env.repo_root_s    = *g_repo_root_s                                                                                                            ;
+		gather.autodep_env.deps_in_system = true                                                                                                                      ; // in case we want all deps
+		gather.cmd_line                   = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , cat('.',action,".top.") , sub_repos } ;
+		gather.lmake_root_s               = *g_lmake_root_s                                                                                                           ;
+		gather.child_stdin                = Child::NoneFd                                                                                                             ;
+		gather.child_stdout               = Child::PipeFd                                                                                                             ;
+		gather.child_stderr               = Child::JoinFd                                                                                                             ;
 		//
 		{	struct SavTmpDir {
 				SavTmpDir (::string const& val) { set_env( "TMPDIR" , val ) ; }

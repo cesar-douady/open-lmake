@@ -1,24 +1,25 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 26      ; // d09ff768ddb77cfe078448e8432a6220
+	uint64_t    constexpr Cache = 27      ; // 9098cbd99158dfaac667b91d55bf0432
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 22      ; // 93d10980bed89ffe520b0d2caa47cc3c
-	uint64_t    constexpr Job   = 12      ; // f3268f3e78124ecd620f327a5378672a
+	uint64_t    constexpr Repo  = 23      ; // 6634f87503f2d94fd56bd5442444f960
+	uint64_t    constexpr Job   = 13      ; // a4d6ea7f91a02cb2b0fb91e0d9086721
 	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : d09ff768ddb77cfe078448e8432a6220 *
+// * Cache : 9098cbd99158dfaac667b91d55bf0432 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
-//		if (!enable        ) res << 'd' ;
-//		if (readdir_ok     ) res << 'D' ;
-//		if (ignore_stat    ) res << 'i' ;
-//		if (auto_mkdir     ) res << 'm' ;
-//		if (mount_chroot_ok) res << 'M' ;
+//		if (!enable         ) res << 'd' ;
+//		if ( readdir_ok     ) res << 'D' ;
+//		if ( ignore_stat    ) res << 'i' ;
+//		if ( auto_mkdir     ) res << 'm' ;
+//		if ( mount_chroot_ok) res << 'M' ;
+//		if ( deps_in_system ) res << 'X' ;
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -182,6 +183,7 @@ namespace Version {
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 //		bool                             mount_chroot_ok  = false ;
 //		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
+//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 //		KeyedService                     service          ;
 //		::string                         sub_repo_s       ;                           // relative to repo_root_s
@@ -1070,16 +1072,17 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 93d10980bed89ffe520b0d2caa47cc3c *
+// * Repo : 6634f87503f2d94fd56bd5442444f960 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
-//		if (!enable        ) res << 'd' ;
-//		if (readdir_ok     ) res << 'D' ;
-//		if (ignore_stat    ) res << 'i' ;
-//		if (auto_mkdir     ) res << 'm' ;
-//		if (mount_chroot_ok) res << 'M' ;
+//		if (!enable         ) res << 'd' ;
+//		if ( readdir_ok     ) res << 'D' ;
+//		if ( ignore_stat    ) res << 'i' ;
+//		if ( auto_mkdir     ) res << 'm' ;
+//		if ( mount_chroot_ok) res << 'M' ;
+//		if ( deps_in_system ) res << 'X' ;
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -1288,6 +1291,7 @@ namespace Version {
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 //		bool                             mount_chroot_ok  = false ;
 //		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
+//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 //		KeyedService                     service          ;
 //		::string                         sub_repo_s       ;                           // relative to repo_root_s
@@ -1575,6 +1579,7 @@ namespace Version {
 //			::string cache_name ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
+//			::string   chroot_dir_s    ;
 //			bool       dyn_env         = false ;
 //			bool       dyn_views       = false ;
 //			bool       auto_mkdir      = false ;
@@ -1582,7 +1587,6 @@ namespace Version {
 //			bool       ignore_stat     = false ;
 //			::vector_s interpreter     ;
 //			bool       mount_chroot_ok = false ;
-//			bool       readdir_ok      = false ;
 //			bool       stderr_ok       = false ;
 //			JobSpace   job_space       ;
 //			// END_OF_VERSIONING
@@ -1590,10 +1594,10 @@ namespace Version {
 //			bool          dyn_env        = false               ;
 //			bool          chk_abs_paths  = false               ;
 //			ChrootActions chroot_actions ;
-//			::string      chroot_dir_s   ;
 //			::vmap_ss     env            ;
 //			::string      lmake_root_s   ;
 //			AutodepMethod method         = AutodepMethod::Dflt ;
+//			bool          readdir_ok     = false               ;
 //			Time::Delay   timeout        ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
 //			bool          use_script     = false               ;
 //			// END_OF_VERSIONING
@@ -2377,16 +2381,17 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : f3268f3e78124ecd620f327a5378672a *
+// * Job : a4d6ea7f91a02cb2b0fb91e0d9086721 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
-//		if (!enable        ) res << 'd' ;
-//		if (readdir_ok     ) res << 'D' ;
-//		if (ignore_stat    ) res << 'i' ;
-//		if (auto_mkdir     ) res << 'm' ;
-//		if (mount_chroot_ok) res << 'M' ;
+//		if (!enable         ) res << 'd' ;
+//		if ( readdir_ok     ) res << 'D' ;
+//		if ( ignore_stat    ) res << 'i' ;
+//		if ( auto_mkdir     ) res << 'm' ;
+//		if ( mount_chroot_ok) res << 'M' ;
+//		if ( deps_in_system ) res << 'X' ;
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -2495,6 +2500,7 @@ namespace Version {
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 //		bool                             mount_chroot_ok  = false ;
 //		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
+//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 //		KeyedService                     service          ;
 //		::string                         sub_repo_s       ;                           // relative to repo_root_s

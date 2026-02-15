@@ -127,6 +127,9 @@ namespace Engine::Persistent {
 	// NodeBase
 	//
 
+	Node NodeBase::s_top            ;         // Node("/")
+	bool NodeBase::s_deps_in_system = false ; // if true <= a source dir contains or is contained in a plain system dir
+
 	Mutex<MutexLvl::Node,true/*Shared*/> NodeDataBase::_s_mutex ;
 
 	NodeBase::NodeBase(::string const& name_) {
@@ -146,9 +149,8 @@ namespace Engine::Persistent {
 			if (!n) n = _g_node_file.emplace_back(nn) ;
 			self = n ;
 		} else {
-			::pair<NodeName/*top*/,::vector<NodeName>/*created*/> top_created = _g_node_name_file.insert_chain(name_,'/') ;
-			SWEAR(+top_created) ;
-			Node last_n ;
+			::pair<NodeName/*top*/,::vector<NodeName>/*created*/> top_created = _g_node_name_file.insert_chain(name_,'/') ; SWEAR(+top_created) ;
+			Node                                                  last_n      ;                                             if (name_[0]=='/') last_n = Node::s_top ;
 			if (+top_created.first)
 				last_n = _g_node_name_file.c_at(top_created.first) ;
 			for( NodeName nn : top_created.second ) {
@@ -197,7 +199,7 @@ namespace Engine::Persistent {
 	static void _compile_srcs() {
 		Trace trace("_compile_srcs") ;
 		g_src_dirs_s = New ;
-		for( Node const n : Node::s_srcs(true/*dirs*/) ) g_src_dirs_s->push_back(n->name()+'/') ;
+		for( Node const n : Node::s_srcs(true/*dirs*/) ) g_src_dirs_s->push_back(cat(n->name(),add_slash)) ; // n->name() may be "/", hence may end with /
 		trace("done") ;
 	}
 
@@ -568,6 +570,7 @@ namespace Engine::Persistent {
 			for( ::string const& src : src_names ) content << src <<'\n' ;
 			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT} ).write( content ) ;
 		}
+		Node::s_top = {New,"/"} ;
 		for( ::string& src : src_names ) {
 			throw_unless( +src , "found an empty source" ) ;
 			bool is_dir_ = is_dir_name(src) ;
@@ -575,14 +578,15 @@ namespace Engine::Persistent {
 				if ( ::string c=mk_canon(src) ; c!=src ) throw cat("source ",is_dir_?"dir ":"","is not cannonical : ",src," is not canonical (consider ",c,')') ;
 				else                                     throw cat("source ",is_dir_?"dir ":"","is not cannonical : ",src                                     ) ;
 			}
-			if (Record::s_is_simple(src)) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within system directories") ;
 			//
-			if (is_dir_) {
-				if ( size_t lvl=uphill_lvl(src) ; lvl>=repo_root_depth ) {
+			if (is_dir_) { //!                deps_in_system
+				if ( Record::s_is_simple( src , Yes        ) ) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within ",Record::SpecialSystemDirMsg) ;
+				if ( Record::s_is_simple( src , No         ) ) Node::s_deps_in_system = true ;
+				if ( size_t lvl=uphill_lvl(src) ; lvl>=repo_root_depth   ) {
 					if (lvl==repo_root_depth) throw cat("use absolute name to access source dir "   ,src," from repo ",*g_repo_root_s,rm_slash) ;
 					else                      throw cat("too many .. to access relative source dir ",src," from repo ",*g_repo_root_s,rm_slash) ;
 				}
-				src.pop_back() ;
+				rm_slash(src) ;
 			}
 			FileTag               tag ;
 			RealPath::SolveReport sr  = real_path.solve(src,true/*no_follow*/) ;
@@ -600,7 +604,7 @@ namespace Engine::Persistent {
 				DN}
 				if ( has_codecs && tag==FileTag::Reg ) lcl_src_regs.insert(src) ;
 			}
-			srcs.emplace_back( Node(New,src,sr.file_loc>FileLoc::Repo) , tag ) ;               // external src dirs need no uphill dir
+			srcs.emplace_back( Node(New,src,sr.file_loc>FileLoc::Repo/*no_dir*/) , tag ) ;     // external src dirs need no uphill dir
 		}
 		// format old srcs
 		for( bool is_dir : {false,true} ) for( Node s : Node::s_srcs(is_dir) ) old_srcs.emplace(s,is_dir?FileTag::Dir:FileTag::None) ;           // dont care whether we delete a regular file or a link

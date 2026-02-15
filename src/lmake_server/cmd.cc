@@ -658,29 +658,35 @@ namespace Engine {
 		throw "no mark specified"s ;
 	}
 
-	template<class T> struct Show {
-		static constexpr Color HN = Color::HiddenNote ;
+	struct Show {
+		static constexpr Color CH = Color::HiddenNote ;
+		static constexpr Color CN = Color::None       ;
+		static constexpr Color CW = Color::Warning    ;
 		// cxtors & casts
-		Show( Fd fd_ , ReqOptions const& ro_ , DepDepth lvl_=0 ) : fd{fd_} , ro{ro_} , lvl{lvl_} , verbose{ro_.flags[ReqFlag::Verbose]} , porcelaine{ro_.flags[ReqFlag::Porcelaine]} {
-			if (porcelaine) audit( fd , ro , verbose?"("                :"{" , true/*as_is*/ , lvl ) ; // if verbose, order is guaranteed so that dependents appear before deps
-		}
-		~Show() {
-			if (porcelaine) audit( fd , ro , verbose?first(")",",)",")"):"}" , true/*as_is*/ , lvl ) ; // beware of singletons
-		}
+		Show( Fd fd_ , ReqOptions const& ro_ , DepDepth lvl_=0 ) :
+			fd         { fd_                            }
+		,	ro         { ro_                            }
+		,	lvl        { lvl_                           }
+		,	quiet      { ro_.flags[ReqFlag::Quiet     ] }
+		,	verbose    { ro_.flags[ReqFlag::Verbose   ] }
+		,	porcelaine { ro_.flags[ReqFlag::Porcelaine] }
+		{         if (porcelaine) { audit( fd , ro , "{" , true/*as_is*/ , lvl ) ; firsts.emplace_back() ; } }
+		~Show() { if (porcelaine)   audit( fd , ro , "}" , true/*as_is*/ , lvl ) ;                           }
 		// data
-		Fd                 fd         ;
-		ReqOptions const&  ro         ;
-		DepDepth           lvl        = 0                ;
-		::uset<Job >       job_seen   = {}               ;
-		::uset<Node>       node_seen  = {}               ;
-		::vector<T>        backlog    = {}               ;
-		bool               verbose    = false/*garbage*/ ;
-		bool               porcelaine = false/*garbage*/ ;
-		First              first      ;
+		Fd                fd         ;
+		ReqOptions const& ro         ;
+		DepDepth          lvl        = 0                ;
+		::uset<Job >      job_seen   = {}               ;
+		::uset<Node>      node_seen  = {}               ;
+		bool              quiet      = false/*garbage*/ ;
+		bool              verbose    = false/*.      */ ;
+		bool              porcelaine = false/*.      */ ;
+		::vector<First>   firsts     ;
 	} ;
 
-	struct ShowBom : Show<Node> {
-		using Show<Node>::Show ;
+	struct ShowBom : Show {
+		// cxtors & casts
+		using Show::Show ;
 		// services
 		void show_job(Job job) {
 			if (!job_seen.insert(job).second) return ;
@@ -690,79 +696,73 @@ namespace Engine {
 			if (!node_seen.insert(node).second) return ;
 			//
 			node->set_buildable() ;
-			if (!node->is_src_anti()) {
-				if (verbose) backlog.push_back(node) ;
-				lvl += verbose ;
-				for( Job j : node->candidate_job_tgts() ) show_job(j) ;
-				lvl -= verbose ;
-				if (+backlog) backlog.pop_back() ;
-			} else if (node->status()<=NodeStatus::Makable) {
-				Color    c = node->buildable==Buildable::Src ? Color::None : Color::Warning ;
-				DepDepth l = lvl - backlog.size()                                           ;
-				if (porcelaine) { //!                                                                               as_is
-					for( Node n : backlog ) audit( fd , ro ,      cat(first(' ',','),' ',mk_py_str(n   ->name())) , true  , l++ ) ;
-					/**/                    audit( fd , ro ,      cat(first(' ',','),' ',mk_py_str(node->name())) , true  , lvl ) ;
-				} else {
-					for( Node n : backlog ) audit( fd , ro , HN ,                        mk_file  (n   ->name())  , false , l++ ) ;
-					/**/                    audit( fd , ro , c  ,                        mk_file  (node->name())  , false , lvl ) ;
+			bool buildable = node->buildable> Buildable::No  ;
+			bool is_src    = node->buildable==Buildable::Src ;
+			if ( !verbose && !buildable ) return ;
+			//
+			if ( !node->is_src_anti() && buildable ) {
+				if (!quiet) { //!                                                                                          as_is
+					if (porcelaine) { audit( fd , ro ,      cat(firsts.back()("  ",", "),mk_py_str(node->name())," : {") , true  , lvl ) ; firsts.emplace_back() ; }
+					else              audit( fd , ro , CH ,                              mk_file  (node->name())         , false , lvl ) ;
+					lvl++ ;
 				}
-				backlog.clear() ;
+				for( Job j : node->candidate_job_tgts() ) show_job(j) ;
+				if (!quiet) {
+					lvl-- ;
+					if (porcelaine) { audit( fd , ro , "  }" , true/*as_is*/ , lvl ) ; firsts.pop_back() ; }
+				}
+			} else if ( verbose || node->status()<=NodeStatus::Makable ) { //!                                                                                              as_is
+				if      (porcelaine) audit( fd , ro ,                               cat(firsts.back()("  ",", "),mk_py_str(node->name())," : ",buildable?"True":"False") , true  , lvl ) ;
+				else if (verbose   ) audit( fd , ro , !buildable?CH:is_src?CN:CW  , cat(buildable?'+':'!',' '   ,mk_file  (node->name())                               ) , false , lvl ) ;
+				else                 audit( fd , ro , !buildable?CH:is_src?CN:CW  ,                              mk_file  (node->name())                                 , false , lvl ) ;
 			}
 		}
 	} ;
 
-	struct ShowRunning : Show<Job> {
+	struct ShowRunning : Show {
 		static constexpr BitMap<JobStep> InterestingSteps = { JobStep::Dep/*waiting*/ , JobStep::Queued , JobStep::Exec } ;
-		using Show<Job>::Show ;
+		// cxtors & casts
+		using Show::Show ;
 		// services
 		void show_job(Job job) {
 			JobStep step = {} ;
 			for( Req r : Req::s_reqs_by_start() )
-				if ( JobStep s = job->c_req_info(r).step() ; InterestingSteps[s] && step!=s ) { // process job as soon as one Req is waiting/running, and this must be coherent
-					SWEAR( !step , step,s ) ;
+				if ( JobStep s = job->c_req_info(r).step() ; InterestingSteps[s] ) {
 					step = s ;
+					break ;
 				}
-			Color c   = {}             ;
-			char  hdr = '?'/*garbage*/ ;
-			switch (step) {
-				case JobStep::Dep    :                               break ;
-				case JobStep::Queued : c = Color::Note ; hdr = 'Q' ; break ;
-				case JobStep::Exec   :                   hdr = 'R' ; break ;
-				default : return ;
-			}
-			if (!job_seen.insert(job).second) return ;
+			if (!step                       ) return ;                   // process job only if a Req is waiting/running
+			if (!job_seen.insert(job).second) return ;                   // already done
 			//
-			switch (step) {
-				case JobStep::Dep    :
-					if (verbose) backlog.push_back(job) ;
-				break ;
-				case JobStep::Queued :
-				case JobStep::Exec   : {
-					SWEAR( lvl>=backlog.size() , lvl , backlog.size() ) ;
-					DepDepth l = lvl - backlog.size() ;
-					if (porcelaine) { //!                                                                                                                                             as_is
-						for( Job j : backlog ) audit( fd , ro ,      cat(first(' ',','),' ',"( '",'W',"' , ",mk_py_str(j  ->rule()->user_name())," , ",mk_py_str(j  ->name())," )") , true  , l++ ) ;
-						/**/                   audit( fd , ro ,      cat(first(' ',','),' ',"( '",hdr,"' , ",mk_py_str(job->rule()->user_name())," , ",mk_py_str(job->name())," )") , true  , lvl ) ;
-					} else {
-						for( Job j : backlog ) audit( fd , ro , HN , cat(                         'W',' '   ,          j  ->rule()->user_name() ,' '  ,mk_file  (j  ->name())     ) , false , l++ ) ;
-						/**/                   audit( fd , ro , c  , cat(                         hdr,' '   ,          job->rule()->user_name() ,' '  ,mk_file  (job->name())     ) , false , lvl ) ;
-					}
-					backlog.clear() ;
-					return ;
+			bool     running = step==JobStep::Exec ;
+			::string job_str =
+				porcelaine ? cat("( ",mk_py_str(job->rule()->user_name())," , ",mk_py_str(job->name())," )")
+				:            cat(               job->rule()->user_name() ,' '  ,mk_file  (job->name())     )
+			;
+			if (step==JobStep::Dep) {
+				if (!quiet) { //!                                                                          as_is
+					if (porcelaine) { audit( fd , ro ,      cat(firsts.back()("  ",", "),job_str," : {") , true  , lvl ) ; firsts.emplace_back() ; }
+					else              audit( fd , ro , CH , cat("W "                    ,job_str       ) , false , lvl ) ;
+					lvl += verbose ;
 				}
-			DF}                                                                                 // NO_COV
-			lvl += verbose ;
-			for( Dep const& dep : job->deps ) show_node(dep) ;
-			lvl -= verbose ;
-			if (+backlog) backlog.pop_back() ;
+				for( Dep const& dep : job->deps ) show_node(dep) ;
+				if (!quiet) {
+					lvl -= verbose ;
+					if (porcelaine) { audit( fd , ro , "  }" , true/*as_is*/ , lvl ) ; firsts.pop_back() ; }
+				}
+			} else { //!                                                                                                                as_is
+				if (porcelaine) { audit( fd , ro ,                 cat(firsts.back()("  ",", "),job_str," : ",running?"True":"False") , true  , lvl ) ; firsts.emplace_back() ; }
+				else              audit( fd , ro , running?CN:CH , cat(running?"R ":"Q "       ,job_str                             ) , false , lvl ) ;
+			}
 		}
 		void show_node(Node node) {
-			for( Req r : Req::s_reqs_by_start() )
-				if ( NodeReqInfo const& cri = node->c_req_info(r) ; cri.waiting() ) {           // process node as soon as one Req is waiting
-					if (!node_seen.insert(node).second) return ;
-					for( Job j : node->conform_job_tgts(cri) ) show_job(j) ;
-					return ;
-				}
+			for( Req r : Req::s_reqs_by_start() ) {
+				NodeReqInfo const& cri = node->c_req_info(r) ;
+				if (!cri.waiting()                ) continue ;           // process node only if a Req is waiting
+				if (!node_seen.insert(node).second) return   ;           // already done
+				for( Job j : node->conform_job_tgts(cri) ) show_job(j) ;
+				return ;
+			}
 		}
 	} ;
 

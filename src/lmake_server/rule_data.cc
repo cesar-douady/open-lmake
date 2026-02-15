@@ -730,7 +730,7 @@ namespace Engine {
 			if ( submit_rsrcs_attrs    .spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs    .spec.backend                ) ) ;
 			if (+submit_ancillary_attrs.spec.cache_name                ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs.spec.cache_name               ) ;
 			if ( start_rsrcs_attrs     .spec.chk_abs_paths             ) entries.emplace_back( "check_abs_paths"     , cat        (start_rsrcs_attrs     .spec.chk_abs_paths          ) ) ;
-			if (+start_rsrcs_attrs     .spec.chroot_dir_s              ) entries.emplace_back( "chroot_dir"          , no_slash   (start_rsrcs_attrs     .spec.chroot_dir_s           ) ) ;
+			if (+start_cmd_attrs       .spec.chroot_dir_s              ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs       .spec.chroot_dir_s           ) ) ;
 			if (+start_rsrcs_attrs     .spec.chroot_actions            ) entries.emplace_back( "chroot_actions"      , cat        (start_rsrcs_attrs     .spec.chroot_actions         ) ) ;
 			if (+start_ancillary_attrs .spec.zlvl                      ) entries.emplace_back( "compression"         , cat        (start_ancillary_attrs .spec.zlvl                   ) ) ;
 			if ( force                                                 ) entries.emplace_back( "force"               , cat        (force                                              ) ) ;
@@ -745,7 +745,7 @@ namespace Engine {
 			if ( n_runs                                                ) entries.emplace_back( "max_runs"            , ::to_string(n_runs                                             ) ) ;
 			if ( n_submits                                             ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                          ) ) ;
 			if ( start_cmd_attrs       .spec.mount_chroot_ok           ) entries.emplace_back( "mount_chroot_ok"     , cat        (start_cmd_attrs       .spec.mount_chroot_ok        ) ) ;
-			if ( start_cmd_attrs       .spec.readdir_ok                ) entries.emplace_back( "readdir_ok"          , cat        (start_cmd_attrs       .spec.readdir_ok             ) ) ;
+			if ( start_rsrcs_attrs     .spec.readdir_ok                ) entries.emplace_back( "readdir_ok"          , cat        (start_rsrcs_attrs     .spec.readdir_ok             ) ) ;
 			if (+start_cmd_attrs       .spec.job_space.repo_view_s     ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs       .spec.job_space.repo_view_s  ) ) ;
 			if (+start_ancillary_attrs .spec.start_delay               ) entries.emplace_back( "start_delay"         ,             start_ancillary_attrs .spec.start_delay.short_str()  ) ;
 			if ( start_cmd_attrs       .spec.stderr_ok                 ) entries.emplace_back( "stderr_ok"           , cat        (start_cmd_attrs       .spec.stderr_ok              ) ) ;

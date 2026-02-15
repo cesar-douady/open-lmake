@@ -73,6 +73,7 @@ struct AutodepEnv : RealPathEnv {
 	bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 	bool                             mount_chroot_ok  = false ;
 	bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
+	bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 	::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 	KeyedService                     service          ;
 	::string                         sub_repo_s       ;                           // relative to repo_root_s

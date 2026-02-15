@@ -179,6 +179,9 @@ namespace Engine::Persistent {
 		static void          s_srcs( bool dirs , bool add , ::vector<Node> const& ) ;   // erase (!add) or insert (add)
 		//
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
+		// static data
+		static Node s_top            ;                                                  // Node("/")
+		static bool s_deps_in_system ;                                                  // if true <= a source dir contains or is contained in a plain system dir
 		// cxtors & casts
 		using Base::Base ;
 		NodeBase(           ::string const& name                     ) ;                // dont create node if does not already exist

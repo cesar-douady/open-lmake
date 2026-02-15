@@ -38,4 +38,4 @@ else :
 	#
 	proc()
 
-	assert xp=={('R','Wait','wait')},xp
+	assert xp=={('Cpy','dut'):{('Wait','wait'):True}},xp

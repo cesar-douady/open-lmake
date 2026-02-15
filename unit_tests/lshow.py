@@ -26,7 +26,7 @@ if __name__!='__main__' :
 
 	class CatSh(Cat) :
 		target = '{File1}+{File2}_sh'
-		cmd    = 'cat {FIRST} {SECOND}'
+		cmd    = 'cat bad 2>/dev/null ; cat {FIRST} {SECOND}'
 
 	class CatPy(Cat,PyRule) :
 		target = '{File1}+{File2}_py'
@@ -87,13 +87,25 @@ else :
 		x = sp.run(('lshow','--version'),stderr=sp.PIPE,universal_newlines=True).stderr
 		assert x.startswith('version ')
 
-		x,px = lshow( ('-b','--bom') , 'hello+world_sh' , 'hello+world_py' )
+		x,px = lshow( ('-b','--bom') , 'hello+world_py' , 'hello+world_sh' )
 		assert 'hello' in x and 'world' in x
-		assert px=={'hello','world'}
+		assert px=={'hello+world_py':{'hello':True,'world':True},'hello+world_sh':{}},px
+
+		x,px = lshow( ('-b','--bom') , 'dut' )
+		assert 'hello' in x and 'world' in x
+		assert px=={'dut':{'hello+world_sh':{'hello':True,'world':True},'hello+world_py':{}}},px
 
 		x,px = lshow( ('-b','--bom') , '--verbose' , 'hello+world_sh' )
 		assert 'hello' in x and 'world' in x and 'hello+world_sh' in x
-		assert set(px)=={'hello+world_sh','hello','world'} and px[0]=='hello+world_sh'
+		assert px=={'hello+world_sh':{'bad':False,'hello':True,'world':True}},px
+
+		x,px = lshow( ('-b','--bom') , '--quiet' , 'dut' )
+		assert 'hello' in x and 'world' in x
+		assert px=={'hello':True,'world':True},px
+
+		x,px = lshow( ('-b','--bom') , '--verbose' , '--quiet' , 'hello+world_sh' )
+		assert 'hello' in x and 'world' in x and 'bad' in x
+		assert px=={'bad':False,'hello':True,'world':True},px
 
 		x,px = lshow( ('-c','--cmd') , 'hello+world_sh' )
 		e    = px['hello+world_sh']
@@ -196,6 +208,7 @@ else :
 		,	( 'washed'            , ''               )
 		,	( 'stdout'            , 'hello+world_sh' )
 		,	( 'start_job'         , ''               )
+		,	( 'open(read)'        , 'bad'            )
 		,	( 'open(read)'        , 'hello'          )
 		,	( 'open(read)'        , 'world'          )
 		,	( 'end_job'           , '0000'           )

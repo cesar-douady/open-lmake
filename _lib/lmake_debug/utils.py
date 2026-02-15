@@ -137,7 +137,6 @@ class Job :
 		if self.chroot_dir      : simple , res = False , res+f' -c{mk_shell_str(     self.chroot_dir            )}'
 		if self.chroot_user     :          res =         res+f' -C{mk_shell_str(     self.chroot_user           )}'
 		if self.cwd             : simple , res = False , res+f' -d{mk_shell_str(     self.cwd                   )}'
-		if self.mount_chroot_ok :          res =         res+ ' -M'
 		if self.readdir_ok      :          res =         res+ ' -D'
 		if True                 :          res =         res+f' -e{mk_shell_str(repr(keep_env                  ))}'
 		if True                 :          res =         res+ ' -k'
@@ -145,6 +144,7 @@ class Job :
 		if self.lmake_root      : simple , res = False , res+f' -r{mk_shell_str(     self.lmake_root            )}'
 		if self.lmake_view      : simple , res = False , res+f' -L{mk_shell_str(     self.lmake_view            )}'
 		if True                 :          res =         res+f' -m{                  self.autodep_method         }'
+		if self.mount_chroot_ok :          res =         res+ ' -M'
 		if True                 :          res =         res+f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
 		if self.repo_view       : simple , res = False , res+f' -R{mk_shell_str(     self.repo_view             )}'
 		if self.source_dirs     : simple , res = False , res+f' -s{mk_shell_str(repr(self.source_dirs          ))}'

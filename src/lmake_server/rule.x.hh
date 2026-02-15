@@ -246,11 +246,11 @@ namespace Engine {
 			using namespace Attrs ;
 			dyn_env = false ;                                                                                                                                 // update solves dynamic val
 			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"      ) ;
+			Attrs::acquire_from_dct( chroot_dir_s           , py_dct , "chroot_dir"      ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
 			Attrs::acquire_env     ( env                    , py_dct , "env"             ) ;
 			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat"     ) ;
 			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter"     ) ;
 			Attrs::acquire_from_dct( mount_chroot_ok        , py_dct , "mount_chroot_ok" ) ;
-			Attrs::acquire_from_dct( readdir_ok             , py_dct , "readdir_ok"      ) ;
 			Attrs::acquire_from_dct( stderr_ok              , py_dct , "stderr_ok"       ) ;
 			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"      ) ; if (+job_space.lmake_view_s)              add_slash(job_space.lmake_view_s) ;
 			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"       ) ; if (+job_space.repo_view_s )              add_slash(job_space.repo_view_s ) ;
@@ -266,6 +266,7 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING REPO
+		::string   chroot_dir_s    ;
 		bool       dyn_env         = false ;
 		bool       dyn_views       = false ;
 		bool       auto_mkdir      = false ;
@@ -273,7 +274,6 @@ namespace Engine {
 		bool       ignore_stat     = false ;
 		::vector_s interpreter     ;
 		bool       mount_chroot_ok = false ;
-		bool       readdir_ok      = false ;
 		bool       stderr_ok       = false ;
 		JobSpace   job_space       ;
 		// END_OF_VERSIONING
@@ -286,10 +286,10 @@ namespace Engine {
 			dyn_env = false ;                                                                             // update solves dynamic val
 			Attrs::acquire_from_dct( chk_abs_paths  , py_dct , "check_abs_paths"                      ) ;
 			Attrs::acquire_from_dct( chroot_actions , py_dct , "chroot_actions"                       ) ;
-			Attrs::acquire_from_dct( chroot_dir_s   , py_dct , "chroot_dir"                           ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
 			Attrs::acquire_env     ( env            , py_dct , "env"                                  ) ;
 			Attrs::acquire_from_dct( lmake_root_s   , py_dct , "lmake_root"                           ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
 			Attrs::acquire_from_dct( method         , py_dct , "autodep"                              ) ;
+			Attrs::acquire_from_dct( readdir_ok     , py_dct , "readdir_ok"                           ) ;
 			Attrs::acquire_from_dct( timeout        , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
 			Attrs::acquire_from_dct( use_script     , py_dct , "use_script"                           ) ;
 			::sort(env) ;                                                                                 // stabilize rsrcs crc
@@ -302,10 +302,10 @@ namespace Engine {
 		bool          dyn_env        = false               ;
 		bool          chk_abs_paths  = false               ;
 		ChrootActions chroot_actions ;
-		::string      chroot_dir_s   ;
 		::vmap_ss     env            ;
 		::string      lmake_root_s   ;
 		AutodepMethod method         = AutodepMethod::Dflt ;
+		bool          readdir_ok     = false               ;
 		Time::Delay   timeout        ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
 		bool          use_script     = false               ;
 		// END_OF_VERSIONING

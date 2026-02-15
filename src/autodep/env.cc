@@ -99,6 +99,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			case 'i' : ignore_stat     = true  ; break ;
 			case 'm' : auto_mkdir      = true  ; break ;
 			case 'M' : mount_chroot_ok = true  ; break ;
+			case 'X' : deps_in_system  = true  ; break ;
 			case 'l' :
 				pos++ ;
 				switch (env[pos]) {
@@ -144,11 +145,12 @@ AutodepEnv::operator ::string() const {
 	// options
 	// START_OF_VERSIONING CACHE REPO JOB
 	res << ':' ;
-	if (!enable        ) res << 'd' ;
-	if (readdir_ok     ) res << 'D' ;
-	if (ignore_stat    ) res << 'i' ;
-	if (auto_mkdir     ) res << 'm' ;
-	if (mount_chroot_ok) res << 'M' ;
+	if (!enable         ) res << 'd' ;
+	if ( readdir_ok     ) res << 'D' ;
+	if ( ignore_stat    ) res << 'i' ;
+	if ( auto_mkdir     ) res << 'm' ;
+	if ( mount_chroot_ok) res << 'M' ;
+	if ( deps_in_system ) res << 'X' ;
 	switch (lnk_support) {
 		case LnkSupport::None : res << "ln" ; break ;
 		case LnkSupport::File : res << "lf" ; break ;

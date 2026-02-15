@@ -2571,15 +2571,14 @@ This can be achieved by including <code>resovl_conf</code> in the <code>chroot_a
 <!-- Copyright (c) 2023-2026 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
-<h1 id="autodep-1"><a class="header" href="#autodep-1">Autodep</a></h1>
 <p>Autodep is a mechanism through which jobs are spied to automatically detect disk accesses.
 From this information open-lmake can determine if accesses were within the constraints provided by the rule and can list all deps.</p>
-<h2 id="spying-methods"><a class="header" href="#spying-methods">Spying methods</a></h2>
+<h1 id="spying-methods"><a class="header" href="#spying-methods">Spying methods</a></h1>
 <p>There exists two classes of spying methods.
 Not all methods are supported on all systems, though.</p>
-<h3 id="spying-methods-based-on-libc-calls"><a class="header" href="#spying-methods-based-on-libc-calls">Spying methods based on <code>libc</code> calls</a></h3>
+<h2 id="spying-methods-based-on-libc-calls"><a class="header" href="#spying-methods-based-on-libc-calls">Spying methods based on <code>libc</code> calls</a></h2>
 <p>This consists in spying all calls the the <code>libc</code>.
-Several mechanisms can be used to do so.</p>
+Several mechanisms are provided by <a href="https://man7.org/linux/man-pages/man8/ld.so.8.html"><code>ld.so</code></a> to do so.</p>
 <p>All of them consist in diverting the calls to the <code>libc</code> that access files (typically <code>open</code>, but there are about a hundred of them) to a wrapper code
 that records the access before handling over to the real <code>libc</code>.
 They differ in the methods used to divert these calls to the autodep code.</p>
@@ -2604,8 +2603,9 @@ Because it is loaded before and contains the same symbols as the <code>libc</cod
 <p>The use of <code>jemalloc</code> creates a chicken and egg problem at start up.
 The reason is that the spying code requires the use of <code>malloc</code> at start up, and <code>jemalloc</code> (which is called in lieu of <code>malloc</code>) accesses a configuration file at start up.
 A special implementation has been devised to handle this case, but is too fragile and complex to make it the default <code>$LD_PRELOAD</code> method.</p>
-<h3 id="spying-methods-based-on-system-calls"><a class="header" href="#spying-methods-based-on-system-calls">Spying methods based on system calls</a></h3>
-<p>The principle is to use <code>ptrace</code> (the system call used by the <code>strace</code> utility) to spy user code activity.</p>
+<h2 id="spying-methods-based-on-system-calls"><a class="header" href="#spying-methods-based-on-system-calls">Spying methods based on system calls</a></h2>
+<h3 id="ptrace"><a class="header" href="#ptrace">ptrace</a></h3>
+<p>The principle is to use <a href="https://man7.org/linux/man-pages/man2/ptrace.2.html"><code>ptrace</code></a> (the system call used by the <code>strace</code> utility) to spy user code activity.</p>
 <p>This is almost non-intrusive.
 In one case, we have seen a commercial tool reading <code>/proc/self/status</code> to detect such a <code>ptrace</code>ing process, and it stopped, thinking it was being reverse engineered.
 Curiously, it did not detect <code>$LD_PRELOAD</code>...</p>

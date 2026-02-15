@@ -20,11 +20,16 @@ SubCommands
 
 Item(B(-b),B(--bom))
 Output the list of all source files necessary to build the arguments.
-If I(--verbose) option is provided, intermediate files are shown in gray.
+Unless I(--quiet), intermediate files are shown in gray.
+If I(--verbose), non-existent files are shown in gray.
+Existent files are prefixed with B(+), non-existent files are prefixed with B(!).
+.LP
+Files are mentioned only once.
 .IP
-If I(--porcelaine), the output is generated as B(set) (if not I(--verbose)) or as a B(tuple) (if I(--verbose)).
-In the latter case, it is guaranteed that deps are going downards, i.e. dependents appear before their deps.
-If arguments are files, the output is not a B(dict) and is the list necessary to generate all the arguments.
+If I(--porcelaine), the output is generated as an easy to parse B(dict).
+Files are represented by their name as key.
+If a file is intermediate, the value is the dict of files necessary to generate it.
+Else, the value is B(True) if file exists or  B(False) if it does not exist.
 
 Item(B(-c),B(--cmd))
 Output the B(cmd) used to execute the job. If dynamic, it shows it as specialized for this job.
@@ -193,11 +198,19 @@ Show various info about a job, as it last ran (unless stated otherwise):
 
 Item(B(-r),B(--running))
 Show the list of jobs currently running to build the arguments.
-If I(--verbose), some waiting jobs are shown in gray, prefixed by key B(W), enough to justify why all running jobs are running.
-Queued jobs are shown in blue, prefixed with key B(Q), actively running jobs are uncolored, prefixed with key B(R).
+Wating jobs are prefixed with B(W), queued jobs are prefixed with B(Q) and running jobs are prefixed with (R).
+Not running jobs are shown in gray.
+.LP
+Jobs are only mentioned only once.
+.LP
+If I(--quiet), waiting jobs are not mentioned.
+Unless I(--verbose), queued jobs are not mentioned.
 .IP
-If I(--porcelaine), whether args are a job or files, the output is a B(set) (if not I(--verbose)) or a B(tuple) (if I(--verbose)) of jobs.
-Each job is represented as a B(tuple) composed of the key (B('W'), B('Q') or B('R')), the rule name and the job name.
+If I(--porcelaine), whether args are a job or files, the output is an easy to parse B(dict).
+Each job is represented as a B(tuple) composed of the rule name and the job name.
+Jobs are shown with a B(tuple) composed of the rule name and the job name. as key.
+If a job is wating, the value is a B(dict) of jobs it is waiting for.
+Else, the value if B(True) if job is running or B(False) if the job is queued.
 
 Item(B(-e),B(--stderr))
 Show the stderr of the jobs.

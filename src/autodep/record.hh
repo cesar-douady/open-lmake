@@ -52,8 +52,10 @@ struct Record {
 	} ;
 	//
 	// statics
-	static bool s_is_simple( const char*          , bool empty_is_simple=true ) ;
-	static bool s_is_simple( ::string const& path , bool empty_is_simple=true ) { return s_is_simple( path.c_str() , empty_is_simple ) ; }
+	static bool s_is_simple( const char*          , bool empty_is_simple , Bool3 deps_in_system=Maybe ) ; // Maybe means look in s_autodep_env(New)
+	static bool s_is_simple( ::string const& file , bool empty_is_simple , Bool3 deps_in_system=Maybe ) { return s_is_simple( file.c_str() , empty_is_simple , deps_in_system ) ; }
+	static bool s_is_simple( const char*     file ,                        Bool3 deps_in_system=Maybe ) { return s_is_simple( file         , true            , deps_in_system ) ; }
+	static bool s_is_simple( ::string const& file ,                        Bool3 deps_in_system=Maybe ) { return s_is_simple( file.c_str() , true            , deps_in_system ) ; }
 	//
 	static bool s_has_server  (         ) { return +*_s_autodep_env           ; }
 	static Fd   s_repo_root_fd(         ) { return s_repo_root_fd(::getpid()) ; }
@@ -65,7 +67,7 @@ struct Record {
 		return _s_repo_root_fd ;
 	}
 	static void s_close_reports() {
-		if (_s_report_fd[0]==_s_report_fd[1])   _s_report_fd[0].close() ;                             // if both are identical we must only close one
+		if (_s_report_fd[0]==_s_report_fd[1])   _s_report_fd[0].close() ;                                 // if both are identical we must only close one
 		else                                  { _s_report_fd[0].close() ; _s_report_fd[1].close() ; }
 	}
 	static AutodepEnv const& s_autodep_env() {
@@ -97,11 +99,12 @@ private :
 	}
 	// static data
 public :
-	static bool                                s_static_report       ;              // if true <=> report deps to s_deps instead of through slow/fast_report_fd() sockets
-	static bool                                s_enable_was_modified ;              // if true <=  the enable bit has been manipulated through the backdoor
+	static constexpr char                      SpecialSystemDirMsg[] = "/dev, /proc or /sys" ;
+	static bool                                s_static_report       ;                                    // if true <=> report deps to s_deps instead of through slow/fast_report_fd() sockets
+	static bool                                s_enable_was_modified ;                                    // if true <=  the enable bit has been manipulated through the backdoor
 	static ::vmap_s<DepDigest>*                s_deps                ;
 	static ::string           *                s_deps_err            ;
-	static StaticUniqPtr<::umap_s<CacheEntry>> s_access_cache        ;              // map file to read accesses
+	static StaticUniqPtr<::umap_s<CacheEntry>> s_access_cache        ;                                    // map file to read accesses
 	static Mutex<MutexLvl::Record>             s_mutex               ;
 private :
 	static StaticUniqPtr<AutodepEnv> _s_autodep_env           ;
@@ -112,8 +115,8 @@ private :
 	static pid_t                     _s_report_pid[2/*fast*/] ;                     // pid in which corresponding _s_report_fd is valid
 	// cxtors & casts
 public :
-	Record( NewType ,                  pid_t pid   ) : Record( New , Maybe , pid ) {}
-	Record( NewType , Bool3 en=Maybe , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {
+	Record( NewType ,            pid_t pid=0 ) : Record( New , Maybe , pid ) {}
+	Record( NewType , Bool3 en , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {
 		if (en==Maybe) enable = s_autodep_env().enable ;
 		else           enable = en==Yes                ;
 	}

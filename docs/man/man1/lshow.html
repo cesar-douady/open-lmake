@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Tue Feb 10 14:48:54 2026 -->
+<!-- CreationDate: Sun Feb 15 13:11:46 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -297,18 +297,22 @@ sub-command must be provided : <b><br>
 -b</b>, <b>--bom</b></p>
 
 <p style="margin-left:18%;">Output the list of all source
-files necessary to build the arguments. If <i>--verbose</i>
-option is provided, intermediate files are shown in
-gray.</p>
+files necessary to build the arguments. Unless
+<i>--quiet</i>, intermediate files are shown in gray. If
+<i>--verbose</i>, non-existent files are shown in gray.
+Existent files are prefixed with <b>+</b>, non-existent
+files are prefixed with <b>!</b>.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Files are
+mentioned only once.</p>
 
 <p style="margin-left:18%; margin-top: 1em">If
-<i>--porcelaine</i>, the output is generated as <b>set</b>
-(if not <i>--verbose</i>) or as a <b>tuple</b> (if
-<i>--verbose</i>). In the latter case, it is guaranteed that
-deps are going downards, i.e. dependents appear before their
-deps. If arguments are files, the output is not a
-<b>dict</b> and is the list necessary to generate all the
-arguments.</p>
+<i>--porcelaine</i>, the output is generated as an easy to
+parse <b>dict</b>. Files are represented by their name as
+key. If a file is intermediate, the value is the dict of
+files necessary to generate it. Else, the value is
+<b>True</b> if file exists or <b>False</b> if it does not
+exist.</p>
 
 <p style="margin-left:9%;"><b>-c</b>, <b>--cmd</b></p>
 
@@ -1306,19 +1310,27 @@ information generated as a <b>dict</b>.</p>
 <p style="margin-left:9%;"><b>-r</b>, <b>--running</b></p>
 
 <p style="margin-left:18%;">Show the list of jobs currently
-running to build the arguments. If <i>--verbose</i>, some
-waiting jobs are shown in gray, prefixed by key <b>W</b>,
-enough to justify why all running jobs are running. Queued
-jobs are shown in blue, prefixed with key <b>Q</b>, actively
-running jobs are uncolored, prefixed with key <b>R</b>.</p>
+running to build the arguments. Wating jobs are prefixed
+with <b>W</b>, queued jobs are prefixed with <b>Q</b> and
+running jobs are prefixed with (R). Not running jobs are
+shown in gray.</p>
+
+<p style="margin-left:9%; margin-top: 1em">Jobs are only
+mentioned only once.</p>
+
+<p style="margin-left:9%; margin-top: 1em">If
+<i>--quiet</i>, waiting jobs are not mentioned. Unless
+<i>--verbose</i>, queued jobs are not mentioned.</p>
 
 <p style="margin-left:18%; margin-top: 1em">If
 <i>--porcelaine</i>, whether args are a job or files, the
-output is a <b>set</b> (if not <i>--verbose</i>) or a
-<b>tuple</b> (if <i>--verbose</i>) of jobs. Each job is
-represented as a <b>tuple</b> composed of the key
-(<b>W&rsquo;&rsquo;</b>, <b>Q&rsquo;&rsquo;</b> or
-<b>R&rsquo;&rsquo;</b>), the rule name and the job name.</p>
+output is an easy to parse <b>dict</b>. Each job is
+represented as a <b>tuple</b> composed of the rule name and
+the job name. Jobs are shown with a <b>tuple</b> composed of
+the rule name and the job name. as key. If a job is wating,
+the value is a <b>dict</b> of jobs it is waiting for. Else,
+the value if <b>True</b> if job is running or <b>False</b>
+if the job is queued.</p>
 
 <p style="margin-left:9%;"><b>-e</b>, <b>--stderr</b></p>
 

@@ -27,14 +27,7 @@ struct AppInitAction {
 	uint64_t   version      = Version::Repo                                ;
 } ;
 
-struct SearchRootResult {
-	::string top_s     ;
-	::string sub_s     ;
-	::string startup_s ;
-} ;
-
 bool/*read_only*/ app_init  (AppInitAction const& ={}) ;
-SearchRootResult search_root(AppInitAction const& ={}) ;
 
 inline ::string git_clean_msg() {
 	::string res = "git clean -ffdx" ;

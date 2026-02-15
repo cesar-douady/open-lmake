@@ -28,36 +28,40 @@ using namespace Time ;
 // Record
 //
 
-bool                                        Record::s_static_report          = false       ;
-bool                                        Record::s_enable_was_modified    = false       ;
-::vmap_s<DepDigest>*                        Record::s_deps                   = nullptr     ;
-::string           *                        Record::s_deps_err               = nullptr     ;
-StaticUniqPtr<::umap_s<Record::CacheEntry>> Record::s_access_cache           ;               // map file to read accesses
+bool                                        Record::s_static_report          = false   ;
+bool                                        Record::s_enable_was_modified    = false   ;
+::vmap_s<DepDigest>*                        Record::s_deps                   = nullptr ;
+::string           *                        Record::s_deps_err               = nullptr ;
+StaticUniqPtr<::umap_s<Record::CacheEntry>> Record::s_access_cache           ;           // map file to read accesses
 Mutex<MutexLvl::Record>                     Record::s_mutex                  ;
-StaticUniqPtr<AutodepEnv                  > Record::_s_autodep_env           ;               // declare as pointer to avoid late initialization
+StaticUniqPtr<AutodepEnv                  > Record::_s_autodep_env           ;           // declare as pointer to avoid late initialization
 Fd                                          Record::_s_repo_root_fd          ;
 pid_t                                       Record::_s_repo_root_pid         = 0           ;
 SockFd::Key                                 Record::_s_report_key[2/*fast*/] = { {} , {} } ;
 Fd                                          Record::_s_report_fd [2/*fast*/] ;
 pid_t                                       Record::_s_report_pid[2/*fast*/] = { 0  , 0  } ;
 
-bool Record::s_is_simple( const char* file , bool empty_is_simple ) {
-	if (!file        ) return empty_is_simple ;                       // no file is simple (not documented, but used in practice)
-	if (!file[0]     ) return empty_is_simple ;                       // empty file is simple
-	if ( file[0]!='/') return false           ;                       // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
+bool Record::s_is_simple( const char* file , bool empty_is_simple , Bool3 deps_in_system ) {
+	bool   special = false        ;
+	size_t pfx_sz  = 0/*garbage*/ ;
+	if (!file        ) return empty_is_simple ; // no file is simple (not documented, but used in practice)
+	if (!file[0]     ) return empty_is_simple ; // empty file is simple
+	if ( file[0]!='/') return false           ; // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
+	if (!file[1]     ) goto ReturnTrue        ; // /
+	//
 Restart :
-	size_t pfx_sz = 0 ;
 	switch (file[1]) {                                                                                                              // recognize simple and frequent top level system directories
-		case 0   : return true ;                                                                                                    // / is simple
-		case 'b' : if (::strncmp(file+1,"bin" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
-		case 'e' : if (::strncmp(file+1,"etc" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
-		case 'o' : if (::strncmp(file+1,"opt" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;                                   // used to install 3rd party software, not a data dir
-		case 'r' : if (::strncmp(file+1,"run" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
-		case 's' : if (::strncmp(file+1,"sbin",4)==0) { pfx_sz = 6 ; break ; }
-		/**/       if (::strncmp(file+1,"sys" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
-		case 'u' : if (::strncmp(file+1,"usr" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
-		case 'v' : if (::strncmp(file+1,"var" ,3)==0) { pfx_sz = 5 ; break ; } goto ReturnFalse ;
+		case 0   : return false ;
+		case 'b' : if (::strncmp(file+1,"bin" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
+		case 'e' : if (::strncmp(file+1,"etc" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
+		case 'o' : if (::strncmp(file+1,"opt" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;                      // used to install 3rd party software, not a data dir
+		case 'r' : if (::strncmp(file+1,"run" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
+		case 's' : if (::strncmp(file+1,"sbin",4)==0) { pfx_sz=6 ;                break ; }
+		/**/       if (::strncmp(file+1,"sys" ,3)==0) { pfx_sz=5 ; special=true ; break ; } goto ReturnFalse ;
+		case 'u' : if (::strncmp(file+1,"usr" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
+		case 'v' : if (::strncmp(file+1,"var" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
 		case 'd' :
+			special = true ;
 			if (::strncmp(file+1,"dev",3)!=0) goto ReturnFalse ;                                                                    // not in /dev  => not simple
 			if (!file[4]                    ) return true      ;                                                                    // /dev         =>     simple
 			if (file[4]!='/'                ) goto ReturnFalse ;                                                                    // false prefix => not simple
@@ -83,6 +87,7 @@ Restart :
 			else                                   pfx_sz = 5 ;                                                                     // in lib      =>     simple
 		break ;
 		case 'p' :                                                  // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
+			special = true ;
 			if ( ::strncmp(file+1,"proc",4)!=0 ) goto ReturnFalse ; // not in /proc            => not simple
 			if ( !file[5]                      ) return true      ; // /proc                   =>     simple
 			if ( file[5]!='/'                  ) goto ReturnFalse ; // false prefix            => not simple
@@ -97,20 +102,21 @@ Restart :
 	if ( file[pfx_sz-1]!='/') goto ReturnFalse ;                    // false prefix        => not simple
 	//
 	{	int depth = 0 ;
-		for ( const char* p=file+pfx_sz ; *p ; p++ ) {              // ensure we do not escape from top level dir
-			if (p[ 0]!='/')              continue     ;             // not a dir boundary, go on
-			if (p[-1]=='/')              continue     ;             // consecutive /'s, ignore
-			if (p[-1]!='.') { depth++  ; continue     ; }           // plain dir  , e.g. foo  , go down
-			if (p[-2]=='/')              continue     ;             // dot dir    ,             stay still
-			if (p[-2]!='.') { depth++  ; continue     ; }           // plain dir  , e.g. foo. , go down
-			if (p[-3]!='/') { depth++  ; continue     ; }           // plain dir  , e.g. foo.., go down
-			if (!depth    ) { file = p ; goto Restart ; }           // dot-dot dir, restart if we get back to top-level, BACWARD
-			/**/              depth--  ;                            // dot-dot dir
+		for ( const char* p=file+pfx_sz ; *p ; p++ ) {                      // ensure we do not escape from top level dir
+			if (p[ 0]!='/')                                continue     ;   // not a dir boundary, go on
+			if (p[-1]=='/')                                continue     ;   // consecutive /'s, ignore
+			if (p[-1]!='.') { depth++  ;                   continue     ; } // plain dir  , e.g. foo  , go down
+			if (p[-2]=='/')                                continue     ;   // dot dir    ,             stay still
+			if (p[-2]!='.') { depth++  ;                   continue     ; } // plain dir  , e.g. foo. , go down
+			if (p[-3]!='/') { depth++  ;                   continue     ; } // plain dir  , e.g. foo.., go down
+			if (!depth    ) { file = p ; special = false ; goto Restart ; } // dot-dot dir, restart if we get back to top-level, BACWARD
+			/**/              depth--  ;                                    // dot-dot dir
 		}
 	}
-	return true ;
+ReturnTrue :
+	return special || deps_in_system==No || (deps_in_system==Maybe&&!s_autodep_env(New).deps_in_system) ;
 ReturnFalse :
-	return ::strnlen(file,PATH_MAX+1)==PATH_MAX+1 ;                 // above PATH_MAX, no disk access can succeed, so it is not a dep and this makes sure no unreasonable data access
+	return ::strnlen(file,PATH_MAX+1)==PATH_MAX+1 ;                         // above PATH_MAX, no disk access can succeed, so it is not a dep and this makes sure no unreasonable data access
 }
 
 Sent Record::_do_send_report(pid_t pid) {

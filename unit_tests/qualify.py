@@ -39,10 +39,10 @@ bad_target_dep = {
 	,	{ 'tgt':'....{File}'    , 'dep':'..//../{File}' , 'ok':False }
 	)
 ,	'/' : (
-		{ 'tgt':'x' , 'dep':'y' , 'ok':False }
+		{ 'tgt':'x' , 'dep':'y' , 'ok':True }
 	,)
 ,	'/usr' : (
-		{ 'tgt':'x' , 'dep':'y' , 'ok':False }
+		{ 'tgt':'x' , 'dep':'y' , 'ok':True }
 	,)
 ,	'../ext' : (
 		{ 'tgt':'..{File}'   , 'dep':'../{File}'     , 'ok':True  }
