@@ -50,7 +50,8 @@ struct AutodepEnv : RealPathEnv {
 	template<IsStream S> void serdes(S& s) {
 		/**/                        ::serdes(s,static_cast<RealPathEnv&>(self)) ;
 		/**/                        ::serdes(s,auto_mkdir                     ) ;
-		/**/                        ::serdes(s,enable                         ) ;
+		/**/                        ::serdes(s,deps_in_system                 ) ;
+		/**/                        ::serdes(s,disabled                       ) ;
 		/**/                        ::serdes(s,ignore_stat                    ) ;
 		/**/                        ::serdes(s,mount_chroot_ok                ) ;
 		/**/                        ::serdes(s,readdir_ok                     ) ;
@@ -69,18 +70,18 @@ struct AutodepEnv : RealPathEnv {
 	// data
 	// START_OF_VERSIONING CACHE REPO JOB
 	bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
-	bool                             enable           = true  ;                   // if false <=> no automatic report
+	bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
+	bool                             disabled         = false ;                   // if false <=> no automatic report
 	bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 	bool                             mount_chroot_ok  = false ;
 	bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
-	bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 	::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 	KeyedService                     service          ;
 	::string                         sub_repo_s       ;                           // relative to repo_root_s
 	::umap_s<Codec::CodecRemoteSide> codecs           ;
 	::vmap_s<::vector_s>             views_s          ;
-	::string                         fqdn             ;                           // not transported
 	// END_OF_VERSIONING
 	// not transported
+	::string fqdn      ;
 	::string fast_mail ;                                                          // host on which fast_report_pipe can be used
 } ;

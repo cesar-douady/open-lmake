@@ -430,7 +430,6 @@ namespace Backends {
 				reply.interpreter                 = ::move(start_cmd_attrs.interpreter    ) ;
 				reply.stderr_ok                   =        start_cmd_attrs.stderr_ok        ;
 				reply.autodep_env.auto_mkdir      =        start_cmd_attrs.auto_mkdir       ;
-				reply.autodep_env.deps_in_system  =        Node::s_deps_in_system           ;
 				reply.autodep_env.ignore_stat     =        start_cmd_attrs.ignore_stat      ;
 				reply.autodep_env.mount_chroot_ok =        start_cmd_attrs.mount_chroot_ok  ;
 				reply.job_space                   = ::move(start_cmd_attrs.job_space      ) ;
@@ -446,22 +445,23 @@ namespace Backends {
 					for( VarIdx mi : rd.matches_iotas[true ][+mk] ) reply.star_matches  .emplace_back( star_patterns [i_star  ++] , rd.matches[mi].second.flags ) ;
 				}
 				//
-				/**/                            reply.autodep_env.lnk_support = g_config->lnk_support                                             ;
-				/**/                            reply.autodep_env.file_sync   = g_config->file_sync                                               ;
-				/**/                            reply.autodep_env.src_dirs_s  = *g_src_dirs_s                                                     ;
-				/**/                            reply.autodep_env.sub_repo_s  = rd.sub_repo_s                                                     ;
-				/**/                            reply.autodep_env.codecs      = mk_umap<Codec::CodecRemoteSide>(g_config->codecs)                 ;
-				if (submit_info.cache_idx1    ) reply.cache                   = Cache::CacheServerSide::s_tab[submit_info.cache_idx1-1]           ;
-				/**/                            reply.ddate_prec              = g_config->ddate_prec                                              ;
-				/**/                            reply.domain_name             = s_tab[+tag]->domain_name                                          ;
-				/**/                            reply.key                     = g_config->key                                                     ;
-				/**/                            reply.kill_sigs               = ::move(start_ancillary_attrs.kill_sigs)                           ;
-				/**/                            reply.live_out                = submit_info.live_out                                              ;
-				/**/                            reply.network_delay           = g_config->network_delay                                           ;
-				/**/                            reply.nice                    = submit_info.nice!=uint8_t(-1) ? submit_info.nice : g_config->nice ;
-				/**/                            reply.rule                    = rd.user_name()                                                    ;
-				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                   = dep_specs           [rd.stdin_idx ].second.txt                    ;
-				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                  = reply.static_matches[rd.stdout_idx].first                         ;
+				/**/                            reply.autodep_env.deps_in_system = Node::s_deps_in_system                                            ;
+				/**/                            reply.autodep_env.file_sync      = g_config->file_sync                                               ;
+				/**/                            reply.autodep_env.lnk_support    = g_config->lnk_support                                             ;
+				/**/                            reply.autodep_env.src_dirs_s     = *g_src_dirs_s                                                     ;
+				/**/                            reply.autodep_env.sub_repo_s     = rd.sub_repo_s                                                     ;
+				/**/                            reply.autodep_env.codecs         = mk_umap<Codec::CodecRemoteSide>(g_config->codecs)                 ;
+				if (submit_info.cache_idx1    ) reply.cache                      = Cache::CacheServerSide::s_tab[submit_info.cache_idx1-1]           ;
+				/**/                            reply.ddate_prec                 = g_config->ddate_prec                                              ;
+				/**/                            reply.domain_name                = s_tab[+tag]->domain_name                                          ;
+				/**/                            reply.key                        = g_config->key                                                     ;
+				/**/                            reply.kill_sigs                  = ::move(start_ancillary_attrs.kill_sigs)                           ;
+				/**/                            reply.live_out                   = submit_info.live_out                                              ;
+				/**/                            reply.network_delay              = g_config->network_delay                                           ;
+				/**/                            reply.nice                       = submit_info.nice!=uint8_t(-1) ? submit_info.nice : g_config->nice ;
+				/**/                            reply.rule                       = rd.user_name()                                                    ;
+				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                      = dep_specs           [rd.stdin_idx ].second.txt                    ;
+				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                     = reply.static_matches[rd.stdout_idx].first                         ;
 				//
 				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 			} break ;

@@ -913,9 +913,9 @@ docs/index.html : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS))
 # also this makes the html doc directly available on github
 docs.manifest_stamp : docs/index.html $(MAN_FILES:%.1=docs/%.html) $(DOC_PY:%.py=docs/%.html)
 	echo collate
-	git ls-files docs                                    | sort > docs.ref_manifest
-	find docs -type f '-(' -name '.*.swp' -o -print '-)' | sort > docs.actual_manifest
-	diff docs.ref_manifest docs.actual_manifest
+	@git ls-files docs/examples docs/lib docs/man docs/unit_tests | sort > docs.ref_manifest
+	@for f in $(filter-out $<,$^) ; do echo $$f ; done            | sort > docs.actual_manifest
+	@diff docs.ref_manifest docs.actual_manifest
 	>$@
 
 BOOK : docs.manifest_stamp

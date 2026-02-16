@@ -199,8 +199,12 @@ namespace Engine::Persistent {
 	static void _compile_srcs() {
 		Trace trace("_compile_srcs") ;
 		g_src_dirs_s = New ;
-		for( Node const n : Node::s_srcs(true/*dirs*/) ) g_src_dirs_s->push_back(cat(n->name(),add_slash)) ; // n->name() may be "/", hence may end with /
-		trace("done") ;
+		for( Node const n : Node::s_srcs(true/*dirs*/) ) {
+			::string nn_s = with_slash(n->name()) ;                                                   // n->name() may be "/", hence may end with /
+			if ( Record::s_is_simple( nn_s , No/*deps_in_system*/ ) ) Node::s_deps_in_system = true ;
+			g_src_dirs_s->push_back(::move(nn_s)) ;
+		}
+		trace("done",STR(Node::s_deps_in_system)) ;
 	}
 
 	static void _init_config() {
@@ -579,13 +583,11 @@ namespace Engine::Persistent {
 				else                                     throw cat("source ",is_dir_?"dir ":"","is not cannonical : ",src                                     ) ;
 			}
 			//
-			if (is_dir_) { //!                deps_in_system
-				if ( Record::s_is_simple( src , Yes        ) ) throw cat("source ",is_dir_?"dir ":"",src," cannot lie within ",Record::SpecialSystemDirMsg) ;
-				if ( Record::s_is_simple( src , No         ) ) Node::s_deps_in_system = true ;
-				if ( size_t lvl=uphill_lvl(src) ; lvl>=repo_root_depth   ) {
-					if (lvl==repo_root_depth) throw cat("use absolute name to access source dir "   ,src," from repo ",*g_repo_root_s,rm_slash) ;
-					else                      throw cat("too many .. to access relative source dir ",src," from repo ",*g_repo_root_s,rm_slash) ;
-				}
+			if (is_dir_) {
+				size_t lvl = uphill_lvl(src) ;
+				if ( Record::s_is_simple(src,Yes/*deps_in_system*/) ) throw cat("source dir "                               ,src," cannot lie within ",Record::SpecialSystemDirMsg) ;
+				if ( lvl==repo_root_depth                           ) throw cat("use absolute name to access source dir "   ,src," from repo ",*g_repo_root_s,rm_slash            ) ;
+				if ( lvl> repo_root_depth                           ) throw cat("too many .. to access relative source dir ",src," from repo ",*g_repo_root_s,rm_slash            ) ;
 				rm_slash(src) ;
 			}
 			FileTag               tag ;
@@ -651,7 +653,7 @@ namespace Engine::Persistent {
 			if (it==old_srcs.end()) new_srcs.insert(nt) ;
 			else                    old_srcs.erase (it) ;
 		}
-		if (!fresh) {
+		if (!fresh) {                                                                                                                  // new source dirs are ok when starting from clean repo
 			for( auto [n,t] : new_srcs ) if (t==FileTag::Dir) throw cat("new source dir ",n->name(),", consider : ",git_clean_msg()) ; // we may have missed some deps, and this is unpredictable
 			for( auto [n,t] : old_srcs ) if (t==FileTag::Dir) throw cat("old source dir ",n->name(),", consider : ",git_clean_msg()) ; // XXX? : this could be managed if necessary (is it worth?)
 		}

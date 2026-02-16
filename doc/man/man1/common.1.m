@@ -141,7 +141,7 @@ define(`SeeAlsoSection',`
 
 define(`Copyright',`
 	.SH "COPYRIGHT"
-	`Copyright' `\(co' 2023-2025, Doliam.
+	`Copyright' `\(co' 2023-2026, Doliam.
 	This file is part of OpenLmake.
 	.LP
 	OpenLmake is free software; you can redistribute it and/or modify it under the

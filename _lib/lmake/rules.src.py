@@ -179,8 +179,8 @@ class Py3Rule(_PyRule) :
 	'base rule that handle pyc creation when importing modules in python'
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file (guaranteed if fix_import is called)
 	side_targets = {
-		'__PYC__'     : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc'         , 'incremental','top' )
-	,	'__PYC_TMP__' : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc.{*:\d+}' , 'ignore'     ,'top' ) # these are temporary files guaranteed unique by python
+		'__PYC__'     : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc'         , 'ignore','top' ) # easiest is simply to ignore these as dep is forced on .py file
+	,	'__PYC_TMP__' : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc.{*:\d+}' , 'ignore','top' ) # these are temporary files guaranteed unique by python
 	}
 	environ = pdict( LD_LIBRARY_PATH='$PYTHON_LD_LIBRARY_PATH' )
 	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance

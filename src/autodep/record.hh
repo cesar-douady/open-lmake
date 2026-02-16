@@ -117,8 +117,8 @@ private :
 public :
 	Record( NewType ,            pid_t pid=0 ) : Record( New , Maybe , pid ) {}
 	Record( NewType , Bool3 en , pid_t pid=0 ) : _real_path{s_autodep_env(New),pid} {
-		if (en==Maybe) enable = s_autodep_env().enable ;
-		else           enable = en==Yes                ;
+		if (en==Maybe) enable = !s_autodep_env().disabled ;
+		else           enable = en==Yes                   ;
 	}
 	// services
 	Fd report_fd( bool fast , pid_t pid=::getpid()) {

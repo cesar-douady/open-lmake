@@ -68,7 +68,7 @@ namespace Codec {
 	if (+ade.fast_report_pipe) os << ','<<ade.fast_report_pipe                           ;
 	/**/                       os << ','<<ade.service                                    ;
 	if (+ade.fqdn            ) os << ','<<ade.fqdn                                       ;
-	if ( ade.enable          ) os << ",enable"                                           ;
+	if ( ade.disabled        ) os << ",disabled"                                         ;
 	if ( ade.auto_mkdir      ) os << ",auto_mkdir"                                       ;
 	if ( ade.mount_chroot_ok ) os << ",mount_chroot_ok"                                  ;
 	if ( ade.readdir_ok      ) os << ",readdir_ok"                                       ;
@@ -94,12 +94,12 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (env[pos++]!=':') goto Fail ;
 	for( ; env[pos]!=':' ; pos++ )
 		switch (env[pos]) {
-			case 'd' : enable          = false ; break ;
-			case 'D' : readdir_ok      = true  ; break ;
-			case 'i' : ignore_stat     = true  ; break ;
-			case 'm' : auto_mkdir      = true  ; break ;
-			case 'M' : mount_chroot_ok = true  ; break ;
-			case 'X' : deps_in_system  = true  ; break ;
+			case 'd' : disabled        = true ; break ;
+			case 'D' : readdir_ok      = true ; break ;
+			case 'i' : ignore_stat     = true ; break ;
+			case 'm' : auto_mkdir      = true ; break ;
+			case 'M' : mount_chroot_ok = true ; break ;
+			case 'X' : deps_in_system  = true ; break ;
 			case 'l' :
 				pos++ ;
 				switch (env[pos]) {
@@ -145,21 +145,21 @@ AutodepEnv::operator ::string() const {
 	// options
 	// START_OF_VERSIONING CACHE REPO JOB
 	res << ':' ;
-	if (!enable         ) res << 'd' ;
-	if ( readdir_ok     ) res << 'D' ;
-	if ( ignore_stat    ) res << 'i' ;
-	if ( auto_mkdir     ) res << 'm' ;
-	if ( mount_chroot_ok) res << 'M' ;
-	if ( deps_in_system ) res << 'X' ;
-	switch (lnk_support) {
-		case LnkSupport::None : res << "ln" ; break ;
-		case LnkSupport::File : res << "lf" ; break ;
-		case LnkSupport::Full : res << "la" ; break ;
-	DF} //! NO_COV
+	if (auto_mkdir     ) res << 'm' ;
+	if (deps_in_system ) res << 'X' ;
+	if (disabled       ) res << 'd' ;
+	if (ignore_stat    ) res << 'i' ;
+	if (mount_chroot_ok) res << 'M' ;
+	if (readdir_ok     ) res << 'D' ;
 	switch (file_sync) {
 		case FileSync::None : res << "sn" ; break ;
 		case FileSync::Dir  : res << "sd" ; break ;
 		case FileSync::Sync : res << "ss" ; break ;
+	DF} //! NO_COV
+	switch (lnk_support) {
+		case LnkSupport::None : res << "ln" ; break ;
+		case LnkSupport::File : res << "lf" ; break ;
+		case LnkSupport::Full : res << "la" ; break ;
 	DF} //! NO_COV                                                   empty_ok
 	res <<':'<< '"'<<mk_printable<'"'>(                  fqdn               )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(                  tmp_dir_s          )<<'"' ;

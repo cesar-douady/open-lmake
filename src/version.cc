@@ -1,34 +1,34 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 27      ; // 9098cbd99158dfaac667b91d55bf0432
+	uint64_t    constexpr Cache = 30      ; // 95e349a8a4cff0e8e52d1a579e0c95e5
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 23      ; // 6634f87503f2d94fd56bd5442444f960
-	uint64_t    constexpr Job   = 13      ; // a4d6ea7f91a02cb2b0fb91e0d9086721
+	uint64_t    constexpr Repo  = 26      ; // ec69e64457cbf7741289f009b1a75f42
+	uint64_t    constexpr Job   = 16      ; // 6c874f081b5e86685402cb5918d4a0f2
 	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 9098cbd99158dfaac667b91d55bf0432 *
+// * Cache : 95e349a8a4cff0e8e52d1a579e0c95e5 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
-//		if (!enable         ) res << 'd' ;
-//		if ( readdir_ok     ) res << 'D' ;
-//		if ( ignore_stat    ) res << 'i' ;
-//		if ( auto_mkdir     ) res << 'm' ;
-//		if ( mount_chroot_ok) res << 'M' ;
-//		if ( deps_in_system ) res << 'X' ;
-//		switch (lnk_support) {
-//			case LnkSupport::None : res << "ln" ; break ;
-//			case LnkSupport::File : res << "lf" ; break ;
-//			case LnkSupport::Full : res << "la" ; break ;
-//		DF} //! NO_COV
+//		if (auto_mkdir     ) res << 'm' ;
+//		if (deps_in_system ) res << 'X' ;
+//		if (disabled       ) res << 'd' ;
+//		if (ignore_stat    ) res << 'i' ;
+//		if (mount_chroot_ok) res << 'M' ;
+//		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
 //			case FileSync::None : res << "sn" ; break ;
 //			case FileSync::Dir  : res << "sd" ; break ;
 //			case FileSync::Sync : res << "ss" ; break ;
+//		DF} //! NO_COV
+//		switch (lnk_support) {
+//			case LnkSupport::None : res << "ln" ; break ;
+//			case LnkSupport::File : res << "lf" ; break ;
+//			case LnkSupport::Full : res << "la" ; break ;
 //		DF} //! NO_COV                                                   empty_ok
 //		res <<':'<< '"'<<mk_printable<'"'>(                  fqdn               )<<'"' ;
 //		res <<':'<< '"'<<mk_printable<'"'>(                  tmp_dir_s          )<<'"' ;
@@ -179,17 +179,16 @@ namespace Version {
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO JOB
 //		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
-//		bool                             enable           = true  ;                   // if false <=> no automatic report
+//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
+//		bool                             disabled         = false ;                   // if false <=> no automatic report
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 //		bool                             mount_chroot_ok  = false ;
 //		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
-//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 //		KeyedService                     service          ;
 //		::string                         sub_repo_s       ;                           // relative to repo_root_s
 //		::umap_s<Codec::CodecRemoteSide> codecs           ;
 //		::vmap_s<::vector_s>             views_s          ;
-//		::string                         fqdn             ;                           // not transported
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE
 //	struct LruEntry {
@@ -1072,26 +1071,26 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 6634f87503f2d94fd56bd5442444f960 *
+// * Repo : ec69e64457cbf7741289f009b1a75f42 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
-//		if (!enable         ) res << 'd' ;
-//		if ( readdir_ok     ) res << 'D' ;
-//		if ( ignore_stat    ) res << 'i' ;
-//		if ( auto_mkdir     ) res << 'm' ;
-//		if ( mount_chroot_ok) res << 'M' ;
-//		if ( deps_in_system ) res << 'X' ;
-//		switch (lnk_support) {
-//			case LnkSupport::None : res << "ln" ; break ;
-//			case LnkSupport::File : res << "lf" ; break ;
-//			case LnkSupport::Full : res << "la" ; break ;
-//		DF} //! NO_COV
+//		if (auto_mkdir     ) res << 'm' ;
+//		if (deps_in_system ) res << 'X' ;
+//		if (disabled       ) res << 'd' ;
+//		if (ignore_stat    ) res << 'i' ;
+//		if (mount_chroot_ok) res << 'M' ;
+//		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
 //			case FileSync::None : res << "sn" ; break ;
 //			case FileSync::Dir  : res << "sd" ; break ;
 //			case FileSync::Sync : res << "ss" ; break ;
+//		DF} //! NO_COV
+//		switch (lnk_support) {
+//			case LnkSupport::None : res << "ln" ; break ;
+//			case LnkSupport::File : res << "lf" ; break ;
+//			case LnkSupport::Full : res << "la" ; break ;
 //		DF} //! NO_COV                                                   empty_ok
 //		res <<':'<< '"'<<mk_printable<'"'>(                  fqdn               )<<'"' ;
 //		res <<':'<< '"'<<mk_printable<'"'>(                  tmp_dir_s          )<<'"' ;
@@ -1287,17 +1286,16 @@ namespace Version {
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO JOB
 //		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
-//		bool                             enable           = true  ;                   // if false <=> no automatic report
+//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
+//		bool                             disabled         = false ;                   // if false <=> no automatic report
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 //		bool                             mount_chroot_ok  = false ;
 //		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
-//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 //		KeyedService                     service          ;
 //		::string                         sub_repo_s       ;                           // relative to repo_root_s
 //		::umap_s<Codec::CodecRemoteSide> codecs           ;
 //		::vmap_s<::vector_s>             views_s          ;
-//		::string                         fqdn             ;                           // not transported
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Access : uint8_t {                                                         // in all cases, dirs are deemed non-existing
@@ -2381,26 +2379,26 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : a4d6ea7f91a02cb2b0fb91e0d9086721 *
+// * Job : 6c874f081b5e86685402cb5918d4a0f2 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
-//		if (!enable         ) res << 'd' ;
-//		if ( readdir_ok     ) res << 'D' ;
-//		if ( ignore_stat    ) res << 'i' ;
-//		if ( auto_mkdir     ) res << 'm' ;
-//		if ( mount_chroot_ok) res << 'M' ;
-//		if ( deps_in_system ) res << 'X' ;
-//		switch (lnk_support) {
-//			case LnkSupport::None : res << "ln" ; break ;
-//			case LnkSupport::File : res << "lf" ; break ;
-//			case LnkSupport::Full : res << "la" ; break ;
-//		DF} //! NO_COV
+//		if (auto_mkdir     ) res << 'm' ;
+//		if (deps_in_system ) res << 'X' ;
+//		if (disabled       ) res << 'd' ;
+//		if (ignore_stat    ) res << 'i' ;
+//		if (mount_chroot_ok) res << 'M' ;
+//		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
 //			case FileSync::None : res << "sn" ; break ;
 //			case FileSync::Dir  : res << "sd" ; break ;
 //			case FileSync::Sync : res << "ss" ; break ;
+//		DF} //! NO_COV
+//		switch (lnk_support) {
+//			case LnkSupport::None : res << "ln" ; break ;
+//			case LnkSupport::File : res << "lf" ; break ;
+//			case LnkSupport::Full : res << "la" ; break ;
 //		DF} //! NO_COV                                                   empty_ok
 //		res <<':'<< '"'<<mk_printable<'"'>(                  fqdn               )<<'"' ;
 //		res <<':'<< '"'<<mk_printable<'"'>(                  tmp_dir_s          )<<'"' ;
@@ -2496,17 +2494,16 @@ namespace Version {
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO JOB
 //		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
-//		bool                             enable           = true  ;                   // if false <=> no automatic report
+//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
+//		bool                             disabled         = false ;                   // if false <=> no automatic report
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 //		bool                             mount_chroot_ok  = false ;
 //		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
-//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
 //		KeyedService                     service          ;
 //		::string                         sub_repo_s       ;                           // relative to repo_root_s
 //		::umap_s<Codec::CodecRemoteSide> codecs           ;
 //		::vmap_s<::vector_s>             views_s          ;
-//		::string                         fqdn             ;                           // not transported
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Access : uint8_t {                                                         // in all cases, dirs are deemed non-existing

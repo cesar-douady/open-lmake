@@ -86,10 +86,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* forbid accesses to files :
-	- /dev/random
-	- /dev/urandom
-	- /etc/passwd
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
@@ -100,6 +96,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- while suspended, consider resources to be freed
 	- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 	- then resume participates to allocation competition
+? forbid accesses to files :
+	- /dev/random
+	- /dev/urandom
+	- /etc/passwd
 ? check files are conformant to config.link_support
 	- can only reasonably be done for none, is it worth ?
 	- each time it is mostly free (objective of this config is improved perf)
@@ -322,7 +322,6 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
-* implement picrov32
 * test chroot actions
 * test chroot&mount not allowed unless mount_chroot_ok
 * improve cache test coverage
