@@ -208,7 +208,7 @@ namespace Disk {
 		/**/                                            SWEAR( +file                           , action.abs_ok ) ; // do not unlink cwd
 		if (!action.abs_ok                            ) SWEAR( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
 		if (::unlinkat(file.at,file.file.c_str(),0)==0) return true /*done*/ ;
-		if (errno==ENOENT                             ) return false/*done*/ ;
+		if (errno==ENOENT                             ) return false/*.   */ ;
 		//
 		if ( !action.dir_ok || errno!=EISDIR ) throw cat("cannot unlink file (",StrErr(),") ",file ) ;
 		//
@@ -219,10 +219,13 @@ namespace Disk {
 		return true/*done*/ ;
 	}
 
-	void rmdir_s( FileRef dir_s , NfsGuard* nfs_guard ) {
+	void rmdir_s( FileRef dir_s , _RmDirAction action ) {
 		SWEAR(+dir_s.file) ;
-		if (nfs_guard) nfs_guard->change(dir_s) ;
-		if (::unlinkat(dir_s.at,dir_s.file.c_str(),AT_REMOVEDIR)!=0) throw cat("cannot rmdir ",dir_s) ;
+		if      ( action.nfs_guard                                                     ) action.nfs_guard->change(dir_s) ;
+		if      ( ::unlinkat(dir_s.at,dir_s.file.c_str(),AT_REMOVEDIR)!=0              ) throw_unless( errno==ENOENT , "cannot rmdir ",dir_s ) ;
+		else if ( action.uphill && has_dir(dir_s.file) && !dir_s.file.ends_with("../") )
+			for( ::string d_s=dir_name_s(dir_s.file) ; +d_s && d_s!="/" && !d_s.ends_with("../") ; d_s=dir_name_s(d_s) )
+				if (::unlinkat(dir_s.at,d_s.c_str(),AT_REMOVEDIR)!=0) break ;
 	}
 
 	static void _touch( FileRef file , TimeSpec date , _CreatAction action ) {

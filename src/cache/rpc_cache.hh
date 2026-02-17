@@ -62,11 +62,11 @@ namespace Cache {
 		return cat(AdminDirS,"reserved/",upload_key) ;
 	}
 
-	inline ::string run_dir( ::string const& job , CkeyIdx key , bool key_is_last ) {
-		::string         res =  job            ;
-		/**/             res << '/'<<+key<<'-' ;
-		if (key_is_last) res << "last"         ;
-		else             res << "first"        ;
+	inline ::string run_file( ::string const& job , CkeyIdx key , bool key_is_last ) {
+		::string         res =  job           ;
+		/**/             res << '/'<<key<<'-' ;
+		if (key_is_last) res << "last"        ;
+		else             res << "first"       ;
 		return res ;
 	}
 

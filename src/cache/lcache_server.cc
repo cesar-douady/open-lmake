@@ -91,6 +91,8 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	Cjob                      job        = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR( job->n_statics==deps.n_statics , job,job->n_statics,deps.n_statics ) ;
 	DiskSz                    sz         = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
 	ConnEntry&                conn_entry = _g_conn_tab.at(fd)                                                           ;
+	bool                      data_moved = false                                                                        ;
+	::string                  run_name   ;
 	::pair<Crun,CacheHitInfo> digest     ;
 	conn_entry.upload_keys.erase(crr.upload_key) ;
 	try {
@@ -99,18 +101,24 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 		,	conn_entry.key , crr.override_first?KeyIsLast::OverrideFirst:KeyIsLast::Plain , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
 		) ;
 	} catch (::string const&) {
-		digest.second = {} ;    // we dont report on commit, so just force dismiss
+		digest.second = {} ;                                   // no report on commit, so just force dismiss
 	}
-	if (digest.second<CacheHitInfo::Miss) {
-		unlnk( rf+"-data" , {.nfs_guard=&nfs_guard} ) ;
-		unlnk( rf+"-info" , {.nfs_guard=&nfs_guard} ) ;
-	} else {
-		::string run_name = digest.first->name(job) ;
-		// START_OF_VERSIONING CACHE
-		rename( rf+"-data" , run_name+"-data" , {.nfs_guard=&nfs_guard} ) ;
-		rename( rf+"-info" , run_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
-		// END_OF_VERSIONING
+	if (digest.second>=CacheHitInfo::Miss) {
+		run_name = digest.first->name() ;
+		try {
+			// START_OF_VERSIONING CACHE
+			rename( rf+"-data" , run_name+"-data" , {.nfs_guard=&nfs_guard} ) ; data_moved = true ;
+			rename( rf+"-info" , run_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
+			// END_OF_VERSIONING
+			return ;
+		} catch(::string const& e) {                           // defensive programming : in case of error, no report on commit, so just force dismiss
+			Fd::Stderr.write(cat("cache upload error : ",e)) ;
+			trace("cannot_rename",e) ;
+			digest.first->victimize() ;                        // undo insert
+		}
 	}
+	unlnk( (data_moved?run_name:rf)+"-data" , {.nfs_guard=&nfs_guard} ) ;
+	unlnk(                      rf +"-info" , {.nfs_guard=&nfs_guard} ) ;
 }
 
 static void _dismiss( Fd fd , CacheUploadKey upload_key ) {

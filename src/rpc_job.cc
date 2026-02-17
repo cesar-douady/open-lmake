@@ -323,7 +323,7 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 			case FileActionTag::Rmdir :
 				if (!keep_dirs.contains(f))
 					try {
-						rmdir_s(with_slash(f),nfs_guard) ;
+						rmdir_s(with_slash(f),{.nfs_guard=nfs_guard}) ;
 					} catch (::string const&) {                                                                               // if a dir cannot rmdir'ed, no need to try those uphill
 						keep_dirs.insert(f) ;
 						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )

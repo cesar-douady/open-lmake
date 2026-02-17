@@ -68,7 +68,6 @@ class Autodep :
 		if val is None : _os.environ.pop(var,None)
 		else           : _os.environ[var] = val
 
-	IsFake    = getattr(set_autodep,'is_fake',False)
 	LdPreload = _os.environ.get('LD_PRELOAD')
 	LdAudit   = _os.environ.get('LD_AUDIT'  )
 	def __init__(self,enable) :

@@ -283,23 +283,27 @@ namespace Py {
 	struct Int : Object {
 		static constexpr const char* Name = "int" ;
 		using Base = Object ;
-		bool qualify() const { return PyLong_Check(to_py()) ; }
+		bool qualify() const {
+			#if PY_MAJOR_VERSION<3
+				return PyInt_Check(to_py()) || PyLong_Check(to_py()) ;
+			#else
+				return                         PyLong_Check(to_py()) ;
+			#endif
+		}
 		template<::integral T> operator T() const {
 			if (::is_signed_v<T>) {
-				long v = PyLong_AsLong( to_py() ) ;
-				from_py() ;
-				throw_unless( v>=int64_t(Min<T>) , "underflow" ) ;
-				throw_unless( v<=int64_t(Max<T>) , "overflow"  ) ;
+				long v = PyLong_AsLong(to_py()) ; from_py() ;
+				throw_unless( v>=Min<T> , "underflow" ) ;
+				throw_unless( v<=Max<T> , "overflow"  ) ;
 				return T(v) ;
 			} else {
-				ulong v = PyLong_AsUnsignedLong( to_py() ) ;
-				from_py() ;
+				ulong v = PyLong_AsUnsignedLong(to_py()) ; from_py() ;
 				throw_unless( v<=Max<T> , "overflow" ) ;
 				return T(v) ;
 			}
 		}
 		long  val () const ; // for debug
-		ulong uval() const ; // for debug
+		ulong uval() const ; // .
 	} ;
 	template<> struct Ptr<Int> : PtrBase<Int> {
 		using Base = PtrBase<Int> ;
@@ -734,8 +738,8 @@ namespace Py {
 	// implementation
 	//
 
-	template<class T> T const* _chk(Object const* o) { SWEAR(o) ; throw_unless(o->is_a<T>(),"type error : ",o->type_name()," is not a ",T::Name) ; return static_cast<T const*>(o) ; }
-	template<class T> T      * _chk(Object      * o) { SWEAR(o) ; throw_unless(o->is_a<T>(),"type error : ",o->type_name()," is not a ",T::Name) ; return static_cast<T      *>(o) ; }
+	template<class T> T const* _chk(Object const* o) { SWEAR(o) ; if (!o->is_a<T>()) throw cat("type error : ",o->type_name()," is not a ",T::Name) ; return static_cast<T const*>(o) ; }
+	template<class T> T      * _chk(Object      * o) { SWEAR(o) ; if (!o->is_a<T>()) throw cat("type error : ",o->type_name()," is not a ",T::Name) ; return static_cast<T      *>(o) ; }
 
 	//
 	// Object

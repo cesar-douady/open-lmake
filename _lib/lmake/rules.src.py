@@ -160,14 +160,15 @@ class AliasRule(Rule) :
 class DirtyRule(Rule) :
 	side_targets = { '__NO_MATCH__' : ('{*:.*}','Incremental','NoWarning') }
 
-class _PyRule(Rule) :
-	environ = pdict(PYTHONPATH='$LMAKE_ROOT/lib')
-class Py2Rule(_PyRule) :
+class Py2Rule(Rule) :
 	'base rule that handle pyc creation when importing modules in python'
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file
 	side_targets = { '__PYC__' : ( r'{*:(?:.+/)?}{*:\w+}.pyc' , 'ignore','top' ) }
 	python       = ('$PYTHON2',)
-	environ      = pdict( LD_LIBRARY_PATH='$PYTHON2_LD_LIBRARY_PATH' )
+	environ = pdict(
+		PYTHONPATH      = '$LMAKE_ROOT/lib'
+	,	LD_LIBRARY_PATH = '$PYTHON2_LD_LIBRARY_PATH'
+	)
 	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 	def cmd() :
 		import sys
@@ -175,14 +176,18 @@ class Py2Rule(_PyRule) :
 		from lmake.import_machinery import fix_import
 		fix_import()
 	cmd.shell = ''       # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
-class Py3Rule(_PyRule) :
+
+class PyRule(Rule) :
 	'base rule that handle pyc creation when importing modules in python'
 	# python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file (guaranteed if fix_import is called)
 	side_targets = {
 		'__PYC__'     : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc'         , 'ignore','top' ) # easiest is simply to ignore these as dep is forced on .py file
 	,	'__PYC_TMP__' : ( r'{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc.{*:\d+}' , 'ignore','top' ) # these are temporary files guaranteed unique by python
 	}
-	environ = pdict( LD_LIBRARY_PATH='$PYTHON_LD_LIBRARY_PATH' )
+	environ = pdict(
+		PYTHONPATH      = '$LMAKE_ROOT/lib'
+	,	LD_LIBRARY_PATH = '$PYTHON_LD_LIBRARY_PATH'
+	)
 	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
 	def cmd() :
 		import sys
@@ -190,8 +195,6 @@ class Py3Rule(_PyRule) :
 		from lmake.import_machinery import fix_import
 		fix_import()                                  # deps/targets to pyc files are ignored, so nothing to do
 	cmd.shell = ''                                    # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
-
-PyRule = Py3Rule
 
 class RustRule(Rule) :
 	'base rule for use by any code written in Rust (including cargo and rustc that are written in rust)'

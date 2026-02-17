@@ -221,26 +221,26 @@ struct CrunData {
 	CrunData() = default ;
 	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
 	// accesses
-	bool     operator+(    ) const { return +job                                        ; }
-	Crun     idx      (    ) const ;
-	::string name     (Cjob) const { return run_dir( job->name() , +key , key_is_last ) ; }
+	bool     operator+() const { return +job                                         ; }
+	Crun     idx      () const ;
+	::string name     () const { return run_file( job->name() , +key , key_is_last ) ; }
 	// services
-	void         access   (                                                     )       ; // move to top in LRU (both job and glb)
-	void         victimize( bool victimize_job=true                             )       ; // if victimize_job, victimize job if last run
-	CacheHitInfo match    ( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) const ;
-	void         chk      (                                                     ) const ;
+	void                   access   (                                                     )       ; // move to top in LRU (both job and glb)
+	bool/*job_victimzied*/ victimize( bool victimize_job=true                             )       ; // if victimize_job, victimize job if last run
+	CacheHitInfo           match    ( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) const ;
+	void                   chk      (                                                     ) const ;
 	// data
 	// START_OF_VERSIONING CACHE
 	Time::Pdate  last_access ;
-	Disk::DiskSz sz          = 0                ;                                         // size occupied by run
-	LruEntry     glb_lru     ;                                                            // global LRU within rate
-	LruEntry     job_lru     ;                                                            // job LRU
+	Disk::DiskSz sz          = 0                ;                                                   // size occupied by run
+	LruEntry     glb_lru     ;                                                                      // global LRU within rate
+	LruEntry     job_lru     ;                                                                      // job LRU
 	Cjob         job         ;
-	Cnodes       deps        ;                                                            // owned sorted by (is_static,existing,idx)
-	Ccrcs        dep_crcs    ;                                                            // owned crcs for static and existing deps
-	Ckey         key         ;                                                            // identifies origin (repo+git_sha1)
+	Cnodes       deps        ;                                                                      // owned sorted by (is_static,existing,idx)
+	Ccrcs        dep_crcs    ;                                                                      // owned crcs for static and existing deps
+	Ckey         key         ;                                                                      // identifies origin (repo+git_sha1)
 	Rate         rate        = 0    /*garbage*/ ;
-	bool         key_is_last = false/*.      */ ;                                         // 2 runs may be stored for each key : the first and the last
+	bool         key_is_last = false/*.      */ ;                                                   // 2 runs may be stored for each key : the first and the last
 	// END_OF_VERSIONING
 } ;
 static_assert( sizeof(CrunData)==56 ) ;

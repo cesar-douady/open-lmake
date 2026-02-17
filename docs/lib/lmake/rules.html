@@ -258,29 +258,34 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">class</span> <span class="nc">DirtyRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
     <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;__NO_MATCH__&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="s1">&#39;{*:.*}&#39;</span><span class="p">,</span><span class="s1">&#39;Incremental&#39;</span><span class="p">,</span><span class="s1">&#39;NoWarning&#39;</span><span class="p">)</span> <span class="p">}</span>
 
-<span class="k">class</span> <span class="nc">_PyRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-    <span class="n">environ</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span><span class="n">PYTHONPATH</span><span class="o">=</span><span class="s1">&#39;$LMAKE_ROOT/lib&#39;</span><span class="p">)</span>
-<span class="k">class</span> <span class="nc">Py2Rule</span><span class="p">(</span><span class="n">_PyRule</span><span class="p">)</span> <span class="p">:</span>
+<span class="k">class</span> <span class="nc">Py2Rule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
     <span class="s1">&#39;base rule that handle pyc creation when importing modules in python&#39;</span>
     <span class="c1"># python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file</span>
     <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;__PYC__&#39;</span> <span class="p">:</span> <span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;{*:(?:.+/)?}{*:\w+}.pyc&#39;</span> <span class="p">,</span> <span class="s1">&#39;ignore&#39;</span><span class="p">,</span><span class="s1">&#39;top&#39;</span> <span class="p">)</span> <span class="p">}</span>
     <span class="n">python</span>       <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;$PYTHON2&#39;</span><span class="p">,)</span>
-    <span class="n">environ</span>      <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span> <span class="n">LD_LIBRARY_PATH</span><span class="o">=</span><span class="s1">&#39;$PYTHON2_LD_LIBRARY_PATH&#39;</span> <span class="p">)</span>
+    <span class="n">environ</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>
+        <span class="n">PYTHONPATH</span>      <span class="o">=</span> <span class="s1">&#39;$LMAKE_ROOT/lib&#39;</span>
+    <span class="p">,</span>   <span class="n">LD_LIBRARY_PATH</span> <span class="o">=</span> <span class="s1">&#39;$PYTHON2_LD_LIBRARY_PATH&#39;</span>
+    <span class="p">)</span>
     <span class="c1"># this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance</span>
     <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
         <span class="kn">import</span> <span class="nn">sys</span>
         <span class="k">assert</span> <span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">major</span><span class="o">==</span><span class="mi">2</span> <span class="p">,</span> <span class="s1">&#39;cannot use Py2Rule with python</span><span class="si">%d</span><span class="s1">.</span><span class="si">%d</span><span class="s1">&#39;</span><span class="o">%</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">major</span><span class="p">,</span><span class="n">sys</span><span class="o">.</span><span class="n">version_info</span><span class="o">.</span><span class="n">minor</span><span class="p">)</span>
         <span class="kn">from</span> <span class="nn">lmake.import_machinery</span> <span class="kn">import</span> <span class="n">fix_import</span>
         <span class="n">fix_import</span><span class="p">()</span>
-    <span class="n">cmd</span><span class="o">.</span><span class="n">shell</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>       <span class="c1"># support shell cmd&#39;s that may launch python as a subprocess XXX! : manage to execute fix_import()</span>
-<span class="k">class</span> <span class="nc">Py3Rule</span><span class="p">(</span><span class="n">_PyRule</span><span class="p">)</span> <span class="p">:</span>
+    <span class="n">cmd</span><span class="o">.</span><span class="n">shell</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>   <span class="c1"># support shell cmd&#39;s that may launch python as a subprocess XXX! : manage to execute fix_import()</span>
+
+<span class="k">class</span> <span class="nc">PyRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
     <span class="s1">&#39;base rule that handle pyc creation when importing modules in python&#39;</span>
     <span class="c1"># python reads the pyc file and compare stored date with actual py date (through a stat), but semantic is to read the py file (guaranteed if fix_import is called)</span>
     <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span>
-        <span class="s1">&#39;__PYC__&#39;</span>     <span class="p">:</span> <span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc&#39;</span>         <span class="p">,</span> <span class="s1">&#39;incremental&#39;</span><span class="p">,</span><span class="s1">&#39;top&#39;</span> <span class="p">)</span>
-    <span class="p">,</span>   <span class="s1">&#39;__PYC_TMP__&#39;</span> <span class="p">:</span> <span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc.{*:\d+}&#39;</span> <span class="p">,</span> <span class="s1">&#39;ignore&#39;</span>     <span class="p">,</span><span class="s1">&#39;top&#39;</span> <span class="p">)</span> <span class="c1"># these are temporary files guaranteed unique by python</span>
+        <span class="s1">&#39;__PYC__&#39;</span>     <span class="p">:</span> <span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc&#39;</span>         <span class="p">,</span> <span class="s1">&#39;ignore&#39;</span><span class="p">,</span><span class="s1">&#39;top&#39;</span> <span class="p">)</span> <span class="c1"># easiest is simply to ignore these as dep is forced on .py file</span>
+    <span class="p">,</span>   <span class="s1">&#39;__PYC_TMP__&#39;</span> <span class="p">:</span> <span class="p">(</span> <span class="sa">r</span><span class="s1">&#39;{*:(?:.+/)?}__pycache__/{*:\w+}.{*:[\w.-]+}.pyc.{*:\d+}&#39;</span> <span class="p">,</span> <span class="s1">&#39;ignore&#39;</span><span class="p">,</span><span class="s1">&#39;top&#39;</span> <span class="p">)</span> <span class="c1"># these are temporary files guaranteed unique by python</span>
     <span class="p">}</span>
-    <span class="n">environ</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span> <span class="n">LD_LIBRARY_PATH</span><span class="o">=</span><span class="s1">&#39;$PYTHON_LD_LIBRARY_PATH&#39;</span> <span class="p">)</span>
+    <span class="n">environ</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>
+        <span class="n">PYTHONPATH</span>      <span class="o">=</span> <span class="s1">&#39;$LMAKE_ROOT/lib&#39;</span>
+    <span class="p">,</span>   <span class="n">LD_LIBRARY_PATH</span> <span class="o">=</span> <span class="s1">&#39;$PYTHON_LD_LIBRARY_PATH&#39;</span>
+    <span class="p">)</span>
     <span class="c1"># this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance</span>
     <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
         <span class="kn">import</span> <span class="nn">sys</span>
@@ -288,8 +293,6 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="kn">from</span> <span class="nn">lmake.import_machinery</span> <span class="kn">import</span> <span class="n">fix_import</span>
         <span class="n">fix_import</span><span class="p">()</span>                                  <span class="c1"># deps/targets to pyc files are ignored, so nothing to do</span>
     <span class="n">cmd</span><span class="o">.</span><span class="n">shell</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>                                    <span class="c1"># support shell cmd&#39;s that may launch python as a subprocess XXX! : manage to execute fix_import()</span>
-
-<span class="n">PyRule</span> <span class="o">=</span> <span class="n">Py3Rule</span>
 
 <span class="k">class</span> <span class="nc">RustRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
     <span class="s1">&#39;base rule for use by any code written in Rust (including cargo and rustc that are written in rust)&#39;</span>

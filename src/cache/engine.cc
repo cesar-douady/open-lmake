@@ -232,9 +232,13 @@ void mk_room( DiskSz sz , Cjob keep_job ) {
 	RateCmp::s_refresh() ;
 	while ( hdr.total_sz && hdr.total_sz+g_reserved_sz+sz>g_cache_config.max_sz ) {
 		SWEAR( +RateCmp::s_tab ) ;                                                  // if total size is non-zero, we must have entries
-		Rate best_rate = *RateCmp::s_tab.begin()                    ;
-		Crun best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
-		best_run->victimize(best_run->job!=keep_job) ;
+		Rate     best_rate = *RateCmp::s_tab.begin()                    ;
+		Crun     best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
+		::string best_name = best_run->name()                           ;
+		//
+		/**/                                              unlnk  (            best_name+"-data"                       ) ;
+		/**/                                              unlnk  (            best_name+"-info"                       ) ;
+		if (best_run->victimize(best_run->job!=keep_job)) rmdir_s( with_slash(best_run->job->name()) , {.uphill=true} ) ;
 	}
 	trace("done",sz,hdr.total_sz) ;
 }
@@ -395,7 +399,7 @@ void CjobData::s_rescue() {
 ,	Ckey key , KeyIsLast key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate
 ) {
 	Trace trace("insert",idx(),key,key_is_last,last_access,sz,rate,deps.size(),dep_crcs.size()) ;
-	Crun found_runs[2] ;                                                                           // first and last with same key
+	::array<Crun,2> found_runs ;                                                                   // first and last with same key
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
 		CrunData& rd = *r ;
 		if (rd.key==key) {
@@ -423,7 +427,7 @@ void CjobData::s_rescue() {
 	while (n_runs>=g_cache_config.max_runs_per_job) lru.newer->victimize(false/*victimize_job*/) ; // maybe several pass in case.max_runs_per_job has been reduced
 	mk_room( sz , idx() ) ;
 	Crun run { New , key , last , idx() , last_access , sz , rate , deps, dep_crcs } ;
-	trace("miss",run,STR(last)) ;
+	trace("miss",run,found_runs,STR(last)) ;
 	return { run , CacheHitInfo::Miss } ;
 }
 
@@ -492,8 +496,9 @@ void CrunData::access() {
 	RateCmp::s_insert(rate) ;                                                 // erase and re-insert is necessary when glb_lru chain is modified
 }
 
-void CrunData::victimize(bool victimize_job) {
-	CrunHdr& hdr = s_hdr() ;
+bool/*job_victimized*/ CrunData::victimize(bool victimize_job) {
+	CrunHdr& hdr            = s_hdr() ;
+	bool     job_victimized = false   ;
 	Trace trace("victimize",idx(),STR(victimize_job),hdr.total_sz,sz) ;
 	RateCmp::s_tab.erase(rate) ;                                              // erase from tab before pruning glb_lru chain as lru is necessary for comparison
 	bool last = job_lru.erase( job->lru              , &CrunData::job_lru ) ; // manage job-local LRU
@@ -509,13 +514,14 @@ void CrunData::victimize(bool victimize_job) {
 	/**/                           key.dec()     ;
 	SWEAR( job->n_runs>0 , job ) ; job->n_runs-- ;
 	for( Cnode d : deps ) d->dec() ;
-	if ( victimize_job && last ) { trace("victimize_job",job) ; job->victimize() ; }
+	if ( victimize_job && last ) { trace("victimize_job",job) ; job->victimize() ; job_victimized = true  ; }
 	//
 	SWEAR( hdr.total_sz >= sz , hdr.total_sz,sz,idx() ) ;
 	hdr.total_sz -= sz ;
 	_g_nodes_file.pop(deps    ) ;
 	_g_crcs_file .pop(dep_crcs) ;
 	_g_run_file  .pop(idx()   ) ;
+	return job_victimized ;
 }
 
 CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc> const& dep_crcs_ ) const {

@@ -544,30 +544,41 @@ PyMODINIT_FUNC
 		#if PY_MAJOR_VERSION>=3
 			return py_err_set( PyException::FileNotFoundErr , e ) ;
 		#else
-			py_err_set( PyException::OsErr , e ) ;                                                     // FileNotFoundErr does not exist with python2
+			py_err_set( PyException::OsErr , e ) ;                       // FileNotFoundErr does not exist with python2
 			return ;
 		#endif
 	}
 	//
 	_g_autodep_env = New ;
 	Gil::s_swear_locked() ;
+	//
+	#if PY_MAJOR_VERSION>=3
+		static_assert( PY_MINOR_VERSION>=6 ) ;
+	#else
+		static_assert( PY_MINOR_VERSION==7 ) ;
+	#endif
+	Object& version_info = py_get_sys("version_info")                  ;
+	int     major        = version_info.get_attr("major")->as_a<Int>() ; SWEAR( major==PY_MAJOR_VERSION , major,PY_MAJOR_VERSION ) ;
+	int     minor        = version_info.get_attr("minor")->as_a<Int>() ;
+	if (minor!=PY_MINOR_VERSION) {                                       // we do not use the stable ABI, versions must match exactly
+		py_err_set( PyException::RuntimeErr , cat("python version (",major,'.',minor,") must be ",PY_MAJOR_VERSION,'.',PY_MINOR_VERSION) ) ;
+		#if PY_MAJOR_VERSION>=3
+			return nullptr ;
+		#else
+			return ;
+		#endif
+	}
+	//
 	#if PY_MAJOR_VERSION>=3
 		static PyModuleDef_Slot s_slots[] = {
 			{ Py_mod_exec , reinterpret_cast<void*>(_populate_mod_no_gil) }
-		,	{ 0           , nullptr                                       }                            // for Py_mod_gil if available
-		,	{ 0           , nullptr                                       }
-		} ;
-		::string version = Py_GetVersion()                                     ;                       // version format is officially documented, so it may be safely analyzed
-		size_t   dot     = version.find('.')                                   ;
-		size_t   end     = dot+1                                               ; while ( version[end]>='0' && version[end]<='9' ) end++ ;
-		int      major   = from_string<int>(version.substr(0    ,dot        )) ;
-		int      minor   = from_string<int>(version.substr(dot+1,end-(dot+1))) ;
-		//
-		if (::pair(major,minor)<::pair(3,6)) return py_err_set( PyException::RuntimeErr , cat("python version (",major,'.',minor,") must be at least 3.6") ) ;
 		#if defined(Py_mod_gil) && Py_GIL_DISABLED
-			if (::pair(major,minor)>=::pair(3,13)) s_slots[1] = { Py_mod_gil , Py_MOD_GIL_NOT_USED } ; // starting at 3.13, free-threading is available
+			,	{ Py_mod_gil , Py_MOD_GIL_NOT_USED }
 		#endif
-		static PyModuleDef def {                                                                       // must have the lifetime of the module
+		,	{ 0 , nullptr }                                              // sentinel
+		} ;
+		//
+		static PyModuleDef def {                                         // must have the lifetime of the module
 			PyModuleDef_HEAD_INIT
 		,	"clmake" /*m_name    */
 		,	nullptr  /*m_doc     */

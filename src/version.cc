@@ -1,6 +1,6 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 30      ; // 95e349a8a4cff0e8e52d1a579e0c95e5
+	uint64_t    constexpr Cache = 30      ; // de6e9dfc7bd4af5867e8e12b5addc59d
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
 	uint64_t    constexpr Repo  = 26      ; // ec69e64457cbf7741289f009b1a75f42
 	uint64_t    constexpr Job   = 16      ; // 6c874f081b5e86685402cb5918d4a0f2
@@ -9,7 +9,7 @@ namespace Version {
 }
 
 // ********************************************
-// * Cache : 95e349a8a4cff0e8e52d1a579e0c95e5 *
+// * Cache : de6e9dfc7bd4af5867e8e12b5addc59d *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -49,10 +49,10 @@ namespace Version {
 //		{ ::string file=g_store_dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
 //		{ ::string file=g_store_dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 //		// END_OF_VERSIONING
-//			// START_OF_VERSIONING CACHE
-//			rename( rf+"-data" , run_name+"-data" , {.nfs_guard=&nfs_guard} ) ;
-//			rename( rf+"-info" , run_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
-//			// END_OF_VERSIONING
+//				// START_OF_VERSIONING CACHE
+//				rename( rf+"-data" , run_name+"-data" , {.nfs_guard=&nfs_guard} ) ; data_moved = true ;
+//				rename( rf+"-info" , run_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
+//				// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO
 //		FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
 //			switch (fi.tag()) {
@@ -221,15 +221,15 @@ namespace Version {
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE
 //		Time::Pdate  last_access ;
-//		Disk::DiskSz sz          = 0                ;                                         // size occupied by run
-//		LruEntry     glb_lru     ;                                                            // global LRU within rate
-//		LruEntry     job_lru     ;                                                            // job LRU
+//		Disk::DiskSz sz          = 0                ;                                                   // size occupied by run
+//		LruEntry     glb_lru     ;                                                                      // global LRU within rate
+//		LruEntry     job_lru     ;                                                                      // job LRU
 //		Cjob         job         ;
-//		Cnodes       deps        ;                                                            // owned sorted by (is_static,existing,idx)
-//		Ccrcs        dep_crcs    ;                                                            // owned crcs for static and existing deps
-//		Ckey         key         ;                                                            // identifies origin (repo+git_sha1)
+//		Cnodes       deps        ;                                                                      // owned sorted by (is_static,existing,idx)
+//		Ccrcs        dep_crcs    ;                                                                      // owned crcs for static and existing deps
+//		Ckey         key         ;                                                                      // identifies origin (repo+git_sha1)
 //		Rate         rate        = 0    /*garbage*/ ;
-//		bool         key_is_last = false/*.      */ ;                                         // 2 runs may be stored for each key : the first and the last
+//		bool         key_is_last = false/*.      */ ;                                                   // 2 runs may be stored for each key : the first and the last
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE
 //		CrunIdx ref_cnt = 0 ;

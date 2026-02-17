@@ -30,10 +30,6 @@ if __name__!='__main__' :
 
 else :
 
-	if lmake.Autodep.IsFake :
-		print('clmake not available',file=open('skipped','w'))
-		exit()
-
 	import ut
 
 	print('step=1',file=open('step.py','w')) ; ut.lmake( 'dut' , new=1 , may_rerun=1 , failed=1 , was_dep_error=1 , rc=1 )

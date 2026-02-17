@@ -104,12 +104,12 @@ namespace Cache {
 		trace("hit_info",reply.hit_info) ;
 		if (reply.hit_info>=CacheHitInfo::Miss) return {.hit_info=reply.hit_info} ;
 		//
-		::string       rd              = run_dir( job_str_id.is_name()?job_str_id.name:job->unique_name() , reply.key , reply.key_is_last ) ;
-		NfsGuard       cache_nfs_guard { file_sync                                            }                                             ;
-		NfsGuard       repo_nfs_guard  { g_config->file_sync                                  }                                             ;
-		AcFd           download_fd     { {_dir_fd,rd+"-data"} , {.nfs_guard=&cache_nfs_guard} }                                             ; // open as soon as possible as entry could disappear
-		AcFd           info_fd         { {_dir_fd,rd+"-info"} , {.nfs_guard=&cache_nfs_guard} }                                             ; // .
-		DownloadDigest res             { .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }                        ;
+		::string       rf              = run_file( job_str_id.is_name()?job_str_id.name:job->unique_name() , reply.key , reply.key_is_last ) ;
+		NfsGuard       cache_nfs_guard { file_sync                                            }                                              ;
+		NfsGuard       repo_nfs_guard  { g_config->file_sync                                  }                                              ;
+		AcFd           download_fd     { {_dir_fd,rf+"-data"} , {.nfs_guard=&cache_nfs_guard} }                                              ; // open as soon as possible as entry could disappear
+		AcFd           info_fd         { {_dir_fd,rf+"-info"} , {.nfs_guard=&cache_nfs_guard} }                                              ; // .
+		DownloadDigest res             { .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }                         ;
 		//
 		if (res.hit_info==CacheHitInfo::Hit) {                                                                // actually download targets
 			Zlvl zlvl = res.job_info.start.start.zlvl ;

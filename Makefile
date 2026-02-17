@@ -167,16 +167,16 @@ CC_FLAGS := -iquote ext -iquote src -iquote src/lmake_server -iquote . -idirafte
 Z_LIB := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
 
 PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -I
-PY3_INC_DIRS :=                 $(filter-out $(STD_INC_DIRS),$(PY3_INCLUDEDIR) $(PY3_INCLUDEPY))  # .
+PY_INC_DIRS  :=                 $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR)  $(PY_INCLUDEPY) )  # .
 PY2_CC_FLAGS := $(if $(PYTHON2),$(patsubst %,-I %,$(PY2_INC_DIRS)) -Wno-register)
-PY3_CC_FLAGS :=                 $(patsubst %,-I %,$(PY3_INC_DIRS)) -Wno-register
+PY3_CC_FLAGS :=                 $(patsubst %,-I %,$(PY_INC_DIRS) ) -Wno-register
 #
 PY2_LINK_FLAGS := $(if $(PYTHON2),$(if $(PY2_LIB_DIR),$(PY2_LIB_DIR)/$(PY2_LIB_BASE),-l:$(PY2_LIB_BASE)) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY2_LIB_DIR)))
-PY3_LINK_FLAGS :=                 $(if $(PY3_LIB_DIR),$(PY3_LIB_DIR)/$(PY3_LIB_BASE),-l:$(PY3_LIB_BASE)) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY3_LIB_DIR))
-
-PY_CC_FLAGS    = $(if $(and $(PYTHON2),$(findstring -py2,$@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
-PY_LINK_FLAGS  = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
+PY3_LINK_FLAGS :=                 $(if $(PY_LIB_DIR) ,$(PY_LIB_DIR)/$(PY_LIB_BASE)  ,-l:$(PY_LIB_BASE) ) $(patsubst %,-Wl$(COMMA)-rpath$(COMMA)%,$(PY_LIB_DIR) )
 #
+PY_CC_FLAGS   = $(if $(and $(PYTHON2),$(findstring -py2,$@)),$(PY2_CC_FLAGS)  ,$(PY3_CC_FLAGS)  )
+PY_LINK_FLAGS = $(if $(and $(PYTHON2),$(findstring 2.so,$@)),$(PY2_LINK_FLAGS),$(PY3_LINK_FLAGS))
+
 # /!\ LTO is incompatible with multiple definitions, even in different translation units
 SLURM_CC_FLAGS = $(if $(findstring src/lmake_server/backends/slurm_api-,$<),$(<:src/lmake_server/backends/slurm_api-%.cc=-I ext/slurm/%) -fno-lto)
 #
@@ -262,7 +262,7 @@ LMAKE_REMOTE_SLIBS := $(if $(HAS_LD_AUDIT),ld_audit.so) ld_preload.so ld_preload
 LMAKE_REMOTE_FILES := \
 	$(if $(HAS_32),$(patsubst %,_d$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
 	$(patsubst %,_d$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                    \
-	$(if $(HAS_PY3_DYN),lib/clmake.so)                                      \
+	$(if $(HAS_PY_DYN) ,lib/clmake$(PY_EXT))                                \
 	$(if $(HAS_PY2_DYN),lib/clmake2.so)                                     \
 	_bin/job_exec                                                           \
 	bin/lcheck_deps                                                         \
@@ -383,7 +383,7 @@ version.checked : FORCE
 # use a stamp to implement a by value update (while make works by date)
 src/version.cc.stamp : _bin/version version.src src/version.hh version.checked
 	@echo computing versions to $(@:%.stamp=%)
-	@LD_LIBRARY_PATH=$(PY3_LIB_DIR) PYTHON=$(PYTHON) VERSION=$(VERSION) TAG=$(TAG) ./$< gen src/version.hh $(@:%.stamp=%) version.src >$@
+	@LD_LIBRARY_PATH=$(PY_LIB_DIR) PYTHON=$(PYTHON) VERSION=$(VERSION) TAG=$(TAG) ./$< gen src/version.hh $(@:%.stamp=%) version.src >$@
 	@# dont touch output if it is steady
 	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version info $(@:%.stamp=%) ; \
 	else                                cp $@ $(@:%.stamp=%) ; echo new    version info $(@:%.stamp=%) ; \
@@ -392,9 +392,9 @@ src/version.cc : src/version.cc.stamp ;
 
 _lib/version.py : _bin/version src/version.hh src/version.cc sys_config.py
 	@echo convert version to py to $@
-	@LD_LIBRARY_PATH=$(PY3_LIB_DIR) PYTHON=$(PYTHON) ./$< cc_to_py src/version.hh src/version.cc > $@
-	@echo '#'                                                                                    >>$@
-	@cat sys_config.py                                                                           >>$@
+	@LD_LIBRARY_PATH=$(PY_LIB_DIR) PYTHON=$(PYTHON) ./$< cc_to_py src/version.hh src/version.cc > $@
+	@echo '#'                                                                                   >>$@
+	@cat sys_config.py                                                                          >>$@
 
 #
 # LMAKE
@@ -452,7 +452,7 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 	@echo big test "(2000000)" to $@
 	@mkdir -p $(@D)
 	@rm -rf   $(@D)/LMAKE
-	@PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; LD_LIBRARY_PATH=$(PY3_LIB_DIR) $(PYTHON) ../big_test.py / 2000000 )
+	@PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; LD_LIBRARY_PATH=$(PY_LIB_DIR) $(PYTHON) ../big_test.py / 2000000 )
 	@touch $@
 
 #
@@ -734,10 +734,10 @@ bin/% :
 
 # remote libs generate errors when -fsanitize=thread # XXX! fix these errors and use $(SAN)
 
-LMAKE_DBG_FILES += lib/clmake.so $(if $(HAS_PY2_DYN),lib/clmake2.so)
-lib/clmake.so lib/clmake2.so : SO_FLAGS = $(PY_LINK_FLAGS)
-lib/clmake.so                : $(REMOTE_OBJS) src/py.o     src/autodep/job_support.o     src/autodep/clmake.o
-lib/clmake2.so               : $(REMOTE_OBJS) src/py-py2.o src/autodep/job_support-py2.o src/autodep/clmake-py2.o
+LMAKE_DBG_FILES += lib/clmake$(PY_EXT) $(if $(HAS_PY2_DYN),lib/clmake2.so)
+lib/clmake$(PY_EXT) lib/clmake2.so : SO_FLAGS = $(PY_LINK_FLAGS)
+lib/clmake$(PY_EXT)                : $(REMOTE_OBJS) src/py.o     src/autodep/job_support.o     src/autodep/clmake.o
+lib/clmake2.so                     : $(REMOTE_OBJS) src/py-py2.o src/autodep/job_support-py2.o src/autodep/clmake-py2.o
 
 lib/%.so :
 	@mkdir -p $(@D)
@@ -772,7 +772,7 @@ TEST_ENV = \
 	export PATH=$(REPO_ROOT)/bin:$(REPO_ROOT)/_bin:$$PATH                                          ; \
 	export PYTHONPATH=$(REPO_ROOT)/lib:$(REPO_ROOT)/_lib:$(REPO_ROOT)/unit_tests/base:$$PYTHONPATH ; \
 	export CXX=$(CXX)                                                                              ; \
-	export LD_LIBRARY_PATH=$(PY3_LIB_DIR)                                                          ; \
+	export LD_LIBRARY_PATH=$(PY_LIB_DIR)                                                           ; \
 	export HAS_32=$(HAS_32)                                                                        ; \
 	export PYTHON2=$(PYTHON2)                                                                      ; \
 	export PYTHON=$(PYTHON)                                                                        ; \
@@ -1039,4 +1039,4 @@ $(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 GCOV : gcov/summary
 
 gcov/summary : FORCE
-	GCOV=$(GCOV) LD_LIBRARY_PATH=$(PY3_LIB_DIR) $(PYTHON) _bin/gen_gcov.py $@ $(DEP_SRCS)
+	GCOV=$(GCOV) LD_LIBRARY_PATH=$(PY_LIB_DIR) $(PYTHON) _bin/gen_gcov.py $@ $(DEP_SRCS)

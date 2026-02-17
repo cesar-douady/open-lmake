@@ -18,8 +18,8 @@ import os.path as _osp
 import subprocess as _sp
 def _run(cmd_line,**kwds) :
 	return _sp.check_output(cmd_line,universal_newlines=True,**kwds)
-_bin_dir_s = _osp.dirname(_osp.dirname(_osp.dirname(__file__)))+'/bin/'
-def _bin(f) : return _bin_dir_s+f
+_lmake_root = _osp.dirname(_osp.dirname(_osp.dirname(__file__)))
+def _bin(f) : return _lmake_root_s+'/bin/'+f
 
 # python3 prototype would be (but not available with python2) : XXX> : restore better prototype when python2 no longer needs to be supported
 #	def depend(
@@ -68,10 +68,8 @@ def check_deps(verbose=False) :
 def decode(file,ctx,code         ) : return _run((_bin('ldecode'),'-f',file,'-x',ctx,'-c',code        )          )
 def encode(file,ctx,val,min_len=1) : return _run((_bin('lencode'),'-f',file,'-x',ctx,'-l',str(min_len)),input=val)[:-1] # suppress terminating newline
 
-def get_autodep(      ) : return True # placeholder
-def set_autodep(enable) : pass        # .
-get_autodep.is_fake = True            # for introspection
-set_autodep.is_fake = True            # .
+def get_autodep(      ) : return 'LMAKE_AUTODEP_ENV' in _os.environ
+def set_autodep(enable) : raise NotImplemented
 
 if 'LMAKE_AUTODEP_ENV' in _os.environ :
 	ade           = _os.environ['LMAKE_AUTODEP_ENV'].split(':') # format : server:port:fast_host:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views

@@ -234,14 +234,19 @@ namespace Disk {
 		NfsGuard* nfs_guard = nullptr ;
 	} ;
 
-	void         unlnk_inside_s( FileRef dir_s ,                          _UnlnkAction={}      ) ;
-	bool/*done*/ unlnk         ( FileRef file  ,                          _UnlnkAction={}      ) ;
-	void         rmdir_s       ( FileRef dir_s ,                          NfsGuard*   =nullptr ) ;
-	void         mk_dir_empty_s( FileRef dir_s ,                          _UnlnkAction={}      ) ;
-	void         sym_lnk       ( FileRef file  , ::string const& target , _CreatAction={}      ) ;
-	void         touch         ( FileRef file  , Time::Ddate            , _CreatAction={}      ) ;
-	void         touch         ( FileRef file  , Time::Pdate            , _CreatAction={}      ) ;
-	void         touch         ( FileRef file  ,                          _CreatAction={}      ) ;
+	struct _RmDirAction {
+		bool      uphill    = false   ; // if true <=> remove empty uphill dirs
+		NfsGuard* nfs_guard = nullptr ;
+	} ;
+
+	void         unlnk_inside_s( FileRef dir_s ,                          _UnlnkAction={} ) ;
+	bool/*done*/ unlnk         ( FileRef file  ,                          _UnlnkAction={} ) ;
+	void         rmdir_s       ( FileRef dir_s ,                          _RmDirAction={} ) ;
+	void         mk_dir_empty_s( FileRef dir_s ,                          _UnlnkAction={} ) ;
+	void         sym_lnk       ( FileRef file  , ::string const& target , _CreatAction={} ) ;
+	void         touch         ( FileRef file  , Time::Ddate            , _CreatAction={} ) ;
+	void         touch         ( FileRef file  , Time::Pdate            , _CreatAction={} ) ;
+	void         touch         ( FileRef file  ,                          _CreatAction={} ) ;
 
 	::string read_lnk( FileRef file , NfsGuard* =nullptr ) ;
 
