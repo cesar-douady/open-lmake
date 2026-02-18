@@ -986,7 +986,7 @@ namespace Engine {
 								if (+start.job_space.tmp_view_s) push_entry( "physical tmp dir" , no_slash(end.phy_tmp_dir_s) ) ;
 								else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								//
-								if (porcelaine) { //!                                                                                    color protect
+								if (porcelaine) { //!                                                                                              color protect
 									/**/                                push_entry( "rc"                    , wstatus_str(end.wstatus)             , {} , true  ) ;
 									/**/                                push_entry( "cpu_time"              , ::to_string(double(end.stats.cpu  )) , {} , false ) ;
 									/**/                                push_entry( "elapsed_in_job"        , ::to_string(double(end.stats.job  )) , {} , false ) ;
@@ -1005,16 +1005,17 @@ namespace Engine {
 									::string rc_str     = wstatus_str(end.wstatus) + (wstatus_ok(end.wstatus)&&+end.msg_stderr.stderr?" (with non-empty stderr)":"") ;
 									Color    z_sz_color = end.total_z_sz>end.total_sz ? Color::Warning : Color::None                                                 ;
 									Color    rc_color   = wstatus_ok(end.wstatus)     ? Color::Ok      : Color::Err                                                  ;
+									bool     has_z_sz   = end.total_z_sz && end.total_z_sz!=end.total_sz                                                             ;
 									if ( rc_color==Color::Ok && +end.msg_stderr.stderr ) rc_color = job->status==Status::Ok ? Color::Warning : Color::Err ;
-									/**/                                push_entry( "rc"                    , rc_str                                        , rc_color                            ) ;
-									/**/                                push_entry( "cpu time"              , end.stats.cpu  .short_str()                                                         ) ;
-									/**/                                push_entry( "elapsed in job"        , end.stats.job  .short_str()                                                         ) ;
-									/**/                                push_entry( "elapsed total"         , digest.exe_time.short_str()                                                         ) ;
-									/**/                                push_entry( "used mem"              , mem_str                                       , overflow?Color::Warning:Color::None ) ;
-									/**/                                push_entry( "cost"                  , job->cost()     .short_str()                                                        ) ;
-									/**/                                push_entry( "total targets size"    , to_short_string_with_unit(end.total_sz  )+'B'                                       ) ;
-									if ( end.total_z_sz!=end.total_sz ) push_entry( "total compressed size" , to_short_string_with_unit(end.total_z_sz)+'B' , z_sz_color                          ) ;
-									if ( verbose && +target           ) push_entry( "checksum"              , ::string(target->crc)                                                               ) ;
+									/**/                      push_entry( "rc"                    , rc_str                                        , rc_color                            ) ;
+									/**/                      push_entry( "cpu time"              , end.stats.cpu  .short_str()                                                         ) ;
+									/**/                      push_entry( "elapsed in job"        , end.stats.job  .short_str()                                                         ) ;
+									/**/                      push_entry( "elapsed total"         , digest.exe_time.short_str()                                                         ) ;
+									/**/                      push_entry( "used mem"              , mem_str                                       , overflow?Color::Warning:Color::None ) ;
+									/**/                      push_entry( "cost"                  , job->cost()     .short_str()                                                        ) ;
+									/**/                      push_entry( "total targets size"    , to_short_string_with_unit(end.total_sz  )+'B'                                       ) ;
+									if ( has_z_sz           ) push_entry( "total compressed size" , to_short_string_with_unit(end.total_z_sz)+'B' , z_sz_color                          ) ;
+									if ( verbose && +target ) push_entry( "checksum"              , ::string(target->crc)                                                               ) ;
 								}
 							}
 							//

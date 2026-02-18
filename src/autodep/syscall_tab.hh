@@ -10,18 +10,18 @@
 #include "rpc_job_exec.hh"
 
 struct SyscallDescr {
-	static constexpr long NSyscalls = 440 ;                                                            // must larger than higher syscall number
-	using Tab = ::array<SyscallDescr,NSyscalls> ;                                                      // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
+	static constexpr long NSyscalls = 440 ;                                                         // must larger than higher syscall number
+	using Tab = ::array<SyscallDescr,NSyscalls> ;                                                   // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
 	// static data
 	static Tab const& s_tab ;
 	// accesses
 	constexpr bool operator+() const { return entry || exit ; }
 	// data
 	// /!\ there must be no memory allocation nor cxtor/dxtor as this must be statically allocated when malloc is not available
-	void           (*entry)( void*& , Record& , pid_t , uint64_t args[6] , Comment ) = nullptr       ;
-	int64_t/*res*/ (*exit )( void*  , Record& , pid_t , int64_t res                ) = nullptr       ;
-	int            filter                                                            = 0             ; // argument to filter out when known to require no processing
-	Comment        comment                                                           = Comment::None ;
+	bool/*refresh_mem*/ (*entry)( void*& , Record& , Fd , uint64_t args[6] , Comment ) = nullptr       ;
+	int64_t/*res*/      (*exit )( void*  , Record& , Fd , int64_t res                ) = nullptr       ;
+	int                 filter                                                         = 0             ; // argument to filter out when known to require no processing
+	Comment             comment                                                        = Comment::None ;
 } ;
 
 #ifdef LD_PRELOAD

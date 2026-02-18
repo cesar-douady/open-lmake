@@ -32,12 +32,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* provide support for all available python releases
-	- generate clmake.xxx.so (including per python release) instead of clmake.so
-	- or ensure single .so is binary compatible with all 3.6-3.14 releases
-? consider sources as optional
-	- i.e. accept that they do not exist
-	- including for source dirs
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -45,9 +39,6 @@ items (also used in XXX comments) :
 ? suppress readdir protection on dirs made by successful mkdir
 	- as these dirs have a predictible content
 	- not perfectly true as another job could create a file in such a dir
-? replace environ/environ_resources/environ_ancillary with a unique dict
-	- value is either a str or a tuple with value and flags
-	- much like deps
 ? add quarantined files in summary
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
@@ -56,12 +47,20 @@ items (also used in XXX comments) :
 	- provide a warning to user if the case arises
 ? before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
+X replace environ/environ_resources/environ_ancillary with a unique dict
+	- value is either a str or a tuple with value and flags
+	- much like deps
+	- rejected as this would imply a single code in case of dynamic values
+		- this would be necessarily in cmd checksum
+		- but may only impact rsrcs or ancillary
+		- much better to have separate codes
 
 ****************************************************************************************************
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* ascii art congratulating user for discovering bug in case of dirty crash
+* improve dirty crash message
+	? ascii art congratulating user for discovering bug
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly
@@ -143,10 +142,14 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* integrate conan (C/C++)
-	- as a package manager
-	- possibly also pip (python) and the like (rust, go, java etc.)
-* consider TestedRule
+* add a new autodep mechanism based on seccomp
+	- man 2 seccomp with SECCOMP_FILTER_FLAG_NEW_LISTENER
+	- man 2 seccomp_unotify
+	- allow more control than ptrace
+		- including fd injection
+			- for example to allow cheating on /proc/<pid>/status
+				- for example to lie about Seccomp and Secomp_filters entries
+? consider TestedRule
 	- when job A is run, put a dep to B to hidden job representing the Req
 	- B is supposed to mean "A is tested"
 	- so dependents of A are run immediately, without waiting for tests
@@ -216,13 +219,14 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- generally speaking, prelude can avoid rerun as they are executed during analysis
 ? find a way for local resources to be anything
 	? int/float/str/bool/None/... or list/tuple/set/dict thereof
-? add a new autodep mechanism based on syscall user dispatch
-	? cf man 2 prctl, PR_SET_SYSCALL_USER_DISPATCH
-	? seems to be highly architecture dependent, is it worth ?
 X consider using fanotify as an autodep method
 	- does not work because symbolic links used during path resolution must be recorded but are lost by fanotify
 	- fanotify_init
 	- fanotify_mark
+X add a new autodep mechanism based on syscall user dispatch
+	- cf man 2 prctl, PR_SET_SYSCALL_USER_DISPATCH
+	- seems to be highly architecture dependent, is it worth ?
+	- only allow to intercept all syscalls, which is horribly slow
 X consider CanonicRule
 	- rejected because it is too specific to user case (too difficult to generalize)
 	- when several file names for the same semantic

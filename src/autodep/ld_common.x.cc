@@ -750,13 +750,13 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
 		void*     descr_ctx = nullptr ;
-		//                                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (descr.entry) { LockRecordAndErrno lock ; descr.entry( descr_ctx , auditor() , 0/*pid*/ , args , descr.comment ) ; }
-		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv^v^v^v^v^v^v^v^v^v^v^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		//                                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (descr.entry) { LockRecordAndErrno lock ; descr.entry( descr_ctx , auditor() , {}/*proc_mem*/ , args , descr.comment ) ; }
+		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv^v^v^v^v^v^v^v^v^v^v^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		long res = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
-		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^v^v^v^v^v^v^v^vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (descr.exit) { LockRecordAndErrno lock ; return descr.exit( descr_ctx , auditor() , 0/*pid*/ , res ) ; }
-		else                                return res                                                          ;
+		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^v^v^v^v^v^v^v^vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		if (descr.exit) { LockRecordAndErrno lock ; return descr.exit( descr_ctx , auditor() , {}/*proc_mem*/ , res ) ; }
+		else                                return res                                                                ;
 		//                                         ^^^
 	}
 

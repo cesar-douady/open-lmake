@@ -51,12 +51,20 @@ public :
 	static ::umap<pid_t,PidInfo> s_tab ;
 	// cxtors & casts
 	PidInfo(pid_t pid) : record{ New , _s_get_enable(pid) , pid } {}
+	// services
+	void refresh(pid_t pid) {
+		if (!need_refresh) return ;
+		proc_mem     = AcFd( cat("/proc/",pid,"/mem") , {O_RDWR} ) ;
+		need_refresh = false                                       ;
+	}
 	// data
 	Record record        ;
-	size_t idx           = 0       ;
+	long   syscall       = 0       ;
 	void*  ctx           = nullptr ;
+	AcFd   proc_mem      ;
 	bool   has_exit_proc = false   ;
 	bool   on_going      = false   ;
+	bool   need_refresh  = true    ; // if true <= proc_mem must be refresh before next syscall
 } ;
 ::umap<pid_t,PidInfo > PidInfo::s_tab ;
 
@@ -179,7 +187,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 						SyscallDescr const& descr = SyscallDescr::s_tab[syscall] ;
 						if (HAS_SECCOMP) SWEAR(+descr) ;                                              // should not be awaken for nothing
 						if ( descr.entry ) {
-							info.idx = syscall ;
+							info.syscall = syscall ;
 							#if HAS_PTRACE_GET_SYSCALL_INFO                                           // use portable calls if implemented
 								// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unsigned long long
 								static_assert( sizeof(entry_info.args[0])==sizeof(uint64_t) && ::is_unsigned_v<::remove_reference_t<decltype(entry_info.args[0])>> ) ;
@@ -189,9 +197,10 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 								uint64_t *          args      = arg_array.data()                    ; // we need a variable to hold the data while we pass the pointer
 							#endif
 							SWEAR( !info.ctx , syscall ) ;                                            // ensure following SWEAR on info.ctx is pertinent
-							//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-							descr.entry( info.ctx , info.record , pid , args , descr.comment ) ;
-							//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							info.refresh(pid) ;
+							//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+							info.need_refresh = descr.entry( info.ctx , info.record , info.proc_mem , args , descr.comment ) ;
+							//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 							if (!descr.exit) SWEAR( !info.ctx , syscall ) ;                           // no need for a context if we are not called at exit
 						}
 						info.has_exit_proc = descr.exit ;
@@ -206,17 +215,17 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 					#if HAS_PTRACE_GET_SYSCALL_INFO
 						SWEAR( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) ;
 					#endif
-					info.on_going = false ;                                                                        // ensure on_going is cleared even if exit proc throws
+					info.on_going = false ;                                                           // ensure on_going is cleared even if exit proc throws
 					if (info.has_exit_proc) {
-						#if HAS_PTRACE_GET_SYSCALL_INFO                                                            // use portable calls if implemented
+						#if HAS_PTRACE_GET_SYSCALL_INFO                                                                          // use portable calls if implemented
 							int64_t res = syscall_info.exit.rval ;
 						#else
-							int64_t res = np_ptrace_get_res( pid , word_sz ) ;                                     // use non-portable calls if portable accesses are not implemented
-						#endif //!        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						int64_t new_res = SyscallDescr::s_tab[info.idx].exit( info.ctx , info.record , pid , res ) ;
-						//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+							int64_t res = np_ptrace_get_res( pid , word_sz ) ;                                                   // use non-portable calls if portable accesses are not implemented
+						#endif //!        vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						int64_t new_res = SyscallDescr::s_tab[info.syscall].exit( info.ctx , info.record , info.proc_mem , res ) ;
+						//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						if (new_res!=res) np_ptrace_set_res( pid , new_res , word_sz ) ;
-						info.ctx = nullptr ;                                                                       // ctx is used to retain some info between syscall entry and exit
+						info.ctx = nullptr ;                                                             // ctx is used to retain some info between syscall entry and exit
 					}
 					goto NextSyscall ;
 				}
@@ -228,8 +237,8 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 			if ( ::ptrace( StopAtSyscallExit      , pid , 0/*addr*/ , sig )!=0 ) throw cat("cannot set trace for syscall exit for ",pid) ;
 			return false/*done*/ ;
 		} catch (::string const& e) {
-			if (errno!=ESRCH) info.record.report_trace( cat("unexpected syscall tracing error : ",e) ) ;           // ESRCH : it seems to happen that the process disappears without us being told
-			return false/*done*/ ;                                                                                 // in all cases, we need the process to say exit or signal
+			if (errno!=ESRCH) info.record.report_trace( cat("unexpected syscall tracing error : ",e) ) ; // ESRCH : it seems to happen that the process disappears without us being told
+			return false/*done*/ ;                                                                       // in all cases, we need the process to say exit or signal
 		}
 	} else if (WIFEXITED  (wstatus)) {
 	} else if (WIFSIGNALED(wstatus)) {
@@ -243,6 +252,6 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 	} else {
 		fail("unrecognized wstatus ",wstatus," for pid ",pid) ;
 	}
-	PidInfo::s_tab.erase(pid) ;                                                                                    // process pid is terminated
+	PidInfo::s_tab.erase(pid) ;                                                                          // process pid is terminated
 	return pid==child_pid/*done*/ ;
 }

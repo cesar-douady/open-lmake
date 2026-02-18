@@ -11,54 +11,34 @@
 
 #include "syscall_tab.hh"
 
-// return null terminated string pointed by src in process pid's space
-[[maybe_unused]] static ::string _get_str( pid_t pid , uint64_t src ) {
-	if (!pid) return {reinterpret_cast<const char*>(src)} ;
-	::string res ;
-	errno = 0 ;
-	for(;;) {
-		uint64_t offset = src%sizeof(long)                                                 ;
-		long     word   = ::ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		throw_if( errno , "cannot peek data from address ",src-offset ) ;
-		char* word_char = ::launder(reinterpret_cast<char*>(&word)) ;
-		for( uint64_t len : iota(sizeof(long)-offset) ) if (!word_char[offset+len]) { res.append( word_char+offset , len                 ) ; return res ; }
-		/**/                                                                          res.append( word_char+offset , sizeof(long)-offset ) ;
-		src += sizeof(long)-offset ;
+// return null terminated string pointed by src in process space
+[[maybe_unused]] static ::string _get_str( Fd proc_mem , uint64_t src ) {
+	if (!proc_mem) return {reinterpret_cast<const char*>(src)} ;
+	::string res                      ;
+	char     buf[::min(PAGE_SZ,1024)] ; // filenames longer than 1024 are really exceptional, no need to anticipate more than that
+	for (;;) {
+		size_t  sz  = ::min( sizeof(buf) , size_t(PAGE_SZ-src%PAGE_SZ) ) ;
+		ssize_t cnt = ::pread( proc_mem , buf , sz , src )               ; if (cnt<=0 ) throw cat("cannot peek name from address 0x",to_hex(src)) ;
+		size_t  l   = ::strnlen( buf , sz )                              ;
+		res.append( buf , l ) ;
+		if (l<sz) break ;
+		src += l ;
+	}
+	return res ;
+}
+
+// copy src to process space @ dst
+[[maybe_unused]] static void _poke( Fd proc_mem , uint64_t dst , const char* src , size_t sz ) {
+	if (!proc_mem) { ::memcpy( reinterpret_cast<char*>(dst) , src , sz ) ; return ; }
+	while (sz) {
+		ssize_t cnt = ::pwrite( proc_mem , src , sz , dst ) ; if (cnt<=0) throw cat("cannot poke at address 0x",to_hex(dst)) ;
+		dst += cnt ;
+		sz  -= cnt ;
 	}
 }
 
-// copy process pid's space @ src to dst
-[[maybe_unused]] static void _peek( pid_t pid , char* dst , uint64_t src , size_t sz ) {
-	SWEAR(pid) ;
-	errno = 0 ;
-	for( size_t copied ; sz ; src+=copied,dst+=copied,sz-=copied ) {                       // invariant : copy src[0:sz] to dst
-		size_t offset = src%sizeof(long)                                                 ;
-		long   word   = ::ptrace( PTRACE_PEEKDATA , pid , src-offset , nullptr/*data*/ ) ;
-		throw_if( errno , "cannot peek data from address ",src-offset ) ;
-		copied = ::min( sizeof(long) - offset , sz ) ;
-		::memcpy( dst , ::launder(reinterpret_cast<char*>(&word))+offset , copied ) ;
-	}
-}
-// copy src to process pid's space @ dst
-[[maybe_unused]] static void _poke( pid_t pid , uint64_t dst , const char* src , size_t sz ) {
-	SWEAR(pid) ;
-	errno = 0 ;
-	for( size_t copied ; sz ; src+=copied,dst+=copied,sz-=copied) {                        // invariant : copy src[0:sz] to dst
-		size_t offset = dst%sizeof(long) ;
-		long   word   = 0/*garbage*/     ;
-		copied = ::min( sizeof(long) - offset , sz ) ;
-		if ( offset || offset+copied<sizeof(long) ) {                                      // partial word
-			word = ::ptrace( PTRACE_PEEKDATA , pid , dst-offset , nullptr/*data*/ ) ;
-			throw_if( errno , "cannot peek data from address ",dst-offset ) ;
-		}
-		::memcpy( ::launder(reinterpret_cast<char*>(&word))+offset , src , copied ) ;
-		::ptrace( PTRACE_POKEDATA , pid , dst-offset , word ) ;
-		throw_if( errno , "cannot poke data to address ",dst-offset ) ;
-	}
-	}
-
-template<bool At,bool KeepSimple=false> [[maybe_unused]] static Record::Path _path( pid_t pid , uint64_t const* args ) {
-	::string arg = _get_str(pid,args[At]) ;
+template<bool At,bool KeepSimple=false> [[maybe_unused]] static Record::Path _path( Fd proc_mem , uint64_t const* args ) {
+	::string arg = _get_str(proc_mem,args[At]) ;
 	if ( !KeepSimple && Record::s_is_simple(arg) ) throw ""s                    ;
 	if ( At                                      ) return { Fd(args[0]) , arg } ;
 	else                                           return {               arg } ;
@@ -75,13 +55,14 @@ template<int FlagArg> [[maybe_unused]] static bool _flag( uint64_t args[6] , int
 }
 
 // chdir
-template<bool At> [[maybe_unused]] static void _entry_chdir( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At> [[maybe_unused]] static bool/*refresh_mem*/ _entry_chdir( void*& ctx , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		if (At) { Record::Chdir* cd = new Record::Chdir{ r , Fd(args[0])                              , c } ; ctx = cd ; }
-		else    { Record::Chdir* cd = new Record::Chdir{ r , _path<At,true/*KeepSimple*/>(pid,args+0) , c } ; ctx = cd ; }
+		if (At) { Record::Chdir* cd = new Record::Chdir{ r , Fd(args[0])                                   , c } ; ctx = cd ; }
+		else    { Record::Chdir* cd = new Record::Chdir{ r , _path<At,true/*KeepSimple*/>(proc_mem,args+0) , c } ; ctx = cd ; }
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , pid_t , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_chdir( void* ctx , Record& r , Fd , int64_t res ) {
 	if (ctx) {
 		Record::Chdir* cd = static_cast<Record::Chdir*>(ctx) ;
 		(*cd)(r,res) ;
@@ -91,12 +72,13 @@ template<bool At> [[maybe_unused]] static void _entry_chdir( void*& ctx , Record
 }
 
 // chmod
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _entry_chmod( void*& ctx , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Chmod{ r , _path<At>(pid,args+0) , bool(args[1+At]&S_IXUSR) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
+		ctx = new Record::Chmod{ r , _path<At>(proc_mem,args+0) , bool(args[1+At]&S_IXUSR) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_chmod( void* ctx , Record& r , pid_t , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_chmod( void* ctx , Record& r , Fd , int64_t res ) {
 	if (ctx) {
 		Record::Chmod* cm = static_cast<Record::Chmod*>(ctx) ;
 		(*cm)(r,res) ;
@@ -106,33 +88,38 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_chmod( void*& 
 }
 
 // chroot
-[[maybe_unused]] static void _entry_chroot( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+[[maybe_unused]] static bool/*refresh_mem*/ _entry_chroot( void*& /*ctx*/ , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		Record::Chroot( r , _path<false>(pid,args+0) , c ) ;
+		Record::Chroot( r , _path<false>(proc_mem,args+0) , c ) ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
 
 // creat
-[[maybe_unused]] static void _entry_creat( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+[[maybe_unused]] static bool/*refresh_mem*/ _entry_creat( void*& ctx , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Open{ r , _path<false>(pid,args+0) , O_WRONLY|O_CREAT|O_TRUNC , c } ;
+		ctx = new Record::Open{ r , _path<false>(proc_mem,args+0) , O_WRONLY|O_CREAT|O_TRUNC , c } ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
 // use _exit_open as exit proc
 
 // execve
 // must be called before actual syscall execution as after execution, info is no more available
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _entry_execve( void*& /*ctx*/ , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		Record::Exec<true/*Send*/,false/*ChkSimple*/>( r , _path<At,true/*KeepSimple*/>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
+		Record::Exec<true/*Send*/,false/*ChkSimple*/>( r , _path<At,true/*KeepSimple*/>(proc_mem,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c ) ;
+		return true/*refresh_mem*/ ;                                                                                                                        // process mem changes, tell tracer
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
 
 // getdents
-[[maybe_unused]] static void _entry_getdents( void*& ctx , Record& r , pid_t , uint64_t args[6] , Comment c ) {
+[[maybe_unused]] static bool/*refresh_mem*/ _entry_getdents( void*& ctx , Record& r , Fd , uint64_t args[6] , Comment c ) {
 	ctx = new Record::ReadDir{ r , Fd(args[0]) , c } ;
+	return false/*refresh_mem*/ ;
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_getdents( void* ctx , Record& r , pid_t , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_getdents( void* ctx , Record& r , Fd , int64_t res ) {
 	if (ctx) {
 		Record::ReadDir* rd = static_cast<Record::ReadDir*>(ctx) ;
 		(*rd)( r , res ) ;
@@ -142,12 +129,13 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_execve( void*&
 }
 
 // hard link
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _entry_lnk( void*& ctx , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Lnk{ r , _path<At,true/*KeepSimple*/>(pid,args+0) , _path<At>(pid,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
+		ctx = new Record::Lnk{ r , _path<At,true/*KeepSimple*/>(proc_mem,args+0) , _path<At>(proc_mem,args+1+At) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , c } ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_lnk( void* ctx , Record& r , Fd , int64_t res ) {
 	if (ctx) {
 		Record::Lnk* l = static_cast<Record::Lnk*>(ctx) ;
 		(*l)(r,res) ;
@@ -157,26 +145,29 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_lnk( void*& ct
 }
 
 // mkdir
-template<bool At> [[maybe_unused]] static void _entry_mkdir( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At> [[maybe_unused]] static bool/*refresh_mem*/ _entry_mkdir( void*& /*ctx*/ , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		Record::Mkdir( r , _path<At>(pid,args+0) , c ) ;
+		Record::Mkdir( r , _path<At>(proc_mem,args+0) , c ) ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
 
 // mount
-[[maybe_unused]] static void _entry_mount( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+[[maybe_unused]] static bool/*refresh_mem*/ _entry_mount( void*& /*ctx*/ , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		Record::Mount( r , _path<false>(pid,args+1) , c ) ;
+		Record::Mount( r , _path<false>(proc_mem,args+1) , c ) ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
 
 // open
-template<bool At> [[maybe_unused]] static void _entry_open( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At> [[maybe_unused]] static bool/*refresh_mem*/ _entry_open( void*& ctx , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Open{ r , _path<At>(pid,args+0) , int(args[1+At])/*flags*/ , c } ;
+		ctx = new Record::Open{ r , _path<At>(proc_mem,args+0) , int(args[1+At])/*flags*/ , c } ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_open( void* ctx , Record& r , pid_t , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_open( void* ctx , Record& r , Fd , int64_t res ) {
 	if (ctx) {
 		Record::Open* o = static_cast<Record::Open*>(ctx) ;
 		(*o)( r , res ) ;
@@ -187,22 +178,23 @@ template<bool At> [[maybe_unused]] static void _entry_open( void*& ctx , Record&
 
 // read_lnk
 using ReadLinkBuf = ::pair<Record::Readlink,uint64_t/*buf*/> ;
-template<bool At> [[maybe_unused]] static void _entry_read_lnk( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At> [[maybe_unused]] static bool/*refresh_mem*/ _entry_read_lnk( void*& ctx , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		uint64_t orig_buf = args[At+1]                                        ;
-		size_t   sz       = args[At+2]                                        ;
-		char*    buf      = pid ? nullptr : reinterpret_cast<char*>(orig_buf) ;
-		ctx = new ReadLinkBuf( Record::Readlink{ r , _path<At>(pid,args+0) , buf , sz , c } , orig_buf ) ;
+		uint64_t orig_buf = args[At+1]                                             ;
+		size_t   sz       = args[At+2]                                             ;
+		char*    buf      = proc_mem ? nullptr : reinterpret_cast<char*>(orig_buf) ;
+		ctx = new ReadLinkBuf( Record::Readlink{ r , _path<At>(proc_mem,args+0) , buf , sz , c } , orig_buf ) ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , pid_t pid , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , Fd proc_mem , int64_t res ) {
 	if (ctx) {
 		ReadLinkBuf* rlb = static_cast<ReadLinkBuf*>(ctx) ;
 		res = (rlb->first)(r,res) ; SWEAR( res<=ssize_t(rlb->first.sz) , res,rlb->first.sz ) ;
-		if ( pid && rlb->first.magic ) {                                                       // access to backdoor was emulated, we must transport result to actual user space
+		if ( proc_mem && rlb->first.magic ) {                                                  // access to backdoor was emulated, we must transport result to actual user space
 			if (res>=0)
 				try {
-					_poke( pid , rlb->second , rlb->first.buf , res ) ;
+					_poke( proc_mem , rlb->second , rlb->first.buf , res ) ;
 				} catch (::string const&) {
 					errno = EFAULT                 ;
 					res   = -+BackdoorErr::PokeErr ;                                           // distinguish between backdoor error and absence of support
@@ -215,7 +207,7 @@ template<bool At> [[maybe_unused]] static void _entry_read_lnk( void*& ctx , Rec
 }
 
 // rename
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _entry_rename( void*& ctx , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
 		#ifdef RENAME_EXCHANGE
 			bool exchange = _flag<FlagArg>(args,RENAME_EXCHANGE) ;
@@ -228,10 +220,11 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void*&
 			bool no_replace = false                                 ;
 		#endif
 		// renaming a simple file (either src or dst) is non-sense, non need to take precautions
-		ctx = new Record::Rename{ r , _path<At>(pid,args+0) , _path<At>(pid,args+1+At) , exchange , no_replace , c } ;
+		ctx = new Record::Rename{ r , _path<At>(proc_mem,args+0) , _path<At>(proc_mem,args+1+At) , exchange , no_replace , c } ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_rename( void* ctx , Record& r , pid_t , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_rename( void* ctx , Record& r , Fd , int64_t res ) {
 	if (ctx) {
 		Record::Rename* rn = static_cast<Record::Rename*>(ctx) ;
 		(*rn)(r,res) ;
@@ -241,12 +234,13 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_rename( void*&
 }
 
 // symlink
-template<bool At> [[maybe_unused]] static void _entry_symlink( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At> [[maybe_unused]] static bool/*refresh_mem*/ _entry_symlink( void*& ctx , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
-		ctx = new Record::Symlink{ r , _path<At>(pid,args+1) , c } ;
+		ctx = new Record::Symlink{ r , _path<At>(proc_mem,args+1) , c } ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , pid_t , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_sym_lnk( void* ctx , Record& r , Fd , int64_t res ) {
 	if (ctx) {
 		Record::Symlink* sl = static_cast<Record::Symlink*>(ctx) ;
 		(*sl)(r,res) ;
@@ -256,14 +250,15 @@ template<bool At> [[maybe_unused]] static void _entry_symlink( void*& ctx , Reco
 }
 
 // unlink
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlink( void*& ctx , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _entry_unlink( void*& ctx , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	try {
 		bool rmdir = _flag<FlagArg>(args,AT_REMOVEDIR) ;
-		if (rmdir)           Record::Unlnk( r , _path<At>(pid,args+0) , rmdir , c ) ; // rmdir calls us without exit, and we must not set ctx in that case
-		else       ctx = new Record::Unlnk{ r , _path<At>(pid,args+0) , rmdir , c } ;
+		if (rmdir)           Record::Unlnk( r , _path<At>(proc_mem,args+0) , rmdir , c ) ; // rmdir calls us without exit, and we must not set ctx in that case
+		else       ctx = new Record::Unlnk{ r , _path<At>(proc_mem,args+0) , rmdir , c } ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
-[[maybe_unused]] static int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , pid_t , int64_t res ) {
+[[maybe_unused]] static int64_t/*res*/ _exit_unlnk( void* ctx , Record& r , Fd , int64_t res ) {
 	if (ctx) {
 		Record::Unlnk* u = static_cast<Record::Unlnk*>(ctx) ;
 		(*u)(r,res) ;
@@ -273,23 +268,24 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_unlink( void*&
 }
 
 // access
-template<bool At,int FlagArg> [[maybe_unused]] static void _do_stat( Record& r , pid_t pid , uint64_t args[6] , Accesses a , Comment c ) {
+template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _do_stat( Record& r , Fd proc_mem , uint64_t args[6] , Accesses a , Comment c ) {
 	try {
-		Record::Stat( r , _path<At>(pid,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , a , c ) ;
+		Record::Stat( r , _path<At>(proc_mem,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , a , c ) ;
 	} catch (::string const&) {}
+	return false/*refresh_mem*/ ;
 }
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_access( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _entry_access( void*& /*ctx*/ , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	Accesses a ; if (args[At+1]&X_OK) a |= Access::Reg ;
-	_do_stat<At,FlagArg>(r,pid,args,a,c) ;
+	return _do_stat<At,FlagArg>(r,proc_mem,args,a,c) ;
 }
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_open_tree( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
-	_do_stat<At,FlagArg>(r,pid,args,Accesses(),c) ;
+template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _entry_open_tree( void*& /*ctx*/ , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
+	return _do_stat<At,FlagArg>(r,proc_mem,args,Accesses(),c) ;
 }
-template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
-	_do_stat<At,FlagArg>(r,pid,args,FullAccesses,c) ;
+template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _entry_stat( void*& /*ctx*/ , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
+	return _do_stat<At,FlagArg>(r,proc_mem,args,FullAccesses,c) ;
 }
 
-[[maybe_unused]] static void _entry_statx( void*& /*ctx*/ , Record& r , pid_t pid , uint64_t args[6] , Comment c ) {
+[[maybe_unused]] static bool/*refresh_mem*/ _entry_statx( void*& /*ctx*/ , Record& r , Fd proc_mem , uint64_t args[6] , Comment c ) {
 	#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
 		uint     msk = args[3] ;
 		Accesses a   ;
@@ -298,7 +294,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static void _entry_stat( void*& /
 	#else
 		Accesses a = FullAccesses ;                                           // if access macros are not defined, be pessimistic
 	#endif
-	_do_stat<true,2>(r,pid,args,a,c) ;
+	return _do_stat<true,2>(r,proc_mem,args,a,c) ;
 }
 
 static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {

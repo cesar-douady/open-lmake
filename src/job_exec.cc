@@ -171,9 +171,8 @@ int main( int argc , char* argv[] ) {
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
 	end_report.digest   = { .status=Status::EarlyErr } ;                     // prepare to return an error, so we can goto End anytime
-	end_report.wstatus  = 255<<8                       ;                     // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                       ;                     // .
 	end_report.end_date = start_overhead               ;
-	end_report.os_info  = get_os_info()                ;
 	g_user_trace        = &end_report.user_trace       ;
 	g_user_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
@@ -245,7 +244,11 @@ int main( int argc , char* argv[] ) {
 			,	         g_phy_repo_root_s
 			,	         end_report.phy_tmp_dir_s
 			) ;
-			RealPath real_path { g_start_info.autodep_env } ;
+		} catch (::string const& e) {
+			end_report.msg_stderr.msg += e ;
+			goto End ;
+		}
+		{	RealPath real_path { g_start_info.autodep_env } ;
 			for( ::string& d_s : enter_accesses ) {
 				RealPath::SolveReport sr = real_path.solve(no_slash(::move(d_s)),true/*no_follow*/) ;
 				for( ::string& l : sr.lnks ) {
@@ -258,10 +261,8 @@ int main( int argc , char* argv[] ) {
 				}
 			}
 			g_start_info.update_env( /*out*/end_report.dyn_env , g_phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
-		} catch (::string const& e) {
-			end_report.msg_stderr.msg += e ;
-			goto End ;
 		}
+		end_report.os_info                        = get_os_info()                                                           ;            // get_os_info() must be called after enter()
 		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ;            // fast_report_pipe is a pipe and only works locally
 		g_start_info.autodep_env.views_s          = g_start_info.job_space.flat_phys_s()                                    ;
 		trace("prepared",g_start_info.autodep_env) ;

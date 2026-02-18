@@ -20,8 +20,7 @@ namespace Store {
 		// statics
 	private :
 		static size_t _s_round_up(size_t sz) {
-			static size_t s_page = ::sysconf(_SC_PAGESIZE) ;
-			return round_up( sz , s_page ) ;
+			return round_up<PAGE_SZ>(sz) ;
 		}
 		// cxtors & casts
 	public :

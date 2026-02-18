@@ -326,6 +326,11 @@ esac
 OS_ID="$ID/$VERSION_ID"
 
 #
+# PAGE_SZ (PAGE_SZ)
+#
+PAGE_SZ=$(getconf PAGE_SIZE) # avoid PAGE_SIZE that could conflict with system defined macro
+
+#
 # PATH (STD_PATH)
 #
 STD_PATH=$(env -i /bin/bash -c 'echo $PATH')
@@ -568,6 +573,7 @@ cat >$H_FILE <<-EOF
 	#define MAX_PID                     $MAX_PID
 	#define MUST_UNDEF_PTRACE_MACROS    $MUST_UNDEF_PTRACE_MACROS
 	#define OS_ID                       "$OS_ID"
+	#define PAGE_SZ                     $PAGE_SZ
 	#define PY_LD_LIBRARY_PATH          "$PY_LIB_DIR"
 	#define PY2_LD_LIBRARY_PATH         "$PY2_LIB_DIR"
 	#define PYTHON                      "$PYTHON"
