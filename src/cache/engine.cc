@@ -219,7 +219,8 @@ void cache_finalize() {
 }
 
 void mk_room( DiskSz sz , Cjob keep_job ) {
-	CrunHdr& hdr = CrunData::s_hdr() ;
+	CrunHdr& hdr       = CrunData::s_hdr()          ;
+	NfsGuard nfs_guard { g_cache_config.file_sync } ;
 	Trace trace("mk_room",sz,hdr.total_sz,g_reserved_sz) ;
 	//
 	if (g_reserved_sz+sz>g_cache_config.max_sz) {
@@ -234,11 +235,16 @@ void mk_room( DiskSz sz , Cjob keep_job ) {
 		SWEAR( +RateCmp::s_tab ) ;                                                  // if total size is non-zero, we must have entries
 		Rate     best_rate = *RateCmp::s_tab.begin()                    ;
 		Crun     best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
-		::string best_name = best_run->name()                           ;
+		::string run_name  = best_run->name()                           ;
 		//
-		/**/                                              unlnk  (            best_name+"-data"                       ) ;
-		/**/                                              unlnk  (            best_name+"-info"                       ) ;
-		if (best_run->victimize(best_run->job!=keep_job)) rmdir_s( with_slash(best_run->job->name()) , {.uphill=true} ) ;
+		unlnk( run_name+"-data" , {.nfs_guard=&nfs_guard} ) ;
+		unlnk( run_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
+		trace("unlnk",run_name);
+		if (best_run->victimize(best_run->job!=keep_job)) {
+			::string job_name = best_run->job->name() ;
+			rmdir_s( with_slash(job_name) , {.uphill=true,.nfs_guard=&nfs_guard} ) ;
+			trace("rmdir",job_name) ;
+		}
 	}
 	trace("done",sz,hdr.total_sz) ;
 }
@@ -552,16 +558,16 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) {
 				if (!crc_ok(dep_crcs_view[i],Crc::None)) { trace("miss3",i,j2,deps_view[i],dep_crcs_view[i]) ; return CacheHitInfo::Miss ; }               // found without crc while expecting one
 				j2++ ;                                                                                                                                     // fast path : j1 is consumed
-			} else { trace("match",i,deps_view[i],j1,j2) ; res = CacheHitInfo::Match ; }                                                                   // not found
+			} else if (res==CacheHitInfo::Hit) { trace("match1",i,deps_view[i],j1,j2) ; res = CacheHitInfo::Match ; }                                      // not found
 		}
 	}
 	// then search for non-existing deps
 	if ( res==CacheHitInfo::Hit && dep_crcs_.size()==dep_crcs_view.size() ) {                                                                              // fast path : all existing deps are consumed
 		SWEAR( j2==dep_crcs_.size() , j2,dep_crcs_.size() )  ;                                                                                             // all existing deps were found existing
 		for( NodeIdx i : iota(dep_crcs_view.size(),deps_view.size()) ) {
-			while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
-			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                                                  // fast path : j2 is consumed
-			else                                                   { trace("match",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; }                   // not found
+			while   ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
+			if      ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                                                // fast path : j2 is consumed
+			else if ( res==CacheHitInfo::Hit                       ) { trace("match2",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; }                // not found
 		}
 	} else {
 		j1 = n_statics        ;                                          // reset search as deps are ordered separately existing/non-existing
@@ -569,12 +575,12 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 		for( NodeIdx i : iota(dep_crcs_view.size(),deps_view.size()) ) {
 			while ( j1<dep_crcs_.size() && +deps_[j1]< +deps_view[i] ) j1++ ;
 			if    ( j1<dep_crcs_.size() &&  deps_[j1]== deps_view[i] ) {
-				if (!crc_ok(Crc::None,dep_crcs_[j1])) { trace("miss4",i,j1,deps_view[i],dep_crcs_[j1]) ; return CacheHitInfo::Miss ; }       // found with crc while expecting none
-				j1++ ;                                                                                                                       // fast path : j1 is consumed
+				if (!crc_ok(Crc::None,dep_crcs_[j1])) { trace("miss4",i,j1,deps_view[i],dep_crcs_[j1]) ; return CacheHitInfo::Miss ; }          // found with crc while expecting none
+				j1++ ;                                                                                                                          // fast path : j1 is consumed
 			} else {
-				while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
-				if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                                // fast path : j2 is consumed
-				else                                                   { trace("match",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; } // not found
+				while   ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
+				if      ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                                 // fast path : j2 is consumed
+				else if ( res==CacheHitInfo::Hit                       ) { trace("match3",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; } // not found
 			}
 		}
 	}

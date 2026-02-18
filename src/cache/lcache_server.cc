@@ -110,28 +110,31 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 			rename( rf+"-data" , run_name+"-data" , {.nfs_guard=&nfs_guard} ) ; data_moved = true ;
 			rename( rf+"-info" , run_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
 			// END_OF_VERSIONING
+			trace("committed",rf,run_name);
 			return ;
 		} catch(::string const& e) {                           // defensive programming : in case of error, no report on commit, so just force dismiss
 			Fd::Stderr.write(cat("cache upload error : ",e)) ;
-			trace("cannot_rename",e) ;
+			trace("cannot_rename",rf,run_name,e) ;
 			digest.first->victimize() ;                        // undo insert
 		}
 	}
 	unlnk( (data_moved?run_name:rf)+"-data" , {.nfs_guard=&nfs_guard} ) ;
 	unlnk(                      rf +"-info" , {.nfs_guard=&nfs_guard} ) ;
+	trace("dismissed",rf,run_name);
 }
 
 static void _dismiss( Fd fd , CacheUploadKey upload_key ) {
 	Trace trace("dismiss",upload_key) ;
+	NfsGuard nfs_guard  { g_cache_config.file_sync } ;
 	_release_room(_g_reserved_szs[upload_key]) ;
 	_g_upload_keys.release(upload_key)         ;
 	_g_reserved_szs[upload_key] = 0 ;
 	_g_conn_tab.at(fd).upload_keys.erase(upload_key) ;
 	//
 	::string rf = reserved_file(upload_key) ;
-	unlnk(rf+"-data") ;
-	unlnk(rf+"-info") ;
-	trace("done") ;
+	unlnk( rf+"-data" , {.nfs_guard=&nfs_guard} ) ;
+	unlnk( rf+"-info" , {.nfs_guard=&nfs_guard} ) ;
+	trace("done",rf) ;
 }
 
 struct CacheServer : AutoServer<CacheServer> {
