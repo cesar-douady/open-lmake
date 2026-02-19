@@ -17,6 +17,7 @@ using namespace Time ;
 CacheConfig g_cache_config ;
 DiskSz      g_reserved_sz  = 0                            ;
 ::string    g_store_dir_s  = PRIVATE_ADMIN_DIR_S "store/" ;
+FileSync    g_file_sync    = {}/*garbage*/                ;
 
 CkeyFile      _g_key_file       ;
 CjobNameFile  _g_job_name_file  ;
@@ -164,6 +165,8 @@ void cache_init( bool rescue , bool read_only ) {
 	} catch (::string const& e) {
 		exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : ",e ) ;
 	}
+	try                       { g_file_sync = auto_file_sync(g_cache_config.file_sync) ;                                                                      }
+	catch (::string const& e) { exit( Rc::System , "cannot auto-configure file_sync : ",e,"\n  consider setting file_sync to an adequate value in config" ) ; }
 	// record what has been understood from config
 	CacheConfig ref_config        ;
 	::string    sensed_config_str ;
@@ -177,8 +180,8 @@ void cache_init( bool rescue , bool read_only ) {
 		AcFd ( sensed_config_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( sensed_config_str ) ;
 	} catch (::string const&) {}                                                              // best effort
 	//
+	NfsGuard nfs_guard { g_file_sync } ;
 	// START_OF_VERSIONING CACHE
-	NfsGuard nfs_guard { g_cache_config.file_sync }   ;
 	{ ::string file=g_store_dir_s+"key"       ; nfs_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
 	{ ::string file=g_store_dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
 	{ ::string file=g_store_dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
@@ -205,7 +208,7 @@ void cache_empty_trash() {
 }
 
 void cache_finalize() {
-	NfsGuard nfs_guard { g_cache_config.file_sync } ;
+	NfsGuard nfs_guard { g_file_sync } ;
 	Trace trace("cache_finalize") ;
 	nfs_guard.change(g_store_dir_s+"key"      ) ;
 	nfs_guard.change(g_store_dir_s+"job_name" ) ;
@@ -219,8 +222,8 @@ void cache_finalize() {
 }
 
 void mk_room( DiskSz sz , Cjob keep_job ) {
-	CrunHdr& hdr       = CrunData::s_hdr()          ;
-	NfsGuard nfs_guard { g_cache_config.file_sync } ;
+	CrunHdr& hdr       = CrunData::s_hdr() ;
+	NfsGuard nfs_guard { g_file_sync }     ;
 	Trace trace("mk_room",sz,hdr.total_sz,g_reserved_sz) ;
 	//
 	if (g_reserved_sz+sz>g_cache_config.max_sz) {

@@ -313,7 +313,7 @@ namespace Engine {
 			bool         seen_stderr = false                                                          ;
 			::uset<Job > seen_jobs   ;
 			::uset<Node> seen_nodes  ;
-			NfsGuard     nfs_guard   { g_config->file_sync }                                          ;
+			NfsGuard     nfs_guard   { g_config->server_file_sync }                                   ;
 			if (job->rule()->special==Special::Req) {
 				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable)       _report_err    (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
 				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) self->_report_no_rule(d,&nfs_guard                                 ) ;

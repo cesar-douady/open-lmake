@@ -16,6 +16,7 @@ namespace Codec {
 		SWEAR( descr[descr.size()-6]==':' , descr ) ;
 		tab = descr.substr(0,descr.size()-6) ;
 		switch (descr[descr.size()-5]) {
+			case 'A' : file_sync = FileSync::Auto ; break ;
 			case 'N' : file_sync = FileSync::None ; break ;
 			case 'D' : file_sync = FileSync::Dir  ; break ;
 			case 'S' : file_sync = FileSync::Sync ; break ;
@@ -35,16 +36,20 @@ namespace Codec {
 		chk_version( dir_s , { .chk=Maybe , .key="codec dir" , .init_msg=init_msg , .clean_msg=clean_msg , .umask=umask , .version=Version::Codec } ) ;
 		//
 		::string fs_file = cat(dir_s,AdminDirS,"file_sync") ;
-		::string fs_str  = strip(AcFd(fs_file).read())      ; throw_unless( can_mk_enum<FileSync>(fs_str) , "unrecognized file_sync : ",fs_str ) ;
-		//
-		tab       = dir_s                     ;
-		file_sync = mk_enum<FileSync>(fs_str) ;
+		AcFd     fd      { fs_file , {.err_ok=true} }       ;
+		if (+fd) {
+			::string fs_str = strip(AcFd(fs_file).read()) ; throw_unless( can_mk_enum<FileSync>(fs_str) , "unrecognized file_sync : ",fs_str ) ;
+			//
+			tab       = dir_s                     ;
+			file_sync = mk_enum<FileSync>(fs_str) ;
+		}
 	}
 
 	CodecRemoteSide::operator ::string() const {
 		::string res = tab ;
 		res << ':' ;
 		switch (file_sync) {
+			case FileSync::Auto : res << 'A' ; break ;
 			case FileSync::None : res << 'N' ; break ;
 			case FileSync::Dir  : res << 'D' ; break ;
 			case FileSync::Sync : res << 'S' ; break ;
@@ -80,7 +85,10 @@ namespace Codec {
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
-		repo_root_s = cwd_s() ;
+		file_sync   = FileSync::None   ;
+		lnk_support = LnkSupport::Full ;
+		readdir_ok  = true             ;
+		repo_root_s = cwd_s()          ;
 		return ;
 	}
 	size_t pos = env.find(':'           ) ; if (pos==Npos) goto Fail ;
@@ -112,6 +120,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			case 's' :
 				pos++ ;
 				switch (env[pos]) {
+					case 'a' : file_sync = FileSync::Auto ; break ;
 					case 'n' : file_sync = FileSync::None ; break ;
 					case 'd' : file_sync = FileSync::Dir  ; break ;
 					case 's' : file_sync = FileSync::Sync ; break ;
@@ -152,6 +161,7 @@ AutodepEnv::operator ::string() const {
 	if (mount_chroot_ok) res << 'M' ;
 	if (readdir_ok     ) res << 'D' ;
 	switch (file_sync) {
+		case FileSync::Auto : res << "sa" ; break ;
 		case FileSync::None : res << "sn" ; break ;
 		case FileSync::Dir  : res << "sd" ; break ;
 		case FileSync::Sync : res << "ss" ; break ;

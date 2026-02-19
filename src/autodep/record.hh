@@ -70,11 +70,9 @@ struct Record {
 		if (_s_report_fd[0]==_s_report_fd[1])   _s_report_fd[0].close() ;                                 // if both are identical we must only close one
 		else                                  { _s_report_fd[0].close() ; _s_report_fd[1].close() ; }
 	}
-	static AutodepEnv const& s_autodep_env() {
-		SWEAR( +_s_autodep_env && +s_access_cache ) ;
-		return *_s_autodep_env ;
-	}
-	static AutodepEnv const& s_autodep_env(AutodepEnv const& ade) {
+	static AutodepEnv const& s_autodep_env         (                     ) { SWEAR( +_s_autodep_env && +s_access_cache ) ; return *_s_autodep_env ; }
+	static AutodepEnv      & s_autodep_env_writable(                     ) { SWEAR( +_s_autodep_env && +s_access_cache ) ; return *_s_autodep_env ; }
+	static AutodepEnv const& s_autodep_env         (AutodepEnv const& ade) {
 		SWEAR( !s_access_cache && !_s_autodep_env ) ;
 		_s_mk_autodep_env(new AutodepEnv{ade}) ;
 		return *_s_autodep_env ;

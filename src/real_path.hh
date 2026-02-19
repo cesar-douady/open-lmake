@@ -36,8 +36,8 @@ struct RealPathEnv {
 	void    chk     (bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING CACHE JOB REPO
+	FileSync   file_sync   = {}               ;
 	LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
-	FileSync   file_sync   = FileSync::Dflt   ;
 	::string   repo_root_s = {}               ;
 	::string   tmp_dir_s   = {}               ;
 	::vector_s src_dirs_s  = {}               ;

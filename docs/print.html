@@ -654,7 +654,7 @@ Else an exception is raised.</p>
 <li>an external dir (symbolic links are followed) recording the association table</li>
 </ul>
 <p>In the former case, an external dir must lie within a source dir.
-When an external dir, it must contain a file <code>LMAKE/file_sync</code> containing one of <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
 <h3 id="depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a href="unit_tests/critical.html#:~:text=lmake%2Edepend%28%27src1%27%2C%27src2%27%20%2Cread%3DTrue%2Ccritical%3DTrue%29"><code>depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></a></h3>
@@ -754,7 +754,7 @@ Else a code is created, of length at least <code>min_length</code>, is associate
 <li>an external dir (symbolic links are followed) recording the association table</li>
 </ul>
 <p>In the former case, an external dir must lie within a source dir.
-When an external dir, it must contain a file <code>LMAKE/file_sync</code> containing one of <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
 <p>Returns whether autodep is currently active or not.</p>
@@ -1196,8 +1196,9 @@ It must account for file date granularity (generally a few ms) and date discrepa
 <p>This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.</p>
 <p>Possible values are (ordered by decreasing performance):</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
-<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td>if no remote backends</td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'dir'</code></td><td>NFS</td><td>if any remote backend</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
+<tr><td><code>'auto'</code></td><td>all</td><td>X</td><td>precautions are determined automatically from filesystem type</td></tr>
+<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
 <tr><td><code>'sync'</code></td><td></td><td></td><td><a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync</code></a> is called after any modification</td></tr>
 </tbody></table>
 </div>
@@ -2756,7 +2757,7 @@ The daemon is started automatically when needed and dies as soon as it becomes u
 It is also possible to run it manually with the <code>lcache_server</code> command.</p>
 <p>It must be initialized with a file <code>LMAKE/config.py</code> defining some variables:</p>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Possible values</th><th>Comment</th></tr></thead><tbody>
-<tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
+<tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'auto'</code>, <code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
 <tr><td><code>max_rate</code></td><td>'1G'</td><td>any positive <code>int</code> or <code>str</code> composed of a number followed by a unit suffix</td><td>the maximum rate in B/s above which entries are not recorded in the cache</td></tr>
 <tr><td><code>max_runs_per_job</code></td><td>100</td><td>any positive <code>int</code></td><td>the maximum number of runs kept for a given job</td></tr>
 <tr><td><code>size</code></td><td>&lt;required&gt;</td><td>any <code>int</code> or a <code>str</code> composed of a number followed by a unit suffix</td><td>the overall size the cache is allowed to occupy</td></tr>
@@ -2818,11 +2819,12 @@ This is a natural extension of the classical LRU algorithm devised for cases whe
 <p>And if such accesses are at group level (but not other), all dirs must have the setgid bit set.</p>
 <h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
-In that case, precautions must be taken to ensure coherence.</p>
-<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to:</p>
+In that case, precautions must be taken to ensure coherence. Most of the time, this can be handled automatically.</p>
+<p>In case automatic management fails, (e.g. if the cache dir is mounted through an overlay), the <code>file_sync</code> variable in <code>LMAKE/config.py</code> can be set to:</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
+<tr><td><code>'auto'</code></td><td>X</td><td>X</td><td>adequate precaution is determined automatically when possible</td></tr>
 <tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
 <tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
 </tbody></table>
 </div><div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
@@ -2909,8 +2911,9 @@ If 2 externally generated codes collide, a numerical suffix is appended or incre
 </ul>
 <h1 id="association-table-as-a-shared-dir"><a class="header" href="#association-table-as-a-shared-dir">association table as a shared dir</a></h1>
 <p>Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
-In that case, all associations are stored as individual files within this dir.
-Such a dir must contain a file <code>LMAKE/file_sync</code> containing one of <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+In that case, all associations are stored as individual files within this dir.</p>
+<p>In cases where adequate precautions cannot be determined automatically (e.g. if the dir is mounted through overlay),
+such a dir may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <h2 id="format"><a class="header" href="#format">format</a></h2>
 <p>A dir containing an association table can be edited by hand to customize codes.
 Each assocation <code>code</code>&lt;-&gt;<code>value</code> is recorded as :</p>
@@ -2939,11 +2942,12 @@ Everything it does not understand will be <code>rm</code>ed.</p>
 This operation may have to be done recursively if the root dir is already populated.</p>
 <h2 id="coherence-1"><a class="header" href="#coherence-1">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
-In that case, precautions must be taken to ensure coherence.</p>
-<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to:</p>
+In that case, precautions must be taken to ensure coherence. Most of the time, this can be handled automatically.</p>
+<p>In case automatic management fails, (e.g. if the cache dir is mounted through an overlay), the <code>file_sync</code> variable in <code>LMAKE/config.py</code> can be set to:</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
+<tr><td><code>'auto'</code></td><td>X</td><td>X</td><td>adequate precaution is determined automatically when possible</td></tr>
 <tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
 <tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
 </tbody></table>
 </div><div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->

@@ -42,13 +42,13 @@ inline constexpr Bool3  common    ( bool   b1 , bool  b2 ) {                retu
 // START_OF_VERSIONING CACHE JOB REPO
 // PER_FILE_SYNC : add entry here
 enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
-	None
+	Auto
+,	None
 ,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
 ,	Sync                        // sync file after write
-// aliases
-,	Dflt = Dir
 } ;
 // END_OF_VERSIONING
+FileSync auto_file_sync( FileSync , ::string const& dir_s={} ) ;
 
 // working and non-working locking techniques
 // ::fcntl  ( <fd> , F_SETLKW , &{.l_type=F_WRLCK} )                     : has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, and possibly block
@@ -873,14 +873,22 @@ template<::integral I> I random() {
 template<::integral I,I DfltVal> consteval I _macro_val_str(const char* n_str) {
 	I    n      = 0     ;
 	bool is_neg = false ;
+	int  base   = 10    ;
 	if (*n_str=='-') {
+		if (!::is_signed_v<I>) return DfltVal ;
 		is_neg = true ;
 		n_str++ ;
 	}
+	if (*n_str=='0') {
+		n_str++ ;
+		if ( *n_str=='x' || *n_str=='X' ) { n_str++ ; base = 16 ; }
+		else                                          base =  8 ;
+	}
 	for( const char* p=n_str ; *p ; p++ )
-		if      (!( '0'<=*p && *p<='9'  )) return DfltVal ;
-		else if (   ::is_same_v<I,bool>  ) n |= *p!='0'           ;
-		else                               n  = (n*10) + (*p-'0') ;
+		if      ( '0'<=*p && *p<='9' && (*p-'0'   <base) ) { if (::is_same_v<I,bool>) n |= *p!=0 ; else n = (n*base) + (*p-'0'   ) ; }
+		else if ( 'a'<=*p && *p<='z' && (*p-'a'+10<base) ) { if (::is_same_v<I,bool>) n  = true  ; else n = (n*base) + (*p-'a'+10) ; }
+		else if ( 'A'<=*p && *p<='Z' && (*p-'A'+10<base) ) { if (::is_same_v<I,bool>) n  = true  ; else n = (n*base) + (*p-'A'+10) ; }
+		else                                                 return DfltVal ;
 	if ( !::is_same_v<I,bool> && is_neg ) n = -n ;
 	return n ;
 }

@@ -162,7 +162,7 @@ The daemon is started automatically when needed and dies as soon as it becomes u
 It is also possible to run it manually with the <code>lcache_server</code> command.</p>
 <p>It must be initialized with a file <code>LMAKE/config.py</code> defining some variables:</p>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Possible values</th><th>Comment</th></tr></thead><tbody>
-<tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
+<tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'auto'</code>, <code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
 <tr><td><code>max_rate</code></td><td>'1G'</td><td>any positive <code>int</code> or <code>str</code> composed of a number followed by a unit suffix</td><td>the maximum rate in B/s above which entries are not recorded in the cache</td></tr>
 <tr><td><code>max_runs_per_job</code></td><td>100</td><td>any positive <code>int</code></td><td>the maximum number of runs kept for a given job</td></tr>
 <tr><td><code>size</code></td><td>&lt;required&gt;</td><td>any <code>int</code> or a <code>str</code> composed of a number followed by a unit suffix</td><td>the overall size the cache is allowed to occupy</td></tr>
@@ -224,11 +224,12 @@ This is a natural extension of the classical LRU algorithm devised for cases whe
 <p>And if such accesses are at group level (but not other), all dirs must have the setgid bit set.</p>
 <h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
-In that case, precautions must be taken to ensure coherence.</p>
-<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to:</p>
+In that case, precautions must be taken to ensure coherence. Most of the time, this can be handled automatically.</p>
+<p>In case automatic management fails, (e.g. if the cache dir is mounted through an overlay), the <code>file_sync</code> variable in <code>LMAKE/config.py</code> can be set to:</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
+<tr><td><code>'auto'</code></td><td>X</td><td>X</td><td>adequate precaution is determined automatically when possible</td></tr>
 <tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
 <tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
 </tbody></table>
 </div>

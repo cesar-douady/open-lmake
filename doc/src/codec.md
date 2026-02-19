@@ -92,7 +92,9 @@ This has the following properties:
 
 Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
 In that case, all associations are stored as individual files within this dir.
-Such a dir must contain a file `LMAKE/file_sync` containing one of `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
+
+In cases where adequate precautions cannot be determined automatically (e.g. if the dir is mounted through overlay),
+such a dir may contain a file `LMAKE/file_sync` containing one of `auto`, `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
 
 ## format
 
@@ -127,12 +129,13 @@ This operation may have to be done recursively if the root dir is already popula
 ## Coherence
 
 Some file systems, such as NFS, lack coherence.
-In that case, precautions must be taken to ensure coherence.
+In that case, precautions must be taken to ensure coherence. Most of the time, this can be handled automatically.
 
-This can be achieved by setting the `file_sync` variable in `LMAKE/config.py` to:
+In case automatic management fails, (e.g. if the cache dir is mounted through an overlay), the `file_sync` variable in `LMAKE/config.py` can be set to:
 
 | Value     | Recommanded for  | Default | Comment                                                                        |
 |-----------|------------------|---------|--------------------------------------------------------------------------------|
+| `'auto'`  | X                | X       | adequate precaution is determined automatically when possible                  |
 | `'none'`  | local disk, CEPH |         | no precaution, file system is coherent                                         |
-| `'dir'`   | NFS              | X       | enclosing dir (recursively) is open before any read and closed after any write |
+| `'dir'`   | NFS              |         | enclosing dir (recursively) is open before any read and closed after any write |
 | `'sync'`  |                  |         | `fsync` is called after any modification                                       |

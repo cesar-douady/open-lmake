@@ -176,25 +176,27 @@ int main( int argc , char* argv[] ) {
 	g_user_trace        = &end_report.user_trace       ;
 	g_user_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
-	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                                               // START_OF_NO_COV defensive programming
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                        // if !g_start_info, server ask us to give up
+	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                                                                // START_OF_NO_COV defensive programming
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                         // if !g_start_info, server ask us to give up
 		end_report.msg_stderr.msg << "cannot chdir to root : "<<g_phy_repo_root_s<<rm_slash ;
 		goto End ;
-	}                                                                                                          // END_OF_NO_COV
+	}                                                                                                                           // END_OF_NO_COV
 	g_user_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(g_phy_repo_root_s) ) ;
-	Trace::s_sz = 10<<20 ;                                                                                     // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                                    // necessary to capture it using signalfd
-	app_init({ .chk_version=No , .trace=Yes }) ;                                                               // dont check version for perf, but trace nevertheless
+	Trace::s_sz = 10<<20 ;                                                                                                      // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                                                     // necessary to capture it using signalfd
+	app_init({ .chk_version=No , .trace=Yes }) ;                                                                                // dont check version for perf, but trace nevertheless
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                        // if !g_start_info, server ask us to give up
-		try                       { g_start_info.mk_canon( g_phy_repo_root_s ) ; }
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;  }                             // NO_COV defensive programming
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                         // if !g_start_info, server ask us to give up
+		try                       { g_start_info.mk_canon( g_phy_repo_root_s ) ;                                              }
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                                               } // NO_COV defensive programming
+		try                       { g_start_info.autodep_env.file_sync = auto_file_sync(g_start_info.autodep_env.file_sync) ; }
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                                               } // NO_COV defensive programming
 		//
-		g_start_info.autodep_env.fqdn = fqdn(g_start_info.domain_name) ;                                       // call fqdn() before potential chroot in g_start_info.enter()
+		g_start_info.autodep_env.fqdn = fqdn(g_start_info.domain_name) ;                                                        // call fqdn() before potential chroot in g_start_info.enter()
 		//
 		NfsGuard   nfs_guard    { g_start_info.autodep_env.file_sync } ;
 		bool       incremental  = false/*garbage*/                     ;

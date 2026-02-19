@@ -13,7 +13,7 @@ It must be initialized with a file `LMAKE/config.py` defining some variables:
 
 | Variable           | Default      | Possible values                                                            | Comment                                                                             |
 |--------------------|--------------|----------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
-| `file_sync`        | 'dir'        | `'none'`, `'dir'`, `'sync'`                                                | the method used to ensure consistent access to the file system containing the cache |
+| `file_sync`        | 'dir'        | `'auto'`, `'none'`, `'dir'`, `'sync'`                                      | the method used to ensure consistent access to the file system containing the cache |
 | `max_rate`         | '1G'         | any positive `int` or `str` composed of a number followed by a unit suffix | the maximum rate in B/s above which entries are not recorded in the cache           |
 | `max_runs_per_job` | 100          | any positive `int`                                                         | the maximum number of runs kept for a given job                                     |
 | `size`             | \<required\> | any `int` or a `str` composed of a number followed by a unit suffix        | the overall size the cache is allowed to occupy                                     |
@@ -99,12 +99,13 @@ And if such accesses are at group level (but not other), all dirs must have the 
 ## Coherence
 
 Some file systems, such as NFS, lack coherence.
-In that case, precautions must be taken to ensure coherence.
+In that case, precautions must be taken to ensure coherence. Most of the time, this can be handled automatically.
 
-This can be achieved by setting the `file_sync` variable in `LMAKE/config.py` to:
+In case automatic management fails, (e.g. if the cache dir is mounted through an overlay), the `file_sync` variable in `LMAKE/config.py` can be set to:
 
 | Value     | Recommanded for  | Default | Comment                                                                        |
 |-----------|------------------|---------|--------------------------------------------------------------------------------|
+| `'auto'`  | X                | X       | adequate precaution is determined automatically when possible                  |
 | `'none'`  | local disk, CEPH |         | no precaution, file system is coherent                                         |
-| `'dir'`   | NFS              | X       | enclosing dir (recursively) is open before any read and closed after any write |
+| `'dir'`   | NFS              |         | enclosing dir (recursively) is open before any read and closed after any write |
 | `'sync'`  |                  |         | `fsync` is called after any modification                                       |

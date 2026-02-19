@@ -325,27 +325,37 @@ namespace Backdoor {
 
 	static CodecRemoteSide _real( Record& r , ::string const& tab , Comment comment ) {
 		throw_unless( +tab  , "table cannot be empty"   ) ;
-		if (is_dir_name(tab)) return {New,tab} ;
-		//
-		AutodepEnv const& autodep_env = Record::s_autodep_env() ;
-		CodecRemoteSide   res         ;
-		//
-		if (tab.find('/')==Npos) {
-			auto it = autodep_env.codecs.find(tab) ;
-			if (it!=autodep_env.codecs.end()) {
-				res.tab       = it->second.tab       ;
-				res.umask     = it->second.umask     ;
-				res.file_sync = it->second.file_sync ;
-				return res ;
+		CodecRemoteSide res ;
+		if (is_dir_name(tab)) {
+			res = { New , tab } ;
+			try                       { res.file_sync = auto_file_sync( res.file_sync , tab ) ;                                                       }
+			catch (::string const& e) { throw cat("cannot use codec table : ",e,"\n  consider putting an adequate value in ",AdminDirS,"file_sync") ; }
+		} else {
+			AutodepEnv& autodep_env = Record::s_autodep_env_writable() ;                                                                                        // solve lazy file_sync
+			//
+			if (tab.find('/')==Npos) {
+				auto it = autodep_env.codecs.find(tab) ;
+				if (it!=autodep_env.codecs.end()) {
+					res.tab       = it->second.tab       ;
+					res.umask     = it->second.umask     ;
+					if (!it->second.file_sync) {                                                                                                                    // solve lazy
+						try                       { it->second.file_sync = auto_file_sync( it->second.file_sync , tab ) ;                                         }
+						catch (::string const& e) { throw cat("cannot use codec table : ",e,"\n  consider putting an adequate value in ",AdminDirS,"file_sync") ; }
+					}
+					res.file_sync = it->second.file_sync ;
+					goto Return ;
+				}
 			}
+			//
+			Record::Solve<false/*Send*/> sr { r , tab , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Encode } ;
+			throw_unless( sr.file_loc<=FileLoc::Repo , "codec table file must be a local source file" ) ;
+			if (+sr.accesses) r.report_access( { .comment=comment , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
+			//
+			res.tab       = ::move(sr.real)       ;
+			res.file_sync = autodep_env.file_sync ;
 		}
-		//
-		Record::Solve<false/*Send*/> sr { r , tab , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Encode } ;
-		throw_unless( sr.file_loc<=FileLoc::Repo , "codec table file must be a local source file" ) ;
-		if (+sr.accesses) r.report_access( { .comment=comment , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
-		//
-		res.tab       = ::move(sr.real)       ;
-		res.file_sync = autodep_env.file_sync ;
+	Return :
+		SWEAR( +res.file_sync , tab,res.tab ) ;
 		return res ;
 	}
 
@@ -444,7 +454,7 @@ namespace Backdoor {
 					goto Retry ;
 				}
 				::string dir_s = CodecFile::s_dir_s(crs.tab) ;
-				creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                      // ensure data exist in store
+				creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                   // ensure data exist in store
 				//
 				CodecFile dcf       { false/*encode*/ , crs.tab , ctx , crc_hex.substr(0,min_len) }                                       ;
 				::string& code      = dcf.code()                                                                                          ;

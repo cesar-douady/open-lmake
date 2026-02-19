@@ -43,6 +43,7 @@ struct CnodeData ;
 extern CacheConfig  g_cache_config ;
 extern Disk::DiskSz g_reserved_sz  ;
 extern ::string     g_store_dir_s  ;
+extern FileSync     g_file_sync    ; // file sync to be used by cache_server
 
 //
 // free functions

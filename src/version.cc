@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 30      ; // de6e9dfc7bd4af5867e8e12b5addc59d
+	uint64_t    constexpr Cache = 31      ; // a501eb65e45d8dd6538caffe6ee999e6
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 26      ; // ec69e64457cbf7741289f009b1a75f42
-	uint64_t    constexpr Job   = 16      ; // 6c874f081b5e86685402cb5918d4a0f2
+	uint64_t    constexpr Repo  = 27      ; // dd9f62e349f7b59a7a5c56915d89970d
+	uint64_t    constexpr Job   = 17      ; // e9815ab26bf928f163f771390de178e6
 	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : de6e9dfc7bd4af5867e8e12b5addc59d *
+// * Cache : a501eb65e45d8dd6538caffe6ee999e6 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -21,6 +21,7 @@ namespace Version {
 //		if (mount_chroot_ok) res << 'M' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
+//			case FileSync::Auto : res << "sa" ; break ;
 //			case FileSync::None : res << "sn" ; break ;
 //			case FileSync::Dir  : res << "sd" ; break ;
 //			case FileSync::Sync : res << "ss" ; break ;
@@ -39,7 +40,6 @@ namespace Version {
 //		res <<':'<<      mk_printable     (                  views_s     ,false )      ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE
-//		NfsGuard nfs_guard { g_cache_config.file_sync }   ;
 //		{ ::string file=g_store_dir_s+"key"       ; nfs_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
 //		{ ::string file=g_store_dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
 //		{ ::string file=g_store_dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
@@ -348,8 +348,8 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
+//		FileSync   file_sync   = {}               ;
 //		LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
-//		FileSync   file_sync   = FileSync::Dflt   ;
 //		::string   repo_root_s = {}               ;
 //		::string   tmp_dir_s   = {}               ;
 //		::vector_s src_dirs_s  = {}               ;
@@ -899,11 +899,10 @@ namespace Version {
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	// PER_FILE_SYNC : add entry here
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
-//		None
+//		Auto
+//	,	None
 //	,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
 //	,	Sync                        // sync file after write
-//	// aliases
-//	,	Dflt = Dir
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
@@ -943,7 +942,7 @@ namespace Version {
 //						goto Retry ;
 //					}
 //					::string dir_s = CodecFile::s_dir_s(crs.tab) ;
-//					creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                      // ensure data exist in store
+//					creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                   // ensure data exist in store
 //					//
 //					CodecFile dcf       { false/*encode*/ , crs.tab , ctx , crc_hex.substr(0,min_len) }                                       ;
 //					::string& code      = dcf.code()                                                                                          ;
@@ -1071,7 +1070,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : ec69e64457cbf7741289f009b1a75f42 *
+// * Repo : dd9f62e349f7b59a7a5c56915d89970d *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1083,6 +1082,7 @@ namespace Version {
 //		if (mount_chroot_ok) res << 'M' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
+//			case FileSync::Auto : res << "sa" ; break ;
 //			case FileSync::None : res << "sn" ; break ;
 //			case FileSync::Dir  : res << "sd" ; break ;
 //			case FileSync::Sync : res << "ss" ; break ;
@@ -1366,14 +1366,15 @@ namespace Version {
 //				bool     show_ete     = true  ;
 //				// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			FileSync                                                                file_sync     = FileSync::Dflt ; // method to ensure file sync when over an unreliable filesystem such as NFS
-//			size_t                                                                  max_err_lines = 0              ; // unlimited
-//			uint8_t                                                                 nice          = 0              ; // nice value applied to jobs
-//			Collect                                                                 collect       ;
-//			Console                                                                 console       ;
-//			::array<Backend,N<BackendTag>>                                          backends      ;                  // backend may refuse dynamic modification
-//			::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors        = {}             ;
-//			::map_ss                                                                dbg_tab       = {}             ; // maps debug keys to modules to import, ordered to be serializable
+//			FileSync                                                                file_sync        = {}  ; // method to ensure file sync when over an unreliable filesystem such as NFS
+//			size_t                                                                  max_err_lines    = 0   ; // unlimited
+//			uint8_t                                                                 nice             = 0   ; // nice value applied to jobs
+//			FileSync                                                                server_file_sync = {}  ; // method to use on server side
+//			Collect                                                                 collect          ;
+//			Console                                                                 console          ;
+//			::array<Backend,N<BackendTag>>                                          backends         ;       // backend may refuse dynamic modification
+//			::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors           = {}  ;
+//			::map_ss                                                                dbg_tab          = {}  ; // maps debug keys to modules to import, ordered to be serializable
 //			// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO
 //				::serdes(s,static_cast<ConfigClean &>(self)) ;
@@ -1803,8 +1804,8 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
+//		FileSync   file_sync   = {}               ;
 //		LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
-//		FileSync   file_sync   = FileSync::Dflt   ;
 //		::string   repo_root_s = {}               ;
 //		::string   tmp_dir_s   = {}               ;
 //		::vector_s src_dirs_s  = {}               ;
@@ -2354,11 +2355,10 @@ namespace Version {
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	// PER_FILE_SYNC : add entry here
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
-//		None
+//		Auto
+//	,	None
 //	,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
 //	,	Sync                        // sync file after write
-//	// aliases
-//	,	Dflt = Dir
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
@@ -2379,7 +2379,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 6c874f081b5e86685402cb5918d4a0f2 *
+// * Job : e9815ab26bf928f163f771390de178e6 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2391,6 +2391,7 @@ namespace Version {
 //		if (mount_chroot_ok) res << 'M' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
+//			case FileSync::Auto : res << "sa" ; break ;
 //			case FileSync::None : res << "sn" ; break ;
 //			case FileSync::Dir  : res << "sd" ; break ;
 //			case FileSync::Sync : res << "ss" ; break ;
@@ -2524,8 +2525,8 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
+//		FileSync   file_sync   = {}               ;
 //		LnkSupport lnk_support = LnkSupport::Full ; // by default, be pessimistic
-//		FileSync   file_sync   = FileSync::Dflt   ;
 //		::string   repo_root_s = {}               ;
 //		::string   tmp_dir_s   = {}               ;
 //		::vector_s src_dirs_s  = {}               ;
@@ -2786,10 +2787,9 @@ namespace Version {
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	// PER_FILE_SYNC : add entry here
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
-//		None
+//		Auto
+//	,	None
 //	,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
 //	,	Sync                        // sync file after write
-//	// aliases
-//	,	Dflt = Dir
 //	} ;
 //	// END_OF_VERSIONING

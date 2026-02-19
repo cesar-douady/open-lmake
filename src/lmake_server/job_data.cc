@@ -890,7 +890,7 @@ namespace Engine {
 		bool                                        codec_dir_exists    = FileInfo(codec_dir_s).tag()==FileTag::Dir                                              ;
 		::string                                    new_codes_dir_s     ;
 		::string                                    new_codes_bck_dir_s ;
-		NfsGuard                                    nfs_guard           { Engine::g_config->file_sync }                                                          ;
+		NfsGuard                                    nfs_guard           { Engine::g_config->server_file_sync }                                                   ;
 		//
 		if (!codec_dir_exists) {                                                                    // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
 			trace("fresh") ;
@@ -1016,14 +1016,14 @@ namespace Engine {
 		trace("done") ;
 	}
 
-	bool/*maybe_new_deps*/ JobData::_submit_special(ReqInfo& ri) { // never report new deps
+	bool/*maybe_new_deps*/ JobData::_submit_special(ReqInfo& ri) {        // never report new deps
 		Req     req            = ri.req          ;
 		Special special        = rule()->special ;
 		bool    frozen_        = idx().frozen()  ;
 		bool    maybe_new_deps = false           ;
 		Trace trace("_submit_special",idx(),special,ri) ;
 		//
-		if (frozen_) req->frozen_jobs.push(idx()) ;                // record to repeat in summary
+		if (frozen_) req->frozen_jobs.push(idx()) ;                       // record to repeat in summary
 		//
 		switch (special) {
 			case Special::Dep          : status = Status::Ok  ;                                                                break ;
@@ -1032,11 +1032,11 @@ namespace Engine {
 			case Special::InfinitePath : status = Status::Err ; audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ; break ;
 			case Special::Codec        : _submit_codec(req) ;                                                                  break ;
 			case Special::Plain : {
-				SWEAR(frozen_) ;                                   // only case where we are here without special rule
-				SpecialStep special_step = SpecialStep::Steady   ;
+				SWEAR(frozen_) ;                                          // only case where we are here without special rule
+				SpecialStep special_step = SpecialStep::Steady          ;
 				Node        worst_target ;
-				Bool3       modified     = No                    ;
-				NfsGuard    nfs_guard    { g_config->file_sync } ;
+				Bool3       modified     = No                           ;
+				NfsGuard    nfs_guard    { g_config->server_file_sync } ;
 				for( Target t : targets() ) {
 					::string    tn = t->name()           ;
 					SpecialStep ss = SpecialStep::Steady ;
@@ -1046,7 +1046,7 @@ namespace Engine {
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;
 						Trace trace( "frozen" , t->crc ,"->", crc , t->sig ,"->", sig ) ;
 						//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						t->set_crc_date( crc , {sig,{}} ) ;        // if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
+						t->set_crc_date( crc , {sig,{}} ) ; // if file disappeared, there is not way to know at which date, we are optimistic here as being pessimistic implies false overwrites
 						//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						if      ( crc!=Crc::None || t.tflags[Tflag::Phony]           ) ss            = SpecialStep::Ok  ;
 						else if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] ) ss            = SpecialStep::Err ;

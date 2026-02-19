@@ -332,11 +332,9 @@ int main( int argc , char** argv ) {
 	_chk_os() ;
 	::umap_ss user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ; // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
-	AutodepEnv ade ;
-	ade.repo_root_s         = *g_repo_root_s ;
-	Record::s_static_report = true           ;
-	Record::s_autodep_env(ade) ;
-	set_env("LMAKE_AUTODEP_ENV",ade) ;
+	Record::s_static_report = true ;
+	Record::s_autodep_env(New) ;
+	set_env("LMAKE_AUTODEP_ENV",Record::s_autodep_env()) ;
 	//
 	bool     refresh_      = true ;
 	bool     is_daemon     = true ;

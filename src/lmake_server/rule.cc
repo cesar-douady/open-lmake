@@ -40,40 +40,40 @@ namespace Engine {
 					if ( ::string ns=no_slash(fstr) ; ns!=fstr ) throw cat("ends with /, consider using : ",ns) ;
 					else                                         throw cat("ends with /"                      ) ;
 				}
-				if (has_pfx      ) return ;                                   // further check only for prefix
+				if (has_pfx      ) return ;                                                 // further check only for prefix
 				if (is_lcl(fixed)) return ;
 				//
 				// dep is non-local, check if it lies within a source dirs
-				*keep_for_deps = false ;                                      // unless found in a source dir
-				if (!*g_src_dirs_s) return ;                                  // fast path : no need to compute rel/abs versions
-				//
-				::string dir_s     = fixed.substr(0,fixed.rfind('/')+1) ;
-				::string rel_fixed = mk_rel(fixed,*g_repo_root_s)     ;
-				::string abs_fixed = mk_glb(fixed,*g_repo_root_s)     ;
-				::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s)     ;
-				::string abs_dir_s = mk_glb(dir_s,*g_repo_root_s)     ;
-				if (is_lcl(rel_dir_s)) throw cat("must be provided as local file, consider : ",rel_dir_s+substr_view(fstr,dir_s.size())) ;
-				//
-				for( ::string const& sd_s : *g_src_dirs_s ) {
-					if (is_lcl(sd_s)) continue ;                              // nothing to recognize inside repo
-					bool            abs_sd = is_abs(sd_s)                   ;
-					::string const& f_s    = abs_sd ? abs_fixed : rel_fixed ;
-					::string const& d_s    = abs_sd ? abs_dir_s : rel_dir_s ;
-					if (!( has_sfx && sd_s.starts_with(f_s) )) {              // we only have a prefix, could lie in this source dir when complemented if we have the right initial part
-						bool inside = d_s.starts_with(sd_s) ;
-						if ( !abs_sd && sd_s.ends_with("../") && (sd_s.size()==3||sd_s[sd_s.size()-4]=='/') ) { // sd_s is entirely composed of .. components (as it is canonical)
-							inside = !inside ;                                                                  // criteria is reversed when dealing with ..'s
-							if (!inside) {
-								const char* p = &d_s[sd_s.size()] ;
-								inside = !( p[0]=='.' && p[1]=='.' && (p[2]=='/'||p[2]==0) ) ;
+				*keep_for_deps = false ;                                                    // unless found in a source dir
+				if (::vector_s const& sds_s=Record::s_autodep_env().src_dirs_s ; +sds_s ) { // fast path : no need to compute rel/abs versions
+					::string dir_s     = fixed.substr(0,fixed.rfind('/')+1) ;
+					::string rel_fixed = mk_rel(fixed,*g_repo_root_s)     ;
+					::string abs_fixed = mk_glb(fixed,*g_repo_root_s)     ;
+					::string rel_dir_s = mk_rel(dir_s,*g_repo_root_s)     ;
+					::string abs_dir_s = mk_glb(dir_s,*g_repo_root_s)     ;
+					if (is_lcl(rel_dir_s)) throw cat("must be provided as local file, consider : ",rel_dir_s+substr_view(fstr,dir_s.size())) ;
+					//
+					for( ::string const& sd_s : sds_s ) {
+						if (is_lcl(sd_s)) continue ;                                        // nothing to recognize inside repo
+						bool            abs_sd = is_abs(sd_s)                   ;
+						::string const& f_s    = abs_sd ? abs_fixed : rel_fixed ;
+						::string const& d_s    = abs_sd ? abs_dir_s : rel_dir_s ;
+						if (!( has_sfx && sd_s.starts_with(f_s) )) {                        // we only have a prefix, could lie in this source dir when complemented if we have the right initial part
+							bool inside = d_s.starts_with(sd_s) ;
+							if ( !abs_sd && sd_s.ends_with("../") && (sd_s.size()==3||sd_s[sd_s.size()-4]=='/') ) { // sd_s is entirely composed of .. components (as it is canonical)
+								inside = !inside ;                                                                  // criteria is reversed when dealing with ..'s
+								if (!inside) {
+									const char* p = &d_s[sd_s.size()] ;
+									inside = !( p[0]=='.' && p[1]=='.' && (p[2]=='/'||p[2]==0) ) ;
+								}
 							}
+							if ( !inside                  ) continue ;                                              // dont keep dep because of this source dir if not inside it
+							if (  is_abs(fstr) && !abs_sd ) throw cat("must be relative inside source dir ",sd_s,rm_slash,", consider : ",mk_lcl(fstr,*g_repo_root_s)) ;
+							if ( !is_abs(fstr) &&  abs_sd ) throw cat("must be absolute inside source dir ",sd_s,rm_slash,", consider : ",mk_glb(fstr,*g_repo_root_s)) ;
 						}
-						if ( !inside                  ) continue ;                                              // dont keep dep because of this source dir if not inside it
-						if (  is_abs(fstr) && !abs_sd ) throw cat("must be relative inside source dir ",sd_s,rm_slash,", consider : ",mk_lcl(fstr,*g_repo_root_s)) ;
-						if ( !is_abs(fstr) &&  abs_sd ) throw cat("must be absolute inside source dir ",sd_s,rm_slash,", consider : ",mk_glb(fstr,*g_repo_root_s)) ;
+						*keep_for_deps = true ;
+						break ;
 					}
-					*keep_for_deps = true ;
-					break ;
 				}
 			}
 		) ;
@@ -283,7 +283,7 @@ namespace Engine {
 		::string abs_dep = mk_glb( dep , *g_repo_root_s ) ;
 		if (is_lcl(rel_dep)) bad( "must be provided as local file" , rel_dep ) ;
 		//
-		for( ::string const& sd_s : *g_src_dirs_s ) {
+		for( ::string const& sd_s : Record::s_autodep_env().src_dirs_s ) {
 			if (is_lcl(sd_s)) continue ;                                                                      // nothing to recognize inside repo
 			bool            abs_sd = is_abs(sd_s)               ;
 			::string const& d      = abs_sd ? abs_dep : rel_dep ;

@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Tue Feb 17 17:54:35 2026 -->
+<!-- CreationDate: Thu Feb 19 15:05:39 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -109,10 +109,11 @@ table.</p>
 
 <p style="margin-left:9%; margin-top: 1em">In the former
 case, when an external dir, it must lie within a source dir.
-An external dir must contain a file <i>LMAKE/file_sync</i>
+An external dir may contain a file <i>LMAKE/file_sync</i>
 containing one of <b>none</b>, <b>dir</b> or <b>sync</b> for
-choosing the method to ensure proper consistent
-operations.</p>
+choosing the method to ensure proper consistent operations.
+In absence of such a file, file_sync is determined
+automatically if possible from the filesystem type.</p>
 
 <p style="margin-left:9%; margin-top: 1em">The dir must
 have read/write/execute access to any user needing to use

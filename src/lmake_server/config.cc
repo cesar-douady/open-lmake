@@ -146,7 +146,7 @@ namespace Engine {
 				fields[0] = "reliable_dirs" ;                                                                  // XXX> : suppress when backward compatibility is no more required
 				if (py_map.contains(fields[0])) {
 					Fd::Stderr.write("reliable_dirs is deprecated, use lmake.config.file_sync='none' instead\n") ;
-					file_sync = +py_map[fields[0]] ? FileSync::None : FileSync::Dflt ;
+					if (+py_map[fields[0]]) file_sync = FileSync::None ;
 				}
 				fields[0] = "file_sync" ;
 				if (py_map.contains(fields[0])) {
@@ -157,6 +157,7 @@ namespace Engine {
 			} else {
 				file_sync = FileSync::None ;                                                                   // no remote backend, no need for file synchronization
 			}
+			server_file_sync = auto_file_sync(file_sync) ;
 			//
 			fields[0] = "caches" ;
 			if (py_map.contains(fields[0])) {

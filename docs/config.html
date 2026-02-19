@@ -244,8 +244,9 @@ It must account for file date granularity (generally a few ms) and date discrepa
 <p>This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.</p>
 <p>Possible values are (ordered by decreasing performance):</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
-<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td>if no remote backends</td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'dir'</code></td><td>NFS</td><td>if any remote backend</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
+<tr><td><code>'auto'</code></td><td>all</td><td>X</td><td>precautions are determined automatically from filesystem type</td></tr>
+<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
 <tr><td><code>'sync'</code></td><td></td><td></td><td><a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync</code></a> is called after any modification</td></tr>
 </tbody></table>
 </div>

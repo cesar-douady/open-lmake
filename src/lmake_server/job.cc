@@ -86,8 +86,14 @@ namespace Engine {
 				jji.first.record(jji.second) ;
 			}
 		) ;
-		_s_rpe      = new RealPathEnv { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=*g_repo_root_s+PRIVATE_ADMIN_DIR_S , .src_dirs_s=*g_src_dirs_s } ;
-		s_real_path = new RealPath    { *_s_rpe                                                                                                                                      } ;
+		_s_rpe = new RealPathEnv {
+			.file_sync   = g_config->server_file_sync
+		,	.lnk_support = g_config->lnk_support
+		,	.repo_root_s = *g_repo_root_s
+		,	.tmp_dir_s   = *g_repo_root_s+PRIVATE_ADMIN_DIR_S
+		,	.src_dirs_s  = Record::s_autodep_env().src_dirs_s
+		} ;
+		s_real_path = new RealPath{*_s_rpe} ;
 	}
 
 	::string& operator+=( ::string& os , Job j ) { // START_OF_NO_COV

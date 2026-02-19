@@ -16,8 +16,8 @@ namespace Cache {
 	struct CacheServerSide : CacheRemoteSide {
 		struct DownloadDigest {
 			CacheHitInfo    hit_info         = {} ;
-			Engine::JobInfo job_info         = {} ; // if hit_info< Miss
-			::string        file_actions_msg = {} ; // if hit_info==Hit
+			Engine::JobInfo job_info         = {} ;   // if hit_info< Miss
+			::string        file_actions_msg = {} ;   // if hit_info==Hit
 		} ;
 		// statics
 		static void s_config( ::vmap_s<::vmap_ss> const& caches ) ;
@@ -37,11 +37,12 @@ namespace Cache {
 		// data
 		::string repo_key ;
 	private :
-		ClientSockFd _fd     ;
-		IMsgBuf      _imsg   ;
-		AcFd         _dir_fd ;
-		::vector<Cache::CnodeIdx> _cnodes ;         // indexed by Node, node->cnode conversion, might use a umap but probably less efficient (64B/entry instead of 4)
-		::vector<Cache::CjobIdx > _cjobs  ;         // indexed by Job , job ->cjob  conversion, might use a umap but probably less efficient (64B/entry instead of 4)
+		ClientSockFd              _fd               ;
+		IMsgBuf                   _imsg             ;
+		AcFd                      _dir_fd           ;
+		FileSync                  _server_file_sync ; // file_sync to use by lmake_server
+		::vector<Cache::CnodeIdx> _cnodes           ; // indexed by Node, node->cnode conversion, might use a umap but probably less efficient (64B/entry instead of 4)
+		::vector<Cache::CjobIdx > _cjobs            ; // indexed by Job , job ->cjob  conversion, might use a umap but probably less efficient (64B/entry instead of 4)
 	} ;
 
 }

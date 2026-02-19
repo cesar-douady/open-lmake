@@ -439,18 +439,19 @@ namespace Backends {
 			case 0 : {
 				::vector_s            static_matches = match.matches(false/*star*/) ; VarIdx i_static = 0 ;
 				::vector<Re::Pattern> star_patterns  = match.star_patterns()        ; VarIdx i_star   = 0 ;
+				AutodepEnv const&     ade            = Record::s_autodep_env()      ;
 				for( MatchKind mk : iota(All<MatchKind>) ) {
 					//                                star
 					for( VarIdx mi : rd.matches_iotas[false][+mk] ) reply.static_matches.emplace_back( static_matches[i_static++] , rd.matches[mi].second.flags ) ;
 					for( VarIdx mi : rd.matches_iotas[true ][+mk] ) reply.star_matches  .emplace_back( star_patterns [i_star  ++] , rd.matches[mi].second.flags ) ;
 				}
 				//
-				/**/                            reply.autodep_env.deps_in_system = Node::s_deps_in_system                                            ;
+				/**/                            reply.autodep_env.deps_in_system = ade.deps_in_system                                                ;
 				/**/                            reply.autodep_env.file_sync      = g_config->file_sync                                               ;
 				/**/                            reply.autodep_env.lnk_support    = g_config->lnk_support                                             ;
-				/**/                            reply.autodep_env.src_dirs_s     = *g_src_dirs_s                                                     ;
+				/**/                            reply.autodep_env.src_dirs_s     = ade.src_dirs_s                                                    ;
 				/**/                            reply.autodep_env.sub_repo_s     = rd.sub_repo_s                                                     ;
-				/**/                            reply.autodep_env.codecs         = mk_umap<Codec::CodecRemoteSide>(g_config->codecs)                 ;
+				/**/                            reply.autodep_env.codecs         = ade.codecs                                                        ;
 				if (submit_info.cache_idx1    ) reply.cache                      = Cache::CacheServerSide::s_tab[submit_info.cache_idx1-1]           ;
 				/**/                            reply.ddate_prec                 = g_config->ddate_prec                                              ;
 				/**/                            reply.domain_name                = s_tab[+tag]->domain_name                                          ;

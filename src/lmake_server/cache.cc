@@ -54,11 +54,12 @@ namespace Cache {
 		//
 		OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Config , .repo_key=repo_key } ).send(_fd) ;
 		auto reply = _imsg.receive<CacheRpcReply>( _fd , Maybe/*once*/ , {}/*key*/ ) ; throw_unless( reply.proc==CacheRpcProc::Config , "cache did not start" ) ;
-		max_rate  = reply.config.max_rate  ;
-		conn_id   = reply.conn_id          ;
-		file_sync = reply.config.file_sync ;
-		umask     = reply.config.umask     ;
-		trace("done",max_rate,conn_id,file_sync,umask) ;
+		max_rate          = reply.config.max_rate               ;
+		conn_id           = reply.conn_id                       ;
+		file_sync         = reply.config.file_sync              ;
+		umask             = reply.config.umask                  ;
+		_server_file_sync = auto_file_sync( file_sync , dir_s ) ;
+		trace("done",max_rate,conn_id,file_sync,umask,_server_file_sync) ;
 	}
 
 	::vmap_ss CacheServerSide::descr() const {
@@ -105,7 +106,7 @@ namespace Cache {
 		if (reply.hit_info>=CacheHitInfo::Miss) return {.hit_info=reply.hit_info} ;
 		//
 		::string       rf              = run_file( job_str_id.is_name()?job_str_id.name:job->unique_name() , reply.key , reply.key_is_last ) ;
-		NfsGuard       cache_nfs_guard { file_sync                                            }                                              ;
+		NfsGuard       cache_nfs_guard { _server_file_sync                                    }                                              ;
 		NfsGuard       repo_nfs_guard  { g_config->file_sync                                  }                                              ;
 		AcFd           download_fd     { {_dir_fd,rf+"-data"} , {.nfs_guard=&cache_nfs_guard} }                                              ; // open as soon as possible as entry could disappear
 		AcFd           info_fd         { {_dir_fd,rf+"-info"} , {.nfs_guard=&cache_nfs_guard} }                                              ; // .
@@ -194,7 +195,7 @@ namespace Cache {
 		}
 		job_info.cache_cleanup() ;                    // defensive programming : remove useless/meaningless info
 		::string job_info_str = serialize(job_info) ;
-		{	NfsGuard nfs_guard { file_sync                                                                                                                    } ;
+		{	NfsGuard nfs_guard { _server_file_sync                                                                                                            } ;
 			AcFd     ifd       { {_dir_fd,reserved_file(upload_key)+"-info"} , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.umask=umask} } ;
 			ifd.write(job_info_str) ;
 		}

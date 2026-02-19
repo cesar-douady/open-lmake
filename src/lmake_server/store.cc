@@ -19,7 +19,6 @@ namespace Engine {
 
 	SeqId*                    g_seq_id         = nullptr ;
 	StaticUniqPtr<Config    > g_config         ;
-	StaticUniqPtr<::vector_s> g_src_dirs_s     ;
 	StaticUniqPtr<::vector_s> g_ext_codec_dirs ;
 
 }
@@ -127,8 +126,7 @@ namespace Engine::Persistent {
 	// NodeBase
 	//
 
-	Node NodeBase::s_top            ;         // Node("/")
-	bool NodeBase::s_deps_in_system = false ; // if true <= a source dir contains or is contained in a plain system dir
+	Node NodeBase::s_top ; // Node("/")
 
 	Mutex<MutexLvl::Node,true/*Shared*/> NodeDataBase::_s_mutex ;
 
@@ -198,13 +196,16 @@ namespace Engine::Persistent {
 
 	static void _compile_srcs() {
 		Trace trace("_compile_srcs") ;
-		g_src_dirs_s = New ;
+		AutodepEnv& ade = Record::s_autodep_env_writable() ;
+		ade.src_dirs_s     = {}    ;
+		ade.deps_in_system = false ;
 		for( Node const n : Node::s_srcs(true/*dirs*/) ) {
-			::string nn_s = with_slash(n->name()) ;                                                   // n->name() may be "/", hence may end with /
-			if ( Record::s_is_simple( nn_s , No/*deps_in_system*/ ) ) Node::s_deps_in_system = true ;
-			g_src_dirs_s->push_back(::move(nn_s)) ;
+			::string nn_s = with_slash(n->name()) ;                                               // n->name() may be "/", hence may end with /
+			if ( Record::s_is_simple( nn_s , No/*deps_in_system*/ ) ) ade.deps_in_system = true ;
+			ade.src_dirs_s.push_back(::move(nn_s)) ;
 		}
-		trace("done",STR(Node::s_deps_in_system)) ;
+		set_env("LMAKE_AUTODEP_ENV",ade) ;                                                        // for use by underlying tools, for example in python code
+		trace("done",STR(ade.deps_in_system)) ;
 	}
 
 	static void _init_config() {
@@ -315,6 +316,13 @@ namespace Engine::Persistent {
 		if (                +d                                  ) _save_config()           ;
 		if (  first_time                                        ) _init_srcs_rules(rescue) ;
 		if (                +d                                  ) _diff_config(old_config) ;
+		//
+		AutodepEnv& ade = Record::s_autodep_env_writable() ;
+		ade.file_sync   =                                 g_config->server_file_sync  ;
+		ade.lnk_support =                                 g_config->lnk_support       ;
+		ade.codecs      = mk_umap<Codec::CodecRemoteSide>(g_config->codecs          ) ;
+		set_env("LMAKE_AUTODEP_ENV",ade) ;                                                                                             // for use by underlying tools, for example in python code
+		//
 		trace("done",Pdate(New)) ;
 	}
 
@@ -346,10 +354,6 @@ namespace Engine::Persistent {
 		::string pfx ;
 		::string sfx ;
 	} ;
-
-}
-
-namespace Engine::Persistent {
 
 	template<bool IsSfx> static void _propag_to_longer( ::map_s<::uset<Rt>>& psfx_map , ::uset_s const& sub_repos_s={} ) {
 		for( auto& [long_psfx,long_entry] : psfx_map ) {                // entries order guarantees that if an entry is a prefix/suffix of another, it is processed first
@@ -552,23 +556,22 @@ namespace Engine::Persistent {
 	bool/*invalidate*/ new_srcs( Sources&& src_names , ::string const& manifest ) {
 		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 		//
-		size_t               n_codecs       = g_config->codecs.size() ;
+		size_t               n_codecs       = g_config->codecs.size()                                                ;
 		size_t               n_old_srcs     = Node::s_srcs(false/*dirs*/).size() + Node::s_srcs(true/*dirs*/).size() ;
-		NfsGuard             nfs_guard      { first_time ? FileSync::None : g_config->file_sync }                    ; // when dynamic, sources may be modified from jobs
-		::vmap<Node,FileTag> srcs           ; srcs    .reserve(src_names.size()+n_codecs)                            ; // worst case
+		NfsGuard             nfs_guard      { first_time ? FileSync::None : g_config->server_file_sync }             ;  // when dynamic, sources may be modified from jobs
+		::vmap<Node,FileTag> srcs           ; srcs    .reserve(src_names.size()+n_codecs)                            ;  // worst case
 		::umap<Node,FileTag> old_srcs       ; old_srcs.reserve(n_old_srcs               )                            ;
-		::umap<Node,FileTag> new_srcs       ; new_srcs.reserve(src_names.size()+n_codecs)                            ; // worst case
+		::umap<Node,FileTag> new_srcs       ; new_srcs.reserve(src_names.size()+n_codecs)                            ;  // worst case
 		::uset<Node        > src_dirs       ;
 		::uset<Node        > old_src_dirs   ;
 		::uset<Node        > new_src_dirs   ;
 		::uset_s             ext_src_dirs_s ;
 		::uset_s             lcl_src_regs   ;
-		bool                 has_codecs     = +g_config->codecs                                                      ;
 		Trace trace("new_srcs",src_names.size(),manifest) ;
 		// check and format new srcs
-		size_t      repo_root_depth = ::count(*g_repo_root_s,'/') - 1                                                                                    ; // account for terminating /
-		RealPathEnv rpe             { .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=*g_repo_root_s+PRIVATE_ADMIN_DIR_S } ;
-		RealPath    real_path       { rpe                                                                                                              } ;
+		size_t      repo_root_depth = ::count(*g_repo_root_s,'/') - 1/* / */                                                                                                         ;
+		RealPathEnv rpe             { .file_sync=FileSync::None , .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=*g_repo_root_s+PRIVATE_ADMIN_DIR_S } ;
+		RealPath    real_path       { rpe                                                                                                                                          } ;
 		// user report done before analysis so manifest is available for investigation in case of error
 		{	::string content ;
 			for( ::string const& src : src_names ) content << src <<'\n' ;
@@ -604,7 +607,7 @@ namespace Engine::Persistent {
 					case FileTag::Dir   : tag = FileTag::None ; break ;                        // dirs do not officially exist as source
 					case FileTag::Empty : tag = FileTag::Reg  ; break ;                        // do not remember file is empty, so it is marked new instead of steady/changed when first seen
 				DN}
-				if ( has_codecs && tag==FileTag::Reg ) lcl_src_regs.insert(src) ;
+				if ( n_codecs && tag==FileTag::Reg ) lcl_src_regs.insert(src) ;
 			}
 			srcs.emplace_back( Node(New,src,sr.file_loc>FileLoc::Repo/*no_dir*/) , tag ) ;     // external src dirs need no uphill dir
 		}

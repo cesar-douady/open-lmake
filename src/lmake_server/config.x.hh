@@ -182,14 +182,15 @@ namespace Engine {
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
 		// START_OF_VERSIONING REPO
-		FileSync                                                                file_sync     = FileSync::Dflt ; // method to ensure file sync when over an unreliable filesystem such as NFS
-		size_t                                                                  max_err_lines = 0              ; // unlimited
-		uint8_t                                                                 nice          = 0              ; // nice value applied to jobs
-		Collect                                                                 collect       ;
-		Console                                                                 console       ;
-		::array<Backend,N<BackendTag>>                                          backends      ;                  // backend may refuse dynamic modification
-		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors        = {}             ;
-		::map_ss                                                                dbg_tab       = {}             ; // maps debug keys to modules to import, ordered to be serializable
+		FileSync                                                                file_sync        = {}  ; // method to ensure file sync when over an unreliable filesystem such as NFS
+		size_t                                                                  max_err_lines    = 0   ; // unlimited
+		uint8_t                                                                 nice             = 0   ; // nice value applied to jobs
+		FileSync                                                                server_file_sync = {}  ; // method to use on server side
+		Collect                                                                 collect          ;
+		Console                                                                 console          ;
+		::array<Backend,N<BackendTag>>                                          backends         ;       // backend may refuse dynamic modification
+		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors           = {}  ;
+		::map_ss                                                                dbg_tab          = {}  ; // maps debug keys to modules to import, ordered to be serializable
 		// END_OF_VERSIONING
 	} ;
 

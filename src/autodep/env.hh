@@ -29,9 +29,9 @@ namespace Codec {
 			::serdes(s,umask    ) ;
 		}
 		// data
-		::string tab       ;                                 // source file if is_lcl(tab), else external dir
-		FileSync file_sync = {} ;                            // valid if external dir
-		mode_t   umask     = -1 ;                            // .
+		::string tab       ;                         // source file if is_lcl(tab), else external dir
+		FileSync file_sync = {} ;                    // valid if external dir
+		mode_t   umask     = -1 ;                    // .
 	} ;
 }
 

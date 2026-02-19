@@ -120,7 +120,7 @@ Else an exception is raised.
 - an external dir (symbolic links are followed) recording the association table
 
 In the former case, an external dir must lie within a source dir.
-When an external dir, it must contain a file `LMAKE/file_sync` containing one of `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
+When an external dir, it may contain a file `LMAKE/file_sync` containing one of `auto`, `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
 
 Cf. [encode/decode](codec.html).
 
@@ -219,7 +219,7 @@ Else a code is created, of length at least `min_length`, is associated to `val` 
 - an external dir (symbolic links are followed) recording the association table
 
 In the former case, an external dir must lie within a source dir.
-When an external dir, it must contain a file `LMAKE/file_sync` containing one of `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
+When an external dir, it may contain a file `LMAKE/file_sync` containing one of `auto`, `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
 
 Cf. [encode/decode](codec.html).
 

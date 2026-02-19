@@ -26,7 +26,8 @@ Item(a local source file) (symbolic links are followed) recording the associatio
 Item(an external dir) recording the association table.
 .LP
 In the former case, when an external dir, it must lie within a source dir.
-An external dir must contain a file I(LMAKE/file_sync) containing one of B(none), B(dir) or B(sync) for choosing the method to ensure proper consistent operations.
+An external dir may contain a file I(LMAKE/file_sync) containing one of B(none), B(dir) or B(sync) for choosing the method to ensure proper consistent operations.
+In absence of such a file, file_sync is determined automatically if possible from the filesystem type.
 .LP
 The dir must have read/write/execute access to any user needing to use the codec service, and if such accsses are at group level (but not other), it must have its setgid bit set.
 .LP

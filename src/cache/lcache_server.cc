@@ -85,7 +85,7 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	_g_upload_keys.release(crr.upload_key)         ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
-	NfsGuard                  nfs_guard  { g_cache_config.file_sync }                                                   ;
+	NfsGuard                  nfs_guard  { g_file_sync }                                                                ;
 	::string                  rf         = reserved_file(crr.upload_key)                                                ;
 	CompileDigest             deps       { crr.repo_deps , false/*for_download*/ }                                      ;
 	Cjob                      job        = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR( job->n_statics==deps.n_statics , job,job->n_statics,deps.n_statics ) ;
@@ -125,7 +125,7 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 
 static void _dismiss( Fd fd , CacheUploadKey upload_key ) {
 	Trace trace("dismiss",upload_key) ;
-	NfsGuard nfs_guard  { g_cache_config.file_sync } ;
+	NfsGuard nfs_guard  { g_file_sync } ;
 	_release_room(_g_reserved_szs[upload_key]) ;
 	_g_upload_keys.release(upload_key)         ;
 	_g_reserved_szs[upload_key] = 0 ;

@@ -983,6 +983,10 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 	Trace trace(CacheChnl,"upload",conn_id,targets.size(),zlvl) ;
 	SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 	//
+	FileSync file_sync_ ;
+	try                       { file_sync_ = auto_file_sync( file_sync , dir_s ) ;                                         }
+	catch (::string const& e) { throw cat("cannot upload to cache : ",e,"\n  consider setting file_sync in config file") ; }
+	//
 	DiskSz targets_sz  = 0 ;
 	::vector<DiskSz> target_szs ; target_szs.reserve(target_fis.size()) ;
 	for( FileInfo fi : target_fis ) {
@@ -1006,7 +1010,7 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 	throw_unless(  reply.upload_key , reply.msg             ) ;
 	//
 	try {
-		NfsGuard  nfs_guard { file_sync                                                                                                                      } ;
+		NfsGuard  nfs_guard { file_sync_                                                                                                                     } ;
 		AcFd      dfd       { dir_s+reserved_file(reply.upload_key)+"-data" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.umask=umask} } ;
 		DeflateFd data_fd   { ::move(dfd) , zlvl                                                                                                             } ;
 		OMsgBuf(target_szs).send( data_fd , {}/*key*/ ) ;

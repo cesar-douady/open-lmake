@@ -236,8 +236,9 @@ If 2 externally generated codes collide, a numerical suffix is appended or incre
 </ul>
 <h1 id="association-table-as-a-shared-dir"><a class="header" href="#association-table-as-a-shared-dir">association table as a shared dir</a></h1>
 <p>Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
-In that case, all associations are stored as individual files within this dir.
-Such a dir must contain a file <code>LMAKE/file_sync</code> containing one of <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+In that case, all associations are stored as individual files within this dir.</p>
+<p>In cases where adequate precautions cannot be determined automatically (e.g. if the dir is mounted through overlay),
+such a dir may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <h2 id="format"><a class="header" href="#format">format</a></h2>
 <p>A dir containing an association table can be edited by hand to customize codes.
 Each assocation <code>code</code>&lt;-&gt;<code>value</code> is recorded as :</p>
@@ -266,11 +267,12 @@ Everything it does not understand will be <code>rm</code>ed.</p>
 This operation may have to be done recursively if the root dir is already populated.</p>
 <h2 id="coherence"><a class="header" href="#coherence">Coherence</a></h2>
 <p>Some file systems, such as NFS, lack coherence.
-In that case, precautions must be taken to ensure coherence.</p>
-<p>This can be achieved by setting the <code>file_sync</code> variable in <code>LMAKE/config.py</code> to:</p>
+In that case, precautions must be taken to ensure coherence. Most of the time, this can be handled automatically.</p>
+<p>In case automatic management fails, (e.g. if the cache dir is mounted through an overlay), the <code>file_sync</code> variable in <code>LMAKE/config.py</code> can be set to:</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
+<tr><td><code>'auto'</code></td><td>X</td><td>X</td><td>adequate precaution is determined automatically when possible</td></tr>
 <tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'dir'</code></td><td>NFS</td><td>X</td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
+<tr><td><code>'dir'</code></td><td>NFS</td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
 <tr><td><code>'sync'</code></td><td></td><td></td><td><code>fsync</code> is called after any modification</td></tr>
 </tbody></table>
 </div>

@@ -23,7 +23,8 @@ Item(a local source file) (symbolic links are followed) recording the associatio
 Item(an external dir) recording the association table.
 .LP
 In the former case, when an external dir, it must lie within a source dir.
-An external dir must contain a file I(LMAKE/file_sync) containing one of B(none), B(dir) or B(sync) for choosing the method to ensure proper consistent operations.
+An external dir may contain a file I(LMAKE/file_sync) containing one of B(none), B(dir) or B(sync) for choosing the method to ensure proper consistent operations.
+In absence of such a file, file_sync is determined automatically if possible from the filesystem type.
 .LP
 The dir must have read/write/execute access to any user needing to use the codec service, and if such accsses are at group level (but not other), it must have its setgid bit set.
 .LP
@@ -35,13 +36,13 @@ Usage and use cases are more extensively documented the full OpenLmake documenta
 .LP
 Item(B(-t) I(table),B(--table)=I(table))
 I(table) may be:
-Item(a key) found in B(lmake.config.codecs) in which case it is equivalent to its associated value.
+Item(a key) found in B(lmake.config.codecs) in which case it is a local source file or an external dir.
 Item(a local source file) (symbolic links are followed) recording the association table.
-Item(an external dir)
+Item(an external dir) recording the association table.
 .LP
-In the latter case, such a dir must lie within a source dir and must contain a file I(LMAKE/config.py) containing definitions for:
-Item(B(file_sync)) one of B(none), B(dir) (default) or B(sync) for choosing the method to ensure proper consistent operations.
-Item(B(perm))      one of B(none), B(group) or B(other) which specifies who is given permission to access this shared dir.
+In the former case, when an external dir, it must lie within a source dir.
+An external dir may contain a file I(LMAKE/file_sync) containing one of B(none), B(dir) or B(sync) for choosing the method to ensure proper consistent operations.
+In absence of such a file, file_sync is determined automatically if possible from the filesystem type.
 .LP
 Item(B(-l) I(min_len),B(--min-len)=I(min_len)) specifies the minimum code length to use to encode value
 .LP

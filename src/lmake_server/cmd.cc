@@ -529,10 +529,10 @@ namespace Engine {
 				res << first("\n\t\t",",\t") << mk_py_str(t->name()) <<" : "<< mk_py_str(snake(a.tag)) <<"\n\t" ;
 			res << "}\n" ;
 		}
-		if (+*g_src_dirs_s) {
+		if (::vector_s const& sds_s=Record::s_autodep_env().src_dirs_s ; +sds_s ) {
 			res << ",\tsource_dirs = (" ;
 			First first ;
-			for( ::string const& sd_s : *g_src_dirs_s ) res << first("\n\t\t",",\t") << mk_py_str(no_slash(sd_s)) << "\n\t" ;
+			for( ::string const& sd_s : sds_s ) res << first("\n\t\t",",\t") << mk_py_str(no_slash(sd_s)) << "\n\t" ;
 			res << first("",",","") << ")\n" ;
 		}
 		{	res << ",\tstatic_deps = (" ;

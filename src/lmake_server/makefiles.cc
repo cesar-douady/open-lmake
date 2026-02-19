@@ -66,10 +66,9 @@ namespace Engine::Makefiles {
 	// dep check is satisfied if each dep :
 	// - has a date before dep_file's date (if first char is +)
 	// - does not exist                    (if first char is !)
-	static ::string _chk_deps( Action action , ::umap_ss const& user_env , ::string const& startup_dir_s , FileSync file_sync=FileSync::Dflt ) { // startup_dir_s for diagnostic purpose only
+	static ::string _chk_deps( Action action , ::umap_ss const& user_env , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
-		NfsGuard nfs_guard { file_sync }              ;
 		::string deps_file = _deps_file(action)       ;
 		Ddate    deps_date = FileInfo(deps_file).date ; if (!deps_date) { trace("not_found") ; return action>=Action::Plural ? "they were never read" : "it was never read" ; }
 		::string reason    ;
@@ -84,12 +83,12 @@ namespace Engine::Makefiles {
 				case '~' :                                         if (d!=*g_repo_root_s                           ) return "repo root changed"  ;   break ;
 				case '^' : if (action==Action::Config) { Gil gil ; if (!+py_run(parse_printable(d))->get_item("ok")) return "system tag changed" ; } break ;
 				case '+' : {
-					FileInfo fi { d , {.nfs_guard=&nfs_guard} } ;
+					FileInfo fi { d } ;
 					if (!fi.exists()     ) return cat(mk_rel(d,startup_dir_s)," was removed" ) ;
 					if (fi.date>deps_date) return cat(mk_rel(d,startup_dir_s)," was modified") ; // in case of equality, be optimistic as deps may be modified during the read process ...
 				} break ;                                                                        // ... (typically .pyc files) and file resolution is such that such deps may very well ...
 				case '!' : {                                                                     // ... end up with same date as deps_file
-					FileInfo fi { d , {.nfs_guard=&nfs_guard} } ;
+					FileInfo fi { d } ;
 					if (fi.exists()) return cat(mk_rel(d,startup_dir_s)," was created") ;
 				} break ;
 				case '=' : {
@@ -139,7 +138,7 @@ namespace Engine::Makefiles {
 		::string              new_deps_file = _deps_file(action,true/*new*/) ;
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
 		//
-		for( ::string const& sd_s : *g_src_dirs_s )
+		for( ::string const& sd_s : Record::s_autodep_env().src_dirs_s )
 			if (!is_lcl(sd_s)) glb_sds_s.emplace_back(mk_glb(sd_s,*g_repo_root_s),is_abs(sd_s)) ;
 		//
 		::string deps_str ;
@@ -185,10 +184,10 @@ namespace Engine::Makefiles {
 		::string tmp_dir_s = cat(_g_tmp_dir_s,action,'/')            ;
 		//
 		//
+		gather.autodep_env                = Record::s_autodep_env()                                                                                                   ;
 		gather.autodep_env.fqdn           = fqdn()                                                                                                                    ;
 		gather.autodep_env.src_dirs_s     = {"/"}                                                                                                                     ;
-		gather.autodep_env.repo_root_s    = *g_repo_root_s                                                                                                            ;
-		gather.autodep_env.deps_in_system = true                                                                                                                      ; // in case we want all deps
+		gather.autodep_env.deps_in_system = true                                                                                                                      ; // we want all deps
 		gather.cmd_line                   = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , cat('.',action,".top.") , sub_repos } ;
 		gather.lmake_root_s               = *g_lmake_root_s                                                                                                           ;
 		gather.child_stdin                = Child::NoneFd                                                                                                             ;
@@ -280,7 +279,7 @@ namespace Engine::Makefiles {
 					else                                           reason =              reason+" was never read"     ;
 				break ;
 				case No    :
-					reason = _chk_deps( A , user_env , startup_dir_s , g_config->file_sync ) ;
+					reason = _chk_deps( A , user_env , startup_dir_s ) ;
 					if (!reason) return No/*done*/ ;
 				break ;
 			}

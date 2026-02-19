@@ -180,8 +180,7 @@ namespace Engine::Persistent {
 		//
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// static data
-		static Node s_top            ;                                                  // Node("/")
-		static bool s_deps_in_system ;                                                  // if true <= a source dir contains or is contained in a plain system dir
+		static Node s_top ;                                                             // Node("/")
 		// cxtors & casts
 		using Base::Base ;
 		NodeBase(           ::string const& name                     ) ;                // dont create node if does not already exist
@@ -282,7 +281,6 @@ namespace Engine {
 namespace Engine {
 
 	extern StaticUniqPtr<Config    > g_config         ;
-	extern StaticUniqPtr<::vector_s> g_src_dirs_s     ;
 	extern StaticUniqPtr<::vector_s> g_ext_codec_dirs ;
 
 }

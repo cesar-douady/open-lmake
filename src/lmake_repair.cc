@@ -123,6 +123,7 @@ int main( int argc , char* /*argv*/[] ) {
 	} ;
 	//
 	app_init({.read_only_ok=false}) ;
+	Record::s_autodep_env(New) ;
 	//
 	if (argc!=1                            ) exit(Rc::Usage   ,"must be called without arg"                                                      ) ;
 	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
@@ -144,10 +145,7 @@ int main( int argc , char* /*argv*/[] ) {
 	block_sigs({SIGCHLD}) ;
 	::umap_ss user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ; // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
-	AutodepEnv ade ;
-	ade.repo_root_s         = *g_repo_root_s ;
-	Record::s_static_report = true           ;
-	Record::s_autodep_env(ade) ;
+	Record::s_static_report = true ;
 	//
 	try                       { rename( admin_dir/*src*/ , bck_admin_dir/*dst*/ ) ; }
 	catch (::string const& e) { fail_prod(e) ;                                      }

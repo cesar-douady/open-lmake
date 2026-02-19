@@ -232,7 +232,7 @@ Else an exception is raised.</p>
 <li>an external dir (symbolic links are followed) recording the association table</li>
 </ul>
 <p>In the former case, an external dir must lie within a source dir.
-When an external dir, it must contain a file <code>LMAKE/file_sync</code> containing one of <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
 <h3 id="depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a href="unit_tests/critical.html#:~:text=lmake%2Edepend%28%27src1%27%2C%27src2%27%20%2Cread%3DTrue%2Ccritical%3DTrue%29"><code>depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></a></h3>
@@ -332,7 +332,7 @@ Else a code is created, of length at least <code>min_length</code>, is associate
 <li>an external dir (symbolic links are followed) recording the association table</li>
 </ul>
 <p>In the former case, an external dir must lie within a source dir.
-When an external dir, it must contain a file <code>LMAKE/file_sync</code> containing one of <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
 <p>Returns whether autodep is currently active or not.</p>
