@@ -58,6 +58,12 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		auto fill = [&]( ulong typ , FileSync fs=FileSync::None ) {
 			if (typ) tab[n_entries++] = { typ , fs } ;
 		} ;
+		// EXT, EXT3 and EXT4 actually define the same super-magic, check it
+		constexpr ulong ExtSuperMagic = ::max( MACRO_VAL(EXT2_SUPER_MAGIC,0UL) , ::max( MACRO_VAL(EXT3_SUPER_MAGIC,0UL) , MACRO_VAL(EXT4_SUPER_MAGIC,0UL) ) ) ;
+		static_assert( MACRO_VAL(EXT2_SUPER_MAGIC,0UL)==0 || MACRO_VAL(EXT2_SUPER_MAGIC,0UL)==ExtSuperMagic ) ;
+		static_assert( MACRO_VAL(EXT3_SUPER_MAGIC,0UL)==0 || MACRO_VAL(EXT3_SUPER_MAGIC,0UL)==ExtSuperMagic ) ;
+		static_assert( MACRO_VAL(EXT4_SUPER_MAGIC,0UL)==0 || MACRO_VAL(EXT4_SUPER_MAGIC,0UL)==ExtSuperMagic ) ;
+		//
 		fill( MACRO_VAL(AFS_FS_MAGIC         ,0UL)                  ) ;                           // known to be reliable
 		fill( MACRO_VAL(AUTOFS_SUPER_MAGIC   ,0UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
 		fill( MACRO_VAL(BEEGFS_MAGIC         ,0UL)                  ) ;                           // check name, known to be reliable
@@ -73,9 +79,7 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		fill( MACRO_VAL(EFS_SUPER_MAGIC      ,0UL)                  ) ;                           // local
 		fill( MACRO_VAL(EROFS_SUPER_MAGIC_V1 ,0UL)                  ) ;                           // local
 		fill( MACRO_VAL(EXFAT_SUPER_MAGIC    ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(EXT2_SUPER_MAGIC     ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(EXT3_SUPER_MAGIC     ,0UL)                  ) ;                           // local, same number as EXT2
-		fill( MACRO_VAL(EXT4_SUPER_MAGIC     ,0UL)                  ) ;                           // local, same number as EXT2
+		fill( ExtSuperMagic                                         ) ;                           // local
 		fill( MACRO_VAL(F2FS_SUPER_MAGIC     ,0UL)                  ) ;                           // local
 		fill( MACRO_VAL(FUSE_SUPER_MAGIC     ,0UL) , FileSync::Auto ) ;                           // depend on underlying process
 		fill( MACRO_VAL(GPFS_SUPER_MAGIC     ,0UL)                  ) ;                           // check macro name, known to be reliable
@@ -83,7 +87,8 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		fill( MACRO_VAL(HPFS_SUPER_MAGIC     ,0UL)                  ) ;                           // local
 		fill( MACRO_VAL(ISOFS_SUPER_MAGIC    ,0UL)                  ) ;                           // local
 		fill( MACRO_VAL(JFFS2_SUPER_MAGIC    ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(LUSTRE_SUPER_MAGIC   ,0UL)                  ) ;                           // check macro name, known to be reliable
+		fill( MACRO_VAL(LL_SUPER_MAGIC       ,0UL)                  ) ;                           // lustre is known to be reliable
+		fill( MACRO_VAL(LUSTRE_SUPER_MAGIC   ,0UL)                  ) ;                           // lustre is known to be reliable
 		fill( MACRO_VAL(MINIX2_SUPER_MAGIC   ,0UL)                  ) ;                           // local
 		fill( MACRO_VAL(MINIX2_SUPER_MAGIC2  ,0UL)                  ) ;                           // local
 		fill( MACRO_VAL(MINIX3_SUPER_MAGIC   ,0UL)                  ) ;                           // local
@@ -105,10 +110,14 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		fill( MACRO_VAL(TMPFS_MAGIC          ,0UL)                  ) ;                           // local
 	//	fill( MACRO_VAL(V9FS_MAGIC           ,0UL)                  ) ;                           // no info on reliability
 		fill( MACRO_VAL(XFS_SUPER_MAGIC      ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(ZFS_SUPER_MAGIC      ,0UL)                  ) ;                           // check macro name, local
+		fill( MACRO_VAL(ZFS_SUPER_MAGIC      ,0UL)                  ) ;                           // local
 		::sort( tab.begin() , tab.begin()+n_entries ) ;
-		return { tab , n_entries } ;
+		//
+		bool super_magic_conflict = ::any_of( iota(n_entries-1) , [&](size_t i) { return tab[i].first==tab[i+1].first ; } ) ;
+		if (super_magic_conflict) return {}                  ;
+		else                      return { tab , n_entries } ;
 	}() ;
+	static_assert( Data.second                    , "conflict"       ) ;
 	static_assert( Data.second<=Data.first.size() , "table overflow" ) ;
 	static constexpr ::span Tab ( Data.first.begin() , Data.second ) ;
 	//

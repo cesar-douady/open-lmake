@@ -32,7 +32,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* implement file_sync=auto
 ! manage 32 bits executables with ptrace
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
@@ -143,9 +142,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* manage permission bits in cache
-	- for example ssh keys must be protected to be used by ssh
-	- if cache restore with too large permissions, ssh will refuse to use it
 * add a new autodep mechanism based on seccomp
 	- man 2 seccomp with SECCOMP_FILTER_FLAG_NEW_LISTENER
 	- man 2 seccomp_unotify
@@ -153,6 +149,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 		- including fd injection
 			- for example to allow cheating on /proc/<pid>/status
 				- for example to lie about Seccomp and Secomp_filters entries
+? manage permission bits in cache
+	- for example ssh keys must be protected to be used by ssh
+	- if cache restore with too large permissions, ssh will refuse to use it
+	- problem : if userA has different umask than userB, userB inherit umask from userA when downloading
 ? consider TestedRule
 	- when job A is run, put a dep to B to hidden job representing the Req
 	- B is supposed to mean "A is tested"
