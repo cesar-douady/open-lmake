@@ -60,8 +60,6 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* do not generate hit_rerun when deps are actually up-to-date
-	- delay rerun message to within JobData::make
 * improve dirty crash message
 	? ascii art congratulating user for discovering bug
 ! add a warning when ids reach 1/2 of their limits

@@ -331,18 +331,15 @@ namespace Backdoor {
 			try                       { res.file_sync = auto_file_sync( res.file_sync , tab ) ;                                                       }
 			catch (::string const& e) { throw cat("cannot use codec table : ",e,"\n  consider putting an adequate value in ",AdminDirS,"file_sync") ; }
 		} else {
-			AutodepEnv& autodep_env = Record::s_autodep_env_writable() ;                                                                                        // solve lazy file_sync
+			AutodepEnv& autodep_env = Record::s_autodep_env_writable() ;                                                                                            // solve lazy file_sync
 			//
 			if (tab.find('/')==Npos) {
 				auto it = autodep_env.codecs.find(tab) ;
 				if (it!=autodep_env.codecs.end()) {
-					res.tab       = it->second.tab       ;
-					res.umask     = it->second.umask     ;
-					if (!it->second.file_sync) {                                                                                                                    // solve lazy
-						try                       { it->second.file_sync = auto_file_sync( it->second.file_sync , tab ) ;                                         }
+					if (!it->second.file_sync)                                                                                                                      // solve lazy
+						try                       { it->second.file_sync = auto_file_sync( it->second.file_sync , it->second.tab ) ;                              }
 						catch (::string const& e) { throw cat("cannot use codec table : ",e,"\n  consider putting an adequate value in ",AdminDirS,"file_sync") ; }
-					}
-					res.file_sync = it->second.file_sync ;
+					res = it->second ;
 					goto Return ;
 				}
 			}

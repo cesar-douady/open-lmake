@@ -43,15 +43,20 @@ struct SearchRootResult {
 			return is_dir_name(mrkr) ? t==FileTag::Dir : t>=FileTag::Target ;
 		} ;
 		//
-		repo_root_s = from_dir_s ;
+		repo_root_s = from_dir_s ; SWEAR( is_abs(repo_root_s) , repo_root_s ) ;
 		//
-		for(; repo_root_s!="/" ; repo_root_s=dir_name_s(repo_root_s) ) {
-			if ( ::any_of( action.root_mrkrs , has_mrkr ) ) candidates_s.push_back(repo_root_s) ;
-			if ( !action.cd_root                          ) break ;
+		for(;; repo_root_s=dir_name_s(repo_root_s) ) {
+			if ( !action.root_mrkrs || ::any_of(action.root_mrkrs,has_mrkr) ) candidates_s.push_back(repo_root_s) ;
+			if ( !action.cd_root                                            ) break ;
+			if ( repo_root_s=="/"                                           ) break ;
 		}
 		switch (candidates_s.size()) {
-			case 0 : throw cat("cannot find any of ",action.root_mrkrs) ;
-			case 1 : repo_root_s = candidates_s[0] ; break ;
+			case 0 :
+				if (action.root_mrkrs.size()!=1) throw cat("cannot find any of ",action.root_mrkrs   ) ;
+				else                             throw cat("cannot find "       ,action.root_mrkrs[0]) ;
+			case 1 :
+				repo_root_s = candidates_s[0] ;
+			break ;
 			default : {
 				::vector_s candidates2_s ;
 				for( ::string const& c_s : candidates_s ) if (FileInfo(c_s+AdminDirS).tag()==FileTag::Dir) candidates2_s.push_back(c_s) ;

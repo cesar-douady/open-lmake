@@ -350,13 +350,11 @@ int main( int argc , char** argv ) {
 			}
 		exit(Rc::Usage,"unrecognized argument : ",argv[i],"\nsyntax :",*g_exe_name," [-cstartup_dir_s] [-d/*no_daemon*/] [-r/*no makefile refresh*/]") ;
 	}
-	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;                        //     SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd ...
-	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;        // ... SIGPIPE               : to generate error on write rather than a signal when reading end is dead ...
-	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;                   // ... must be done before any thread is launched so that all threads block the signal
+	Trace trace("main",getpid(),*g_lmake_root_s,*g_repo_root_s) ;
+	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;
 	try {
-		_g_server.handle_int = true       ;
-		_g_server.is_daemon  = is_daemon  ;
-		_g_server.writable   = g_writable ;
+		_g_server.is_daemon = is_daemon  ;
+		_g_server.writable  = g_writable ;
 		_g_server.start() ;
 	} catch (::pair_s<Rc> const& e) {
 		if (+e.first) exit( e.second , "cannot start ",*g_exe_name," : ",e.first ) ;
@@ -385,9 +383,9 @@ int main( int argc , char** argv ) {
 	//
 	if ( Record::s_is_simple( *g_repo_root_s , No/*deps_in_system*/ ) )
 		exit(Rc::Usage,"cannot use lmake inside a system directory ",*g_repo_root_s,rm_slash) ; // all local files would be seen as simple, defeating autodep
-	//                             vvvvvvvvvvvvvv
-	/**/   bool      interrupted = _engine_loop() ;
-	//                             ^^^^^^^^^^^^^^
+	//                 vvvvvvvvvvvvvv
+	bool interrupted = _engine_loop() ;
+	//                 ^^^^^^^^^^^^^^
 	if (_g_server.writable) {
 		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),{.force=true}) ; } catch (::string const&) {}                    // cleanup
 		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {O_WRONLY|O_TRUNC|O_CREAT} ).write( g_kpi.pretty_str() ) ;

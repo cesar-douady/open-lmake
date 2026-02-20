@@ -35,12 +35,10 @@ namespace Codec {
 		::string clean_msg = cat("rm -rf ",dir_s,rm_slash," ; mkdir ",dir_s,AdminDirS,rm_slash," ; ",init_msg          ) ;
 		chk_version( dir_s , { .chk=Maybe , .key="codec dir" , .init_msg=init_msg , .clean_msg=clean_msg , .umask=umask , .version=Version::Codec } ) ;
 		//
-		::string fs_file = cat(dir_s,AdminDirS,"file_sync") ;
-		AcFd     fd      { fs_file , {.err_ok=true} }       ;
-		if (+fd) {
-			::string fs_str = strip(AcFd(fs_file).read()) ; throw_unless( can_mk_enum<FileSync>(fs_str) , "unrecognized file_sync : ",fs_str ) ;
-			//
-			tab       = dir_s                     ;
+		tab = dir_s ;
+		//
+		if ( AcFd fd{cat(dir_s,AdminDirS,"file_sync"),{.err_ok=true}} ; +fd ) {
+			::string fs_str = strip(fd.read()) ; throw_unless( can_mk_enum<FileSync>(fs_str) , "unrecognized file_sync : ",fs_str ) ;
 			file_sync = mk_enum<FileSync>(fs_str) ;
 		}
 	}

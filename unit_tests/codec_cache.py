@@ -48,7 +48,7 @@ else :
 
 	os.system(f'mkdir bck_1 ; mv LMAKE bck_1')
 
-	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , expand=1 , hit_done=2 )
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , new=1 , expand=1 , hit_done=2 )
 
 	os.system(f'mkdir bck_2 ; mv LMAKE bck_2')
 	open('codec_file','w')
@@ -59,7 +59,7 @@ else :
 		'\tcode1\tctx\tval1\n'
 	+	'\n'                                                                                                                # force refresh
 	)
-	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , reformat=1 , hit_done=1 , failed=1 , update=1 , rc=1 ) # check we do not use old codec entries from cache
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=1 , new=1 , reformat=1 , hit_done=1 , failed=1 , update=1 , rc=1 ) # check we do not use old codec entries from cache
 
 	os.system(f'mkdir bck_4 ; mv LMAKE bck_4')
 	open('codec_file','w').write(
@@ -72,6 +72,6 @@ else :
 		'\tcode1\tctx\tval1\n'
 	+	'\tcode2\tctx\tval2\n'
 	)
-	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , expand=1 , hit_done=2 )
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , new=1 , expand=1 , hit_done=2 )
 
 	os.system(f'mkdir bck_6 ; mv CACHE LMAKE dut* bck_6')

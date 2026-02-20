@@ -108,14 +108,13 @@ struct AutoServerBase {
 	} ;
 	// cxtors & casts
 	AutoServerBase() = default ;
-	AutoServerBase(::string const& sm) : server_mrkr{sm} {}
+	AutoServerBase(::string const& server_mrkr) ;
 	// accesses
 	size_t n_connections() const { return _slaves.size() ; }
 	// services
 	void start() ;
 	// data
-	bool         handle_int  = false ;    // config
-	bool         is_daemon   = false ;    // .
+	bool         is_daemon   = false ;    // config
 	bool         writable    = false ;    // .
 	bool         rescue      = false ;    // report
 	::string     server_mrkr ;
@@ -133,10 +132,10 @@ template<class T> struct AutoServer : AutoServerBase {
 	bool/*interrupted*/ event_loop     (         ) ;
 	void                close_slave_out(Fd out_fd) ;
 	// injection
-	bool/*done*/  interrupt       (                ) { return false/*done*/ ; }
-	void          start_connection( Fd             ) {                        }
-	void          end_connection  ( Fd             ) {                        }
-//	Bool3/*done*/ process_item    ( Fd , T::Item&& ) ;                          // Maybe means there may be further outputs to Fd, close_slave_out will be/has been called
+	bool/*done*/  interrupt       (                ) { return true/*done*/ ; }
+	void          start_connection( Fd             ) {                       }
+	void          end_connection  ( Fd             ) {                       }
+//	Bool3/*done*/ process_item    ( Fd , T::Item&& ) ;                         // Maybe means there may be further outputs to Fd, close_slave_out will be/has been called
 } ;
 
 ::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir_s={} , Channel={} ) ;
@@ -174,8 +173,8 @@ template<class T> bool/*interrupted*/ AutoServer<T>::event_loop() {
 	} ;
 	//                                                                wait
 	if (+server_fd) { epoll.add_read( server_fd , EventKind::Master , is_daemon ) ; trace("read_master",server_fd) ; }                 // if read-only, we do not expect additional connections
-	if (handle_int) { epoll.add_sig ( SIGHUP    , EventKind::Int    , false     ) ; trace("read_hup"             ) ; }
-	if (handle_int) { epoll.add_sig ( SIGINT    , EventKind::Int    , false     ) ; trace("read_int"             ) ; }
+	/**/              epoll.add_sig ( SIGHUP    , EventKind::Int    , false     ) ; trace("read_hup"             ) ;
+	/**/              epoll.add_sig ( SIGINT    , EventKind::Int    , false     ) ; trace("read_int"             ) ;
 	if (+watch_fd ) { epoll.add_read( watch_fd  , EventKind::Watch  , false     ) ; trace("read_watch" ,watch_fd ) ; }
 	if (!is_daemon) { epoll.add_read( Fd::Stdin , EventKind::Stdin  , true      ) ; trace("read_stdin" ,Fd::Stdin) ; }
 	//

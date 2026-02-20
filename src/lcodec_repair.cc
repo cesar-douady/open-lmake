@@ -82,7 +82,7 @@ static DryRunDigest _dry_run(bool from_decode) {
 			case 'f' : if (file=="file_sync") continue ; break ;
 			case 'v' : if (file=="version"  ) continue ; break ;
 		DN}
-		::string f      = cat(AdminDirS,file)             ;
+		::string f = cat(AdminDirS,file) ;
 		if (FileInfo(f).tag()==FileTag::Dir) add_slash(f) ;
 		res.to_rm.emplace_back( ::move(f) , "in admin dir" ) ;
 	}
@@ -270,7 +270,7 @@ int main( int argc , char* argv[] ) {
 	,	.chk_version  = Yes
 	,	.clean_msg    = _codec_clean_msg()
 	,	.read_only_ok = cmd_line.flags[Flag::DryRun]
-	,	.root_mrkrs   = { cat(AdminDirS,"file_sync") }
+	,	.root_mrkrs   = {}
 	,	.version      = Version::Codec
 	}) ;
 	Py::init(*g_lmake_root_s) ;

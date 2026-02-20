@@ -52,82 +52,81 @@ extern "C" {
 //
 
 FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
-	static constexpr uint8_t NHashBits = 8 ;
-	auto hash = [](uint32_t v)->size_t { return v & ((1<<NHashBits)-1) ; } ;
-	//
-	static constexpr auto Tab = [&]()->::pair<::array<::optional<FileSync>,1<<NHashBits>,::pair<ulong,ulong>> {
-		::pair<ulong,ulong>                        hash_conflict = {} ;
-		::array<::optional<FileSync>,1<<NHashBits> res           = {} ;
-		::array<ulong               ,1<<NHashBits> prev          = {} ;
+	static constexpr auto Data = [&]()->::pair<::amap<ulong,FileSync,64>,size_t/*n_entries*/> {
+		::amap<ulong,FileSync,64> tab       ;
+		size_t                    n_entries = 0 ;
 		auto fill = [&]( ulong typ , FileSync fs=FileSync::None ) {
-			if (!typ) return ;
-			size_t h = hash(typ) ;
-			if ( +res[h] && *res[h]!=fs ) { hash_conflict.first = prev[h] ; hash_conflict.second = typ ; }
-			res [h] = fs  ;
-			prev[h] = typ ;
+			if (typ) tab[n_entries++] = { typ , fs } ;
 		} ;
-		fill( MACRO_VAL(AFS_FS_MAGIC         ,0UL)                  ) ; // known to be reliable
-		fill( MACRO_VAL(AUTOFS_SUPER_MAGIC   ,0UL) , FileSync::Auto ) ; // depend on underlying filesystem
-		fill( MACRO_VAL(BEEGFS_MAGIC         ,0UL)                  ) ; // check name, known to be reliable
-		fill( MACRO_VAL(BTRFS_SUPER_MAGIC    ,0UL)                  ) ; // local
-		fill( MACRO_VAL(BTRFS_TEST_MAGIC     ,0UL)                  ) ; // local
-		fill( MACRO_VAL(CEPH_SUPER_MAGIC     ,0UL)                  ) ; // has been tested reliable
-	//	fill( MACRO_VAL(CIFS_SUPER_MAGIC     ,0UL)                  ) ; // no info on reliability
-	//	fill( MACRO_VAL(CODA_SUPER_MAGIC     ,0UL)                  ) ; // no info on reliability
-		fill( MACRO_VAL(CRAMFS_MAGIC         ,0UL)                  ) ; // local
-		fill( MACRO_VAL(CRAMFS_MAGIC_WEND    ,0UL)                  ) ; // local
-		fill( MACRO_VAL(DAXFS_MAGIC          ,0UL)                  ) ; // local
-		fill( MACRO_VAL(ECRYPTFS_SUPER_MAGIC ,0UL) , FileSync::Auto ) ; // depend on underlying filesystem
-		fill( MACRO_VAL(EFS_SUPER_MAGIC      ,0UL)                  ) ; // local
-		fill( MACRO_VAL(EROFS_SUPER_MAGIC_V1 ,0UL)                  ) ; // local
-		fill( MACRO_VAL(EXFAT_SUPER_MAGIC    ,0UL)                  ) ; // local
-		fill( MACRO_VAL(EXT2_SUPER_MAGIC     ,0UL)                  ) ; // local
-		fill( MACRO_VAL(EXT3_SUPER_MAGIC     ,0UL)                  ) ; // local, same number as EXT2
-		fill( MACRO_VAL(EXT4_SUPER_MAGIC     ,0UL)                  ) ; // local, same number as EXT2
-		fill( MACRO_VAL(F2FS_SUPER_MAGIC     ,0UL)                  ) ; // local
-		fill( MACRO_VAL(FUSE_SUPER_MAGIC     ,0UL) , FileSync::Auto ) ; // depend on underlying process
-		fill( MACRO_VAL(GPFS_SUPER_MAGIC     ,0UL)                  ) ; // check macro name, known to be reliable
-		fill( MACRO_VAL(HOSTFS_SUPER_MAGIC   ,0UL) , FileSync::Auto ) ; // depend on underlying filesystem
-		fill( MACRO_VAL(HPFS_SUPER_MAGIC     ,0UL)                  ) ; // local
-		fill( MACRO_VAL(ISOFS_SUPER_MAGIC    ,0UL)                  ) ; // local
-		fill( MACRO_VAL(JFFS2_SUPER_MAGIC    ,0UL)                  ) ; // local
-		fill( MACRO_VAL(LUSTRE_SUPER_MAGIC   ,0UL)                  ) ; // check macro name, known to be reliable
-		fill( MACRO_VAL(MINIX2_SUPER_MAGIC   ,0UL)                  ) ; // local
-		fill( MACRO_VAL(MINIX2_SUPER_MAGIC2  ,0UL)                  ) ; // local
-		fill( MACRO_VAL(MINIX3_SUPER_MAGIC   ,0UL)                  ) ; // local
-		fill( MACRO_VAL(MINIX_SUPER_MAGIC    ,0UL)                  ) ; // local
-		fill( MACRO_VAL(MINIX_SUPER_MAGIC2   ,0UL)                  ) ; // local
-		fill( MACRO_VAL(MSDOS_SUPER_MAGIC    ,0UL)                  ) ; // local
-		fill( MACRO_VAL(NFS_SUPER_MAGIC      ,0UL) , FileSync::Dir  ) ; // has been tested to require dir synchronization
-		fill( MACRO_VAL(NILFS_SUPER_MAGIC    ,0UL)                  ) ; // local
-		fill( MACRO_VAL(OCFS2_SUPER_MAGIC    ,0UL)                  ) ; // known to be reliable
-		fill( MACRO_VAL(OVERLAYFS_SUPER_MAGIC,0UL) , FileSync::Auto ) ; // depend on underlying filesystem
-		fill( MACRO_VAL(QNX4_SUPER_MAGIC     ,0UL)                  ) ; // local
-		fill( MACRO_VAL(QNX6_SUPER_MAGIC     ,0UL)                  ) ; // local
-		fill( MACRO_VAL(RAMFS_MAGIC          ,0UL)                  ) ; // local
-		fill( MACRO_VAL(REISERFS_SUPER_MAGIC ,0UL)                  ) ; // local
-		fill( MACRO_VAL(SECRETMEM_MAGIC      ,0UL)                  ) ; // local
-	//	fill( MACRO_VAL(SMB2_SUPER_MAGIC     ,0UL)                  ) ; // no info on reliability
-	//	fill( MACRO_VAL(SMB_SUPER_MAGIC      ,0UL)                  ) ; // no info on reliability
-		fill( MACRO_VAL(SQUASHFS_MAGIC       ,0UL)                  ) ; // local
-		fill( MACRO_VAL(TMPFS_MAGIC          ,0UL)                  ) ; // local
-	//	fill( MACRO_VAL(V9FS_MAGIC           ,0UL)                  ) ; // no info on reliability
-		fill( MACRO_VAL(XFS_SUPER_MAGIC      ,0UL)                  ) ; // local
-		fill( MACRO_VAL(ZFS_SUPER_MAGIC      ,0UL)                  ) ; // check macro name, local
-		return { res , hash_conflict } ;
+		fill( MACRO_VAL(AFS_FS_MAGIC         ,0UL)                  ) ;                           // known to be reliable
+		fill( MACRO_VAL(AUTOFS_SUPER_MAGIC   ,0UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
+		fill( MACRO_VAL(BEEGFS_MAGIC         ,0UL)                  ) ;                           // check name, known to be reliable
+		fill( MACRO_VAL(BTRFS_SUPER_MAGIC    ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(BTRFS_TEST_MAGIC     ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(CEPH_SUPER_MAGIC     ,0UL)                  ) ;                           // has been tested reliable
+	//	fill( MACRO_VAL(CIFS_SUPER_MAGIC     ,0UL)                  ) ;                           // no info on reliability
+	//	fill( MACRO_VAL(CODA_SUPER_MAGIC     ,0UL)                  ) ;                           // no info on reliability
+		fill( MACRO_VAL(CRAMFS_MAGIC         ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(CRAMFS_MAGIC_WEND    ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(DAXFS_MAGIC          ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(ECRYPTFS_SUPER_MAGIC ,0UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
+		fill( MACRO_VAL(EFS_SUPER_MAGIC      ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(EROFS_SUPER_MAGIC_V1 ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(EXFAT_SUPER_MAGIC    ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(EXT2_SUPER_MAGIC     ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(EXT3_SUPER_MAGIC     ,0UL)                  ) ;                           // local, same number as EXT2
+		fill( MACRO_VAL(EXT4_SUPER_MAGIC     ,0UL)                  ) ;                           // local, same number as EXT2
+		fill( MACRO_VAL(F2FS_SUPER_MAGIC     ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(FUSE_SUPER_MAGIC     ,0UL) , FileSync::Auto ) ;                           // depend on underlying process
+		fill( MACRO_VAL(GPFS_SUPER_MAGIC     ,0UL)                  ) ;                           // check macro name, known to be reliable
+		fill( MACRO_VAL(HOSTFS_SUPER_MAGIC   ,0UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
+		fill( MACRO_VAL(HPFS_SUPER_MAGIC     ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(ISOFS_SUPER_MAGIC    ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(JFFS2_SUPER_MAGIC    ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(LUSTRE_SUPER_MAGIC   ,0UL)                  ) ;                           // check macro name, known to be reliable
+		fill( MACRO_VAL(MINIX2_SUPER_MAGIC   ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(MINIX2_SUPER_MAGIC2  ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(MINIX3_SUPER_MAGIC   ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(MINIX_SUPER_MAGIC    ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(MINIX_SUPER_MAGIC2   ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(MSDOS_SUPER_MAGIC    ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(NFS_SUPER_MAGIC      ,0UL) , FileSync::Dir  ) ;                           // has been tested to require dir synchronization
+		fill( MACRO_VAL(NILFS_SUPER_MAGIC    ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(OCFS2_SUPER_MAGIC    ,0UL)                  ) ;                           // known to be reliable
+		fill( MACRO_VAL(OVERLAYFS_SUPER_MAGIC,0UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
+		fill( MACRO_VAL(QNX4_SUPER_MAGIC     ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(QNX6_SUPER_MAGIC     ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(RAMFS_MAGIC          ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(REISERFS_SUPER_MAGIC ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(SECRETMEM_MAGIC      ,0UL)                  ) ;                           // local
+	//	fill( MACRO_VAL(SMB2_SUPER_MAGIC     ,0UL)                  ) ;                           // no info on reliability
+	//	fill( MACRO_VAL(SMB_SUPER_MAGIC      ,0UL)                  ) ;                           // no info on reliability
+		fill( MACRO_VAL(SQUASHFS_MAGIC       ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(TMPFS_MAGIC          ,0UL)                  ) ;                           // local
+	//	fill( MACRO_VAL(V9FS_MAGIC           ,0UL)                  ) ;                           // no info on reliability
+		fill( MACRO_VAL(XFS_SUPER_MAGIC      ,0UL)                  ) ;                           // local
+		fill( MACRO_VAL(ZFS_SUPER_MAGIC      ,0UL)                  ) ;                           // check macro name, local
+		::sort( tab.begin() , tab.begin()+n_entries ) ;
+		return { tab , n_entries } ;
 	}() ;
-	static_assert( Tab.second.first==Tab.second.second && !Tab.second.first , "hash_conflict" ) ; // rework hash function if this fires
+	static_assert( Data.second<=Data.first.size() , "table overflow" ) ;
+	static constexpr ::span Tab ( Data.first.begin() , Data.second ) ;
 	//
 	if (+file_sync) return file_sync ;
 	//
-	struct ::statfs      sfs ;                               ::statfs( +dir_s?dir_s.c_str():"." , &sfs ) ;
-	::optional<FileSync> fs  = Tab.first[hash(sfs.f_type)] ;
-	if ( +fs && +*fs ) return *fs ;
-	if ( +dir_s      ) throw_unless( + fs , "unknown filesystem type 0x",to_hex(ulong(sfs.f_type))                                ," for ",dir_s,rm_slash) ;
-	else               throw_unless( + fs , "unknown filesystem type 0x",to_hex(ulong(sfs.f_type))                                                       ) ;
-	if ( +dir_s      ) throw_unless( +*fs , "filesystem type 0x"        ,to_hex(ulong(sfs.f_type))," cannot handle auto-file_sync"," for ",dir_s,rm_slash) ;
-	else               throw_unless( +*fs , "filesystem type 0x"        ,to_hex(ulong(sfs.f_type))," cannot handle auto-file_sync"                       ) ;
-	FAIL() ;                                                                                                                                                 // please compiler
+	const char*     dir_s_c = +dir_s?dir_s.c_str():"."                                          ;
+	struct ::statfs sfs     ;                                                                     throw_unless( ::statfs(dir_s_c,&sfs)==0 , "cannot stat (",StrErr(),") ",dir_s_c,rm_slash) ;
+	ulong           typ     = sfs.f_type                                                        ;
+	auto            it      = ::lower_bound( Tab.begin() , Tab.end() , ::pair(typ,FileSync()) ) ; // XXX/ : gcc-11 refuses it = ::lower_bound(Tab,{typ,{}}) ;
+	if ( it==Tab.end() || it->first!=typ ) {
+		if (+dir_s) throw cat("unknown filesystem type 0x",to_hex(typ)                                ," for ",dir_s,rm_slash) ;
+		else        throw cat("unknown filesystem type 0x",to_hex(typ)                                                       ) ;
+	} else if ( FileSync fs=it->second ; !fs ) {
+		if (+dir_s) throw cat("filesystem type 0x"        ,to_hex(typ)," cannot handle auto-file_sync"," for ",dir_s,rm_slash) ;
+		else        throw cat("filesystem type 0x"        ,to_hex(typ)," cannot handle auto-file_sync"                       ) ;
+	} else {
+		return fs ;
+	}
 }
 
 //

@@ -65,10 +65,8 @@ else :
 
 	import ut
 
-	os.makedirs('codec_files/sub/LMAKE',exist_ok=True)
-	print('none',file=open('codec_files/sub/LMAKE/file_sync','w'))
-
-	os.makedirs('repo/LMAKE'       ,exist_ok=True)
+	os.makedirs('codec_files/sub',exist_ok=True)
+	os.makedirs('repo/LMAKE'     ,exist_ok=True)
 	os.symlink('../Lmakefile.py','repo/Lmakefile.py')
 	os.chdir('repo')
 

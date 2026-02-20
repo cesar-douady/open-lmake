@@ -162,11 +162,12 @@ void cache_init( bool rescue , bool read_only ) {
 		throw_unless( g_cache_config.max_sz , "size must be defined as non-zero" ) ;
 		// auto-config permissions by analyzing dir permissions
 		g_cache_config.umask = auto_umask( "." , "cache" ) ;
+		try                       { g_file_sync = auto_file_sync(g_cache_config.file_sync) ;                                                            }
+		catch (::string const& e) { throw cat("cannot auto-configure file_sync : ",e,"\n  consider setting file_sync to an adequate value in config") ; }
 	} catch (::string const& e) {
-		exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : ",e ) ;
+		if (e.find('\n')==Npos) exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," : " ,              e  ) ;
+		else                    exit( Rc::Usage , "while configuring ",*g_exe_name," in dir ",*g_repo_root_s,rm_slash," :\n",indent<' ',2>(e) ) ;
 	}
-	try                       { g_file_sync = auto_file_sync(g_cache_config.file_sync) ;                                                                      }
-	catch (::string const& e) { exit( Rc::System , "cannot auto-configure file_sync : ",e,"\n  consider setting file_sync to an adequate value in config" ) ; }
 	// record what has been understood from config
 	CacheConfig ref_config        ;
 	::string    sensed_config_str ;
@@ -192,11 +193,15 @@ void cache_init( bool rescue , bool read_only ) {
 	{ ::string file=g_store_dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 	// END_OF_VERSIONING
 	if (rescue) {
-		cache_chk() ;
-		CjobData ::s_rescue() ;
-		CnodeData::s_rescue() ;
+		Fd::Stderr.write(cat("crash detected, check and rescueing cache ",cwd_s(),rm_slash,'\n')) ;
+		CjobData ::s_rescue()                                                                     ;
+		CnodeData::s_rescue()                                                                     ;
 	}
 	RateCmp::s_init() ;
+	if (rescue) {
+		cache_chk()                               ;
+		Fd::Stderr.write("everything seems ok\n") ;
+	}
 	trace("done") ;
 }
 

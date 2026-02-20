@@ -170,8 +170,6 @@ struct CacheServer : AutoServer<CacheServer> {
 	}
 } ;
 
-static CacheServer _g_server { ServerMrkr } ;
-
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
 	//
@@ -201,10 +199,11 @@ int main( int argc , char** argv ) {
 	Trace trace("main",*g_lmake_root_s,*g_repo_root_s) ;
 	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;
 	//
+	CacheServer server { ServerMrkr } ;
 	try {
-		_g_server.is_daemon = is_daemon ;
-		_g_server.writable  = true      ;
-		_g_server.start() ;
+		server.is_daemon = is_daemon ;
+		server.writable  = true      ;
+		server.start() ;
 	} catch (::pair_s<Rc> const& e) {
 		if (+e.first) exit( e.second , "cannot start ",*g_exe_name," : ",e.first ) ;
 		else          exit( Rc::Ok                                               ) ;
@@ -212,8 +211,8 @@ int main( int argc , char** argv ) {
 	//
 	mk_dir_empty_s(cat(AdminDirS,"reserved/")) ;
 	//
-	cache_init(_g_server.rescue) ;
-	bool interrupted = _g_server.event_loop() ;
+	cache_init(server.rescue) ;
+	bool interrupted = server.event_loop() ;
 	cache_finalize() ;
 	//
 	trace("done",STR(interrupted),New) ;

@@ -161,6 +161,17 @@ void Child::spawn() {
 	else if (stderr==JoinFd)   stderr = stdout      ;
 }
 
+//
+// AutoServer
+//
+
+AutoServerBase::AutoServerBase(::string const& sm) : server_mrkr{sm} {
+	// SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd
+	// SIGPIPE               : to generate error on write rather than a signal when reading end is dead
+	// must be done before any thread is launched so that all threads block the signal
+	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;
+}
+
 static ::pair_s/*fqdn*/<pid_t> _get_mrkr(::string const& server_mrkr) {
 	try {
 		::vector_s lines = AcFd(server_mrkr).read_lines() ; throw_unless(lines.size()==2) ;
