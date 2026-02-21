@@ -402,16 +402,19 @@ _lib/version.py : _bin/version src/version.hh src/version.cc sys_config.py
 
 # add system configuration to lmake.py :
 # Sense git bin dir at install time so as to be independent of it at run time.
-lib/%.py _lib/%.py : _lib/%.src.py sys_config.mk _bin/align_comments
+define CUSTOMIZE_RECIPE
 	@echo customize $< to $@
 	@mkdir -p $(@D)
 	@	sed \
-			-e 's!\$$GIT!$(GIT)!'                      \
-			-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'    \
-			-e 's!\$$TAG!$(TAG)!'                      \
-			-e 's!\$$VERSION!$(VERSION)!'              \
-			$<                                         \
+			-e 's!\$$GIT!$(GIT)!'                   \
+			-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!' \
+			-e 's!\$$TAG!$(TAG)!'                   \
+			-e 's!\$$VERSION!$(VERSION)!'           \
+			$<                                      \
 	|	_bin/align_comments 4 200 '#' >$@
+endef
+lib/%.py  : _lib/%.src.py sys_config.mk _bin/align_comments ; $(CUSTOMIZE_RECIPE)
+_lib/%.py : _lib/%.src.py sys_config.mk _bin/align_comments ; $(CUSTOMIZE_RECIPE)
 # for other files, just copy
 lib/% : _lib/%
 	@mkdir -p $(@D)
