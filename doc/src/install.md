@@ -23,14 +23,9 @@ To install these, execute:
 
 To compile open-lmake, you will need:
 
-- c++20
-- python3.6 or later with developer support (i.e. access to the `libpython*.so` file)
+- c++20 (gcc version 11+ or clang version 14+)
+- python3.6+ (including 3.13+ free threading) with developer support (i.e. access to the `libpython*.so` file)
 - if using python2, it must be python2.7
-
-The following compilers are known to compile open-lmake:
-
-- gcc version 11 and above
-- clang version 14 and above
 
 The following compilers are known **not** to compile open-lmake:
 

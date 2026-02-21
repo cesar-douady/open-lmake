@@ -162,10 +162,8 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;codec_files/sub/LMAKE&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;none&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;codec_files/sub/LMAKE/file_sync&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-
-    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;repo/LMAKE&#39;</span>       <span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;codec_files/sub&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;repo/LMAKE&#39;</span>     <span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="s1">&#39;../Lmakefile.py&#39;</span><span class="p">,</span><span class="s1">&#39;repo/Lmakefile.py&#39;</span><span class="p">)</span>
     <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="s1">&#39;repo&#39;</span><span class="p">)</span>
 

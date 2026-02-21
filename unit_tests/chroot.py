@@ -29,7 +29,7 @@ else :
 
 	os_candidates = (
 		'centos7'
-	,	'debian12'
+	,	'debian12' , 'debian13'
 	,	'fedora43'
 	,	'rocky8'   , 'rocky9'   , 'rocky10'
 	,	'suse154'  , 'suse155'  , 'suse156'
