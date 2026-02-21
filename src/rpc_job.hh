@@ -644,6 +644,7 @@ template<class Key=::string> struct JobDigest {                                 
 		JobDigest<KeyTo> res {
 			.upload_key     = upload_key
 		,	.refresh_codecs = refresh_codecs
+		,	.chroot_tag     = chroot_tag
 		,	.exe_time       = exe_time
 		,	.status         = status
 		,	.has_msg_stderr = has_msg_stderr
@@ -668,6 +669,7 @@ template<class Key=::string> struct JobDigest {                                 
 	::vmap<Key,TargetDigest> targets        = {}          ;
 	::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
 	::vector_s               refresh_codecs = {}          ;
+	::string                 chroot_tag     = {}          ;
 	Time::CoarseDelay        exe_time       = {}          ;
 	Status                   status         = Status::New ;
 	bool                     has_msg_stderr = false       ;                                // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
@@ -680,6 +682,7 @@ template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& j
 	if ( jd.has_msg_stderr) os <<','<<          'E'                                      ;
 	/**/                    os <<','<<          jd.targets.size() <<','<< jd.deps.size() ;
 	if (+jd.refresh_codecs) os <<','<<          jd.refresh_codecs                        ;
+	if (+jd.chroot_tag    ) os <<','<<          jd.chroot_tag                            ;
 	if (+jd.upload_key    ) os <<','<<          jd.upload_key                            ;
 	return                  os << ')'                                                    ;
 }                                                                                          // END_OF_NO_COV

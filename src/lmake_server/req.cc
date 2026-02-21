@@ -512,10 +512,11 @@ namespace Engine {
 		}
 	}
 
-	void ReqData::audit_job( Color c , Pdate date , ::string const& step , ::string const& rule_name , ::string const& job_name , in_addr_t host , Delay exe_time ) const {
+	void ReqData::audit_job( Color c , Pdate date , ::string const& step , ::string const& rule_name , ::string const& job_name , in_addr_t host , ::string const& tag , Delay exe_time ) const {
 		::string msg ;
+		::string h   = SockFd::s_host(host) ; if (+tag) h << ':'<<tag ;
 		if (g_config->console.date_prec!=uint8_t(-1)) msg <<            date.str(g_config->console.date_prec,true/*in_day*/)                             <<' ' ;
-		if (g_config->console.host_len              ) msg <<      widen(SockFd::s_host(host)                                ,g_config->console.host_len) <<' ' ;
+		if (g_config->console.host_len              ) msg <<      widen(h                                                   ,g_config->console.host_len) <<' ' ;
 		/**/                                          msg <<      widen(step                                                ,StepSz                    )       ;
 		/**/                                          msg <<' '<< widen(rule_name                                           ,Rule::s_rules->name_sz    )       ;
 		if (g_config->console.has_exe_time          ) msg <<' '<< widen((+exe_time?exe_time.short_str():"")                 ,6                         )       ;
@@ -665,10 +666,9 @@ namespace Engine {
 	//
 
 	::string& operator+=( ::string& os , JobAudit const& ja ) { // START_OF_NO_COV
-		/**/                os << "JobAudit(" << ja.report ;
-		if (+ja.msg       ) os <<','<< ja.msg              ;
-		if ( ja.has_stderr) os <<",has_stderr"             ;
-		return              os <<')'                       ;
+		/**/                    os << "JobAudit("<<ja.report ;
+		if ( ja.has_msg_stderr) os << ",has_msg_stderr"      ;
+		return                  os << ')'                    ;
 
 	} // END_OF_NO_COV
 

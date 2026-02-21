@@ -161,8 +161,8 @@ ByName :
 	if (             !a ) return empty ;
 	if (s_is_loopback(a)) return empty ;
 	//
-	auto it = s_tab.find(a) ;
-	if (it==s_tab.end()) {
+	auto it_inserted = s_tab.try_emplace(a) ;
+	if (it_inserted.second) {
 		char     buf[HOST_NAME_MAX+1] ;
 		SockAddr sa                   { a }                                                                                                              ;
 		int      rc                   = ::getnameinfo( &sa.as_sockaddr() , sizeof(sa) , buf , sizeof(buf) , nullptr/*serv*/ , 0/*servlen*/ , NI_NOFQDN ) ;
@@ -171,9 +171,9 @@ ByName :
 			host = buf ;
 			if ( size_t p=host.find('.') ; p!=Npos ) host.resize(p) ;
 		}
-		it = s_tab.emplace(a,::move(host)).first ;
+		it_inserted.first->second = ::move(host) ;
 	}
-	return it->second ;
+	return it_inserted.first->second ;
 }
 
 SockFd::SockFd( Key k , bool reuse_addr , in_addr_t local_addr , bool for_server ) : key{k} {

@@ -4,6 +4,7 @@ open-lmake ($VERSION_TAG-$DEBIAN_RELEASE) $OS_CODENAME; urgency=low
     - no more dir based cache, always require a daemon which is automatically launched if necessary
   * Codec is now operational (no more experimental)
   * Chroot is now operational
+  * file_sync is now automatic
   * minor improvements :
     - lcheck_deps now check existing targets, so that if it passes, open-lmake is not aware of any reason for rerun at the time lcheck_deps is called
     - lcheck_deps --delay to delay lcheck_deps for cases where a tool reads its input early while not letting you run lcheck_deps after reading

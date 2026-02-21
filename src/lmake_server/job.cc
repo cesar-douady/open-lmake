@@ -335,7 +335,8 @@ namespace Engine {
 		Req r = ri.req ;
 		if ( !report_start(ri) && r->last_info!=self ) {
 			Pdate now = New ;
-			r->audit_job( Color::HiddenNote , "continue" , JobExec(self,host,start_date,now) , true/*at_end*/ , now-start_date ) ; // identify job (with a continue message if no start message)
+			// identify job (with a continue message if no start message)
+			r->audit_job( Color::HiddenNote , "continue" , JobExec(self,host,start_date,now) , true/*at_end*/ , {}/*tag*/ , now-start_date ) ;
 		}
 		r->last_info = self ;
 		//vvvvvvvvvvvvvvvvv
@@ -658,7 +659,7 @@ namespace Engine {
 			JobReason job_reason = jd.make( ri , MakeAction::End , end_digest.target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ) ; // we call wakeup_watchers ourselves once reports ...
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^   // ... are done to avoid anti-intuitive report order
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !end_digest.has_new_deps  ;           // if not done, does a full report anyway if not due to new deps
+			bool     full_report = done || !end_digest.has_new_deps  ;                                                       // if not done, does a full report anyway if not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
@@ -675,22 +676,23 @@ namespace Engine {
 				ri
 			,	true/*with_stats*/
 			,	pfx
-			,	MsgStderr{ .msg=job_msg , .stderr=end_digest.msg_stderr.stderr } // XXX/ : MsgStderr is necessary for gcc-11
+			,	digest.chroot_tag
+			,	MsgStderr{ .msg=job_msg , .stderr=end_digest.msg_stderr.stderr }                                             // XXX/ : MsgStderr is necessary for gcc-11
 			,	digest.exe_time
 			,	is_retry(job_reason.tag)
 			) ;
-			end_digest.can_upload &= maybe_done ;                                // if job is not done, cache entry will be overwritten when actually rerun
+			end_digest.can_upload &= maybe_done ;                                                                            // if job is not done, cache entry will be overwritten when actually rerun
 			must_wakeup.push_back(done) ;
-			if (!done) req->missing_audits[self] = { .report=jr , .has_stderr=digest.has_msg_stderr , .msg=end_digest.msg_stderr.msg } ; // stderr may be empty if digest.has_mg_stderr, no harm
+			if (!done) req->missing_audits[self] = { .report=jr , .has_msg_stderr=digest.has_msg_stderr , .has_chroot_tag=+digest.chroot_tag } ;
 			trace("req_after",ri,job_reason,STR(done),STR(maybe_done)) ;
 		}
 		if (+digest.upload_key) {
-			/**/                                                                          SWEAR( cache_idx1 , cache_idx1 ) ;             // cannot commit/dismiss without cache
-			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ;             // .
-			end_digest.can_upload &= !( jd.missing() || jd.err() ) ;                                                                     // only cache execution without errors
+			/**/                                                                          SWEAR( cache_idx1 , cache_idx1 ) ; // cannot commit/dismiss without cache
+			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ; // .
+			end_digest.can_upload &= !( jd.missing() || jd.err() ) ;                                                         // only cache execution without errors
 			try {
 				if (end_digest.can_upload) cache.commit ( self , digest.upload_key , was_missing_audit ) ;
-				else                       cache.dismiss(        digest.upload_key                     ) ;                               // free up temporary storage copied in job_exec
+				else                       cache.dismiss(        digest.upload_key                     ) ;                   // free up temporary storage copied in job_exec
 			} catch (::string const& e) {
 				const char* action = end_digest.can_upload ? "upload" : "dismiss" ;
 				trace("cache_throw",action,e) ;
@@ -710,7 +712,7 @@ namespace Engine {
 		trace("done",self) ;
 	}
 
-	JobReport JobExec::audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , MsgStderr const& msg_stderr , Delay exe_time , bool retry ) const {
+	JobReport JobExec::audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , ::string const& chroot_tag , MsgStderr const& msg_stderr , Delay exe_time , bool retry ) const {
 		using JR = JobReport ;
 		//
 		Req            req         = ri.req           ;
@@ -753,7 +755,7 @@ namespace Engine {
 		if (!step) step = snake(jr) ;
 		Trace trace("audit_end",color,pfx,step,self,ri,STR(with_stats),STR(retry),STR(with_stderr),STR(done),STR(speculate),jr,STR(+msg_stderr.msg),STR(+msg_stderr.stderr)) ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		req->audit_job   ( color , pfx+step , self , true/*at_end*/ , exe_time                                               ) ;
+		req->audit_job   ( color , pfx+step , self , true/*at_end*/ , chroot_tag , exe_time                                  ) ;
 		req->audit_stderr(                    self , { msg_stderr.msg , with_stderr?msg_stderr.stderr:""s } , max_stderr_len ) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		ri.reported = true  ;

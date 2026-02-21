@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 31      ; // a501eb65e45d8dd6538caffe6ee999e6
+	uint64_t    constexpr Cache = 32      ; // ea15f6e347c4a130298d390586c1c6be
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 27      ; // dd9f62e349f7b59a7a5c56915d89970d
+	uint64_t    constexpr Repo  = 28      ; // 69e534079371719b741c007ba0ceb8ee
 	uint64_t    constexpr Job   = 17      ; // e9815ab26bf928f163f771390de178e6
 	const char* const     Major = "26.02" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : a501eb65e45d8dd6538caffe6ee999e6 *
+// * Cache : ea15f6e347c4a130298d390586c1c6be *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -613,6 +613,7 @@ namespace Version {
 //		::vmap<Key,TargetDigest> targets        = {}          ;
 //		::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
 //		::vector_s               refresh_codecs = {}          ;
+//		::string                 chroot_tag     = {}          ;
 //		Time::CoarseDelay        exe_time       = {}          ;
 //		Status                   status         = Status::New ;
 //		bool                     has_msg_stderr = false       ;                                // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
@@ -1070,7 +1071,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : dd9f62e349f7b59a7a5c56915d89970d *
+// * Repo : 69e534079371719b741c007ba0ceb8ee *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2069,6 +2070,7 @@ namespace Version {
 //		::vmap<Key,TargetDigest> targets        = {}          ;
 //		::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
 //		::vector_s               refresh_codecs = {}          ;
+//		::string                 chroot_tag     = {}          ;
 //		Time::CoarseDelay        exe_time       = {}          ;
 //		Status                   status         = Status::New ;
 //		bool                     has_msg_stderr = false       ;                                // if true <= msg or stderr are non-empty in englobing JobEndRpcReq

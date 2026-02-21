@@ -696,15 +696,15 @@ namespace Engine {
 			:	ja.report==JobReport::Hit  ? "hit_"
 			:	                             "was_"
 			;
-			if (ja.has_stderr) {
-				JobEndRpcReq jerr = job.job_info(JobInfoKind::End).end ;
-				//                                           with_stats
-				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true   , pfx , MsgStderr{.msg=reason_str(jr),.stderr=::move(jerr.msg_stderr.stderr)} ) ;
-				else                           audit_end( ri , true   , pfx , MsgStderr{.msg=ja.msg        ,.stderr=::move(jerr.msg_stderr.stderr)} ) ;
-			} else {
-				if (jr.tag>=JobReasonTag::Err) audit_end( ri , true   , pfx , MsgStderr{.msg=reason_str(jr)} ) ;
-				else                           audit_end( ri , true   , pfx , MsgStderr{.msg=ja.msg        } ) ;
+			MsgStderr mse ;
+			::string  crt ;
+			if ( ja.has_msg_stderr || ja.has_chroot_tag ) {
+				JobInfo jd = job.job_info(JobInfoKind::End) ;
+				if (ja.has_msg_stderr) mse = ::move(jd.end.msg_stderr       ) ;
+				if (ja.has_chroot_tag) crt = ::move(jd.end.digest.chroot_tag) ;
 			}
+			if (jr.tag>=JobReasonTag::Err) mse.msg = reason_str(jr) ;
+			audit_end( ri , true/*with_stats*/ , pfx , crt , mse ) ;
 			req->missing_audits.erase(it) ;
 		} else if ( !at_end && report_loop ) {
 			audit_end( ri , false/*with_stats*/ ) ;
@@ -1145,7 +1145,7 @@ namespace Engine {
 					if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
 					je.end_analyze(/*inout*/digest) ;
 					req->stats.add(JobReport::Hit) ;
-					req->missing_audits[job] = { .report=JobReport::Hit , .has_stderr=+job_info.end.msg_stderr.stderr } ;
+					req->missing_audits[job] = { .report=JobReport::Hit , .has_msg_stderr=digest.has_msg_stderr , .has_chroot_tag=+digest.chroot_tag } ;
 					ds.reserve(digest.deps.size()) ;
 					for( auto& [d,dd] : digest.deps ) ds.emplace_back( d , dd ) ;
 					for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...

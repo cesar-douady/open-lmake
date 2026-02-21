@@ -193,10 +193,7 @@ namespace Engine {
 		void            give_up    ( Req={} , bool report=true   )       ; // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
-		JobReport audit_end( ReqInfo&    , bool with_stats , ::string const& pfx    , MsgStderr const&           , Delay exe_time={} , bool retry=false ) const ;
-		JobReport audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx={} , ::string const& stderr={}  , Delay exe_time={} , bool retry=false ) const {
-			return audit_end( ri , with_stats , pfx , MsgStderr{.stderr=stderr} , exe_time , retry ) ;
-		}
+		JobReport audit_end( ReqInfo& , bool with_stats , ::string const& pfx={} , ::string const& chroot_tag={} , MsgStderr const& ={} , Delay exe_time={} , bool retry=false ) const ;
 		size_t hash() const {
 			Hash::Fnv fnv ;                                                // good enough
 			fnv += +Job(self)        ;

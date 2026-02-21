@@ -157,6 +157,7 @@ int main( int argc , char* argv[] ) {
 	Pdate    start_overhead  { New }        ;
 	uint64_t upload_key      = 0            ;                                // key used to identify temporary data uploaded to the cache
 	SeqId    trace_id        = 0/*garbage*/ ;
+	::string chroot_tag      ;
 	//
 	swear_prod(argc==8,argc) ;                                               // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
 	try { g_service_start   = {                   argv[1],true/*name_ok*/} ; } catch (::string const& e) { exit(Rc::Fail,"cannot connect to server : ",e) ; }
@@ -238,6 +239,11 @@ int main( int argc , char* argv[] ) {
 		//
 		::vector_s enter_accesses ;
 		::string   repo_root_s    ;
+		if (+g_start_info.chroot_info.dir_s) {
+			chroot_tag = base_name(g_start_info.chroot_info.dir_s) ;
+			if ( size_t pos=chroot_tag.find('.') ; pos!=Npos ) chroot_tag.resize(pos) ;
+			else                                               rm_slash(chroot_tag)   ;
+		}
 		try {
 			g_start_info.enter(
 				/*out*/  enter_accesses
@@ -410,6 +416,7 @@ int main( int argc , char* argv[] ) {
 	}
 End :
 	{	Trace trace("end",end_report.digest) ;
+		end_report.digest.chroot_tag     = chroot_tag             ;
 		end_report.digest.has_msg_stderr = +end_report.msg_stderr ;
 		try {
 			ClientSockFd fd           { g_service_end } ;

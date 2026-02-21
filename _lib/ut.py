@@ -18,7 +18,8 @@ class pdict(dict) :
 	def __delattr__(self,attr    ) : del    self[attr]
 
 class Ut :
-	idx = 0
+	idx      = 0
+	host_len = None
 	def __init__( self , *args , rc=0 , no_dump=False , fast_exit=False , host_len=None , **kwds ) :
 		self.__class__.idx += 1
 		self.stdout = f'tok.{self.idx}'
@@ -27,8 +28,8 @@ class Ut :
 		self.rc        = rc
 		self.no_dump   = no_dump
 		self.fast_exit = fast_exit
-		self.host_len  = host_len
 		self.kwds      = kwds
+		if host_len is not None : self.host_len  = host_len
 		#
 		cmd = ('lmake',*args)
 		now = time.time()

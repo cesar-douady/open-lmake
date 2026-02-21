@@ -6,6 +6,8 @@
 import os.path as osp
 dn = osp.dirname
 
+host_len = 10
+
 import lmake
 
 root = dn(dn(dn(lmake.__file__)))
@@ -15,6 +17,9 @@ def lmake_install_root(os) : return f'{dn(root)}/open-lmake-{os}'
 if __name__!='__main__' :
 
 	from lmake.rules import Rule
+
+	lmake.config.console.date_precision = 2
+	lmake.config.console.host_len       = host_len
 
 	lmake.manifest = ('Lmakefile.py','../')
 
@@ -42,6 +47,7 @@ else :
 		exit()
 
 	import ut
+	ut.Ut.host_len = host_len
 
 	ut.lmake( *(f'dut-ld_preload-{os}' for os in os_known) , done=n_known )
 	ut.lmake( *(f'dut-ptrace-{os}'     for os in os_known) , done=n_known )
