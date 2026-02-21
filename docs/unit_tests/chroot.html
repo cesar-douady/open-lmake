@@ -104,6 +104,8 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="kn">import</span> <span class="nn">os.path</span> <span class="k">as</span> <span class="nn">osp</span>
 <span class="n">dn</span> <span class="o">=</span> <span class="n">osp</span><span class="o">.</span><span class="n">dirname</span>
 
+<span class="n">host_len</span> <span class="o">=</span> <span class="mi">10</span>
+
 <span class="kn">import</span> <span class="nn">lmake</span>
 
 <span class="n">root</span> <span class="o">=</span> <span class="n">dn</span><span class="p">(</span><span class="n">dn</span><span class="p">(</span><span class="n">dn</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="vm">__file__</span><span class="p">)))</span>
@@ -113,6 +115,9 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
+
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">console</span><span class="o">.</span><span class="n">date_precision</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">console</span><span class="o">.</span><span class="n">host_len</span>       <span class="o">=</span> <span class="n">host_len</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,</span><span class="s1">&#39;../&#39;</span><span class="p">)</span>
 
@@ -140,6 +145,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">exit</span><span class="p">()</span>
 
     <span class="kn">import</span> <span class="nn">ut</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">Ut</span><span class="o">.</span><span class="n">host_len</span> <span class="o">=</span> <span class="n">host_len</span>
 
     <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="o">*</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;dut-ld_preload-</span><span class="si">{</span><span class="n">os</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_known</span><span class="p">)</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="n">n_known</span> <span class="p">)</span>
     <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="o">*</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;dut-ptrace-</span><span class="si">{</span><span class="n">os</span><span class="si">}</span><span class="s1">&#39;</span>     <span class="k">for</span> <span class="n">os</span> <span class="ow">in</span> <span class="n">os_known</span><span class="p">)</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="n">n_known</span> <span class="p">)</span>
