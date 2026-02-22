@@ -60,8 +60,8 @@ namespace Backends::Slurm::SlurmApi {
 		static ::string repo_root = no_slash(*g_repo_root_s) ;
 		Trace trace(BeChnl,"slurm_spawn_job",key,job,nice,cmd_line,rsrcs,STR(verbose)) ;
 		//
-		SWEAR(rsrcs.size()> 0) ;
-		SWEAR(nice        >=0) ;
+		SWEAR     ( rsrcs.size()> 0        ) ;
+		SWEAR_PROD( nice        >=0 , nice ) ;
 		// first element is treated specially to avoid allocation in the very frequent case of a single element
 		::string                 job_name    = key + job->name()        ;
 		::string                 script      = _cmd_to_string(cmd_line) ;
@@ -119,9 +119,9 @@ namespace Backends::Slurm::SlurmApi {
 				SlurmId res = msg->job_id ;
 				SWEAR(res!=0) ;                                                        // null id is used to signal absence of id
 				_free_submit_response_response_msg(msg) ;
-				if (!sav_errno) { SWEAR(!err) ; return res ; }
+				if (!sav_errno) { SWEAR_PROD( !err , err ) ; return res ; }
 			}
-			SWEAR(sav_errno!=0) ;                                                      // if err, we should have a errno, else if no errno, we should have had a msg containing an id
+			SWEAR_PROD(sav_errno!=0) ;                                                 // if err, we should have a errno, else if no errno, we should have had a msg containing an id
 			::string err_msg ;
 			switch (sav_errno) {
 				#if EWOULDBLOCK!=EAGAIN
@@ -219,8 +219,8 @@ namespace Backends::Slurm::SlurmApi {
 					/**/                                       msg << ')'                                                                                                 ;
 					ok = No ;
 					goto Done ;
-			//	case JOB_END :                                                                    // not a real state, last entry in table
-				default      : FAIL("Slurm : wrong job state return for job (",slurm_id,") : ") ; // NO_COV
+			//	case JOB_END :                                                                         // not a real state, last entry in table
+				default      : FAIL_PROD("Slurm : wrong job state return for job (",slurm_id,") : ") ; // NO_COV
 			}
 		}
 	Done :
@@ -246,7 +246,7 @@ namespace Backends::Slurm::SlurmApi {
 			}
 		}
 	Bad :
-		FAIL("cannot cancel job ",slurm_id," after ",i," retries : ",_strerror(errno)) ; // NO_COV
+		FAIL_PROD("cannot cancel job ",slurm_id," after ",i," retries : ",_strerror(errno)) ; // NO_COV
 	}
 
 	template<class T> static void _load_func( T*& dst , const char* name ) {

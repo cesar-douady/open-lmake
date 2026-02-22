@@ -61,11 +61,11 @@ template<UEnum Key,UEnum Flag> struct Syntax {
 		if constexpr (HasNone) {
 			static_assert( Key::None==Key() ) ;
 			has_dflt_key |= ks.contains({}) ;
-			SWEAR(!( has_dflt_key && ks.contains({}) && ks.at({}).short_name )) ;
+			SWEAR_PROD(!( has_dflt_key && ks.contains({}) && ks.at({}).short_name )) ;
 		}
 		::uset<char> short_names ;
-		for( auto const& [k,s] : ks ) { keys [+k] = s ; if (+s.short_name) SWEAR( short_names.insert(s.short_name).second , s.short_name ) ; } // ensure no short name conflicts
-		for( auto const& [f,s] : fs ) { flags[+f] = s ; if (+s.short_name) SWEAR( short_names.insert(s.short_name).second , s.short_name ) ; } // .
+		for( auto const& [k,s] : ks ) { keys [+k] = s ; if (+s.short_name) SWEAR_PROD( short_names.insert(s.short_name).second , s.short_name ) ; } // ensure no short name conflicts
+		for( auto const& [f,s] : fs ) { flags[+f] = s ; if (+s.short_name) SWEAR_PROD( short_names.insert(s.short_name).second , s.short_name ) ; } // .
 	}
 	//
 	void usage(::string const& msg={}) const ;
@@ -158,7 +158,7 @@ template<UEnum Key,UEnum Flag> void Syntax<Key,Flag>::usage(::string const& msg)
 }
 
 template<UEnum Key,UEnum Flag> CmdLine<Key,Flag>::CmdLine(  Syntax<Key,Flag> const& syntax , int argc , const char* const* argv ) {
-	SWEAR(argc>0) ;
+	SWEAR_PROD(argc>0) ;
 	int a = 0 ;
 	//
 	::umap<char,Key > key_map  ; key_map .reserve(N<Key >) ; for( Key  k : iota(All<Key >) ) if ( +syntax.keys [+k] && syntax.keys [+k]->short_name ) key_map [syntax.keys [+k]->short_name] = k ;

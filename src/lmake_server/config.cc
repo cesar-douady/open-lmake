@@ -476,7 +476,7 @@ namespace Engine {
 		//
 		Trace trace("Config::open") ;
 		//
-		SWEAR(+key) ;                                               // ensure no init problem
+		SWEAR_PROD(+key) ;                                               // ensure no init problem
 		::string std_dir_s = cat(PrivateAdminDirS,"local_admin/") ;
 		if (!user_local_admin_dir_s) {
 			local_admin_dir_s = ::move(std_dir_s) ;
@@ -493,7 +493,7 @@ namespace Engine {
 		//
 		for( auto const& [_,e] : codecs )
 			if (e.is_dir()) {
-				SWEAR( !is_lcl(e.tab) , e.tab ) ;
+				SWEAR_PROD( !is_lcl(e.tab) , e.tab ) ;
 				ext_codec_dirs_s.push_back(e.tab) ;
 			}
 	}

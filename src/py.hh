@@ -750,7 +750,7 @@ namespace Py {
 	inline void              Object::del_attr( ::string const& attr                     )       { Gil::s_swear_locked() ; from_py(PyObject_DelAttrString( to_py() , attr.c_str()               )) ; }
 
 	inline void Ptr<Object>::s_init() {
-		SWEAR(bool(s_loads)==bool(s_dumps)) ;
+		SWEAR_PROD(bool(s_loads)==bool(s_dumps)) ;
 		if (s_loads) return ;
 		Ptr<Module> marshal { "marshal" } ;
 		s_dumps = marshal->get_attr<Callable>("dumps").boost() ; // ensure no destruction at finalization

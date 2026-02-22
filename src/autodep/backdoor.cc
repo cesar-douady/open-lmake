@@ -330,29 +330,30 @@ namespace Backdoor {
 			res = { New , tab } ;
 			try                       { res.file_sync = auto_file_sync( res.file_sync , tab ) ;                                                       }
 			catch (::string const& e) { throw cat("cannot use codec table : ",e,"\n  consider putting an adequate value in ",AdminDirS,"file_sync") ; }
-		} else {
-			AutodepEnv& autodep_env = Record::s_autodep_env_writable() ;                                                                                            // solve lazy file_sync
-			//
-			if (tab.find('/')==Npos) {
-				auto it = autodep_env.codecs.find(tab) ;
-				if (it!=autodep_env.codecs.end()) {
-					if (!it->second.file_sync)                                                                                                                      // solve lazy
-						try                       { it->second.file_sync = auto_file_sync( it->second.file_sync , it->second.tab ) ;                              }
-						catch (::string const& e) { throw cat("cannot use codec table : ",e,"\n  consider putting an adequate value in ",AdminDirS,"file_sync") ; }
-					res = it->second ;
-					goto Return ;
-				}
-			}
-			//
-			Record::Solve<false/*Send*/> sr { r , tab , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Encode } ;
-			throw_unless( sr.file_loc<=FileLoc::Repo , "codec table file must be a local source file" ) ;
-			if (+sr.accesses) r.report_access( { .comment=comment , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
-			//
-			res.tab       = ::move(sr.real)       ;
-			res.file_sync = autodep_env.file_sync ;
+			SWEAR( +res.file_sync , tab,res.tab ) ;
+			return res ;
 		}
-	Return :
-		SWEAR( +res.file_sync , tab,res.tab ) ;
+		AutodepEnv& autodep_env = Record::s_autodep_env_writable() ;                                                                                            // solve lazy file_sync
+		//
+		if (tab.find('/')==Npos) {
+			auto it = autodep_env.codecs.find(tab) ;
+			if (it!=autodep_env.codecs.end()) {
+				if (!it->second.file_sync)                                                                                                                      // solve lazy
+					try                       { it->second.file_sync = auto_file_sync( it->second.file_sync , it->second.tab ) ;                              }
+					catch (::string const& e) { throw cat("cannot use codec table : ",e,"\n  consider putting an adequate value in ",AdminDirS,"file_sync") ; }
+				res = it->second ;
+				SWEAR( +res.file_sync , tab,res.tab ) ;
+				return res ;
+			}
+		}
+		//
+		Record::Solve<false/*Send*/> sr { r , tab , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Encode } ;
+		throw_unless( sr.file_loc<=FileLoc::Repo , "codec table file must be a local source file" ) ;
+		if (+sr.accesses) r.report_access( { .comment=comment , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
+		//
+		res.tab       = ::move(sr.real)       ;
+		res.file_sync = autodep_env.file_sync ;
+		SWEAR_PROD( +res.file_sync , tab,res.tab ) ;
 		return res ;
 	}
 

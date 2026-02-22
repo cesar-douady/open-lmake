@@ -256,7 +256,7 @@ namespace Backends::Sge {
 				{ [[maybe_unused]] int rc = ::write( 2 , "\n"           , 1                      ) ; }          // NO_COV .
 				::_exit(+Rc::System) ;                                                                          // NO_COV .
 			}
-			SWEAR(pid>0) ;
+			SWEAR_PROD( pid>0 , pid ) ;
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
 			int  wstatus ;
 			int  rc      = ::waitpid(pid,&wstatus,0/*options*/) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
@@ -294,7 +294,7 @@ namespace Backends::Sge {
 				{ [[maybe_unused]] int rc = ::write( 2 , "\n"           , 1                      ) ; }          // NO_COV .
 				::_exit(+Rc::System) ;                                                                          // NO_COV .
 			}
-			SWEAR(pid>0) ;                   // ensure vfork worked
+			SWEAR( pid>0 , pid ) ;           // ensure vfork worked
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
 			// Normal code to get the content of stdout is to read the c2p pipe, and when we see eof, waitpid until sub-process has terminated.
 			// But it seems that if we do things this way, there are cases where c2p.read eof never occurs (or after a very long time, >300s).
@@ -313,10 +313,10 @@ namespace Backends::Sge {
 			::string cmd_out(100,0) ;        // 100 is plenty for a job id
 			trace("wait_cmd_out",c2p.read) ;
 			ssize_t cnt = ::read( c2p.read , cmd_out.data() , cmd_out.size() ) ;
-			if (cnt==0                     ) FAIL("no data from"         ,cmd_line[0]                          ) ;
-			if (cnt<0                      ) FAIL("cannot read stdout of",cmd_line[0],':',StrErr()             ) ;
-			if (size_t(cnt)==cmd_out.size()) FAIL("stdout overflow of"   ,cmd_line[0],':',cmd_out,"..."        ) ;
-			if (cmd_out[cnt-1]!='\n'       ) FAIL("incomplete stdout of" ,cmd_line[0],':',cmd_out.substr(0,cnt)) ;
+			if (cnt==0                     ) FAIL_PROD("no data from"         ,cmd_line[0]                          ) ;
+			if (cnt<0                      ) FAIL_PROD("cannot read stdout of",cmd_line[0],':',StrErr()             ) ;
+			if (size_t(cnt)==cmd_out.size()) FAIL_PROD("stdout overflow of"   ,cmd_line[0],':',cmd_out,"..."        ) ;
+			if (cmd_out[cnt-1]!='\n'       ) FAIL_PROD("incomplete stdout of" ,cmd_line[0],':',cmd_out.substr(0,cnt)) ;
 			cmd_out.resize(cnt) ;
 			trace("done_cmd_out",cmd_out) ;
 			return from_string<SgeId>(cmd_out) ;

@@ -188,7 +188,7 @@ namespace Backends::Local {
 				Fd::Stderr.write("cannot exec job_exec\n") ;                                                                           // NO_COV defensive programming
 				::_exit(+Rc::System) ;                                                                                                 // NO_COV defensive programming, in case exec fails
 			}
-			SWEAR(pid>0) ;
+			SWEAR_PROD( pid>0 , pid ) ;
 			// NOLINTEND(clang-analyzer-unix.Vfork) allowed in Linux
 			return pid ;
 		}

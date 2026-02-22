@@ -14,7 +14,7 @@ using namespace Re   ;
 namespace Engine {
 
 	static bool/*ok*/ _collect(EngineClosureReq const& ecr) {
-		SWEAR(!ecr.is_job()) ;                                                // targets are typically dirs, passing a job is non-sense
+		SWEAR_PROD(!ecr.is_job()) ;                                                // targets are typically dirs, passing a job is non-sense
 		Fd                        fd            = ecr.fd                    ;
 		ReqOptions const&         ro            = ecr.options               ;
 		ConfigDyn::Collect const& collect       = g_config->collect         ;

@@ -85,7 +85,7 @@ struct Ports {
 static Ports const& _ports() {
 	static Ports s_ports = []() {
 		Ports      res   ;
-		::vector_s ports = split(AcFd("/proc/sys/net/ipv4/ip_local_port_range").read()) ; SWEAR( ports.size()==2 , ports ) ;
+		::vector_s ports = split(AcFd("/proc/sys/net/ipv4/ip_local_port_range").read()) ; SWEAR_PROD( ports.size()==2 , ports ) ;
 		res.first  = from_string<in_port_t>(ports[0])               ;
 		res.sz     = from_string<in_port_t>(ports[1])+1 - res.first ; // ephemeral range is specified as "first last" inclusive
 		res.sz    /= 2                                              ; // only use half to ensure the other half is left for use by other services unrelate to lmake
@@ -204,7 +204,7 @@ SockFd::SockFd( Key k , bool reuse_addr , in_addr_t local_addr , bool for_server
 		switch (errno) {
 			case EADDRINUSE :
 			case EACCES     : break ;
-			default         : FAIL(self,StrErr()) ;
+			default         : FAIL_PROD(self,StrErr()) ;
 		}
 	}
 	throw cat("cannot bind ",self," : ",StrErr()) ;                                              // we have trie all ports
@@ -216,8 +216,8 @@ SockAddr SockFd::s_sock_addr( Fd fd , bool peer ) {
 	int       rc  ;
 	if (peer) rc = ::getpeername( fd , /*out*/&res.as_sockaddr() , /*inout*/&sz ) ;
 	else      rc = ::getsockname( fd , /*out*/&res.as_sockaddr() , /*inout*/&sz ) ;
-	SWEAR( rc==0           , rc,fd ) ;
-	SWEAR( sz==sizeof(res) , sz,fd ) ;
+	SWEAR_PROD( rc==0           , rc,fd ) ;
+	SWEAR_PROD( sz==sizeof(res) , sz,fd ) ;
 	return res ;
 }
 
@@ -229,7 +229,7 @@ ServerSockFd::ServerSockFd( int backlog , bool reuse_addr , in_addr_t local_addr
 	if (!backlog) backlog = 100 ;
 	for( uint32_t i=1 ;; i++ ) {
 		if ( ::listen(fd,backlog)==0 ) break ;
-		SWEAR( errno==EADDRINUSE , self,backlog,reuse_addr ) ;
+		SWEAR_PROD( errno==EADDRINUSE , self,backlog,reuse_addr ) ;
 		if (i>=NAddrInUseTrials) throw cat("cannot listen as ",local_addr?s_addr_str(local_addr):"any"s," : ",StrErr()) ;
 		AddrInUseTick.sleep_for() ;
 	}

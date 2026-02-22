@@ -190,16 +190,16 @@ template<bool At> [[maybe_unused]] static bool/*refresh_mem*/ _entry_read_lnk( v
 [[maybe_unused]] static int64_t/*res*/ _exit_read_lnk( void* ctx , Record& r , Fd proc_mem , int64_t res ) {
 	if (ctx) {
 		ReadLinkBuf* rlb = static_cast<ReadLinkBuf*>(ctx) ;
-		res = (rlb->first)(r,res) ; SWEAR( res<=ssize_t(rlb->first.sz) , res,rlb->first.sz ) ;
-		if ( proc_mem && rlb->first.magic ) {                                                  // access to backdoor was emulated, we must transport result to actual user space
+		res = (rlb->first)(r,res) ; SWEAR_PROD( res<=ssize_t(rlb->first.sz) , res,rlb->first.sz ) ;
+		if ( proc_mem && rlb->first.magic ) {                                                       // access to backdoor was emulated, we must transport result to actual user space
 			if (res>=0)
 				try {
 					_poke( proc_mem , rlb->second , rlb->first.buf , res ) ;
 				} catch (::string const&) {
 					errno = EFAULT                 ;
-					res   = -+BackdoorErr::PokeErr ;                                           // distinguish between backdoor error and absence of support
+					res   = -+BackdoorErr::PokeErr ;                                                // distinguish between backdoor error and absence of support
 				}
-			delete[] rlb->first.buf ;                                                          // buf has been allocated when processing magic
+			delete[] rlb->first.buf ;                                                               // buf has been allocated when processing magic
 		}
 		delete rlb ;
 	}

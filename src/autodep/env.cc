@@ -12,8 +12,8 @@ using namespace Disk ;
 namespace Codec {
 
 	CodecRemoteSide::CodecRemoteSide(::string const& descr) {
-		SWEAR( descr.size()>=6            , descr ) ;
-		SWEAR( descr[descr.size()-6]==':' , descr ) ;
+		SWEAR_PROD( descr.size()>=6            , descr ) ;
+		SWEAR_PROD( descr[descr.size()-6]==':' , descr ) ;
 		tab = descr.substr(0,descr.size()-6) ;
 		switch (descr[descr.size()-5]) {
 			case 'A' : file_sync = FileSync::Auto ; break ;

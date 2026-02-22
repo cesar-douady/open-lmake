@@ -243,7 +243,7 @@ namespace Engine::Persistent {
 		RuleBase::s_match_gen = _g_rule_crc_file.c_hdr() ;
 		// END_OF_VERSIONING
 		//
-		SWEAR(RuleBase::s_match_gen>0) ;
+		SWEAR_PROD(RuleBase::s_match_gen>0) ;
 		_compile_srcs() ;
 		Rule::s_from_disk() ;
 		for( Job  j : _g_job_file .c_hdr().frozens    ) _frozen_jobs .insert(j) ;
@@ -297,8 +297,8 @@ namespace Engine::Persistent {
 		Trace trace("new_config",Pdate(New),STR(rescue) ) ;
 		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 		//
-		if (  first_time                                        ) _init_config()                  ;
-		else                                                      SWEAR( +*g_config , *g_config ) ;                                    // we must update something
+		if (  first_time                                        ) _init_config() ;
+		else                                                      SWEAR_PROD( +*g_config , *g_config ) ;                               // we must update something
 		if (                                         +*g_config ) config.key = g_config->key ;
 		//
 		/**/                                                      diff(*g_config,config) ;
@@ -622,7 +622,7 @@ namespace Engine::Persistent {
 			::string nn   = n->name() ;
 			::string nn_s = nn+'/'    ;
 			for( ::string const& sn : src_names ) throw_if( sn.starts_with(nn_s) , "source ",t==FileTag::Dir?"dir ":"",nn," is a dir of ",sn ) ;
-			FAIL(nn,"is a source dir of no source") ;                                                                                            // NO_COV
+			FAIL_PROD(nn,"is a source dir of no source") ;                                                                                       // NO_COV
 		}
 		for( auto const& [key,val] : g_config->codecs ) {
 			if (!is_canon(val.tab)) {

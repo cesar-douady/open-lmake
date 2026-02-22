@@ -474,7 +474,7 @@ namespace Engine {
 		bool has_req (Req                 ) const ;
 		//
 		void set_exec_ok() {                                                                                                      // set official rule_crc (i.e. with the right cmd and rsrcs crc's)
-			Rule r = rule() ; SWEAR(r->is_plain(),r->special) ;
+			Rule r = rule() ; SWEAR( r->is_plain() , r->special ) ;
 			rule_crc = r->crc ;
 		}
 		//
@@ -636,16 +636,16 @@ namespace Engine {
 		if (has_targets()) targets().pop() ;
 		/**/               deps     .pop() ;
 	}
-	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                                         jd._close() ;               }
-	inline JobData::~JobData          (            )               {                                                            _close() ;               }
-	inline JobData& JobData::operator=(JobData&& jd)               { SWEAR(rule()==jd.rule(),rule(),jd.rule()) ; self = jd ; jd._close() ; return self ; }
+	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                                             jd._close() ;               }
+	inline JobData::~JobData          (            )               {                                                                _close() ;               }
+	inline JobData& JobData::operator=(JobData&& jd)               { SWEAR( rule()==jd.rule() , rule(),jd.rule() ) ; self = jd ; jd._close() ; return self ; }
 
 	inline MsgStderr JobData::special_msg_stderr( bool short_msg                  ) const { return special_msg_stderr({},short_msg) ; }
 	inline void      JobData::audit_end_special ( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}     ) ; }
 
 	inline Tflags JobData::tflags(Node target) const {
 		Target t = *::lower_bound( targets() , {target,{}} ) ;
-		SWEAR(t==target) ;
+		SWEAR( t==target , t,target ) ;
 		return t.tflags ;
 	}
 

@@ -27,7 +27,7 @@ RepairDigest repair(::string const& from_dir) {
 	//
 	::umap<Crc,Rule> rule_tab ; rule_tab.reserve(Rule::s_rules->size()) ;
 	for( Rule r : Persistent::rule_lst() ) { trace("rule",r->crc->cmd,r->name) ; rule_tab[r->crc->cmd] = r ; }
-	SWEAR(rule_tab.size()==Persistent::rule_lst().size()) ;
+	SWEAR_PROD(rule_tab.size()==Persistent::rule_lst().size()) ;
 	//
 	for( auto const& [jd,_] : walk(from_dir,TargetTags,from_dir) ) {
 		{	JobInfo job_info { jd } ;

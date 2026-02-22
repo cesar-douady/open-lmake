@@ -21,27 +21,40 @@ inline bool started() { return AutodepLock::t_active ; } // no auto-start for se
 // - this happens if get_orig needs to call dlsym
 // note that when not in server, _g_mutex protects us (but it is not used in server when not spying accesses)
 // note also that we cannot put s_libcall_tab in a static outside get_orig as get_orig may be called from global init, before this static initialization
+static constexpr bool _get_orig_cmp_cstr( const char* a , const char* b ) {
+	// ::strcmp is not constexpr with gcc-11, so do it by hand
+	for( ; *a && *b ; a++,b++ ) {
+		if (*a<*b) return true  ;
+		if (*a>*b) return false ;
+	}
+	return *a<*b ;
+}
 static void* get_orig(const char* libcall) {
-	static constexpr size_t NChar = 20 ;                  // 12 is enough to distinguish /!\ this function must be signal-safe, hence must not call malloc : use char[] as key instead of ::string
-	using LibCallTab = ::map<::array<char,NChar>,void*> ;
-	static Atomic<LibCallTab*> s_libcall_tab = nullptr ;  // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
+	#define LIBCALL_ENTRY(libcall) false                                                      // to enumrate libcalls
+	static constexpr size_t NLibcalls = ::initializer_list<bool>{ENUMERATE_LIBCALLS}.size() ;
+	#undef LIBCALL_ENTRY
+	static constexpr ::array<const char*,NLibcalls> LibcallNames = []() {
+		::array<const char*,NLibcalls> libcall_names ;
+		size_t                         i             = 0 ;
+		#define LIBCALL_ENTRY(libcall) #libcall                                               // to enumrate libcalls
+		for( const char* lc : { ENUMERATE_LIBCALLS } ) libcall_names[i++] = lc ;
+		#undef LIBCALL_ENTRY
+		::sort( libcall_names.begin() , libcall_names.end() , _get_orig_cmp_cstr ) ;
+		return libcall_names ;
+	}() ;
+	static Atomic<::array<void*,NLibcalls>*> s_libcall_tab = nullptr ;                        // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
 	// /!\ we must manage the guard explicitly as compiler generated guard makes syscalls, which can induce loops
 	if (!s_libcall_tab) {
-		#define LIBCALL_ENTRY(libcall) #libcall
-		LibCallTab* new_libcall_tab  = new LibCallTab ;
-		for( const char* lc1 : { ENUMERATE_LIBCALLS } ) {
-			::array<char,NChar> lc2 = {} ; strncpy(lc2.data(),lc1,NChar-1) ;
-			bool inserted = new_libcall_tab->try_emplace(lc2,::dlsym(RTLD_NEXT,lc1)).second ;
-			SWEAR( inserted , lc1,lc2 ) ;                                                     // ensure troncation does not produce ambguities
-		}
-		#undef LIBCALL_ENTRY
-		LibCallTab* prev_libcall_tab = nullptr ;
-		if (!s_libcall_tab.compare_exchange_strong( prev_libcall_tab , new_libcall_tab )) delete new_libcall_tab ;
-	}
-	if (!libcall) return nullptr ;                                                            // used to initialize s_libcall_tab
-	::array<char,NChar> lc = {} ; strncpy(lc.data(),libcall,NChar-1) ;
-	try         { return s_libcall_tab.load()->at(lc) ;               }
-	catch (...) { fail_prod("cannot find symbol",libcall,"in libc") ; }                       // NO_COV
+		::array<void*,NLibcalls>& libcall_tab = *new ::array<void*,NLibcalls> ;
+		for( size_t i : iota(NLibcalls) ) libcall_tab[i] = ::dlsym(RTLD_NEXT,LibcallNames[i]) ;
+		if (s_libcall_tab.load()) delete &libcall_tab          ;                                // repeat test to avoid double allocation as much as possible
+		else                      s_libcall_tab = &libcall_tab ;                                // dont delete old libcall tab as it may be in use by another thread, ...
+	}                                                                                           // ... and forget about exceptional double allocation
+	if (!libcall) return nullptr ;                                                              // used to initialize s_libcall_tab
+	// /!\ this function must be signal-safe, hence must not call malloc
+	auto   it = ::lower_bound( LibcallNames , libcall , _get_orig_cmp_cstr ) ; SWEAR_PROD( it!=LibcallNames.end() && ::strcmp(*it,libcall)==0 , *it,libcall ) ;
+	size_t i  = it - LibcallNames.begin()                                    ;
+	return (*s_libcall_tab.load())[i] ;
 }
 // initialize s_libcall_tab as early as possible, before any fork
 // unfortunately some libs do accesses before entering main, so we cannot be sure this init is before all libcalls
@@ -51,8 +64,8 @@ static void* init_get_orig = get_orig(nullptr) ;
 
 AutodepLock::AutodepLock(::vmap_s<DepDigest>* deps) : lock{_s_mutex} {
 	// SWEAR(cwd_s()==Record::s_autodep_env().repo_root_s) ;           // too expensive
-	SWEAR( !Record::s_deps && !Record::s_deps_err ) ;
-	SWEAR( !*Record::s_access_cache               ) ;
+	SWEAR_PROD( !Record::s_deps && !Record::s_deps_err ) ;
+	SWEAR_PROD( !*Record::s_access_cache               ) ;
 	Record::s_deps     = deps ;
 	Record::s_deps_err = &err ;
 	t_active           = true ;

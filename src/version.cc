@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 32      ; // ea15f6e347c4a130298d390586c1c6be
+	uint64_t    constexpr Cache = 32      ; // 0471454dd2bbfbc4a4691a6e4b1bda30
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 28      ; // 69e534079371719b741c007ba0ceb8ee
-	uint64_t    constexpr Job   = 17      ; // e9815ab26bf928f163f771390de178e6
+	uint64_t    constexpr Repo  = 28      ; // 5527ca280d12d9199c05e8dffec3c514
+	uint64_t    constexpr Job   = 17      ; // e76443280a7ff4e934e8b7ebccc1927c
 	const char* const     Major = "26.03" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : ea15f6e347c4a130298d390586c1c6be *
+// * Cache : 0471454dd2bbfbc4a4691a6e4b1bda30 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -97,7 +97,6 @@ namespace Version {
 //								case EINTR  : continue                                       ;
 //								default     : throw "I/O error while reading file "+filename ;
 //							}
-//							SWEAR( cnt>0 , cnt ) ;
 //							if (size_t(cnt)>=sz) break ;
 //							sz -= cnt ;
 //						}
@@ -1071,7 +1070,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 69e534079371719b741c007ba0ceb8ee *
+// * Repo : 5527ca280d12d9199c05e8dffec3c514 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1145,7 +1144,6 @@ namespace Version {
 //								case EINTR  : continue                                       ;
 //								default     : throw "I/O error while reading file "+filename ;
 //							}
-//							SWEAR( cnt>0 , cnt ) ;
 //							if (size_t(cnt)>=sz) break ;
 //							sz -= cnt ;
 //						}
@@ -2381,7 +2379,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : e9815ab26bf928f163f771390de178e6 *
+// * Job : e76443280a7ff4e934e8b7ebccc1927c *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2437,7 +2435,6 @@ namespace Version {
 //								case EINTR  : continue                                       ;
 //								default     : throw "I/O error while reading file "+filename ;
 //							}
-//							SWEAR( cnt>0 , cnt ) ;
 //							if (size_t(cnt)>=sz) break ;
 //							sz -= cnt ;
 //						}

@@ -721,7 +721,7 @@ namespace Engine {
 				res.push_back(subst_target(
 					rd.matches[mi].second.pattern
 				,	[&](VarIdx s)->::string {
-						if (!star                 ) SWEAR(s<rd.n_static_stems) ;
+						if (!star                 ) SWEAR( s<rd.n_static_stems , s,rd.n_static_stems ) ;
 						if (s<rule->n_static_stems) return stems[s]                           ;
 						else                        return cat("{",rule->stems[s].first,"*}") ;
 					}

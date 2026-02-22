@@ -75,7 +75,7 @@ namespace Engine::Makefiles {
 		//
 		::vector_s deps = AcFd(deps_file,{.err_ok=true}).read_lines(false/*partial_ok*/) ;
 		for( ::string const& line : deps ) {
-			SWEAR(+line) ;
+			SWEAR_PROD(+line) ;
 			::string d = line.substr(1) ;
 			switch (line[0]) {
 				case '#' :                                                                                                                           break ; // comment
@@ -110,7 +110,7 @@ namespace Engine::Makefiles {
 		//
 		::vector_s deps = AcFd(_deps_file(action),{.err_ok=true}).read_lines(false/*partial_ok*/) ;
 		for( ::string const& line : deps ) {
-			SWEAR(+line) ;
+			SWEAR_PROD(+line) ;
 			/**/                            if (line[0]!='=') continue ; // not an env var definition
 			size_t pos = line.find('=',1) ; if (pos==Npos   ) continue ; // if no variable, nothing to recall
 			user_env[line.substr(1,pos-1)] = line.substr(pos+1) ;        // lien contains =<key>=<value>
@@ -134,7 +134,7 @@ namespace Engine::Makefiles {
 	}
 
 	static void _gen_deps( Action action , Deps const& deps , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
-		SWEAR(+deps.files) ;                                                                    // there must at least be Lmakefile.py
+		SWEAR_PROD(+deps.files) ;                                                               // there must at least be Lmakefile.py
 		::string              new_deps_file = _deps_file(action,true/*new*/) ;
 		::vmap_s<bool/*abs*/> glb_sds_s     ;
 		//
@@ -152,14 +152,14 @@ namespace Engine::Makefiles {
 		/**/                        deps_str << '~'<<*g_repo_root_s                                                                  <<'\n' ;
 		if (action==Action::Config) deps_str << '^'<<mk_printable(g_config->system_tag+"ok=system_tag=="+g_config->system_tag_val()) <<'\n' ;
 		for( ::string const& d : deps.files ) {
-			SWEAR(+d) ;
+			SWEAR_PROD(+d) ;
 			deps_str << ( FileInfo(d).exists() ? '+' : '!' ) ;
 			if ( is_abs(d) && ::any_of( glb_sds_s , [&](auto const& sd_s_a) { return !sd_s_a.second && lies_within(d,sd_s_a.first) ; } ) ) deps_str << mk_lcl(d,*g_repo_root_s) ;
 			else                                                                                                                           deps_str <<        d                 ;
 			deps_str <<'\n' ;
 		}
 		for( auto const& [key,val] : deps.user_env ) {
-			SWEAR(+key) ;
+			SWEAR_PROD(+key) ;
 			if (+val) deps_str <<'='<<key<<'='<<*val<<'\n' ;
 			else      deps_str <<'='<<key           <<'\n' ;
 		}
@@ -215,7 +215,7 @@ namespace Engine::Makefiles {
 		::string   deps_str = AcFd(data_file).read() ;
 		::uset_s   dep_set  ;
 		try                       { py_info = py_eval(deps_str) ; }
-		catch (::string const& e) { FAIL(e) ;                     }                 // NO_COV
+		catch (::string const& e) { FAIL_PROD(e) ;                }                 // NO_COV
 		for( auto& [d,ai] : gather.accesses ) {
 			/**/             if ( ai.first_write()<Pdate::Future )   continue ;
 			trace("dep",d) ; if ( Match m=pyc_re->match(d) ; +m  ) { d = cat(m.group(d,1/*dir_s*/),m.group(d,2/*module*/),".py") ; trace("dep_py",d) ; }

@@ -30,7 +30,7 @@ CompileDigest::CompileDigest( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps
 		// services
 		bool operator<(Dep const& other) const { return ::pair(bucket,+node) < ::pair(other.bucket,+other.node) ; }
 		// data
-		int   bucket = 0/*garbage*/ ;                                                                // deps are sorted statics first, then existing, then non-existing
+		int   bucket = 0/*garbage*/ ;                                                                     // deps are sorted statics first, then existing, then non-existing
 		Cnode node   ;
 		Crc   crc    ;
 	} ;
@@ -40,23 +40,23 @@ CompileDigest::CompileDigest( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps
 		bool      is_name = n.is_name()                                              ;
 		CnodeIdx* dep_id  = is_name && dep_ids ? &dep_ids->emplace_back(0) : nullptr ;
 		Accesses  a       = dd.accesses()                                            ;
-		if      (!dd.dflags[Dflag::Full] )   a = {} ;                                                // dep is used for resources only, no real accesses
-		else if (!for_download           )   SWEAR( !dd.never_match()     , n,dd ) ;                 // meaningless, should not have reached here
-		if      (dd.dflags[Dflag::Static]) { SWEAR( n_statics<Max<VarIdx>        ) ; n_statics++ ; }
-		else if (!a                      )   continue ;                                              // dep was not accessed, ignore but keep static deps as they must not depend on run
+		if      (!dd.dflags[Dflag::Full] )   a = {} ;                                                     // dep is used for resources only, no real accesses
+		else if (!for_download           )   SWEAR_PROD( !dd.never_match()     , n,dd ) ;                 // meaningless, should not have reached here
+		if      (dd.dflags[Dflag::Static]) { SWEAR_PROD( n_statics<Max<VarIdx>        ) ; n_statics++ ; }
+		else if (!a                      )   continue ;                                                   // dep was not accessed, ignore but keep static deps as they must not depend on run
 		//
 		Cnode node ;
 		if (is_name) {
 			if ( for_download          ) node    = {       n.name } ;
 			else                         node    = { New , n.name } ;
 			if ( dep_id                ) *dep_id = +node            ;
-			if ( for_download && !node ) continue ;                                                  // if it is not known in cache, it has no impact on matching
+			if ( for_download && !node ) continue ;                                                       // if it is not known in cache, it has no impact on matching
 		} else {
 			node = {n.id} ;
 		}
 		//
 		Crc crc = dd.crc() ;
-		if (!for_download)                                                                           // Crc::Unknown means any existing file
+		if (!for_download)                                                                                // Crc::Unknown means any existing file
 			switch (+(a&Accesses(Access::Lnk,Access::Reg,Access::Stat))) {
 				case +Accesses(                        ) :                      crc = +Crc::Unknown|CrcOrNone ; break ;
 				case +Accesses(Access::Lnk             ) : if (!crc.is_lnk()  ) crc = +Crc::Reg    |CrcOrNone ; break ;
@@ -66,7 +66,7 @@ CompileDigest::CompileDigest( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps
 				case +Accesses(Access::Reg,Access::Stat) : if ( crc.is_lnk()  ) crc =  Crc::Lnk               ; break ;
 			DN}
 		// we lose 1 bit of crc but we must manage errors and it does not desserv an additional field
-		if ( dd.err && a[Access::Err] ) crc = +crc |  CrcErr ;                                       // if not sensed, ignore error status (lmake would stop if not ignored anyway)
+		if ( dd.err && a[Access::Err] ) crc = +crc |  CrcErr ;                                            // if not sensed, ignore error status (lmake would stop if not ignored anyway)
 		else                            crc = +crc & ~CrcErr ;
 		//
 		deps_.push_back({

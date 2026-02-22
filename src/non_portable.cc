@@ -33,7 +33,7 @@ template<bool Set> static void _get_set( pid_t pid , [[maybe_unused]] int n_word
 	#if __aarch64__ || __arm__
 		Iovec iov { .iov_base=&regs , .iov_len=n_words*sizeof(Word) } ;                                                                                          // read/write n_words registers
 		throw_unless( ::ptrace( Set?PTRACE_SETREGSET:PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov )==0 , "cannot ",Set?"set":"get",' ',n_words," regs" ) ;
-		SWEAR( iov.iov_len==n_words*sizeof(Word) , iov.iov_len ) ; // check all asked regs have been handled
+		SWEAR_PROD( iov.iov_len==n_words*sizeof(Word) , iov.iov_len ) ; // check all asked regs have been handled
 	#else
 		throw_unless( ::ptrace( Set?PTRACE_SETREGS:PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs )==0 , "cannot ",Set?"set":"get"," regs") ;
 	#endif
@@ -45,7 +45,7 @@ static void           _set( pid_t pid , int n_words , UserRegsStruct& regs ) {  
 
 ::array<uint64_t,6> np_ptrace_get_args( pid_t pid , uint8_t word_sz ) {                               // info come from man 2 syscall
 	static constexpr int NWords = 6 ;
-	SWEAR( word_sz==NpWordSz , word_sz ) ;                                                            // XXX! : implement 32 bits tracee from 64 bits tracer
+	SWEAR_PROD( word_sz==NpWordSz , word_sz ) ;                                                       // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct      regs = _get(pid,NWords) ;
 	::array<uint64_t,6> res  ;
 	#if __x86_64__
@@ -89,7 +89,7 @@ static void           _set( pid_t pid , int n_words , UserRegsStruct& regs ) {  
 
 int64_t np_ptrace_get_res( pid_t pid , uint8_t word_sz ) {
 	static constexpr int NWords = 1 ;
-	SWEAR( word_sz==NpWordSz , word_sz ) ;                                                          // XXX! : implement 32 bits tracee from 64 bits tracer
+	SWEAR_PROD( word_sz==NpWordSz , word_sz ) ;                                                     // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct regs = _get(pid,NWords) ;
 	#if __x86_64__
 		return regs.rax     ;                                                                       // full struct is retrieved with x86
@@ -106,7 +106,7 @@ int64_t np_ptrace_get_res( pid_t pid , uint8_t word_sz ) {
 
 long np_ptrace_get_nr( pid_t pid , uint8_t word_sz ) {
 	static constexpr int NWords = 9 ;
-	SWEAR( word_sz==NpWordSz , word_sz ) ;                                                           // XXX! : implement 32 bits tracee from 64 bits tracer
+	SWEAR_PROD( word_sz==NpWordSz , word_sz ) ;                                                      // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct regs = _get(pid,NWords) ;
 	#if __x86_64__
 		return regs.orig_rax ;                                                                       // full struct is retrieved with x86
@@ -123,7 +123,7 @@ long np_ptrace_get_nr( pid_t pid , uint8_t word_sz ) {
 
 void np_ptrace_set_res( pid_t pid , int64_t val , uint8_t word_sz ) {
 	static constexpr int NWords = 1 ;
-	SWEAR( word_sz==NpWordSz , word_sz ) ;                                                         // XXX! : implement 32 bits tracee from 64 bits tracer
+	SWEAR_PROD( word_sz==NpWordSz , word_sz ) ;                                                    // XXX! : implement 32 bits tracee from 64 bits tracer
 	UserRegsStruct regs = _get(pid,NWords) ;                                                       // if a single word is needed, no need to prefetch it as it is written to
 	#if __x86_64__
 		regs.rax     = val ;                                                                       // full struct is retrieved with x86

@@ -142,7 +142,7 @@ int main( int argc , char* argv[] ) {
 	::string const& top_dir_s = with_slash(cmd_line.args[0]) ;
 	if (::chdir(top_dir_s.c_str())!=0) exit(Rc::System  ,"cannot chdir (",StrErr(),") to ",top_dir_s,rm_slash ) ;
 	//
-	FileStat st ; if (::lstat(".",&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
+	FileStat st ; if (::lstat(".",&st)!=0) FAIL_PROD() ; SWEAR( S_ISDIR(st.st_mode) ) ;
 	::umask(~st.st_mode&0777) ;                                                    // ensure permissions on top-level dir are propagated to all underlying dirs and files
 	//
 	app_init({

@@ -132,9 +132,9 @@ namespace Engine {
 			static ::string const Frozen = "frozen" ;
 			static ::string const Src    = "src"    ;
 			if (!msg) {
-				if      (frozen                      )                                                                                  msg = Frozen                  ;
-				else if (buildable!=Buildable::DynSrc)                                                                                  msg = Src                     ;
-				else                                   { ::vector<RuleTgt> v = rule_tgts.view() ; SWEAR(v.size()==1,idx(),v,status()) ; msg = v[0]->rule->user_name() ; }
+				if      (frozen                      )                                                                                      msg = Frozen                  ;
+				else if (buildable!=Buildable::DynSrc)                                                                                      msg = Src                     ;
+				else                                   { ::vector<RuleTgt> v = rule_tgts.view() ; SWEAR( v.size()==1 , idx(),v,status() ) ; msg = v[0]->rule->user_name() ; }
 			}
 			return msg ;
 		} ;
@@ -319,8 +319,8 @@ namespace Engine {
 				}                                                                                               // ... and checking would require to generate names, which is too expensive
 				n_job_tgts++ ;                                                                                  // simply extend official size as reservoir job is ok
 			} else {
-				if (!name_     ) { name_ = name() ; trace("name",name_) ;           }                           // solve lazy
-				if (!name_chked) { SWEAR(is_lcl(name_),name_) ; name_chked = true ; }
+				if (!name_     ) { name_ = name() ; trace("name",name_) ;               }                       // solve lazy
+				if (!name_chked) { SWEAR( is_lcl(name_) , name_ ) ; name_chked = true ; }
 				//
 				Rule::RuleMatch rm = { rt , name_ , Maybe/*chk_psfx*/ } ;                                       // no adequate job in reservoir, matching is unavoidable
 				//
@@ -356,8 +356,8 @@ namespace Engine {
 		switch (buildable) {                                                                         // ensure we do not update sources
 			case Buildable::Anti   :
 			case Buildable::SrcDir :
-			case Buildable::Src    : SWEAR(!rule_tgts,rule_tgts) ; goto Return ;
-			case Buildable::Loop   :                               goto Return ;
+			case Buildable::Src    : SWEAR( !rule_tgts , rule_tgts ) ; goto Return ;
+			case Buildable::Loop   :                                   goto Return ;
 		DN}
 		set_status(NodeStatus::Unknown) ;
 		//
@@ -617,7 +617,7 @@ namespace Engine {
 		SWEAR( prod_idx==NoIdx , prod_idx ) ;
 		for( chk_regenerate=true ;; chk_regenerate=false ) { // only check regenerate once (e.g. in case of submit_loop, we would try forever)
 			for (;;) {
-				SWEAR(ri.prio_idx!=NoIdx) ;
+				SWEAR( ri.prio_idx!=NoIdx , ri ) ;
 				if (!ri.single) {                            // fast path : cannot have several jobs not gather new jobs if we consider only a single (existing) job
 					if (ri.prio_idx>=n_job_tgts) {                                                               // gather new JobTgt's from rule_tgts
 						try { //!                          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -711,7 +711,7 @@ namespace Engine {
 			prod_idx = NoIdx ;
 		}
 	Wakeup :
-		SWEAR(done(ri)) ;
+		SWEAR( done(ri) , ri ) ;
 		trace("wakeup",ri,conform_idx(),actual_job) ;
 		ri.wakeup_watchers() ;
 	Wait :

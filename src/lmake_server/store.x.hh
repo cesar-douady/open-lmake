@@ -482,7 +482,7 @@ namespace Engine::Persistent {
 	inline void NodeBase::chk() const {
 		NodeName fn = self->_name                ;
 		Node     n  = _g_node_name_file.c_at(fn) ;
-		SWEAR( self==n , self , fn , n ) ;
+		SWEAR( self==n , self,fn,n ) ;
 	}
 
 	//

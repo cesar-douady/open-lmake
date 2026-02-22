@@ -174,7 +174,7 @@ namespace Engine {
 	JobInfo Job::job_info(BitMap<JobInfoKind> need) const {
 		JobInfo             res   ;
 		BitMap<JobInfoKind> found ;
-		SWEAR(+(need&~JobInfoKind::None)) ;                                            // else, this is useless
+		SWEAR( +(need&~JobInfoKind::None) , need ) ;                                   // else, this is useless
 		auto do_entry = [&](::pair<Job,JobInfo1> const& jji) {
 			if (jji.first!=self) return ;
 			JobInfo1 const& ji = jji.second ;
@@ -254,8 +254,8 @@ namespace Engine {
 			else if (report                                 ) req->audit_job(Color::Note,"continue",self,true/*at_end*/) ; // generate a continue line if some other req is still active
 			req.chk_end() ;
 		} else {
-			for( Req r : jd.running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                ;
-			for( Req r : jd.running_reqs(true/*with_zombies*/) ) FAIL(jd.name(),"is still running for",r,"after kill all") ;
+			for( Req r : jd.running_reqs(true/*with_zombies*/) ) give_up(r,false/*report*/)                                     ;
+			for( Req r : jd.running_reqs(true/*with_zombies*/) ) FAIL_PROD(jd.name(),"is still running for",r,"after kill all") ;
 		}
 	}
 
@@ -466,7 +466,7 @@ namespace Engine {
 							}
 							Job aj = target->actual_job ;
 							if ( +aj && aj!=self && target->crc.valid() && target->actual_tflags[Tflag::Target] && !is_src_anti ) { // existing crc was believed to be reliable but actually was not
-								SWEAR(+aj->rule()) ;                                                                                // what could be this ruleless job that has been run ?!?
+								SWEAR( +aj->rule() , aj ) ;                                                                         // what could be this ruleless job that has been run ?!?
 								trace("critical_clash",start_date,target->sig.date) ;
 								for( Req r : target->reqs() ) {
 									r->clash_nodes.push(target,{aj,Job(self)}) ;
@@ -630,7 +630,7 @@ namespace Engine {
 			ReqInfo& ri = jd.req_info(req) ;
 			ri.modified |= modified ;                                      // accumulate modifications until reported
 			if (!ri.running()) continue ;
-			SWEAR(ri.step()==Step::Exec) ;
+			SWEAR( ri.step()==Step::Exec , ri ) ;
 			ri.set_step(Step::End,self) ;                                  // ensure no confusion with previous run, all steps must be updated before any make() is called
 		}
 		//

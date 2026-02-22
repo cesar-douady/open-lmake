@@ -164,7 +164,7 @@ namespace Codec {
 							new_code.push_back(c) ;
 							if (d_entry.try_emplace(new_code,val).second) goto FoundNewCode ;
 						}
-						FAIL("codec checksum clash for code",code,crc,val) ;                                                    // NO_COV
+						FAIL_PROD("codec checksum clash for code",code,crc,val) ;                                               // NO_COV
 					FoundNewCode : ;
 					}
 			}
@@ -280,8 +280,7 @@ namespace Engine {
 				if (!dir_uphills.insert(hd).second) break ;
 		//
 		auto dec = [&]( ::umap<Node,Idx/*cnt*/>& dirs , Node d ) {
-			auto it = dirs.find(d) ;
-			SWEAR(it!=dirs.end()) ;
+			auto it = dirs.find(d) ; SWEAR(it!=dirs.end()) ;
 			if (it->second==1) dirs.erase(it) ;
 			else               it->second--   ;
 		} ;
@@ -382,7 +381,7 @@ namespace Engine {
 		} ;
 		ToPop to_pop ;
 		//
-		SWEAR( asked_reason.tag<JobReasonTag::Err,asked_reason) ;
+		SWEAR( asked_reason.tag<JobReasonTag::Err , asked_reason ) ;
 		Job               job                      = idx()                                               ;
 		Rule              r                        = rule()                                              ;
 		bool              query                    = make_action==MakeAction::Query                      ;
@@ -473,7 +472,7 @@ namespace Engine {
 		NoReason : ;
 		}
 		g_kpi.n_job_make++ ;
-		SWEAR(ri.step()==Step::Dep) ;
+		SWEAR( ri.step()==Step::Dep , ri ) ;
 		{
 		RestartAnalysis :                                                                             // restart analysis here when it is discovered we need deps to run the job
 			bool           proto_seen_waiting    = false    ;
@@ -679,7 +678,7 @@ namespace Engine {
 			}
 		}
 	Done :
-		SWEAR( !ri.running() && !ri.waiting() , job , ri ) ;
+		SWEAR( !ri.running() && !ri.waiting() , job,ri ) ;
 		ri.set_step(Step::Done,job) ;
 		ri.reason = {} ;                                                                 // no more reason to run as analysis showed it is ok now
 	Wakeup :
@@ -800,7 +799,7 @@ namespace Engine {
 	}
 
 	void JobData::refresh_codec(Req req) {
-		Node file ; for( Dep const& dep : deps ) { SWEAR( !file , idx() ) ; file = dep ; } SWEAR(+file,idx()) ; // there must be a single dep which is the codec file
+		Node file ; for( Dep const& dep : deps ) { SWEAR(!file,idx()) ; file = dep ; } SWEAR(+file,idx()) ; // there must be a single dep which is the codec file
 		//
 		Trace trace("refresh_codec",idx(),req) ;
 		if (FileInfo(Codec::CodecFile::s_dir_s(file->name())+"new_codes").tag()==FileTag::Dir) _submit_codec(req) ;
@@ -861,7 +860,7 @@ namespace Engine {
 	void JobData::_submit_codec(Req req) {
 		using namespace Codec ;
 		Job      job      = idx()        ;
-		Node     file     ;                for( Dep const& dep : deps ) { SWEAR( !file , job ) ; file = dep ; } SWEAR(+file,job) ; // there must be a single dep which is the codec file
+		Node     file     ;                for( Dep const& dep : deps ) { SWEAR(!file,job) ; file = dep ; } SWEAR(+file,job) ; // there must be a single dep which is the codec file
 		::string filename = file->name() ;
 		//
 		Trace trace(CodecChnl,"_submit_codec",job,req) ;

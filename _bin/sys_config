@@ -148,17 +148,17 @@ config_python "$PYTHON2" 2  || { echo "no python2 support ($msg)" >>$SUM_FILE ; 
 config_python "$PYTHON"  '' || { echo                      $msg   >>$ERR_FILE ; exit 1   ; }                                               # python3 is compulsory
 
 #
-# HAS_32 (HAS_32+LD_SO_LIB+LD_SO_LIB32)
+# HAS_32 (HAS_32+LD_SO_LIB+LD_SO_LIB_32)
 #
 if type -p strace >/dev/null ; then
 	show_lib() {
 		strace -E LD_PRELOAD='/>>>$LIB<<<' $1 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }'
 	}
-	cc -m64 -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   show_lib ./ld_so_lib   )
+	cc      -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   show_lib ./ld_so_lib   )
 	cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(show_lib ./ld_so_lib_32)
 	if [ "$LD_SO_LIB" = "$LD_SO_LIB_32" ] ; then
-		echo "cannot distinguish 32 and b64 bits exe" >>$ERR_FILE
-		exit 1
+		echo "cannot distinguish 32 and 64 bits exe" >>$ERR_FILE
+		HAS_32=0
 	elif [ "$LD_SO_LIB" -a "$LD_SO_LIB_32" ] ; then
 		HAS_32=1
 	elif [ "$LD_SO_LIB" ] ; then

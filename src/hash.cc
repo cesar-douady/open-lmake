@@ -115,7 +115,6 @@ namespace Hash {
 							case EINTR  : continue                                       ;
 							default     : throw "I/O error while reading file "+filename ;
 						}
-						SWEAR( cnt>0 , cnt ) ;
 						if (size_t(cnt)>=sz) break ;
 						sz -= cnt ;
 					}

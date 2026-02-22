@@ -277,7 +277,7 @@ namespace Engine {
 				}
 				SWEAR(+seen_target) ;                                                                            // we should not have come up to here without a target
 				if (!job_name_key) job_name = add_cwd( ::move(job_name) , seen_top ) ;
-				SWEAR(+MatchKind::Target==0) ;                                                                   // targets (both static and star) must be first to ensure ...
+				static_assert(+MatchKind::Target==0) ;                                                           // targets (both static and star) must be first to ensure ...
 				for( MatchKind k : iota(All<MatchKind>) ) {                                                      // ... RuleTgt stability when Rule's change without crc.match modif
 					//            star
 					matches_iotas[false][+k] = { VarIdx(matches.size()) , VarIdx(matches.size()+static_matches[+k].size()) } ; for( auto& st : static_matches[+k] ) matches.push_back(::move(st)) ;

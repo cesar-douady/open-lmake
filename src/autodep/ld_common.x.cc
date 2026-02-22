@@ -218,7 +218,7 @@ struct _Execp : _Exec<false/*Send*/> {
 					size_t n = ::confstr(_CS_PATH,nullptr/*buf*/,0/*size*/) ;
 					p.resize(n) ;
 					::confstr(_CS_PATH,p.data(),n) ;
-					SWEAR(p.back()==0) ;
+					SWEAR_PROD(p.back()==0) ;
 					p.pop_back() ;
 				}
 				//

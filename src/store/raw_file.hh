@@ -52,7 +52,7 @@ namespace Store {
 				if (writable) _chk_rc( ::lseek(_fd,0/*offset*/,SEEK_END) , "lseek" ) ; // ensure writes (when expanding) are done at end of file when resizing
 				SWEAR_PROD(+_fd) ;
 				Disk::FileInfo fi{_fd} ;
-				SWEAR( fi.tag()>=FileTag::Reg , fi ) ;
+				SWEAR_PROD( fi.tag()>=FileTag::Reg , fi ) ;
 				_map(fi.sz) ;
 			}
 		}

@@ -36,7 +36,7 @@ DeflateFd::DeflateFd( AcFd&& fd , Zlvl zl ) : AcFd{::move(fd)} , zlvl{zl} {
 			#if HAS_ZLIB
 				zlvl.lvl    = ::min( zlvl.lvl , uint8_t(Z_BEST_COMPRESSION) ) ;
 				_zlib_state = {}                                              ;
-				int rc = ::deflateInit(&_zlib_state,zlvl.lvl) ; SWEAR(rc==Z_OK) ;
+				int rc = ::deflateInit(&_zlib_state,zlvl.lvl) ; SWEAR_PROD(rc==Z_OK) ;
 				_zlib_state.next_in  = ::launder(reinterpret_cast<uint8_t const*>(_buf)) ;
 				_zlib_state.avail_in = 0                                                 ;
 			#endif
@@ -45,7 +45,7 @@ DeflateFd::DeflateFd( AcFd&& fd , Zlvl zl ) : AcFd{::move(fd)} , zlvl{zl} {
 			throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
 			#if HAS_ZSTD
 				zlvl.lvl    = ::min( zlvl.lvl , uint8_t(::ZSTD_maxCLevel()) ) ;
-				_zstd_state = ::ZSTD_createCCtx()                             ; SWEAR(_zstd_state) ;
+				_zstd_state = ::ZSTD_createCCtx()                             ; SWEAR_PROD(_zstd_state) ;
 				::ZSTD_CCtx_setParameter( _zstd_state , ZSTD_c_compressionLevel , zlvl.lvl ) ;
 			#endif
 		break ;
@@ -57,15 +57,17 @@ DeflateFd::~DeflateFd() {
 	if (!zlvl) return ;
 	switch (zlvl.tag) {
 		case ZlvlTag::Zlib :
-			SWEAR(HAS_ZLIB) ;
 			#if HAS_ZLIB
 				::deflateEnd(&_zlib_state) ;
+			#else
+				FAIL_PROD() ;
 			#endif
 		break ;
 		case ZlvlTag::Zstd :
-			SWEAR(HAS_ZSTD) ;
 			#if HAS_ZSTD
 				::ZSTD_freeCCtx(_zstd_state) ;
+			#else
+				FAIL_PROD() ;
 			#endif
 		break ;
 	DF}         // NO_COV
@@ -77,7 +79,6 @@ void DeflateFd::write(::string const& s) {
 	if (+zlvl) {
 		switch (zlvl.tag) {
 			case ZlvlTag::Zlib :
-				SWEAR(HAS_ZLIB) ;
 				#if HAS_ZLIB
 					_zlib_state.next_in  = ::launder(reinterpret_cast<uint8_t const*>(s.data())) ;
 					_zlib_state.avail_in = s.size()                                              ;
@@ -88,10 +89,11 @@ void DeflateFd::write(::string const& s) {
 						_pos = DiskBufSz - _zlib_state.avail_out ;
 						_flush(1/*room*/) ;
 					}
+				#else
+					FAIL_PROD() ;
 				#endif
 			break ;
 			case ZlvlTag::Zstd : {
-				SWEAR(HAS_ZSTD) ;
 				#if HAS_ZSTD
 					::ZSTD_inBuffer  in_buf  { .src=s.data() , .size=s.size()  , .pos=0 } ;
 					::ZSTD_outBuffer out_buf { .dst=_buf     , .size=DiskBufSz , .pos=0 } ;
@@ -101,6 +103,8 @@ void DeflateFd::write(::string const& s) {
 						_pos = out_buf.pos ;
 						_flush(1/*room*/) ;
 					}
+				#else
+					FAIL_PROD() ;
 				#endif
 			} break ;
 		DF}                                                                                                                                                        // NO_COV
@@ -131,7 +135,6 @@ void DeflateFd::flush() {
 	if (+zlvl) {
 		switch (zlvl.tag) {
 			case ZlvlTag::Zlib :
-				SWEAR(HAS_ZLIB) ;
 				#if HAS_ZLIB
 					_zlib_state.next_in  = nullptr ;
 					_zlib_state.avail_in = 0       ;
@@ -144,10 +147,11 @@ void DeflateFd::flush() {
 						_flush() ;
 						if (rc==Z_STREAM_END) return ;
 					}
+				#else
+					FAIL_PROD() ;
 				#endif
 			break ;
 			case ZlvlTag::Zstd : {
-				SWEAR(HAS_ZSTD) ;
 				#if HAS_ZSTD
 					::ZSTD_inBuffer  in_buf  { .src=nullptr , .size=0         , .pos=0 } ;
 					::ZSTD_outBuffer out_buf { .dst=_buf    , .size=DiskBufSz , .pos=0 } ;
@@ -159,6 +163,8 @@ void DeflateFd::flush() {
 						_flush() ;
 						if (!rc) return ;
 					}
+				#else
+					FAIL_PROD() ;
 				#endif
 			} break ;
 		DF}           // NO_COV
@@ -180,15 +186,17 @@ InflateFd::InflateFd( AcFd&& fd , Zlvl zl ) : AcFd{::move(fd)} , zlvl{zl} {
 	if (!zlvl) return ;
 	switch (zlvl.tag) {
 		case ZlvlTag::Zlib : {
-			throw_unless( HAS_ZLIB , "cannot compress without zlib" ) ;
 			#if HAS_ZLIB
-				int rc = ::inflateInit(&_zlib_state) ; SWEAR(rc==Z_OK,self) ;
+				int rc = ::inflateInit(&_zlib_state) ; SWEAR_PROD(rc==Z_OK,self) ;
+			#else
+				throw "cannot compress without zlib"s ;
 			#endif
 		} break ;
 		case ZlvlTag::Zstd :
-			throw_unless( HAS_ZSTD , "cannot compress without zstd" ) ;
 			#if HAS_ZSTD
-				_zstd_state = ::ZSTD_createDCtx() ; SWEAR(_zstd_state,self) ;
+				_zstd_state = ::ZSTD_createDCtx() ; SWEAR_PROD(_zstd_state,self) ;
+			#else
+				throw "cannot compress without zstd"s ;
 			#endif
 		break ;
 	DF}         // NO_COV
@@ -198,15 +206,17 @@ InflateFd::~InflateFd() {
 	if (!zlvl) return ;
 	switch (zlvl.tag) {
 		case ZlvlTag::Zlib : {
-			SWEAR( HAS_ZLIB , zlvl ) ;
 			#if HAS_ZLIB
-				int rc = ::inflateEnd(&_zlib_state) ; SWEAR( rc==Z_OK , rc,self ) ;
+				int rc = ::inflateEnd(&_zlib_state) ; SWEAR_PROD( rc==Z_OK , rc,self ) ;
+			#else
+				FAIL_PROD(zlvl) ;
 			#endif
 		} break ;
 		case ZlvlTag::Zstd : {
-			SWEAR( HAS_ZSTD , zlvl ) ;
 			#if HAS_ZSTD
-				size_t rc = ::ZSTD_freeDCtx(_zstd_state) ; SWEAR( !::ZSTD_isError(rc) , rc,self ) ;
+				size_t rc = ::ZSTD_freeDCtx(_zstd_state) ; SWEAR_PROD( !::ZSTD_isError(rc) , rc,self ) ;
+			#else
+				FAIL_PROD(zlvl) ;
 			#endif
 		} break ;
 	DF}           // NO_COV
@@ -218,7 +228,6 @@ InflateFd::~InflateFd() {
 	if (+zlvl)
 		switch (zlvl.tag) {
 			case ZlvlTag::Zlib :
-				SWEAR( HAS_ZLIB , zlvl ) ;
 				#if HAS_ZLIB
 					_zlib_state.next_out  = ::launder(reinterpret_cast<uint8_t*>(res.data())) ;
 					_zlib_state.avail_out = res.size()                                        ;
@@ -233,10 +242,11 @@ InflateFd::~InflateFd() {
 						_pos = ::launder(reinterpret_cast<char const*>(_zlib_state.next_in)) - _buf ;
 						_len = _zlib_state.avail_in                                                 ;
 					}
+				#else
+					FAIL_PROD(zlvl) ;
 				#endif
 			break ;
 			case ZlvlTag::Zstd : {
-				SWEAR( HAS_ZSTD , zlvl ) ;
 				#if HAS_ZSTD
 					::ZSTD_inBuffer  in_buf  { .src=_buf       , .size=0  , .pos=0 } ;
 					::ZSTD_outBuffer out_buf { .dst=res.data() , .size=sz , .pos=0 } ;
@@ -247,10 +257,12 @@ InflateFd::~InflateFd() {
 						}
 						in_buf.pos  = _pos      ;
 						in_buf.size = _pos+_len ;
-						size_t rc = ::ZSTD_decompressStream( _zstd_state , &out_buf , &in_buf ) ; SWEAR(!::ZSTD_isError(rc)) ;
+						size_t rc = ::ZSTD_decompressStream( _zstd_state , &out_buf , &in_buf ) ; SWEAR_PROD(!::ZSTD_isError(rc)) ;
 						_pos = in_buf.pos               ;
 						_len = in_buf.size - in_buf.pos ;
 					}
+				#else
+					FAIL_PROD(zlvl) ;
 				#endif
 			} break ;
 		DF}                                                                                                                // NO_COV

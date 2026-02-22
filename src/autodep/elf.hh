@@ -154,8 +154,8 @@ inline Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map )
 	for( Dyn const* dyn=dyn_tab ; dyn->d_tag!=DT_NULL ; dyn++ ) {
 		const char* s = str_tab + dyn->d_un.d_val ;
 		switch (dyn->d_tag) {
-			case DT_RPATH   : SWEAR(!rpath  ) ; rpath   = s ; break ;
-			case DT_RUNPATH : SWEAR(!runpath) ; runpath = s ; break ;
+			case DT_RPATH   : SWEAR_PROD(!rpath  ) ; rpath   = s ; break ;
+			case DT_RUNPATH : SWEAR_PROD(!runpath) ; runpath = s ; break ;
 			case DT_NEEDED  : if (*s) neededs.push_back(s) ;  break ;
 			default : continue ;
 		}

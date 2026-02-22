@@ -864,7 +864,7 @@ template<class... As> void dbg( NewType , ::string const& file , ::string const&
 }
 
 template<::integral I> I random() {
-	::string buf_char = AcFd("/dev/urandom").read(sizeof(I)) ; SWEAR(buf_char.size()==sizeof(I),buf_char.size()) ;
+	::string buf_char = AcFd("/dev/urandom").read(sizeof(I)) ; SWEAR_PROD( buf_char.size()==sizeof(I) , buf_char.size() ) ;
 	I        buf_int  ;                                        ::memcpy( &buf_int , buf_char.data() , sizeof(I) ) ;
 	return buf_int ;
 }
@@ -929,7 +929,7 @@ inline void Fd::no_std() {
 
 inline void kill_self(int sig) {      // raise kills the thread, not the process
 	int rc = ::kill(::getpid(),sig) ; // dont use kill_process as we call kill ourselves even if we are process 1 (in a namespace)
-	SWEAR( rc==0 , sig ) ;            // killing outselves should always be ok
+	SWEAR_PROD( rc==0 , sig ) ;       // killing outselves should always be ok
 }
 
 ::string get_exe       () ;

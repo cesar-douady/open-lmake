@@ -134,7 +134,7 @@ namespace Re {
 					codes.resize(n_codes) ;
 					::pcre2_serialize_decode( codes.data() , n_codes , bytes.data() , nullptr/*general_context*/ ) ;
 					//
-					SWEAR(!_cache) ;
+					SWEAR_PROD(!_cache) ;
 					for( size_t i : iota(keys.size()) ) {
 						bool inserted = _cache.try_emplace(keys[i],codes[i],Use::Unused).second ; SWEAR(inserted,keys[i]) ;
 					}

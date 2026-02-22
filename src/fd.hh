@@ -372,7 +372,7 @@ public :
 					else               return {} ;
 				break ;
 				case -1 :
-					SWEAR( errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR , errno ) ;
+					SWEAR_PROD( errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR , errno ) ;
 				break ;
 				default :
 					events.resize(cnt_) ;
@@ -389,7 +389,7 @@ public :
 								SWEAR( int(si.ssi_signo)==sig , si.ssi_signo,sig ) ;
 								found |= pid_t(si.ssi_pid)==pid ;
 							}
-							SWEAR( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR) , n,fd,errno ) ;                // fd is non-blocking
+							SWEAR_PROD( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR) , n,fd,errno ) ;                // fd is non-blocking
 							if (!found) { e = {} ; shorten = true ; }                                                       // event is supposed to represent that pid is terminated
 						}
 						if (shorten) {

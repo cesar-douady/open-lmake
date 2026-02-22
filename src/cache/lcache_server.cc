@@ -49,7 +49,7 @@ static CacheRpcReply _download(CacheRpcReq const& crr) {
 	Trace trace("_download",crr) ;
 	CacheRpcReply              res    { .proc=CacheRpcProc::Download , .hit_info=CacheHitInfo::NoJob } ;
 	Cjob                       job    = crr.job.is_name() ? Cjob(crr.job.name) : Cjob(crr.job.id)      ; if (!job) { trace("no_job") ; return res ; }
-	CompileDigest              deps   { crr.repo_deps , true/*for_download*/ , &res.dep_ids }          ; SWEAR( deps.n_statics==job->n_statics , crr.job,deps.n_statics,job,job->n_statics ) ;
+	CompileDigest              deps   { crr.repo_deps , true/*for_download*/ , &res.dep_ids }          ; SWEAR_PROD( deps.n_statics==job->n_statics , crr.job,deps.n_statics,job,job->n_statics ) ;
 	::pair<Crun,CacheHitInfo > digest = job->match( deps.deps , deps.dep_crcs )                        ;
 	if (crr.job.is_name()) res.job_id = +job ;
 	//
@@ -85,15 +85,14 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	_g_upload_keys.release(crr.upload_key)         ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
-	NfsGuard                  nfs_guard  { g_file_sync }                                                                ;
-	::string                  rf         = reserved_file(crr.upload_key)                                                ;
-	CompileDigest             deps       { crr.repo_deps , false/*for_download*/ }                                      ;
-	Cjob                      job        = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR( job->n_statics==deps.n_statics , job,job->n_statics,deps.n_statics ) ;
-	DiskSz                    sz         = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
-	ConnEntry&                conn_entry = _g_conn_tab.at(fd)                                                           ;
-	bool                      data_moved = false                                                                        ;
-	::string                  run_name   ;
-	::pair<Crun,CacheHitInfo> digest     ;
+	CompileDigest deps       { crr.repo_deps , false/*for_download*/ }                                      ;
+	Cjob          job        = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR_PROD( job->n_statics==deps.n_statics , job,job->n_statics,deps.n_statics ) ;
+	DiskSz        sz         = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
+	ConnEntry&    conn_entry = _g_conn_tab.at(fd)                                                           ;
+	bool          data_moved = false                                                                        ;
+	::string      run_name   ;
+	//
+	::pair<Crun,CacheHitInfo> digest ;
 	conn_entry.upload_keys.erase(crr.upload_key) ;
 	try {
 		digest = job->insert(
@@ -103,6 +102,8 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	} catch (::string const&) {
 		digest.second = {} ;                                   // no report on commit, so just force dismiss
 	}
+	NfsGuard nfs_guard { g_file_sync }                 ;
+	::string rf        = reserved_file(crr.upload_key) ;
 	if (digest.second>=CacheHitInfo::Miss) {
 		run_name = digest.first->name() ;
 		try {
@@ -173,11 +174,11 @@ struct CacheServer : AutoServer<CacheServer> {
 int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true ;
 	//
-	FileStat st ; if (::lstat(".",&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
-	::umask(~st.st_mode&0777) ;                                                    // ensure permissions on top-level dir are propagated to all underlying dirs and files
+	FileStat st ; if (::lstat(".",&st)!=0) FAIL_PROD() ; SWEAR( S_ISDIR(st.st_mode) ) ;
+	::umask(~st.st_mode&0777) ;                                                         // ensure permissions on top-level dir are propagated to all underlying dirs and files
 	//
 	app_init({
-		.cd_root      = false                                                      // daemon is always launched at root
+		.cd_root      = false                                                           // daemon is always launched at root
 	,	.chk_version  = Maybe
 	,	.key          = "cache dir"
 	,	.clean_msg    = cache_clean_msg()

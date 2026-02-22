@@ -43,7 +43,7 @@ struct SearchRootResult {
 			return is_dir_name(mrkr) ? t==FileTag::Dir : t>=FileTag::Target ;
 		} ;
 		//
-		repo_root_s = from_dir_s ; SWEAR( is_abs(repo_root_s) , repo_root_s ) ;
+		repo_root_s = from_dir_s ; SWEAR_PROD( is_abs(repo_root_s) , repo_root_s ) ;
 		//
 		for(;; repo_root_s=dir_name_s(repo_root_s) ) {
 			if ( !action.root_mrkrs || ::any_of(action.root_mrkrs,has_mrkr) ) candidates_s.push_back(repo_root_s) ;

@@ -95,7 +95,7 @@ namespace Cache {
 		if ( reply.job_id && job_str_id.is_name()) grow(_cjobs,+job) = reply.job_id ;
 		if (+reply.dep_ids)
 			for( Dep const& d : job->deps ) {
-				SWEAR( repo_i <deps.size() , repo_i ,deps.size() ) ;
+				SWEAR( repo_i<deps.size() , repo_i,deps.size() ) ;
 				if (deps[repo_i++].first.is_name()) {
 					SWEAR( cache_i<reply.dep_ids.size() , cache_i,reply.dep_ids.size() ) ;
 					grow(_cnodes,+d) = reply.dep_ids[cache_i++] ;

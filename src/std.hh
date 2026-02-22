@@ -33,6 +33,7 @@
 #include <concepts>
 #include <condition_variable>
 #include <functional>
+#include <initializer_list>
 #include <iterator>
 #include <latch>
 #include <limits>
@@ -85,6 +86,7 @@ using std::function                            ;
 using std::get                                 ;
 using std::has_unique_object_representations_v ;
 using std::hash                                ;
+using std::initializer_list                    ;
 using std::integral                            ;
 using std::is_aggregate_v                      ;
 using std::is_arithmetic_v                     ;

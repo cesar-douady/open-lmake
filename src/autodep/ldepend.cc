@@ -88,7 +88,7 @@ int main( int argc , char* argv[]) {
 		try                       { dep_infos = JobSupport::depend( ::copy(cmd_line.args) , ad , !cmd_line.flags[Flag::FollowSymlinks] , cmd_line.flags[Flag::Regexpr] , direct , verbose ) ; }
 		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                                                       }
 		//
-		SWEAR(!(direct&&verbose)) ;
+		SWEAR_PROD(!(direct&&verbose)) ;
 		if (direct) {
 			if (!dep_infos.second) rc = Rc::Fail ;
 		} else if (verbose) {

@@ -190,7 +190,7 @@ namespace Disk {
 	}
 
 	void unlnk_inside_s( FileRef dir_s , _UnlnkAction action ) {
-		if (!action.abs_ok) SWEAR( is_lcl(dir_s.file) , dir_s ) ; // unless certain, prevent accidental non-local unlinks
+		if (!action.abs_ok) SWEAR_PROD( is_lcl(dir_s.file) , dir_s ) ; // unless certain, prevent accidental non-local unlinks
 		if (action.force) {
 			if (+dir_s.file) [[maybe_unused]] int _ = ::fchmodat( dir_s.at , dir_s.file.c_str() , S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH , AT_SYMLINK_NOFOLLOW ) ; // best effort
 			else             [[maybe_unused]] int _ = ::fchmod  ( dir_s.at ,                      S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH                       ) ; // .
@@ -205,8 +205,8 @@ namespace Disk {
 	}
 
 	bool/*done*/ unlnk( FileRef file , _UnlnkAction action ) {
-		/**/                                            SWEAR( +file                           , action.abs_ok ) ; // do not unlink cwd
-		if (!action.abs_ok                            ) SWEAR( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
+		/**/                                            SWEAR_PROD( +file                           , action.abs_ok ) ; // do not unlink cwd
+		if (!action.abs_ok                            ) SWEAR_PROD( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
 		if (::unlinkat(file.at,file.file.c_str(),0)==0) return true /*done*/ ;
 		if (errno==ENOENT                             ) return false/*.   */ ;
 		//
@@ -290,7 +290,7 @@ namespace Disk {
 		pfx .pop_back() ;
 	}
 	::vmap_s<FileTag> walk( FileRef path , FileTags file_tags , ::string const& pfx , ::function<bool(::string const&)> prune ) {
-		SWEAR(+path) ;
+		SWEAR_PROD(+path) ;
 		::vmap_s<FileTag> res ;
 		_walk( res , path.at , ::ref(no_slash(path.file)) , file_tags , ::ref(::copy(pfx)) , prune ) ;
 		return res ;
@@ -348,7 +348,7 @@ namespace Disk {
 		FileInfo fi  {src }     ;
 		FileTag  tag = fi.tag() ;
 		//
-		SWEAR( !FileInfo(dst).exists() , dst ) ;
+		SWEAR_PROD( !FileInfo(dst).exists() , dst ) ;
 		//
 		switch (tag) {
 			case FileTag::None  :
@@ -507,7 +507,7 @@ namespace Disk {
 	}
 
 	mode_t auto_umask( ::string const& dir_s, ::string const& msg ) {
-		FileStat st ; if (::lstat(dir_s.c_str(),&st)!=0) FAIL() ; SWEAR( S_ISDIR(st.st_mode) ) ;
+		FileStat st ; if (::lstat(dir_s.c_str(),&st)!=0) FAIL_PROD() ; SWEAR_PROD( S_ISDIR(st.st_mode) ) ;
 		//
 		throw_unless( (st.st_mode&S_IRWXU)==S_IRWXU , msg," must have full read/write/execute access to ",dir_s,rm_slash ) ;
 		//

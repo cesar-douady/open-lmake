@@ -145,8 +145,8 @@ namespace Backends {
 		static bool/*miss_live_out*/ s_add_pressure( Tag , Job , Req , SubmitInfo const&                     ) ;
 		static void                  s_set_pressure( Tag , Job , Req , SubmitInfo const&                     ) ;
 		//
-		static void s_kill_all    (     ) {             _s_kill_req( ) ; }
-		static void s_kill_req    (Req r) { SWEAR(+r) ; _s_kill_req(r) ; }
+		static void s_kill_all    (     ) {                  _s_kill_req( ) ; }
+		static void s_kill_req    (Req r) { SWEAR_PROD(+r) ; _s_kill_req(r) ; }
 		static void s_new_req_etas(     ) ;
 		static void s_launch      (     ) ;
 		//
@@ -220,7 +220,7 @@ namespace Backends {
 		//
 		virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const { return {} ; } // map resources for this backend to local resources
 		//
-		virtual ::vmap_s<size_t> const& capacity() const { FAIL("only for local backend") ; }                                   // NO_COV
+		virtual ::vmap_s<size_t> const& capacity() const { FAIL_PROD("only for local backend") ; }                              // NO_COV
 	protected :
 		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx>&& , ::vmap_ss&& rsrcs , SubmitInfo&& ) ; // must be called once before job is launched, SubmitInfo must be the operator| of ...
 		/**/                                                                                               // ... the submit/add_pressure corresponding values for the job

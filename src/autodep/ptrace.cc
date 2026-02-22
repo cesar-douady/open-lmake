@@ -85,22 +85,22 @@ void AutodepPtrace::init(pid_t cp) {
 	child_pid = cp ;
 	//
 	int   wstatus ;
-	pid_t pid     = ::wait(&wstatus) ;                                           // first signal is only there to start tracing as we are initially traced to next signal
-	if (pid!=child_pid) return ;                                                 // child_pid will be waited for in process
+	pid_t pid     = ::wait(&wstatus) ;                                              // first signal is only there to start tracing as we are initially traced to next signal
+	if (pid!=child_pid) return ;                                                    // child_pid will be waited for in process
 	int options =
 		PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
-	|	PTRACE_O_TRACESYSGOOD                                                    // necessary to have a correct syscall_info.op field
+	|	PTRACE_O_TRACESYSGOOD                                                       // necessary to have a correct syscall_info.op field
 	;
 	#if HAS_SECCOMP
 		options |= PTRACE_O_TRACESECCOMP ;
 	#endif
-	#ifdef PTRACE_O_EXITKILL                                                     // XXX! : implement the same feature in all cases
-		options |= PTRACE_O_EXITKILL ;                                           // ensure no process is left stopped, even if alive at end of job
+	#ifdef PTRACE_O_EXITKILL                                                        // XXX! : implement the same feature in all cases
+		options |= PTRACE_O_EXITKILL ;                                              // ensure no process is left stopped, even if alive at end of job
 	#endif
-	if (::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ , options )!=0) return ;   // child_pid will be waited for in process
-	SWEAR( WIFSTOPPED(wstatus) && WSTOPSIG(wstatus)==FirstSignal , wstatus ) ;
+	if (::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ , options )!=0) return ;      // child_pid will be waited for in process
+	SWEAR_PROD( WIFSTOPPED(wstatus) && WSTOPSIG(wstatus)==FirstSignal , wstatus ) ;
 	long rc = ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , 0/*data*/ ) ;
-	SWEAR( rc==0 , rc,int(errno) ) ;                                             // .
+	SWEAR_PROD( rc==0 , rc,int(errno) ) ;                                           // .
 }
 
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
@@ -141,10 +141,10 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 			if (sig==(SIGTRAP|0x80)) goto DoSyscall ;                                                 // if HAS_SECCOMP => syscall exit, else syscall enter or exit
 			switch (event) {
 				#if HAS_SECCOMP
-					case PTRACE_EVENT_SECCOMP : SWEAR(!info.on_going) ; goto DoSyscall ;              // syscall enter
+					case PTRACE_EVENT_SECCOMP : SWEAR_PROD(!info.on_going) ; goto DoSyscall ;         // syscall enter
 				#endif
-				case 0  : if (sig==SIGTRAP)         sig = 0 ; goto NextSyscall ;                      // other stop reasons, wash spurious SIGTRAP, ignore
-				default : SWEAR(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;                      // ignore other events
+				case 0  : if (sig==SIGTRAP)              sig = 0 ; goto NextSyscall ;                 // other stop reasons, wash spurious SIGTRAP, ignore
+				default : SWEAR_PROD(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;                 // ignore other events
 			}
 		DoSyscall :
 			{	sig = 0 ;
@@ -157,7 +157,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 						case AUDIT_ARCH_ARM     : word_sz = 32 ; break ;
 						case AUDIT_ARCH_X86_64  :
 						case AUDIT_ARCH_AARCH64 : word_sz = 64 ; break ;
-						default                 : FAIL("unexpected arch",syscall_info.arch) ;         // NO_COV
+						default                 : FAIL_PROD("unexpected arch",syscall_info.arch) ;    // NO_COV
 					}
 				#else                                                                                 // XXX! : try to find a way to determine tracee word size
 					word_sz = NpWordSz ;                                                              // waiting for a way to determine tracee word size, assume it is the same as us
@@ -172,7 +172,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 							info.on_going      = false ;
 							goto NextSyscall ;
 						}
-						SWEAR( syscall_info.op==(HAS_SECCOMP?PTRACE_SYSCALL_INFO_SECCOMP:PTRACE_SYSCALL_INFO_ENTRY) , syscall_info.op ) ;
+						SWEAR_PROD( syscall_info.op==(HAS_SECCOMP?PTRACE_SYSCALL_INFO_SECCOMP:PTRACE_SYSCALL_INFO_ENTRY) , syscall_info.op ) ;
 						#if HAS_SECCOMP
 							auto& entry_info = syscall_info.seccomp ;                                 // access available info upon syscall entry, i.e. seccomp field when seccomp is     used
 						#else
@@ -182,11 +182,11 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 					#else
 						int syscall = np_ptrace_get_nr( pid , word_sz ) ;                             // use non-portable calls if portable accesses are not implemented
 					#endif
-					SWEAR( syscall>=0 , syscall ) ;
+					SWEAR_PROD( syscall>=0 , syscall ) ;
 					if ( syscall>=0 && syscall<SyscallDescr::NSyscalls ) {                            // else syscall is necessarily ignored
 						SyscallDescr const& descr = SyscallDescr::s_tab[syscall] ;
-						if (HAS_SECCOMP) SWEAR(+descr) ;                                              // should not be awaken for nothing
-						if ( descr.entry ) {
+						if (HAS_SECCOMP) SWEAR_PROD(+descr) ;                                         // should not be awaken for nothing
+						if (descr.entry) {
 							info.syscall = syscall ;
 							#if HAS_PTRACE_GET_SYSCALL_INFO                                           // use portable calls if implemented
 								// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unsigned long long
@@ -201,11 +201,11 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 							//                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 							info.need_refresh = descr.entry( info.ctx , info.record , info.proc_mem , args , descr.comment ) ;
 							//                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-							if (!descr.exit) SWEAR( !info.ctx , syscall ) ;                           // no need for a context if we are not called at exit
+							if (!descr.exit) SWEAR_PROD( !info.ctx , syscall ) ;                      // no need for a context if we are not called at exit
 						}
 						info.has_exit_proc = descr.exit ;
 					} else {
-						SWEAR( syscall<4096 , syscall ) ;                                             // ensure syscall does not have its __X32_SYSCALL_BIT set (but this bit is not documented)
+						SWEAR_PROD( syscall<4096 , syscall ) ;                                        // ensure syscall does not have its __X32_SYSCALL_BIT set (but this bit is not documented)
 						info.has_exit_proc = false ;
 					}
 					info.on_going = !HAS_SECCOMP || info.has_exit_proc ;                              // if using seccomp and we have no exit proc, we skip the syscall-exit
@@ -213,9 +213,9 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 					else                    goto NextSyscall ;
 				} else {
 					#if HAS_PTRACE_GET_SYSCALL_INFO
-						SWEAR( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) ;
+						SWEAR_PROD( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) ;
 					#endif
-					info.on_going = false ;                                                           // ensure on_going is cleared even if exit proc throws
+					info.on_going = false ;                                                                                      // ensure on_going is cleared even if exit proc throws
 					if (info.has_exit_proc) {
 						#if HAS_PTRACE_GET_SYSCALL_INFO                                                                          // use portable calls if implemented
 							int64_t res = syscall_info.exit.rval ;
@@ -225,7 +225,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 						int64_t new_res = SyscallDescr::s_tab[info.syscall].exit( info.ctx , info.record , info.proc_mem , res ) ;
 						//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						if (new_res!=res) np_ptrace_set_res( pid , new_res , word_sz ) ;
-						info.ctx = nullptr ;                                                             // ctx is used to retain some info between syscall entry and exit
+						info.ctx = nullptr ;                                                                                     // ctx is used to retain some info between syscall entry and exit
 					}
 					goto NextSyscall ;
 				}
@@ -250,7 +250,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 			}
 		#endif
 	} else {
-		fail("unrecognized wstatus ",wstatus," for pid ",pid) ;
+		FAIL_PROD("unrecognized wstatus ",wstatus," for pid ",pid) ;
 	}
 	PidInfo::s_tab.erase(pid) ;                                                                          // process pid is terminated
 	return pid==child_pid/*done*/ ;

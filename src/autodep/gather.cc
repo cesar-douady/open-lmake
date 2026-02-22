@@ -455,7 +455,7 @@ Status Gather::_exec_child() {
 	} ;
 	auto kill = [&](bool next_step=false) {
 		trace("kill",STR(next_step),kill_step,STR(as_session),_child.pid,_wait) ;
-		if      (next_step             ) SWEAR(kill_step<=kill_sigs.size()) ;
+		if      (next_step             ) SWEAR_PROD(kill_step<=kill_sigs.size()) ;
 		else if (kill_step             ) return ;
 		if      (!_wait[Kind::ChildEnd]) return ;
 		int   sig = kill_step<kill_sigs.size() ? kill_sigs[kill_step] : SIGKILL ;
@@ -548,7 +548,7 @@ Status Gather::_exec_child() {
 			if (end_heartbeat==Pdate::Future) { if ( _n_server_req_pending) end_heartbeat = now + HeartbeatTick ; }
 			else                              { if (!_n_server_req_pending) end_heartbeat = Pdate::Future       ; }
 			if (now>end_heartbeat           ) {
-				SWEAR(has_server,_n_server_req_pending) ;
+				SWEAR( has_server , _n_server_req_pending ) ;
 				trace("server_heartbeat",_n_server_req_pending) ;
 				JobMngtRpcReq jmrr ;
 				jmrr.seq_id = seq_id                 ;
@@ -658,7 +658,7 @@ Status Gather::_exec_child() {
 					if (kind==Kind::ChildEnd) { ::waitpid(_child.pid,&ws,0/*flags*/) ;                    wstatus = ws      ; } // wstatus is atomic, cant take its addresss as a int*
 					else                      { int cnt=::read(fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; ws      = wstatus ; } // wstatus is already set, just flush fd
 					trace(kind,fd,_child.pid,ws) ;
-					SWEAR( !WIFSTOPPED(ws) , _child.pid ) ;                            // child must have ended if we are here
+					SWEAR_PROD( !WIFSTOPPED(ws) , _child.pid ) ;                       // child must have ended if we are here
 					//
 					end_date   = New                                ;
 					_wait     &= ~Kind::ChildEnd                    ;
@@ -667,7 +667,7 @@ Status Gather::_exec_child() {
 					//
 					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
 					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
-					else                      FAIL("unexpected wstatus : ",ws) ;                                              // NO_COV defensive programming
+					else                      FAIL_PROD("unexpected wstatus : ",ws) ;                                         // NO_COV defensive programming
 					if (kind==Kind::ChildEnd) epoll.del_pid(_child.pid       ) ;
 					else                      epoll.del    (false/*write*/,fd) ;
 					_child.waited() ;                                                                                         // _child has been waited without calling _child.wait()
@@ -675,7 +675,7 @@ Status Gather::_exec_child() {
 					if (+server_master_fd) epoll.dec() ;                                                                      // idem for connections from server
 					trace(kind,fd,"close",status,"wait",_wait,+epoll) ;
 				} break ;
-				case Kind::JobMaster    : {
+				case Kind::JobMaster : {
 					SWEAR( fd==job_master_fd , fd,job_master_fd ) ;
 					Fd sfd = job_master_fd.accept().detach() ;
 					epoll.add_read(sfd,Kind::JobSlave) ;
@@ -690,7 +690,7 @@ Status Gather::_exec_child() {
 					trace(kind,fd,"server_slave",sfd,"wait",_wait,+epoll) ;
 				} break ;
 				case Kind::ServerSlave : {
-					auto                        sit      = server_slaves.find(fd)                                         ; SWEAR(sit!=server_slaves.end(),fd,server_slaves) ;
+					auto                        sit      = server_slaves.find(fd)                                         ; SWEAR_PROD(sit!=server_slaves.end(),fd,server_slaves) ;
 					ServerSlaveEntry&           sse      = sit->second                                                    ;
 					::optional<JobMngtRpcReply> received = sse.buf.receive_step<JobMngtRpcReply>(fd,Yes/*fetch*/,sse.key) ; if (!received) { trace(kind,fd,"...") ; break ; } // partial message
 					JobMngtRpcReply&            jmrr     = *received                                                      ;
@@ -799,15 +799,15 @@ Status Gather::_exec_child() {
 					trace(kind,fd,"close","wait",_wait,+epoll) ;
 				} break ;
 				case Kind::JobSlave : {
-					auto           sit            = job_slaves.find(fd) ; SWEAR(sit!=job_slaves.end(),fd,job_slaves) ;
+					auto           sit            = job_slaves.find(fd) ; SWEAR_PROD(sit!=job_slaves.end(),fd,job_slaves) ;
 					JobSlaveEntry& jse            = sit->second         ;
 					bool           is_fast_report = fd==fast_report_fd  ;
 					for( Bool3 fetch=Yes ;; fetch=No ) {
-						::optional<Jerr> received = jse.buf.receive_step<Jerr>(fd,fetch,jse.key) ; if (!received) goto JobNextEvent ;  // partial message
+						::optional<Jerr> received = jse.buf.receive_step<Jerr>(fd,fetch,jse.key) ; if (!received) goto JobNextEvent ;       // partial message
 						Jerr&            jerr     = *received                                    ;
-						Proc             proc     = jerr.proc                                    ;                                     // capture before jerr is ::move()'ed
-						bool             sync_    = jerr.sync==Yes                               ; if (is_fast_report) SWEAR(!sync_) ; // Maybe means not sync, only for transport ...
-						switch (proc) {                                                                                                // ... cannot reply on fast_report_fd
+						Proc             proc     = jerr.proc                                    ;                                          // capture before jerr is ::move()'ed
+						bool             sync_    = jerr.sync==Yes                               ; if (is_fast_report) SWEAR_PROD(!sync_) ; // Maybe means not sync, only for transport ...
+						switch (proc) {                                                                                                     // ... cannot reply on fast_report_fd
 							case Proc::None :
 								if (is_fast_report) {
 									epoll.del(false/*write*/,fd,false/*wait*/) ;               // fast_report_fd is not waited as it is always open and will be closed as it is an AcFd
@@ -830,7 +830,7 @@ Status Gather::_exec_child() {
 							case Proc::Confirm : {
 								trace(kind,fd,proc,jerr.digest.write,jerr.id) ;
 								Trace trace2 ;
-								auto it = jse.to_confirm.find(jerr.id) ; SWEAR( it!=jse.to_confirm.end() , jerr.id , jse.to_confirm ) ;
+								auto it = jse.to_confirm.find(jerr.id) ; SWEAR_PROD( it!=jse.to_confirm.end() , jerr.id , jse.to_confirm ) ;
 								SWEAR(jerr.digest.write!=Maybe) ;                                                                                      // ensure we confirm/infirm
 								for ( Jerr& j : it->second ) {
 									SWEAR(j.digest.write==Maybe) ;
@@ -920,7 +920,7 @@ Status Gather::_exec_child() {
 			DF}                                                                                                                                        // NO_COV
 		}
 	}
-	SWEAR(!_child) ;                                                                                                                                   // _child must have been waited by now
+	SWEAR_PROD(!_child) ;                                                                                                                              // _child must have been waited by now
 	trace("done",status) ;
 	return status ;
 }

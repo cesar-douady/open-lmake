@@ -558,7 +558,7 @@ PyMODINIT_FUNC
 		static_assert( PY_MINOR_VERSION==7 ) ;
 	#endif
 	Object& version_info = py_get_sys("version_info")                  ;
-	int     major        = version_info.get_attr("major")->as_a<Int>() ; SWEAR( major==PY_MAJOR_VERSION , major,PY_MAJOR_VERSION ) ;
+	int     major        = version_info.get_attr("major")->as_a<Int>() ; SWEAR_PROD( major==PY_MAJOR_VERSION , major,PY_MAJOR_VERSION ) ;
 	int     minor        = version_info.get_attr("minor")->as_a<Int>() ;
 	if (minor!=PY_MINOR_VERSION) {                                       // we do not use the stable ABI, versions must match exactly
 		py_err_set( PyException::RuntimeErr , cat("python version (",major,'.',minor,") must be ",PY_MAJOR_VERSION,'.',PY_MINOR_VERSION) ) ;

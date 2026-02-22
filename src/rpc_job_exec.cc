@@ -212,7 +212,7 @@ namespace Codec {
 				Pdate    now { New                                               } ;
 				File     lnk { _root_fd , cat(_lock_dir_s(),_tab.hex(),'-',_num) } ;
 				FileInfo fi  { lnk                                               } ;
-				SWEAR( fi.date.val() >= (now-_SharedTimeout).val() , now,fi.date,_tab ) ; // if this fires, increase _SharedTimeout
+				SWEAR_PROD( fi.date.val() >= (now-_SharedTimeout).val() , now,fi.date,_tab ) ; // if this fires, increase _SharedTimeout
 				unlnk(lnk) ;
 		}
 	}

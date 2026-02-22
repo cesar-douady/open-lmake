@@ -142,13 +142,20 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* add a new autodep mechanism based on seccomp
+? add a new autodep mechanism based on seccomp
 	- man 2 seccomp with SECCOMP_FILTER_FLAG_NEW_LISTENER
 	- man 2 seccomp_unotify
 	- allow more control than ptrace
 		- including fd injection
 			- for example to allow cheating on /proc/<pid>/status
 				- for example to lie about Seccomp and Secomp_filters entries
+	- complicated because
+		- we are notified before the access, sometimes we need the outcome
+			- hence we have to emulate the access
+			- which is tricky in case /proc/self or /dev/std{in,out,err} is accessed
+		- we need to get notification file descriptor
+			- somewhat fancy
+		- if we need a dedicated process, then it is marginally better ptrace
 ? manage permission bits in cache
 	- for example ssh keys must be protected to be used by ssh
 	- if cache restore with too large permissions, ssh will refuse to use it
