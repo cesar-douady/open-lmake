@@ -9,11 +9,21 @@
 
 #include "rpc_job_exec.hh"
 
+#if HAS_SECCOMP
+	#include <linux/filter.h>
+#endif
+
 struct SyscallDescr {
 	static constexpr long NSyscalls = 440 ;                                                         // must larger than higher syscall number
 	using Tab = ::array<SyscallDescr,NSyscalls> ;                                                   // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
+	#if HAS_SECCOMP
+		using BpfProg = struct ::sock_fprog ;
+	#endif
 	// static data
 	static Tab const& s_tab ;
+	#if HAS_SECCOMP
+		static BpfProg const& s_bpf_prog ;
+	#endif
 	// accesses
 	constexpr bool operator+() const { return entry || exit ; }
 	// data

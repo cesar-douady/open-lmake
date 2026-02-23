@@ -297,7 +297,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static bool/*refresh_mem*/ _entry
 	return _do_stat<true,2>(r,proc_mem,args,a,c) ;
 }
 
-static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
+static constexpr SyscallDescr::Tab _mk_syscall_descr_tab() {
 	SyscallDescr::Tab s_tab = {} ;
 	#define FILL_ENTRY( n , ... ) {                                         \
 		constexpr long i = MACRO_VAL(n,-1L) ;                               \
@@ -356,5 +356,72 @@ static constexpr SyscallDescr::Tab _build_syscall_descr_tab() {
 	return s_tab ;
 }
 
-constexpr SyscallDescr::Tab _syscall_descr_tab = _build_syscall_descr_tab() ;
-SyscallDescr::Tab const& SyscallDescr::s_tab = _syscall_descr_tab ;
+constexpr SyscallDescr::Tab SyscallDescrTab = _mk_syscall_descr_tab() ;
+SyscallDescr::Tab const& SyscallDescr::s_tab = SyscallDescrTab ;
+
+#if HAS_SECCOMP
+
+	// XXX! : find a way to load seccomp rules that support 32 bits and 64 bits exe's
+
+	// generate BPF filter that does a dicothomy search rather than linear for improved perf
+	// generate BPF filter at compile time for improved perf
+
+	using BpfInstr = struct ::sock_filter ;
+
+	template<uint8_t N> static constexpr uint8_t NBpfInstrs    = 1 + NBpfInstrs<N/2> + NBpfInstrs<N-N/2> ; // dichotomy : intial test + branches
+	template<         >        constexpr uint8_t NBpfInstrs<1> = 1                                       ; // linear search
+	template<         >        constexpr uint8_t NBpfInstrs<2> = 2                                       ; // .
+	template<         >        constexpr uint8_t NBpfInstrs<3> = 3                                       ; // .
+
+	template<uint8_t N> static constexpr ::array<BpfInstr,NBpfInstrs<N>> _mk_bpf_filter_tree( uint idx , uint8_t n_after_allow , uint8_t n_after_trace ) {
+		::array<BpfInstr,NBpfInstrs<N>> res ;
+		if constexpr (N<=3) {
+			static_assert(N==res.size()) ;
+			SWEAR( N-1+n_after_trace<=Max<uint8_t> , N,n_after_trace ) ;
+			for( uint8_t i : iota(N-1) ) res[i  ] = { .code=BPF_JMP|BPF_JEQ|BPF_K , .jt=uint8_t(N-1-i+n_after_trace) , .jf=0             , .k=idx+i   } ;
+			/**/                         res[N-1] = { .code=BPF_JMP|BPF_JEQ|BPF_K , .jt=              n_after_trace  , .jf=n_after_allow , .k=idx+N-1 } ;
+		} else {
+			constexpr uint8_t N2  = N/2   ;
+			constexpr uint8_t N21 = N-N/2 ;
+			SWEAR( NBpfInstrs<N2><=Max<uint8_t> , N ) ;
+			res[0] = { .code=BPF_JMP|BPF_JGE|BPF_K , .jt=NBpfInstrs<N2> , .jf=0 , .k=idx+N2 } ;
+			::copy( _mk_bpf_filter_tree<N2 >(idx   ,n_after_trace+NBpfInstrs<N21>,n_after_allow+NBpfInstrs<N21>) , res.begin()+1                ) ;
+			::copy( _mk_bpf_filter_tree<N21>(idx+N2,n_after_trace                ,n_after_allow                ) , res.begin()+1+NBpfInstrs<N2> ) ;
+		}
+		return res ;
+	}
+
+	static constexpr uint NBpfSyscalls = []() {
+		uint n = 0 ; for( SyscallDescr const& e : SyscallDescrTab ) if (+e) n++ ;
+		return n ;
+	}() ;
+	static constexpr ::array<BpfInstr,1+NBpfInstrs<NBpfSyscalls>+2> BpfFilter = []() {
+		::array<BpfInstr,1+NBpfInstrs<NBpfSyscalls>+2> res ;
+		//
+		res[0           ] = { .code=BPF_LD |BPF_W|BPF_ABS , .jt=0 , .jf=0 , .k=offsetof(struct ::seccomp_data,nr) } ;
+		::copy( _mk_bpf_filter_tree<NBpfSyscalls>(0,0,1) , res.begin()+1 ) ;
+		res[res.size()-2] = { .code=BPF_RET|      BPF_K   , .jt=0 , .jf=0 , .k=SECCOMP_RET_ALLOW                  } ;
+		res[res.size()-1] = { .code=BPF_RET|      BPF_K   , .jt=0 , .jf=0 , .k=SECCOMP_RET_TRACE                  } ;
+		//
+		uint                       i        = 0 ;
+		::array<uint,NBpfSyscalls> syscalls ;     for( uint sc : iota(SyscallDescrTab.size()) ) if (+SyscallDescrTab[sc]) syscalls[i++] = sc ;
+		SWEAR( i==NBpfSyscalls , i,NBpfSyscalls ) ;
+		//
+		for( BpfInstr& instr : res )
+			switch (instr.code) {
+				case BPF_JMP|BPF_JEQ|BPF_K :
+				case BPF_JMP|BPF_JGE|BPF_K :
+				case BPF_JMP|BPF_JGT|BPF_K : instr.k = syscalls[instr.k] ;
+			DN}
+		//
+		return res ;
+	}() ;
+
+	static constexpr SyscallDescr::BpfProg SyscallDescrBpfProg = {
+		.len    = ushort(BpfFilter.size())
+	,	.filter = const_cast<BpfInstr*>(&BpfFilter[0])
+	} ;
+
+	SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog = SyscallDescrBpfProg ;
+
+#endif

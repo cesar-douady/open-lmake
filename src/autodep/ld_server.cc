@@ -22,7 +22,7 @@ inline bool started() { return AutodepLock::t_active ; } // no auto-start for se
 // note that when not in server, _g_mutex protects us (but it is not used in server when not spying accesses)
 // note also that we cannot put s_libcall_tab in a static outside get_orig as get_orig may be called from global init, before this static initialization
 static constexpr bool _get_orig_cmp_cstr( const char* a , const char* b ) {
-	// ::strcmp is not constexpr with gcc-11, so do it by hand
+	// XXX/ : ::strcmp is not constexpr with gcc-11, so do it by hand
 	for( ; *a && *b ; a++,b++ ) {
 		if (*a<*b) return true  ;
 		if (*a>*b) return false ;

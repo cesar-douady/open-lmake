@@ -15,6 +15,10 @@ static constexpr char NpErrnoSymbolName[] = "__errno_location" ; // XXX! : find 
 	static constexpr uint8_t NpWordSz = 32 ;
 #endif
 
+#if HAS_PTRACE_GET_SYSCALL_INFO
+	uint32_t np_word_sz_from_arch(uint32_t arch) ;
+#endif
+
 ::array<uint64_t,6> np_ptrace_get_args( pid_t pid ,               uint8_t word_sz ) ; // word_sz must be 32 or 64
 int64_t             np_ptrace_get_res ( pid_t pid ,               uint8_t word_sz ) ; // .
 long                np_ptrace_get_nr  ( pid_t pid ,               uint8_t word_sz ) ; // .

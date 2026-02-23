@@ -11,6 +11,10 @@
 
 #include "non_portable.hh"
 
+#if HAS_PTRACE_GET_SYSCALL_INFO
+	#include <linux/audit.h>    // AUDIT_ARCH_*
+#endif
+
 #if !(__x86_64__||__i386__||__aarch64__||__arm__||__s390__||__s390x__)
 	#error "unknown architecture"                                      // if situation arises, please provide the adequate code using other cases as a template
 #endif
@@ -27,6 +31,20 @@ using Iovec          = struct ::iovec            ;
 	using Word = decltype(UserRegsStruct().r0     ) ;
 #elif __s390x__ || __s390__
 	using Word = decltype(UserRegsStruct().gprs[0]) ;
+#endif
+
+#if HAS_PTRACE_GET_SYSCALL_INFO
+	uint32_t np_word_sz_from_arch(uint32_t arch) {
+		switch (arch) {
+			case AUDIT_ARCH_I386    :
+			case AUDIT_ARCH_ARM     :
+			case AUDIT_ARCH_S390    : return 32 ; break ;
+			case AUDIT_ARCH_X86_64  :
+			case AUDIT_ARCH_AARCH64 :
+			case AUDIT_ARCH_S390X   : return 64 ; break ;
+			default                 : FAIL_PROD("unexpected arch",arch) ;    // NO_COV
+		}
+	}
 #endif
 
 template<bool Set> static void _get_set( pid_t pid , [[maybe_unused]] int n_words , UserRegsStruct&/*inout*/ regs ) {

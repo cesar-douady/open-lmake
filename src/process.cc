@@ -108,7 +108,7 @@ void Child::spawn() {
 	const char* nice_c_str = nice_str.c_str()                ;
 	if (pid_==0) {                                             // in child
 		// /!\ this section must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
-		if (as_session) ::setsid() ;                         // if we are here, we are the init process and we must be in the new session to receive the kill signal
+		if (as_session) ::setsid() ;                           // if we are here, we are the init process and we must be in the new session to receive the kill signal
 		if (nice) {
 			/**/             int fd  = ::open ( "/proc/self/autogroup" , O_WRONLY|O_TRUNC ) ;           // ignore error if any, as we cant do much about it
 			[[maybe_unused]] int rc1 = ::write( fd , nice_c_str , nice_str.size()         ) ;           // .

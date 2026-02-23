@@ -33,6 +33,13 @@ items (also used in XXX comments) :
 ****************************************************************************************************
 
 ! manage 32 bits executables with ptrace
+	- mode -mx32 seems easy
+		- mask out bit 30 of syscall number
+		- check if we access structs : in that case, care must be taken to handle 32-bits struct
+	- mode -m32 is a little more complex
+		- make a 2nd table done by including asm/unistd_32.h and leveraging the same list in syscall_tab.cc
+		- make a double BPF with a test on arch
+		- beware of pointer sizes when analyzing syscalls
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
 	- how to distinguish dead-lock from waiting resources that are occupied externally ?

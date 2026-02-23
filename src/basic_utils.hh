@@ -177,9 +177,14 @@ template<void (*Handler)(int sig)> struct WithSigHandler {
 
 // START_OF_NO_COV for debug only
 
-template<class... A> [[noreturn]] void crash( int hide_cnt , int sig , A const&... args ) ;
+/**/                 [[noreturn]] inline    void compile_time_crash(                                           ) { throw 0 ; } // not constexpr, which forces a compile-time error
+template<class... A> [[noreturn]]           void run_time_crash    ( int hide_cnt , int sig , A const&... args ) ;             // isolate so ::string can be declared with clang
+template<class... A> [[noreturn]] constexpr void crash             ( int hide_cnt , int sig , A const&... args ) {
+	if (::is_constant_evaluated()) compile_time_crash(                          ) ;
+	else                           run_time_crash    ( hide_cnt , sig , args... ) ;
+}
 
-template<class... A> [[noreturn]] void fail( [[maybe_unused]] A const&... args ) {
+template<class... A> [[noreturn]] constexpr void fail( [[maybe_unused]] A const&... args ) {
 	#ifndef NDEBUG
 		crash( 1 , SIGABRT , "fail" , args... ) ;
 	#else
@@ -195,7 +200,7 @@ template<class... A> constexpr void swear( bool cond , [[maybe_unused]] A const&
 	#endif
 }
 
-template<class... A> [[noreturn]] void fail_prod( A const&... args ) {
+template<class... A> [[noreturn]] constexpr void fail_prod( A const&... args ) {
 	crash( 1 , SIGABRT , "fail" , args... ) ;
 }
 

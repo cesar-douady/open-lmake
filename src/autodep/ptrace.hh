@@ -29,7 +29,7 @@
 
 struct AutodepPtrace {
 	// init
-	static void s_init(AutodepEnv const&) ;
+	static void s_init(AutodepEnv const& ade) { Record::s_autodep_env(ade) ; }
 	// statics
 	static int/*rc*/ s_prepare_child(void*) ; // must be called from child
 	// static data

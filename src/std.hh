@@ -23,6 +23,7 @@
 #include <cmath>   // ldexp
 #include <cstddef> // nullptr_t
 #include <cstdint>
+#include <cstdlib>
 #include <cstring> // memcpy, strchr, strerror, strlen, strncmp, strnlen, strsignal
 
 #include <algorithm>
@@ -56,6 +57,7 @@
 #include <vector>
 
 // import std definitions to simplify code
+using std::abort                               ;
 using std::array                               ;
 using std::as_const                            ;
 using std::atomic                              ;
@@ -70,6 +72,7 @@ using std::cmp_less                            ;
 using std::condition_variable_any              ;
 using std::conditional_t                       ;
 using std::convertible_to                      ;
+using std::copy                                ;
 using std::countl_zero                         ;
 using std::current_exception                   ;
 using std::decay_t                             ;
@@ -92,6 +95,7 @@ using std::is_aggregate_v                      ;
 using std::is_arithmetic_v                     ;
 using std::is_base_of_v                        ;
 using std::is_const_v                          ;
+using std::is_constant_evaluated               ;
 using std::is_empty_v                          ;
 using std::is_enum_v                           ;
 using std::is_floating_point_v                 ;
@@ -253,6 +257,7 @@ template<class T> constexpr          void              sort         ( T      & x
 template<class T> constexpr          void              sort         ( T      & x                                     ) {        ::sort         ( x.begin() , x.end()            ) ; }
 template<class T> constexpr          void              stable_sort  ( T      & x ,               CMP  cmp            ) {        ::stable_sort  ( x.begin() , x.end() ,     cmp  ) ; }
 template<class T> constexpr          void              stable_sort  ( T      & x                                     ) {        ::stable_sort  ( x.begin() , x.end()            ) ; }
+template<class T> constexpr typename T::iterator       copy         ( T const& s , typename T::iterator d            ) { return ::copy         ( s.begin() , s.end() , d        ) ; }
 
 template<class V,class T> V  max( T const& x , ::function<V(VT const&)> val , V  init={} ) { for( auto const& v : x ) init = ::max(init,val(v)) ; return ::move(init) ; }
 template<class V,class T> V  min( T const& x , ::function<V(VT const&)> val , V  init={} ) { for( auto const& v : x ) init = ::min(init,val(v)) ; return ::move(init) ; }

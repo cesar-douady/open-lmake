@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <err.h>
+#include <sys/prctl.h>
 
 #include "disk.hh"
 #include "process.hh"
@@ -15,21 +16,11 @@
 
 #include "ptrace.hh"
 
-#if HAS_PTRACE_GET_SYSCALL_INFO
-	#include <linux/audit.h>    // AUDIT_ARCH_*
-#endif
-
 #if HAS_SECCOMP
 	::scmp_filter_ctx AutodepPtrace::s_scmp = ::seccomp_init(SCMP_ACT_ALLOW) ;
 #endif
 
 using namespace Disk ;
-
-// When tracing a child, initially, the child will run till first signal and only then will follow the specified seccomp filter.
-// If a traced system call (as per the seccomp filter) is done before, it will fail.
-// This typically happen with the initial exec call.
-// Thus, child must send a first signal that parent must ignore.
-static constexpr int FirstSignal = SIGTRAP ;
 
 static constexpr auto StopAtNextSyscallEntry = HAS_SECCOMP ? PTRACE_CONT : PTRACE_SYSCALL ; // if using seccomp, we can skip all non-watched syscalls (this is the whole purpose of it)
 static constexpr auto StopAtSyscallExit      =                             PTRACE_SYSCALL ;
@@ -68,54 +59,39 @@ public :
 } ;
 ::umap<pid_t,PidInfo > PidInfo::s_tab ;
 
-void AutodepPtrace::s_init(AutodepEnv const& ade) {
-	Record::s_autodep_env(ade) ;
-	#if HAS_SECCOMP
-		// XXX! : find a way to load seccomp rules that support 32 bits and 64 bits exe's
-		// prepare seccomp filter outside s_prepare_child as this might very well call malloc
-		swear_prod( ::seccomp_attr_set( s_scmp , SCMP_FLTATR_CTL_OPTIMIZE , 2/*value*/ )==0 ) ;
-		for( long syscall : iota(SyscallDescr::NSyscalls) ) {
-			SyscallDescr const& descr = SyscallDescr::s_tab[syscall] ;
-			if (+descr) swear_prod( ::seccomp_rule_add( s_scmp , SCMP_ACT_TRACE(0/*ret_data*/) , syscall , 0 )==0 ) ; // else descr is not allocated
-		}
-	#endif
-}
-
 void AutodepPtrace::init(pid_t cp) {
 	child_pid = cp ;
 	//
-	int   wstatus ;
-	pid_t pid     = ::wait(&wstatus) ;                                              // first signal is only there to start tracing as we are initially traced to next signal
-	if (pid!=child_pid) return ;                                                    // child_pid will be waited for in process
 	int options =
 		PTRACE_O_TRACECLONE | PTRACE_O_TRACEFORK | PTRACE_O_TRACEVFORK
-	|	PTRACE_O_TRACESYSGOOD                                                       // necessary to have a correct syscall_info.op field
+	|	PTRACE_O_TRACESYSGOOD                                          // necessary to have a correct syscall_info.op field
 	;
 	#if HAS_SECCOMP
 		options |= PTRACE_O_TRACESECCOMP ;
 	#endif
-	#ifdef PTRACE_O_EXITKILL                                                        // XXX! : implement the same feature in all cases
-		options |= PTRACE_O_EXITKILL ;                                              // ensure no process is left stopped, even if alive at end of job
+	#ifdef PTRACE_O_EXITKILL                                           // XXX! : implement same feature even when PTRACE_O_EXITKILL is not available
+		options |= PTRACE_O_EXITKILL ;                                 // ensure no process is left stopped, even if alive at end of job
 	#endif
-	if (::ptrace( PTRACE_SETOPTIONS , pid , 0/*addr*/ , options )!=0) return ;      // child_pid will be waited for in process
-	SWEAR_PROD( WIFSTOPPED(wstatus) && WSTOPSIG(wstatus)==FirstSignal , wstatus ) ;
-	long rc = ::ptrace( StopAtNextSyscallEntry , pid , 0/*addr*/ , 0/*data*/ ) ;
-	SWEAR_PROD( rc==0 , rc,int(errno) ) ;                                           // .
+	int   wstatus ;
+	pid_t pid     = ::wait(&wstatus) ;                                 // wait for child to stop
+	SWEAR( pid==child_pid      , pid,child_pid ) ;                     // job has not started yet, only a single child exists
+	SWEAR( WIFSTOPPED(wstatus) , pid,wstatus   ) ;
+	if (::ptrace(PTRACE_SETOPTIONS     ,pid,0/*addr*/,options  )!=0) return ;
+	if (::ptrace(StopAtNextSyscallEntry,pid,0/*.   */,0/*data*/)!=0) return ;
 }
 
 // /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 int/*rc*/ AutodepPtrace::s_prepare_child(void*) {
+	// /!\ despite man page saying nothing, missing args must be 0 for prctl
+	if (::ptrace(PTRACE_TRACEME,0/*pid*/,0/*addr*/,0/*data*/       )!=0) { Fd::Stderr.write(cat("cannot set up ptrace ("     ,StrErr(),") when launching job\n")) ; return 1 ; }
+	if (::prctl(PR_SET_NO_NEW_PRIVS,1,0/*arg3*/,0/*arg4*/,0/*arg5*/)!=0) { Fd::Stderr.write(cat("cannot prevent privileges (",StrErr(),") when launching job\n")) ; return 1 ; }
 	#if HAS_SECCOMP
-		if (::seccomp_load(s_scmp)!=0) {
-			Fd::Stderr.write("cannot set up seccomp when launching job\n") ;
-			::_exit(+Rc::System) ;
+		if (::prctl(PR_SET_SECCOMP,SECCOMP_MODE_FILTER,&SyscallDescr::s_bpf_prog,0/*arg4*/,0/*arg5*/)!=0) {
+			Fd::Stderr.write(cat("cannot set up seccomp (",StrErr(),") when launching job\n")) ;
+			return 1 ;
 		}
 	#endif
-	if (::ptrace( PTRACE_TRACEME , 0/*pid*/ , 0/*addr*/ , 0/*data*/ )!=0) {
-		Fd::Stderr.write("cannot set up ptrace when launching job\n") ;
-		::_exit(+Rc::System) ;
-	}
-	kill_self(FirstSignal) ; // cannot call a traced syscall until a signal is received as we are initially traced till the next signal
+	::raise(SIGSTOP) ; // wait until released by supervisor
 	return 0 ;
 }
 
@@ -123,17 +99,17 @@ int/*wstatus*/ AutodepPtrace::process() {
 	Trace trace("AutodepPtrace::process") ;
 	int   wstatus ;
 	pid_t pid     ;
-	Lock  lock    { Record::s_mutex } ;                              // we have a single thread here, no need to lock record reporting, but Record code checks that lock is taken
+	Lock  lock    { Record::s_mutex } ;                                    // we have a single thread here, no need to lock record reporting, but Record code checks that lock is taken
 	while( (pid=::wait(&wstatus))>1 )
 		if (_changed(pid,/*inout*/wstatus)) {
 			trace("done",wstatus) ;
 			return wstatus ;
 		}
-	fail_prod("process",child_pid,"did not exit nor was signaled") ; // NO_COV
+	fail_prod("process",child_pid,"cannot be waited for (",StrErr(),')') ; // NO_COV
 }
 
 bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
-	PidInfo& info  = PidInfo::s_tab.try_emplace(pid,pid).first->second ;
+	PidInfo& info = PidInfo::s_tab.try_emplace(pid,pid).first->second ;
 	if (WIFSTOPPED(wstatus)) {
 		try {
 			int sig   = WSTOPSIG(wstatus) ;
@@ -143,7 +119,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 				#if HAS_SECCOMP
 					case PTRACE_EVENT_SECCOMP : SWEAR_PROD(!info.on_going) ; goto DoSyscall ;         // syscall enter
 				#endif
-				case 0  : if (sig==SIGTRAP)              sig = 0 ; goto NextSyscall ;                 // other stop reasons, wash spurious SIGTRAP, ignore
+				case 0  : if        (sig==SIGTRAP)       sig = 0 ; goto NextSyscall ;                 // other stop reasons, wash SIGTRAP, ignore
 				default : SWEAR_PROD(sig==SIGTRAP,sig) ; sig = 0 ; goto NextSyscall ;                 // ignore other events
 			}
 		DoSyscall :
@@ -152,13 +128,7 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 				#if HAS_PTRACE_GET_SYSCALL_INFO                                                       // use portable calls if implemented
 					struct ptrace_syscall_info syscall_info ;
 					if ( ::ptrace( PTRACE_GET_SYSCALL_INFO , pid , sizeof(struct ptrace_syscall_info) , &syscall_info )<=0 ) throw cat("cannot get syscall info (",StrErr(),") from ",pid) ;
-					switch (syscall_info.arch) {
-						case AUDIT_ARCH_I386    :
-						case AUDIT_ARCH_ARM     : word_sz = 32 ; break ;
-						case AUDIT_ARCH_X86_64  :
-						case AUDIT_ARCH_AARCH64 : word_sz = 64 ; break ;
-						default                 : FAIL_PROD("unexpected arch",syscall_info.arch) ;    // NO_COV
-					}
+					word_sz = np_word_sz_from_arch(syscall_info.arch) ;
 				#else                                                                                 // XXX! : try to find a way to determine tracee word size
 					word_sz = NpWordSz ;                                                              // waiting for a way to determine tracee word size, assume it is the same as us
 				#endif
