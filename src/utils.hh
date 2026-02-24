@@ -937,18 +937,22 @@ inline void kill_self(int sig) {      // raise kills the thread, not the process
 
 // START_OF_NO_COV for debug only
 extern bool _crash_busy ;
-template<class... A> [[noreturn]] void run_time_crash( int hide_cnt , int sig , A const&... args ) {             // isolate so ::string can be declared with clang
+template<class... A> [[noreturn]] void run_time_crash( int n_hide , int sig , int n_hdrs , A const&... args ) { // isolate so ::string can be declared with clang
 	if (!_crash_busy) {                          // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
 		_crash_busy = true ;
 		::string err_msg = get_exe() ;
-		First    first   ;
-		if (t_thread_key!='?') err_msg << ':'<<t_thread_key                   ;
-		/**/                   err_msg << " ("<<_crash_get_now()<<") :"       ;
-		/**/                (( err_msg << first(' ',',')<<args         ),...) ;
-		/**/                   err_msg << '\n'                                ;
+		int      i       = 0         ;
+		//
+		auto comma = [&](::string& s) {
+			if (i++>n_hdrs) s << ',' ;
+		} ;
+		if (t_thread_key!='?') err_msg << ':'<<t_thread_key                     ;
+		/**/                   err_msg << " ("<<_crash_get_now()<<") : "        ;
+		/**/                (( err_msg << (&comma)<<args                 ),...) ;
+		/**/                   err_msg << '\n'                                  ;
 		Fd::Stderr.write(err_msg) ;
 		set_sig_handler<SIG_DFL>(sig) ;
-		write_backtrace(Fd::Stderr,hide_cnt+1) ;
+		write_backtrace(Fd::Stderr,n_hide+1) ;
 		kill_self(sig) ;                         // rather than merely calling abort, this works even if crash_handler is not installed
 		// continue to abort in case kill did not work for some reason
 	}

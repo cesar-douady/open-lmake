@@ -241,17 +241,10 @@ void mk_room( DiskSz sz , Cjob keep_job ) {
 	RateCmp::s_refresh() ;
 	while ( hdr.total_sz && hdr.total_sz+g_reserved_sz+sz>g_cache_config.max_sz ) {
 		SWEAR( +RateCmp::s_tab ) ;                                                  // if total size is non-zero, we must have entries
-		Rate     best_rate = *RateCmp::s_tab.begin()                    ;
-		Crun     best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
-		::string run_name  = best_run->name()                           ;
+		Rate best_rate = *RateCmp::s_tab.begin()                    ;
+		Crun best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
 		//
-		unlnk( run_name+"-data" , {.nfs_guard=&nfs_guard} ) ;
-		unlnk( run_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
-		trace("unlnk",run_name);
-		if (best_run->victimize(best_run->job!=keep_job)) {
-			::string job_name = best_run->job->name() ;
-			rmdir_s( with_slash(job_name) , {.uphill=true,.nfs_guard=&nfs_guard} ) ;
-			trace("rmdir",job_name) ;
+		if (best_run->victimize( best_run->job!=keep_job , &nfs_guard )) {
 		}
 	}
 	trace("done",sz,hdr.total_sz) ;
@@ -408,9 +401,10 @@ void CjobData::s_rescue() {
 	return { {} , CacheHitInfo::Miss } ;
 }
 
-::pair<Crun,CacheHitInfo> CjobData::insert(
+bool/*done*/ CjobData::insert(
 	::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs
 ,	Ckey key , KeyIsLast key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate
+,	::string const& reserved_file , NfsGuard* nfs_guard
 ) {
 	Trace trace("insert",idx(),key,key_is_last,last_access,sz,rate,deps.size(),dep_crcs.size()) ;
 	::array<Crun,2> found_runs ;                                                                   // first and last with same key
@@ -423,26 +417,46 @@ void CjobData::s_rescue() {
 		CacheHitInfo hit_info = rd.match( deps , dep_crcs ) ;
 		switch (hit_info) {
 			case CacheHitInfo::Hit   :
-			case CacheHitInfo::Match : trace(r,hit_info) ; return { r , hit_info } ;
+			case CacheHitInfo::Match : trace(r,hit_info) ;
+				if (+reserved_file) unlnk_run( reserved_file , nfs_guard ) ;
+				return false/*done*/ ;
 		DN}
 	}
 	bool last     = false ;
 	bool mk_first = false ;
-	switch (key_is_last) { //!                                                last
-		case KeyIsLast::No            :                                                                             break ;
-		case KeyIsLast::OverrideFirst : mk_first = true  ; last = +found_runs[true]                               ; break ;
-		case KeyIsLast::Plain         : mk_first = true  ; last = +found_runs[true] || +found_runs[false/*last*/] ; break ;
-		case KeyIsLast::Yes           :                    last = true                                            ; break ;
+	switch (key_is_last) { //!                                               last
+		case KeyIsLast::No            :                                                                            break ;
+		case KeyIsLast::OverrideFirst : mk_first = true ; last = +found_runs[true]                               ; break ;
+		case KeyIsLast::Plain         : mk_first = true ; last = +found_runs[true] || +found_runs[false/*last*/] ; break ;
+		case KeyIsLast::Yes           :                   last = true                                            ; break ;
 	}
-	if (+found_runs[last]) { //!           last
-		if ( mk_first && last && !found_runs[false/*last*/] ) found_runs[last]->key_is_last = false ;
-		else                                                  found_runs[last]->victimize(false/*victimize_job*/) ;
+	if (+found_runs[last]) {
+		if ( mk_first && last && !found_runs[false/*last*/] ) {
+			::string last_name  = found_runs[last]->name() ; found_runs[last]->key_is_last = false ;
+			::string first_name = found_runs[last]->name() ; rename_run( last_name , first_name , &::ref(NfsGuard(g_file_sync)) ) ;
+		} else {
+			found_runs[last]->victimize( false/*victimize_job*/ , nfs_guard ) ;
+		}
 	}
-	while (n_runs>=g_cache_config.max_runs_per_job) lru.newer->victimize(false/*victimize_job*/) ; // maybe several pass in case.max_runs_per_job has been reduced
+	while (n_runs>=g_cache_config.max_runs_per_job) lru.newer->victimize( false/*victimize_job*/ , nfs_guard ) ; // maybe several pass in case.max_runs_per_job has been reduced
 	mk_room( sz , idx() ) ;
 	Crun run { New , key , last , idx() , last_access , sz , rate , deps, dep_crcs } ;
 	trace("miss",run,found_runs,STR(last)) ;
-	return { run , CacheHitInfo::Miss } ;
+	if (+reserved_file) rename_run( reserved_file , run->name() , nfs_guard ) ;
+	return true/*done*/ ;
+}
+
+void CjobData::victimize(NfsGuard* nfs_guard) {
+	Trace trace("victimize",idx()) ;
+	s_trash.push_back(idx()) ;
+	::string n = with_slash(name()) ;
+	try {
+		rmdir_s( n , {.uphill=true,.nfs_guard=nfs_guard} ) ;
+	} catch (::string const& e) {
+		Trace trace("cannot_rmdir",n,e) ;
+		exit( Rc::System , "cache error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())) ) ;
+	}
+	trace("rmdir",n) ;
 }
 
 //
@@ -510,31 +524,34 @@ void CrunData::access() {
 	RateCmp::s_insert(rate) ;                                                 // erase and re-insert is necessary when glb_lru chain is modified
 }
 
-bool/*job_victimized*/ CrunData::victimize(bool victimize_job) {
+bool/*job_victimized*/ CrunData::victimize( bool victimize_job , NfsGuard* nfs_guard ) {
 	CrunHdr& hdr            = s_hdr() ;
 	bool     job_victimized = false   ;
 	Trace trace("victimize",idx(),STR(victimize_job),hdr.total_sz,sz) ;
-	RateCmp::s_tab.erase(rate) ;                                              // erase from tab before pruning glb_lru chain as lru is necessary for comparison
-	bool last = job_lru.erase( job->lru              , &CrunData::job_lru ) ; // manage job-local LRU
-	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , &CrunData::glb_lru ) ; // manage global    LRU
+	RateCmp::s_tab.erase(rate) ;                                                      // erase from tab before pruning glb_lru chain as lru is necessary for comparison
+	bool last = job_lru.erase( job->lru              , &CrunData::job_lru ) ;         // manage job-local LRU
+	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , &CrunData::glb_lru ) ;         // manage global    LRU
 	//
 	if (!RateCmp::s_lrus[rate].newer/*oldest*/) {
 		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[0]  ]) RateCmp::s_iota.bounds[0]++ ;
 		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[1]-1]) RateCmp::s_iota.bounds[1]-- ;
 	} else {
-		RateCmp::s_insert(rate) ;                                             // erase and re-insert is necessary when glb_lru chain is modified
+		RateCmp::s_insert(rate) ;                                                     // erase and re-insert is necessary when glb_lru chain is modified
 	}
 	//
 	/**/                           key.dec()     ;
 	SWEAR( job->n_runs>0 , job ) ; job->n_runs-- ;
 	for( Cnode d : deps ) d->dec() ;
-	if ( victimize_job && last ) { trace("victimize_job",job) ; job->victimize() ; job_victimized = true  ; }
+	//
+	unlnk_run( name() , nfs_guard ) ;
+	if ( victimize_job && last ) { trace("victimize_job",job) ; job->victimize(nfs_guard) ; job_victimized = true  ; }
 	//
 	SWEAR( hdr.total_sz >= sz , hdr.total_sz,sz,idx() ) ;
 	hdr.total_sz -= sz ;
 	_g_nodes_file.pop(deps    ) ;
 	_g_crcs_file .pop(dep_crcs) ;
 	_g_run_file  .pop(idx()   ) ;
+	//
 	return job_victimized ;
 }
 

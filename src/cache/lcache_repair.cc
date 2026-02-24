@@ -118,11 +118,11 @@ static void _repair(DryRunDigest const& dry_run) {
 		Cjob          job          { New , no_slash(dir_name_s(run)) , deps.n_statics }                                     ;
 		FileStat      data_stat    ;                                                                                          ::lstat( (run+"-data").c_str() , &data_stat ) ;
 		//
-		::pair<Crun,CacheHitInfo> digest = job->insert(
+		bool done = job->insert(
 			deps.deps , deps.dep_crcs                                                                                                                  // to search entry
 		,	key , entry.is_last?KeyIsLast::Yes:KeyIsLast::No , Pdate(data_stat.st_atim) , sz , to_rate(g_cache_config,sz,job_info.end.digest.exe_time) // to create entry
 		) ;
-		throw_unless( digest.second>=CacheHitInfo::Miss , "conflict" ) ;
+		throw_unless( done , "conflict ",job->name() ) ;
 	}
 	::string keys_str ; for( auto const& [old_key,new_key] : keys ) keys_str << +new_key<<' '<<dry_run.keys.at(old_key)<<'\n' ;
 	AcFd(g_repo_keys_file,{O_WRONLY|O_TRUNC|O_CREAT}).write(keys_str) ;

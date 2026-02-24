@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 32      ; // 0471454dd2bbfbc4a4691a6e4b1bda30
+	uint64_t    constexpr Cache = 32      ; // 6901944ec9de3512b6546be4e4683893
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 28      ; // 5527ca280d12d9199c05e8dffec3c514
+	uint64_t    constexpr Repo  = 28      ; // e180a05bf325136e6cf985793225fda3
 	uint64_t    constexpr Job   = 17      ; // e76443280a7ff4e934e8b7ebccc1927c
 	const char* const     Major = "26.03" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 0471454dd2bbfbc4a4691a6e4b1bda30 *
+// * Cache : 6901944ec9de3512b6546be4e4683893 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -49,10 +49,6 @@ namespace Version {
 //		{ ::string file=g_store_dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
 //		{ ::string file=g_store_dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 //		// END_OF_VERSIONING
-//				// START_OF_VERSIONING CACHE
-//				rename( rf+"-data" , run_name+"-data" , {.nfs_guard=&nfs_guard} ) ; data_moved = true ;
-//				rename( rf+"-info" , run_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
-//				// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO
 //		FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
 //			switch (fi.tag()) {
@@ -1070,7 +1066,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 5527ca280d12d9199c05e8dffec3c514 *
+// * Repo : e180a05bf325136e6cf985793225fda3 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1551,6 +1547,7 @@ namespace Version {
 //	// aliases
 //	,	NUniq      = Plain         // < NUniq      means there is a single such rule
 //	,	HasJobs    = Plain         // <=HasJobs    means jobs can refer to this rule
+//	,	Fugitive   = InfinitePath  // <=Fugitive   means job is not kept permanently
 //	,	HasMatches = Codec         // >=HasMatches means rules can get jobs by matching
 //	,	HasTargets = InfiniteDep   // >=HasTargets means targets field exists
 //	} ;

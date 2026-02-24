@@ -222,7 +222,7 @@ namespace Disk {
 	void rmdir_s( FileRef dir_s , _RmDirAction action ) {
 		SWEAR(+dir_s.file) ;
 		if      ( action.nfs_guard                                                     ) action.nfs_guard->change(dir_s) ;
-		if      ( ::unlinkat(dir_s.at,dir_s.file.c_str(),AT_REMOVEDIR)!=0              ) throw_unless( errno==ENOENT , "cannot rmdir ",dir_s ) ;
+		if      ( ::unlinkat(dir_s.at,dir_s.file.c_str(),AT_REMOVEDIR)!=0              ) throw_unless( errno==ENOENT , "cannot rmdir (",StrErr(),") ",dir_s ) ;
 		else if ( action.uphill && has_dir(dir_s.file) && !dir_s.file.ends_with("../") )
 			for( ::string d_s=dir_name_s(dir_s.file) ; +d_s && d_s!="/" && !d_s.ends_with("../") ; d_s=dir_name_s(d_s) )
 				if (::unlinkat(dir_s.at,d_s.c_str(),AT_REMOVEDIR)!=0) break ;

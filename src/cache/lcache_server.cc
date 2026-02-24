@@ -89,53 +89,26 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	Cjob          job        = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR_PROD( job->n_statics==deps.n_statics , job,job->n_statics,deps.n_statics ) ;
 	DiskSz        sz         = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
 	ConnEntry&    conn_entry = _g_conn_tab.at(fd)                                                           ;
-	bool          data_moved = false                                                                        ;
 	::string      run_name   ;
 	//
-	::pair<Crun,CacheHitInfo> digest ;
 	conn_entry.upload_keys.erase(crr.upload_key) ;
-	try {
-		digest = job->insert(
-			deps.deps , deps.dep_crcs                                                                                                                         // to search entry
-		,	conn_entry.key , crr.override_first?KeyIsLast::OverrideFirst:KeyIsLast::Plain , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
-		) ;
-	} catch (::string const&) {
-		digest.second = {} ;                                   // no report on commit, so just force dismiss
-	}
-	NfsGuard nfs_guard { g_file_sync }                 ;
-	::string rf        = reserved_file(crr.upload_key) ;
-	if (digest.second>=CacheHitInfo::Miss) {
-		run_name = digest.first->name() ;
-		try {
-			// START_OF_VERSIONING CACHE
-			rename( rf+"-data" , run_name+"-data" , {.nfs_guard=&nfs_guard} ) ; data_moved = true ;
-			rename( rf+"-info" , run_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
-			// END_OF_VERSIONING
-			trace("committed",rf,run_name);
-			return ;
-		} catch(::string const& e) {                           // defensive programming : in case of error, no report on commit, so just force dismiss
-			Fd::Stderr.write(cat("cache upload error : ",e)) ;
-			trace("cannot_rename",rf,run_name,e) ;
-			digest.first->victimize() ;                        // undo insert
-		}
-	}
-	unlnk( (data_moved?run_name:rf)+"-data" , {.nfs_guard=&nfs_guard} ) ;
-	unlnk(                      rf +"-info" , {.nfs_guard=&nfs_guard} ) ;
-	trace("dismissed",rf,run_name);
+	bool inserted = job->insert(
+		deps.deps , deps.dep_crcs                                                                                                                         // to search entry
+	,	conn_entry.key , crr.override_first?KeyIsLast::OverrideFirst:KeyIsLast::Plain , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
+	,	reserved_file(crr.upload_key) , &::ref(NfsGuard(g_file_sync))
+	) ;
+	trace("done",STR(inserted)) ;
 }
 
 static void _dismiss( Fd fd , CacheUploadKey upload_key ) {
 	Trace trace("dismiss",upload_key) ;
-	NfsGuard nfs_guard  { g_file_sync } ;
 	_release_room(_g_reserved_szs[upload_key]) ;
 	_g_upload_keys.release(upload_key)         ;
 	_g_reserved_szs[upload_key] = 0 ;
 	_g_conn_tab.at(fd).upload_keys.erase(upload_key) ;
 	//
-	::string rf = reserved_file(upload_key) ;
-	unlnk( rf+"-data" , {.nfs_guard=&nfs_guard} ) ;
-	unlnk( rf+"-info" , {.nfs_guard=&nfs_guard} ) ;
-	trace("done",rf) ;
+	unlnk_run( reserved_file(upload_key) , &::ref(NfsGuard(g_file_sync)) ) ;
+	trace("done") ;
 }
 
 struct CacheServer : AutoServer<CacheServer> {

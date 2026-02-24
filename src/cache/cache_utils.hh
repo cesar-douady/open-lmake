@@ -43,3 +43,6 @@ Rate  to_rate  ( CacheConfig const& , float ) ;
 inline Rate to_rate( CacheConfig const& config , Disk::DiskSz sz , Time::Delay exe_time ) {
 	return to_rate( config , sz/float(exe_time) ) ;
 }
+
+void rename_run( ::string const& old_name , ::string const& new_name , NfsGuard* nfs_guard=nullptr ) ;
+void unlnk_run ( ::string const& name     ,                            NfsGuard* nfs_guard=nullptr ) ;

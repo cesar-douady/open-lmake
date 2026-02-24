@@ -133,8 +133,8 @@ struct Fd ;
 
 extern thread_local char t_thread_key ;
 
-void kill_self      ( int sig                ) ;
-void write_backtrace( Fd      , int hide_cnt ) ;
+void kill_self      ( int sig              ) ;
+void write_backtrace( Fd      , int n_hide ) ;
 
 template<void (*Handler)(int sig,void* addr)> void _sig_action( int sig , siginfo_t* si , void* ) {
 	Handler(sig,si->si_addr) ;
@@ -177,45 +177,35 @@ template<void (*Handler)(int sig)> struct WithSigHandler {
 
 // START_OF_NO_COV for debug only
 
-/**/                 [[noreturn]] inline    void compile_time_crash(                                           ) { throw 0 ; } // not constexpr, which forces a compile-time error
-template<class... A> [[noreturn]]           void run_time_crash    ( int hide_cnt , int sig , A const&... args ) ;             // isolate so ::string can be declared with clang
-template<class... A> [[noreturn]] constexpr void crash             ( int hide_cnt , int sig , A const&... args ) {
-	if (::is_constant_evaluated()) compile_time_crash(                          ) ;
-	else                           run_time_crash    ( hide_cnt , sig , args... ) ;
+/**/                 [[noreturn]] inline    void compile_time_crash(                                                      ) { throw 0 ; } // not constexpr, which forces a compile-time error
+template<class... A> [[noreturn]]           void run_time_crash    ( int n_hide , int sig , int n_hdrs , A const&... args ) ;             // isolate so ::string can be declared with clang
+template<class... A> [[noreturn]] constexpr void crash             ( int n_hide , int sig , int n_hdrs , A const&... args ) {
+	if (::is_constant_evaluated()) compile_time_crash(                                   ) ;
+	else                           run_time_crash    ( n_hide , sig , n_hdrs , args... ) ;
 }
 
-template<class... A> [[noreturn]] constexpr void fail( [[maybe_unused]] A const&... args ) {
-	#ifndef NDEBUG
-		crash( 1 , SIGABRT , "fail" , args... ) ;
-	#else
-		::unreachable() ;
-	#endif
-}
-
-template<class... A> constexpr void swear( bool cond , [[maybe_unused]] A const&... args ) {
-	#ifndef NDEBUG
-		if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
-	#else
-		if (!cond) ::unreachable() ;
-	#endif
-}
-
-template<class... A> [[noreturn]] constexpr void fail_prod( A const&... args ) {
-	crash( 1 , SIGABRT , "fail" , args... ) ;
-}
-
-template<class... A> constexpr void swear_prod( bool cond , A const&... args ) {
-	if (!cond) crash( 1 , SIGABRT , "assertion violation" , args... ) ;
-}
+template<class... A> [[noreturn]] constexpr void _fail_prod (             int n_hdrs , A const&... args ) {            crash( 1 , SIGABRT , 1+n_hdrs , "fail : "               ,args... ) ; }
+template<class... A>              constexpr void _swear_prod( bool cond , int n_hdrs , A const&... args ) { if (!cond) crash( 1 , SIGABRT , 1+n_hdrs , "assertion violation : ",args... ) ; }
+#ifndef NDEBUG
+	template<class... A> [[noreturn]] constexpr void _fail (             int n_hdrs , A const&... args ) { _fail_prod (        n_hdrs , args... ) ; }
+	template<class... A>              constexpr void _swear( bool cond , int n_hdrs , A const&... args ) { _swear_prod( cond , n_hdrs , args... ) ; }
+#else
+	template<class... A> [[noreturn]] constexpr void _fail (             int        , A const&...      ) {            ::unreachable() ;             }
+	template<class... A>              constexpr void _swear( bool cond , int        , A const&...      ) { if (!cond) ::unreachable() ;             }
+#endif //!                                                                                                      n_hdrs
+template<class... A> [[noreturn]] constexpr void fail      (             A const&... args ) { _fail      (        0  , args... ) ; }
+template<class... A>              constexpr void swear     ( bool cond , A const&... args ) { _swear     ( cond , 0  , args... ) ; }
+template<class... A> [[noreturn]] constexpr void fail_prod (             A const&... args ) { _fail_prod (        0  , args... ) ; }
+template<class... A>              constexpr void swear_prod( bool cond , A const&... args ) { _swear_prod( cond , 0  , args... ) ; }
 
 // END_OF_NO_COV
 
 #define _FAIL_STR2(x) #x
 #define _FAIL_STR(x) _FAIL_STR2(x)
-#define FAIL(           ...) fail      (       "@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define FAIL_PROD(      ...) fail_prod (       "@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define SWEAR(     cond,...) swear     ((cond),"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
-#define SWEAR_PROD(cond,...) swear_prod((cond),"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " =",)__VA_ARGS__)
+#define FAIL(           ...) _fail      (       1,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " = ",)__VA_ARGS__)
+#define FAIL_PROD(      ...) _fail_prod (       1,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " = ",)__VA_ARGS__)
+#define SWEAR(     cond,...) _swear     ((cond),1,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " = ",)__VA_ARGS__)
+#define SWEAR_PROD(cond,...) _swear_prod((cond),1,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " = ",)__VA_ARGS__)
 
 #define DF default : FAIL() ; // for use at end of switch statements
 #define DN default :        ; // .
@@ -331,7 +321,7 @@ template<::unsigned_integral I> ::string to_hex( I v , uint8_t width=sizeof(I)*2
 }
 
 template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ; // use a template to avoid having too high a priority when compiler selects an overload
-template<class F> concept _CanDoFunc    = requires(::string s,F* f) { f(s) ; }              ;
+template<class F> concept _CanDoFunc    = requires(::string s,F* f) { (*f)(s) ; }           ;
 template<class T> concept _CanDoPtr     = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
 template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>     ;
 
@@ -357,7 +347,7 @@ template<_CanDoToChars N> ::string& operator+=( ::string& s , N         n ) {
 	return s ;
 }
 //
-template<_CanDoFunc F> ::string& operator+=( ::string& s , F*f ) { f(s) ; return s ; }
+template<_CanDoFunc F> ::string& operator+=( ::string& s , F* f ) { (*f)(s) ; return s ; }
 //
 template<class T,size_t N        > ::string& operator+=(::string& os,         T             a[N]) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
 template<class T,size_t N        > ::string& operator+=(::string& os,::array <T,N  > const& a   ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }

@@ -188,11 +188,12 @@ struct CjobData {
 	::string name     () const { return _name.str() ; }
 	// services
 	::pair<Crun,CacheHitInfo> match( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ;     // updates lru related info when hit
-	::pair<Crun,CacheHitInfo> insert(                                                            // like match, but create when miss
+	bool/*done*/ insert(                                                                         // like match, but create when miss
 		::vector<Cnode> const& , ::vector<Hash::Crc> const&                                      // to search entry
 	,	Ckey key , KeyIsLast key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate // to create entry
+	,	::string const& reserved_file={} , NfsGuard* =nullptr                                    // to manage files
 	) ;
-	void victimize() { s_trash.push_back(idx()) ; }
+	void victimize(NfsGuard* =nullptr) ;
 	// data
 	// START_OF_VERSIONING CACHE
 	LruEntry lru       ;
@@ -227,7 +228,7 @@ struct CrunData {
 	::string name     () const { return run_file( job->name() , +key , key_is_last ) ; }
 	// services
 	void                   access   (                                                     )       ; // move to top in LRU (both job and glb)
-	bool/*job_victimzied*/ victimize( bool victimize_job=true                             )       ; // if victimize_job, victimize job if last run
+	bool/*job_victimzied*/ victimize( bool victimize_job=true , NfsGuard* =nullptr        )       ; // if victimize_job, victimize job if last run
 	CacheHitInfo           match    ( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) const ;
 	void                   chk      (                                                     ) const ;
 	// data

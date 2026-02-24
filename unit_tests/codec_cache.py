@@ -52,7 +52,7 @@ else :
 
 	os.system(f'mkdir bck_2 ; mv LMAKE bck_2')
 	open('codec_file','w')
-	ut.lmake( 'dut11' , 'dut22' , hit_rerun=2 , new=1 , expand=1 , failed=2 , update=1 , rc=1 )
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , expand=1 , failed=2 , update=1 , rc=1 )
 
 	os.system(f'mkdir bck_3 ; mv LMAKE bck_3')
 	open('codec_file','w').write(
@@ -65,7 +65,7 @@ else :
 	open('codec_file','w').write(
 		'\tcode1\tctx\tval2\n'
 	)
-	ut.lmake( 'dut11' , 'dut22' , hit_rerun=2 , new=1 , expand=1 , failed=2 , update=1 , rc=1 )
+	ut.lmake( 'dut11' , 'dut22' , unlinked=2 , hit_rerun=2 , new=1 , expand=1 , failed=2 , update=1 , rc=1 )
 
 	os.system(f'mkdir bck_5 ; mv LMAKE bck_5')
 	open('codec_file','w').write(

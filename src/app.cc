@@ -20,16 +20,16 @@ StaticUniqPtr<::string> g_startup_dir_s ; // relative to g_repo_root_s , dir fro
 StaticUniqPtr<::string> g_exe_name      ;
 
 void crash_handler( int sig , void* addr ) {
-	if (sig==SIGABRT) crash(4,sig,"aborted"                         ) ;
-	else              crash(2,sig,::strsignal(sig),"at address",addr) ;
+	if (sig==SIGABRT) crash( 4/*n_hide*/ , sig , 1 , "aborted"                            ) ;
+	else              crash( 2/*.     */ , sig , 1 , ::strsignal(sig)," at address ",addr ) ;
 }
 
 static void _terminate() {
-	try                          { ::rethrow_exception(::current_exception()) ;       }
-	catch (::string    const& e) { crash(4,SIGABRT,"uncaught exception :",e       ) ; }
-	catch (int         const& e) { crash(4,SIGABRT,"uncaught exception :",e       ) ; }
-	catch (::exception const& e) { crash(4,SIGABRT,"uncaught exception :",e.what()) ; }
-	catch (...                 ) { crash(4,SIGABRT,"uncaught exception"           ) ; }
+	try                          { ::rethrow_exception(::current_exception()) ;                        }
+	catch (::string    const& e) { crash( 4/*n_hide*/ , SIGABRT , 1 , "uncaught exception : ",e        ) ; }
+	catch (int         const& e) { crash( 4/*.     */ , SIGABRT , 1 , "uncaught exception : ",e        ) ; }
+	catch (::exception const& e) { crash( 4/*.     */ , SIGABRT , 1 , "uncaught exception : ",e.what() ) ; }
+	catch (...                 ) { crash( 4/*.     */ , SIGABRT , 1 , "uncaught exception"             ) ; }
 }
 
 struct SearchRootResult {

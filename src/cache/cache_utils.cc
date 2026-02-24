@@ -129,3 +129,24 @@ Rate to_rate( CacheConfig const& config , float rate ) {
 	return res ;
 }
 
+void rename_run( ::string const& old_name , ::string const& new_name , NfsGuard* nfs_guard ) {
+	try {
+		rename( old_name+"-data" , new_name+"-data" , {.nfs_guard=nfs_guard} ) ;
+		rename( old_name+"-info" , new_name+"-info" , {.nfs_guard=nfs_guard} ) ;
+		Trace trace("moved",old_name,new_name);
+	} catch(::string const& e) {
+		Trace trace("cannot_move",old_name,new_name,e) ;
+		exit( Rc::System , "cache error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())) ) ;
+	}
+}
+
+void unlnk_run( ::string const& name , NfsGuard* nfs_guard ) {
+	try {
+		unlnk( name+"-data" , {.nfs_guard=nfs_guard} ) ;
+		unlnk( name+"-info" , {.nfs_guard=nfs_guard} ) ;
+		Trace trace("unlnked",name);
+	} catch(::string const& e) {
+		Trace trace("cannot_unlnk",name,e) ;
+		exit( Rc::System , "cache error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())) ) ;
+	}
+}

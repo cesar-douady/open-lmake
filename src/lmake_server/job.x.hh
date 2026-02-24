@@ -241,12 +241,13 @@ namespace Engine {
 		Step step    (          ) const { return _step ; }
 		void set_step(Step s,Job)       ;
 		// services
-		void reset( Job j , bool has_run=false ) {
+		void reset( Job j , bool has_run=false , bool mk_done=false ) {
 			if (has_run) {
 				force  = false ;                                       // cmd has been executed, it is not new any more
 				reason = {}    ;                                       // reasons were to trigger the ending job, there are none now
 			}
-			if (step()>Step::Dep) set_step(Step::Dep,j) ;
+			if      (mk_done         ) set_step(Step::Done,j) ;
+			else if (step()>Step::Dep) set_step(Step::Dep ,j) ;
 			iter  = {} ;
 			state = {} ;
 		}

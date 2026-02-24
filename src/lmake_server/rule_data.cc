@@ -84,11 +84,8 @@ namespace Engine {
 		switch (s) {
 			case Special::Dep          :
 			case Special::InfiniteDep  :
-			case Special::InfinitePath : break ;
-			case Special::Req :
-				force  = true ;
-				n_runs = 2    ;
-			break ;
+			case Special::InfinitePath :     break ;
+			case Special::Req : n_runs = 2 ; break ;
 			case Special::Codec : {
 				using namespace Codec ;
 				// START_OF_VERSIONING REPO CACHE CODEC
