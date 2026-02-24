@@ -435,8 +435,22 @@ void CjobData::s_rescue() {
 		case KeyIsLast::Yes           :                    last = true                                            ; break ;
 	}
 	if (+found_runs[last]) { //!           last
-		if ( mk_first && last && !found_runs[false/*last*/] ) found_runs[last]->key_is_last = false ;
-		else                                                  found_runs[last]->victimize(false/*victimize_job*/) ;
+		if ( mk_first && last && !found_runs[false/*last*/] ) {
+			::string old_name = found_runs[last]->name() ;
+			found_runs[last]->key_is_last = false ;
+			::string new_name  = found_runs[last]->name() ;
+			NfsGuard nfs_guard { g_file_sync }            ;
+			try {
+				rename( old_name+"-data" , new_name+"-data" , {.nfs_guard=&nfs_guard} ) ;
+				rename( old_name+"-info" , new_name+"-info" , {.nfs_guard=&nfs_guard} ) ;
+				trace("move",old_name,new_name);
+			} catch(::string const& e) {
+				trace("cannot_move",old_name,new_name,e) ;
+				exit(Rc::System,"cache error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s()))) ;
+			}
+		} else {
+			found_runs[last]->victimize(false/*victimize_job*/) ;
+		}
 	}
 	while (n_runs>=g_cache_config.max_runs_per_job) lru.newer->victimize(false/*victimize_job*/) ; // maybe several pass in case.max_runs_per_job has been reduced
 	mk_room( sz , idx() ) ;

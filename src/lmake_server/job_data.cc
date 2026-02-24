@@ -521,11 +521,11 @@ namespace Engine {
 				NodeReqInfo const* cdri        = &dep->c_req_info(req)                          ;     // avoid allocating req_info as long as not necessary
 				NodeReqInfo      * dri         = nullptr                                        ;     // .
 				NodeGoal           dep_goal    =
-					query                                        ? NodeGoal::Dsk
-				:	(may_care&&!no_run_reason(state)) || archive ? NodeGoal::Dsk
-				:	may_care || sense_err                        ? NodeGoal::Status
-				:	is_static || required                        ? NodeGoal::Status
-				:	                                               NodeGoal::None
+					query || archive || special==Special::Req ? NodeGoal::Dsk
+				:	(may_care&&!no_run_reason(state))         ? NodeGoal::Dsk
+				:	may_care || sense_err                     ? NodeGoal::Status
+				:	is_static || required                     ? NodeGoal::Status
+				:	                                            NodeGoal::None
 				;
 				if (!dep_goal) continue ;                                                             // this is not a dep (not static while asked for makable only)
 			RestartDep :
@@ -539,7 +539,7 @@ namespace Engine {
 					:	+state.stamped.err            ? ri.speculate|Maybe                            // this dep is not the origin of the error
 					:	                                ri.speculate                                  // this dep will not disappear from us
 					;
-					if (special!=Special::Req) dnd.asking = job ;                                     // Req jobs are fugitive, dont record them
+					if (special>Special::Fugitive) dnd.asking = job ;                                 // Req jobs are fugitive, dont record them
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

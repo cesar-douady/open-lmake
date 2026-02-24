@@ -67,6 +67,7 @@ enum class Special : uint8_t {
 // aliases
 ,	NUniq      = Plain         // < NUniq      means there is a single such rule
 ,	HasJobs    = Plain         // <=HasJobs    means jobs can refer to this rule
+,	Fugitive   = InfinitePath  // <=Fugitive   means job is not kept permanently
 ,	HasMatches = Codec         // >=HasMatches means rules can get jobs by matching
 ,	HasTargets = InfiniteDep   // >=HasTargets means targets field exists
 } ;

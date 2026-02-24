@@ -100,13 +100,13 @@ else :
 		print('hello2'       ,file=open('hello'               ,'w'))
 		print('hello2\n#auto',file=open('hello+auto1.hide.ref','w'))
 
-		ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_done=2 ,                 new=2 )  # check cache hit on common part (except auto1), and miss when hello is dep
-		ut.lmake( 'mkdir.dut.ok'        , done=1 , hit_done=1 , quarantined=1 , new=1 )  # check all is ok with dirs and empty files (mkdir.dut still exists and is unlinked)
+		ut.lmake( 'hello+auto1.hide.ok' , unlinked=1 , done=2 , hit_done=2 ,                 new=2 )  # check cache hit on common part (except auto1), and miss when hello is dep
+		ut.lmake( 'mkdir.dut.ok'        , unlinked=1 , done=1 , hit_done=1 , quarantined=1 , new=1 )  # check all is ok with dirs and empty files (mkdir.dut still exists and is unlinked)
 		os.system(f'mkdir {bck}_2 ; mv LMAKE auto1 auto1.hide hello+auto1.hide {bck}_2')
 
 		assert os.system(f"rm -rf CACHE/auto1 ; lcache_repair -f CACHE")==0
-		ut.lmake( 'hello+auto1.hide.ok' , done=2 , hit_rerun=1 , hit_done=2 ,                 new=2 )
-		ut.lmake( 'mkdir.dut.ok'        , done=1 ,               hit_done=1 , quarantined=1 , new=1 )
+		ut.lmake( 'hello+auto1.hide.ok' , unlinked=1 , done=2 , hit_rerun=1 , hit_done=2 ,                 new=2 )
+		ut.lmake( 'mkdir.dut.ok'        , unlinked=1 , done=1 ,               hit_done=1 , quarantined=1 , new=1 )
 		os.system(f'mkdir {bck}_3 ; mv LMAKE CACHE *auto1* mkdir* {bck}_3')
 
 		bck = f'bck'

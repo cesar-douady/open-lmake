@@ -32,7 +32,7 @@ else :
 	os.rename('LMAKE','LMAKE2') # must clean up repo to change source dirs
 
 	print('step=2',file=open('step.py','w'))
-	cnt = ut.lmake( 'dut' , new=... , done=1 )
+	cnt = ut.lmake( 'dut' , quarantined=1 , new=... , done=1 )
 	assert cnt.new>=1 , 'missing at least new /etc/os-release'
 	x1 = eval(sp.check_output(('lshow','-dp','dut'),universal_newlines=True))
 	for k2,v2 in x1['dut'].items() :                                          # for each job run to provide target

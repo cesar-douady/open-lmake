@@ -2,10 +2,10 @@
 namespace Version {
 	uint64_t    constexpr Cache = 32      ; // ea15f6e347c4a130298d390586c1c6be
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 28      ; // 69e534079371719b741c007ba0ceb8ee
+	uint64_t    constexpr Repo  = 28      ; // 080864dfdb4c36b20245fb2f4c71b7bd
 	uint64_t    constexpr Job   = 17      ; // e9815ab26bf928f163f771390de178e6
 	const char* const     Major = "26.02" ;
-	uint64_t    constexpr Tag   = 3       ;
+	uint64_t    constexpr Tag   = 4       ;
 }
 
 // ********************************************
@@ -1071,7 +1071,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 69e534079371719b741c007ba0ceb8ee *
+// * Repo : 080864dfdb4c36b20245fb2f4c71b7bd *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1553,6 +1553,7 @@ namespace Version {
 //	// aliases
 //	,	NUniq      = Plain         // < NUniq      means there is a single such rule
 //	,	HasJobs    = Plain         // <=HasJobs    means jobs can refer to this rule
+//	,	Fugitive   = InfinitePath  // <=Fugitive   means job is not kept permanently
 //	,	HasMatches = Codec         // >=HasMatches means rules can get jobs by matching
 //	,	HasTargets = InfiniteDep   // >=HasTargets means targets field exists
 //	} ;
