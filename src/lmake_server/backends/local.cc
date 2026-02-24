@@ -171,7 +171,7 @@ namespace Backends::Local {
 			for( ::string const& a : cmd_line ) cmd_line_.push_back(a.c_str()) ;
 			/**/                                cmd_line_.push_back(nullptr  ) ;
 			// calling ::vfork is significantly faster as lmake_server is a heavy process, so walking the page table is a significant perf hit
-			::string    stderr_file  ;                        if (se.verbose) stderr_file = get_stderr_file(job) ;
+			::string    stderr_file  ;                        if (se.verbose) stderr_file = dir_guard(get_stderr_file(job)) ;
 			const char* stderr_c_str = stderr_file.c_str()  ;
 			pid_t       pid          = ::vfork()            ;                                                                          // NOLINT(clang-analyzer-security.insecureAPI.vfork)
 			// NOLINTBEGIN(clang-analyzer-unix.Vfork) allowed in Linux
