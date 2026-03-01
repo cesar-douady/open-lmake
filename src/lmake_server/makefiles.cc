@@ -184,6 +184,7 @@ namespace Engine::Makefiles {
 		::string tmp_dir_s = cat(_g_tmp_dir_s,action,'/')            ;
 		//
 		//
+		gather.method                     = AutodepMethod::DfltLd                                                                                                     ; // non-ld are not supported
 		gather.autodep_env                = Record::s_autodep_env()                                                                                                   ;
 		gather.autodep_env.fqdn           = fqdn()                                                                                                                    ;
 		gather.autodep_env.src_dirs_s     = {"/"}                                                                                                                     ;
@@ -423,7 +424,7 @@ namespace Engine::Makefiles {
 		//
 		_refresh( /*out*/msg , rescue , refresh_ , env , startup_dir_s ) ;
 		//
-		if ( first_time && !RegExpr::s_cache.steady() )
+		if ( first_time && g_writable && !RegExpr::s_cache.steady() )
 			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( serialize(RegExpr::s_cache) ) ;       }      // update persistent cache
 			catch (...) { Fd::Stderr.write(cat("cannot write reg expr cache (no consequences) to ",reg_exprs_file,'\n')) ; }      // perf only, ignore errors (e.g. read-only)
 		trace("done",msg) ;

@@ -15,9 +15,10 @@ using namespace Time ;
 ::string wstatus_str(int wstatus) {
 	if (WIFEXITED(wstatus)) {
 		int rc = WEXITSTATUS(wstatus) ;
-		if ( rc==0                               ) return     "ok"                                                        ;
-		if ( int sig=rc-128 ; sig>=0 && sig<NSIG ) return cat("exit ",rc," (could be signal ",sig,'-',strsignal(sig),')') ;
-		/**/                                       return cat("exit ",rc                                                ) ;
+		if ( rc==0                               ) return     "ok"                                                                    ;
+		if ( rc==128                             ) return cat("exit ",rc," (possibly process disappeared before being waited for"   ) ;
+		if ( int sig=rc-128 ; sig>=0 && sig<NSIG ) return cat("exit ",rc," (possibly killed with signal ",sig,'-',strsignal(sig),')') ;
+		/**/                                       return cat("exit ",rc                                                            ) ;
 	}
 	if (WIFSIGNALED(wstatus)) {
 		int sig = WTERMSIG(wstatus) ;

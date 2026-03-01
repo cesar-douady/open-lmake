@@ -241,7 +241,7 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 		- `L` : Local launch jobs
 		- `M` : job management
 		- `Q` : manage queries from clients
-		- 'P' : intermediate thread that launches ptrace'd children
+		- 'P' : intermediate thread that launches ptrace/seccomp'ed children
 		- `R` : deferred reports
 		- `S` : job start
 		- `T` : wait terminated processes in local backend

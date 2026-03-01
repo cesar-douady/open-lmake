@@ -19,24 +19,27 @@
 
 // START_OF_VERSIONING REPO CACHE
 // PER_AUTODEP_METHOD : add entry here
-// >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
+// >=Ld means a lib is pre-loaded
 // by default, use a compromize between speed an reliability
 enum class AutodepMethod : uint8_t {
 	None
 ,	Ptrace
-#if HAS_LD_AUDIT
-	,	LdAudit
+#if CAN_AUTODEP_SECCOMP
+	,	Seccomp
 #endif
 ,	LdPreload
 ,	LdPreloadJemalloc
-// aliases
 #if HAS_LD_AUDIT
-	,	Ld   = LdAudit
-	,	Dflt = LdAudit
-#else
-	,	Ld   = LdPreload
-	,	Dflt = LdPreload
+	,	LdAudit
 #endif
+// aliases
+,	Ld = LdPreload         // >=Ld means method is ld-based
+#if HAS_LD_AUDIT
+	,	DfltLd = LdAudit   // default value while ensuring it is of ld-based kind
+#else
+	,	DfltLd = LdPreload // .
+#endif
+,	Dflt = DfltLd          // default value, may be any method
 } ;
 // END_OF_VERSIONING
 
@@ -759,7 +762,6 @@ struct JobSpace {
 	,	::string   const&                  sub_repo_s
 	,	::vector_s const&                  src_dirs_s
 	,	bool                               kill_daemons
-	,	bool                               is_ld_audit
 	) ;
 	void exit() ;
 	//

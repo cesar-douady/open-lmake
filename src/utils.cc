@@ -124,7 +124,8 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 	if (+file_sync) return file_sync ;
 	//
 	const char*     dir_s_c = +dir_s?dir_s.c_str():"."                                          ;
-	struct ::statfs sfs     ;                                                                     throw_unless( ::statfs(dir_s_c,&sfs)==0 , "cannot stat (",StrErr(),") ",dir_s_c,rm_slash) ;
+	struct ::statfs sfs     ;
+	int             rc      = ::statfs(dir_s_c,&sfs)                                            ; throw_unless( rc==0 , "cannot stat (",StrErr(),") ",dir_s_c,rm_slash) ;
 	ulong           typ     = sfs.f_type                                                        ;
 	auto            it      = ::lower_bound( Tab.begin() , Tab.end() , ::pair(typ,FileSync()) ) ; // XXX/ : gcc-11 refuses it = ::lower_bound(Tab,{typ,{}}) ;
 	if ( it==Tab.end() || it->first!=typ ) {

@@ -3,7 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <elf.h>        // NT_PRSTATUS definition on ARM
 #include <sys/ptrace.h>
 #include <sys/user.h>
 
@@ -11,9 +10,7 @@
 
 #include "non_portable.hh"
 
-#if HAS_PTRACE_GET_SYSCALL_INFO
-	#include <linux/audit.h>    // AUDIT_ARCH_*
-#endif
+#include <linux/audit.h>    // AUDIT_ARCH_*
 
 #if !(__x86_64__||__i386__||__aarch64__||__arm__||__s390__||__s390x__)
 	#error "unknown architecture"                                      // if situation arises, please provide the adequate code using other cases as a template
@@ -33,27 +30,53 @@ using Iovec          = struct ::iovec            ;
 	using Word = decltype(UserRegsStruct().gprs[0]) ;
 #endif
 
-#if HAS_PTRACE_GET_SYSCALL_INFO
-	uint32_t np_word_sz_from_arch(uint32_t arch) {
-		switch (arch) {
-			case AUDIT_ARCH_I386    :
-			case AUDIT_ARCH_ARM     :
-			case AUDIT_ARCH_S390    : return 32 ; break ;
-			case AUDIT_ARCH_X86_64  :
+uint8_t np_word_sz_from_audit_arch(uint32_t arch) {
+	switch (arch) {
+		#ifdef AUDIT_ARCH_I386
+			case AUDIT_ARCH_I386 :
+		#endif
+		#ifdef AUDIT_ARCH_ARM
+			case AUDIT_ARCH_ARM :
+		#endif
+		#ifdef AUDIT_ARCH_S390
+			case AUDIT_ARCH_S390 :
+		#endif
+		return 32 ;
+		#ifdef AUDIT_ARCH_X86_64
+			case AUDIT_ARCH_X86_64 :
+		#endif
+		#ifdef AUDIT_ARCH_AARCH64
 			case AUDIT_ARCH_AARCH64 :
-			case AUDIT_ARCH_S390X   : return 64 ; break ;
-			default                 : FAIL_PROD("unexpected arch",arch) ;    // NO_COV
-		}
+		#endif
+		#ifdef AUDIT_ARCH_S390X
+			case AUDIT_ARCH_S390X :
+		#endif
+		return 64 ;
+		default : return 0 ;                                       // NO_COV
 	}
-#endif
+}
+
+uint8_t np_word_sz_from_elf(const char* elf_hdr) {
+	if (::strncmp(elf_hdr,"\177ELF",4)!=0) return  0 ;                                  // not an elf
+	switch (elf_hdr[EI_CLASS]) {
+		case ELFCLASS64 : return 64 ;
+		case ELFCLASS32 : break     ;                                                   // need to further analyze to mange -mx32 mode which appears as 32-bits elf with 64-bits architecture
+		default         : return  0 ;                                                   // not an elf (or at least not reconizable)
+	}
+	if (reinterpret_cast<Elf32_Ehdr const*>(elf_hdr)->e_machine==EM_X86_64) return 64 ; // -mx32
+	else                                                                    return 32 ; // real 32-bits
+}
 
 template<bool Set> static void _get_set( pid_t pid , [[maybe_unused]] int n_words , UserRegsStruct&/*inout*/ regs ) {
+	errno = 0 ;
 	#if __aarch64__ || __arm__
-		Iovec iov { .iov_base=&regs , .iov_len=n_words*sizeof(Word) } ;                                                                                          // read/write n_words registers
-		throw_unless( ::ptrace( Set?PTRACE_SETREGSET:PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov )==0 , "cannot ",Set?"set":"get",' ',n_words," regs" ) ;
-		SWEAR_PROD( iov.iov_len==n_words*sizeof(Word) , iov.iov_len ) ; // check all asked regs have been handled
+		Iovec iov { .iov_base=&regs , .iov_len=n_words*sizeof(Word) }                                   ; // read/write n_words registers
+		long  rc  = ::ptrace( Set?PTRACE_SETREGSET:PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
+		throw_unless( rc==0 , "cannot ",Set?"set":"get"," (",StrErr(),") ",n_words," regs" ) ;
+		SWEAR_PROD( iov.iov_len==n_words*sizeof(Word) , iov.iov_len ) ;                                   // check all asked regs have been handled
 	#else
-		throw_unless( ::ptrace( Set?PTRACE_SETREGS:PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs )==0 , "cannot ",Set?"set":"get"," regs") ;
+		long rc = ::ptrace( Set?PTRACE_SETREGS:PTRACE_GETREGS , pid , nullptr/*addr*/ , &regs ) ;
+		throw_unless( rc==0 , "cannot ",Set?"set":"get"," (",rc,',',StrErr(),") regs" ) ;
 	#endif
 }
 static UserRegsStruct _get( pid_t pid , int n_words                        ) { UserRegsStruct regs={/*zero*/} ; _get_set<false/*Set*/>(pid,n_words,       regs) ; return regs ; }

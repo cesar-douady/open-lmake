@@ -457,13 +457,14 @@ void JobRpcReq::chk(bool for_cache) const {
 	return                       os <<')'                                                        ;
 }                                                                                                  // END_OF_NO_COV
 
-static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; throw_unless( ::chroot(dir.c_str())==0 , "cannot chroot to ",dir,rm_slash," : ",StrErr() ) ; }
-static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; throw_unless( ::chdir (dir.c_str())==0 , "cannot chdir to " ,dir,rm_slash," : ",StrErr() ) ; }
+static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; int rc = ::chroot(dir.c_str()) ; throw_unless( rc==0 , "cannot chroot to ",dir,rm_slash," : ",StrErr() ) ; }
+static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; int rc = ::chdir (dir.c_str()) ; throw_unless( rc==0 , "cannot chdir to " ,dir,rm_slash," : ",StrErr() ) ; }
 
 // tmpfs is not used, but keep code in case it becomes necessary
 [[maybe_unused]] static void _mount_tmp( ::string const& dst , size_t sz , ::vector<UserTraceEntry>&/*inout*/ user_trace ) { // dst must be dir
 	Trace trace("_mount_tmp",dst) ;
-	throw_unless( ::mount( nullptr/*src*/ , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() )==0 , "cannot mount tmp ",dst,rm_slash," of size ",sz," : ",StrErr() ) ;
+	int rc = ::mount( nullptr/*src*/ , dst.c_str() , "tmpfs" , 0/*flags*/ , cat("size=",sz).c_str() ) ;
+	throw_unless( rc==0 , "cannot mount tmp ",dst,rm_slash," of size ",sz," : ",StrErr() ) ;
 	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Tmp , no_slash(dst) ) ;
 }
 // size must be large enough but is not allocated
@@ -498,7 +499,8 @@ static void _mount_bind( ::string const& dst , ::string const& src , ::vector<Us
 
 static void _mount_proc( ::string const& dst , ::vector<UserTraceEntry>&/*inout*/ user_trace ) {
 	Trace trace("_mount_proc",dst) ;
-	throw_unless( ::mount( nullptr/*src*/ , dst.c_str() , "proc" , 0/*flags*/ , nullptr/*data*/ )==0 , "cannot mount proc ",dst," : ",::getpid(),' ',StrErr() ) ;
+	int rc = ::mount( nullptr/*src*/ , dst.c_str() , "proc" , 0/*flags*/ , nullptr/*data*/ ) ;
+	throw_unless( rc==0 , "cannot mount proc ",dst," : ",::getpid(),' ',StrErr() ) ;
 	user_trace.emplace_back( New/*date*/ , Comment::mount , CommentExt::Proc , no_slash(dst) ) ;
 }
 
@@ -639,9 +641,8 @@ void JobSpace::enter(
 ,	::string   const&                  sub_repo_s
 ,	::vector_s const&                  src_dirs_s
 ,	bool                               kill_daemons
-,	bool                               is_ld_audit
 ) {
-	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s,STR(kill_daemons),STR(is_ld_audit)) ;
+	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s,STR(kill_daemons)) ;
 	//
 	bool need_chroot = +self || +chroot_info.dir_s ;
 	repo_root_s = repo_view_s | phy_repo_root_s ;
@@ -721,9 +722,9 @@ void JobSpace::enter(
 	trace("creat1",STR(_force_creat),STR(bind_lmake),STR(bind_repo),STR(bind_tmp),STR(creat),STR(kill_daemons),uid,gid) ;
 	trace("creat2",lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s                                                    ) ;
 	int unshare_flags = CLONE_NEWUSER | CLONE_NEWNS ; if (kill_daemons) unshare_flags |= CLONE_NEWPID ;
-	//            vvvvvvvvvvvvvvvvvvvvvvvv
-	throw_unless( ::unshare(unshare_flags)==0 , "cannot create mount namespace : ",StrErr() ) ;
-	//            ^^^^^^^^^^^^^^^^^^^^^^^^
+	//                  vvvvvvvvvvvvvvvvvvvvvvvv
+	int rc            = ::unshare(unshare_flags) ; throw_unless( rc==0 , "cannot create mount namespace : ",StrErr() ) ;
+	//                  ^^^^^^^^^^^^^^^^^^^^^^^^
 	if (kill_daemons) {
 		trace("kill_daemons") ;
 		if ( pid_t pid=::fork() ; pid!=0 ) {                                                    // in parent, /!\ must be first fork() after unshare as this is process 1 in namespace
@@ -1170,6 +1171,7 @@ void JobStartRpcReply::_mk_lmake_version() {
 	}
 	try {
 		[[maybe_unused]] bool has_ld_audit = false ;
+		[[maybe_unused]] bool has_seccomp  = false ;
 		uint64_t              v_job        = 0     ;
 		for( ::string const& line : AcFd(phy_lmake_root_s+"_lib/version.py",{.err_ok=true}).read_lines() ) {
 			if (line[0]=='#') continue ;
@@ -1177,7 +1179,9 @@ void JobStartRpcReply::_mk_lmake_version() {
 			::string key = strip(line.substr(0    ,pos)) ;
 			::string val = strip(line.substr(pos+1    )) ;
 			switch (key[0]) {
-				case 'h' : if (key=="has_ld_audit"       ) has_ld_audit                      = (val=="True")              ; break ;
+				case 'h' : if (key=="has_ld_audit"       ) has_ld_audit                      = (val=="True")              ;
+				else       if (key=="has_seccomp"        ) has_seccomp                       = (val=="True")              ;
+				break ;
 				case 'j' : if (key=="job"                ) v_job                             = from_string<uint64_t>(val) ; break ;
 				case 'p' : if (key=="py_ld_library_path" ) lmake_version.py_ld_library_path  = val.substr(1,val.size()-2) ;         // suppress quotes
 				else       if (key=="py2_ld_library_path") lmake_version.py2_ld_library_path = val.substr(1,val.size()-2) ;         // .
@@ -1193,6 +1197,9 @@ void JobStartRpcReply::_mk_lmake_version() {
 		throw_unless( +lmake_version.std_path , "standard PATH not found"                                ) ;
 		#if HAS_LD_AUDIT
 			if (method==AutodepMethod::LdAudit) throw_unless( has_ld_audit , "ld_audit is not supported as autodep method" ) ;
+		#endif
+		#if HAS_SECCOMP
+			if (method==AutodepMethod::Seccomp) throw_unless( has_seccomp  , "seccomp is not supported as autodep method"  ) ;
 		#endif
 	} catch (::string const& e) {
 		throw cat("cannot execute job with incompatible open-lmake (",e,") as per file _lib/version.py in root dir ",phy_lmake_root_s,rm_slash) ;
@@ -1229,13 +1236,7 @@ void JobStartRpcReply::enter(
 	,	         chroot_info
 	,	         autodep_env.sub_repo_s
 	,	         autodep_env.src_dirs_s
-	,		     kill_daemons
-	,
-		#if HAS_LD_AUDIT
-			method==AutodepMethod::LdAudit
-		#else
-			false
-		#endif
+	,	         kill_daemons
 	) ;
 	trace("done",accesses,repo_root_s) ;
 }

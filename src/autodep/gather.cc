@@ -6,7 +6,7 @@
 #include "app.hh"
 #include "thread.hh"
 
-#include "ptrace.hh"
+#include "ptrace_seccomp.hh"
 #include "record.hh"
 
 #include "gather.hh"
@@ -336,16 +336,21 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=
 	_n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ;
 }
 
-void Gather::_ptrace_child( Fd report_fd , ::latch* ready ) {
-	t_thread_key = 'P' ;
-	AutodepPtrace::s_init(autodep_env) ;
-	_child.pre_exec = AutodepPtrace::s_prepare_child  ;
+void Gather::_trace_child( Fd report_fd , ::latch* ready ) {
+	t_thread_key = 'T' ;
+	Record::s_autodep_env(autodep_env) ;
+	switch (method) {
+		/**/                    case AutodepMethod::Ptrace  : _child.pre_exec = AutodepPtrace ::prepare_child ; break ;
+		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : _child.pre_exec = AutodepSeccomp::prepare_child ; break ; )
+	DF}
 	//vvvvvvvvvvvv
 	_child.spawn() ;                                                            // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
 	//^^^^^^^^^^^^
 	ready->count_down() ;                                                       // signal main thread that _child.pid is available
-	AutodepPtrace autodep_ptrace{_child.pid} ;
-	wstatus = autodep_ptrace.process() ;
+	switch (method) {
+		/**/                    case AutodepMethod::Ptrace  : wstatus = AutodepPtrace ::process(_child.pid) ; break ;
+		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : wstatus = AutodepSeccomp::process(_child.pid) ; break ; )
+	DF}
 	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ; // report child end
 	Record::s_close_reports() ;
 }
@@ -363,7 +368,7 @@ Fd Gather::_spawn_child() {
 	//
 	Trace trace("_spawn_child",child_stdin,child_stdout,child_stderr,method,autodep_env) ;
 	//
-	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                     // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                   // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
 	_child.as_session = as_session                            ;
 	_child.nice       = nice                                  ;
 	_child.stdin      = child_stdin                           ;
@@ -372,10 +377,11 @@ Fd Gather::_spawn_child() {
 	// PER_AUTODEP_METHOD : handle case
 Retry :
 	switch (method) {
-		case AutodepMethod::Ptrace : {
+		/**/                    case AutodepMethod::Ptrace  :
+		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : ) {
 			// we split the responsability into 2 threads :
 			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
-			// - child launches target process using ptrace and watches it using direct wait (without signalfd) then report deps using normal socket report
+			// - child launches target process and watches it using direct wait then report deps using normal socket report
 			AcPipe pipe { New , 0/*flags*/ , true/*no_std*/ } ;
 			res       = pipe.read .detach() ;
 			report_fd = pipe.write.detach() ;
@@ -385,9 +391,10 @@ Retry :
 		#endif
 		case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; env_val = lmake_root_s + "_d$LIB/ld_preload.so"          ; break ;
 		case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; env_val = lmake_root_s + "_d$LIB/ld_preload_jemalloc.so" ; break ;
+		case AutodepMethod::None              :                                                                                     break ;
 		default :
-			SWEAR( !retried , method ) ;                                            // ensure no infinite loop
-			method  = AutodepMethod::Dflt ;                                         // fall-back if method is not supported, which can occur with chroot'ed jobs
+			SWEAR( !retried , method ) ;                                          // ensure no infinite loop
+			method  = AutodepMethod::Dflt ;                                       // fall-back if method is not supported, which can occur with chroot'ed jobs
 			retried = true                ;
 			goto Retry/*BACKWARD*/ ;
 	}
@@ -397,15 +404,15 @@ Retry :
 		else     { if (has_env      (env_var,false/*empty_ok*/)) entry << ':'<<get_env(env_var) ; }
 		trace("ld",method,env_var,entry) ;
 	}
-	start_date      = New                    ;                                      // record job start time as late as possible
+	start_date      = New                    ;                                    // record job start time as late as possible
 	_child.cmd_line = cmd_line               ;
 	_child.env      = env                    ;
 	_child.add_env  = &_add_env              ;
 	_child.cwd_s    = autodep_env.sub_repo_s ;
-	if (method==AutodepMethod::Ptrace) {
+	if (+res) {
 		::latch ready { 1 } ;
-		_ptrace_thread = ::jthread( _s_ptrace_child , this , report_fd , &ready ) ; // /!\ _child must be spawned from tracing thread
-		ready.wait() ;                                                              // wait until _child.pid is available
+		_trace_thread = ::jthread( _s_trace_child , this , report_fd , &ready ) ; // /!\ _child must be spawned from tracing thread
+		ready.wait() ;                                                            // wait until _child.pid is available
 	} else {
 		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
 		//vvvvvvvvvvvv
@@ -413,7 +420,7 @@ Retry :
 		//^^^^^^^^^^^^
 	}
 	trace("child_pid",_child.pid) ;
-	return res ;                                                                    // used with fanotify and ptrace
+	return res ;                                                                  // used with fanotify and ptrace
 }
 
 Status Gather::exec_child() {
@@ -465,9 +472,9 @@ Status Gather::_exec_child() {
 		if ( sig && _child.pid>1 ) kill_process(_child.pid,sig,as_session/*as_group*/) ;
 		//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		set_status(Status::Killed) ;
-		if      (kill_step==kill_sigs.size()) end_kill = Pdate::Future       ;
-		else if (end_kill==Pdate::Future    ) end_kill = now      + Delay(1) ;
-		else                                  end_kill = end_kill + Delay(1) ;
+		if      (kill_step==kill_sigs.size()) { end_kill = Pdate::Future       ; end_child = now + Delay(1) ; }
+		else if (end_kill==Pdate::Future    )   end_kill = now      + Delay(1) ;
+		else                                    end_kill = end_kill + Delay(1) ;
 		_user_trace( now , Comment::Kill , cat(sig) ) ;
 		kill_step++ ;
 		trace("kill_done",end_kill) ;
@@ -512,7 +519,6 @@ Status Gather::_exec_child() {
 	for(;;) {
 		Pdate now = New ;
 		if (now>=end_child) {
-			SWEAR( !_wait[Kind::ChildEnd] , _wait,end_child ) ;
 			_user_trace( now , Comment::StillAlive ) ;
 			::string dead  = ( (now-end_child) + network_delay + Delay(1) ).short_str() ;
 			if ( _wait[Kind::Stdout] || _wait[Kind::Stderr] ) {
@@ -605,11 +611,11 @@ Status Gather::_exec_child() {
 				trace("started","wait",_wait,+epoll) ;
 				started = true ;
 				//
-				if (child_stdout==Child::PipeFd  ) { epoll.add_read( _child.stdout , Kind::Stdout     ) ; _wait |= Kind::Stdout   ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
-				if (child_stderr==Child::PipeFd  ) { epoll.add_read( _child.stderr , Kind::Stderr     ) ; _wait |= Kind::Stderr   ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
-				if (method==AutodepMethod::Ptrace) { epoll.add_read( notify_fd     , Kind::ChildEndFd ) ; _wait |= Kind::ChildEnd ; trace("read_ptrace    ",notify_fd     ,"wait",_wait,+epoll) ; }
-				else                               { epoll.add_pid ( _child.pid    , Kind::ChildEnd   ) ; _wait |= Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
-				/**/                                 epoll.add_read( job_master_fd , Kind::JobMaster  ) ;                           trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
+				if ( child_stdout==Child::PipeFd         ) { epoll.add_read(_child.stdout,Kind::Stdout    ) ; _wait|=Kind::Stdout   ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
+				if ( child_stderr==Child::PipeFd         ) { epoll.add_read(_child.stderr,Kind::Stderr    ) ; _wait|=Kind::Stderr   ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
+				if ( +method && method<AutodepMethod::Ld ) { epoll.add_read(notify_fd    ,Kind::ChildEndFd) ; _wait|=Kind::ChildEnd ; trace("read_ptrace    ",notify_fd     ,"wait",_wait,+epoll) ; }
+				else                                       { epoll.add_pid (_child.pid   ,Kind::ChildEnd  ) ; _wait|=Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
+				/**/                                         epoll.add_read(job_master_fd,Kind::JobMaster ) ;                         trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
 				_wait &= ~Kind::ChildStart ;
 			} else if (!must_wait) {
 				break ;                                          // we are done, exit loop
@@ -658,11 +664,11 @@ Status Gather::_exec_child() {
 					if (kind==Kind::ChildEnd) { ::waitpid(_child.pid,&ws,0/*flags*/) ;                    wstatus = ws      ; } // wstatus is atomic, cant take its addresss as a int*
 					else                      { int cnt=::read(fd,&::ref(char()),1) ; SWEAR(cnt==1,cnt) ; ws      = wstatus ; } // wstatus is already set, just flush fd
 					trace(kind,fd,_child.pid,ws) ;
-					SWEAR_PROD( !WIFSTOPPED(ws) , _child.pid ) ;                       // child must have ended if we are here
+					SWEAR_PROD( !WIFSTOPPED(ws) , kind,ws,_child.pid ) ;               // child must have ended if we are here
 					//
-					end_date   = New                                ;
-					_wait     &= ~Kind::ChildEnd                    ;
-					end_child  = end_date + network_delay +Delay(1) ;                  // wait at most network_delay (+ 1s for our own processing) for reporting & stdout & stderr to settle down
+					end_date   = New                                 ;
+					_wait     &= ~Kind::ChildEnd                     ;
+					end_child  = end_date + network_delay + Delay(1) ;                 // wait at most network_delay (+ 1s for our own processing) for reporting & stdout & stderr to settle down
 					_user_trace( end_date , Comment::EndJob , to_hex(uint16_t(ws)) ) ;
 					//
 					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
@@ -753,7 +759,6 @@ Status Gather::_exec_child() {
 									ces |= CommentExt::Killed ;
 									set_status( Status::ChkDeps , cat(is_target?"pre-existing target":"waiting dep"," : ",jmrr.txt) ) ;
 									kill() ;
-									rfd = {} ;                                                                                 // dont reply to ensure job waits if sync
 								break ;
 								case No :
 									ces |= CommentExt::Err ;
@@ -784,11 +789,11 @@ Status Gather::_exec_child() {
 						// in that case, dont reply and job will be killed
 						JobExecRpcReply jerr ;
 						switch (jmrr.proc) {
-							case JobMngtProc::None       :                                                                                                      break ;
-							case JobMngtProc::ChkDeps    : if (jmrr.ok!=Maybe) jerr = { .proc=Proc::ChkDeps    , .ok=jmrr.ok                                } ; break ; // cf above
-							case JobMngtProc::DepDirect  : if (jmrr.ok!=Maybe) jerr = { .proc=Proc::DepDirect  , .ok=jmrr.ok                                } ; break ; // .
-							case JobMngtProc::DepVerbose :                     jerr = { .proc=Proc::DepVerbose , .verbose_infos=::move(jmrr.verbose_infos ) } ; break ;
-						DF}                                                                                                                                             // NO_COV
+							case JobMngtProc::None       :                                                                                                          break ;
+							case JobMngtProc::ChkDeps    :                         jerr = { .proc=Proc::ChkDeps    , .ok=jmrr.ok                                } ; break ;
+							case JobMngtProc::DepDirect  : SWEAR(jmrr.ok!=Maybe) ; jerr = { .proc=Proc::DepDirect  , .ok=jmrr.ok                                } ; break ;
+							case JobMngtProc::DepVerbose :                         jerr = { .proc=Proc::DepVerbose , .verbose_infos=::move(jmrr.verbose_infos ) } ; break ;
+						DF}                                                                                                                                                 // NO_COV
 						trace("reply",jerr) ;
 						//         vvvvvvvvvvvvvvvvvvvvvvvvvv
 						if (+jerr) sync( rfd , ::move(jerr) ) ;

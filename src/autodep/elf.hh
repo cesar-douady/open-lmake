@@ -156,7 +156,7 @@ inline Elf::DynDigest::DynDigest( Dyn const* dyn_tab , FileMap const& file_map )
 		switch (dyn->d_tag) {
 			case DT_RPATH   : SWEAR_PROD(!rpath  ) ; rpath   = s ; break ;
 			case DT_RUNPATH : SWEAR_PROD(!runpath) ; runpath = s ; break ;
-			case DT_NEEDED  : if (*s) neededs.push_back(s) ;  break ;
+			case DT_NEEDED  : if (*s) neededs.push_back(s) ;       break ;
 			default : continue ;
 		}
 		if (s>=str_tab_end) throw 9 ;               // dyn entry name outside string tab

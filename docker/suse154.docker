@@ -27,7 +27,6 @@ RUN zypper install -y tar
 # optional
 RUN zypper install -y clang
 RUN zypper install -y gdb
-RUN zypper install -y libseccomp-devel
 RUN zypper install -y pcre2-devel
 RUN zypper install -y slurm-devel
 RUN zypper install -y strace

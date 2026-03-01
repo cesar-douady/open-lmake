@@ -23,9 +23,8 @@ RUN \
 			python3 python3-devel        \
 			wget                         \
 			#optional
-			libseccomp libseccomp-devel \
-			pcre2 pcre2-devel           \
-			strace                      \
+			pcre2 pcre2-devel \
+			strace            \
 	&&	dnf clean all
 
 RUN     useradd --uid 1001 --home-dir /home/cdy cdy && chmod a+rx /home/cdy

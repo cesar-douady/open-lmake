@@ -21,7 +21,6 @@ Build-Depends:
  git,
  libpcre2-dev,
  libpcre2-8-0,
- libseccomp-dev,
  libzstd-dev,
  zlib1g,
  zlib1g-dev
@@ -38,7 +37,6 @@ Depends:
 # necessary if mentioned at build time, suppress if suppressed at build time
  git,
  libpcre2-8-0,
- libseccomp-dev,
  libzstd-dev,
  zlib1g,
  zlib1g-dev

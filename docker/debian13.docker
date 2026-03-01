@@ -21,14 +21,13 @@ RUN \
 			python3-dev     \
 			wget            \
 			# optional
-			clang          \
-			gdb            \
-			libpcre2-dev   \
-			libseccomp-dev \
-			libslurm-dev   \
-			procps         \
-			python3-venv   \
-			strace         \
+			clang        \
+			gdb          \
+			libpcre2-dev \
+			libslurm-dev \
+			procps       \
+			python3-venv \
+			strace       \
 			#
 			## necessary to build and install debian package
 			dh-make devscripts debhelper equivs apparmor dh-apparmor \

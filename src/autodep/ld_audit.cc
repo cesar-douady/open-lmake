@@ -30,7 +30,7 @@ inline bool started() { return true ; }
 
 #include "syscall_tab.hh"
 
-using Read = Record::Read<false/*Send*/,true/*ChkSimple*/> ;
+using Read = Record::Read<false/*Send*/,true/*SkipSimple*/> ;
 
 static bool _g_auditor_report_sent = false ;
 

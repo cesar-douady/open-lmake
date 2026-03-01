@@ -23,6 +23,9 @@ int main( int argc , char* argv[]) {
 		{ Flag::Delay , { .short_name='d' , .has_arg=true , .doc="delay after which to check for out-of-date/error deps"                 } }
 	,	{ Flag::Sync  , { .short_name='s' ,                 .doc="wait for server reply that previous deps are up-to-date with no error" } }
 	}} ;
+	//
+	app_init({ .chk_version=No , .trace=No }) ;
+	//
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }                                                       ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
 	Delay             delay    { from_string<double>( cmd_line.flag_args[+Flag::Delay] , true/*empty_ok*/ ) } ;
 	bool              sync     = cmd_line.flags[Flag::Sync]                                                   ;

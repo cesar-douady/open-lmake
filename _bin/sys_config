@@ -57,9 +57,9 @@ esac
 
 CXX=$(type -p $CXX)
 [ "$CXX" ] || { echo $CXX not found >>$ERR_FILE ; exit 1 ; }
-CXX_DIR=$(dirname $CXX)
+cxx_dir=$(dirname $CXX)
 
-cc() { PATH=$CXX_DIR:$PATH $CXX "$@" ; }
+cc() { PATH=$cxx_dir:$PATH $CXX "$@" ; }
 
 case $(cc --version | head -1) in
 	*clang*) CXX_FLAVOR=clang ;;  # gcov requires gcc
@@ -148,34 +148,29 @@ config_python "$PYTHON2" 2  || { echo "no python2 support ($msg)" >>$SUM_FILE ; 
 config_python "$PYTHON"  '' || { echo                      $msg   >>$ERR_FILE ; exit 1   ; }                                               # python3 is compulsory
 
 #
-# HAS_32 (HAS_32+LD_SO_LIB+LD_SO_LIB_32)
+# HAS_32 (HAS_32+HAS_X32+LD_SO_LIB+LD_SO_LIB_32)
 #
-if type -p strace >/dev/null ; then
-	show_lib() {
-		strace -E LD_PRELOAD='/>>>$LIB<<<' $1 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }'
-	}
-	cc      -o ld_so_lib    -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(   show_lib ./ld_so_lib   )
-	cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(show_lib ./ld_so_lib_32)
-	if [ "$LD_SO_LIB" = "$LD_SO_LIB_32" ] ; then
-		echo "cannot distinguish 32 and 64 bits exe" >>$ERR_FILE
-		HAS_32=0
-	elif [ "$LD_SO_LIB" -a "$LD_SO_LIB_32" ] ; then
-		HAS_32=1
-	elif [ "$LD_SO_LIB" ] ; then
-		HAS_32=0
-		echo "no 32 bits support" >>$SUM_FILE
-	else
-		echo "unsupported 32 bits system" >>$ERR_FILE
-		exit 1
-	fi
+type -p strace >/dev/null || {
+	echo "strace not available" >>$ERR_FILE
+	exit 1
+}
+show_lib() {
+	strace -E LD_PRELOAD='/>>>$LIB<<<' $1 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }'
+}
+cc -o ld_so_lib -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(show_lib ./ld_so_lib)
+[ "$LD_SO_LIB" ] || {
+	echo "cannot determine $LIB substitution by ld.so" >>$ERR_FILE
+	exit 1
+}
+HAS_32=0
+HAS_X32=0
+if [ "$(getconf LONG_BIT)" != 64 ] ; then
+	echo "running on 32 bits system" >>$SUM_FILE
 else
-	if cc -m64 -o ld_so_lib -xc++ - <<< 'int main(){}' ; then
-		HAS_32=0
-		LD_SO_LIB=lib64                                                                   # this seems to work on all known 64 bits systems
-		echo "strace not available, assuming \$LIB=$LD_SO_LIB for LD_PRELOAD" >>$SUM_FILE
-	else
-		echo "unsupported 32 bits system" >>$ERR_FILE
-		exit 1
+	cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(show_lib ./ld_so_lib_32)
+	if   [ ! "$LD_SO_LIB_32"                ] ; then echo "no 32 bits support"                    >>$SUM_FILE
+	elif [   "$LD_SO_LIB_32" = "$LD_SO_LIB" ] ; then echo "cannot distinguish 32 and 64 bits exe" >>$ERR_FILE
+	else                                             HAS_32=1
 	fi
 fi
 
@@ -197,8 +192,8 @@ HAS_ACL=$(ok cc -o /dev/null -xc acl.c)
 # ADDR2LINE (ADDR2LINE)
 #
 case $CXX_FLAVOR in
-	gcc  ) ADDR2LINE=$CXX_DIR/addr2line      ;;
-	clang) ADDR2LINE=$CXX_DIR/llvm-addr2line ;;
+	gcc  ) ADDR2LINE=$cxx_dir/addr2line      ;;
+	clang) ADDR2LINE=$cxx_dir/llvm-addr2line ;;
 esac
 [ -x "$ADDR2LINE" ] || ADDR2LINE=$(type -p addr2line ||:)
 
@@ -315,8 +310,8 @@ HAS_MEMFD=$(ok cc -o /dev/null -xc memfd.c) # check if memfd_create is available
 # OBJCOPY
 #
 case $CXX_FLAVOR in
-	gcc  ) OBJCOPY=$CXX_DIR/objcopy      ;;
-	clang) OBJCOPY=$CXX_DIR/llvm-objcopy ;;
+	gcc  ) OBJCOPY=$cxx_dir/objcopy      ;;
+	clang) OBJCOPY=$cxx_dir/llvm-objcopy ;;
 esac
 [ -x "$OBJCOPY" ] || OBJCOPY=$(type -p objcopy ||:)
 
@@ -380,24 +375,41 @@ cat <<-"EOF" >get_syscall_info.c
 		long rx = ptrace(PTRACE_GET_SYSCALL_INFO,0,0,0) ;
 	}
 EOF
-	HAS_PTRACE_GET_SYSCALL_INFO=$(ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o /dev/null -xc get_syscall_info.c )
+HAS_PTRACE_GET_SYSCALL_INFO=$(ok cc -c -idirafter /usr/include/linux -DMUST_UNDEF_PTRACE_MACROS=$MUST_UNDEF_PTRACE_MACROS -o /dev/null -xc get_syscall_info.c )
 
 #
-# SECCOMP (HAS_SECCOMP)
-# test whether we have seccomp : warning, include <seccomp.h> is not enough to test, check its content too
+# RENAMEAT2 (HAS_RENAMEAT2)
 #
-cat <<"EOF" >seccomp.c
-	#include <seccomp.h>
-	struct scmp_version v ;
+cat <<-"EOF" >renameat2.c
+	#include <stdio.h>
 	int main() {
-		scmp_filter_ctx ctx ;
-		seccomp_syscall_priority(ctx,0,0) ;
+		return renameat2( 0 , "a" , 0 , "b" , 0 ) ;
 	}
 EOF
-# usually seccomp.h is in /usr/include (with an internal file /usr/include/linux/seccomp.h) but some systems have seccomp.h directly installed in /usr/include/linux
-HAS_SECCOMP=$(ok cc -idirafter /usr/include/linux -o /dev/null -xc seccomp.c -l:libseccomp.so.2 ) # check if seccomp_syscall_priority is available in lib
+HAS_RENAMEAT2=$(ok cc -o /dev/null -xc renameat2.c )
+
 #
-[ $HAS_SECCOMP = 1 ] || echo "no seccomp support, fall back to (slower when autodep=ptrace) ptrace to trace jobs" >>$SUM_FILE
+# SECCOMP (CAN_AUTODEP_SECCOMP)
+#
+cat <<-"EOF" >can_autodep_seccomp.c
+	#include <linux/seccomp.h>
+	#include <sys/pidfd.h>
+	#include <sys/syscall.h>
+	#include <unistd.h>
+	int main() {
+		int x =
+			SYS_seccomp                      ; // glib wrappers appear later, so we directly use syscall
+		+	SYS_pidfd_open                   ; // .
+		+	SYS_pidfd_getfd                  ; // .
+		+	SECCOMP_SET_MODE_FILTER          ;
+		+	SECCOMP_FILTER_FLAG_NEW_LISTENER ;
+		+	SECCOMP_RET_USER_NOTIF           ;
+		+	SECCOMP_USER_NOTIF_FLAG_CONTINUE ;
+		;
+		return x ;                             // use variable
+	}
+EOF
+CAN_AUTODEP_SECCOMP=$(ok cc -c -o /dev/null -xc can_autodep_seccomp.c )
 
 #
 # SINGLE_THREADED (HAS_SINGLE_THREADED)
@@ -500,22 +512,23 @@ cat >$MK_FILE <<-EOF
 	LMAKE_FLAGS   := $LMAKE_FLAGS
 	#
 	BASH                      := /bin/bash
+	CAN_AUTODEP_SECCOMP       := ${CAN_AUTODEP_SECCOMP#0}
 	CXX                       := $CXX
-	CXX_DIR                   := $CXX_DIR
 	CXX_FLAVOR                := $CXX_FLAVOR
 	CXX_STD                   := $CXX_STD
 	GCOV                      := $GCOV
 	GIT                       := $(type -p git)
 	HAS_32                    := ${HAS_32#0}
+	HAS_X32                   := ${HAS_X32#0}
 	HAS_LD_AUDIT              := ${HAS_LD_AUDIT#0}
 	HAS_PCRE                  := ${HAS_PCRE#0}
 	HAS_PY_DYN                := ${HAS_PY_DYN#0}
 	HAS_PY2_DYN               := ${HAS_PY2_DYN#0}
-	HAS_SECCOMP               := ${HAS_SECCOMP#0}
 	HAS_ZLIB                  := ${HAS_ZLIB#0}
 	HAS_ZSTD                  := ${HAS_ZSTD#0}
 	LD_SO_LIB                 := $LD_SO_LIB
 	LD_SO_LIB_32              := $LD_SO_LIB_32
+	LD_SO_LIB_X32             := $LD_SO_LIB_X32
 	LIB_STACKTRACE            := $LIB_STACKTRACE
 	LIB_STACKTRACE_32         := $LIB_STACKTRACE_32
 	LINK_LIB_PATH             := $LINK_LIB_PATH
@@ -553,6 +566,7 @@ cat >$H_FILE <<-EOF
 	#pragma once
 	//
 	#define ADDR2LINE                   "$ADDR2LINE"
+	#define CAN_AUTODEP_SECCOMP         $CAN_AUTODEP_SECCOMP
 	#define HAS_32                      $HAS_32
 	#define HAS_ACL                     $HAS_ACL
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
@@ -561,7 +575,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PCRE_ENDANCHORED        $HAS_PCRE_ENDANCHORED
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
-	#define HAS_SECCOMP                 $HAS_SECCOMP
+	#define HAS_RENAMEAT2               $HAS_RENAMEAT2
 	#define HAS_SINGLE_THREADED         $HAS_SINGLE_THREADED
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_H
 	#define HAS_UINT128                 $HAS_UINT128

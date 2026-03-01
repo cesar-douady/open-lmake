@@ -2606,7 +2606,12 @@ A special implementation has been devised to handle this case, but is too fragil
 In one case, we have seen a commercial tool reading <code>/proc/self/status</code> to detect such a <code>ptrace</code>ing process, and it stopped, thinking it was being reverse engineered.
 Curiously, it did not detect <code>$LD_PRELOAD</code>...</p>
 <p>The major drawback is performance wise: the impact is more significant as there is a context switch at each system call.
-<code>BPF</code> is used, if available, to decrease the number of useless context switches, but it does not allow to filter out on filename, so it is impossible to have an early ignore of system files.</p>
+<code>BPF</code> is used, to reduce the number of useless context switches, but it does not allow to filter out on filename, so it is impossible to have an early ignore of system files.</p>
+<h3 id="seccomp"><a class="header" href="#seccomp">seccomp</a></h3>
+<p>The principle is to use <a href="https://man7.org/linux/man-pages/man2/seccomp.2.html"><code>ptrace</code></a>.</p>
+<p>This is almost non-intrusive and has the potential to be totally transparent.</p>
+<p>The major drawback is performance wise: the impact is more significant as there is a context switch at each system call.
+<code>BPF</code> is used, to reduce the number of useless context switches, but it does not allow to filter out on filename, so it is impossible to have an early ignore of system files.</p>
 <h2 id="what-to-do-with-accesses"><a class="header" href="#what-to-do-with-accesses">What to do with accesses</a></h2>
 <p>There are 2 questions to solve :</p>
 <ul>

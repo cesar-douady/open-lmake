@@ -11,47 +11,46 @@ FROM centos:7
 # necessary to compile lmake
 #
 
-RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-Base.repo
-RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-fasttrack.repo
-RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-x86_64-kernel.repo
-RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-CR.repo
-RUN  yum install -y centos-release-scl
-RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo
-RUN  sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl.repo
+RUN \
+		sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-Base.repo          \
+	&&	sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-fasttrack.repo     \
+	&&	sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-x86_64-kernel.repo \
+	&&	sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-CR.repo            \
+	&&	yum install -y centos-release-scl                                                                                                            \
+	&&	sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo   \
+	&&	sed -i -e 's!^mirrorlist=!#mirrorlist=!' -e 's!^#\? *baseurl=http://mirror!baseurl=http://vault!' /etc/yum.repos.d/CentOS-SCLo-scl.repo
+	#
+	# build a minimal environment
+	#
+RUN yum install -y \
+	# compulsory
+	devtoolset-11         \
+	epel-release          \
+	git                   \
+	groff m4              \
+	python3 python3-devel \
+	strace                \
+	wget                  \
+	# optional
+	man                   \
+	pcre2 pcre2-devel
+	#glibc-devel.i686 libgcc.i686 gcc-toolset-11-libstdc++-devel.i686
+	#slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work
+	#
+	# not necessary for lmake
+	#
+	# necessary to compile slurm 23.11
+	#mariadb-client mariadb-shared mariadb-devel mariadb-server mariadb-backup
+	#munge-devel
+	#pam-devel
+	#'perl(ExtUtils::MakeMaker)'
+	#readline-devel
+	#rpm-build
+	#sudo
 
-# build a minimal environment
-
-# compulsory
-RUN yum install -y devtoolset-11
-RUN yum install -y epel-release
-RUN yum install -y git
-RUN yum install -y groff m4
-RUN yum install -y python3 python3-devel
-RUN yum install -y wget
-# optional
-#RUN yum install -y glibc-devel.i686 libgcc.i686 gcc-toolset-11-libstdc++-devel.i686
-#RUN yum install -y libseccomp
-RUN  yum install -y man
-RUN  yum install -y pcre2 pcre2-devel
-#RUN yum install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work
-#RUN yum install -y strace                                                  # try a docker without strace
-
-#
-# not necessary for lmake
-#
-
-# necessary to compile slurm 23.11
-#RUN yum install -y mariadb-client mariadb-shared mariadb-devel mariadb-server mariadb-backup
-#RUN yum install -y munge-devel
-#RUN yum install -y pam-devel
-#RUN yum install -y 'perl(ExtUtils::MakeMaker)'
-#RUN yum install -y readline-devel
-#RUN yum install -y rpm-build
-#RUN yum install -y sudo
-
-RUN     useradd --uid 1001 --home-dir /home/cdy  cdy  && chmod a+rx /home/cdy
-RUN     useradd --uid 1002 --home-dir /home/cdy2 cdy2 && chmod a+rx /home/cdy2
-RUN     echo 'cdy ALL = NOPASSWD: ALL' >> /etc/sudoers
+RUN \
+		useradd --uid 1001 --home-dir /home/cdy  cdy  && chmod a+rx /home/cdy \
+	&&	echo 'cdy ALL = NOPASSWD: ALL' >> /etc/sudoers
 USER    1001:1001
 WORKDIR /home/cdy
 ENV     USER=cdy

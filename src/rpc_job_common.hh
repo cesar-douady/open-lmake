@@ -192,6 +192,7 @@ enum class Comment : uint8_t {
 ,	execve                 , execveDep       , execveat          , execveatDep
 ,	execvp                 , execvpDep
 ,	execvpe                , execvpeDep
+,	exit                   , exit_group
 ,	                                           faccessat         , faccessat2
 ,	fchdir
 ,	                                           fchmodat
@@ -213,11 +214,11 @@ enum class Comment : uint8_t {
 ,	mkstemp                , mkstemp64
 ,	mkstemps               , mkstemps64
 ,	mount
-,	                                           name_to_handle_at
+,	                                           name_to_handle_at , open_handle_at
 ,	                                           newfstatat
 ,	oldlstat
 ,	oldstat
-,	open                   , open64          , openat            , openat64     , openat2
+,	open                   , open64          , openat            , openat64       , openat2
 ,	open_tree
 ,	opendir
 ,	readdir                , readdir64       , readdir_r         , readdir64_r

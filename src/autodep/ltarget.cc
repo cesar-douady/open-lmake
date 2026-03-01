@@ -57,6 +57,8 @@ int main( int argc , char* argv[]) {
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
 	::string          out      ;
 	//
+	app_init({ .chk_version=No , .trace=No }) ;
+	//
 	if (cmd_line.flags[Flag::List]) {
 		//
 		if ( cmd_line.args.size() > cmd_line.flags[Flag::Regexpr]                    ) syntax.usage("cannot list targets with args other than a single regexpr"                  ) ;

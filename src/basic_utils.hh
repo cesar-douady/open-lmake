@@ -202,10 +202,10 @@ template<class... A>              constexpr void swear_prod( bool cond , A const
 
 #define _FAIL_STR2(x) #x
 #define _FAIL_STR(x) _FAIL_STR2(x)
-#define FAIL(           ...) _fail      (       1,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " = ",)__VA_ARGS__)
-#define FAIL_PROD(      ...) _fail_prod (       1,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__            __VA_OPT__(,": " #__VA_ARGS__ " = ",)__VA_ARGS__)
-#define SWEAR(     cond,...) _swear     ((cond),1,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " = ",)__VA_ARGS__)
-#define SWEAR_PROD(cond,...) _swear_prod((cond),1,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in",__PRETTY_FUNCTION__,": " #cond __VA_OPT__(" : " #__VA_ARGS__ " = ",)__VA_ARGS__)
+#define FAIL(           ...) _fail      (       3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__             __VA_OPT__(," : " #__VA_ARGS__ " = ",) __VA_ARGS__)
+#define FAIL_PROD(      ...) _fail_prod (       3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__             __VA_OPT__(," : " #__VA_ARGS__ " = ",) __VA_ARGS__)
+#define SWEAR(     cond,...) _swear     ((cond),3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__," : " #cond __VA_OPT__( " : " #__VA_ARGS__ " = ",) __VA_ARGS__)
+#define SWEAR_PROD(cond,...) _swear_prod((cond),3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__," : " #cond __VA_OPT__( " : " #__VA_ARGS__ " = ",) __VA_ARGS__)
 
 #define DF default : FAIL() ; // for use at end of switch statements
 #define DN default :        ; // .
@@ -264,6 +264,8 @@ template<class T> using Iota1 = Iota<false   ,T> ;
 template<class T> using Iota2 = Iota<true    ,T> ;
 
 struct First {
+	// accesses
+	bool operator+() const { return _val ; }
 	// services
 	bool advance() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }
 	//

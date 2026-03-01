@@ -11,14 +11,6 @@
 
 #include "record.hh"
 
-enum class BackdoorErr : uint8_t {
-	Ok
-,	OfficialReadlinkErr // value -1 is the normal readlink error and we need to distinguish backdoor errors
-,	Fail
-,	PokeErr
-,	InternalErr
-} ;
-
 namespace Backdoor {
 
 	template<class T> struct Expected {
@@ -52,10 +44,10 @@ namespace Backdoor {
 			::string buf ( sz , 0 )                                                 ;
 			ssize_t  cnt = ::readlinkat( MagicFd , file.c_str() , buf.data() , sz ) ;                                  // try to go through autodep to process args
 			if (cnt<0)
-				switch (BackdoorErr(-cnt)) {
-					case BackdoorErr::PokeErr     : throw cat("cannot poke reply while ",args.descr()) ;
-					case BackdoorErr::InternalErr : throw cat("internal error while "   ,args.descr()) ;
-					case BackdoorErr::Fail        : {
+				switch (errno) {
+					case ECOMM        : throw cat("cannot poke reply while ",args.descr()) ;
+					case EPROTO       : throw cat("internal error while "   ,args.descr()) ;
+					case ECONNABORTED : {
 						size_t pos = buf.find(char(0)) ;
 						if (pos==Npos) {
 							if (sz>=4) buf.resize(sz-4) ;
@@ -64,11 +56,11 @@ namespace Backdoor {
 						if (pos==0) throw cat("cannot ",args.descr(                                   )) ;
 						else        throw cat("cannot ",args.descr(cat('(',substr_view(buf,0,pos),')'))) ;
 					} break ;
-					case BackdoorErr::OfficialReadlinkErr : {
+					default : {                                                                                        // non-magic error
 						Lock lock { Record::s_mutex } ;
 						return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                               // no autodep available, directly process args
 					}
-				DF}                                                                                                    // NO_COV
+				}                                                                                                      // NO_COV
 			SWEAR( size_t(cnt)<buf.size() , cnt,buf.size() ) ;
 			buf.resize(size_t(cnt)) ;
 			auto reply = deserialize<Expected<_Reply<T>>>(buf) ;
@@ -81,15 +73,15 @@ namespace Backdoor {
 	template<class T> ssize_t/*len*/ func( Record& r , ::string const& args_str , char* buf , size_t sz ) {
 		::string            parsed    ;
 		T                   cmd       ;
-		Expected<_Reply<T>> reply     { .ok=true }               ;
+		Expected<_Reply<T>> reply     { .ok=true } ;
 		::string            reply_str ;
-		BackdoorErr         err       = BackdoorErr::InternalErr ;
+		int                 err       = EPROTO     ;
 		::string            msg       ;
 		//
-		try { size_t pos=0 ; parsed    =parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"parse args") ; } catch (::string const& e) {                         msg=e ; goto Err ; }
-		try {                cmd       =deserialize<T>(parsed)        ;                                                   } catch (::string const& e) {                         msg=e ; goto Err ; }
-		try {                reply.data=cmd.process(r)                ;                                                   } catch (::string const& e) { err=BackdoorErr::Fail ; msg=e ; goto Err ; }
-		try {                reply_str =serialize(reply)              ;                                                   } catch (::string const& e) {                         msg=e ; goto Err ; }
+		try { size_t pos=0 ; parsed    =parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"parse args") ; } catch (::string const& e) {                    msg=e ; goto Err ; }
+		try {                cmd       =deserialize<T>(parsed)        ;                                                   } catch (::string const& e) {                    msg=e ; goto Err ; }
+		try {                reply.data=cmd.process(r)                ;                                                   } catch (::string const& e) { err=ECONNABORTED ; msg=e ; goto Err ; }
+		try {                reply_str =serialize(reply)              ;                                                   } catch (::string const& e) {                    msg=e ; goto Err ; }
 		//
 		if (reply_str.size()>=sz) {                             // if reply does not fit, replace with a short reply that provides the necessary size and caller will retry
 			reply.ok  = false            ;
@@ -101,7 +93,7 @@ namespace Backdoor {
 		return reply_str.size() ;
 	Err :
 		::memcpy( buf , msg.c_str() , ::min(sz,msg.size()+1 ) ) ;
-		return -+err ;
+		return -err ;
 	}
 
 	struct Enable {

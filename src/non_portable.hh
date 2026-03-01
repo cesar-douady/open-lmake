@@ -5,6 +5,8 @@
 
 #pragma once
 
+#include <elf.h>        // NT_PRSTATUS definition on ARM
+
 #include "std.hh"
 
 static constexpr char NpErrnoSymbolName[] = "__errno_location" ; // XXX! : find a way to stick to documented interfaces
@@ -15,11 +17,11 @@ static constexpr char NpErrnoSymbolName[] = "__errno_location" ; // XXX! : find 
 	static constexpr uint8_t NpWordSz = 32 ;
 #endif
 
-#if HAS_PTRACE_GET_SYSCALL_INFO
-	uint32_t np_word_sz_from_arch(uint32_t arch) ;
-#endif
+uint8_t np_word_sz_from_audit_arch(uint32_t arch) ;
+static constexpr size_t NpElfHdrSz = ::max<size_t>({ EI_CLASS+1 , EI_DATA+1 , offsetof(Elf32_Ehdr,e_machine)+2 , offsetof(Elf64_Ehdr,e_machine)+2 }) ;
+uint8_t np_word_sz_from_elf(const char* elf_hdr) ; // must point to the ElfHdrSz first bytes of a Elf32_Ehdr or a Elf64_Ehdr
 
-::array<uint64_t,6> np_ptrace_get_args( pid_t pid ,               uint8_t word_sz ) ; // word_sz must be 32 or 64
-int64_t             np_ptrace_get_res ( pid_t pid ,               uint8_t word_sz ) ; // .
-long                np_ptrace_get_nr  ( pid_t pid ,               uint8_t word_sz ) ; // .
-void                np_ptrace_set_res ( pid_t pid , int64_t val , uint8_t word_sz ) ; // .
+::array<uint64_t,6> np_ptrace_get_args( pid_t pid ,               uint8_t word_sz=NpWordSz ) ; // word_sz must be 32 or 64
+int64_t             np_ptrace_get_res ( pid_t pid ,               uint8_t word_sz=NpWordSz ) ; // .
+long                np_ptrace_get_nr  ( pid_t pid ,               uint8_t word_sz=NpWordSz ) ; // .
+void                np_ptrace_set_res ( pid_t pid , int64_t val , uint8_t word_sz=NpWordSz ) ; // .

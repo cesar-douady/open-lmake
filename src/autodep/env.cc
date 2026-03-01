@@ -27,8 +27,9 @@ namespace Codec {
 	CodecRemoteSide::CodecRemoteSide( NewType , ::string const& dir_s ) {
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
 		//
-		FileStat st ; throw_unless( ::lstat( +dir_s?dir_s.c_str():"." , &st )==0 , "cannot access (",StrErr(),") ",dir_s,rm_slash ) ;
-		/**/          throw_unless( S_ISDIR(st.st_mode)           , "not a dir : "                                ,dir_s,rm_slash ) ;
+		FileStat st ;
+		int      rc = ::lstat( +dir_s?dir_s.c_str():"." , &st ) ; throw_unless( rc==0               , "cannot access (",StrErr(),") ",dir_s,rm_slash ) ;
+		/**/                                                      throw_unless( S_ISDIR(st.st_mode) , "not a dir : "                 ,dir_s,rm_slash ) ;
 		umask = ~st.st_mode & 0777 ; // ensure permissions on top-level dir are propagated to all underlying dirs and files
 		//
 		::string init_msg  = cat("echo <val> >",dir_s,AdminDirS,"file_sync # with <val> being one of none, dir or sync") ;

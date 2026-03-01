@@ -29,7 +29,9 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::Context , { .short_name='x' , .has_arg=true , .doc="context used within file to store code-value association" } }
 	,	{ Flag::MinLen  , { .short_name='l' , .has_arg=true , .doc="min length of generated code from value"                  } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
+	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
+	//
+	app_init({ .chk_version=No , .trace=No }) ;
 	//
 	if (!cmd_line.flags[Flag::Table  ]) syntax.usage("must have file to store code-value association"   ) ;
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to store code-value association") ;

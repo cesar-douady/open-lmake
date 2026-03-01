@@ -16,6 +16,25 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* bug Alex
+	import lmake
+	from lmake.rules import Rule
+	class Pip(Rule) :
+		targets = {
+			'PIP'  : 'BUILD/venv/bin/pip'
+		,	'VENV' : 'BUILD/venv'
+		}
+		cmd = 'python3 -m venv BUILD/venv'
+	class Conan(Rule) :
+		targets = {
+			'CONAN' : 'BUILD/venv/bin/conan'
+		,	'VENV'  : 'BUILD/venv'
+		}
+		deps = {'PIP' : 'BUILD/venv/bin/pip' }
+		cmd  = './{PIP} install conan'
+
+	lmake BUILD/venv/bin/pip # Infinite loop
+	lmake BUILD/venv/bin/conan # Dirty crash (node.cc:402 switch on dir.buildable)
 * bug Thomas
 	- lmake step A
 		-> needs X
@@ -25,6 +44,10 @@ items (also used in XXX comments) :
 	- lmake step B
 		- needs step A
 	===>>> X not built
+* review name_to_handle_at and open_handle_at
+	- open_handle_at is missing
+	- name_to_handle_at must solve
+* ensure wine works with ld_preload
 ? seen once : server blocked
 	- seems to be while taking GIL
 
@@ -32,6 +55,9 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* add a consider when stems are incoherent between targets
+	- suggest use of STEM*
+* allow using strace with autodep=ptrace
 ! manage 32 bits executables with ptrace
 	- mode -mx32 seems easy
 		- mask out bit 30 of syscall number
@@ -66,6 +92,11 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* consider providing a unified stream stdout+stderr
+	- as an option to route stderr to stdout or vice versa
+* add tag to lmake --version
+* change name lmake.report_import into lmake.install_import_hook()
+	- consider message : ln -s .local/lib/python3.12/site-packages to ~lmake/blabla
 * improve dirty crash message
 	? ascii art congratulating user for discovering bug
 ! add a warning when ids reach 1/2 of their limits
@@ -92,6 +123,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* suppress dependency on strace
+	* write a small test based on ptrace
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
@@ -102,10 +135,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- while suspended, consider resources to be freed
 	- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 	- then resume participates to allocation competition
-? forbid accesses to files :
-	- /dev/random
-	- /dev/urandom
-	- /etc/passwd
 ? check files are conformant to config.link_support
 	- can only reasonably be done for none, is it worth ?
 	- each time it is mostly free (objective of this config is improved perf)
@@ -128,6 +157,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- contains -> bool
 	- then suppress accesses from deps
 	- compress dep as soon as crc is special and identical
+? forbid accesses to files :
+	- /dev/random
+	- /dev/urandom
+	- /etc/passwd
 ? protect against getpwnam, getpwuid and the like
 	- consider masking home dir with an adequate mount
 		- if repo is in home dir, generate a sub-mount if repo_view is not used
@@ -149,6 +182,21 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* consider rules taking locks :
+	- provide a llock command
+		- llock A B C sub-cmd
+	- ask lock to server
+	- a simple name with no physical existence
+	- could be shared or exclusive
+	- provide dead-lock prevention
+		- record in server which job hold which lock
+? provide a list of forbidden src dirs
+	- like src dirs, but access generates fail
+	- extend src dirs to files (allow to specify external srcs, allowed or forbidden)
+? implement action merge in chroot_dir
+	- merge user info with existing info
+	- not much heavier than user_name
+	- consider to simply extend user_name action to keep users existing in chroot image
 ? add a new autodep mechanism based on seccomp
 	- man 2 seccomp with SECCOMP_FILTER_FLAG_NEW_LISTENER
 	- man 2 seccomp_unotify
@@ -175,11 +223,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- this is a kind of forward build
 ? process fstat and decrease accesses in open as do not anticipate fstat
 	- unclear it is better as fstat is quite common and most of the time, open implies full dep anyway
-? add flags to chroot_dir
-	- implement action merge
-? provide a list of forbidden src dirs
-	- like src dirs, but access generates fail
-	- extend src dirs to files (allow to specify external srcs, allowed of forbidden)
 ? provide an attribute to manage cases where repo is not seen in the same dir on remote hosts
 	- as a function that takes the executing host as argument
 ? provide a wrapper to launch job_exec
@@ -189,6 +232,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- as there is an implicit dir listing underneath
 	- on the other hand, deps are recorded to all of them
 ? add dep to link target when generating a sym link as target
+	- very easy to do at user level
+	- if opt-in, opting in is not significantly lighter than doing it at user level
 ? add option to lcollect
 	- unlink all out-of-date files
 ? implement target priority
@@ -214,8 +259,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- redirect to stdout
 	- hide it (still accessible in lshow -e)
 	? rename stderr_ok to stderr
-? provide only visibility to system+repo+tmp to jobs
-	- how to identify system ?
+? provide only visibility to system+repo+tmp+src_dirs to jobs
 ? allow dynamic attribute functions to have inherited values (passing inherited value as argument)
 	- maybe not strictly necessary, but this is what is done for cmd
 ? implement a compilation rule py->pyc
@@ -335,8 +379,9 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
-* make a tutorial
+* document autodep=seccomp
 * give an example of Rule using the paths attribute
+*! make a tutorial
 ? add hard limits
 	- rules, targets, deps, rscrs, nodes, jobs...
 
@@ -344,6 +389,7 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
+* test -mx32 mode
 * test chroot actions
 * test chroot&mount not allowed unless mount_chroot_ok
 * improve cache test coverage

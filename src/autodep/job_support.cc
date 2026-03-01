@@ -59,7 +59,9 @@ namespace JobSupport {
 	}
 
 	Bool3 chk_deps( Delay delay , bool sync ) {
-		return Backdoor::call<Backdoor::ChkDeps>({ .delay=delay , .sync=sync }) ;
+		Bool3 res = Backdoor::call<Backdoor::ChkDeps>({ .delay=delay , .sync=sync }) ;
+		if ( sync && res==Maybe ) ::pause() ;                                          // we have been killed, wait until we actually die
+		return res ;
 	}
 
 	::vector_s list( Bool3 write , ::optional_s&& dir , ::optional_s&& regexpr ) {

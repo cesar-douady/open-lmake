@@ -5,33 +5,35 @@
 
 #pragma once
 
-#include "utils.hh"
+#include <linux/filter.h>
 
 #include "rpc_job_exec.hh"
 
-#if HAS_SECCOMP
-	#include <linux/filter.h>
+#include "record.hh"
+
+#if CAN_AUTODEP_SECCOMP
+	#define IF_CAN_AUTODEP_SECCOMP(...) __VA_ARGS__
+#else
+	#define IF_CAN_AUTODEP_SECCOMP(...)
 #endif
 
 struct SyscallDescr {
-	static constexpr long NSyscalls = 440 ;                                                         // must larger than higher syscall number
-	using Tab = ::array<SyscallDescr,NSyscalls> ;                                                   // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
-	#if HAS_SECCOMP
-		using BpfProg = struct ::sock_fprog ;
-	#endif
+	static constexpr long NSyscalls = 440 ;           // must larger than higher syscall number
+	using Tab     = ::array<SyscallDescr,NSyscalls> ; // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
+	using BpfProg = struct ::sock_fprog             ;
 	// static data
-	static Tab const& s_tab ;
-	#if HAS_SECCOMP
-		static BpfProg const& s_bpf_prog ;
-	#endif
+	/**/                    static Tab     const& s_tab              ;
+	/**/                    static BpfProg const& s_bpf_prog_ptrace  ;
+	IF_CAN_AUTODEP_SECCOMP( static BpfProg const& s_bpf_prog_seccomp ; )
 	// accesses
 	constexpr bool operator+() const { return entry || exit ; }
 	// data
 	// /!\ there must be no memory allocation nor cxtor/dxtor as this must be statically allocated when malloc is not available
-	bool/*refresh_mem*/ (*entry)( void*& , Record& , Fd , uint64_t args[6] , Comment ) = nullptr       ;
-	int64_t/*res*/      (*exit )( void*  , Record& , Fd , int64_t res                ) = nullptr       ;
-	int                 filter                                                         = 0             ; // argument to filter out when known to require no processing
-	Comment             comment                                                        = Comment::None ;
+	::pair<void*  /*ctx*/,bool/*refresh_mem*/> (*entry)(          Record& , Fd proc_mem , uint64_t args[6] , Comment ) = nullptr       ;
+	::pair<int64_t/*res*/,int /*errno      */> (*exit )( void*  , Record& , Fd proc_mem , bool emulate , int64_t res ) = nullptr       ;
+	int                                        filter                                                                  = -1            ; // argument to filter out when known to require no processing
+	bool                                       return_fd                                                               = false         ; // if true <=> return val is a fd
+	Comment                                    comment                                                                 = Comment::None ;
 } ;
 
 #ifdef LD_PRELOAD

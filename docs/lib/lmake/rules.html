@@ -252,7 +252,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="nb">print</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">depend</span><span class="p">(</span> <span class="o">*</span><span class="n">deps</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span> <span class="p">,</span> <span class="n">read</span><span class="o">=</span><span class="kc">True</span> <span class="p">))</span>
     <span class="n">cmd</span><span class="o">.</span><span class="n">shell</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
 <span class="s1">        # take care of managing awkward deps : single quote deps, replacing &#39; by &#39;&quot;&#39;&quot;&#39; as &#39; protects against everything but &#39;</span>
-<span class="s1">        ldepend -vR {&#39; &#39;.join(&quot;&#39;&quot;+v.replace(&quot;&#39;&quot;,&quot;&#39;&quot;+&#39;&quot;&#39;+&quot;&#39;&quot;+&#39;&quot;&#39;+&quot;&#39;&quot;)+&quot;&#39;&quot; for v in deps.values())}</span>
+<span class="s1">        ldepend -vR {&#39; &#39;.join(&quot;&#39;&quot;+v.replace(&quot;&#39;&quot;,&quot;&quot;&quot;&#39;&quot;&#39;&quot;&#39;&quot;&quot;&quot;)+&quot;&#39;&quot; for v in deps.values())}</span>
 <span class="s1">    &#39;&#39;&#39;</span>
 
 <span class="k">class</span> <span class="nc">DirtyRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>

@@ -147,7 +147,7 @@ WARNING_FLAGS := -Wall -Wextra -Wno-cast-function-type -Wno-type-limits -Werror
 #
 LINK_FLAGS           = $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LINK_LIB_PATH_32:%=-Wl$(COMMA)-rpath$(COMMA)%),$(LINK_LIB_PATH:%=-Wl$(COMMA)-rpath$(COMMA)%))
 SAN                 := $(if $(strip $(SAN_FLAGS)),-san)
-LINK                 = PATH=$(CXX_DIR):$$PATH $(CXX) -pthread $(LINK_FLAGS) $(EXTRA_LINK_FLAGS)
+LINK                 = PATH=$(dir $(CXX)):$$PATH $(CXX) -pthread $(LINK_FLAGS) $(EXTRA_LINK_FLAGS)
 LINK_LIB             = -ldl $(if $(and $(HAS_32),$(findstring d$(LD_SO_LIB_32)/,$@)),$(LIB_STACKTRACE_32:%=-l%),$(LIB_STACKTRACE:%=-l%))
 CLANG_WARNING_FLAGS := -Wno-misleading-indentation -Wno-unknown-warning-option -Wno-c2x-extensions -Wno-c++2b-extensions
 #
@@ -156,14 +156,13 @@ ifeq ($(CXX_FLAVOR),clang)
 endif
 #
 USER_FLAGS := -std=$(CXX_STD) $(EXTRA_CC_FLAGS)
-COMPILE1   := PATH=$(CXX_DIR):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_CC_FLAGS) -pthread $(WARNING_FLAGS) $(if $(NEED_EXPERIMENTAL_LIBRARY),-fexperimental-library)
+COMPILE1   := PATH=$(dir $(CXX)):$$PATH $(CXX) $(USER_FLAGS) $(HIDDEN_CC_FLAGS) -pthread $(WARNING_FLAGS) $(if $(NEED_EXPERIMENTAL_LIBRARY),-fexperimental-library)
 LINT       := clang-tidy
 LINT_FLAGS := $(USER_FLAGS) $(HIDDEN_CC_FLAGS) $(WARNING_FLAGS) $(CLANG_WARNING_FLAGS)
 LINT_CHKS  := --checks=-clang-analyzer-optin.core.EnumCastOutOfRange
 LINT_OPTS  := '--header-filter=.*' $(LINT_CHKS)
 
-# On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, but beware that otherwise, /usr/include must be prefered, hence -idirafter
-CC_FLAGS := -iquote ext -iquote src -iquote src/lmake_server -iquote . -idirafter /usr/include/linux
+CC_FLAGS := -iquote ext -iquote src -iquote src/lmake_server -iquote .
 
 Z_LIB := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
 
@@ -261,15 +260,16 @@ LMAKE_SERVER_FILES := \
 
 LMAKE_REMOTE_SLIBS := $(if $(HAS_LD_AUDIT),ld_audit.so) ld_preload.so ld_preload_jemalloc.so
 LMAKE_REMOTE_FILES := \
-	$(if $(HAS_32),$(patsubst %,_d$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
-	$(patsubst %,_d$(LD_SO_LIB)/%,$(LMAKE_REMOTE_SLIBS))                    \
-	$(if $(HAS_PY_DYN) ,lib/clmake$(PY_EXT))                                \
-	$(if $(HAS_PY2_DYN),lib/clmake2.so)                                     \
-	_bin/job_exec                                                           \
-	bin/lcheck_deps                                                         \
-	bin/ldecode                                                             \
-	bin/lencode                                                             \
-	bin/ldepend                                                             \
+	                    $(patsubst %,_d$(LD_SO_LIB)/%    ,$(LMAKE_REMOTE_SLIBS))  \
+	$(if $(HAS_32)     ,$(patsubst %,_d$(LD_SO_LIB_32)/% ,$(LMAKE_REMOTE_SLIBS))) \
+	$(if $(HAS_X32)    ,$(patsubst %,_d$(LD_SO_LIB_X32)/%,$(LMAKE_REMOTE_SLIBS))) \
+	$(if $(HAS_PY_DYN) ,lib/clmake$(PY_EXT))                                      \
+	$(if $(HAS_PY2_DYN),lib/clmake2.so)                                           \
+	_bin/job_exec                                                                 \
+	bin/lcheck_deps                                                               \
+	bin/ldecode                                                                   \
+	bin/lencode                                                                   \
+	bin/ldepend                                                                   \
 	bin/ltarget
 
 LMAKE_DOC_FILES := \
@@ -407,11 +407,12 @@ define CUSTOMIZE_RECIPE
 	@echo customize $< to $@
 	@mkdir -p $(@D)
 	@	sed \
-			-e 's!\$$GIT!$(GIT)!'                   \
-			-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!' \
-			-e 's!\$$TAG!$(TAG)!'                   \
-			-e 's!\$$VERSION!$(VERSION)!'           \
-			$<                                      \
+			-e 's!\$$GIT!$(GIT)!'                                 \
+			-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'               \
+			-e 's!\$$CAN_AUTODEP_SECCOMP!$(CAN_AUTODEP_SECCOMP)!' \
+			-e 's!\$$TAG!$(TAG)!'                                 \
+			-e 's!\$$VERSION!$(VERSION)!'                         \
+			$<                                                    \
 	|	_bin/align_comments 4 200 '#' >$@
 endef
 lib/%.py  : _lib/%.src.py sys_config.mk _bin/align_comments ; $(CUSTOMIZE_RECIPE)
@@ -516,9 +517,6 @@ src/lmake_server/backends/slurm_api-%.cc : ext/slurm/%/META
 # lmake
 #
 
-# on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists, and this works everywhere.
-SECCOMP_LIB := $(if $(HAS_SECCOMP),-l:libseccomp.so.2)
-
 SERVER_COMMON_SAN_OBJS := \
 	$(LMAKE_BASIC_SAN_OBJS)         \
 	src/app$(SAN).o                 \
@@ -552,7 +550,7 @@ SERVER_SAN_OBJS := \
 	src/autodep/backdoor$(SAN).o       \
 	src/autodep/gather$(SAN).o         \
 	src/autodep/ld_server$(SAN).o      \
-	src/autodep/ptrace$(SAN).o         \
+	src/autodep/ptrace_seccomp$(SAN).o \
 	src/autodep/record$(SAN).o         \
 	src/autodep/syscall_tab$(SAN).o    \
 	src/lmake_server/backend$(SAN).o   \
@@ -596,7 +594,7 @@ LMAKE_DBG_FILES += bin/lmake_server bin/lmake_repair _bin/lmake_dump _bin/lcache
 bin/lmake_server bin/lmake_repair _bin/lmake_dump bin/lcache_server bin/lcache_repair _bin/lcache_dump bin/lcodec_repair _bin/lkpi :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 bin/lcollect : $(CLIENT_SAN_OBJS) src/lcollect$(SAN).o
@@ -624,7 +622,7 @@ LMAKE_DBG_FILES += _bin/ldump_job
 _bin/ldump_job : $(SERVER_SAN_OBJS) src/ldump_job$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/align_comments
@@ -665,6 +663,7 @@ BASIC_REMOTE_OBJS := \
 
 AUTODEP_OBJS := \
 	$(BASIC_REMOTE_OBJS) \
+	src/non_portable.o   \
 	src/real_path.o      \
 	src/version.o        \
 	src/autodep/syscall_tab.o
@@ -678,15 +677,14 @@ REMOTE_OBJS  := \
 
 # XXX! : make job_exec compatible with SAN
 #JOB_EXEC_SAN_OBJS := \
-#	$(AUTODEP_SAN_OBJS)         \
-#	src/app$(SAN).o             \
-#	src/non_portable$(SAN).o    \
-#	src/re$(SAN).o              \
-#	src/rpc_job$(SAN).o         \
-#	src/zfd$(SAN).o             \
-#	src/autodep/gather$(SAN).o  \
-#	src/autodep/ptrace$(SAN).o  \
-#	src/autodep/record$(SAN).o  \
+#	$(AUTODEP_SAN_OBJS)                \
+#	src/app$(SAN).o                    \
+#	src/re$(SAN).o                     \
+#	src/rpc_job$(SAN).o                \
+#	src/zfd$(SAN).o                    \
+#	src/autodep/gather$(SAN).o         \
+#	src/autodep/ptrace_seccomp$(SAN).o \
+#	src/autodep/record$(SAN).o         \
 #	src/cache/rpc_cache$(SAN).o
 
 #_bin/job_exec : $(JOB_EXEC_SAN_OBJS)                src/job_exec$(SAN).o
@@ -697,19 +695,18 @@ REMOTE_OBJS  := \
 #	@mkdir -p $(@D)
 #	@echo link to $@
 #	@# forces dynamic lib resolution as chroot may be called, so lazy binding could lead to wrong lib being loaded
-#	@$(LINK) $(SAN_FLAGS) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
+#	@$(LINK) $(SAN_FLAGS) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 #	@$(SPLIT_DBG_CMD)
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)       \
-	src/app.o             \
-	src/non_portable.o    \
-	src/re.o              \
-	src/rpc_job.o         \
-	src/zfd.o             \
-	src/autodep/gather.o  \
-	src/autodep/ptrace.o  \
-	src/autodep/record.o  \
+	$(AUTODEP_OBJS)              \
+	src/app.o                    \
+	src/re.o                     \
+	src/rpc_job.o                \
+	src/zfd.o                    \
+	src/autodep/gather.o         \
+	src/autodep/ptrace_seccomp.o \
+	src/autodep/record.o         \
 	src/cache/rpc_cache.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS)          src/job_exec.o
@@ -720,7 +717,7 @@ _bin/job_exec bin/lautodep :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@# forces dynamic lib resolution as chroot may be called, so lazy binding could lead to wrong lib being loaded
-	@$(LINK) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(SECCOMP_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps
@@ -749,8 +746,8 @@ lib/%.so :
 	@$(LINK) -shared $(LIB_STDCPP) $(MOD_SO) -o $@ $^ $(SO_FLAGS) $(PCRE_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so   ) _d$(LD_SO_LIB)/ld_preload.so    _d$(LD_SO_LIB)/ld_preload_jemalloc.so
-LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so) _d$(LD_SO_LIB_32)/ld_preload.so _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so
+LMAKE_DBG_FILES    += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB)/ld_audit.so    ) _d$(LD_SO_LIB)/ld_preload.so     _d$(LD_SO_LIB)/ld_preload_jemalloc.so
+LMAKE_DBG_FILES_32 += $(if $(HAS_LD_AUDIT),_d$(LD_SO_LIB_32)/ld_audit.so ) _d$(LD_SO_LIB_32)/ld_preload.so  _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so
 _d$(LD_SO_LIB)/ld_audit.so               : $(AUTODEP_OBJS)             src/autodep/ld_audit.o
 _d$(LD_SO_LIB)/ld_preload.so             : $(AUTODEP_OBJS)             src/autodep/ld_preload.o
 _d$(LD_SO_LIB)/ld_preload_jemalloc.so    : $(AUTODEP_OBJS)             src/autodep/ld_preload_jemalloc.o
@@ -758,6 +755,13 @@ _d$(LD_SO_LIB_32)/ld_audit.so            : $(AUTODEP_OBJS:%.o=%-m32.o) src/autod
 _d$(LD_SO_LIB_32)/ld_preload.so          : $(AUTODEP_OBJS:%.o=%-m32.o) src/autodep/ld_preload-m32.o
 _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so : $(AUTODEP_OBJS:%.o=%-m32.o) src/autodep/ld_preload_jemalloc-m32.o
 
+ifneq ($(LD_SO_LIB_X32),)
+# if system uses a different $LIB value for -mx32 mode, we must provide the file, but for us there is no difference
+_d$(LD_SO_LIB_X32)/%.so :
+	@mkdir -p $(@D)
+	@echo sym link to $@
+	@ln -s $(@:_d$(LD_SO_LIB_X32)/%.so=../_d$(LD_SO_LIB)/%.so)
+endif
 %.so :
 	@mkdir -p $(@D)
 	@echo link to $@

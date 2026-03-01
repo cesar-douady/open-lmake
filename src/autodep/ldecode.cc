@@ -24,7 +24,9 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::Table   , { .short_name='t' , .has_arg=true , .doc="table storing code-value associations"                } }
 	,	{ Flag::Context , { .short_name='x' , .has_arg=true , .doc="context used within file to retreive value from code" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
+	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
+	//
+	app_init({ .chk_version=No , .trace=No }) ;
 	//
 	if (!cmd_line.flags[Flag::Code   ]) syntax.usage("must have code to retrieve associated value"   ) ;
 	if (!cmd_line.flags[Flag::Table  ]) syntax.usage("must have file to retrieve associated value"   ) ;

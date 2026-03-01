@@ -53,7 +53,7 @@ FileSync auto_file_sync( FileSync , ::string const& dir_s={} ) ;
 // working and non-working locking techniques
 // ::fcntl  ( <fd> , F_SETLKW , &{.l_type=F_WRLCK} )                     : has been observed to takes 10's of seconds on manual trials on rocky9/NFSv4, and possibly block
 // ::fcntl  ( <fd> , F_OFD_SETLKW , &{.l_type=F_WRLCK} )                 : has not been tried, probably similar to F_SETLKW
-// ::flock  ( <fd> , LOCK_EX )                                           : has been observed as not working with rocky9/NFSv4 despite NVS being configured to support flock
+// ::flock  ( <fd> , LOCK_EX )                                           : has been observed as not working with rocky9/NFSv4 despite being configured to support flock
 // ::open   (         <file> , O_WRONLY|O_CREAT|O_EXCL , 0000/*mod*/ )   : seems ok on trials with rocky9/NFSv4
 // ::link   ( <tmp> , <file> ) (either succeed or link count=2 on <tmp>) : seems ok on trials with rocky9/NFSv4
 // ::mkdir  (         <dir>  , 0777/*mod*/ )                             : has been observed as not working with rocky9/NFSv4

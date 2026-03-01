@@ -71,6 +71,7 @@ private :
 public :
 	// src_dirs_s may be either absolute or relative, but must be canonic
 	// tmp_dir_s must be absolute and canonic
+	RealPath() = default ;
 	RealPath ( RealPathEnv const& rpe , pid_t p=0 ) ;
 	// services
 	FileLoc file_loc(::string const& real) const { return _env->file_loc(real) ; }
@@ -92,7 +93,7 @@ public :
 private :
 	RealPathEnv const* _env            = nullptr ;
 	::vector_s         _abs_src_dirs_s ;                              // this is an absolute version of src_dirs
-	size_t             _repo_root_sz   ;
+	size_t             _repo_root_sz   = 0       ;
 	::string           _cwd            ;
 	pid_t              _cwd_pid        = 0       ;                    // pid for which _cwd is valid if pid==0
 	NfsGuard           _nfs_guard      ;

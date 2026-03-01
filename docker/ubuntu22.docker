@@ -24,7 +24,6 @@ RUN apt-get install -y clang
 RUN apt-get install -y gdb
 RUN apt-get install -y g++-13
 RUN apt-get install -y libpcre2-dev
-RUN apt-get install -y libseccomp-dev
 RUN apt-get install -y libslurm-dev
 RUN apt-get install -y python2
 RUN apt-get install -y python3-numba python3-venv

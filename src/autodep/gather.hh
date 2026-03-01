@@ -130,7 +130,7 @@ struct Gather {                                                       // NOLINT(
 	} ;
 	// statics
 private :
-	static void _s_ptrace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_ptrace_child(report_fd,ready) ; }
+	static void _s_trace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_trace_child(report_fd,ready) ; }
 	// services
 	void _send_to_server( JobMngtRpcReq const&                  ) ;
 	void _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                    // files are required for DepVerbose and forbidden for other
@@ -163,9 +163,9 @@ public :
 	void   reorder(bool at_end              ) ;                                        // reorder accesses by first read access and suppress superfluous accesses
 	Digest analyze(Status status=Status::New) ;                                        // status==New means job is not done
 private :
-	Fd     _spawn_child (                               ) ;
-	Status _exec_child  (                               ) ;
-	void   _ptrace_child( Fd report_fd , ::latch* ready ) ;
+	Fd     _spawn_child (                              ) ;
+	Status _exec_child  (                              ) ;
+	void   _trace_child( Fd report_fd , ::latch* ready ) ;
 	//
 	void _user_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const { if (user_trace) user_trace->emplace_back(pd,c,ces,file) ; }
 	void _user_trace(         Comment c , CommentExts ces={} , ::string const& file={} ) const { _user_trace( New , c , ces , file ) ;                     }
@@ -215,6 +215,6 @@ private :
 	Child        _child                ;
 	size_t       _n_server_req_pending = 0 ;
 	NodeIdx      _parallel_id          = 0 ;                                           // id to identify parallel deps
-	::jthread    _ptrace_thread        ;
+	::jthread    _trace_thread         ;
 	BitMap<Kind> _wait                 ;                                               // events we are waiting for
 } ;

@@ -64,7 +64,16 @@ In one case, we have seen a commercial tool reading `/proc/self/status` to detec
 Curiously, it did not detect `$LD_PRELOAD`...
 
 The major drawback is performance wise: the impact is more significant as there is a context switch at each system call.
-`BPF` is used, if available, to decrease the number of useless context switches, but it does not allow to filter out on filename, so it is impossible to have an early ignore of system files.
+`BPF` is used, to reduce the number of useless context switches, but it does not allow to filter out on filename, so it is impossible to have an early ignore of system files.
+
+### seccomp
+
+The principle is to use [`ptrace`](https://man7.org/linux/man-pages/man2/seccomp.2.html).
+
+This is almost non-intrusive and has the potential to be totally transparent.
+
+The major drawback is performance wise: the impact is more significant as there is a context switch at each system call.
+`BPF` is used, to reduce the number of useless context switches, but it does not allow to filter out on filename, so it is impossible to have an early ignore of system files.
 
 ## What to do with accesses
 

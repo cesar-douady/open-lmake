@@ -13,6 +13,7 @@
 #include <utime.h>
 
 #include "disk.hh"
+#include "non_portable.hh"
 
 #define NE noexcept
 
@@ -180,26 +181,38 @@ using Unlnk    = AuditAction<Record::Unlnk              ,1   > ;
 // Exec
 //
 
+static void _exec_chk_is_32([[maybe_unused]] ::string const& file) {
+	if (HAS_32) return ;                                                                                                // 32-bits is supported
+	try {
+		uint8_t word_sz = np_word_sz_from_elf(AcFd(file).read(NpElfHdrSz).c_str()) ;
+		if (!word_sz          ) return ;                                                                                // not an elf, or at least not recognizable
+		if ( word_sz!=NpWordSz) auditor().report_panic(cat("exec ",word_sz,"-bits ",file," with no 32-bits support")) ;
+	} catch (::string const&) {}
+}
+
 #if NEED_ELF
-	template<bool Send> struct _Exec : Record::Exec<false/*Send*/,false/*ChkSimple*/> {      // even if path is simple, it may load non-simple libraries, so dont use ExecCS
-		using Base = Record::Exec<false/*Send*/,false/*ChkSimple*/> ;
+	template<bool Send> struct _Exec : Record::Exec<false/*Send*/,false/*SkipSimple*/> {                              // even if path is simple, it may load non-simple libraries, so dont use ExecCS
+		using Base = Record::Exec<false/*Send*/,false/*SkipSimple*/> ;
 		_Exec() = default ;
 		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , Comment c ) : Base{r,::move(path),no_follow,c} {
 			static constexpr char   Llpe[] = "LD_LIBRARY_PATH=" ;
-			static constexpr size_t LlpeSz = sizeof(Llpe)-1     ;                            // -1 to account of terminating null
+			static constexpr size_t LlpeSz = sizeof(Llpe)-1     ;                                                     // -1 to account of terminating null
 			//
-			const char* const* llp ;
-			for( llp=envp ; *llp ; llp++ ) if (::strncmp( *llp , Llpe , LlpeSz )==0) break ;
-			if (*llp) elf_deps( r , self , *llp+LlpeSz , c+1/*Dep*/ ) ;                      // pass value after the LD_LIBRARY_PATH= prefix
-			else      elf_deps( r , self , nullptr     , c+1/*Dep*/ ) ;                      // /!\ dont add LlpeSz to nullptr
+			_exec_chk_is_32(real) ;
+			const char* const* llp ; for( llp=envp ; *llp ; llp++ ) if (::strncmp( *llp , Llpe , LlpeSz )==0) break ;
+			if (*llp) elf_deps( r , self , *llp+LlpeSz , c+1/*Dep*/ ) ;                                               // pass value after the LD_LIBRARY_PATH= prefix
+			else      elf_deps( r , self , nullptr     , c+1/*.  */ ) ;                                               // /!\ dont add LlpeSz to nullptr
 			if (Send) send_report(r) ;
 		}
 	} ;
 #else
-	template<bool Send> struct _Exec : Record::Exec<Send,true/*ChkSimple*/> {
-		using Base = Record::Exec<Send,true/*ChkSimple*/> ;
+	template<bool Send> struct _Exec : Record::Exec<Send,true/*SkipSimple*/> {
+		using Base = Record::Exec<Send,true/*SkipSimple*/> ;
+		using Base::real ;                                                                                            // XXX? : why is this necessary ?
 		_Exec() = default ;
-		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const /*envp*/[] , Comment c ) : Base{r,::move(path),no_follow,c} {}
+		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const /*envp*/[] , Comment c ) : Base{r,::move(path),no_follow,c} {
+			_exec_chk_is_32(real) ;
+		}
 	} ;
 #endif
 using Exec = AuditAction<_Exec<true/*Send*/>,1/*NPaths*/> ;
@@ -746,18 +759,25 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		SyscallDescr const& descr = n>=0&&n<SyscallDescr::NSyscalls ? SyscallDescr::s_tab[n] : NoSyscallDescr ; // protect against arbitrary invalid syscall numbers
 		HDR(
 			syscall
-		,	!descr || (descr.filter&&Record::s_is_simple(reinterpret_cast<const char*>(args[descr.filter-1])))
+		,	!descr || (descr.filter>=0&&Record::s_is_simple(reinterpret_cast<const char*>(args[descr.filter])))
 		,	(n,args[0],args[1],args[2],args[3],args[4],args[5])
 		) ;
-		void*     descr_ctx = nullptr ;
-		//                                           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (descr.entry) { LockRecordAndErrno lock ; descr.entry( descr_ctx , auditor() , {}/*proc_mem*/ , args , descr.comment ) ; }
-		//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv^v^v^v^v^v^v^v^v^v^v^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		void* ctx = nullptr ;
+		if (descr.entry) {
+			LockRecordAndErrno lock ;
+			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			ctx = descr.entry( auditor() , {}/*proc_mem*/ , args , descr.comment ).first ;
+		} //!     ^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^^^^^^^^
 		long res = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
-		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^v^v^v^v^v^v^v^vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		if (descr.exit) { LockRecordAndErrno lock ; return descr.exit( descr_ctx , auditor() , {}/*proc_mem*/ , res ) ; }
-		else                                return res                                                                ;
-		//                                         ^^^
+		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if (ctx) {
+			SWEAR( descr.exit , syscall ) ;
+			LockRecordAndErrno lock ;
+			//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			tie(res,errno) = descr.exit( ctx , auditor() , {}/*proc_mem*/ , false/*emulate*/ , res ) ; // we do not emulate, setting res and errno is only for magic readlink
+			//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		}
+		return res ;
 	}
 
 	#undef NO_SERVER

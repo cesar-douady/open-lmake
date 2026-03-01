@@ -672,7 +672,7 @@ namespace Engine {
 					make_action  = MakeAction::End ;                                     // restart analysis as if called by end() as in case of flash execution, submit has called end()
 					asked_reason = {}              ;                                     // .
 					ri.inc_wait() ;                                                      // .
-					trace("restart_analysis",ri) ;
+					trace("restart_full_analysis",ri) ;
 					goto RestartFullAnalysis/*BACKWARD*/ ;
 				}
 				ri.reset( job , true/*has_run*/ , true/*mk_done*/ ) ;
@@ -987,13 +987,14 @@ namespace Engine {
 		Trace trace("_submit_req",req,req->files) ;
 		::vector<Dep> lnk_vector ;
 		::vector<Dep> dep_vector ; dep_vector.reserve(req->files.size()) ; // typically, all are deps
-		bool          first      = true                                  ;
+		NfsGuard      nfs_guard  { g_config->server_file_sync }          ;
+		First         first      ;
 		//
 		status = Status::EarlyErr ;                                        // defensive programming : only set status=Ok when deps are checked
 		for( ::string const& file : req->files ) {
 			RealPath::SolveReport rp  = Job::s_real_path->solve(file,true/*no_follow*/) ;
 			for( ::string& l : rp.lnks ) {
-				Dep d { {New,l} , Access::Lnk , FileInfo(l) } ;
+				Dep d { {New,l} , Access::Lnk , FileInfo(l,{.nfs_guard=&nfs_guard}) } ;
 				d.acquire_crc() ;
 				lnk_vector.push_back(::move(d)) ;
 			}
@@ -1002,8 +1003,7 @@ namespace Engine {
 				status = Status::Err ;
 				continue ;
 			}
-			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real) , DflagsDflt|Dflag::Essential|Dflag::Required , !first/*parallel*/ } ;
-			first = false ;
+			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real,{.nfs_guard=&nfs_guard}) , DflagsDflt|Dflag::Essential|Dflag::Required , first(false,true)/*parallel*/ } ;
 			d.acquire_crc() ;
 			dep_vector.push_back(::move(d)) ;
 		}
@@ -1023,7 +1023,7 @@ namespace Engine {
 		if (frozen_) req->frozen_jobs.push(idx()) ;                       // record to repeat in summary
 		//
 		switch (special) {
-			case Special::Dep          : status = Status::Ok  ;                                                                break ;
+			case Special::Dep          : status = Status::Ok ;                                                                 break ;
 			case Special::Req          : _submit_req(req) ; maybe_new_deps = true ;                                            break ;
 			case Special::InfiniteDep  :
 			case Special::InfinitePath : status = Status::Err ; audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ; break ;

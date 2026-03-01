@@ -378,12 +378,13 @@ static int _populate_mod(PyObject* py_mod) {
 	//
 	Module* mod = from_py<Module>(py_mod) ;
 	try {
-		Ptr<Tuple> py_ads { HAS_LD_AUDIT+3 } ;                               // PER_AUTODEP_METHOD : add entries here
+		Ptr<Tuple> py_ads { HAS_LD_AUDIT+3+CAN_AUTODEP_SECCOMP } ;           // PER_AUTODEP_METHOD : add entries here
 		{	size_t i = 0 ;
-			if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
-			/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
-			/**/              py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
-			/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
+			if (HAS_LD_AUDIT       ) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;
+			/**/                     py_ads->set_item( i++ , *Ptr<Str>("ld_preload"         ) ) ;
+			/**/                     py_ads->set_item( i++ , *Ptr<Str>("ld_preload_jemalloc") ) ;
+			/**/                     py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
+			if (CAN_AUTODEP_SECCOMP) py_ads->set_item( i++ , *Ptr<Str>("seccomp"            ) ) ;
 			SWEAR( i==py_ads->size() , i,py_ads->size() ) ;
 		}
 		//

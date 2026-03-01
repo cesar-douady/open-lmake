@@ -255,7 +255,7 @@ JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , boo
 }
 
 // if f0 is not empty, write is done to f0 rather than to jerr.file
-JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string&& f0 , bool force ) {
+JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , FileLoc fl0 , ::string const& f0 , bool force ) {
 	SWEAR( jerr.files.size()==1 , jerr ) ;
 	if (+f0) {
 		if (!jerr.date) jerr.date = New ; // ensure read and write dates are identical
@@ -272,7 +272,7 @@ JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , Fil
 Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
 	SWEAR(!accesses) ;                                                                                                                    // no access to last component when no_follow
 	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s({at,with_slash(file)}) ;                                        // in case of overlay, create dir in the view
-	r.report_guard( file_loc , ::move(real_write()) ) ;
+	r.report_guard( file_loc , real_write() ) ;
 	send_report(r) ;
 }
 
@@ -318,18 +318,18 @@ Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comme
 	src { r , ::move(src_) , no_follow , true  , false , c , CommentExt::Read  }
 ,	dst { r , ::move(dst_) , true      , false , true  , c , CommentExt::Write }
 {
-	if (src.real==dst.real) return ;                                      // posix says it is nop in that case
+	if (src.real==dst.real) return ;                                                 // posix says it is nop in that case
 	//
 	Pdate    now { New }      ;
-	Accesses sa = Access::Reg ; if (no_follow) sa |= Access::Lnk ;        // if no_follow, a sym link may be hard linked
-	src.report_dep   ( r , sa           , c , CommentExt::Read  , now ) ;
-	dst.report_update( r , Access::Stat , c , CommentExt::Write , now ) ; // writing to dst is sensitive to existence
+	Accesses sa = Access::Reg ; if (no_follow) sa |= Access::Lnk ;                   // if no_follow, a sym link may be hard linked
+	src.report_dep<true/*Keep*/>( r , sa           , c , CommentExt::Read  , now ) ; // we may have to emulate in case autodep=seccomp, so we must keep src as well
+	dst.report_update           ( r , Access::Stat , c , CommentExt::Write , now ) ; // writing to dst is sensitive to existence
 	dst.send_report(r) ;
 }
 
 Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve<>{ r , ::move(path) , true/*no_follow*/ , false/*read*/ , false/*create*/ , c } {
-	r.report_guard( file_loc , ::copy(real) ) ; // although dirs are not considered targets, it stays that disk has been modified and we want to propagate
-	report_dep( r , Access::Stat , c ) ;        // fails if file exists, hence sensitive to existence
+	r.report_guard( file_loc , real )  ; // although dirs are not considered targets, it stays that disk has been modified and we want to propagate
+	report_dep( r , Access::Stat , c ) ; // fails if file exists, hence sensitive to existence
 	send_report(r) ;
 }
 
@@ -368,23 +368,34 @@ Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveMod
 }
 
 Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,true/*read*/,false/*create*/,c} , buf{buf_} , sz{sz_} {
+	magic = at==Backdoor::MagicFd && ::strncmp(file,Backdoor::MagicPfx,Backdoor::MagicPfxLen)==0 ;
 	report_dep( r , Access::Lnk , c ) ;
 	send_report(r) ;
 }
 
 ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
-	if (!( at==Backdoor::MagicFd && ::strncmp(file,Backdoor::MagicPfx,Backdoor::MagicPfxLen)==0 )) return len ;
+	if (!magic) return len ;
 	//
 	::string                        cmd      = file+Backdoor::MagicPfxLen         ;
 	size_t                          slash    = cmd.find('/')                      ; SWEAR(slash!=Npos) ;
 	::umap_s<Backdoor::Func> const& func_tab = Backdoor::get_func_tab()           ;
 	auto                            it       = func_tab.find(cmd.substr(0,slash)) ;
-	if ((magic=it!=func_tab.end())) {
-		if (!buf) buf = new char[sz] ;                           // if no buf, we are in ptrace mode and we allocate it when necessary, it will be deleted by caller
-		len = it->second( r , cmd.substr(slash+1) , buf , sz ) ;
+	//
+	if (it==func_tab.end()) {
+		errno = EOPNOTSUPP ;
+		return -1 ;
 	}
-	SWEAR( len<=ssize_t(sz) , len,sz ) ;
-	return len ;
+	//
+	char* b = buf ? buf : new char[sz] ;
+	len = it->second( r , cmd.substr(slash+1) , b , sz ) ; SWEAR( len<=ssize_t(sz) , len,sz ) ;
+	if (len>=0) {
+		if (!buf) buf = b ; // buf will be deleted by caller if allocated here
+		return len ;
+	} else {
+		if (!buf) delete[] b ;
+		errno = -len ;
+		return -1 ;
+	}
 }
 
 // flags is not used if exchange is not supported
@@ -456,7 +467,7 @@ Record::Symlink::Symlink( Record& r , Path&& p , Comment c ) : SolveModify{r,::m
 }
 
 Record::Unlnk::Unlnk( Record& r , Path&& p , bool remove_dir , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	if (remove_dir) r.report_guard( file_loc , ::move(real_write()) ) ;
-	else            report_update( r , Access::Stat , c )             ; // fail if file does not exist, hence sensitive to existence
+	if (remove_dir) r.report_guard( file_loc , real_write() ) ;
+	else            report_update( r , Access::Stat , c )     ; // fail if file does not exist, hence sensitive to existence
 	send_report(r) ;
 }

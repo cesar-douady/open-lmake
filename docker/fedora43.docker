@@ -21,7 +21,6 @@ RUN \
 			wget                         \
 			#optional
 			glibc-devel.i686 libgcc.i686 \
-			libseccomp libseccomp-devel  \
 			pcre2 pcre2-devel            \
 			strace                       \
 	&&	dnf clean all

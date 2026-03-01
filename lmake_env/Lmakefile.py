@@ -153,13 +153,14 @@ class ConfigH(BaseRule) :
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 
-class SysConfig(PathRule,TraceRule) : # XXX : handle PCRE
+class SysConfig(PathRule,TraceRule) :    # XXX : handle PCRE
 	targets = {
 		'H'     : 'sys_config.h'
 	,	'TRIAL' : r'trial/{*:.*}'
 	,	'MK'    : r'sys_config.dir/{*:.*}'
 	}
 	deps = { 'EXE' : '_bin/sys_config' }
+	autodep = 'ld_preload'               # ptrace is not supported as _bin/sys_config calls strace and ptrace under ptrace is forbidden
 	cmd  = '''
 		OS={os.uname().sysname} CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/mk {H} 2>&1
 		while read k e v ; do
@@ -239,13 +240,11 @@ for ext,basic_opts in basic_opts_tab.items() :
 
 class LinkRule(PathRule,PyRule) :
 	combine       = ('opts',)
-	opts          = []                                   # options before inputs & outputs
+	opts          = []           # options before inputs & outputs
 	resources     = {'mem':'1G'}
 	need_python   = False
-	need_seccomp  = False
 	need_compress = False
 	def cmd() :
-		ns  = need_seccomp and sys_config('HAS_SECCOMP')
 		lst = sys_config('LIB_STACKTRACE')
 		lnz = need_compress
 		if lnz :
@@ -253,9 +252,8 @@ class LinkRule(PathRule,PyRule) :
 			if sys_config('HAS_ZSTD') : lnz.append('-lzstd')
 			if sys_config('HAS_ZLIB') : lnz.append('-lz'   )
 		if True : post_opts = ['-ldl']
-		if lst  : post_opts.append(f'-l{lst}'          )
-		if ns   : post_opts.append('-l:libseccomp.so.2') # on CentOS7, gcc looks for libseccomp.so with -lseccomp, but only libseccomp.so.2 exists
-		if lnz  : post_opts.extend(lnz                 )
+		if lst  : post_opts.append(f'-l{lst}')
+		if lnz  : post_opts.extend(lnz       )
 		if need_python :
 			post_opts.append(f"-L{sysconfig.get_config_var('LIBDIR')}")
 			lib = sysconfig.get_config_var('LDLIBRARY')
@@ -366,10 +364,10 @@ class GenCacheLight(BaseRule,PyRule) :
 		''')[1:])
 
 opt_tab.update({
-	r'.*'                 : ( '-I'         , sysconfig.get_path("include")  )
-,	r'src/.*'             : ( '-iquote'    , 'ext_lnk'                      )
-,	r'src/autodep/clmake' : (                '-Wno-cast-function-type'     ,)
-,	r'src/autodep/ptrace' : ( '-idirafter' , f'/usr/include/linux'          ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
+	r'.*'                         : ( '-I'         , sysconfig.get_path("include")  )
+,	r'src/.*'                     : ( '-iquote'    , 'ext_lnk'                      )
+,	r'src/autodep/clmake'         : (                '-Wno-cast-function-type'     ,)
+,	r'src/autodep/ptrace_seccomp' : ( '-idirafter' , f'/usr/include/linux'          ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
 })
 
 class Link(BaseRule) :
@@ -420,14 +418,13 @@ class LinkAutodep(LinkPython,LinkAutodepEnv) :
 	,	'ZFD'          : 'src/zfd.o'
 	,	'BACKDOOR'     : 'src/autodep/backdoor.o'
 	,	'GATHER'       : 'src/autodep/gather.o'
-	,	'PTRACE'       : 'src/autodep/ptrace.o'
+	,	'PTRACE'       : 'src/autodep/ptrace_seccomp.o'
 	,	'RECORD'       : 'src/autodep/record.o'
 	,	'SYSCALL'      : 'src/autodep/syscall_tab.o'
 	,	'RPC_CACHE'    : 'src/cache/rpc_cache.o'
 	,	'RPC_JOB_EXEC' : 'src/rpc_job_exec.o'
 	,	'RPC_CLIENT'   : None
 	}
-	need_seccomp  = True
 	need_compress = True
 
 class LinkAutodepLdSo(LinkLibSo,LinkAutodepEnv) :

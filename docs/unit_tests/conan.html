@@ -104,30 +104,31 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">lmake</span>
-    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
+    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="s1">&#39;Lmakefile.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;step.py&#39;</span>
-    <span class="p">)</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,)</span>
 
-    <span class="kn">from</span> <span class="nn">step</span> <span class="kn">import</span> <span class="n">path_max</span>
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">path_max</span> <span class="o">=</span> <span class="n">path_max</span>
+    <span class="k">class</span> <span class="nc">Pip</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">stems</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;ANYFILE&#39;</span><span class="p">:</span><span class="s1">&#39;.*&#39;</span> <span class="p">}</span>
+        <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s1">&#39;PIP&#39;</span>  <span class="p">:</span> <span class="s1">&#39;BUILD/venv/bin/pip&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;VENV&#39;</span> <span class="p">:</span> <span class="s1">&#39;BUILD/venv/{ANYFILE*}&#39;</span><span class="p">,</span>
+        <span class="p">}</span>
+        <span class="n">readdir_ok</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">cmd</span>        <span class="o">=</span> <span class="s1">&#39;python3 -m venv BUILD/venv&#39;</span>
 
-    <span class="k">class</span> <span class="nc">Test</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;12345&#39;</span>
-        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+    <span class="k">class</span> <span class="nc">Conan</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;CONAN&#39;</span>            <span class="p">:</span> <span class="s1">&#39;BUILD/venv/bin/conan&#39;</span> <span class="p">}</span>
+        <span class="n">environ</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;PIP_NO_CACHE_DIR&#39;</span> <span class="p">:</span> <span class="s1">&#39;off&#39;</span>                  <span class="p">}</span>
+        <span class="n">deps</span>    <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;PIP&#39;</span>              <span class="p">:</span> <span class="s1">&#39;BUILD/venv/bin/pip&#39;</span>   <span class="p">}</span>
+        <span class="n">cmd</span>     <span class="o">=</span> <span class="s1">&#39;BUILD/venv/bin/python3 -m pip install conan&#39;</span>
+        <span class="n">readdir_ok</span> <span class="o">=</span> <span class="kc">True</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">os</span>
-
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;path_max=4&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span> <span class="p">;</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;12345&#39;</span> <span class="p">,</span>                     <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;path_max=5&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span> <span class="p">;</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;12345&#39;</span> <span class="p">,</span>            <span class="n">done</span><span class="o">=</span><span class="mi">1</span>        <span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;path_max=4&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span> <span class="p">;</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;12345&#39;</span> <span class="p">,</span> <span class="n">unlink</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span>          <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;path_max=5&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span> <span class="p">;</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;12345&#39;</span> <span class="p">,</span>            <span class="n">done</span><span class="o">=</span><span class="mi">1</span>        <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;BUILD/venv/bin/conan&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">2</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>

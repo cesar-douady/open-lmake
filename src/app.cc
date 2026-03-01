@@ -135,7 +135,7 @@ bool/*read_only*/ app_init(AppInitAction const& action) {
 		#if PROFILING
 			set_env( "GMON_OUT_PREFIX" , dir_guard(cat(*g_repo_root_s,AdminDirS,"gmon.out/",*g_exe_name)) ) ; // ensure unique gmon data file in a non-intrusive (wrt autodep) place
 		#endif
+		Trace trace("app_init",action.chk_version,STR(action.cd_root),+g_startup_dir_s?*g_startup_dir_s:""s) ;
 	}
-	Trace trace("app_init",action.chk_version,STR(action.cd_root),+g_startup_dir_s?*g_startup_dir_s:""s) ;
 	return read_only ;
 }

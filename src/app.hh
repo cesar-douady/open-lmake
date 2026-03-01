@@ -27,7 +27,7 @@ struct AppInitAction {
 	uint64_t   version      = Version::Repo                                ;
 } ;
 
-bool/*read_only*/ app_init  (AppInitAction const& ={}) ;
+bool/*read_only*/ app_init(AppInitAction const& ={}) ;
 
 inline ::string git_clean_msg() {
 	::string res = "git clean -ffdx" ;

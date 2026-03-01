@@ -12,17 +12,16 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
 RUN                                apt-get install -y build-essential
 
 # compulsory
-RUN                                apt-get install -y git
-RUN                                apt-get install -y groff m4
-RUN                                apt-get install -y python3-dev
-RUN                                apt-get install -y wget
+RUN apt-get install -y git
+RUN apt-get install -y groff m4
+RUN apt-get install -y python3-dev
+RUN apt-get install -y wget
 # optional
-#RUN                               apt-get install -y libpcre2-dev
-RUN                                apt-get install -y libseccomp-dev
-#RUN                               apt-get install -y libslurm-dev
-RUN                                apt-get install -y python2
-RUN                                apt-get install -y python3-numba python3-venv
-RUN                                apt-get install -y strace
+#RUN apt-get install -y libpcre2-dev
+#RUN apt-get install -y libslurm-dev
+RUN  apt-get install -y python2
+RUN  apt-get install -y python3-numba python3-venv
+RUN  apt-get install -y strace
 
 # gcc
 RUN add-apt-repository ppa:ubuntu-toolchain-r/test

@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 32      ; // 6901944ec9de3512b6546be4e4683893
+	uint64_t    constexpr Cache = 33      ; // 47c327397f42448308b09ac27c68b860
 	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
-	uint64_t    constexpr Repo  = 28      ; // e180a05bf325136e6cf985793225fda3
-	uint64_t    constexpr Job   = 17      ; // e76443280a7ff4e934e8b7ebccc1927c
+	uint64_t    constexpr Repo  = 29      ; // 94f863a04678999bb2c1ad769370975a
+	uint64_t    constexpr Job   = 17      ; // 48b0af5af14d24f6b96ab73c4888b551
 	const char* const     Major = "26.03" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 6901944ec9de3512b6546be4e4683893 *
+// * Cache : 47c327397f42448308b09ac27c68b860 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -395,24 +395,27 @@ namespace Version {
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
 //	// PER_AUTODEP_METHOD : add entry here
-//	// >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
+//	// >=Ld means a lib is pre-loaded
 //	// by default, use a compromize between speed an reliability
 //	enum class AutodepMethod : uint8_t {
 //		None
 //	,	Ptrace
-//	#if HAS_LD_AUDIT
-//		,	LdAudit
+//	#if CAN_AUTODEP_SECCOMP
+//		,	Seccomp
 //	#endif
 //	,	LdPreload
 //	,	LdPreloadJemalloc
-//	// aliases
 //	#if HAS_LD_AUDIT
-//		,	Ld   = LdAudit
-//		,	Dflt = LdAudit
-//	#else
-//		,	Ld   = LdPreload
-//		,	Dflt = LdPreload
+//		,	LdAudit
 //	#endif
+//	// aliases
+//	,	Ld = LdPreload         // >=Ld means method is ld-based
+//	#if HAS_LD_AUDIT
+//		,	DfltLd = LdAudit   // default value while ensuring it is of ld-based kind
+//	#else
+//		,	DfltLd = LdPreload // .
+//	#endif
+//	,	Dflt = DfltLd          // default value, may be any method
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
@@ -756,6 +759,7 @@ namespace Version {
 //	,	execve                 , execveDep       , execveat          , execveatDep
 //	,	execvp                 , execvpDep
 //	,	execvpe                , execvpeDep
+//	,	exit                   , exit_group
 //	,	                                           faccessat         , faccessat2
 //	,	fchdir
 //	,	                                           fchmodat
@@ -777,11 +781,11 @@ namespace Version {
 //	,	mkstemp                , mkstemp64
 //	,	mkstemps               , mkstemps64
 //	,	mount
-//	,	                                           name_to_handle_at
+//	,	                                           name_to_handle_at , open_handle_at
 //	,	                                           newfstatat
 //	,	oldlstat
 //	,	oldstat
-//	,	open                   , open64          , openat            , openat64     , openat2
+//	,	open                   , open64          , openat            , openat64       , openat2
 //	,	open_tree
 //	,	opendir
 //	,	readdir                , readdir64       , readdir_r         , readdir64_r
@@ -1066,7 +1070,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : e180a05bf325136e6cf985793225fda3 *
+// * Repo : 94f863a04678999bb2c1ad769370975a *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1852,24 +1856,27 @@ namespace Version {
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
 //	// PER_AUTODEP_METHOD : add entry here
-//	// >=Ld means a lib is pre-loaded (through LD_AUDIT or LD_PRELOAD)
+//	// >=Ld means a lib is pre-loaded
 //	// by default, use a compromize between speed an reliability
 //	enum class AutodepMethod : uint8_t {
 //		None
 //	,	Ptrace
-//	#if HAS_LD_AUDIT
-//		,	LdAudit
+//	#if CAN_AUTODEP_SECCOMP
+//		,	Seccomp
 //	#endif
 //	,	LdPreload
 //	,	LdPreloadJemalloc
-//	// aliases
 //	#if HAS_LD_AUDIT
-//		,	Ld   = LdAudit
-//		,	Dflt = LdAudit
-//	#else
-//		,	Ld   = LdPreload
-//		,	Dflt = LdPreload
+//		,	LdAudit
 //	#endif
+//	// aliases
+//	,	Ld = LdPreload         // >=Ld means method is ld-based
+//	#if HAS_LD_AUDIT
+//		,	DfltLd = LdAudit   // default value while ensuring it is of ld-based kind
+//	#else
+//		,	DfltLd = LdPreload // .
+//	#endif
+//	,	Dflt = DfltLd          // default value, may be any method
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
@@ -2213,6 +2220,7 @@ namespace Version {
 //	,	execve                 , execveDep       , execveat          , execveatDep
 //	,	execvp                 , execvpDep
 //	,	execvpe                , execvpeDep
+//	,	exit                   , exit_group
 //	,	                                           faccessat         , faccessat2
 //	,	fchdir
 //	,	                                           fchmodat
@@ -2234,11 +2242,11 @@ namespace Version {
 //	,	mkstemp                , mkstemp64
 //	,	mkstemps               , mkstemps64
 //	,	mount
-//	,	                                           name_to_handle_at
+//	,	                                           name_to_handle_at , open_handle_at
 //	,	                                           newfstatat
 //	,	oldlstat
 //	,	oldstat
-//	,	open                   , open64          , openat            , openat64     , openat2
+//	,	open                   , open64          , openat            , openat64       , openat2
 //	,	open_tree
 //	,	opendir
 //	,	readdir                , readdir64       , readdir_r         , readdir64_r
@@ -2376,7 +2384,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : e76443280a7ff4e934e8b7ebccc1927c *
+// * Job : 48b0af5af14d24f6b96ab73c4888b551 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2648,6 +2656,7 @@ namespace Version {
 //	,	execve                 , execveDep       , execveat          , execveatDep
 //	,	execvp                 , execvpDep
 //	,	execvpe                , execvpeDep
+//	,	exit                   , exit_group
 //	,	                                           faccessat         , faccessat2
 //	,	fchdir
 //	,	                                           fchmodat
@@ -2669,11 +2678,11 @@ namespace Version {
 //	,	mkstemp                , mkstemp64
 //	,	mkstemps               , mkstemps64
 //	,	mount
-//	,	                                           name_to_handle_at
+//	,	                                           name_to_handle_at , open_handle_at
 //	,	                                           newfstatat
 //	,	oldlstat
 //	,	oldstat
-//	,	open                   , open64          , openat            , openat64     , openat2
+//	,	open                   , open64          , openat            , openat64       , openat2
 //	,	open_tree
 //	,	opendir
 //	,	readdir                , readdir64       , readdir_r         , readdir64_r

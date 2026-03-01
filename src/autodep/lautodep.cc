@@ -106,6 +106,9 @@ int main( int argc , char* argv[] ) {
 		autodep_method_doc << "ld_audit, " ;
 	#endif
 	autodep_method_doc << "ld_preload, ld_preload_jemalloc, ptrace)" ;
+	#if CAN_AUTODEP_SECCOMP
+		autodep_method_doc << ", seccomp" ;
+	#endif
 	Syntax<CmdKey,CmdFlag> syntax {{
 		// PER_AUTODEP_METHOD : complete doc on line below
 		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                         } }
@@ -131,12 +134,11 @@ int main( int argc , char* argv[] ) {
 	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
 	//
 	app_init({.cd_root=false}) ;
-	Record::s_autodep_env(New) ;
 	Py::init(*g_lmake_root_s) ;
 	//
 	JobStartRpcReply jsrr        ;
 	JobSpace  &      job_space   = jsrr.job_space   ;
-	AutodepEnv&      autodep_env = jsrr.autodep_env ; autodep_env = Record::s_autodep_env() ;
+	AutodepEnv&      autodep_env = jsrr.autodep_env ;
 	Gather           gather      ;
 	//
 	try {
@@ -194,7 +196,8 @@ int main( int argc , char* argv[] ) {
 		//
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
-	autodep_env.fqdn = fqdn(jsrr.domain_name) ;                                       // call fqdn() before potential chroot in g_start_info.enter()
+	autodep_env.file_sync = FileSync::None         ;                                                               // no parallel processing with lautodep
+	autodep_env.fqdn      = fqdn(jsrr.domain_name) ;                                                               // call fqdn() before potential chroot in g_start_info.enter()
 	//
 	Status   status  ;
 	::map_ss cmd_env = mk_map(jsrr.env) ;

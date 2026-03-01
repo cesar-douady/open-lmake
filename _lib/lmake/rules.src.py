@@ -154,7 +154,7 @@ class AliasRule(Rule) :
 		print(lmake.depend( *deps.values() , verbose=True , read=True ))
 	cmd.shell = '''
 		# take care of managing awkward deps : single quote deps, replacing ' by '"'"' as ' protects against everything but '
-		ldepend -vR {' '.join("'"+v.replace("'","'"+'"'+"'"+'"'+"'")+"'" for v in deps.values())}
+		ldepend -vR {' '.join("'"+v.replace("'","""'"'"'""")+"'" for v in deps.values())}
 	'''
 
 class DirtyRule(Rule) :
