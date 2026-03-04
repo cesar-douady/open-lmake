@@ -192,30 +192,33 @@ else :
 		,	'washed'
 		,	'static_dep'     , 'hello' , 'world'
 		,	'start_job'
-		,	'open(read)'     , 'hello' , 'world'
 		,	'end_job'        , '0000'
 		,	'analyzed'
 		,	'computed_crcs'
 		,	'end_overhead'   , 'ok'
 		) :
 			assert w in x , f'in lshow -u : missing {w} in\n{x}'
+		assert 'open(read)' in x or 'openat(read)' in x , f'in lshow -u : missing open(read) or openat(read) in\n{x}'
 		y = tuple( e[1:] for e in px if e[1] not in ('static_dep','static_unlnk','static_match') )
 		z =      { e[1:] for e in px if e[1]     in ('static_dep','static_unlnk','static_match') }
-		assert y==(
-			( 'start_overhead'    , ''               )
-		,	( 'chdir'             , os.getcwd()      )
-		,	( 'start_info(reply)' , ''               )
-		,	( 'washed'            , ''               )
-		,	( 'stdout'            , 'hello+world_sh' )
-		,	( 'start_job'         , ''               )
-		,	( 'open(read)'        , 'bad'            )
-		,	( 'open(read)'        , 'hello'          )
-		,	( 'open(read)'        , 'world'          )
-		,	( 'end_job'           , '0000'           )
-		,	( 'analyzed'          , ''               )
-		,	( 'computed_crcs'     , ''               )
-		,	( 'end_overhead'      , 'ok'             )
-		) , f'bad lshow -u : {y}'
+		ok = False
+		for o in ('open','openat') :
+			ok |= y==(
+				( 'start_overhead'    , ''               )
+			,	( 'chdir'             , os.getcwd()      )
+			,	( 'start_info(reply)' , ''               )
+			,	( 'washed'            , ''               )
+			,	( 'stdout'            , 'hello+world_sh' )
+			,	( 'start_job'         , ''               )
+			,	( o+'(read)'          , 'bad'            )
+			,	( o+'(read)'          , 'hello'          )
+			,	( o+'(read)'          , 'world'          )
+			,	( 'end_job'           , '0000'           )
+			,	( 'analyzed'          , ''               )
+			,	( 'computed_crcs'     , ''               )
+			,	( 'end_overhead'      , 'ok'             )
+			)
+		assert ok , f'bad lshow -u : {y}'
 		assert all( e in z for e in (
 			( 'static_dep'   , 'hello' )
 		,	( 'static_dep'   , 'world' )

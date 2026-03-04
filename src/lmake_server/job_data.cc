@@ -986,13 +986,14 @@ namespace Engine {
 		Trace trace("_submit_req",req,req->files) ;
 		::vector<Dep> lnk_vector ;
 		::vector<Dep> dep_vector ; dep_vector.reserve(req->files.size()) ; // typically, all are deps
+		NfsGuard      nfs_guard  { g_config->server_file_sync }          ;
 		bool          first      = true                                  ;
 		//
 		status = Status::EarlyErr ;                                        // defensive programming : only set status=Ok when deps are checked
 		for( ::string const& file : req->files ) {
 			RealPath::SolveReport rp  = Job::s_real_path->solve(file,true/*no_follow*/) ;
 			for( ::string& l : rp.lnks ) {
-				Dep d { {New,l} , Access::Lnk , FileInfo(l) } ;
+				Dep d { {New,l} , Access::Lnk , FileInfo(l,{.nfs_guard=&nfs_guard}) } ;
 				d.acquire_crc() ;
 				lnk_vector.push_back(::move(d)) ;
 			}
@@ -1001,7 +1002,7 @@ namespace Engine {
 				status = Status::Err ;
 				continue ;
 			}
-			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real) , DflagsDflt|Dflag::Essential|Dflag::Required , !first/*parallel*/ } ;
+			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real,{.nfs_guard=&nfs_guard}) , DflagsDflt|Dflag::Essential|Dflag::Required , !first/*parallel*/ } ;
 			first = false ;
 			d.acquire_crc() ;
 			dep_vector.push_back(::move(d)) ;

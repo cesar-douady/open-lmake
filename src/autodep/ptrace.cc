@@ -167,7 +167,10 @@ bool/*done*/ AutodepPtrace::_changed( pid_t pid , int&/*inout*/ wstatus ) {
 						// XXX! : support 32 bits exe's (beware of 32 bits syscall numbers)
 						if (word_sz!=NpWordSz) {
 							Trace trace("AutodepPtrace::_changed","panic","word width") ;
-							info.record.report_panic( cat(word_sz," bits processes on ",NpWordSz," host not supported yet with ptrace") , false/*die*/ ) ;
+							info.record.report_panic(
+								cat(word_sz," bits process ",read_lnk(cat("/proc/",pid,"/exe"))," (",pid,") on ",NpWordSz," bits host not supported yet with ptrace")
+							,	false/*die*/
+							) ;
 							info.has_exit_proc = false ;
 							info.on_going      = false ;
 							goto NextSyscall ;

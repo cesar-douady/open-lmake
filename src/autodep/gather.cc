@@ -753,7 +753,6 @@ Status Gather::_exec_child() {
 									ces |= CommentExt::Killed ;
 									set_status( Status::ChkDeps , cat(is_target?"pre-existing target":"waiting dep"," : ",jmrr.txt) ) ;
 									kill() ;
-									rfd = {} ;                                                                                 // dont reply to ensure job waits if sync
 								break ;
 								case No :
 									ces |= CommentExt::Err ;
@@ -784,11 +783,11 @@ Status Gather::_exec_child() {
 						// in that case, dont reply and job will be killed
 						JobExecRpcReply jerr ;
 						switch (jmrr.proc) {
-							case JobMngtProc::None       :                                                                                                      break ;
-							case JobMngtProc::ChkDeps    : if (jmrr.ok!=Maybe) jerr = { .proc=Proc::ChkDeps    , .ok=jmrr.ok                                } ; break ; // cf above
-							case JobMngtProc::DepDirect  : if (jmrr.ok!=Maybe) jerr = { .proc=Proc::DepDirect  , .ok=jmrr.ok                                } ; break ; // .
-							case JobMngtProc::DepVerbose :                     jerr = { .proc=Proc::DepVerbose , .verbose_infos=::move(jmrr.verbose_infos ) } ; break ;
-						DF}                                                                                                                                             // NO_COV
+							case JobMngtProc::None       :                                                                                                          break ;
+							case JobMngtProc::ChkDeps    :                         jerr = { .proc=Proc::ChkDeps    , .ok=jmrr.ok                                } ; break ; // cf above
+							case JobMngtProc::DepDirect  : SWEAR(jmrr.ok!=Maybe) ; jerr = { .proc=Proc::DepDirect  , .ok=jmrr.ok                                } ; break ; // .
+							case JobMngtProc::DepVerbose :                         jerr = { .proc=Proc::DepVerbose , .verbose_infos=::move(jmrr.verbose_infos ) } ; break ;
+						DF}                                                                                                                                                 // NO_COV
 						trace("reply",jerr) ;
 						//         vvvvvvvvvvvvvvvvvvvvvvvvvv
 						if (+jerr) sync( rfd , ::move(jerr) ) ;

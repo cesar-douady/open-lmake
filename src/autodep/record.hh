@@ -341,6 +341,7 @@ public :
 	template<bool Send,bool ChkSimple> struct Exec
 	:	             Solve<false/*Send*/,false/*Writable*/,No|ChkSimple>
 	{	using Base = Solve<false/*.   */,false/*.       */,No|ChkSimple> ;
+		using Base::accesses    ;
 		using Base::file_loc    ;
 		using Base::real        ;
 		using Base::send_report ;
@@ -349,7 +350,7 @@ public :
 		Exec( Record& r , Path&& path , bool no_follow , Comment c ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
 			// if !ChkSimple => +real is always true hence no need to check
 			if ( !ChkSimple || +real ) {
-				SolveReport sr {.real=real,.file_loc=file_loc} ;
+				SolveReport sr {.real=real,.file_accessed=No|accesses[Access::Lnk],.file_loc=file_loc} ;
 				try {
 					for( auto&& [file,a] : r._real_path.exec(::move(sr)) )
 						r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .files={{::move(file),{}}} } ) ;
@@ -414,8 +415,8 @@ public :
 		template<class T> T operator()( Record& r , T rc ) {
 			bool ok ;
 			static_assert( ::is_integral_v<T> || ::is_pointer_v <T> , "unexpected type" ) ; // cannot put an else clause with static_assert(false) with gcc-11
-			if      constexpr (::is_integral_v<T>) ok = rc<0 ;
-			else if constexpr (::is_pointer_v <T>) ok = rc   ;
+			if      constexpr (::is_integral_v<T>) ok = rc>=0 ;
+			else if constexpr (::is_pointer_v <T>) ok = rc    ;
 			//
 			if ( ok && +real && !s_autodep_env().readdir_ok ) {                             // readdir_ok may be false when ptrace as it is inaccessible upfront
 				if (file_loc==FileLoc::RepoRoot) r.report_access( FileLoc::Repo , { .comment=comment , .digest={.read_dir=true} , .files={{"."         ,{}}} } ) ; // repo root must be analyzed ...
