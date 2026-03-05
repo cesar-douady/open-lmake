@@ -8,10 +8,10 @@ Comment(
 
 define(`About',`define(`Name',``$1'')')
 
-define(`B',`\fB`$*'\fR')
-define(`C',`B(`$1')(ifelse(`$2',,1,``$2''))')
-define(`I',`\fI`$*'\fR')
-define(`V',`.nf
+define(`B_',`\fB`$*'\fR')
+define(`C_',`B_(`$1')(ifelse(`$2',,1,``$2''))')
+define(`I_',`\fI`$*'\fR')
+define(`V_',`.nf
 `$*'
 .fi')
 define(`Bullet',`.IP \[bu]

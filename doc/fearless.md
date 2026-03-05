@@ -29,7 +29,7 @@ The example of Excel is interesting because it pretty much resembles a build sys
 ### A thought experiment: What if Excel worked like `make`
 
 - You enter values: A1 = `1`, A2 = `10`, B1 = `=A1+1`. B1 displays `2`.
-- You change A1 to `2`. B didn't update because ... you didn't specify that B1 depends on A1.
+- You change A1 to `2`. B1 didn't update because ... you didn't specify that B1 depends on A1.
 - You manually specify dependencies: You inform Excel that B1 depends on A1 (through some form attached to B1 or whatever).
 - B1 displays `3` as expected.
 - You change B1’s formula to `=A1-1`: It still displays `4` because... A1 didn’t change.

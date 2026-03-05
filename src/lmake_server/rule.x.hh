@@ -722,6 +722,11 @@ namespace Engine {
 			return true ;
 		}
 
+
+		template<UEnum E> E _acquire_enum_val(::string const& src) {
+			throw_unless( can_mk_enum<E>(src) , "unexpected value ",src," not in ",~BitMap<E>() ) ;
+			return mk_enum<E>(src) ;
+		}
 		template<UEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src ) {
 			if (!py_src          ) return false/*updated*/ ;
 			if (*py_src==Py::None) {
@@ -730,16 +735,16 @@ namespace Engine {
 				return true /*updated*/ ;
 			}
 			//
-			dst = mk_enum<E>(py_src->as_a<Py::Str>()) ;
+			dst = _acquire_enum_val<E>(py_src->as_a<Py::Str>()) ;
 			return true ;
 		}
-
 		template<UEnum E> bool/*updated*/ acquire( BitMap<E>& dst , Py::Object const* py_src ) {
 			if (!py_src          )              return false/*updated*/ ;
 			if (*py_src==Py::None) { dst = {} ; return true /*.      */ ; }
 			//
-			if (py_src->is_a<Py::Str>()          )                                                                             dst  = mk_enum<E>(py_src->as_a<Py::Str>()) ;
-			else if (py_src->is_a<Py::Sequence>()) { dst = {} ; for( Py::Object const& py_val : py_src->as_a<Py::Sequence>() ) dst |= mk_enum<E>(py_val. as_a<Py::Str>()) ; }
+			//
+			if (py_src->is_a<Py::Str>()          )                                                                             dst  = _acquire_enum_val<E>(py_src->as_a<Py::Str>()) ;
+			else if (py_src->is_a<Py::Sequence>()) { dst = {} ; for( Py::Object const& py_val : py_src->as_a<Py::Sequence>() ) dst |= _acquire_enum_val<E>(py_val. as_a<Py::Str>()) ; }
 			else                                     throw cat("type error : ",py_src->type_name()," is not a str nor a list/tuple") ;
 			return true ;
 		}

@@ -215,7 +215,7 @@ namespace Disk {
 		unlnk_inside_s({file.at,with_slash(file.file)},action) ;
 		//
 		if (action.nfs_guard) action.nfs_guard->change(file) ;
-		if (::unlinkat(file.at,file.file.c_str(),AT_REMOVEDIR)!=0) throw cat("cannot unlink dir ",file) ;
+		if (::unlinkat(file.at,file.file.c_str(),AT_REMOVEDIR)!=0) throw cat("cannot unlink dir (",StrErr(),") ",file) ;
 		return true/*done*/ ;
 	}
 
@@ -365,7 +365,7 @@ namespace Disk {
 				if (tag==FileTag::Exe) a.mod   |= a.mod>>2                            ; // copy read access to exec access
 				AcFd wfd { dst , a } ;
 				int rc = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                                                                                 ;
-				if (rc!=0) throw cat("cannot copy ",src," to ",dst) ;
+				if (rc!=0) throw cat("cannot copy (",StrErr(),") ",src," to ",dst) ;
 			} break ;
 			case FileTag::Lnk :
 				sym_lnk( dst , read_lnk(src,action.nfs_guard) , action ) ;

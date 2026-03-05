@@ -344,6 +344,9 @@ By default the following environment variables are defined :
 | `$PATH`       | Rule         | The standard path with `$LMAKE_ROOT/bin:` in front |                                                           |
 | `$PYTHONPATH` | PyRule       | `$LMAKE_ROOT/lib`                                  |                                                           |
 
+Note that environment variables `$PATH`, `$LD_LIBRARY_PATH`, `$MANPATH` and `$PYTHONPATH` are subject to
+[`...` processing]writing_lmakefile.html#:~:text=paths,environ%2EPYTHONPATH%27%3A%27%3A%27%20%7D) to access value in super-class.
+
 ### [`environ_ancillary`](unit_tests/dyn.html#:~:text=environ%5Fancillary%20%3D%20%7B%20%27VAR%5FANCILLARY%27%20%3A%20file%5Ffunc%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example                 |
@@ -371,6 +374,9 @@ By default the following environment variables are defined :
 | `$UID`   | Rule       | the user id         |         |
 | `$USER`  | Rule       | the user login name |         |
 
+Note that environment variables `$PATH`, `$LD_LIBRARY_PATH`, `$MANPATH` and `$PYTHONPATH` are subject to
+[`...` processing]writing_lmakefile.html#:~:text=paths,environ%2EPYTHONPATH%27%3A%27%3A%27%20%7D) to access value in super-class.
+
 ### [`environ_resources`](unit_tests/dyn.html#:~:text=environ%5Fresources%20%3D%20%7B%20%27VAR%5FRESOURCES%27%20%3A%20file%5Ffunc%20%7D)
 
 | Inheritance | Type   | Default | Dynamic | Example                           |
@@ -390,6 +396,9 @@ Except the exception below, the value must be a `f-str`.
 
 If resulting value is `...` (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by `slurm`.
+
+Note that environment variables `$PATH`, `$LD_LIBRARY_PATH`, `$MANPATH` and `$PYTHONPATH` are subject to
+[`...` processing]writing_lmakefile.html#:~:text=paths,environ%2EPYTHONPATH%27%3A%27%3A%27%20%7D) to access value in super-class.
 
 ### [`force`](unit_tests/dyn.html#:~:text=force%20%3D%20True)
 

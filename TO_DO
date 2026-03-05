@@ -16,25 +16,9 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* bug Alex
-	import lmake
-	from lmake.rules import Rule
-	class Pip(Rule) :
-		targets = {
-			'PIP'  : 'BUILD/venv/bin/pip'
-		,	'VENV' : 'BUILD/venv'
-		}
-		cmd = 'python3 -m venv BUILD/venv'
-	class Conan(Rule) :
-		targets = {
-			'CONAN' : 'BUILD/venv/bin/conan'
-		,	'VENV'  : 'BUILD/venv'
-		}
-		deps = {'PIP' : 'BUILD/venv/bin/pip' }
-		cmd  = './{PIP} install conan'
-
-	lmake BUILD/venv/bin/pip # Infinite loop
-	lmake BUILD/venv/bin/conan # Dirty crash (node.cc:402 switch on dir.buildable)
+* TUs fail on WSL
+	- ERROR: ld.so: object '/home/tsu/open-lmake/_d$LIB/ld_audit.so' cannot be loaded as audit interface: cannot open shared object file; ignored.
+	- probably a mixup with $LIB
 * bug Thomas
 	- lmake step A
 		-> needs X
@@ -44,10 +28,6 @@ items (also used in XXX comments) :
 	- lmake step B
 		- needs step A
 	===>>> X not built
-* review name_to_handle_at and open_handle_at
-	- open_handle_at is missing
-	- name_to_handle_at must solve
-* ensure wine works with ld_preload
 ? seen once : server blocked
 	- seems to be while taking GIL
 
@@ -55,8 +35,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* add a consider when stems are incoherent between targets
-	- suggest use of STEM*
 * allow using strace with autodep=ptrace
 ! manage 32 bits executables with ptrace
 	- mode -mx32 seems easy
@@ -92,11 +70,12 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* consider providing a unified stream stdout+stderr
-	- as an option to route stderr to stdout or vice versa
-* add tag to lmake --version
 * change name lmake.report_import into lmake.install_import_hook()
 	- consider message : ln -s .local/lib/python3.12/site-packages to ~lmake/blabla
+* improve lmake -h
+	- add tag
+	- simplify text
+	- consider to accept abbreviation for enum option args
 * improve dirty crash message
 	? ascii art congratulating user for discovering bug
 ! add a warning when ids reach 1/2 of their limits
@@ -123,6 +102,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* implement a test of userland overlay mount in sys_config
+	- and dont propose overlay if not supported
+	- and suppress corresponding TUs
 * suppress dependency on strace
 	* write a small test based on ptrace
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs

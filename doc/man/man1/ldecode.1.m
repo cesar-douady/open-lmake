@@ -5,60 +5,60 @@ Comment(
 	This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 )
 
-Header(ldecode,retrieve the original content encoded with C(lencode) within a OpenLmake job)
+Header(ldecode,retrieve the original content encoded with C_(lencode) within a OpenLmake job)
 
 .SH DESCRIPTION
 .LP
-B(ldecode) may be used to ask for a value (typically rather large, up to a few kB) associated with a short code (a few characters, typically 3 to 5).
-This must have been generated using the command C(lencode,1) with the same table and context.
-The value corresponding to I(code) is output on stdout.
+B_(ldecode) may be used to ask for a value (typically rather large, up to a few kB) associated with a short code (a few characters, typically 3 to 5).
+This must have been generated using the command C_(lencode,1) with the same table and context.
+The value corresponding to I_(code) is output on stdout.
 .LP
-Associations are usually created using B(lencode) or B(lmake.encode) but not necessarily (they can be created by hand).
+Associations are usually created using B_(lencode) or B_(lmake.encode) but not necessarily (they can be created by hand).
 .LP
 Usage and use cases are more extensively documented in the full OpenLmake documentation.
 
 .SH OPTIONS
 .LP
-Item(B(-t) I(table),B(--table)=I(table))
-I(table) may be:
-Item(a key) found in B(lmake.config.codecs) in which case it is a local source file or an external dir.
+Item(B_(-t) I_(table),B_(--table)=I_(table))
+I_(table) may be:
+Item(a key) found in B_(lmake.config.codecs) in which case it is a local source file or an external dir.
 Item(a local source file) (symbolic links are followed) recording the association table.
 Item(an external dir) recording the association table.
 .LP
 In the former case, when an external dir, it must lie within a source dir.
-An external dir may contain a file I(LMAKE/file_sync) containing one of B(none), B(dir) or B(sync) for choosing the method to ensure proper consistent operations.
+An external dir may contain a file I_(LMAKE/file_sync) containing one of B_(none), B_(dir) or B_(sync) for choosing the method to ensure proper consistent operations.
 In absence of such a file, file_sync is determined automatically if possible from the filesystem type.
 .LP
 The dir must have read/write/execute access to any user needing to use the codec service, and if such accsses are at group level (but not other), it must have its setgid bit set.
 .LP
-It is also an error if I(code) cannot be found with the accompanying I(context).
+It is also an error if I_(code) cannot be found with the accompanying I_(context).
 
 .LP
-Item(B(-x) I(context),B(--context)=I(context)) specifies the context in which to find the value associated with passed code
+Item(B_(-x) I_(context),B_(--context)=I_(context)) specifies the context in which to find the value associated with passed code
 
 .LP
-Item(B(-c) I(code),B(--code)=I(code)) specifies the code to search within passed context in the passed table
+Item(B_(-c) I_(code),B_(--code)=I_(code)) specifies the code to search within passed context in the passed table
 
 .SH "EXIT STATUS"
 .LP
-B(ldecode) exits with a status of zero if the value could be encoded.
+B_(ldecode) exits with a status of zero if the value could be encoded.
 Else it exits with a non-zero status:
 .LP
-Item(B(2))  internal error, should not occur
-Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B_(2))  internal error, should not occur
+Item(B_(11)) bad usage : command line options and arguments coul not be parsed
 
 .SH EXAMPLES
 .LP
-See C(lencode,1).
+See C_(lencode,1).
 
 .SH NOTES
 Item((1))
-	The same functionality is provided with the B(lmake.decode) python function.
+	The same functionality is provided with the B_(lmake.decode) python function.
 Item((2))
-	C(lencode,1) and B(ldecode,1) are useful tools when the flow implies files whose names are impractical.
+	C_(lencode,1) and B_(ldecode,1) are useful tools when the flow implies files whose names are impractical.
 	This is a way to transform long filenames into much shorter ones by keeping an association table to retrieve long info from short codes.
 Item((3))
-	Using this functionality may imply C(git) conflicts on the association table (when a local source file) file when several users independently create associations in their repos.
-	This is fully dealt with and the only thing left to the user is to accept the resolution of the conflict B(without any action).
+	Using this functionality may imply C_(git) conflicts on the association table (when a local source file) file when several users independently create associations in their repos.
+	This is fully dealt with and the only thing left to the user is to accept the resolution of the conflict B_(without any action).
 
 Footer

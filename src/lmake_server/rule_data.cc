@@ -199,7 +199,7 @@ namespace Engine {
 			bool   job_name_is_star       = false ;
 			auto   stem_words             = []( ::string const& k , bool star , bool unnamed ) -> ::string {
 				const char* stem = star ? "star stem" : "stem" ;
-				return unnamed ? cat("unnamed ",stem) : cat(stem,' ',k) ;
+				return unnamed ? cat("unnamed {",stem,'}') : cat(stem," {",k,'}') ;
 			} ;
 			parse_py( job_name , &unnamed_star_idx ,
 				[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) {
@@ -240,10 +240,10 @@ namespace Engine {
 									return ;
 								}
 								auto it = stem_stars.find(k) ;
-								throw_unless(
-									it!=stem_stars.end() && it->second!=Yes
-								,	stem_words(k,star,unnamed)," appears in ",kind," but not in ",job_name_kind,' ',job_name_key,", consider using ",k,'*'
-								) ;
+								if ( it==stem_stars.end() || it->second==Yes ) {
+									if (+job_name_key) throw cat(stem_words(k,star,unnamed)," appears in some ",kind," but not in ",job_name_kind,' ',job_name_key,", consider using {",k,"*}") ;
+									else               throw cat(stem_words(k,star,unnamed)," appears in some ",kind," but not in job_name"                       ,", consider using {",k,"*}") ;
+								}
 								if (kind==MatchKind::Target) missing_stems.erase(k) ;
 							}
 						) ;
@@ -255,15 +255,16 @@ namespace Engine {
 					if ( !is_star                             ) flags.extra_dflags |= ExtraDflag::NoStar ;
 					Rule::s_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , /*out*/flags , kind==MatchKind::SideDep ) ;
 					// check
-					if ( target.starts_with(*g_repo_root_s)                                        ) throw cat(kind," must be relative to root dir : "                   ,target) ;
-					if ( !target                                                                   ) throw cat(kind," must not be empty"                                        ) ;
-					if ( !is_lcl(target)                                                           ) throw cat(kind," must be local : "                                  ,target) ;
-					if ( +missing_stems                                                            ) throw cat("missing stems ",missing_stems," in ",kind," : "          ,target) ;
-					if (  is_star                                    && !is_plain()                ) throw cat("star ",kind,"s are meaningless for source and anti-rules"       ) ;
-					if (  is_star                                    && is_stdout                  ) throw     "stdout cannot be directed to a star target"s                      ;
-					if ( flags.tflags      [Tflag     ::Incremental] && is_stdout                  ) throw     "stdout cannot be directed to an incremental target"s              ;
-					if ( flags.extra_tflags[ExtraTflag::Optional   ] && is_star                    ) throw cat("star targets are natively optional : "                   ,target) ;
-					if ( flags.extra_tflags[ExtraTflag::Optional   ] && flags.tflags[Tflag::Phony] ) throw cat("cannot be simultaneously optional and phony : "          ,target) ;
+					::set_s const& mss = missing_stems ;
+					if ( target.starts_with(*g_repo_root_s)                                        ) throw cat(kind,' ',field," must be relative to root dir : "                     ,target) ;
+					if ( !target                                                                   ) throw cat(kind,' ',field," must not be empty"                                          ) ;
+					if ( !is_lcl(target)                                                           ) throw cat(kind,' ',field," must be local : "                                    ,target) ;
+					if ( +mss                                                                      ) throw cat("stem {",*mss.begin(),"} cannot be derived from ",kind,' ',field," : ",target) ;
+					if (  is_star                                    && !is_plain()                ) throw cat("star ",kind,"s are meaningless for source and anti-rules"                   ) ;
+					if (  is_star                                    && is_stdout                  ) throw     "stdout cannot be directed to a star target"s                                  ;
+					if ( flags.tflags      [Tflag     ::Incremental] && is_stdout                  ) throw     "stdout cannot be directed to an incremental target"s                          ;
+					if ( flags.extra_tflags[ExtraTflag::Optional   ] && is_star                    ) throw cat("star targets are natively optional : "                               ,target) ;
+					if ( flags.extra_tflags[ExtraTflag::Optional   ] && flags.tflags[Tflag::Phony] ) throw cat(kind,' ',field,"cannot be simultaneously optional and phony : "       ,target) ;
 					bool is_top = flags.extra_tflags[ExtraTflag::Top] || flags.extra_dflags[ExtraDflag::Top] ;
 					seen_top    |= is_top                  ;
 					seen_target |= kind==MatchKind::Target ;

@@ -529,18 +529,26 @@ namespace Engine {
 	/**/   void ReqData::audit_status (                                          bool ok ) const { _audit_status(audit_fd,log_fd,options,ok                ) ; } // ... w/o naming namespace
 
 	bool/*seen*/ ReqData::audit_stderr( Job j , MsgStderr const& msg_stderr , uint16_t max_stderr_len , DepDepth lvl ) const {
-		if (+msg_stderr.msg   ) audit_info( Color::Note , msg_stderr.msg , lvl+1 ) ;
-		if (!msg_stderr.stderr) return +msg_stderr.msg ;
-		if (max_stderr_len) {
-			::string_view shorten = first_lines(msg_stderr.stderr,max_stderr_len) ;
-			if (shorten.size()<msg_stderr.stderr.size()) {
-				audit_as_is(::string(shorten)) ;
-				audit_info( Color::Note , "... (for full content : lshow -e -R "+mk_shell_str(j->rule()->user_name())+" -J "+mk_file(j->name(),FileDisplay::Shell)+" )" , lvl+1 ) ;
-				return true ;
+		lvl++ ;
+		if (+msg_stderr.msg) {
+			::string_view short_msg = first_lines( msg_stderr.msg , max_stderr_len ) ;
+			if (short_msg.size()<msg_stderr.msg.size()) {
+				audit_info( Color::Note , ::string(short_msg)                                                                                                                    , lvl ) ;
+				audit_info( Color::Note , cat("... for full content, consider : lshow -i -R ",mk_shell_str(j->rule()->user_name())," -J ",mk_file(j->name(),FileDisplay::Shell)) , lvl ) ;
+			} else {
+				audit_info( Color::Note , msg_stderr.msg                                                                                                                         , lvl ) ;
 			}
 		}
-		audit_as_is(msg_stderr.stderr) ;
-		return true ;
+		if (+msg_stderr.stderr) {
+			::string_view short_stderr = first_lines( msg_stderr.stderr , max_stderr_len ) ;
+			if (short_stderr.size()<msg_stderr.stderr.size()) {
+				audit_as_is( ::string(short_stderr) , lvl ) ;
+				audit_info( Color::Note , cat("... for full content, consider : lshow -e -R ",mk_shell_str(j->rule()->user_name())," -J ",mk_file(j->name(),FileDisplay::Shell)) , lvl ) ;
+			} else {
+				audit_as_is( msg_stderr.stderr , lvl ) ;
+			}
+		}
+		return +msg_stderr ;
 	}
 
 	void ReqData::audit_stats() const {

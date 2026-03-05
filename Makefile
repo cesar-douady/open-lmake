@@ -87,11 +87,18 @@ endif
 #
 # Manifest
 #
-Manifest : .git/index
-	@git ls-files | uniq >$@.new
+IDX_DIR := $(shell git rev-parse --git-dir 2>/dev/null)
+ifeq ($(IDX_DIR),)
+ifeq ($(wildcard Manifest),)
+$(error file Manifest must exist with the sorted list of sources. If a fresh repo, consider : find . -mindepth 1 -type d -o -print | sed `s:^\./::' | sort -u > Manifest)
+endif
+else
+Manifest : $(IDX_DIR)/index
+	@git ls-files | sort -u >$@.new
 	@if cmp -s $@.new $@ ; then rm $@.new    ; echo steady Manifest ; \
 	else                        mv $@.new $@ ; echo new    Manifest ; \
 	fi
+endif
 include Manifest.inc_stamp                                 # Manifest is used in this makefile
 EXCLUDES := $(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc)
 SRCS     := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
@@ -786,10 +793,11 @@ TEST_ENV = \
 	export PYTHON=$(PYTHON)                                                                        ; \
 	exec </dev/null >$@.out 2>$@.err
 
-# keep $(@D) to ease debugging, ignore git rc as old versions work but generate errors
+# keep $(@D) to ease debugging, mimic git clean -ffdx
 TEST_PRELUDE = \
-	mkdir -p $(@D) ; \
-	( cd $(@D) ; git clean -ffdxq >/dev/null 2>/dev/null ; : ; ) ;
+	mkdir -p $(@D)                                                                                                    ; \
+	find $(@D) $(patsubst %,-path % -o,$(filter $(@D)/%,$(SRCS))) -type d -exec chmod u+rwx {} \; -o -exec rm -f {} + ; \
+	find $(@D) -depth -mindepth 1                                 -type d -exec rmdir --ignore-fail-on-non-empty {} + ; \
 
 TEST_POSTLUDE = \
 	if [ $$? = 0 ] ;                                                                                             \
@@ -919,10 +927,10 @@ docs/index.html : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS))
 
 # html doc is under git as _bin/mdbook cannot be downloaded in launchpad.net
 # also this makes the html doc directly available on github
-docs.manifest_stamp : docs/index.html $(MAN_FILES:%.1=docs/%.html) $(DOC_PY:%.py=docs/%.html)
+docs.manifest_stamp : Manifest docs/index.html $(MAN_FILES:%.1=docs/%.html) $(DOC_PY:%.py=docs/%.html)
 	echo collate
-	@git ls-files docs/examples docs/lib docs/man docs/unit_tests | sort > docs.ref_manifest
-	@for f in $(filter-out $<,$^) ; do echo $$f ; done            | sort > docs.actual_manifest
+	@printf '%s\n' $(foreach d,examples lib man unit_tests,$(filter docs/$d/%,$(SRCS))) | sort > docs.ref_manifest
+	@printf '%s\n' $(MAN_FILES:%.1=docs/%.html) $(DOC_PY:%.py=docs/%.html)              | sort > docs.actual_manifest
 	@diff docs.ref_manifest docs.actual_manifest
 	>$@
 

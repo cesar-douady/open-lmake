@@ -21,13 +21,14 @@ if __name__!='__main__' :
 	class Base(Rule) :
 		stems = { 'Method' : r'\w+' }
 
-	class WineRule(Rule) :
+	class WineRule(Base) :
 		side_targets = {
-			'WINE'  : (r'.wine/{*:.*}' ,'incremental')                               # wine writes in dir, even after init
-		,	'CACHE' : (r'.cache/{*:.*}','incremental')                               # .
-		,	'LOCAL' : (r'.local/{*:.*}','incremental')                               # .
-		,	'DBUS'  : (r'.dbus/{*:.*}' ,'incremental')                               # .
+			'WINE'  : (r'.wine/{*:.*}' ,'ignore')                                    # trust wine for the management of its internal files
+		,	'CACHE' : (r'.cache/{*:.*}','ignore')                                    # .
+		,	'LOCAL' : (r'.local/{*:.*}','ignore')                                    # .
+		,	'DBUS'  : (r'.dbus/{*:.*}' ,'ignore')                                    # .
 		}
+		deps      = { 'WINE_INIT' : 'wine_init' }
 		side_deps = {
 			'TOP_DIR'    : ('.'            ,'readdir_ok')                            # wine seems to sometimes readdir that
 		,	'LOCAL_DIR'  : ('.local'       ,'readdir_ok')                            # .
@@ -40,23 +41,21 @@ if __name__!='__main__' :
 		else    : environ_resources = { 'DISPLAY'  : lmake.user_environ['DISPLAY'] } # use current display
 
 	class WineInit(WineRule) :
-		target       = 'wine_init'
-		targets      = { 'WINE' : (r'.wine/{*:.*}','incremental') } # for init wine env is not incremental
-		side_targets = { 'WINE' : None                            }
-		timeout      = 120                                          # actual time is ~10s but seems to sometimes block under heavy load
-		stderr_ok    = True
-		readdir_ok   = True
-		autodep      = 'ld_preload'                                 # uses 32-bits exe, not supported by ptrace nor seccomp
+		target     = 'wine_init'
+		timeout    = 120                    # actual time is ~10s but seems to sometimes block under heavy load
+		stderr_ok  = True
+		readdir_ok = True
+		autodep    = 'ld_preload'           # uses 32-bits exe, not supported by ptrace nor seccomp
+		deps       = { 'WINE_INIT' : None }
 		# do nothing, init support files (in targets) wait for wineserver to die (3s by default)
 		if xvfb : cmd = f'D=$(($SMALL_ID+50)) ; rm -f /tmp/.X$D-lock /tmp/.X11-unix/X$D ; {xvfb} -n $D wine64 cmd && sleep 1'
 		else    : cmd =  '                                                                             wine64 cmd && sleep 1'
 
 	for ext in ('','64') :
-		class Dut(Base,WineRule) :
+		class Dut(WineRule) :
 			name    = f'Dut{ext}'
 			target  = f'dut{ext}.{{Method}}'
-			deps    = { 'WINE_INIT' : 'wine_init' }
-			timeout = 40                            # actual time is ~2s
+			timeout = 40                     # actual time is ~2s
 			autodep = '{Method}'
 			# wine sends err messages, that do occur, to stdout !
 			# wine exits before hostname has finished !

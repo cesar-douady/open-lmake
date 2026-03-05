@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sun Mar  1 22:35:55 2026 -->
+<!-- CreationDate: Wed Mar  4 23:47:36 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -483,26 +483,16 @@ modify <i>Lmakefile.py</i>.</p>
 <p style="margin-left:18%;">Generate more prolix
 output.</p>
 
-<table width="100%" border="0" rules="none" frame="void"
-       cellspacing="0" cellpadding="0">
-<tr valign="top" align="left">
-<td width="9%"></td>
-<td width="5%">
+<p style="margin-left:9%;"><b>-V</b> <i>mode</i>,
+<b>--video</b>=<i>mode</i></p>
 
-
-<p><b>-.nf</b></p></td>
-<td width="86%">
-</td></tr>
-</table>
-
-<p style="margin-left:18%; margin-top: 1em">Explicitly ask
-for a video mode instead of interrogating connected
-terminal. If mode starts with <b>n</b> or <b>N</b>, normal
-video (black on white) is assumed. If it starts with
-<b>r</b> or <b>R</b>, reverse video (white on black) is
-assumed. Else output is not colorized. video mode has an
-impact on generated colors as nice looking colors are not
-the same in each case.</p>
+<p style="margin-left:18%;">Explicitly ask for a video mode
+instead of interrogating connected terminal. If mode starts
+with <b>n</b> or <b>N</b>, normal video (black on white) is
+assumed. If it starts with <b>r</b> or <b>R</b>, reverse
+video (white on black) is assumed. Else output is not
+colorized. video mode has an impact on generated colors as
+nice looking colors are not the same in each case.</p>
 
 <h2>SPECIFIC OPTIONS
 <a name="SPECIFIC OPTIONS"></a>
@@ -596,7 +586,7 @@ in case of hit, and cache is updated in case of miss.</p></td></tr>
 <b>--forget-old-errors</b></p>
 
 <p style="margin-left:18%;">Assume previous errors (before
-this command) are transicent. Contrarily to the <b>lforget
+this command) are transient. Contrarily to the <b>lforget
 -e</b> command, this only concerns this execution, not
 subsequent ones.</p>
 
@@ -681,7 +671,7 @@ level.</p>
 <b>-e</b>, this concerns all jobs. Previous errors are
 counted as 1 trial. Hence, <b>-r</b> encompasses <b>-e</b>,
 but retries more jobs in error. <b><br>
--</b>, <b>--no-incremental</b></p>
+-I</b>, <b>--no-incremental</b></p>
 
 <p style="margin-left:18%;">With this option, jobs that had
 existing incremental targets during their last run are not

@@ -52,4 +52,5 @@ else :
 
 	import ut
 
-	ut.lmake( 'chk' , done=5 , may_rerun=2 , steady=1 )
+	cnt = ut.lmake( 'chk' , done=5 , may_rerun=... , rerun=... , steady=1 )
+	assert cnt.may_rerun + cnt.rerun == 2                                   # rerun occurs on WSL

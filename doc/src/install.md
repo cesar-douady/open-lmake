@@ -27,15 +27,19 @@ To compile open-lmake, you will need:
 - python3.6+ (including 3.13+ free threading) with developer support (i.e. access to the `libpython*.so` file)
 - if using python2, it must be python2.7
 
-The following compilers are known **not** to compile open-lmake:
+The following versions are known **not** to work with open-lmake:
 
 - gcc version 10 and below
+- python 3.5 and below
 
 It has been tested with the dockers listed in the docker dir.
 
 ## Procedure
 
+- if not under a git repository, you must first generate the file Manifest before constructing any artifact
+	- `find . -mindepth 1 -type d -o -print | sed `s:^\./::' | sort -u > Manifest`
 - type `make`
+	- note that no -j is necessary, the number of parallel jobs is automatically set to the available cpus
 	- this builds all necessary files and some unit tests
 	- you must invoke `git clean -fdx` if you modified the Makefile or otherwise if you want a reliable build (`make` is not open-lmake)
 	- you may have to invoke `git clean -fdx lmake_env*` or even `git clean -fdx` after a `git pull`

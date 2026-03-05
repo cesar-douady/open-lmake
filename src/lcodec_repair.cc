@@ -320,10 +320,14 @@ int main( int argc , char* argv[] ) {
 	try                       { config = { New , ""/*root_dir_s*/ } ; }
 	catch (::string const& e) { exit(Rc::BadMakefile,e) ;             }
 	//
-	for( auto const& [file,reason] : drd.to_rm                              ) unlnk  ( file ,          {.abs_ok=true,.dir_ok=is_dir_name(file)} ) ;
-	for( auto const& [src ,dst   ] : drd.to_rename                          ) rename ( src  , dst                                               ) ;
-	for( auto const& [lnk ,target] : drd.to_lnk                             ) sym_lnk( lnk  , target , {.umask=config.umask}                    ) ;
-	for( auto it=drd.to_rmdir_s.rbegin() ; it!=drd.to_rmdir_s.rend() ; it++ ) ::rmdir( it->c_str()                                              ) ;
+	try {
+		for( auto const& [file,reason] : drd.to_rm                              )   unlnk  ( file ,          {.abs_ok=true,.dir_ok=is_dir_name(file)} ) ;
+		for( auto const& [src ,dst   ] : drd.to_rename                          )   rename ( src  , dst                                               ) ;
+		for( auto const& [lnk ,target] : drd.to_lnk                             )   sym_lnk( lnk  , target , {.umask=config.umask}                    ) ;
+		for( auto it=drd.to_rmdir_s.rbegin() ; it!=drd.to_rmdir_s.rend() ; it++ ) { int rc = ::rmdir(it->c_str()) ; throw_unless( rc==0 , "cannot rmdir (",StrErr(),") ",*it,rm_slash ) ; }
+	} catch (::string const& e) {
+		exit( Rc::System , e ) ;
+	}
 	//
 	touch( "stamp"s ) ;
 	//

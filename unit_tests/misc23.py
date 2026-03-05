@@ -10,23 +10,23 @@ if __name__!='__main__' :
 
 	lmake.manifest = ('Lmakefile.py',)
 
-	class Pip(Rule) :
+	class A(Rule) :
 		targets = {
-			'PIP'  : 'venv/bin/pip'
-		,	'VENV' : r'venv/{*:.*}'
+			'A' : 'a'
+		,	'X' : r'a-{*:.*}'
 		}
-		readdir_ok = True
-		cmd        = 'python3 -m venv venv'
+		cmd = '>{A}'
 
-	class Conan(Rule) :
-		targets    = { 'CONAN'            : 'venv/bin/conan' }
-		environ    = { 'PIP_NO_CACHE_DIR' : 'off'            }
-		deps       = { 'PIP'              : 'venv/bin/pip'   }
-		readdir_ok = True
-		cmd        = 'venv/bin/python3 -m pip install conan'
+	class B(Rule) :
+		targets = { 'B' : 'b' }
+		deps    = { 'A' : 'a' }
+		cmd = '''
+			>{B}
+			[ -e 'a-1' ] || >a-1
+		'''
 
 else :
 
 	import ut
 
-	ut.lmake( 'venv/bin/conan' , done=1 , unlink=... , failed=1 , rc=1 )
+	ut.lmake( 'b' , done=1 , unlink=1 , failed=1 , rc=1 )

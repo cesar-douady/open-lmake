@@ -91,9 +91,8 @@ namespace Engine {
 			case Manual::Modif : {
 				Trace trace("manual_wash",idx(),"modif",STR(dangling),STR(query)) ;
 				if (dangling) {
-					/**/                  req->audit_node( Color::Err  , "dangling"           , idx()                                     ) ;
-					if (has_actual_job()) req->audit_info( Color::Note , "generated as a side effect of "+mk_file(actual_job->name()) , 1 ) ;
-					else                  req->audit_node( Color::Note , "consider : git add" , idx()                                 , 1 ) ;
+					req->audit_node( Color::Err  , "dangling"           , idx()     ) ;
+					req->audit_node( Color::Note , "consider : git add" , idx() , 1 ) ;
 				} else if (query) {
 					stamp = false ;                      // the final state will be to wash the file, in the mean time, dont stamp result
 				} else {
@@ -420,6 +419,24 @@ namespace Engine {
 		return ;
 	}
 
+	bool/*unlnked*/ NodeData::_set_no_job( ReqInfo& ri , bool query ) {
+		Manual manual  = manual_wash( ri , query , true/*dangling*/ ) ;             // always check manual if asking for disk
+		bool   unlnked = false                                        ;
+		Trace trace("set_no_job",idx(),ri.goal,crc,manual,actual_job) ;
+		if (crc==Crc::None) return unlnked ;
+		if (!manual) {                                                              // if already unlinked, no need to unlink it again
+			::string n = name() ; SWEAR( is_lcl(n) , n ) ;
+			unlnked = true ;
+			if (query) { trace("query","unlnk") ; return unlnked ; }
+			unlnk(n,{.dir_ok=true}) ;                                               // wash pollution if not manual
+			ri.req->audit_job( Color::Warning , "unlink" , Rule::NoRuleName , n ) ;
+		}
+		set_crc_date(Crc::None) ;                                                   // if not physically unlinked, node will be manual
+		actual_job = {} ;
+		polluted   = {} ;
+		return unlnked ;
+	}
+
 	bool/*solved*/ NodeData::_make_pre( ReqInfo& ri , bool query ) {
 		Trace trace("Nmake_pre",idx(),buildable,ri) ;
 		Req              req   = ri.req ;
@@ -517,19 +534,8 @@ namespace Engine {
 		FAIL() ;                                                                                                 // NO_COV
 	NoSrc :
 		{	if (ri.goal>=NodeGoal::Dsk) {
-				Manual manual = manual_wash(ri,query,true/*dangling*/) ;                                         // always check manual if asking for disk
-				trace("no_src",ri.goal,crc,manual,actual_job) ;
-				if (crc!=Crc::None) {
-					if (manual==Manual::Ok) {                                                                    // if already unlinked, no need to unlink it again
-						lazy_name() ;                                                                            // solve
-						SWEAR( is_lcl(name_) , name_ ) ;
-						if (query) { trace("query","unlnk") ; return false ; }
-						unlnk(name_,{.dir_ok=true}) ;                                                            // wash pollution if not manual
-						req->audit_job( Color::Warning , "unlink" , Rule::NoRuleName , name_ ) ;
-					}
-					set_crc_date(Crc::None) ;                                                                    // if not physically unlinked, node will be manual
-					actual_job = {} ;
-				}
+				bool unlnked = _set_no_job( ri , query ) ;
+				if ( query && unlnked ) return false/*done*/ ;
 				goto DoneDsk ;
 			} else {
 				trace("no_src",ri.goal,crc,actual_job) ;
@@ -692,7 +698,7 @@ namespace Engine {
 			}
 		DoWakeup :
 			if (prod_idx==NoIdx) {
-				if ( ri.goal==NodeGoal::Dsk && !query ) manual_wash(ri,false/*query*/,true/*dangling*/) ;                          // no producing job, check for dangling if asked to do so
+				if (!query) _set_no_job( ri , false/*query*/ ) ;                                                                   // no producing job
 				set_status(NodeStatus::None) ;
 				chk_regenerate = false ;                                                                                           // cannot regenerate from nothing
 			} else if (multi[0]!=NoIdx) {
@@ -796,7 +802,7 @@ namespace Engine {
 		for( Req r : reqs() ) {
 			ReqInfo& ri = req_info(r) ;
 			if (modified) ri.done_  = ::min( ri.done_ , NodeGoal::Status ) ; // target is not conform on disk any more
-			if (+sd     ) ri.manual = Manual::Ok                           ; // if we passed a sig, we know the disk state, and we just updated our records
+			if (+sd     ) ri.manual = {}                                   ; // if we passed a sig, we know the disk state, and we just updated our records
 		}
 		return modified ;
 	}
@@ -808,7 +814,7 @@ namespace Engine {
 				FileSig  sig_ { n }    ;
 				if (sig_.exists()) set_crc_date( Crc(n) , sig_ ) ;
 			}
-			return Manual::Ok ;
+			return {} ;
 		}
 		Manual m = manual({name()}) ;
 		if (m<Manual::Changed) return m ;                                                   // file was not modified
@@ -817,14 +823,14 @@ namespace Engine {
 		::string n = name() ;
 		if ( m==Manual::Empty && crc==Crc::Empty ) {                                        // fast path : no need to open file
 			sig = FileSig(n) ;                                                              // /!\ do not inform user when an empty file is updated as this happens spuriously with no reason
-			return Manual::Ok ;
+			return {} ;
 		}
 		//
 		FileSig sig_ ;
 		Crc     crc_ { n , /*out*/sig_ } ; if (!crc_.match(crc,a)) return m ;               // real modif
 		set_crc_date( crc_ , sig_ ) ;
 		if ( crc_.match(crc) && +req ) req->audit_node(Color::Note,"manual_steady",idx()) ; // generate steady message only if really steady
-		/**/                           return Manual::Ok ;
+		/**/                           return {} ;
 	}
 
 	//

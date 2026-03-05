@@ -389,11 +389,24 @@ EOF
 HAS_RENAMEAT2=$(ok cc -o /dev/null -xc renameat2.c )
 
 #
-# SECCOMP (CAN_AUTODEP_SECCOMP)
+# SECCOMP (HAS_PIDFD+CAN_AUTODEP_SECCOMP)
 #
+cat <<-"EOF" >has_pidfd.cc
+	extern "C" {
+		#include <sys/pidfd.h>
+	}
+	int main() {
+		int x =
+			pidfd_open(0,0   )
+		+	pidfd_getfd(0,0,0)
+		;
+		return x ;                             // use variable
+	}
+EOF
+HAS_PIDFD=$(ok cc -o /dev/null -std=c++20 has_pidfd.cc )
+
 cat <<-"EOF" >can_autodep_seccomp.c
 	#include <linux/seccomp.h>
-	#include <sys/pidfd.h>
 	#include <sys/syscall.h>
 	#include <unistd.h>
 	int main() {
@@ -574,6 +587,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_MEMFD                   $HAS_MEMFD
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PCRE_ENDANCHORED        $HAS_PCRE_ENDANCHORED
+	#define HAS_PIDFD                   $HAS_PIDFD
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_RENAMEAT2               $HAS_RENAMEAT2
 	#define HAS_SINGLE_THREADED         $HAS_SINGLE_THREADED

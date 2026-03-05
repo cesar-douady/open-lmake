@@ -9,7 +9,7 @@ Header(lcache_server,the server that actually executes requests to daemon-based 
 
 .SH DESCRIPTION
 .LP
-B(lcache_server) actually executes requests to daemon-based caches.
+B_(lcache_server) actually executes requests to daemon-based caches.
 
 It takes no options and a single argument which is the dir containing the cached data and meta-data.
 Supported options are reserved for internal use.
@@ -18,22 +18,22 @@ It may be useful to run it as a daemon, for exemple to ensure it runs on a dedic
 
 .SH "EXIT STATUS"
 .LP
-B(lmake_server) exits with a status of zero if all commands were executed.
+B_(lmake_server) exits with a status of zero if all commands were executed.
 Else it exits with a non-zero status:
 .LP
-Item(B(2))  internal error, should not occur
-Item(B(3))  I(LMAKE/config.py) could not be read or contained an error
-Item(B(4))  server could not be started
-Item(B(5))  internal repo state was inconsistent
-Item(B(7))  adequate permissions were missing, typically write access
-Item(B(8))  server crashed, should not occur
-Item(B(10)) some syscall failed
-Item(B(11)) bad usage : command line options and arguments coul not be parsed
-Item(B(12)) bad cache version, dir need to be cleaned and reinitialized
+Item(B_(2))  internal error, should not occur
+Item(B_(3))  I_(LMAKE/config.py) could not be read or contained an error
+Item(B_(4))  server could not be started
+Item(B_(5))  internal repo state was inconsistent
+Item(B_(7))  adequate permissions were missing, typically write access
+Item(B_(8))  server crashed, should not occur
+Item(B_(10)) some syscall failed
+Item(B_(11)) bad usage : command line options and arguments coul not be parsed
+Item(B_(12)) bad cache version, dir need to be cleaned and reinitialized
 
 .SH EXAMPLES
 .LP
-V(lcache_server)
+V_(lcache_server)
 
 .SH FILES
 CommonFiles

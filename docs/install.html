@@ -177,15 +177,22 @@
 <li>python3.6+ (including 3.13+ free threading) with developer support (i.e. access to the <code>libpython*.so</code> file)</li>
 <li>if using python2, it must be python2.7</li>
 </ul>
-<p>The following compilers are known <strong>not</strong> to compile open-lmake:</p>
+<p>The following versions are known <strong>not</strong> to work with open-lmake:</p>
 <ul>
 <li>gcc version 10 and below</li>
+<li>python 3.5 and below</li>
 </ul>
 <p>It has been tested with the dockers listed in the docker dir.</p>
 <h2 id="procedure"><a class="header" href="#procedure">Procedure</a></h2>
 <ul>
+<li>if not under a git repository, you must first generate the file Manifest before constructing any artifact
+<ul>
+<li><code>find . -mindepth 1 -type d -o -print | sed </code>s:^./::' | sort -u &gt; Manifest`</li>
+</ul>
+</li>
 <li>type <code>make</code>
 <ul>
+<li>note that no -j is necessary, the number of parallel jobs is automatically set to the available cpus</li>
 <li>this builds all necessary files and some unit tests</li>
 <li>you must invoke <code>git clean -fdx</code> if you modified the Makefile or otherwise if you want a reliable build (<code>make</code> is not open-lmake)</li>
 <li>you may have to invoke <code>git clean -fdx lmake_env*</code> or even <code>git clean -fdx</code> after a <code>git pull</code>

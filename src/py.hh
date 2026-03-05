@@ -79,7 +79,7 @@ namespace Py {
 		}
 		// data
 	private :
-		PyGILState_STATE _state ;
+		PyGILState_STATE _state = {} /*garbage*/ ; // else compiler complains may be used unitialized in dxtor
 	} ;
 
 	struct SavPyLdLibraryPath {

@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sun Mar  1 22:35:55 2026 -->
+<!-- CreationDate: Wed Mar  4 23:47:36 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -176,7 +176,7 @@ attribute <b>auto_mkdir</b>=<i>True</i>.</p>
 <p style="margin-left:18%;">Mimic setting the rule
 attribute <b>chroot_dir</b>=<i>abs_dir</i>.</p>
 
-<p style="margin-left:9%;"><b>-</b>(1) <i>actions</i>,
+<p style="margin-left:9%;"><b>-C</b> <i>actions</i>,
 <b>--chroot-actions</b>=<i>actions</i></p>
 
 <p style="margin-left:18%;">Mimic setting the rule
@@ -273,23 +273,13 @@ attribute <b>repo_view</b>=<i>abs_dir</i>.</p>
 <p style="margin-left:18%;">Mimic setting the rule
 attribute <b>tmp_view</b>=<i>abs_dir</i>.</p>
 
-<table width="100%" border="0" rules="none" frame="void"
-       cellspacing="0" cellpadding="0">
-<tr valign="top" align="left">
-<td width="9%"></td>
-<td width="5%">
+<p style="margin-left:9%;"><b>-V</b> <i>dict</i>,
+<b>--views</b>=<i>dict</i></p>
 
-
-<p><b>-.nf</b></p></td>
-<td width="86%">
-</td></tr>
-</table>
-
-<p style="margin-left:18%; margin-top: 1em"><i>dict</i>
-must be provided as a dict mapping str to view descriptions
-using the python syntax (which most probably requires shell
-quoting). Mimic setting the rule attribute
-<b>views</b>=<i>dict</i>.</p>
+<p style="margin-left:18%;"><i>dict</i> must be provided as
+a dict mapping str to view descriptions using the python
+syntax (which most probably requires shell quoting). Mimic
+setting the rule attribute <b>views</b>=<i>dict</i>.</p>
 
 <h2>EXIT STATUS
 <a name="EXIT STATUS"></a>
@@ -307,13 +297,12 @@ no error. Else it exits with a non-zero status:</p>
 <td width="3%">
 
 
-<p style="margin-top: 1em"><b>1</b></p></td>
+<p><b>1</b></p></td>
 <td width="6%"></td>
 <td width="82%">
 
 
-<p style="margin-top: 1em">command did not exit without
-error</p> </td></tr>
+<p>command did not exit without error</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="3%">

@@ -339,9 +339,9 @@ namespace Engine {
 			r->audit_job( Color::HiddenNote , "continue" , JobExec(self,host,start_date,now) , true/*at_end*/ , {}/*tag*/ , now-start_date ) ;
 		}
 		r->last_info = self ;
-		//vvvvvvvvvvvvvvvvv
-		r->audit_as_is(txt) ;
-		//^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		r->audit_as_is( txt , 1/*lvl*/ ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
 	void JobExec::live_out(::string const& txt) const {

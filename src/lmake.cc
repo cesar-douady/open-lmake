@@ -71,7 +71,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::ForgetOldErrors , { .short_name='e' , .has_arg=false , .doc="assume old errors are transient"               } }
 	,	{ ReqFlag::Ete             , { .short_name='E' , .has_arg=true  , .doc="estimated time of execution for scheduling"    } }
 	,	{ ReqFlag::NoIncremental   , { .short_name='I' , .has_arg=false , .doc="ignore incremental flag on targets"            } }
-	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of jobs"                            } }
+	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of concurrent jobs"                 } }
 	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                       } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"             } }
 	,	{ ReqFlag::MaxRuns         , { .short_name='m' , .has_arg=true  , .doc="max runs on top of rule prescription"          } }

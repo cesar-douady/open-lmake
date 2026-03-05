@@ -7,22 +7,22 @@ Comment(
 
 Title(xxhsum,compute a fast *non crypto-robust* message digest)
 .SH SYNOPSIS
-B(xxhsum) I(file)
+B_(xxhsum) I_(file)
 
 .SH DESCRIPTION
 .LP
 XXH is a very high performance, high quality checksum generation algorithm internally used by OpenLmake to find out whether file was actually modified or not when its date is changed.
 .LP
-XXH is B(not) crypto-robust.
+XXH is B_(not) crypto-robust.
 This means that you can defeat it if you write a code specially aimed at this purpose, but not otherwise, by chance.
 .LP
 The version used in OpenLmake is 56/64 bits : Checksums are computed on 64 bits but when comparing 2 checksums, if they match on 56 (lsb) bits but not on the full 64 bits,
-OpenLmake will consider we enter into a I(danger zone) and will stop and report the problem.
-Theoretical computation gives that you can generate thousands of files per second for thousands of year before entering the I(danger zone).
+OpenLmake will consider we enter into a I_(danger zone) and will stop and report the problem.
+Theoretical computation gives that you can generate thousands of files per second for thousands of year before entering the I_(danger zone).
 .LP
-B(xxhsum) allow you to generate the checksum of a file, as distinguished by OpenLmake.
+B_(xxhsum) allow you to generate the checksum of a file, as distinguished by OpenLmake.
 .LP
-Because OpenLmake handles symbolic links as themselves and not as the file they point to (i.e. OpenLmake works in the physical world), B(xxhsum) does not follow symbolic links.
+Because OpenLmake handles symbolic links as themselves and not as the file they point to (i.e. OpenLmake works in the physical world), B_(xxhsum) does not follow symbolic links.
 The generated checksums are put in different spaces whether they are regular files or symbolic links.
 .LP
 Also, the execute permission bit is used to compute the checksum of regular files.
@@ -30,19 +30,19 @@ OpenLmake does not handle permission bits (read and write permissions), but the 
 .LP
 Dirs and other awkward files (i.e. neither a regular file or a symbolic link) are handled as if they did not exist.
 .LP
-A checksum is a 16-hex digit number followed by B(-R) for regular files or B(-L) for symbolic links (e.g. 1234567890123456-R).
+A checksum is a 16-hex digit number followed by B_(-R) for regular files or B_(-L) for symbolic links (e.g. 1234567890123456-R).
 The following special cases produce dedicated outputs :
-Bullet file does not exist                         : output is B(none)
-Bullet file is a non-executable regular empty file : output is B(empty-R)
+Bullet file does not exist                         : output is B_(none)
+Bullet file is a non-executable regular empty file : output is B_(empty-R)
 
 .SH "EXIT STATUS"
 .LP
-B(xxhsum) exits with a status of zero if the checksum could be computed.
+B_(xxhsum) exits with a status of zero if the checksum could be computed.
 Else it exits with a non-zero status:
 .LP
-Item(B(2))  internal error, should not occur
-Item(B(7))  adequate permissions were missing, typically write access
-Item(B(10)) some syscall failed
+Item(B_(2))  internal error, should not occur
+Item(B_(7))  adequate permissions were missing, typically write access
+Item(B_(10)) some syscall failed
 
 .SH OUTPUT
 .LP

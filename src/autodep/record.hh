@@ -422,8 +422,8 @@ public :
 		}
 		template<class T> T operator()( Record& r , T rc ) {
 			static_assert( ::is_integral_v<T> || ::is_pointer_v<T> , "unexpected type" ) ; // cannot put an else clause with static_assert(false) with gcc-11
-			if      constexpr (::is_integral_v<T>) { if (rc<0) self(r) ; }
-			else if constexpr (::is_pointer_v <T>) { if (rc  ) self(r) ; }
+			if      constexpr (::is_integral_v<T>) { if (rc>=0) self(r) ; }
+			else if constexpr (::is_pointer_v <T>) { if (rc   ) self(r) ; }
 			return rc ;
 		}
 		// data

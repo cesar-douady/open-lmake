@@ -109,26 +109,25 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,)</span>
 
     <span class="k">class</span> <span class="nc">Pip</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">stems</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;ANYFILE&#39;</span><span class="p">:</span><span class="s1">&#39;.*&#39;</span> <span class="p">}</span>
         <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s1">&#39;PIP&#39;</span>  <span class="p">:</span> <span class="s1">&#39;BUILD/venv/bin/pip&#39;</span><span class="p">,</span>
-            <span class="s1">&#39;VENV&#39;</span> <span class="p">:</span> <span class="s1">&#39;BUILD/venv/{ANYFILE*}&#39;</span><span class="p">,</span>
+            <span class="s1">&#39;PIP&#39;</span>  <span class="p">:</span> <span class="s1">&#39;venv/bin/pip&#39;</span>
+        <span class="p">,</span>   <span class="s1">&#39;VENV&#39;</span> <span class="p">:</span> <span class="sa">r</span><span class="s1">&#39;venv/{*:.*}&#39;</span>
         <span class="p">}</span>
         <span class="n">readdir_ok</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">cmd</span>        <span class="o">=</span> <span class="s1">&#39;python3 -m venv BUILD/venv&#39;</span>
+        <span class="n">cmd</span>        <span class="o">=</span> <span class="s1">&#39;python3 -m venv venv&#39;</span>
 
     <span class="k">class</span> <span class="nc">Conan</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;CONAN&#39;</span>            <span class="p">:</span> <span class="s1">&#39;BUILD/venv/bin/conan&#39;</span> <span class="p">}</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;PIP_NO_CACHE_DIR&#39;</span> <span class="p">:</span> <span class="s1">&#39;off&#39;</span>                  <span class="p">}</span>
-        <span class="n">deps</span>    <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;PIP&#39;</span>              <span class="p">:</span> <span class="s1">&#39;BUILD/venv/bin/pip&#39;</span>   <span class="p">}</span>
-        <span class="n">cmd</span>     <span class="o">=</span> <span class="s1">&#39;BUILD/venv/bin/python3 -m pip install conan&#39;</span>
+        <span class="n">targets</span>    <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;CONAN&#39;</span>            <span class="p">:</span> <span class="s1">&#39;venv/bin/conan&#39;</span> <span class="p">}</span>
+        <span class="n">environ</span>    <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;PIP_NO_CACHE_DIR&#39;</span> <span class="p">:</span> <span class="s1">&#39;off&#39;</span>            <span class="p">}</span>
+        <span class="n">deps</span>       <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;PIP&#39;</span>              <span class="p">:</span> <span class="s1">&#39;venv/bin/pip&#39;</span>   <span class="p">}</span>
         <span class="n">readdir_ok</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">cmd</span>        <span class="o">=</span> <span class="s1">&#39;venv/bin/python3 -m pip install conan&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;BUILD/venv/bin/conan&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">2</span> <span class="p">)</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;venv/bin/conan&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">unlink</span><span class="o">=...</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>

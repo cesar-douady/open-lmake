@@ -456,6 +456,8 @@ This is typically used to access some environment variables set by <code>slurm</
 <tr><td><code>$PYTHONPATH</code></td><td>PyRule</td><td><code>$LMAKE_ROOT/lib</code></td><td></td></tr>
 </tbody></table>
 </div>
+<p>Note that environment variables <code>$PATH</code>, <code>$LD_LIBRARY_PATH</code>, <code>$MANPATH</code> and <code>$PYTHONPATH</code> are subject to
+[<code>...</code> processing]writing_lmakefile.html#:~:text=paths,environ%2EPYTHONPATH%27%3A%27%3A%27%20%7D) to access value in super-class.</p>
 <h3 id="environ_ancillary"><a class="header" href="#environ_ancillary"><a href="unit_tests/dyn.html#:~:text=environ%5Fancillary%20%3D%20%7B%20%27VAR%5FANCILLARY%27%20%3A%20file%5Ffunc%20%7D"><code>environ_ancillary</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td><code>{ 'DISPLAY' : ':10' }</code></td></tr>
@@ -475,6 +477,8 @@ This is typically used to access some environment variables set by <code>slurm</
 <tr><td><code>$USER</code></td><td>Rule</td><td>the user login name</td><td></td></tr>
 </tbody></table>
 </div>
+<p>Note that environment variables <code>$PATH</code>, <code>$LD_LIBRARY_PATH</code>, <code>$MANPATH</code> and <code>$PYTHONPATH</code> are subject to
+[<code>...</code> processing]writing_lmakefile.html#:~:text=paths,environ%2EPYTHONPATH%27%3A%27%3A%27%20%7D) to access value in super-class.</p>
 <h3 id="environ_resources"><a class="header" href="#environ_resources"><a href="unit_tests/dyn.html#:~:text=environ%5Fresources%20%3D%20%7B%20%27VAR%5FRESOURCES%27%20%3A%20file%5Ffunc%20%7D"><code>environ_resources</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td><code>{ 'MY_TOOL_LICENCE' : '12345' }</code></td></tr>
@@ -488,6 +492,8 @@ Hence, it is quite simple to copy some variables from the user environment altho
 <p>Except the exception below, the value must be a <code>f-str</code>.</p>
 <p>If resulting value is <code>...</code> (the python ellipsis), the value from the backend environment is used.
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
+<p>Note that environment variables <code>$PATH</code>, <code>$LD_LIBRARY_PATH</code>, <code>$MANPATH</code> and <code>$PYTHONPATH</code> are subject to
+[<code>...</code> processing]writing_lmakefile.html#:~:text=paths,environ%2EPYTHONPATH%27%3A%27%3A%27%20%7D) to access value in super-class.</p>
 <h3 id="force"><a class="header" href="#force"><a href="unit_tests/dyn.html#:~:text=force%20%3D%20True"><code>force</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>

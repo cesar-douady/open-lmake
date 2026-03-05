@@ -206,7 +206,11 @@ namespace AutodepPtrace {
 
 #if CAN_AUTODEP_SECCOMP
 
-	#include <sys/pidfd.h>
+	#if HAS_PIDFD
+		extern "C" {
+			#include <sys/pidfd.h>
+		}
+	#endif
 
 	static constexpr size_t NCtxs = 300 ; // we may have this number of open file descriptors
 
@@ -346,8 +350,13 @@ namespace AutodepPtrace {
 			pid_t pid     = ::waitpid( child_pid , &wstatus , WUNTRACED ) ; SWEAR( pid==child_pid      , pid,child_pid ) ; // wait for child to stop
 			/**/                                                            SWEAR( WIFSTOPPED(wstatus) , pid,wstatus   ) ;
 			//
-			AcFd pid_fd    { int(::syscall( SYS_pidfd_open  ,child_pid ,     0/*flags*/ )) } ;
-			AcFd notify_fd { int(::syscall( SYS_pidfd_getfd ,pid_fd.fd , 3 , 0/*flags*/ )) } ; throw_unless( +notify_fd , "cannot get (",StrErr(),") notify fd from pid ",child_pid) ;
+			#if HAS_PIDFD // use libc provided wrappers if available
+				AcFd pid_fd    { pidfd_open (                     child_pid ,     0/*flags*/ )  } ;
+				AcFd notify_fd { pidfd_getfd(                     pid_fd.fd , 3 , 0/*flags*/ )  } ; throw_unless( +notify_fd , "cannot get (",StrErr(),") notify fd from pid ",child_pid) ;
+			#else
+				AcFd pid_fd    { int(::syscall( SYS_pidfd_open  , child_pid ,     0/*flags*/ )) } ;
+				AcFd notify_fd { int(::syscall( SYS_pidfd_getfd , pid_fd.fd , 3 , 0/*flags*/ )) } ; throw_unless( +notify_fd , "cannot get (",StrErr(),") notify fd from pid ",child_pid) ;
+			#endif
 			//
 			Epoll<Kind> epoll { New } ;
 			epoll.add_read( pid_fd    , Kind::Job   ) ;

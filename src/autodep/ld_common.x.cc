@@ -540,10 +540,10 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	// mount
 	int mount(CC* sp,CC* tp,CC* fst,ulong f,const void* d) { HDR0(mount,(sp,tp,fst,f,d)) ; NO_SERVER(mount) ; Mount r{tp,Comment::mount} ; return r(orig(sp,tp,fst,f,d)) ; }
 
-	// name_to_handle_at
+	// name_to_handle_at (open_by_handle_at is priviledged, no need to handle it)
 	int name_to_handle_at( int d , CC* p , struct ::file_handle *h , int *mount_id , int f ) NE {
 		HDR1( name_to_handle_at , p , (d,p,h,mount_id,f) ) ;
-		Open r { {d,p} , f , Comment::name_to_handle_at } ;
+		Solve r { {d,p} , !(f&AT_SYMLINK_FOLLOW) , false/*read*/ , false/*create*/ , Comment::name_to_handle_at } ;
 		return r(orig(d,p,h,mount_id,f)) ;
 	}
 

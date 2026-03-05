@@ -9,24 +9,24 @@ Header(ldepend,report a dep from a OpenLmake job)
 
 .SH DESCRIPTION
 .LP
-B(ldepend) may be used to pass flags to OpenLmake.
+B_(ldepend) may be used to pass flags to OpenLmake.
 .LP
 Each dep is associated with an access pattern.
 Accesses are of 3 kinds, regular, link and stat:
 Bullet
-	Regular means that the file was accessed using C(open,2) or similar, i.e. the job is sensitive to the file content if it is a regular file, but not to the target in case it is a symbolic link.
+	Regular means that the file was accessed using C_(open,2) or similar, i.e. the job is sensitive to the file content if it is a regular file, but not to the target in case it is a symbolic link.
 Bullet
-	Link means that the file was accessed using C(readlink,2) or similar, i.e. the job is sensitive to the target if it is a symbolic link, but not to the content in case it is a regular file.
+	Link means that the file was accessed using C_(readlink,2) or similar, i.e. the job is sensitive to the target if it is a symbolic link, but not to the content in case it is a regular file.
 Bullet
 	Stat means that the file meta-data were accessed, i.e. the job is sensitive to file existence and type, but not to the content or its target.
 .LP
 If a file have none of these accesses, changing it will not trigger a rebuild, but it is still a dep as in case it is in error, this will prevent the job from being run.
 Making such dinstinctions is most useful for the automatic processing of symbolic links.
-For example, if file I(a/b) is opened for reading, and it turns out to be a symbolic link to I(c), OpenLmake will set a dep to I(a/b) as a link, and to I(a/c)
+For example, if file I_(a/b) is opened for reading, and it turns out to be a symbolic link to I_(c), OpenLmake will set a dep to I_(a/b) as a link, and to I_(a/c)
 as a link (in case it is itself a link) and regular (as it is opened).
 .LP
 By default, passed deps are associated with no access, but are required to be buildable and produced without error.
-To simulate a plain access, you need to pass the B(--read) option to associate accesses and the B(--no-required) to allow it not to exist.
+To simulate a plain access, you need to pass the B_(--read) option to associate accesses and the B_(--no-required) to allow it not to exist.
 .LP
 Note that :
 Bullet
@@ -37,75 +37,75 @@ Bullet
 	Flags can be passed in (cf. OPTIONS below).
 	Flags accumulate and will apply even if the file is independently accessed.
 Bullet
-	Deps are reported even if the autodep method (the I(autodep) rule attribute) is I(none).
-	This is B(the) way (or a call to B(lmake.depend)) of reporting deps in such a case (usually with I(--read)).
+	Deps are reported even if the autodep method (the I_(autodep) rule attribute) is I_(none).
+	This is B_(the) way (or a call to B_(lmake.depend)) of reporting deps in such a case (usually with I_(--read)).
 
 .SH OPTIONS
 .LP
-Item(B(-L),B(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
-Item(B(-d),B(--direct))          Build deps before command completion (cf. note (5)).
-Item(B(-v),B(--verbose))
+Item(B_(-L),B_(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
+Item(B_(-d),B_(--direct))          Build deps before command completion (cf. note (5)).
+Item(B_(-v),B_(--verbose))
 	Write lines composed of:
 	.RS
-	Item(I(status))   If B(--ignore_error) was also passed, B(ok) if dep is built ok, B(error) if dep is built in error. In all other cases, B(-).
-	Item(I(checksum)) If B(--read)         was also passed, the checksum of the dep (cf C(xxhsum,1)) if it was built.    In all other cases, B(-).
-	Item(I(file))     The filename
+	Item(I_(status))   If B_(--ignore_error) was also passed, B_(ok) if dep is built ok, B_(error) if dep is built in error. In all other cases, B_(-).
+	Item(I_(checksum)) If B_(--read)         was also passed, the checksum of the dep (cf C_(xxhsum,1)) if it was built.    In all other cases, B_(-).
+	Item(I_(file))     The filename
 	.RE
 	.IP
-Item(B(-R),B(--read))            Report an actual read. Default is to only alter flags.
-Item(B(-z),B(--dir))             Specify a dir for use with I(--list).
-Item(B(-l),B(--list))            Print list of currently accessed deps to stdout.
-Only deps lying in the dir mentioned with I(--dir) are listed (if this option is used), and only if they match the regexpr argument (if I(--regexpr)) as reported.
+Item(B_(-R),B_(--read))            Report an actual read. Default is to only alter flags.
+Item(B_(-z),B_(--dir))             Specify a dir for use with I_(--list).
+Item(B_(-l),B_(--list))            Print list of currently accessed deps to stdout.
+Only deps lying in the dir mentioned with I_(--dir) are listed (if this option is used), and only if they match the regexpr argument (if I_(--regexpr)) as reported.
 If the cwd lies outside the repo, listed files are absolute, else they are relative unless they are within an absolute source dir.
 The order of the listed deps is the chronological order.
 Cf note (6).
-Item(B(-c),B(--critical))        Create critical deps (cf. note (7)).
-Item(B(-D),B(--readdir-ok))      Allow C(readdir,3) on passed deps even if not B(ignore)d nor B(incremental). Implies flag B(--no-required).
-Item(B(-E),B(--essential))       Passed deps will appear in the flow shown with a graphical tool.
-Item(B(-e),B(--ignore-error))    Ignore the error status of the passed deps.
-Item(B(-r),B(--no-required))     Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
-Item(B(-x),B(--no-exclude-star)) Accept that flags are further processed according to regexpr-based requests, default is to exclude such processing.
-Item(B(-`I'),B(--ignore))        From now on, ignore all reads of deps (including C(readdir,3)).
-Item(B(-X),B(--regexpr))         Pass flags to all deps matching regexprs passed as argument. The B(ignore) flag only applies to targets following this command.
+Item(B_(-c),B_(--critical))        Create critical deps (cf. note (7)).
+Item(B_(-D),B_(--readdir-ok))      Allow C_(readdir,3) on passed deps even if not B_(ignore)d nor B_(incremental). Implies flag B_(--no-required).
+Item(B_(-E),B_(--essential))       Passed deps will appear in the flow shown with a graphical tool.
+Item(B_(-e),B_(--ignore-error))    Ignore the error status of the passed deps.
+Item(B_(-r),B_(--no-required))     Accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but OpenLmake is ok).
+Item(B_(-x),B_(--no-exclude-star)) Accept that flags are further processed according to regexpr-based requests, default is to exclude such processing.
+Item(B_(-`I'),B_(--ignore))        From now on, ignore all reads of deps (including C_(readdir,3)).
+Item(B_(-X),B_(--regexpr))         Pass flags to all deps matching regexprs passed as argument. The B_(ignore) flag only applies to targets following this command.
 Default is to optimize dep check as much as possible.
 
 .SH "EXIT STATUS"
 .LP
-B(ldepend) exits with a status of zero if dep flags were correctly set.
+B_(ldepend) exits with a status of zero if dep flags were correctly set.
 Else it exits with a non-zero status:
 .LP
-Item(B(1))  the B(--direct) or B(--verbose) options were passed and a dep was in error
-Item(B(2))  internal error, should not occur
-Item(B(11)) bad usage : command line options and arguments coul not be parsed
+Item(B_(1))  the B_(--direct) or B_(--verbose) options were passed and a dep was in error
+Item(B_(2))  internal error, should not occur
+Item(B_(11)) bad usage : command line options and arguments coul not be parsed
 
 .SH EXAMPLES
 .LP
-V(ldepend --ignore a_file) # must be put before reading I(a_file).
+V_(ldepend --ignore a_file) # must be put before reading I_(a_file).
 .LP
-V(ldepend --read a b) # a and b are parallel deps
+V_(ldepend --read a b) # a and b are parallel deps
 .LP
-V(cat a_file) # ignored
+V_(cat a_file) # ignored
 .LP
-V(ldepend --readir_ok --regexpr 'a_dir(/.*)?') # may follow reading dirs
+V_(ldepend --readir_ok --regexpr 'a_dir(/.*)?') # may follow reading dirs
 .LP
-V(find a_dir)
+V_(find a_dir)
 
 .SH NOTES
 Item((1))
-	The same functionality is provided with the B(lmake.depend) python function.
+	The same functionality is provided with the B_(lmake.depend) python function.
 Item((2))
-	Flags can be associated to deps on a regexpr (matching on dep name) basis by using the B(side_deps) rule attribute.
+	Flags can be associated to deps on a regexpr (matching on dep name) basis by using the B_(side_deps) rule attribute.
 Item((3))
-	If B(cat a b) is executed, OpenLmake sees 2 C(open,2) system calls, to I(a) then to I(b), exactly the same sequence that if one did B(cat $(cat a)) and I(a) contained I(b).
+	If B_(cat a b) is executed, OpenLmake sees 2 C_(open,2) system calls, to I_(a) then to I_(b), exactly the same sequence that if one did B_(cat $(cat a)) and I_(a) contained I_(b).
 	.IP
-	Suppose now that I(b) is an error. This is a reason for your job to be in error.
-	But if I(a) is modified, in the former case, this cannot solve your error while in the latter case, it may if the new content of I(a) points to a file that may successfully be built.
-	Because OpenLmake cannot distinguish between the 2 cases, upon a modification of I(a), the job will be rerun in the hope that I(b) is not accessed any more.
+	Suppose now that I_(b) is an error. This is a reason for your job to be in error.
+	But if I_(a) is modified, in the former case, this cannot solve your error while in the latter case, it may if the new content of I_(a) points to a file that may successfully be built.
+	Because OpenLmake cannot distinguish between the 2 cases, upon a modification of I_(a), the job will be rerun in the hope that I_(b) is not accessed any more.
 	Parallel deps prevents this trial.
 Item((4))
 	If a series of files are read in a loop and the loop is written in such a way as to stop on the first error
 	and if the series of file does not depend on the actual content of said files,
-	then it is preferable to pre-access (using B(ldepend)) all files before starting the loop.
+	then it is preferable to pre-access (using B_(ldepend)) all files before starting the loop.
 	The reason is that without this precaution, deps will be discovered one by one and may be built serially instead of all of them in parallel.
 Item((5))
 	Using direct deps is not recommanded for general use as it suffers 2 drawbacks:
@@ -117,14 +117,14 @@ Item((5))
 	.RE
 	.RS
 	This flag is meant in exceptional situations such as a dichotomy search in which a dep is necessary at each step of the dichotomy.
-	In that case, using the B(direct) flag reduces the number of reruns, which can occur for each step otherwise.
-	In that case, it is most probably wise to use the B(critical) flag simultaneously.
+	In that case, using the B_(direct) flag reduces the number of reruns, which can occur for each step otherwise.
+	In that case, it is most probably wise to use the B_(critical) flag simultaneously.
 	.RE
 Item((6))
-	I(--list) is provided as a secure way to replace C(readdir,3).
+	I_(--list) is provided as a secure way to replace C_(readdir,3).
 	Using this feature only relies on job execution, not spurious files that can exist without the possibility of depending on such list.
 Item((7))
-	If a series of dep is directly derived from the content of a file, it may be wise to declare it as B(critical).
+	If a series of dep is directly derived from the content of a file, it may be wise to declare it as B_(critical).
 	When a critical dep is modified, OpenLmake forgets about deps reported after it.
 	.IP
 	Usually, when a file is modified, this has no influence on the list of files that are accessed after it,

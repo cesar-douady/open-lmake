@@ -411,7 +411,7 @@ namespace Engine {
 			Job cj = conform_job_tgt() ;
 			return +cj && ( !cj->is_plain(true/*frozen_ok*/) || has_actual_job(cj) ) ;
 		}
-		Bool3 ok() const {                                                                              // if Maybe <=> not built
+		Bool3 ok() const {                                                      // if Maybe <=> not built
 			switch (status()) {
 				case NodeStatus::Plain : return No | !conform_job_tgt()->err() ;
 				case NodeStatus::Multi : return No                             ;
@@ -437,12 +437,12 @@ namespace Engine {
 		bool  is_anti    (bool reliable=true) const {                                   return is_src_anti(reliable) && has_file(reliable)==No ; }
 		//
 		// services
-		bool read(Accesses a) const {                                                                   // return true <= file was perceived different from non-existent, assuming access provided in a
-			if (crc==Crc::None ) return false          ;                                                // file does not exist, cannot perceive difference
-			if (a[Access::Stat]) return true           ;                                                // if file exists, stat is different
+		bool read(Accesses a) const {                                           // return true <= file was perceived different from non-existent, assuming access provided in a
+			if (crc==Crc::None ) return false          ;                        // file does not exist, cannot perceive difference
+			if (a[Access::Stat]) return true           ;                        // if file exists, stat is different
 			if (crc.is_lnk()   ) return a[Access::Lnk] ;
 			if (crc.is_reg()   ) return a[Access::Reg] ;
-			else                 return +a             ;                                                // dont know if file is a link, any access may have perceived a difference
+			else                 return +a             ;                        // dont know if file is a link, any access may have perceived a difference
 		}
 		//
 		Manual manual_wash( ReqInfo& ri , bool query , bool dangling ) ;
@@ -454,7 +454,7 @@ namespace Engine {
 		::span<JobTgt const> prio_job_tgts     (RuleIdx prio_idx) const ;
 		::span<JobTgt const> conform_job_tgts  (ReqInfo const&  ) const ;
 		::span<JobTgt const> conform_job_tgts  (                ) const ;
-		::span<JobTgt const> candidate_job_tgts(                ) const ;                               // all jobs above prio provided in conform_idx
+		::span<JobTgt const> candidate_job_tgts(                ) const ;       // all jobs above prio provided in conform_idx
 		//
 		// data independent, may be pessimistic (Maybe versus Yes), req is for error reporing only, set infinite if !throw_if_infinite && looping
 		void set_buildable( Req   , RejectSet* /*lazy*/ known_rejected , DepDepth lvl=0 , bool throw_if_infinite=false ) ;
@@ -466,7 +466,7 @@ namespace Engine {
 		void set_pressure( ReqInfo& , CoarseDelay pressure ) const ;
 		//
 		void propag_speculate( Req req , Bool3 speculate ) const {
-			/**/                          if (speculate==Yes         ) return ;                         // fast path : nothing to propagate
+			/**/                          if (speculate==Yes         ) return ; // fast path : nothing to propagate
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			_propag_speculate(ri) ;
@@ -483,11 +483,12 @@ namespace Engine {
 		//
 		bool/*modified*/ set_crc_date( Crc={} , SigDate const& ={} ) ;
 	private :
-		void           _do_set_buildable( Req      , RejectSet&/*lazy*/ known_rejected , DepDepth=0 ) ; // req is for error reporting only
-		bool/*solved*/ _make_pre        ( ReqInfo& , bool query                                     ) ;
-		void           _do_make         ( ReqInfo& , MakeAction , Bool3 speculate=Yes               ) ;
-		void           _do_set_pressure ( ReqInfo&                                                  ) const ;
-		void           _propag_speculate( ReqInfo const&                                            ) const ;
+		void            _do_set_buildable( Req            , RejectSet&/*lazy*/ known_rejected , DepDepth=0 )       ; // req is for error reporting only
+		bool/*solved*/  _make_pre        ( ReqInfo      & , bool query                                     )       ;
+		void            _do_make         ( ReqInfo      & , MakeAction , Bool3 speculate=Yes               )       ;
+		void            _do_set_pressure ( ReqInfo      &                                                  ) const ;
+		void            _propag_speculate( ReqInfo const&                                                  ) const ;
+		bool/*unlnked*/ _set_no_job      ( ReqInfo      & , bool query                                     )       ;
 		//
 		Buildable _gather_special_rule_tgts( ::string const&   name ,       RejectSet&/*lazy*/ known_rejected                  ) ;
 		Buildable _gather_prio_job_tgts    ( ::string&/*lazy*/ name , Req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl=0 ) ;

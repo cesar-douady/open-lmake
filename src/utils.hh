@@ -234,6 +234,7 @@ inline bool is_identifier(::string const& s) {
 }
 
 inline ::string_view first_lines( ::string_view txt , size_t n_sep , char sep='\n' ) {
+	if (!n_sep) return txt ;
 	size_t pos = -1 ;
 	for( [[maybe_unused]] size_t _ : iota(n_sep) ) {
 		pos = txt.find(sep,pos+1) ;
