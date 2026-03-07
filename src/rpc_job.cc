@@ -332,7 +332,7 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 		DF}                                                                                                                        // NO_COV
 	}
 	for( auto const& [_,e] : uniq_tab ) {
-		SWEAR_PROD( e.files.size()<=e.n_lnks , e.n_lnks,e.files ) ;                                                                     // check consistency
+		SWEAR_PROD( e.files.size()<=e.n_lnks , e.n_lnks,e.files ) ;                                                                // check consistency
 		if (e.n_lnks==e.files.size()) { trace("all_lnks",e.files) ; continue ; }                                                   // we have all the links, nothing to do
 		trace("uniquify",e.n_lnks,e.files) ;
 		//
@@ -1160,8 +1160,8 @@ void JobStartRpcReply::mk_canon( ::string const& phy_repo_root_s ) {
 	job_space.mk_canon( phy_repo_root_s , autodep_env.sub_repo_s , +chroot_info.dir_s ) ;
 }
 
-void JobStartRpcReply::_mk_lmake_version() {
-	if (!lmake_version.is_remote) {
+void JobStartRpcReply::mk_lmake_version() {
+	if (!phy_lmake_root_s) {
 		lmake_version.std_path            = STD_PATH            ;
 		lmake_version.python              = PYTHON              ;
 		lmake_version.py_ld_library_path  = PY_LD_LIBRARY_PATH  ;
@@ -1169,7 +1169,7 @@ void JobStartRpcReply::_mk_lmake_version() {
 		lmake_version.py2_ld_library_path = PY2_LD_LIBRARY_PATH ;
 		return ;
 	}
-	try {
+	try {     // if using a different lmake, we must check compatibility and extract system info
 		[[maybe_unused]] bool has_ld_audit = false ;
 		[[maybe_unused]] bool has_seccomp  = false ;
 		uint64_t              v_job        = 0     ;
@@ -1212,9 +1212,12 @@ void JobStartRpcReply::enter(
 	,	::vector<UserTraceEntry>&/*inout*/ user_trace
 	,	::string const&                    phy_repo_root_s
 	,	::string const&                    phy_tmp_dir_s
+	,	::string const&                    dflt_lmake_root_s
 ) {
 	Trace trace("JobStartRpcReply::enter",phy_repo_root_s,phy_tmp_dir_s) ;
-	_mk_lmake_version() ;
+	mk_lmake_version() ;
+	//
+	if (!phy_lmake_root_s) phy_lmake_root_s = dflt_lmake_root_s ;
 	//
 	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s ;
 	autodep_env.tmp_dir_s   = job_space.tmp_view_s  | phy_tmp_dir_s   ;

@@ -16,8 +16,8 @@ lmake_root        = osp.dirname(lmake_private_lib)
 lmake_lib         = lmake_root+'/lib'
 
 # normal python behavior : put script dir as first entry, then PYTHONPATH
-assert sys.path[0]==lmake_private_lib,f'unexpected sys.path : {sys.path} does not start with {lmake_private_lib}'
-assert lmake_lib in sys.path         ,f'unexpected sys.path : {sys.path} does not contain {lmake_lib}'
+assert lmake_lib         in sys.path , f'unexpected sys.path : {sys.path} does not contain {lmake_lib}'
+assert lmake_private_lib in sys.path , f'unexpected sys.path : {sys.path} does not contain {lmake_private_lib}'
 
 if len(sys.argv)!=5 :
 	print('usage : python read_makefiles.py <out_file> <user_environ> .(<actions>.)* sub_repos_s',file=sys.stderr)
@@ -67,8 +67,8 @@ def report_user_err(e) :
 
 lmake.user_environ = UserEnvironDict(user_environ)
 
-sys.path.pop   (0  ) # suppress access to _lib (not  for user usage)
-sys.path.append('.') # add access to repo      (only for user usage)
+sys.path.remove(lmake_private_lib) # suppress access to _lib (not  for user usage)
+sys.path.append('.')               # add access to repo      (only for user usage)
 
 config = pdict()
 if '.config.' in actions :

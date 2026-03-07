@@ -39,7 +39,7 @@ def do_job() :
 	if my_idx != None :
 		prev_dirs = set(abs_sys_path[:my_idx+1])
 		for dir in abs_sys_path[my_idx+1:] :
-			target = osp.join( dir , 'sitecustomize.py' )
+			target = osp.join( dir , 'usercustomize.py' )
 			if dir in prev_dirs       : continue                     # ignore duplicates
 			if not osp.exists(target) : continue
 			#

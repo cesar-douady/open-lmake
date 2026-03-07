@@ -69,7 +69,8 @@ else :
 	ut.lmake( 'dut_py','dut_sh' , steady=2 )
 
 	assert os.system('ldebug -tn hello+world_sh'                   )==0 # coverage is not collected if -n flag not present
-	assert os.system('ldebug -t hello+world_sh'                    )==0 # check no crash
+	assert os.system('ldebug -t  hello+world_sh'                   )==0 # check no crash
+	assert os.system('ldebug -kn hello+world_py'                   )==0 # check no crash
 	assert os.system('ldump_job LMAKE/lmake/local_admin/job_data/2')==0 # check no crash
 	assert os.system('lkpi'                                        )==0 # check no crash
 

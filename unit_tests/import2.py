@@ -21,8 +21,9 @@ if __name__!='__main__' :
 			import a.b.c                 # check namespace based import from repo root
 
 	class Dut2(PyRule) :
-		target = 'dut2'
-		cmd    = "python3 -c 'import a.b.c'" # check we can call python from bash with same flexibility as direct python cmd
+		target  = 'dut2'
+		environ = { 'PYTHON' : '$PYTHON' }
+		cmd     = "$PYTHON -c 'import a.b.c'" # check we can call python from bash with same flexibility as direct python cmd
 
 else :
 
