@@ -67,8 +67,8 @@ else :
 		try    : _sys.meta_path.insert( _sys.meta_path.index(_machinery.PathFinder) , _Depend ) # put dependency checker before the first path based finder
 		except : _sys.meta_path.append(                                               _Depend ) # or at the end if none is found
 		# python3 optimizes imports by reading dirs in path and only access files found there, defeating autodep ability to discover dep to inexistent files
-		report_import()                                                                         # Python does some imports at start-up and read the dirs in sys.path
 		_set_sys_path_mrkr()
+		report_import()                                                                         # Python does some imports at start-up and read the dirs in sys.path
 
 	def load_module( name , file=None ) :
 		'''

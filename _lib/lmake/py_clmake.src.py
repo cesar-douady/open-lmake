@@ -10,6 +10,7 @@
 
 import os      as _os
 import os.path as _osp
+import sys     as _sys
 
 # provide minimal support in pure python
 # XXX? : for now, it is best effort (e.g. $LMAKE_AUTODEP_ENV is not fully resistant to pathalogical cases)
@@ -19,12 +20,12 @@ import subprocess as _sp
 def _run(cmd_line,**kwds) :
 	return _sp.check_output(cmd_line,universal_newlines=True,**kwds)
 _lmake_root = _osp.dirname(_osp.dirname(_osp.dirname(__file__)))
-def _bin(f) : return _lmake_root_s+'/bin/'+f
+def _bin(f) : return _lmake_root+'/bin/'+f
 
 # python3 prototype would be (but not available with python2) : XXX> : restore better prototype when python2 no longer needs to be supported
 #	def depend(
 #		*args
-#	,	critical=False , essential=False , ignore_error=False , required=True , ignore=False
+#	,	critical=False , essential=False , ignore_error=False , required=True , ignore=False , readdir_ok=False
 #	,	follow_symlinks=False , read=False , verbose=False
 #	)
 def depend( *args , **kwds ) :
@@ -35,8 +36,12 @@ def depend( *args , **kwds ) :
 	if     kwds.get('ignore_error'   ,False) : cmd_line.append('--ignore-error'   )
 	if not kwds.get('required'       ,True ) : cmd_line.append('--no-required'    )
 	if     kwds.get('ignore'         ,False) : cmd_line.append('--ignore'         )
+	if     kwds.get('readdir_ok'     ,False) : cmd_line.append('--readdir-ok'     )
 	if     kwds.get('follow_symlinks',False) : cmd_line.append('--follow-symlinks')
 	if     kwds.get('read'           ,False) : cmd_line.append('--read'           )
+	if     kwds.get('verbose'        ,False) : cmd_line.append('--verbose'        )
+	if     kwds.get('direct'         ,False) : cmd_line.append('--direct'         )
+	if     kwds.get('regexpr'        ,False) : cmd_line.append('--regexpr'        )
 	cmd_line += args
 	_run(cmd_line)
 
@@ -50,12 +55,11 @@ def target( *args , **kwds ) :
 	cmd_line = [_bin('ltarget')]
 	if kwds.get('essential'      ,False) : cmd_line.append('--essential'      )
 	if kwds.get('incremental'    ,False) : cmd_line.append('--incremental'    )
-	if kwds.get('no_uniquify'    ,False) : cmd_line.append('--no-uniquify'    )
 	if kwds.get('no_warning'     ,False) : cmd_line.append('--no-warning'     )
 	if kwds.get('phony'          ,False) : cmd_line.append('--phony'          )
 	if kwds.get('ignore'         ,False) : cmd_line.append('--ignore'         )
-	if kwds.get('no_allow'       ,False) : cmd_line.append('--no-allow'       )
 	if kwds.get('source_ok'      ,False) : cmd_line.append('--source-ok'      )
+	if kwds.get('no_allow'       ,False) : cmd_line.append('--no-allow'       )
 	if kwds.get('follow_symlinks',False) : cmd_line.append('--follow-symlinks')
 	if kwds.get('write'          ,False) : cmd_line.append('--write'          )
 	cmd_line += args
@@ -70,6 +74,34 @@ def encode(file,ctx,val,min_len=1) : return _run((_bin('lencode'),'-f',file,'-x'
 
 def get_autodep(      ) : return 'LMAKE_AUTODEP_ENV' in _os.environ
 def set_autodep(enable) : raise NotImplemented
+
+_report_import_std_sfxs = None
+def report_import( module_name=None , path=None , module_suffixes=None ) :
+	global _report_import_std_sfxs
+	if not _report_import_std_sfxs :
+		if _sys.version_info.major<3 :
+			_report_import_std_sfxs = tuple( p+s for p in ('/__init__','') for s in ( '.so' , 'module.so' , '.py' , '.pyc' ) )
+		else :
+			import importlib.machinery
+			sfxs = importlib.machinery.all_suffixes()
+			_report_import_std_sfxs = (
+				*('/__init___'+s for s in sfxs if     s.endswith('.so'))
+			,	*('/__init___'+s for s in sfxs if not s.endswith('.so'))
+			,	*(             s for s in sfxs if     s.endswith('.so'))
+			,	*(             s for s in sfxs if not s.endswith('.so'))
+			)
+	if not module_suffixes        : module_suffixes = _report_import_std_sfxs
+	if not path                   : path            = tuple( d or '.' for d in _sys.path )
+	if _sys.version_info.major>=3 : depend( *path , readdir_ok=True )
+	if not module_name            : return
+	tail = module_name.rsplit('.',1)[-1]
+	for dir in path :
+		abs_dir = _osp.abspath(dir)
+		base    = _osp.join(abs_dir,tail)
+		if abs_dir.startswith(top_repo_root) : sfxs = module_suffixes
+		else                                 : sfxs = _report_import_std_sfxs
+		for sfx in module_suffixes :
+			if _osp.exists(base+sfx) : return
 
 if 'LMAKE_AUTODEP_ENV' in _os.environ :
 	ade           = _os.environ['LMAKE_AUTODEP_ENV'].split(':') # format : server:port:fast_host:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
