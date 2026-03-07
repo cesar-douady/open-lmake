@@ -248,36 +248,29 @@ def finalize_dyn_expr( dyn_expr , for_cmd ) :
 		prelude  = []
 		dbg_info = []
 		if for_cmd :
-			sys_var        = avoid_ctx('sys'       ,dyn_expr.names)
-			lmake_root_var = avoid_ctx('lmake_root',dyn_expr.names)
-			repo_root_var  = avoid_ctx('repo_root' ,dyn_expr.names)
-			if sys_var=='sys' : prelude.append( 'import sys'             )
-			else              : prelude.append(f'import sys as {sys_var}')
-			prelude.append(f"{sys_var}.path.append(lmake_root+'/lib')")    # dont trust PYTHONPATH as we do not masterize it
-		sourcify_var = avoid_ctx('sourcify',dyn_expr.names)
-		prelude.append(f'from lmake import _sourcify as {sourcify_var}')   # even if no dbg_info, this ensures that lmake is imported with a secure sys.path
-		if for_cmd :
-			prelude.append(f'{sys_var}.path.pop()')
+			prelude += (
+				f'import sys as __lmake_sys__'
+			,	f"__lmake_sys__.path.append(__lmake_lmake_root__+'/lib')"                # dont trust PYTHONPATH as we do not masterize it
+			,	f'from lmake                  import _sourcify  as __lmake_sourcify__'   # even if no dbg_info, this ensures that lmake is imported with a secure sys.path
+			,	f'from lmake.import_machinery import fix_import as __lmake_fix_import__'
+			,	f'__lmake_sys__.path.pop()'                                              # /!\ before fix_import as fix_import changes sys.path order
+			,	f'__lmake_fix_import__()'                                                # in case lmake lib is not in PYTHONPATH (else, usercustomize module is loaded and this is automatic)
+			)
+		else :
+			prelude.append(f'from lmake import _sourcify as __lmake_sourcify__')
 		#
 		fl = ml = ql = pl = nl = ll = 0
 		has_lmake = has_repo        = False
 		for set_w in (True,False) :
 			if not set_w :
-				if for_cmd :
-					if lmake_root_var!='lmake_root' :
-						if has_lmake : prelude.append(f'{lmake_root_var} = lmake_root')                                                  # lmake_root prepended at exec time
-						if True      : prelude.append( 'del lmake_root'               )
-					if repo_root_var !='repo_root'  :
-						if has_repo  : prelude.append(f'{repo_root_var } = repo_root' )                                                  # repo_root  prepended at exec time
-						if True      : prelude.append( 'del repo_root'                )
 				prelude.append('#')
 			for func , (module,qualname,filename,firstlineno) in dyn_expr.dbg_info.items() :
 				pfx = ''
 				hl = hr = False
 				if for_cmd :
-					if   filename.startswith(lmake_root_s) : pfx,filename,hl = lmake_root_var+'+',    filename[len(lmake_root):],True # leave leading / in filename
-					elif filename.startswith(repo_root_s ) : pfx,filename,hr = repo_root_var +'+',    filename[len(repo_root ):],True # leave leading / in filename
-					elif filename[0]!='/'                  : pfx,filename,hr = repo_root_var +'+','/'+filename                  ,True # make filename absolute
+					if   filename.startswith(lmake_root_s) : pfx,filename,hl = '__lmake_lmake_root__',    filename[len(lmake_root):],True # leave leading / in filename
+					elif filename.startswith(repo_root_s ) : pfx,filename,hr = '__lmake_repo_root__' ,    filename[len(repo_root ):],True # leave leading / in filename
+					elif filename[0]!='/'                  : pfx,filename,hr = '__lmake_repo_root__' ,'/'+filename                  ,True # make filename absolute
 				if set_w :
 					fl = max( fl , len(str (func       )) )
 					ml = max( ml , len(repr(module     )) )
@@ -289,8 +282,8 @@ def finalize_dyn_expr( dyn_expr , for_cmd ) :
 					has_repo  |= hr
 				else :
 					# python3.6 does not support 0-width alignment and pl may be 0 (in which case there are no pfx's)
-					if pl : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {pfx:{pl}}{filename!r:{nl}} , {firstlineno:>{ll}} )')
-					else  : dbg_info.append(f'{sourcify_var}( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {          filename!r:{nl}} , {firstlineno:>{ll}} )')
+					if pl : dbg_info.append(f"__lmake_sourcify__( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {pfx:{pl}}{'+' if pfx else ' '}{filename!r:{nl}} , {firstlineno:>{ll}} )")
+					else  : dbg_info.append(f'__lmake_sourcify__( {func:{fl}} , {module!r:{ml}} , {qualname!r:{ql}} , {                               filename!r:{nl}} , {firstlineno:>{ll}} )')
 		#
 		dyn_expr.glbs     = ''.join(l+'\n' for l in prelude ) + getattr(dyn_expr,'glbs','')
 		dyn_expr.dbg_info = ''.join(l+'\n' for l in dbg_info)

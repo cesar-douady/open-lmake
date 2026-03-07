@@ -70,8 +70,6 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* change name lmake.report_import into lmake.install_import_hook()
-	- consider message : ln -s .local/lib/python3.12/site-packages to ~lmake/blabla
 * improve lmake -h
 	- add tag
 	- simplify text
@@ -390,6 +388,8 @@ X manage HUGE pages in store
 * TOOLS
 ****************************************************************************************************
 
+* consider vim plugins :
+	- vim-lsp + clangd
 * consider using codeclip, -ffunction-sections -fdata-sections -Wl,--gc-sections
 ! develop lmake under lmake
 	- autodep must support to be audited by autodep for unit tests

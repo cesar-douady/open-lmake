@@ -235,7 +235,8 @@ LMAKE_SERVER_PY_FILES := \
 	lib/lmake_debug/runtime/pdb_.py     \
 	lib/lmake_debug/runtime/pudb_.py    \
 	lib/lmake_debug/runtime/vscode.py   \
-	lib/lmake_debug/runtime/utils.py
+	lib/lmake_debug/runtime/utils.py    \
+	lib/usercustomize.py
 
 LMAKE_SERVER_BIN_FILES := \
 	_bin/align_comments          \

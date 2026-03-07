@@ -169,13 +169,6 @@ class Py2Rule(Rule) :
 		PYTHONPATH      = '$LMAKE_ROOT/lib'
 	,	LD_LIBRARY_PATH = '$PYTHON2_LD_LIBRARY_PATH'
 	)
-	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
-	def cmd() :
-		import sys
-		assert sys.version_info.major==2 , 'cannot use Py2Rule with python%d.%d'%(sys.version_info.major,sys.version_info.minor)
-		from lmake.import_machinery import fix_import
-		fix_import()
-	cmd.shell = ''       # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
 
 class PyRule(Rule) :
 	'base rule that handle pyc creation when importing modules in python'
@@ -188,13 +181,6 @@ class PyRule(Rule) :
 		PYTHONPATH      = '$LMAKE_ROOT/lib'
 	,	LD_LIBRARY_PATH = '$PYTHON_LD_LIBRARY_PATH'
 	)
-	# this will be executed before cmd() of concrete subclasses as cmd() are chained in case of inheritance
-	def cmd() :
-		import sys
-		assert sys.version_info.major==3 , 'cannot use Py3Rule with python%d.%d'%(sys.version_info.major,sys.version_info.minor)
-		from lmake.import_machinery import fix_import
-		fix_import()                                  # deps/targets to pyc files are ignored, so nothing to do
-	cmd.shell = ''                                    # support shell cmd's that may launch python as a subprocess XXX! : manage to execute fix_import()
 
 class RustRule(Rule) :
 	'base rule for use by any code written in Rust (including cargo and rustc that are written in rust)'

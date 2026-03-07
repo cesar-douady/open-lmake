@@ -31,6 +31,14 @@ Because this attribute undergo dynamic evaluation as described in the `cmd` rule
 
 The job execution is successful (but see above) if the interpreter return code is 0.
 
+If the open-lmake lib dir is listed in `$PYTHONPATH` and python is launched without the `-S` option, the import machinery processing described below is performed automatically.
+This is achieved because open-lmake lib dir contains a `usercustomize.py` file automatically launched by python upon startup (unless with `-S' option is given).
+This module manages to call the following such module in `sys.path` so that besides proper deps management, it is fully transparent.
+
+This is easily achieved by declaring such rules as deriving from `PyRule` (or `Py2Rule` if python2 is called).
+
+If not automatic (`$PYHTONPATH` does not contain open-lmake lib dir or python is launched with `-S`), user should manage to call `lmake.import_machinery.fix_import()` to ensure proper deps management.
+
 ## [if cmd is a function](unit_tests/basics.html#:~:text=class%20CatPy%28Cat%2CPyRule%29%20%3A%20target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fpy%27%20def%20cmd%28%29%20%3A%20for%20fn%20in%20%28FIRST%2CSECOND%29%20%3A%20with%20open%28fn%29%20as%20f%20%3A%20print%28f%2Eread%28%29%2Cend%3D%27%27%29)
 
 In that case, this attribute is called to run the job.
@@ -46,6 +54,7 @@ Values may come from (by order of preference):
 - Any value in the module globals.
 - Any builtin value.
 - undefined variables are not defined, which is ok as long as they are not accessed (or they are accessed in a try/except block that handle the `NameError` exception).
+- Dunders of the form `__lmake_xxx__` are internally used by open-lmake for its own management.
 
 Static targets, deps, side targets and side deps are defined as `str`.
 Star targets, side targets and side deps are defined as functions taking the star-stems as argument and returning the then fully specified file.
@@ -53,3 +62,13 @@ Also, in that latter case, the `reg_expr` attribute is defined as a `str` ready 
 and containing named (if corresponding star-stem is named) groups, one for each star-stem.
 
 The job execution is successful (but see above) if no exception is raised.
+
+### import machinery
+
+`lmake.import_machinery.fix_import()` is automatically called upon start-up, even if started with the `-S` option.
+
+This ensures deps are properly handled during the `import` process (which otherwise is implemented in native python in a particularly anti-open-lmake way).
+
+Also, system dirs are put in front of local dirs in `sys.path` so as to avoid too many deps, as if not done, each import of any system module (e.g. `os`) would result in a prior local search,
+which generates about 10 deps for each dir listed in `sys.path`.
+This might easily generate 1000's of deps for an otherwise rather simple script.

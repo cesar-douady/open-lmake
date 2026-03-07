@@ -182,21 +182,21 @@ class Job :
 	def gen_py_cmd( self , runner=None , **kwds ) :
 		preamble,cmd = self.cmd.rsplit('\n',1)
 		if runner :
-			assert cmd[-1]==')'                                                     # cmd must be of the form func(args,...) with 0 or more args
+			assert cmd[-1]==')'                                                         # cmd must be of the form func(args,...) with 0 or more args
 			func,args = cmd.split('(',1)
 			args      = args[:-1]
 			func_args = func
-			if args : func_args = f'{func},{args}'                                  # generate func,args,...
-			else    : func_args = func                                              # handle no args case
+			if args : func_args = f'{func},{args}'                                      # generate func,args,...
+			else    : func_args = func                                                  # handle no args case
 			cmd = textwrap.dedent(f'''
-				import sys as lmake_sys
-				lmake_sys.path.append({osp.dirname(osp.dirname(lmake.__file__))!r}) # ensure lmake lib is accessible
+				import sys as __lmake_sys__
+				__lmake_sys__.path.append({osp.dirname(osp.dirname(lmake.__file__))!r}) # ensure lmake lib is accessible
 				from {runner} import run_py as lmake_runner
-				lmake_sys.path.pop()                                                # restore
+				__lmake_sys__.path.pop()                                                # restore
 				lmake_runner({self.debug_dir!r},{self.static_deps!r},{func_args})
-			'''[1:])                                                                # strip initial \n
-		fix_path = "import sys ; sys.path[0] = '' ; del sys\n"                      # ensure same sys.path as if run with -c, del sys to ensure total transparency
-		if not preamble.startswith(fix_path) : preamble = fix_path+'#\n'+preamble   # if cmd was already in a script, it already contains the fix
+			'''[1:])                                                                    # strip initial \n
+		fix_path = "import sys as __lmake_sys__ ; __lmake_sys__.path[0] = ''\n"         # ensure same sys.path as if run with -c
+		if not preamble.startswith(fix_path) : preamble = fix_path+'#\n'+preamble       # if cmd was already in a script, it already contains the fix
 		return (
 			self.gen_shebang()
 		+	preamble+'\n'

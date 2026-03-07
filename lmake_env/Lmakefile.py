@@ -310,6 +310,7 @@ class TarLmake(BaseRule) :
 	,	'LIB_DBG_RT1'         : 'lib/lmake_debug/runtime/pdb_.py'
 	,	'LIB_DBG_RT2'         : 'lib/lmake_debug/runtime/pudb_.py'
 	,	'LIB_DBG_RT3'         : 'lib/lmake_debug/runtime/vscode.py'
+	,	'LIB_USER_CUSTOMIZE'  : 'lib/usercustomize.py'
 	,	'CLMAKE'              : 'lib/clmake.so'
 	,	'ALIGN_COMMENTS'      : 'bin/align_comments'
 	,	'LCACHE_REPAIR'       : 'bin/lcache_repair'

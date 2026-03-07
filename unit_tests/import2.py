@@ -13,12 +13,16 @@ if __name__!='__main__' :
 	,	'a/b/c.py'
 	)
 
-	class Dut(PyRule) :
-		target = 'dut'
+	class Dut1(PyRule) :
+		target  = 'dut1'
 		environ = { 'PYTHONPATH' : 'a' } # check namespaces with several branches : based on repo root (automatic) and on a
 		def cmd() :
 			import b.c                   # check namespace based import from a
 			import a.b.c                 # check namespace based import from repo root
+
+	class Dut2(PyRule) :
+		target = 'dut2'
+		cmd    = "python3 -c 'import a.b.c'" # check we can call python from bash with same flexibility as direct python cmd
 
 else :
 
@@ -30,4 +34,4 @@ else :
 	os.makedirs('b'  ,exist_ok=True) # this dir is searched, but c.py is not there
 	open('a/b/c.py','w')
 
-	ut.lmake( 'dut' , done=1 , new=1 )
+	ut.lmake( 'dut1','dut2' , done=2 , new=1 )

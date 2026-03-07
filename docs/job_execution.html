@@ -178,6 +178,10 @@ If the temporary dir is not kept through the use of the <code>keep_tmp</code> at
 <h2 id="if-cmd-is-a-str"><a class="header" href="#if-cmd-is-a-str"><a href="unit_tests/basics.html#:~:text=class%20CatSh%28Cat%29%20%3A%20target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fsh%27%20cmd%20%3D%20%27cat%20%7BFIRST%7D%20%7BSECOND%7D%27">if cmd is a <code>str</code></a></a></h2>
 <p>Because this attribute undergo dynamic evaluation as described in the <code>cmd</code> rule attribute, there is not further specificities.</p>
 <p>The job execution is successful (but see above) if the interpreter return code is 0.</p>
+<p>If the open-lmake lib dir is listed in <code>$PYTHONPATH</code> and python is launched without the <code>-S</code> option, the import machinery processing described below is performed automatically.
+This is achieved because open-lmake lib dir contains a <code>usercustomize.py</code> file automatically launched by python upon startup (unless with <code>-S' option is given). This module manages to call the following such module in </code>sys.path` so that besides proper deps management, it is fully transparent.</p>
+<p>This is easily achieved by declaring such rules as deriving from <code>PyRule</code> (or <code>Py2Rule</code> if python2 is called).</p>
+<p>If not automatic (<code>$PYHTONPATH</code> does not contain open-lmake lib dir or python is launched with <code>-S</code>), user should manage to call <code>lmake.import_machinery.fix_import()</code> to ensure proper deps management.</p>
 <h2 id="if-cmd-is-a-function"><a class="header" href="#if-cmd-is-a-function"><a href="unit_tests/basics.html#:~:text=class%20CatPy%28Cat%2CPyRule%29%20%3A%20target%20%3D%20%27%7BFile1%7D%2B%7BFile2%7D%5Fpy%27%20def%20cmd%28%29%20%3A%20for%20fn%20in%20%28FIRST%2CSECOND%29%20%3A%20with%20open%28fn%29%20as%20f%20%3A%20print%28f%2Eread%28%29%2Cend%3D%27%27%29">if cmd is a function</a></a></h2>
 <p>In that case, this attribute is called to run the job.</p>
 <p>During evaluation, its global <code>dict</code> is populated to contain values referenced in these functions.
@@ -197,6 +201,12 @@ Star targets, side targets and side deps are defined as functions taking the sta
 Also, in that latter case, the <code>reg_expr</code> attribute is defined as a <code>str</code> ready to be provided to the <code>re</code> module
 and containing named (if corresponding star-stem is named) groups, one for each star-stem.</p>
 <p>The job execution is successful (but see above) if no exception is raised.</p>
+<h3 id="import-machinery"><a class="header" href="#import-machinery">import machinery</a></h3>
+<p><code>lmake.import_machinery.fix_import()</code> is automatically called upon start-up, even if started with the <code>-S</code> option.</p>
+<p>This ensures deps are properly handled during the <code>import</code> process (which otherwise is implemented in native python in a particularly anti-open-lmake way).</p>
+<p>Also, system dirs are put in front of local dirs in <code>sys.path</code> so as to avoid too many deps, as if not done, each import of any system module (e.g. <code>os</code>) would result in a prior local search,
+which generates about 10 deps for each dir listed in <code>sys.path</code>.
+This might easily generate 1000's of deps for an otherwise rather simple script.</p>
 
                     </main>
 

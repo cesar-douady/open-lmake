@@ -566,10 +566,10 @@ namespace Engine {
 		} else {
 			if ( entry().glbs_str.size() + entry().code_str.size() > 1<<16 ) sra.use_script = true ;
 			//
-			if (sra.use_script) res << "import sys ; sys.path[0] = '' ; del sys\n#"                                                        <<'\n' ; // ensure sys.path is as if run with -c, ...
-			/**/                res << "lmake_root = " << mk_py_str(no_slash(sca.job_space.lmake_view_s|sra.lmake_root_s|*g_lmake_root_s)) <<'\n' ; // ... del sys to ensure total transparency
-			/**/                res << "repo_root  = " << mk_py_str(no_slash(sca.job_space.repo_view_s |*g_repo_root_s                  )) <<'\n' ;
-			/**/                res << '#'                                                                                                 <<'\n' ;
+			if (sra.use_script) res << "import sys as __lmake_sys__ ; __lmake_sys__.path[0] = ''\n#"                                                 <<'\n' ; // ensure sys.path is as if run with -c
+			/**/                res << "__lmake_lmake_root__ = " << mk_py_str(no_slash(sca.job_space.lmake_view_s|sra.lmake_root_s|*g_lmake_root_s)) <<'\n' ;
+			/**/                res << "__lmake_repo_root__  = " << mk_py_str(no_slash(sca.job_space.repo_view_s |*g_repo_root_s                  )) <<'\n' ;
+			/**/                res << '#'                                                                                                           <<'\n' ;
 			eval_ctx( match , rsrcs
 			,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) {
 					res += r->gen_py_line( match , vc , i , key , val ) ;
