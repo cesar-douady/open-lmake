@@ -394,11 +394,11 @@ namespace Backdoor {
 		::optional<::string> res       ;
 	Retry :
 		try {
-			fi = { {rfd,node} } ;
+			fi = { {rfd,node} } ; throw_unless( fi.tag()==FileTag::Lnk ) ;
 			// START_OF_VERSIONING CODEC
 			res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                                         // if node exists, it contains the reply
 			// END_OF_VERSIONING
-		} catch (::string const&) {                                                                         // if node does not exist, create a code
+		} catch (::string const&) {                                                                         // if node does not exist, maybe the table is not initialized
 			if (_retry_codec(r,crs,node,Comment::Decode)) goto Retry/*BACKWARD*/ ;
 		}
 		//
@@ -440,7 +440,7 @@ namespace Backdoor {
 		Retry :
 			fi = { {rfd,node} , {.nfs_guard=&nfs_guard} } ;                                                                                // get date before access to be pessimistic
 			// START_OF_VERSIONING CODEC
-			res = read_lnk( {rfd,node} , &nfs_guard ) ;
+			if (fi.tag()==FileTag::Lnk) res = read_lnk( {rfd,node} , &nfs_guard ) ;
 			if (+res) {
 				throw_unless( res.ends_with(DecodeSfx) , "bad encode link" ) ;
 				res.resize( res.size() - DecodeSfxSz )                       ;
@@ -449,7 +449,7 @@ namespace Backdoor {
 				if ( !crs.is_dir() && !lock ) {
 					lock = {rfd,cf.file} ;
 					lock.lock_shared( cat(host(),'-',::getpid()) ) ;                                                                       // passed id is for debug only
-					goto Retry ;
+					goto Retry/*BACKWARD*/ ;
 				}
 				::string dir_s = CodecFile::s_dir_s(crs.tab) ;
 				creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                   // ensure data exist in store

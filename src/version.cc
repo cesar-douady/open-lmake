@@ -1,7 +1,7 @@
 #include "version.hh"
 namespace Version {
 	uint64_t    constexpr Cache = 33      ; // 47c327397f42448308b09ac27c68b860
-	uint64_t    constexpr Codec = 2       ; // 603a8fc6deb9a767ed591521309aef40
+	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
 	uint64_t    constexpr Repo  = 29      ; // 94f863a04678999bb2c1ad769370975a
 	uint64_t    constexpr Job   = 17      ; // 48b0af5af14d24f6b96ab73c4888b551
 	const char* const     Major = "26.03" ;
@@ -923,14 +923,14 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ********************************************
-// * Codec : 603a8fc6deb9a767ed591521309aef40 *
+// * Codec : 92b278dc7fadca006a85487809cac9ca *
 // ********************************************
 //
 //			// START_OF_VERSIONING CODEC
 //				res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                                         // if node exists, it contains the reply
 //				// END_OF_VERSIONING
 //				// START_OF_VERSIONING CODEC
-//				res = read_lnk( {rfd,node} , &nfs_guard ) ;
+//				if (fi.tag()==FileTag::Lnk) res = read_lnk( {rfd,node} , &nfs_guard ) ;
 //				if (+res) {
 //					throw_unless( res.ends_with(DecodeSfx) , "bad encode link" ) ;
 //					res.resize( res.size() - DecodeSfxSz )                       ;
@@ -939,7 +939,7 @@ namespace Version {
 //					if ( !crs.is_dir() && !lock ) {
 //						lock = {rfd,cf.file} ;
 //						lock.lock_shared( cat(host(),'-',::getpid()) ) ;                                                                       // passed id is for debug only
-//						goto Retry ;
+//						goto Retry/*BACKWARD*/ ;
 //					}
 //					::string dir_s = CodecFile::s_dir_s(crs.tab) ;
 //					creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                   // ensure data exist in store

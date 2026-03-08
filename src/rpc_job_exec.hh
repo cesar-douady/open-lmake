@@ -230,8 +230,9 @@ namespace Codec {
 	public :
 		static void s_init() ;
 		// cxtors & casts
-		CodecLock( Fd root_fd , ::string const& tab={} ) : _root_fd{root_fd} , _tab{New,tab} {}
-		CodecLock(              ::string const& tab={} ) : CodecLock{Fd::Cwd,tab}            {}
+		CodecLock() = default ;
+		CodecLock( Fd root_fd , ::string const& tab ) : _root_fd{root_fd} , _tab{New,tab} {}
+		CodecLock(              ::string const& tab ) : CodecLock{Fd::Cwd,tab}            {}
 		~CodecLock() ;
 		// accesses
 		CodecLock& operator=(CodecLock const&)       = default ;

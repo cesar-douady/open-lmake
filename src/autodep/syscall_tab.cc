@@ -104,7 +104,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-template<bool At> [[maybe_unused]] static ::pair<int64_t/*res*/,int/*errno*/> _exit_chmod( void* ctx , Record& r , Fd , bool emulate , int64_t res ) {
+[[maybe_unused]] static ::pair<int64_t/*res*/,int/*errno*/> _exit_chmod( void* ctx , Record& r , Fd , bool emulate , int64_t res ) {
 	return _do_exit<ChmodHelper>( ctx , emulate , res
 	,	[ ](ChmodHelper& cm            )->int64_t { return ::chmod( cm.chmod.real_write().c_str() , cm.mod ) ; }
 	,	[&](ChmodHelper& cm,int64_t res)          { cm.chmod(r,res) ;                                          }
@@ -392,49 +392,49 @@ static constexpr SyscallDescr::Tab _mk_syscall_descr_tab() {
 		}                                                                   \
 	}
 	// entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a filename known to require no processing
-	//                                    entry                   <At   ,FlagArg   > , exit                             filter return_fd  comment
-	FILL_ENTRY( SYS_access            , { _entry_access           <false,FlagNever > , nullptr                          ,  0  , false   , Comment::access            } ) ;
-	FILL_ENTRY( SYS_faccessat         , { _entry_access           <true ,3         > , nullptr                          ,  1  , false   , Comment::faccessat         } ) ;
-	FILL_ENTRY( SYS_faccessat2        , { _entry_access           <true ,3         > , nullptr                          ,  1  , false   , Comment::faccessat2        } ) ;
-	FILL_ENTRY( SYS_chdir             , { _entry_chdir            <false           > , nullptr                          , -1  , false   , Comment::chdir             } ) ;
-	FILL_ENTRY( SYS_fchdir            , { _entry_chdir            <true            > , nullptr                          , -1  , false   , Comment::fchdir            } ) ;
-	FILL_ENTRY( SYS_chmod             , { _entry_chmod            <false,FlagNever > , _exit_chmod   <false>            ,  0  , false   , Comment::chmod             } ) ;
-	FILL_ENTRY( SYS_fchmodat          , { _entry_chmod            <true ,3         > , _exit_chmod   <true >            ,  1  , false   , Comment::fchmodat          } ) ;
-	FILL_ENTRY( SYS_chroot            , { _entry_chroot                              , nullptr                          , -1  , false   , Comment::chroot            } ) ;
-	FILL_ENTRY( SYS_creat             , { _entry_creat                               , _exit_creat                      ,  0  , true    , Comment::creat             } ) ;
-	FILL_ENTRY( SYS_execve            , { _entry_execve           <false,FlagNever > , nullptr                          , -1  , false   , Comment::execve            } ) ;
-	FILL_ENTRY( SYS_execveat          , { _entry_execve           <true ,4         > , nullptr                          , -1  , false   , Comment::execveat          } ) ;
-	FILL_ENTRY( SYS_getdents          , { _entry_getdents                            , nullptr                          , -1  , false   , Comment::getdents          } ) ;
-	FILL_ENTRY( SYS_getdents64        , { _entry_getdents                            , nullptr                          , -1  , false   , Comment::getdents64        } ) ;
-	FILL_ENTRY( SYS_link              , { _entry_lnk              <false,FlagNever > , _exit_lnk                        ,  1  , false   , Comment::link              } ) ;
-	FILL_ENTRY( SYS_linkat            , { _entry_lnk              <true ,4         > , _exit_lnk                        ,  3  , false   , Comment::linkat            } ) ;
-	FILL_ENTRY( SYS_mkdir             , { _entry_mkdir            <false           > , nullptr                          ,  0  , false   , Comment::mkdir             } ) ;
-	FILL_ENTRY( SYS_mkdirat           , { _entry_mkdir            <true            > , nullptr                          ,  1  , false   , Comment::mkdirat           } ) ;
-	FILL_ENTRY( SYS_mount             , { _entry_mount                               , nullptr                          , -1  , false   , Comment::mount             } ) ;
-	FILL_ENTRY( SYS_name_to_handle_at , { _entry_name_to_handle_at                   , nullptr                          ,  1  , false   , Comment::name_to_handle_at } ) ;
-	FILL_ENTRY( SYS_open              , { _entry_open             <false           > , _exit_open                       ,  0  , true    , Comment::open              } ) ;
-	FILL_ENTRY( SYS_openat            , { _entry_open             <true            > , _exit_open                       ,  1  , true    , Comment::openat            } ) ;
-	FILL_ENTRY( SYS_open_tree         , { _entry_open_tree        <true ,2         > , nullptr                          ,  1  , false   , Comment::open_tree         } ) ;
-	FILL_ENTRY( SYS_readdir           , { _entry_getdents                            , nullptr                          , -1  , false   , Comment::readdir           } ) ;
-	FILL_ENTRY( SYS_readlink          , { _entry_read_lnk         <false           > , _exit_read_lnk                   ,  0  , false   , Comment::readlink          } ) ;
-	FILL_ENTRY( SYS_readlinkat        , { _entry_read_lnk         <true            > , _exit_read_lnk                   ,  1  , false   , Comment::readlinkat        } ) ;
-	FILL_ENTRY( SYS_rename            , { _entry_rename           <false,FlagNever > , _exit_rename                     ,  1  , false   , Comment::rename            } ) ;
-	FILL_ENTRY( SYS_renameat          , { _entry_rename           <true ,FlagNever > , _exit_rename                     ,  3  , false   , Comment::renameat          } ) ;
-	FILL_ENTRY( SYS_renameat2         , { _entry_rename           <true ,4         > , _exit_rename                     ,  3  , false   , Comment::renameat2         } ) ;
-	FILL_ENTRY( SYS_rmdir             , { _entry_unlink           <false,FlagAlways> , nullptr                          ,  0  , false   , Comment::rmdir             } ) ;
-	FILL_ENTRY( SYS_stat              , { _entry_stat             <false,FlagNever > , nullptr                          ,  0  , false   , Comment::stat              } ) ;
-	FILL_ENTRY( SYS_stat64            , { _entry_stat             <false,FlagNever > , nullptr                          ,  0  , false   , Comment::stat64            } ) ;
-	FILL_ENTRY( SYS_fstatat64         , { _entry_stat             <true ,3         > , nullptr                          ,  1  , false   , Comment::fstatat64         } ) ;
-	FILL_ENTRY( SYS_lstat             , { _entry_stat             <false,FlagAlways> , nullptr                          ,  0  , false   , Comment::lstat             } ) ;
-	FILL_ENTRY( SYS_lstat64           , { _entry_stat             <false,FlagAlways> , nullptr                          ,  0  , false   , Comment::lstat64           } ) ;
-	FILL_ENTRY( SYS_statx             , { _entry_statx                               , nullptr                          ,  1  , false   , Comment::statx             } ) ;
-	FILL_ENTRY( SYS_newfstatat        , { _entry_stat             <true ,3         > , nullptr                          ,  1  , false   , Comment::newfstatat        } ) ;
-	FILL_ENTRY( SYS_oldstat           , { _entry_stat             <false,FlagNever > , nullptr                          ,  0  , false   , Comment::oldstat           } ) ;
-	FILL_ENTRY( SYS_oldlstat          , { _entry_stat             <false,FlagAlways> , nullptr                          ,  0  , false   , Comment::oldlstat          } ) ;
-	FILL_ENTRY( SYS_symlink           , { _entry_symlink          <false           > , _exit_sym_lnk                    ,  1  , false   , Comment::symlink           } ) ;
-	FILL_ENTRY( SYS_symlinkat         , { _entry_symlink          <true            > , _exit_sym_lnk                    ,  2  , false   , Comment::symlinkat         } ) ;
-	FILL_ENTRY( SYS_unlink            , { _entry_unlink           <false,FlagNever > , _exit_unlnk                      ,  0  , false   , Comment::unlink            } ) ;
-	FILL_ENTRY( SYS_unlinkat          , { _entry_unlink           <true ,2         > , _exit_unlnk                      ,  1  , false   , Comment::unlinkat          } ) ;
+	//                                    entry                   <At   ,FlagArg   > , exit           filter return_fd  comment
+	FILL_ENTRY( SYS_access            , { _entry_access           <false,FlagNever > , nullptr        ,  0  , false   , Comment::access            } ) ;
+	FILL_ENTRY( SYS_faccessat         , { _entry_access           <true ,3         > , nullptr        ,  1  , false   , Comment::faccessat         } ) ;
+	FILL_ENTRY( SYS_faccessat2        , { _entry_access           <true ,3         > , nullptr        ,  1  , false   , Comment::faccessat2        } ) ;
+	FILL_ENTRY( SYS_chdir             , { _entry_chdir            <false           > , nullptr        , -1  , false   , Comment::chdir             } ) ;
+	FILL_ENTRY( SYS_fchdir            , { _entry_chdir            <true            > , nullptr        , -1  , false   , Comment::fchdir            } ) ;
+	FILL_ENTRY( SYS_chmod             , { _entry_chmod            <false,FlagNever > , _exit_chmod    ,  0  , false   , Comment::chmod             } ) ;
+	FILL_ENTRY( SYS_fchmodat          , { _entry_chmod            <true ,3         > , _exit_chmod    ,  1  , false   , Comment::fchmodat          } ) ;
+	FILL_ENTRY( SYS_chroot            , { _entry_chroot                              , nullptr        , -1  , false   , Comment::chroot            } ) ;
+	FILL_ENTRY( SYS_creat             , { _entry_creat                               , _exit_creat    ,  0  , true    , Comment::creat             } ) ;
+	FILL_ENTRY( SYS_execve            , { _entry_execve           <false,FlagNever > , nullptr        , -1  , false   , Comment::execve            } ) ;
+	FILL_ENTRY( SYS_execveat          , { _entry_execve           <true ,4         > , nullptr        , -1  , false   , Comment::execveat          } ) ;
+	FILL_ENTRY( SYS_getdents          , { _entry_getdents                            , nullptr        , -1  , false   , Comment::getdents          } ) ;
+	FILL_ENTRY( SYS_getdents64        , { _entry_getdents                            , nullptr        , -1  , false   , Comment::getdents64        } ) ;
+	FILL_ENTRY( SYS_link              , { _entry_lnk              <false,FlagNever > , _exit_lnk      ,  1  , false   , Comment::link              } ) ;
+	FILL_ENTRY( SYS_linkat            , { _entry_lnk              <true ,4         > , _exit_lnk      ,  3  , false   , Comment::linkat            } ) ;
+	FILL_ENTRY( SYS_mkdir             , { _entry_mkdir            <false           > , nullptr        ,  0  , false   , Comment::mkdir             } ) ;
+	FILL_ENTRY( SYS_mkdirat           , { _entry_mkdir            <true            > , nullptr        ,  1  , false   , Comment::mkdirat           } ) ;
+	FILL_ENTRY( SYS_mount             , { _entry_mount                               , nullptr        , -1  , false   , Comment::mount             } ) ;
+	FILL_ENTRY( SYS_name_to_handle_at , { _entry_name_to_handle_at                   , nullptr        ,  1  , false   , Comment::name_to_handle_at } ) ;
+	FILL_ENTRY( SYS_open              , { _entry_open             <false           > , _exit_open     ,  0  , true    , Comment::open              } ) ;
+	FILL_ENTRY( SYS_openat            , { _entry_open             <true            > , _exit_open     ,  1  , true    , Comment::openat            } ) ;
+	FILL_ENTRY( SYS_open_tree         , { _entry_open_tree        <true ,2         > , nullptr        ,  1  , false   , Comment::open_tree         } ) ;
+	FILL_ENTRY( SYS_readdir           , { _entry_getdents                            , nullptr        , -1  , false   , Comment::readdir           } ) ;
+	FILL_ENTRY( SYS_readlink          , { _entry_read_lnk         <false           > , _exit_read_lnk ,  0  , false   , Comment::readlink          } ) ;
+	FILL_ENTRY( SYS_readlinkat        , { _entry_read_lnk         <true            > , _exit_read_lnk ,  1  , false   , Comment::readlinkat        } ) ;
+	FILL_ENTRY( SYS_rename            , { _entry_rename           <false,FlagNever > , _exit_rename   ,  1  , false   , Comment::rename            } ) ;
+	FILL_ENTRY( SYS_renameat          , { _entry_rename           <true ,FlagNever > , _exit_rename   ,  3  , false   , Comment::renameat          } ) ;
+	FILL_ENTRY( SYS_renameat2         , { _entry_rename           <true ,4         > , _exit_rename   ,  3  , false   , Comment::renameat2         } ) ;
+	FILL_ENTRY( SYS_rmdir             , { _entry_unlink           <false,FlagAlways> , nullptr        ,  0  , false   , Comment::rmdir             } ) ;
+	FILL_ENTRY( SYS_stat              , { _entry_stat             <false,FlagNever > , nullptr        ,  0  , false   , Comment::stat              } ) ;
+	FILL_ENTRY( SYS_stat64            , { _entry_stat             <false,FlagNever > , nullptr        ,  0  , false   , Comment::stat64            } ) ;
+	FILL_ENTRY( SYS_fstatat64         , { _entry_stat             <true ,3         > , nullptr        ,  1  , false   , Comment::fstatat64         } ) ;
+	FILL_ENTRY( SYS_lstat             , { _entry_stat             <false,FlagAlways> , nullptr        ,  0  , false   , Comment::lstat             } ) ;
+	FILL_ENTRY( SYS_lstat64           , { _entry_stat             <false,FlagAlways> , nullptr        ,  0  , false   , Comment::lstat64           } ) ;
+	FILL_ENTRY( SYS_statx             , { _entry_statx                               , nullptr        ,  1  , false   , Comment::statx             } ) ;
+	FILL_ENTRY( SYS_newfstatat        , { _entry_stat             <true ,3         > , nullptr        ,  1  , false   , Comment::newfstatat        } ) ;
+	FILL_ENTRY( SYS_oldstat           , { _entry_stat             <false,FlagNever > , nullptr        ,  0  , false   , Comment::oldstat           } ) ;
+	FILL_ENTRY( SYS_oldlstat          , { _entry_stat             <false,FlagAlways> , nullptr        ,  0  , false   , Comment::oldlstat          } ) ;
+	FILL_ENTRY( SYS_symlink           , { _entry_symlink          <false           > , _exit_sym_lnk  ,  1  , false   , Comment::symlink           } ) ;
+	FILL_ENTRY( SYS_symlinkat         , { _entry_symlink          <true            > , _exit_sym_lnk  ,  2  , false   , Comment::symlinkat         } ) ;
+	FILL_ENTRY( SYS_unlink            , { _entry_unlink           <false,FlagNever > , _exit_unlnk    ,  0  , false   , Comment::unlink            } ) ;
+	FILL_ENTRY( SYS_unlinkat          , { _entry_unlink           <true ,2         > , _exit_unlnk    ,  1  , false   , Comment::unlinkat          } ) ;
 	#ifdef SYS_openat2
 		FILL_ENTRY( SYS_openat2 , { _entry_open2 , _exit_open2 ,  1/*filter*/ , true/*return_fd*/ , Comment::openat2 } ) ;
 	#endif
