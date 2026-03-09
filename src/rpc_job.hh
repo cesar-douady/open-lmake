@@ -836,7 +836,6 @@ struct JobStartRpcReply {                                                // NOLI
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
 	struct LmakeVersion {
-		bool     is_remote           = false ;
 		::string std_path            ;
 		::string python              ;
 		::string py_ld_library_path  ;
@@ -884,16 +883,15 @@ struct JobStartRpcReply {                                                // NOLI
 	,	::vector<UserTraceEntry>&/*inout*/
 	,	::string const&                    phy_repo_root_s
 	,	::string const&                    phy_tmp_dir_s
+	,	::string const&                    dflt_lmake_root_s
 	) ;
-	void update_val   ( ::string&/*inout*/ v       , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId=0 ) const ;
-	void update_env   ( ::vmap_ss&/*out*/  dyn_env , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId=0 )       ;
-	void exit         (                                                                                                        )       ;
-	void cache_cleanup(                                                                                                        )       ;
-	void chk          ( bool for_cache=false                                                                                   ) const ;
-private :
-	void _mk_lmake_version() ;
+	void update_val      ( ::string&/*inout*/ v       , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId=0 ) const ;
+	void update_env      ( ::vmap_ss&/*out*/  dyn_env , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId=0 )       ;
+	void exit            (                                                                                                        )       ;
+	void cache_cleanup   (                                                                                                        )       ;
+	void chk             ( bool for_cache=false                                                                                   ) const ;
+	void mk_lmake_version(                                                                                                        )       ;
 	// data
-public :
 	// START_OF_VERSIONING REPO CACHE
 	AutodepEnv                              autodep_env      ;
 	CacheRemoteSide                         cache            ;

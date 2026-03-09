@@ -448,7 +448,9 @@ namespace Engine {
 				//
 				if (+target->polluted) trace("polluted",target->polluted,target->polluting_job) ;
 				//
-				if (+crc) {
+				if (!crc) {
+					target->stamp_crc_date() ;                                             // any previous state is now the official state
+				} else {
 					if (td.written) {
 						// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
 						if ( +start_date && target->sig.date>start_date ) {                // if no start_date.p, job did not execute, it cannot generate a clash

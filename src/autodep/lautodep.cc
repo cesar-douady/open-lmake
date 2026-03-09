@@ -180,14 +180,14 @@ int main( int argc , char* argv[] ) {
 			if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) jsrr.chroot_info.group  = gr->gr_name ; }
 		}
 		//
-		jsrr.lmake_version.is_remote = cmd_line.flags[CmdFlag::LmakeRoot] ;
-		jsrr.interpreter             = ::move(cmd_line.args)              ;
+		jsrr.interpreter = ::move(cmd_line.args) ;
 		jsrr.enter(
 			/*out  */::ref(::vector_s())
 		,	/*.    */::ref(::string                ())/*repo_root_s*/
 		,	/*inout*/::ref(::vector<UserTraceEntry>())
 		,	         *g_repo_root_s
 		,	         with_slash(tmp_dir)
+		,	         *g_lmake_root_s
 		) ;
 		jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ;           // updateg jsrr.env and jsrr.interpreter
 		//

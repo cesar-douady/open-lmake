@@ -469,6 +469,8 @@ namespace Engine {
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;
 		//
+		jsrr.mk_lmake_version() ;
+		//
 		::string res = "script = gen_script(\n" ;
 		//
 		/**/                           res <<  "\tautodep_method  = " << mk_py_str(snake   (jsrr.method             )) << '\n' ;

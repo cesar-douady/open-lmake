@@ -52,14 +52,6 @@ JobStartRpcReply get_start_info() {
 		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ;        // this may be a server config problem, better to report if verbose
 		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ;        // .
 	}
-	if (+g_lmake_root_s) {
-		try {
-			if (!res.phy_lmake_root_s) res.phy_lmake_root_s        = *g_lmake_root_s ;
-			else                       res.lmake_version.is_remote = true            ; // if using a different lmake, we must check compatibility and extract system info
-		} catch (::string const& e) {
-			exit(Rc::Fail,e) ;
-		}
-	}
 	g_user_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
 	return res ;
@@ -251,6 +243,7 @@ int main( int argc , char* argv[] ) {
 			,	/*inout*/*g_user_trace
 			,	         g_phy_repo_root_s
 			,	         end_report.phy_tmp_dir_s
+			,	         *g_lmake_root_s
 			) ;
 		} catch (::string const& e) {
 			end_report.msg_stderr.msg += e ;
