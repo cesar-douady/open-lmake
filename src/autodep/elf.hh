@@ -172,7 +172,7 @@ inline ::string _mk_abs_exe(::string const& exe) {
 } ;
 inline ::string Elf::s_expand( const char* txt , ::string const& exe ) {
 	static constexpr const char* LdSoLib   =                 LD_SO_LIB              ;
-	static constexpr const char* LdSoLib32 = LD_SO_LIB_32[0]?LD_SO_LIB_32:LD_SO_LIB ; // on 32 bits systems, there is only 32 bits apps and info is in LD_SO_LIB
+	static constexpr const char* LdSoLib32 = LD_SO_LIB_32[0]?LD_SO_LIB_32:LD_SO_LIB ; // on 32-bit systems, there is only 32-bit apps and info is in LD_SO_LIB
 	if (!txt) return {} ;
 	const char* ptr = ::strchrnul(txt,'$') ;
 	::string    res { txt , ptr }          ;

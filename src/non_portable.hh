@@ -5,23 +5,40 @@
 
 #pragma once
 
-#include <elf.h>        // NT_PRSTATUS definition on ARM
+#include <elf.h>         // NT_PRSTATUS definition on ARM
+#include <linux/audit.h> // AUDIT_ARCH_*
 
-#include "std.hh"
 
-static constexpr char NpErrnoSymbolName[] = "__errno_location" ; // XXX! : find a way to stick to documented interfaces
+#include "utils.hh"
 
-#if __x86_64__ || __aarch64__ || __s390x__
-	static constexpr uint8_t NpWordSz = 64 ;
-#elif __i386__ || __arm__     || __s390__
-	static constexpr uint8_t NpWordSz = 32 ;
-#endif
+namespace NonPortable {
 
-uint8_t np_word_sz_from_audit_arch(uint32_t arch) ;
-static constexpr size_t NpElfHdrSz = ::max<size_t>({ EI_CLASS+1 , EI_DATA+1 , offsetof(Elf32_Ehdr,e_machine)+2 , offsetof(Elf64_Ehdr,e_machine)+2 }) ;
-uint8_t np_word_sz_from_elf(const char* elf_hdr) ; // must point to the ElfHdrSz first bytes of a Elf32_Ehdr or a Elf64_Ehdr
+	static constexpr char ErrnoSymbolName[] = "__errno_location" ; // XXX! : find a way to stick to documented interfaces
 
-::array<uint64_t,6> np_ptrace_get_args( pid_t pid ,               uint8_t word_sz=NpWordSz ) ; // word_sz must be 32 or 64
-int64_t             np_ptrace_get_res ( pid_t pid ,               uint8_t word_sz=NpWordSz ) ; // .
-long                np_ptrace_get_nr  ( pid_t pid ,               uint8_t word_sz=NpWordSz ) ; // .
-void                np_ptrace_set_res ( pid_t pid , int64_t val , uint8_t word_sz=NpWordSz ) ; // .
+	#if __x86_64__
+		constexpr uint32_t Arch = AUDIT_ARCH_X86_64  ;
+	#elif __i386__
+		constexpr uint32_t Arch = AUDIT_ARCH_I386    ;
+	#elif __aarch64__
+		constexpr uint32_t Arch = AUDIT_ARCH_AARCH64 ;
+	#elif __arm__
+		constexpr uint32_t Arch = AUDIT_ARCH_ARM     ;
+	#elif __s390x__
+		constexpr uint32_t Arch = AUDIT_ARCH_S390X   ;
+	#elif __s390__
+		constexpr uint32_t Arch = AUDIT_ARCH_S390    ;
+	#endif
+
+
+	bool is_32_from_audit_arch(uint32_t arch) ;
+
+	static constexpr size_t ElfHdrSz = ::max<size_t>({ EI_CLASS+1 , EI_DATA+1 , offsetof(Elf32_Ehdr,e_machine)+2 , offsetof(Elf64_Ehdr,e_machine)+2 }) ;
+	Bool3 is_32_from_elf(const char* elf_hdr) ; // Maybe means elf_hdr is not recognized, else must point to the ElfHdrSz first bytes of a Elf32_Ehdr or a Elf64_Ehdr
+
+	bool                ptrace_is_32   ( pid_t pid                                  ) ;
+	::array<uint64_t,6> ptrace_get_args( pid_t pid ,               bool is_32=false ) ;
+	int64_t             ptrace_get_res ( pid_t pid ,               bool is_32=false ) ;
+	long                ptrace_get_nr  ( pid_t pid ,               bool is_32=false ) ;
+	void                ptrace_set_res ( pid_t pid , int64_t val , bool is_32=false ) ;
+
+}

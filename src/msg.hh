@@ -14,7 +14,7 @@
 
 struct MsgBuf {
 	friend ::string& operator+=( ::string& , MsgBuf const& ) ;
-	using Len = uint32_t    ;                                    // /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
+	using Len = uint32_t    ;                                    // /!\ dont use size_t in serialized stream to make serialization interoperable between 32-bit and 64-bit
 	using Key = SockFd::Key ;
 	// statics
 	static Len s_sz(const char* str) {

@@ -101,7 +101,7 @@ such a dir may contain a file `LMAKE/file_sync` containing one of `auto`, `none`
 A dir containing an association table can be edited by hand to customize codes.
 Each assocation `code`<->`value` is recorded as :
 
-- Let `checksum` be a 128-bits checksum computed after `value` as a hex string (of size 32).
+- Let `checksum` be a 128-bits checksum computed after `value` as a base-64 string.
 - The file `store/checksum` contains `value`.
 - There is a symbolic link in `tab/context/code.decode` pointing to this file, e.g. `../../store/checksum` if context has no embedded `/`.
 This file is used for decoding, i.e. for getting `value` given `code`.

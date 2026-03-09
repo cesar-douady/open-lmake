@@ -182,11 +182,13 @@ using Unlnk    = AuditAction<Record::Unlnk              ,1   > ;
 //
 
 static void _exec_chk_is_32([[maybe_unused]] ::string const& file) {
-	if (HAS_32) return ;                                                                                                // 32-bits is supported
+	if (HAS_32) return ;                                                                            // 32-bit is supported
 	try {
-		uint8_t word_sz = np_word_sz_from_elf(AcFd(file).read(NpElfHdrSz).c_str()) ;
-		if (!word_sz          ) return ;                                                                                // not an elf, or at least not recognizable
-		if ( word_sz!=NpWordSz) auditor().report_panic(cat("exec ",word_sz,"-bits ",file," with no 32-bits support")) ;
+		Bool3 is_32 = NonPortable::is_32_from_elf(AcFd(file).read(NonPortable::ElfHdrSz).c_str()) ;
+		if (is_32==Maybe) return ;                                                                  // not an elf, or at least not recognizable
+		#if !HAS_32
+			if (is_32==Yes) auditor().report_panic(cat("exec 32-bit ",file," with no 32-bit support")) ;
+		#endif
 	} catch (::string const&) {}
 }
 
@@ -774,7 +776,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 			SWEAR( descr.exit , syscall ) ;
 			LockRecordAndErrno lock ;
 			//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			tie(res,errno) = descr.exit( ctx , auditor() , {}/*proc_mem*/ , false/*emulate*/ , res ) ; // we do not emulate, setting res and errno is only for magic readlink
+			tie(res,errno) = descr.exit( ctx , auditor() , {}/*proc_mem*/ , false/*emulate*/ , res ) ;          // we do not emulate, setting res and errno is only for magic readlink
 			//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		return res ;

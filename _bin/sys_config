@@ -170,7 +170,7 @@ else
 	cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(show_lib ./ld_so_lib_32)
 	if   [ ! "$LD_SO_LIB_32"                ] ; then echo "no 32 bits support"                    >>$SUM_FILE
 	elif [   "$LD_SO_LIB_32" = "$LD_SO_LIB" ] ; then echo "cannot distinguish 32 and 64 bits exe" >>$ERR_FILE
-	else                                             HAS_32=1
+	else                                             HAS_32=IS_64                                             # HAS_32 is only set when compiling 64-bit
 	fi
 fi
 
@@ -259,7 +259,7 @@ cc -m32 -o std_library_path_32 -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH_32
 #
 LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
 LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
-if [ $HAS_32 = 1 ] ; then
+if [ $HAS_32 != 0 ] ; then
 	LINK_LIB_PATH_32=$(find_cc_ld_library_path -m32 $CXX)
 	LINK_LIB_PATH_32=${LINK_LIB_PATH_32//:/ }
 fi
@@ -495,10 +495,10 @@ EOF
 has_uint128_64=$(ok cc -c -o /dev/null      uint128.c )
 has_uint128_32=$(ok cc -c -o /dev/null -m32 uint128.c )
 case $has_uint128_64/$has_uint128_32 in
-	0/0) HAS_UINT128="0"                       ;;
-	0/1) HAS_UINT128="(__SIZEOF_POINTER__==4)" ;;
-	1/0) HAS_UINT128="(__SIZEOF_POINTER__==8)" ;;
-	1/1) HAS_UINT128="1"                       ;;
+	0/0) HAS_UINT128=0     ;;
+	0/1) HAS_UINT128=IS_32 ;;
+	1/0) HAS_UINT128=IS_64 ;;
+	1/1) HAS_UINT128=1     ;;
 esac
 
 #
@@ -567,10 +567,10 @@ EOF
 
 if [ "$LD_SO_LIB_32" ] ; then
 	case $HAS_STACKTRACE$HAS_STACKTRACE_32 in
-		00) HAS_STACKTRACE_H=0                                      ;;
-		01) HAS_STACKTRACE_H='(__i386__||__arm__||__s390__)'        ;;
-		10) HAS_STACKTRACE_H='(__x86_64__||__aarch64__||__s390x__)' ;;
-		11) HAS_STACKTRACE_H=1                                      ;;
+		00) HAS_STACKTRACE_H=0     ;;
+		01) HAS_STACKTRACE_H=IS_32 ;;
+		10) HAS_STACKTRACE_H=IS_64 ;;
+		11) HAS_STACKTRACE_H=1     ;;
 	esac
 else
 	HAS_STACKTRACE_H=$HAS_STACKTRACE
@@ -578,6 +578,15 @@ fi
 cat >$H_FILE <<-EOF
 	#pragma once
 	//
+	#if __SIZEOF_POINTER__==8
+		#define IS_32 0
+		#define IS_64 1
+	#elif __SIZEOF_POINTER__==4
+		#define IS_32 1
+		#define IS_64 0
+	#else
+		#error "unexpected word width"
+	#endif
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define CAN_AUTODEP_SECCOMP         $CAN_AUTODEP_SECCOMP
 	#define HAS_32                      $HAS_32

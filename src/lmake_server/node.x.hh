@@ -481,7 +481,8 @@ namespace Engine {
 		//
 		template<class RI> void add_watcher( ReqInfo& ri , Watcher watcher , RI& wri , CoarseDelay pressure ) ;
 		//
-		bool/*modified*/ set_crc_date( Crc={} , SigDate const& ={} ) ;
+		bool/*modified*/ set_crc_date  ( Crc={} , SigDate const& ={} ) ;
+		void             stamp_crc_date(                             ) ;
 	private :
 		void            _do_set_buildable( Req            , RejectSet&/*lazy*/ known_rejected , DepDepth=0 )       ; // req is for error reporting only
 		bool/*solved*/  _make_pre        ( ReqInfo      & , bool query                                     )       ;

@@ -32,6 +32,7 @@ __pycache__
 #auto-configuration
 /sys_config.*
 /sys_config_env
+/world_32.h
 /version.checked
 /src/version.cc.stamp
 /_lib/version.py

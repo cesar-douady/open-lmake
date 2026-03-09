@@ -925,7 +925,7 @@ Status Gather::_exec_child() {
 			DF}                                                                                                                                        // NO_COV
 		}
 	}
-	SWEAR_PROD(!_child) ;                                                                                                                              // _child must have been waited by now
+	SWEAR_PROD( !_child , _child.pid ) ;                                                                                                                              // _child must have been waited by now
 	trace("done",status) ;
 	return status ;
 }

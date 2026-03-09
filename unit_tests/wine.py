@@ -42,10 +42,9 @@ if __name__!='__main__' :
 
 	class WineInit(WineRule) :
 		target     = 'wine_init'
-		timeout    = 120                    # actual time is ~10s but seems to sometimes block under heavy load
+		timeout    = 120         # actual time is ~10s but seems to sometimes block under heavy load
 		stderr_ok  = True
 		readdir_ok = True
-		autodep    = 'ld_preload'           # uses 32-bits exe, not supported by ptrace nor seccomp
 		deps       = { 'WINE_INIT' : None }
 		# do nothing, init support files (in targets) wait for wineserver to die (3s by default)
 		if xvfb : cmd = f'D=$(($SMALL_ID+50)) ; rm -f /tmp/.X$D-lock /tmp/.X11-unix/X$D ; {xvfb} -n $D wine64 cmd && sleep 1'
@@ -87,7 +86,7 @@ else :
 		print('wine64 not available',file=open('skipped','w'))
 		exit()
 	if not os.environ['HAS_32'] :
-		print('32-bits support is required for wine, even with wine64',file=open('skipped','w'))
+		print('32-bit support is required for wine, even with wine64',file=open('skipped','w'))
 		exit()
 
 	# try to adapt to various installations
@@ -105,10 +104,9 @@ else :
 		print(f'{hostname_exe} not found',file=open('skipped','w'))
 		exit()
 
-	autodeps_32 = tuple(m for m in lmake.autodeps if m.startswith('ld_'))                            # ptrace and seccomp do not support 32-bits and wine requires 32-bits, even wine64
-	ut.lmake( *(f'test64.{m}' for m in autodeps_32) , done=1+2*len(autodeps_32) , new=0 , rc=0 )
-	ut.lmake( *(f'test64.{m}' for m in autodeps_32)                                            )     # ensure nothing needs to be remade
+	ut.lmake( *(f'test64.{m}' for m in lmake.autodeps) , done=1+2*len(lmake.autodeps) , new=0 , rc=0 )
+	ut.lmake( *(f'test64.{m}' for m in lmake.autodeps)                                               ) # ensure nothing needs to be remade
 	if os.environ['HAS_32'] and shutil.which('wine') :
-		autodeps_wine = tuple(m for m in autodeps_32 if not m.startswith('ld_preload'))              # XXX : fix wine with ld_preload
-		ut.lmake( *(f'test.{m}' for m in autodeps_wine) , done=2*len(autodeps_wine) , new=0 , rc=0 ) # ptrace is not supported in 32 bits
-		ut.lmake( *(f'test.{m}' for m in autodeps_wine)                                            ) # ensure nothing needs to be remade
+		autodeps_wine = tuple(m for m in lmake.autodeps if not m.startswith('ld_preload'))             # XXX : fix wine with ld_preload
+		ut.lmake( *(f'test.{m}' for m in autodeps_wine) , done=2*len(autodeps_wine) , new=0 , rc=0 )   # ptrace is not supported in 32 bits
+		ut.lmake( *(f'test.{m}' for m in autodeps_wine)                                            )   # ensure nothing needs to be remade

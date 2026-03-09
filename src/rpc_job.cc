@@ -259,6 +259,7 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 	::string                  trash           ;
 	::uset_s                  existing_dirs_s ;
 	::umap<UniqKey,UniqEntry> uniq_tab        ;
+	FileStat                  fs              ;
 	//
 	auto dir_exists = [&](::string const& f) {
 		for( ::string d_s=dir_name_s(f) ; +d_s ; d_s = dir_name_s(d_s) )
@@ -266,55 +267,50 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 	} ;
 	//
 	Trace trace("do_file_actions") ;
-	unlnks.reserve(unlnks.size()+pre_actions.size()) ;                                                                                     // most actions are unlinks
-	for( auto const& [f,a] : pre_actions ) {                                                                                               // pre_actions are adequately sorted
-		SWEAR(+f) ;                                                                                                                        // acting on root dir is non-sense
+	unlnks.reserve(unlnks.size()+pre_actions.size()) ;                                                                                         // most actions are unlinks
+	for( auto const& [f,a] : pre_actions ) {                                                                                                   // pre_actions are adequately sorted
+		SWEAR(+f) ;                                                                                                                            // acting on root dir is non-sense
 		switch (a.tag) {
 			case FileActionTag::None           :
 			case FileActionTag::Unlink         :
 			case FileActionTag::UnlinkWarning  :
-			case FileActionTag::UnlinkPolluted : {
-				if (nfs_guard) nfs_guard->access(f) ;
-				FileStat fs ;
-				if (::lstat(f.c_str(),&fs)!=0) {                                                                                           // file does not exist, nothing to do
-					trace(a.tag,"no_file",f) ;
-					continue ;
-				}
-				dir_exists(f) ;                                                                                                            // if a file exists, its dir necessarily exists
-				FileSig sig         { fs }                                                                                               ;
-				bool    empty       = sig.tag()==FileTag::Empty                                                                          ;
-				bool    quarantine_ = +sig && ( sig!=a.sig && !empty && ( a.crc==Crc::None || !a.crc.valid() || !a.crc.match(Crc(f)) ) ) ; // only compute crc if file has been modified
-				if (!sig) trace(a.tag,"awkward",f,sig.tag()) ;
-				if (quarantine_) {
-					quarantine( f , nfs_guard ) ;
-					msg << "quarantined "<<mk_file(f)<<'\n' ;
-				} else {
-					unlnk(f,{.dir_ok=true,.nfs_guard=nfs_guard}) ;
-					if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) {                                                     // if a file has been unlinked, its dir necessarily exists
-						/**/                              msg << "unlinked "      ;
-						if      (empty                  ) msg << "(empty) "       ;
-						else if (sig.tag()==FileTag::Dir) msg << "(dir) "         ;
-						else if (!sig                   ) msg << "(awkward) "     ;
-						/**/                              msg << mk_file(f)<<'\n' ;
+			case FileActionTag::UnlinkPolluted :
+			case FileActionTag::Uniquify       :
+				if (nfs_guard                )   nfs_guard->access(f) ;
+				if (::lstat(f.c_str(),&fs)!=0) { trace(a.tag,"no_file",f) ; continue ; }                                                       // file does not exist, nothing to do
+				dir_exists(f) ;                                                                                                                // if a file exists, its dir necessarily exists
+				if (a.tag!=FileActionTag::Uniquify) {
+					FileSig sig         { fs }                                                                                               ;
+					bool    empty       = sig.tag()==FileTag::Empty                                                                          ;
+					bool    quarantine_ = +sig && ( sig!=a.sig && !empty && ( a.crc==Crc::None || !a.crc.valid() || !a.crc.match(Crc(f)) ) ) ; // only compute crc if file has been modified
+					if (!sig) trace(a.tag,"awkward",f,sig.tag()) ;
+					if (quarantine_) {
+						quarantine( f , nfs_guard ) ;
+						msg << "quarantined "<<mk_file(f)<<'\n' ;
+					} else {
+						unlnk(f,{.dir_ok=true,.nfs_guard=nfs_guard}) ;
+						if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) {                                   // if a file has been unlinked, its dir necessarily exists
+							/**/                              msg << "unlinked "      ;
+							if      (empty                  ) msg << "(empty) "       ;
+							else if (sig.tag()==FileTag::Dir) msg << "(dir) "         ;
+							else if (!sig                   ) msg << "(awkward) "     ;
+							/**/                              msg << mk_file(f)<<'\n' ;
+						}
 					}
+					trace(a.tag,STR(quarantine_),f) ;
+					if (+sig) unlnks.push_back(f) ;
+				} else {
+					if (a.tflags[Tflag::Target]                    ) { trace(a.tag,"incremental",f) ; incremental = true ; }
+					if (   fs.st_nlink<=1                          ) { trace(a.tag,"single"     ,f) ; continue ;           } // file is already unique (or unlinked in parallel), nothing to do
+					if (!( fs.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH) )) { trace(a.tag,"read-only"  ,f) ; continue ;           } // if file is read-only, assume it is immutable
+					if (!  S_ISREG(fs.st_mode)                     ) { trace(a.tag,"awkward"    ,f) ; continue ;           } // do not handle awkward files and symlinks are immutable
+					UniqEntry& e = uniq_tab[{fs.st_dev,fs.st_ino}] ;                                                                   // accumulate all links per file identified by dev/inode
+					if (!e.files) {           e.n_lnks= fs.st_nlink ;  e.sz= fs.st_size ;  e.mod= fs.st_mode ;  e.mtim= fs.st_mtim ; }
+					else          SWEAR_PROD( e.n_lnks==fs.st_nlink && e.sz==fs.st_size && e.mod==fs.st_mode && e.mtim==fs.st_mtim ) ; // check consistency
+					e.files.push_back(f) ;
+					e.no_warning &= a.tflags[Tflag::NoWarning] ;
 				}
-				trace(a.tag,STR(quarantine_),f) ;
-				if (+sig) unlnks.push_back(f) ;
-			} break ;
-			case FileActionTag::Uniquify : {
-				FileStat fs ;
-				if (::lstat(f.c_str(),&fs)!=0                  ) { trace(a.tag,"no_file"    ,f) ; continue ;           }           // file does not exist, nothing to do
-				if (a.tflags[Tflag::Target]                    ) { trace(a.tag,"incremental",f) ; incremental = true ; }
-				dir_exists(f) ;                                                                                                    // if file exists, certainly its dir exists as well
-				if (   fs.st_nlink<=1                          ) { trace(a.tag,"single"     ,f) ; continue ;           }           // file is already unique (or unlinked in parallel), nothing to do
-				if (!( fs.st_mode & (S_IWUSR|S_IWGRP|S_IWOTH) )) { trace(a.tag,"read-only"  ,f) ; continue ;           }           // if file is read-only, assume it is immutable
-				if (!  S_ISREG(fs.st_mode)                     ) { trace(a.tag,"awkward"    ,f) ; continue ;           }           // do not handle awkward files and symlinks are immutable
-				UniqEntry& e = uniq_tab[{fs.st_dev,fs.st_ino}] ;                                                                   // accumulate all links per file identified by dev/inode
-				if (!e.files) {           e.n_lnks= fs.st_nlink ;  e.sz= fs.st_size ;  e.mod= fs.st_mode ;  e.mtim= fs.st_mtim ; }
-				else          SWEAR_PROD( e.n_lnks==fs.st_nlink && e.sz==fs.st_size && e.mod==fs.st_mode && e.mtim==fs.st_mtim ) ; // check consistency
-				e.files.push_back(f) ;
-				e.no_warning &= a.tflags[Tflag::NoWarning] ;
-			} break ;
+			break ;
 			case FileActionTag::Mkdir : {
 				::string f_s = with_slash(f) ;
 				if (!existing_dirs_s.contains(f_s)) mk_dir_s(f_s,{.nfs_guard=nfs_guard}) ;
@@ -323,17 +319,17 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 				if (!keep_dirs.contains(f))
 					try {
 						rmdir_s(with_slash(f),{.nfs_guard=nfs_guard}) ;
-					} catch (::string const&) {                                                                                    // if a dir cannot rmdir'ed, no need to try those uphill
+					} catch (::string const&) {                                                                                        // if a dir cannot rmdir'ed, no need to try those uphill
 						keep_dirs.insert(f) ;
 						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )
 							if (!keep_dirs.insert(no_slash(d_s)).second) break ;
 					}
 			break ;
-		DF}                                                                                                                        // NO_COV
+		DF}                                                                                                                            // NO_COV
 	}
 	for( auto const& [_,e] : uniq_tab ) {
-		SWEAR_PROD( e.files.size()<=e.n_lnks , e.n_lnks,e.files ) ;                                                                // check consistency
-		if (e.n_lnks==e.files.size()) { trace("all_lnks",e.files) ; continue ; }                                                   // we have all the links, nothing to do
+		SWEAR_PROD( e.files.size()<=e.n_lnks , e.n_lnks,e.files ) ;                                                                    // check consistency
+		if (e.n_lnks==e.files.size()) { trace("all_lnks",e.files) ; continue ; }                                                       // we have all the links, nothing to do
 		trace("uniquify",e.n_lnks,e.files) ;
 		//
 		const char* err = nullptr/*garbage*/ ;
@@ -347,7 +343,7 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 				if (::link  (f0,e.files[i].c_str())!=0) { err = "cannot link"   ; goto Bad ; }
 			}
 			TimeSpec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , e.mtim } ;
-			::futimens(wfd,times) ;                                                                                                // maintain original date
+			::futimens(wfd,times) ;                                                                                                    // maintain original date
 			if (!e.no_warning) {
 				/**/                               msg <<"uniquified"  ;
 				if (e.files.size()>1)              msg <<" as a group" ;
@@ -357,8 +353,8 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 			}
 		}
 		continue ;
-	Bad :                                                                                                                          // NO_COV defensive programming
-		throw cat(err," while uniquifying ",e.files) ;                                                                             // NO_COV .
+	Bad :                                                                                                                              // NO_COV defensive programming
+		throw cat(err," while uniquifying ",e.files) ;                                                                                 // NO_COV .
 	}
 	trace("done",localize(msg)) ;
 	return msg ;
@@ -1169,7 +1165,7 @@ void JobStartRpcReply::mk_lmake_version() {
 		lmake_version.py2_ld_library_path = PY2_LD_LIBRARY_PATH ;
 		return ;
 	}
-	try {     // if using a different lmake, we must check compatibility and extract system info
+	try {                                            // if using a different lmake, we must check compatibility and extract system info
 		[[maybe_unused]] bool has_ld_audit = false ;
 		[[maybe_unused]] bool has_seccomp  = false ;
 		uint64_t              v_job        = 0     ;

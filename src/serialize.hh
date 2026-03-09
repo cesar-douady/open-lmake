@@ -60,7 +60,7 @@ namespace std {
 	} ;
 }
 
-// /!\ dont use size_t in serialized stream to make serialization interoperable between 32 bits and 64 bits
+// /!\ dont use size_t in serialized stream to make serialization interoperable between 32-bit and 64-bit
 template<class T> static SerdesSz _serdes_sz(T const& v) {
 	SerdesSz res = v.size() ; SWEAR(res==v.size()) ;
 	return res ;

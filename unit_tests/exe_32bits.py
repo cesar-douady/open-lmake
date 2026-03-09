@@ -62,13 +62,10 @@ else :
 	'''[1:]))
 	print('hello world',file=open('ref','w'))
 
-	bad_32   = len([None for m in lmake.autodeps if not m.startswith('ld_')]) # 32 bits with ptrace and seccomp is not supported
 	autodeps = ('none',*lmake.autodeps)
 
 	ut.lmake(
-		*(f'test-{sz}.{m}' for sz in (64,32) for m in autodeps) # ptrace and seccomp do not support 32 bits
+		*(f'test-{sz}.{m}' for sz in (64,32) for m in autodeps)
 	,	new    = 2
-	,	done   = 2 + 2*(2*len(autodeps)-bad_32)
-	,	failed = bad_32
-	,	rc     = bool(bad_32)
+	,	done   = 2 + 4*len(autodeps)
 	)

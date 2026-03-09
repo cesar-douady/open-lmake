@@ -522,6 +522,26 @@ src/lmake_server/backends/slurm_api-%.cc : ext/slurm/%/META
 	} >$@
 
 #
+# 32-bit syscalls
+#
+
+ifeq ($(HAS_32),)
+world_32.h :
+	@echo empty $@
+	@>$@
+else
+world_32.h :
+	@echo generating $@
+	@# for sys/user.h, we generate structs with -m32 but we are going to use in 64-bit world, and these struct contain long int which are not size independent
+	@{ \
+		echo '#include <syscall.h>'  | $(COMPILE) -E -dM -m32 -xc++ - | grep '#define  *__NR_' | sed 's: __NR_: SYS32_:' | sort ; \
+		echo 'namespace World32 {'                                                                                              ; \
+		echo '#include <sys/user.h>' | $(COMPILE) -E     -m32 -xc++ - | grep -v '^# *[0-9]' | sed 's:\<long  *int\>:int:'       ; \
+		echo '}'                                                                                                                ; \
+	} >$@
+endif
+
+#
 # lmake
 #
 

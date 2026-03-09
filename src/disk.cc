@@ -87,7 +87,7 @@ namespace Disk {
 		if (path.back()!='/') {
 			handle('/') ;
 			if (+res) res.pop_back (   ) ;
-			else      res.push_back('.') ;                                              // /!\ res = "." generates a warning (and hence an error with -Werror) when compiling for 32 bits with gcc-12
+			else      res.push_back('.') ;                                              // XXX/ : res = "." would generate a warning (i.e. an error with -Werror) when compiling for 32-bit with gcc-12
 		}
 		return res ;
 	}

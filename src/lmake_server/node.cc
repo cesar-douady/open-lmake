@@ -807,6 +807,24 @@ namespace Engine {
 		return modified ;
 	}
 
+	void NodeData::stamp_crc_date() {
+		Manual m = Manual::Ok ;
+		for( Req r : reqs() ) {
+			ReqInfo& ri = req_info(r) ;
+			if (ri.manual!=Manual::Ok) {
+				 if      (m==Manual::Ok) m = ri.manual     ;
+				 else if (m!=ri.manual ) m = Manual::Modif ; // in case of different info, check file
+			}
+			ri.manual = {} ;
+		}
+		switch (m) {
+			case Manual::Ok      :                     break ;
+			case Manual::Unlnked : crc = Crc::None   ; break ;
+			case Manual::Empty   : crc = Crc::Empty  ; break ;
+			case Manual::Modif   : crc = Crc(name()) ; break ;
+		DF}
+	}
+
 	Manual NodeData::manual_refresh( Accesses a , Req req ) {
 		if (buildable==Buildable::Codec) {
 			if (crc==Crc::None) {                                                           // may be created up-to-date remotely as codec table file is (logically) updated simultaneously

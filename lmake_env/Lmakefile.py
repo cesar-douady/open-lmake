@@ -279,6 +279,17 @@ class LinkExe(LinkRule) :
 # application
 #
 
+class World32(Rule) :
+	target = 'world_32.h'
+	cmd = r'''
+		if [ "$(cat sys_config.dir/HAS_32)" ] ; then
+			echo '#include <syscall.h>'  | {gxx} -E -dM -m32 -xc++ - | grep    '#define  *__NR_' | sed 's: __NR_: SYS32_:'     | sort
+			echo 'namespace World32 {{'
+			echo '#include <sys/user.h>' | {gxx} -E     -m32 -xc++ - | grep -v '^# *[0-9]'       | sed 's:\<long  *int\>:int:'
+			echo '}}'
+		fi
+	'''
+
 class TarLmake(BaseRule) :
 	targets = { 'TAR' : 'lmake.tar.gz' }
 	deps = {
