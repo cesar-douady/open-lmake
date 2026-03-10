@@ -56,7 +56,6 @@ enum class RunStatus : uint8_t {
 	Ok
 ,	DepError      // job cannot run because some deps are in error
 ,	MissingStatic // job cannot run because missing static dep
-,	Error         // job cannot run because an error was seen before even starting
 } ;
 
 enum class SpecialStep : uint8_t { // ordered by increasing importance
@@ -486,7 +485,6 @@ namespace Engine {
 				case RunStatus::Ok            : return is_ok(status)!=Yes ;
 				case RunStatus::DepError      : return true               ;
 				case RunStatus::MissingStatic : return false              ;
-				case RunStatus::Error         : return true               ;
 			DF}                                                                                                                   // NO_COV
 		}
 		bool missing() const { return run_status==RunStatus::MissingStatic ; }

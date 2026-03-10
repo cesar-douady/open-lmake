@@ -16,31 +16,7 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* such a rule breaks :
-	class LmakeConfig(Rule):
-		prio = 1 # higher priority than Config
-		target = 'BUILD/config/lmake/full_{any}.cfg'
-		deps   = { 'BASE_FLAGS':          'BUILD/config/lmake/base_{any}.cfg',
-				   'CONAN_HOST_PROFILE': ('BUILD/config/lmake/conan_host_profile.cfg', 'critical') }
-		cmd    = '''
-			echo -n '{read(BASE_FLAGS)} '
-			echo -n '{
-				read(
-					"BUILD/conan/jig/"
-				+	{read(CONAN_HOST_PROFILE)}
-				+	"/build/"
-				+	{	read(
-							'BUILD/config/conan/build_types/'
-						+	read(CONAN_HOST_PROFILE)
-						+	'.cfg'
-						)
-					}
-				+	"/generators/{any}.lmake"
-				)
-			}'
-		'''
-	* submit loop in case of missing file when computing dynamic resources attribute
-	* bug Thomas
+? bug Thomas
 	- lmake step A
 		-> needs X
 	- lmake step A during which dep D is modified

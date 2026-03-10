@@ -13,6 +13,15 @@ using namespace Py     ;
 using namespace Time   ;
 using namespace Engine ;
 
+enum class StartStep : uint8_t {
+	AncillaryAttrs
+,	RsrcsAttrs
+,	CmdAttrs
+,	Cmd
+,	Wash
+} ;
+using StartSteps = BitMap<StartStep> ;
+
 namespace Backends {
 
 	void send_reply( Job job , JobMngtRpcReply&& jmrr ) {
@@ -324,7 +333,7 @@ namespace Backends {
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=seq_id) { trace("bad_seq_id1" ,job,entry.conn.seq_id,seq_id) ; return ; }
 			//
 			if (entry.started!=No) {
-				Lock lock{Req::s_reqs_mutex} ;                                                                                           // taking Req::s_reqs_mutex is compulsory to derefence req
+				Lock lock{Req::s_reqs_mutex} ;                                                                                      // taking Req::s_reqs_mutex is compulsory to derefence req
 				for( Req r : entry.reqs ) r->audit_job( Color::Warning , "double_start" , job , SockFd::s_addr(fd,true/*peer*/) ) ;
 				trace("double_start",job,entry.conn.seq_id,seq_id) ;
 				return ;
@@ -351,122 +360,139 @@ namespace Backends {
 		StartAncillaryAttrs        start_ancillary_attrs ;
 		MsgStderr                  start_msg_err         ;
 		Rule::RuleMatch            match                 = job->rule_match()              ;
-		::vmap_s<DepDigest>&       deps                  = submit_info.deps               ;                                              // these are the deps for dynamic attriute evaluation
-		size_t                     n_submit_deps         = deps.size()                    ;
-		int                        step                  = 0                              ;
-		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;                                              // this cannot fail as it was already run to construct job
+		::vmap_s<DepDigest>&       deps                  = submit_info.deps               ;                                         // these are the deps for dynamic attriute evaluation
+		size_t                     n_chked_deps          = deps.size()                    ;
+		StartSteps                 steps                 ;
+		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;                                         // this cannot fail as it was already run to construct job
 		//
 		bool no_incremental ;
-		{	Lock lock{Req::s_reqs_mutex} ;                                                                                               // taking Req::s_reqs_mutex is compulsory to derefence req
+		{	Lock lock{Req::s_reqs_mutex} ;                                                                                          // taking Req::s_reqs_mutex is compulsory to derefence req
 			no_incremental = ::any_of( reqs , [&](Req r) { return r->options.flags[ReqFlag::NoIncremental] ; } ) ;
 		}
 		try {
-			try {
-				start_cmd_attrs   = rd.start_cmd_attrs  .eval(match,rsrcs,&deps                                           ) ; step = 1 ;
-				start_rsrcs_attrs = rd.start_rsrcs_attrs.eval(match,rsrcs,&deps                                           ) ; step = 2 ;
-				cmd               = rd.cmd              .eval(/*inout*/start_rsrcs_attrs,match,rsrcs,&deps,start_cmd_attrs) ; step = 3 ; // use_script is forced true if cmd is large
-				//
-				pre_actions = job->pre_actions( match , no_incremental , true/*mark_target_dirs*/ ) ; step = 5 ;
-				for( auto const& [t,a] : pre_actions )
-					switch (a.tag) {
-						case FileActionTag::UnlinkWarning  :
-						case FileActionTag::UnlinkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
-					DN}
-			} catch (::string const& e) { throw MsgStderr{.stderr=e} ; }
+			try                       { start_ancillary_attrs = rd.start_ancillary_attrs.eval(match,rsrcs,&deps) ; steps |= StartStep::AncillaryAttrs ; }
+			catch (::string const& e) { throw MsgStderr{.stderr=e} ;                                                                                    }
 		} catch (MsgStderr const& e) {
-			start_msg_err.msg    <<add_nl<< e.msg    ;
-			start_msg_err.stderr <<add_nl<< e.stderr ;
-			switch (step) { //!                                                     using_static
-				case 0 : start_msg_err.msg <<add_nl<< rd.start_cmd_attrs  .s_exc_msg(false     ) ; break ;
-				case 1 : start_msg_err.msg <<add_nl<< rd.cmd              .s_exc_msg(false     ) ; break ;
-				case 2 : start_msg_err.msg <<add_nl<< rd.start_rsrcs_attrs.s_exc_msg(false     ) ; break ;
-				case 3 : start_msg_err.msg <<add_nl<< "cannot wash targets"                      ; break ;
-			DF}                                                                                                                          // NO_COV
+			start_msg_err.msg    << add_nl<<e.msg<<add_nl<<rd.start_ancillary_attrs.s_exc_msg(false/*using_static*/) ;
+			start_msg_err.stderr << add_nl<<e.stderr                                                                 ;
 		}
-		trace("deps",step,deps) ;
-		// record as much info as possible in reply
-		switch (step) {
-			case 5 :
-				// do not generate error if *_ancillary_attrs is not available, as we will not restart job when fixed : do our best by using static info
+		for( auto& [_,dd] : ::span( &deps[n_chked_deps] , deps.size()-n_chked_deps ) ) { dd.accesses_=0 ; dd.dflags={} ; }          // no impact on job status nor target content
+		n_chked_deps = deps.size() ;
+		try {
+			try                       { start_rsrcs_attrs = rd.start_rsrcs_attrs.eval(match,rsrcs,&deps) ; steps |= StartStep::RsrcsAttrs ; }
+			catch (::string const& e) { throw MsgStderr{.stderr=e} ;                                                                        }
+		} catch (MsgStderr const& e) {
+			start_msg_err.msg    << add_nl<<e.msg<<add_nl<<rd.start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ;
+			start_msg_err.stderr << add_nl<<e.stderr                                                             ;
+		}
+		for( auto& [_,dd] : ::span( &deps[n_chked_deps] , deps.size()-n_chked_deps ) ) dd.dflags &=~Dflag::Full ;                   // impact on job status but not on target content
+		try {
+			try                       { start_cmd_attrs = rd.start_cmd_attrs.eval(match,rsrcs,&deps) ; steps |= StartStep::CmdAttrs ; }
+			catch (::string const& e) { throw MsgStderr{.stderr=e} ;                                                                  }
+		} catch (MsgStderr const& e) {
+			start_msg_err.msg    << add_nl<<e.msg<<add_nl<<rd.start_cmd_attrs.s_exc_msg(false/*using_static*/) ;
+			start_msg_err.stderr << add_nl<<e.stderr                                                           ;
+		}
+		if ( steps[StartStep::CmdAttrs] && steps[StartStep::RsrcsAttrs] ) {
+			try {
+				try                       { cmd = rd.cmd.eval(/*inout*/start_rsrcs_attrs,match,rsrcs,&deps,start_cmd_attrs) ; steps |= StartStep::Cmd ; }
+				catch (::string const& e) { throw MsgStderr{.stderr=e} ;                                                                                }
+			} catch (MsgStderr const& e) {
+				start_msg_err.msg    << add_nl<<e.msg<<add_nl<<rd.cmd.s_exc_msg(false/*using_static*/) ;
+				start_msg_err.stderr << add_nl<<e.stderr                                               ;
+			}
+		}
+		if (steps[StartStep::Cmd]) {
+			try {
 				try {
-					try                       { start_ancillary_attrs = rd.start_ancillary_attrs.eval(match,rsrcs,&deps) ; }
-					catch (::string const& e) { throw MsgStderr{.msg=e} ;                                                  }
-				} catch (MsgStderr const& e) {
-					start_msg_err         = e                             ;
-					start_ancillary_attrs = rd.start_ancillary_attrs.spec ;
-					jsrr.msg <<add_nl<< rd.start_ancillary_attrs.s_exc_msg(true/*using_static*/) ;
-				}
-				reply.keep_tmp     |= start_ancillary_attrs.keep_tmp     ;
-				reply.kill_daemons  = start_ancillary_attrs.kill_daemons ;
-				#if HAS_ZSTD
-					reply.zlvl = start_ancillary_attrs.zlvl ;                                                                            // if zlib is not available, dont compress
-				#endif
-				//
-				for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
-			[[fallthrough]] ;
-			case 3 :
-			case 2 :
-				reply.chk_abs_paths          =        start_rsrcs_attrs.chk_abs_paths   ;
-				reply.chroot_info.actions    =        start_rsrcs_attrs.chroot_actions  ;
-				reply.phy_lmake_root_s       = ::move(start_rsrcs_attrs.lmake_root_s  ) ;
-				reply.method                 =        start_rsrcs_attrs.method          ;
-				reply.timeout                =        start_rsrcs_attrs.timeout         ;
-				reply.use_script             =        start_rsrcs_attrs.use_script      ;
-				reply.autodep_env.readdir_ok =        start_rsrcs_attrs.readdir_ok      ;
-				//
-				for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
-				//
-				if (+reply.chroot_info.actions[ChrootAction::UserName]) {
-					static ::string s_user  = []()->const char* { if ( uid_t uid=::getuid() ) { if ( struct passwd* pw=::getpwuid(uid) ) return pw->pw_name ; } ; return "" ; }() ;
-					static ::string s_group = []()->const char* { if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) return gr->gr_name ; } ; return "" ; }() ;
-					if (!s_user ) { start_msg_err.msg <<add_nl<< "cannot find user name for " <<::getuid() ; step = ::min(step,4) ; }
-					if (!s_group) { start_msg_err.msg <<add_nl<< "cannot find group name for "<<::getgid() ; step = ::min(step,4) ; }
-					reply.chroot_info.user  = s_user  ;
-					reply.chroot_info.group = s_group ;
-				}
-			[[fallthrough]] ;
-			case 1 :
-				reply.chroot_info.dir_s           = ::move(start_cmd_attrs.chroot_dir_s   ) ;
-				reply.interpreter                 = ::move(start_cmd_attrs.interpreter    ) ;
-				reply.stderr_ok                   =        start_cmd_attrs.stderr_ok        ;
-				reply.autodep_env.auto_mkdir      =        start_cmd_attrs.auto_mkdir       ;
-				reply.autodep_env.ignore_stat     =        start_cmd_attrs.ignore_stat      ;
-				reply.autodep_env.mount_chroot_ok =        start_cmd_attrs.mount_chroot_ok  ;
-				reply.job_space                   = ::move(start_cmd_attrs.job_space      ) ;
-				//
-				for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
-			[[fallthrough]] ;
-			case 0 : {
-				::vector_s            static_matches = match.matches(false/*star*/) ; VarIdx i_static = 0 ;
-				::vector<Re::Pattern> star_patterns  = match.star_patterns()        ; VarIdx i_star   = 0 ;
-				AutodepEnv const&     ade            = Record::s_autodep_env()      ;
-				for( MatchKind mk : iota(All<MatchKind>) ) {
-					//                                star
-					for( VarIdx mi : rd.matches_iotas[false][+mk] ) reply.static_matches.emplace_back( static_matches[i_static++] , rd.matches[mi].second.flags ) ;
-					for( VarIdx mi : rd.matches_iotas[true ][+mk] ) reply.star_matches  .emplace_back( star_patterns [i_star  ++] , rd.matches[mi].second.flags ) ;
-				}
-				//
-				/**/                            reply.autodep_env.deps_in_system = ade.deps_in_system                                                ;
-				/**/                            reply.autodep_env.file_sync      = g_config->file_sync                                               ;
-				/**/                            reply.autodep_env.lnk_support    = g_config->lnk_support                                             ;
-				/**/                            reply.autodep_env.src_dirs_s     = ade.src_dirs_s                                                    ;
-				/**/                            reply.autodep_env.sub_repo_s     = rd.sub_repo_s                                                     ;
-				/**/                            reply.autodep_env.codecs         = ade.codecs                                                        ;
-				if (submit_info.cache_idx1    ) reply.cache                      = Cache::CacheServerSide::s_tab[submit_info.cache_idx1-1]           ;
-				/**/                            reply.ddate_prec                 = g_config->ddate_prec                                              ;
-				/**/                            reply.domain_name                = s_tab[+tag]->domain_name                                          ;
-				/**/                            reply.key                        = g_config->key                                                     ;
-				/**/                            reply.kill_sigs                  = ::move(start_ancillary_attrs.kill_sigs)                           ;
-				/**/                            reply.live_out                   = submit_info.live_out                                              ;
-				/**/                            reply.network_delay              = g_config->network_delay                                           ;
-				/**/                            reply.nice                       = submit_info.nice!=uint8_t(-1) ? submit_info.nice : g_config->nice ;
-				/**/                            reply.rule                       = rd.user_name()                                                    ;
-				if (rd.stdin_idx !=Rule::NoVar) reply.stdin                      = dep_specs           [rd.stdin_idx ].second.txt                    ;
-				if (rd.stdout_idx!=Rule::NoVar) reply.stdout                     = reply.static_matches[rd.stdout_idx].first                         ;
-				//
-				for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
-			} break ;
-		DF}                                                                                                                              // NO_COV
+					pre_actions  = job->pre_actions( match , no_incremental , true/*mark_target_dirs*/ ) ;
+					steps       |= StartStep::Wash                                                       ;
+					for( auto const& [t,a] : pre_actions )
+						switch (a.tag) {
+							case FileActionTag::UnlinkWarning  :
+							case FileActionTag::UnlinkPolluted : pre_action_warnings.emplace_back(t,a.tag) ; ; break ;
+						DN}
+				} catch (::string const& e) { throw MsgStderr{.stderr=e} ; }
+			} catch (MsgStderr const& e) {
+				start_msg_err.msg    << add_nl<<e.msg<<add_nl<< "cannot wash targets" ;
+				start_msg_err.stderr << add_nl<<e.stderr                              ;
+			}
+		}
+		trace("deps",steps,deps) ;
+		// record as much info as possible in reply
+		if (steps[StartStep::AncillaryAttrs]) {
+			reply.keep_tmp     |= start_ancillary_attrs.keep_tmp     ;
+			reply.kill_daemons  = start_ancillary_attrs.kill_daemons ;
+			#if HAS_ZSTD
+				reply.zlvl = start_ancillary_attrs.zlvl ;                                                                           // if zlib is not available, dont compress
+			#endif
+			//
+			for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
+		} else {
+			steps |= StartStep::AncillaryAttrs ;                                                                                    // we may run job even with incomplete ancillary info
+		}
+		if (steps[StartStep::RsrcsAttrs]) {
+			reply.chk_abs_paths          =        start_rsrcs_attrs.chk_abs_paths   ;
+			reply.chroot_info.actions    =        start_rsrcs_attrs.chroot_actions  ;
+			reply.phy_lmake_root_s       = ::move(start_rsrcs_attrs.lmake_root_s  ) ;
+			reply.method                 =        start_rsrcs_attrs.method          ;
+			reply.timeout                =        start_rsrcs_attrs.timeout         ;
+			reply.use_script             =        start_rsrcs_attrs.use_script      ;
+			reply.autodep_env.readdir_ok =        start_rsrcs_attrs.readdir_ok      ;
+			//
+			for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
+			//
+			if (+reply.chroot_info.actions[ChrootAction::UserName]) {
+				static ::string s_user  = []()->const char* { if ( uid_t uid=::getuid() ) { if ( struct passwd* pw=::getpwuid(uid) ) return pw->pw_name ; } ; return "" ; }() ;
+				static ::string s_group = []()->const char* { if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) return gr->gr_name ; } ; return "" ; }() ;
+				if (!s_user ) { start_msg_err.msg << add_nl<<"cannot find user name for " <<::getuid() ; steps &= ~StartStep::RsrcsAttrs ; }
+				if (!s_group) { start_msg_err.msg << add_nl<<"cannot find group name for "<<::getgid() ; steps &= ~StartStep::RsrcsAttrs ; }
+				reply.chroot_info.user  = s_user  ;
+				reply.chroot_info.group = s_group ;
+			}
+		}
+		if (steps[StartStep::CmdAttrs]) {
+			reply.chroot_info.dir_s           = ::move(start_cmd_attrs.chroot_dir_s   ) ;
+			reply.interpreter                 = ::move(start_cmd_attrs.interpreter    ) ;
+			reply.stderr_ok                   =        start_cmd_attrs.stderr_ok        ;
+			reply.autodep_env.auto_mkdir      =        start_cmd_attrs.auto_mkdir       ;
+			reply.autodep_env.ignore_stat     =        start_cmd_attrs.ignore_stat      ;
+			reply.autodep_env.mount_chroot_ok =        start_cmd_attrs.mount_chroot_ok  ;
+			reply.job_space                   = ::move(start_cmd_attrs.job_space      ) ;
+			//
+			for( ::pair_ss& kv : start_cmd_attrs.env ) reply.env.push_back(::move(kv)) ;
+		}
+		if (steps[StartStep::Wash]) {
+			for( auto [t,a] : pre_actions ) reply.pre_actions.emplace_back(t->name(),a) ;
+		}
+		trace("reply",steps) ;
+		//
+		::vector_s            static_matches = match.matches(false/*star*/) ; VarIdx i_static = 0 ;
+		::vector<Re::Pattern> star_patterns  = match.star_patterns()        ; VarIdx i_star   = 0 ;
+		AutodepEnv const&     ade            = Record::s_autodep_env()      ;
+		for( MatchKind mk : iota(All<MatchKind>) ) {
+			//                                star
+			for( VarIdx mi : rd.matches_iotas[false][+mk] ) reply.static_matches.emplace_back( static_matches[i_static++] , rd.matches[mi].second.flags ) ;
+			for( VarIdx mi : rd.matches_iotas[true ][+mk] ) reply.star_matches  .emplace_back( star_patterns [i_star  ++] , rd.matches[mi].second.flags ) ;
+		}
+		//
+		/**/                            reply.autodep_env.deps_in_system = ade.deps_in_system                                                ;
+		/**/                            reply.autodep_env.file_sync      = g_config->file_sync                                               ;
+		/**/                            reply.autodep_env.lnk_support    = g_config->lnk_support                                             ;
+		/**/                            reply.autodep_env.src_dirs_s     = ade.src_dirs_s                                                    ;
+		/**/                            reply.autodep_env.sub_repo_s     = rd.sub_repo_s                                                     ;
+		/**/                            reply.autodep_env.codecs         = ade.codecs                                                        ;
+		if (submit_info.cache_idx1    ) reply.cache                      = Cache::CacheServerSide::s_tab[submit_info.cache_idx1-1]           ;
+		/**/                            reply.ddate_prec                 = g_config->ddate_prec                                              ;
+		/**/                            reply.domain_name                = s_tab[+tag]->domain_name                                          ;
+		/**/                            reply.key                        = g_config->key                                                     ;
+		/**/                            reply.kill_sigs                  = ::move(start_ancillary_attrs.kill_sigs)                           ;
+		/**/                            reply.live_out                   = submit_info.live_out                                              ;
+		/**/                            reply.network_delay              = g_config->network_delay                                           ;
+		/**/                            reply.nice                       = submit_info.nice!=uint8_t(-1) ? submit_info.nice : g_config->nice ;
+		/**/                            reply.rule                       = rd.user_name()                                                    ;
+		if (rd.stdin_idx !=Rule::NoVar) reply.stdin                      = dep_specs           [rd.stdin_idx ].second.txt                    ;
+		if (rd.stdout_idx!=Rule::NoVar) reply.stdout                     = reply.static_matches[rd.stdout_idx].first                         ;
 		//
 		/**/                 reply.deps                 = _mk_digest_deps(::move(dep_specs  )) ;
 		/**/                 jis.stems                  =                 ::move(match.stems)  ;
@@ -486,8 +512,12 @@ namespace Backends {
 					return
 						!r.zombie()
 					&&	::all_of(
-							::span( deps.data()+n_submit_deps , deps.size()-n_submit_deps )
-						,	[&](auto const& dn_dd) { Node d { dn_dd.first } ; return +d && d->done(r,NodeGoal::Dsk) ; }
+							::span( &deps[n_chked_deps] , deps.size()-n_chked_deps )
+						,	[&](auto const& dn_dd) {
+								if (!dn_dd.second.accesses_) return true ;
+								Node d { dn_dd.first } ;
+								return +d && d->done(r,NodeGoal::Dsk) ;
+							}
 						)
 					;
 				}
@@ -508,9 +538,9 @@ namespace Backends {
 				//
 				SWEAR( entry.started==Maybe , job,entry.started,entry.start_date ) ; // ensure we do not overwrite an already started entry
 				//                           vvvvvvvvvvvvvvvvv
-				jis.pre_start.msg <<add_nl<< s_start(tag,+job) ;
+				jis.pre_start.msg << add_nl<<s_start(tag,+job) ;
 				//                           ^^^^^^^^^^^^^^^^^
-				if ( step<5 || !deps_done ) {
+				if ( +~steps || !deps_done ) {
 					Status status = Status::EarlyErr ;
 					if (!deps_done) {
 						status        = Status::EarlyChkDeps ;
@@ -519,7 +549,7 @@ namespace Backends {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvv
 					s_end( tag , +job , status ) ;                                                                   // dont care about backend, job is dead for other reasons
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("early",start_msg_err) ;
+					trace("early",steps,STR(deps_done),start_msg_err) ;
 					//
 					JobEndRpcReq jerr { jis.pre_start } ;
 					/**/                                 jerr.end_date              = New                   ;
@@ -538,7 +568,7 @@ namespace Backends {
 					g_engine_queue.emplace( Proc::Start , ::copy(job_exec) , false/*report_now*/ , ::move(pre_action_warnings) ) ;
 					g_engine_queue.emplace( Proc::End   , ::move(job_exec) , ::move(jd)                                        ) ;
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					trace("release_start_tab",entry,step) ;
+					trace("release_start_tab",entry,steps) ;
 					_s_start_tab_erase(it) ;
 					return ;
 				}
@@ -558,11 +588,11 @@ namespace Backends {
 			MsgStderr msg_stderr ;
 			bool      report_now =                                                                                   // dont defer long jobs or if a message is to be delivered to user
 					+pre_action_warnings
-				||	+start_msg_err.stderr
+				||	+start_msg_err
 				||	is_retry(submit_info.reason.tag)                                                                 // emit retry start message
 				||	Delay(job->exe_time())>=start_ancillary_attrs.start_delay                                        // if job is probably long, emit start message immediately
 			;
-			if (+start_msg_err.stderr) msg_stderr = { jis.pre_start.msg+start_msg_err.msg , ::move(start_msg_err.stderr) } ;                           // get msg befor jis is moved
+			if (+start_msg_err) msg_stderr = { cat(jis.pre_start.msg,add_nl,start_msg_err.msg) , ::move(start_msg_err.stderr) } ;                      // get msg befor jis is moved
 			Job::s_record_thread.emplace( job , ::move(jis) ) ;
 			trace("started",job_exec,reply) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

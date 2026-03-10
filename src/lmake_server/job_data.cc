@@ -11,6 +11,12 @@
 using namespace Disk ;
 using namespace Hash ;
 
+enum class MissingRerunReport : uint8_t {
+	None
+,	Hit
+,	Early
+} ;
+
 enum class NoRunReason : uint8_t {
 	None
 ,	Dep            // dont run because deps are not new
@@ -382,18 +388,18 @@ namespace Engine {
 		ToPop to_pop ;
 		//
 		SWEAR( asked_reason.tag<JobReasonTag::Err , asked_reason ) ;
-		Job               job                      = idx()                                               ;
-		Rule              r                        = rule()                                              ;
-		bool              query                    = make_action==MakeAction::Query                      ;
-		bool              at_end                   = make_action==MakeAction::End                        ;
-		Req               req                      = ri.req                                              ;
-		ReqOptions const& ro                       = req->options                                        ;
-		Special           special                  = r->special                                          ;
-		bool              dep_live_out             = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
-		CoarseDelay       dep_pressure             = ri.pressure + c_exe_time()                          ;
-		bool              archive                  = ro.flags[ReqFlag::Archive]                          ;
-		bool              report_loop              = false                                               ;
-		bool              missing_hit_rerun_report = false                                               ;
+		Job                job                  = idx()                                               ;
+		Rule               r                    = rule()                                              ;
+		bool               query                = make_action==MakeAction::Query                      ;
+		bool               at_end               = make_action==MakeAction::End                        ;
+		Req                req                  = ri.req                                              ;
+		ReqOptions const&  ro                   = req->options                                        ;
+		Special            special              = r->special                                          ;
+		bool               dep_live_out         = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
+		CoarseDelay        dep_pressure         = ri.pressure + c_exe_time()                          ;
+		bool               archive              = ro.flags[ReqFlag::Archive]                          ;
+		bool               report_loop          = false                                               ;
+		MissingRerunReport missing_rerun_report = {}                                                  ;
 		//
 		Trace trace("Jmake",job,ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
 	RestartFullAnalysis :
@@ -660,12 +666,13 @@ namespace Engine {
 						ri.reset(job) ;
 					}
 				} else {
+					missing_rerun_report = {} ;
 					//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					maybe_new_deps = _submit_plain( ri , dep_pressure ) ;
 					//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					inc_submits( rt , cache_hit_info>=CacheHitInfo::Miss ) ;
+					inc_submits( rt , ri.waiting() ) ;
 					if (ri.waiting()) goto Wait ;
-					missing_hit_rerun_report = status==Status::CacheMatch ;
+					missing_rerun_report = cache_hit_info<CacheHitInfo::Miss ? MissingRerunReport::Hit : MissingRerunReport::Early ;
 				}
 				if (maybe_new_deps) {                                                    // if cached, there may be new deps, we must re-analyze
 					SWEAR(!ri.running()) ;
@@ -732,7 +739,7 @@ namespace Engine {
 		report_reason = reason(ri.state) ;
 		goto Return ;
 	Wait :
-		if (missing_hit_rerun_report) req->audit_job( Color::Note , "hit_rerun" , job ) ;
+		if (+missing_rerun_report) req->audit_job( Color::Note , cat(missing_rerun_report,"_rerun") , job ) ;
 		trace("wait",ri) ;
 	Return :
 		return report_reason ;
@@ -1090,16 +1097,14 @@ namespace Engine {
 		::vmap_s<DepDigest>  early_deps             ;
 		SubmitAncillaryAttrs submit_ancillary_attrs ;
 		try {
-			submit_ancillary_attrs = r->submit_ancillary_attrs.eval( job , match , &early_deps ) ; // dont care about dependencies as these attributes have no impact on result
+			submit_ancillary_attrs = r->submit_ancillary_attrs.eval( job , match , &early_deps ) ;
 		} catch (MsgStderr const& msg_err) {
 			submit_ancillary_attrs = r->submit_ancillary_attrs.spec ;
 			req->audit_job   ( Color::Note , "no_dynamic" , job                                                                                                       ) ;
 			req->audit_stderr(                              job , { with_nl(r->submit_ancillary_attrs.s_exc_msg(true/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
 		}
-		for( auto& [k,dd] : early_deps ) { // suppress sensitiviy to read files as ancillary has no impact on job result nor status, just record deps to trigger building on a best effort basis
-			dd.accesses_ = 0  ;
-			dd.dflags    = {} ;
-		}
+		// suppress sensitiviy to read files as ancillary has no impact on job result nor status, just record deps to trigger building on a best effort basis
+		for( auto& [k,dd] : early_deps ) { dd.accesses_=0  ; dd.dflags={} ; }
 		CacheIdx cache_idx1 = 0 ;
 		if (!submit_ancillary_attrs.cache_name) { cache_hit_info = CacheHitInfo::NoCache    ; goto CacheDone ; }
 		if (!req->cache_method                ) { cache_hit_info = CacheHitInfo::NoDownload ; goto CacheDone ; }
@@ -1163,29 +1168,55 @@ namespace Engine {
 		SWEAR( cache_hit_info>=CacheHitInfo::Miss , cache_hit_info ) ;
 		//
 		SubmitRsrcsAttrs submit_rsrcs_attrs ;
-		size_t           n_ancillary_deps   = early_deps.size() ;
+		MsgStderr        msg_stderr         ;
 		try {
-			submit_rsrcs_attrs = r->submit_rsrcs_attrs.eval( job , match , &early_deps ) ;
-		} catch (MsgStderr const& msg_err) {
-			req->audit_job   ( Color::Err , "failed" , job                                                                                                    ) ;
-			req->audit_stderr(                         job , { with_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg , msg_err.stderr } ) ;
-			run_status = RunStatus::Error ;
+			try                       { submit_rsrcs_attrs = r->submit_rsrcs_attrs.eval( job , match , &early_deps ) ; }
+			catch (::string const& e) { throw MsgStderr{.stderr=e} ;                                                   }
+		} catch (MsgStderr const& me) {
+			msg_stderr = me ;
 			trace("no_rsrcs",ri) ;
-			return false/*maybe_new_deps*/ ;
 		}
-		for( NodeIdx i : iota(n_ancillary_deps,early_deps.size()) ) early_deps[i].second.dflags &= ~Dflag::Full ; // mark new deps as resources only
-		for( auto const& [dn,dd] : early_deps ) {
-			Node         d   { New , dn }       ;
-			NodeReqInfo& dri = d->req_info(req) ;
-			d->make(dri,NodeMakeAction::Dsk) ;
-			if (dri.waiting()) d->add_watcher(dri,job,ri,pressure) ;
+		if (+early_deps) {                             // fast path : no need to parse early_deps
+			::uset<Node> new_early_deps ;
+			for( auto& [dn,dd] : early_deps ) {
+				Node d { New , dn } ; d->set_buildable() ;
+				dd.dflags &= ~Dflag::Full ;
+				new_early_deps.insert(d) ;
+			}
+			if (+new_early_deps) {                     // fast path : no need to parse deps
+				for( Dep const& d : deps ) {
+					if (!new_early_deps) break ;
+					new_early_deps.erase(d) ;
+				}
+				if (+new_early_deps) {
+					::vector<Dep>        new_deps  ;
+					::umap<Node,NodeIdx> seen_deps ;   // map node to index in new_deps
+					trace("new_rsrcs_deps",new_early_deps) ;
+					for( auto& [dn,dd] : early_deps ) {
+						Node d { New , dn } ; d->set_buildable() ;
+						dd.dflags &= ~Dflag::Full ;
+						if (seen_deps.try_emplace(d,new_deps.size()).second) new_deps.emplace_back( d , dd ) ;
+					}
+					for( Dep const& d  : deps )        // changing resources does not change job execution : keep old Full deps, as these are the ones that impact targets
+						if ( d.dflags[Dflag::Full] ) {
+							auto it_inserted = seen_deps.try_emplace(d,new_deps.size()) ;
+							if ( it_inserted.second ) new_deps.push_back(d) ;
+							else                      new_deps[it_inserted.first->second] |= d ;
+						}
+					deps.assign(new_deps) ;
+					status = Status::EarlyChkDeps ;
+					return true/*maybe_new_deps*/ ;
+				}
+			}
 		}
-		if (ri.waiting()) {
-			trace("waiting_rsrcs") ;
-			return false/*maybe_new_deps*/ ;
+		if (+msg_stderr) {
+			req->audit_job   ( Color::Err , "failed" , job                                                                                                          ) ;
+			req->audit_stderr(                         job , { with_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_stderr.msg , msg_stderr.stderr } ) ;
+			status = Status::EarlyErr ;
+			return false/*mabe_new_deps*/ ;
 		}
 		//
-		ri.inc_wait() ;                                                                                           // set before calling submit call back as in case of flash execution, we must be clean
+		ri.inc_wait() ;                                // set before calling submit call back as in case of flash execution, we must be clean
 		ri.set_step(Step::Queued,job) ;
 		backend = submit_rsrcs_attrs.backend ;
 		if (!has_upload(req->cache_method)) cache_idx1 = 0 ;
@@ -1200,13 +1231,13 @@ namespace Engine {
 			,	.reason     =        ri.reason
 			,	.tokens1    =        tokens1
 			} ;
-			estimate_stats(tokens1) ;                                                                             // refine estimate with best available info just before submitting
+			estimate_stats(tokens1) ;                  // refine estimate with best available info just before submitting
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Backend::s_submit( backend , +job , +req , ::move(si) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			for( Node t : targets() ) t->busy = true ;                                                            // make targets busy once we are sure job is submitted
+			for( Node t : targets() ) t->busy = true ; // make targets busy once we are sure job is submitted
 		} catch (::string const& e) {
-			ri.dec_wait() ;                                                                                       // restore n_wait as we prepared to wait
+			ri.dec_wait() ;                            // restore n_wait as we prepared to wait
 			ri.set_step(Step::None,job) ;
 			status  = Status::EarlyErr ;
 			req->audit_job ( Color::Err  , "failed" , job ) ;
