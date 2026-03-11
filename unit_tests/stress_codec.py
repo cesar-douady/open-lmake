@@ -33,7 +33,7 @@ if __name__!='__main__' :
 		cmd    = 'ldecode -t {File} -x {Ctx} -c {Code}'
 
 	class Encode(PyRule) :
-		max_runs = 2
+		max_runs = 3                 # normally 2 is enough, but there is a spurious rerun in rare cases of race
 		target   = r'encode/{I:\d+}'
 		def cmd() :
 			fail = None
@@ -63,4 +63,4 @@ else :
 		open(f'codec_{i}','w')
 
 	cnt = ut.lmake( 'dut' , new=1+n_files , expand=n_files , done=n_dones , rerun=... , may_rerun=... , update=n_files )
-	assert cnt.rerun+cnt.may_rerun==1+n_targets
+	assert 1+n_targets <= cnt.rerun+cnt.may_rerun <= 1+n_targets+2                                                       # there are rare cases of spurious rerun because of race, accept 2

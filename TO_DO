@@ -67,10 +67,6 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* lshow -o should generate an error for Rule with target (instead of targets)
-	- as there is no log in that case
-* lshow -c should generate an error if cmd is not available
-	- instead of empty
 * improve lmake -h
 	- add tag
 	- simplify text
@@ -101,11 +97,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* suppress dependency on strace
+	* write a small test based on ptrace
 * implement a test of userland overlay mount in sys_config
 	- and dont propose overlay if not supported
 	- and suppress corresponding TUs
-* suppress dependency on strace
-	* write a small test based on ptrace
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm
@@ -360,7 +356,6 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
-* document autodep=seccomp
 * give an example of Rule using the paths attribute
 *! make a tutorial
 ? add hard limits

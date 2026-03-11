@@ -804,9 +804,9 @@ namespace Engine {
 						case ReqKey::Cmd    :
 						case ReqKey::Env    :
 						case ReqKey::Stdout :
-						case ReqKey::Trace  : //!                                                         as_is
-							if (porcelaine) audit( fd , ro ,              "None"                         , true , lvl+1 ) ;
-							else            audit( fd , ro , Color::Err , cat("no ",ro.key," available") , true , lvl+1 ) ;
+						case ReqKey::Trace  :
+							if (porcelaine) audit( fd , ro , "None" , true/*as_is*/ , lvl+1 ) ;
+							else            throw cat("cannot show ",ro.key," for special job ",mk_file(job->name())) ;
 						break ;
 					DF}                             // END_OF_NO_COV
 				} else {
@@ -830,24 +830,34 @@ namespace Engine {
 								for( auto     const& [k,v] : env.first  ) audit( fd , ro , widen(k,w)+" : "+v , true , lvl ) ;
 								for( ::string const&  k    : env.second ) audit( fd , ro , widen(k,w)+" ..."  , true , lvl ) ;
 							} else {
-								audit( fd , ro , Color::Note , "no info available" , true/*as_is*/ , lvl ) ;
+								throw cat("no ",ro.key," available for job ",mk_file(job->name())) ;
 							}
 						} break ;
 						case ReqKey::Cmd : //!                                                        as_is
 							if      (porcelaine) audit( fd , ro ,               mk_py_str(start.cmd) , true                  ) ;
 							else if (+start    ) audit( fd , ro ,                         start.cmd  , true , bool(lvl),'\t' ) ;
-							else                 audit( fd , ro , Color::Note , "no info available"  , true ,      lvl       ) ;
+							else                 throw cat("no ",ro.key," available for job ",mk_file(job->name())) ;
 						break ;
-						case ReqKey::Stdout : //!                                         as_is
-							if      (porcelaine) audit( fd , ro , mk_py_str(end.stdout) , true                  ) ;
-							else if (+end      ) audit( fd , ro ,           end.stdout  , true , bool(lvl),'\t' ) ;
-							else {
-								audit( fd , ro , Color::Note , "no info available" , true , lvl ) ;
-								if (+start) {
-									::string args ;
-									if (+target) args = mk_file(target->name(),FileDisplay::Shell)                                    ;
-									else         args = "-R "+mk_shell_str(rule->name)+" -J "+mk_file(job->name(),FileDisplay::Shell) ;
-									audit( fd , ro , Color::Note , "consider : lmake -o "+args , false/*as_is*/ , lvl ) ;
+						case ReqKey::Stdout :
+							if (+start.stdout) {
+								if (porcelaine) {
+									audit( fd , ro , "None" , true/*as_is*/ , lvl+1 ) ;
+								} else {
+									audit( fd , ro , Color::Note , "consider : cat "+mk_file(start.stdout) , false/*as_is*/ , lvl ) ;
+									throw cat("stdout is redirected for job ",mk_file(job->name())) ;
+								}
+							} else {
+								//                                                            as_is
+								if      (porcelaine) audit( fd , ro , mk_py_str(end.stdout) , true                  ) ;
+								else if (+end      ) audit( fd , ro ,           end.stdout  , true , bool(lvl),'\t' ) ;
+								else {
+									if (+start) {
+										::string args ;
+										if (+target) args = mk_file(target->name(),FileDisplay::Shell)                                    ;
+										else         args = "-R "+mk_shell_str(rule->name)+" -J "+mk_file(job->name(),FileDisplay::Shell) ;
+										audit( fd , ro , Color::Note , "consider : lmake -o "+args , false/*as_is*/ , lvl ) ;
+									}
+									throw cat("no ",ro.key," available for job ",mk_file(job->name())) ;
 								}
 							}
 						break ;
@@ -863,11 +873,11 @@ namespace Engine {
 								if ( +end   && verbose ) audit( fd , ro , Color::Note , end.msg_stderr.msg    , false ,      lvl       ) ;
 								if ( +end              ) audit( fd , ro ,               end.msg_stderr.stderr , true  , bool(lvl),'\t' ) ; // ensure internal alignment of stderr is maintained
 							} else {
-								audit( fd , ro , Color::Note , "no info available" , true , lvl ) ;
+								throw cat("no ",ro.key," available for job ",mk_file(job->name())) ;
 							}
 						break ;
 						case ReqKey::Trace : {
-							if (!end) { audit( fd , ro , Color::Note , "no info available" , true/*as_is*/ , lvl ) ; break ; }
+							if (!end) { throw cat("no ",ro.key," available for job ",mk_file(job->name())) ; break ; }
 							::sort( end.user_trace , [](UserTraceEntry const& a , UserTraceEntry const& b )->bool { return ::pair(a.date,a.file)<::pair(b.date,b.file) ; } ) ;
 							if (porcelaine) {
 								size_t wk  = ::max<size_t>( end.user_trace , [&](UserTraceEntry const& e) { return mk_py_str(e.step()).size() ; } ) ;
@@ -926,10 +936,12 @@ namespace Engine {
 							}
 							//
 							push_entry("ids",ids,Color::None,false/*protect*/) ;
-							if ( Node n=job->asking() ; +n ) {
+							if ( Node t=job->asking() ; +t ) {
+								Node n = t ;
 								while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
-								if (+n->asking) push_entry("required by",localize(mk_file(Job(n->asking)->name()),su)) ;
-								else            push_entry("required by",localize(mk_file(    n         ->name()),su)) ;
+								/**/            push_entry("required target",localize(mk_file(    t         ->name()),su)) ;
+								if (+n->asking) push_entry("required by"    ,localize(mk_file(Job(n->asking)->name()),su)) ;
+								else            push_entry("required by"    ,localize(mk_file(    n         ->name()),su)) ;
 							}
 							if (job->cache_hit_info!=CacheHitInfo::NoCache) push_entry( "cache hit info" , CacheHitInfoStrs[+job->cache_hit_info].second ) ;
 							if (+start) {

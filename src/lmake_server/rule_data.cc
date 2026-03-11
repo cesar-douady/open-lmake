@@ -248,12 +248,12 @@ namespace Engine {
 							}
 						) ;
 					}
-					if (             kind==MatchKind::Target  ) flags.tflags       |= Tflag::Target      ;
-					if ( !is_star && kind==MatchKind::Target  ) flags.tflags       |= Tflag::Essential   ;       // static targets are essential by default
-					if ( !is_star                             ) flags.tflags       |= Tflag::Static      ;
-					if (             kind!=MatchKind::SideDep ) flags.extra_tflags |= ExtraTflag::Allow  ;
-					if ( !is_star                             ) flags.extra_dflags |= ExtraDflag::NoStar ;
+					if ( !is_star && kind==MatchKind::Target ) flags.tflags       |= Tflag::Essential   ;       // static targets are essential by default
+					if ( !is_star                            ) flags.extra_dflags |= ExtraDflag::NoStar ;
 					Rule::s_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , /*out*/flags , kind==MatchKind::SideDep ) ;
+					if (             kind==MatchKind::Target                   ) flags.tflags       |= Tflag::Target     ;
+					if ( !is_star && !flags.extra_tflags[ExtraTflag::Optional] ) flags.tflags       |= Tflag::Static     ;
+					if (             kind!=MatchKind::SideDep                  ) flags.extra_tflags |= ExtraTflag::Allow ;
 					// check
 					::set_s const& mss = missing_stems ;
 					if ( target.starts_with(*g_repo_root_s)                                        ) throw cat(kind,' ',field," must be relative to root dir : "                     ,target) ;
@@ -262,7 +262,8 @@ namespace Engine {
 					if ( +mss                                                                      ) throw cat("stem {",*mss.begin(),"} cannot be derived from ",kind,' ',field," : ",target) ;
 					if (  is_star                                    && !is_plain()                ) throw cat("star ",kind,"s are meaningless for source and anti-rules"                   ) ;
 					if (  is_star                                    && is_stdout                  ) throw     "stdout cannot be directed to a star target"s                                  ;
-					if ( flags.tflags      [Tflag     ::Incremental] && is_stdout                  ) throw     "stdout cannot be directed to an incremental target"s                          ;
+					if ( flags.tflags      [Tflag     ::Incremental] && is_stdout                  ) throw     "stdout cannot be incremental"s                                                ;
+					if ( flags.extra_tflags[ExtraTflag::Optional   ] && is_stdout                  ) throw     "stdout cannot be optional"s                                                   ;
 					if ( flags.extra_tflags[ExtraTflag::Optional   ] && is_star                    ) throw cat("star targets are natively optional : "                               ,target) ;
 					if ( flags.extra_tflags[ExtraTflag::Optional   ] && flags.tflags[Tflag::Phony] ) throw cat(kind,' ',field,"cannot be simultaneously optional and phony : "       ,target) ;
 					bool is_top = flags.extra_tflags[ExtraTflag::Top] || flags.extra_dflags[ExtraDflag::Top] ;
@@ -610,7 +611,7 @@ namespace Engine {
 					/**/            matches_str <<'\n'                                       ;
 					i++ ;
 				}
-			if (+matches_str) res << mk<<'s' <<" :\n"<< matches_str ;
+			if (+matches_str) res << mk<<'s'<<" :\n"<<matches_str ;
 		}
 		// report exceptions (i.e. sub-repos in which rule does not apply) unless it can be proved we cannot match in such sub-repos
 		::vector_s excepts_s ;                                                                 // sub-repos exceptions
@@ -633,12 +634,12 @@ namespace Engine {
 			excepts_s.push_back(sr_s) ;
 		}
 		if (+excepts_s) {
-			/**/                                  res << "except in sub-repos :\n"  ;
-			for( ::string const& e_s : excepts_s) res << indent(no_slash(e_s)) <<'\n' ;
+			/**/                                  res << "except in sub-repos :\n"   ;
+			for( ::string const& e_s : excepts_s) res << indent(no_slash(e_s))<<'\n' ;
 		}
 		// report actual reg-exprs to ease debugging
 		res << "patterns :\n" ;
-		for( size_t mi : iota(matches.size()) ) res <<'\t'<< widen(matches[mi].first,wk) <<" : "<< patterns[mi].txt <<'\n' ;
+		for( size_t mi : iota(matches.size()) ) res << '\t'<<widen(matches[mi].first,wk)<<" : "<<patterns[mi].txt<<'\n' ;
 		return res ;
 	}
 

@@ -615,7 +615,7 @@ namespace Engine {
 		if (  actual && self->run_status!=RunStatus::Ok ) return false                           ; // jobs has not run, it has actually produced nothing
 		if ( !actual && self->err()                     ) return true                            ; // jobs in error are deemed to produce all their potential targets
 		if ( !actual && sure()                          ) return true                            ;
-		if ( t->has_actual_job(self)                    ) return t->actual_tflags[Tflag::Target] ; // .
+		if ( t->has_actual_job(self)                    ) return t->actual_tflags[Tflag::Target] ;
 		//
 		auto it = ::lower_bound( self->targets() , {t,{}} ) ;
 		return it!=self->targets().end() && *it==t && it->tflags[Tflag::Target] ;

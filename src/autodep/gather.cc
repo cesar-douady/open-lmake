@@ -154,7 +154,7 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 
 Gather::Digest Gather::analyze(Status status) {
 	Trace trace("analyze",status,accesses.size()) ;
-	Digest  res                   ;                 res.deps.reserve(accesses.size()) ;                                 // typically most of accesses are deps
+	Digest  res                   ;                 res.deps.reserve(accesses.size()) ;                            // typically most of accesses are deps
 	Pdate   prev_first_read       = Pdate::Future ;
 	bool    readdir_warned        = false         ;
 	bool    seen_unexpected_write = false         ;
@@ -169,7 +169,7 @@ Gather::Digest Gather::analyze(Status status) {
 		MatchFlags flags = info.flags ;
 		//
 		// handle read_dir
-		if ( info.read_dir() && !(flags.extra_dflags[ExtraDflag::ReaddirOk]||flags.tflags[Tflag::Incremental]) ) {      // if incremental, user handle previous values
+		if ( info.read_dir() && !(flags.extra_dflags[ExtraDflag::ReaddirOk]||flags.tflags[Tflag::Incremental]) ) { // if incremental, user handle previous values
 			res.msg << "readdir without readdir_ok : "<<mk_file(file,No)<<'\n' ;
 			if (!readdir_warned) {
 				res.msg << "  consider (ordered by decreasing reliability) :\n"                                    ;
@@ -193,7 +193,7 @@ Gather::Digest Gather::analyze(Status status) {
 		bool     was_written  = info.first_write()<Pdate::Future ;
 		bool     force_is_dep = info.force_is_dep                ;
 		//
-		if (file==".") continue ;                                                                             // . is only reported when reading dir but otherwise is an external file
+		if (file==".") continue ;                                                                                  // . is only reported when reading dir but otherwise is an external file
 		//
 		Pdate first_read = info.first_read(false/*with_readdir*/)                                               ;
 		bool  was_read   = first_read<Pdate::Future                                                             ;
@@ -216,14 +216,14 @@ Gather::Digest Gather::analyze(Status status) {
 			dd.create_encode = flags.extra_dflags[ExtraDflag::CreateEncode]            ;
 			prev_first_read  = first_read                                              ;
 			// try to transform date into crc as far as possible
-			if      ( dd.is_crc                         )   {}                                                // already a crc => nothing to do
-			else if ( !accesses                         )   {}                                                // no access     => nothing to do
-			else if ( !info.seen()                      ) { dd.may_set_crc(Crc::None ) ; dd.hot   = false ; } // job has been executed without seeing the file (before possibly writing to it)
-			else if ( !dd.sig()                         ) { dd.del_crc    (          ) ; unstable = true  ; } // file was absent initially but was seen, it is incoherent even if absent finally
-			else if ( was_written                       )   {}                                                // cannot check stability, clash will be detected in server if any
-			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.del_crc    (          ) ; unstable = true  ; } // file dates are incoherent from first access to end of job, no stable content
-			else if ( sig.tag()==FileTag::Empty         )   dd.may_set_crc(Crc::Empty) ;                      // crc is easy to compute (empty file), record it
-			else if ( !Crc::s_sense(accesses,sig.tag()) )   dd.may_set_crc(sig.tag() ) ;                      // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			if      ( dd.is_crc                         )   {}                                                     // already a crc => nothing to do
+			else if ( !accesses                         )   {}                                                     // no access     => nothing to do
+			else if ( !info.seen()                      ) { dd.may_set_crc(Crc::None ) ; dd.hot   = false ; }      // job has been executed without seeing the file (before possibly writing to it)
+			else if ( !dd.sig()                         ) { dd.del_crc    (          ) ; unstable = true  ; }      // file was absent initially but was seen, it is incoherent even if absent finally
+			else if ( was_written                       )   {}                                                     // cannot check stability, clash will be detected in server if any
+			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.del_crc    (          ) ; unstable = true  ; }      // file dates are incoherent from first access to end of job, no stable content
+			else if ( sig.tag()==FileTag::Empty         )   dd.may_set_crc(Crc::Empty) ;                           // crc is easy to compute (empty file), record it
+			else if ( !Crc::s_sense(accesses,sig.tag()) )   dd.may_set_crc(sig.tag() ) ;                           // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back( file , dd ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -835,7 +835,7 @@ Status Gather::_exec_child() {
 							case Proc::Confirm : {
 								trace(kind,fd,proc,jerr.digest.write,jerr.id) ;
 								Trace trace2 ;
-								auto it = jse.to_confirm.find(jerr.id) ; SWEAR_PROD( it!=jse.to_confirm.end() , jerr.id , jse.to_confirm ) ;
+								auto it = jse.to_confirm.find(jerr.id) ; SWEAR_PROD( it!=jse.to_confirm.end() , jerr.id,jse.to_confirm ) ;
 								SWEAR(jerr.digest.write!=Maybe) ;                                                                                      // ensure we confirm/infirm
 								for ( Jerr& j : it->second ) {
 									SWEAR(j.digest.write==Maybe) ;
@@ -925,7 +925,7 @@ Status Gather::_exec_child() {
 			DF}                                                                                                                                        // NO_COV
 		}
 	}
-	SWEAR_PROD( !_child , _child.pid ) ;                                                                                                                              // _child must have been waited by now
+	SWEAR_PROD( !_child , _child.pid ) ;                                                                                                               // _child must have been waited by now
 	trace("done",status) ;
 	return status ;
 }

@@ -32,7 +32,7 @@ RUN yum install -y \
 	strace                \
 	wget                  \
 	# optional
-	man                   \
+	man \
 	pcre2 pcre2-devel
 	#glibc-devel.i686 libgcc.i686 gcc-toolset-11-libstdc++-devel.i686
 	#slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work

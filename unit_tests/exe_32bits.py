@@ -18,20 +18,23 @@ if __name__!='__main__' :
 	,	'ref'
 	)
 
-	class Compile(Rule) :
-		targets = { 'EXE' : r'{File:.*}-{Sz:32|64}' }
-		deps    = { 'SRC' :  '{File   }.c'          }
+	class Base(Rule) :
+		stems = { 'Sz' : r'32|x32|64' }
+
+	class Compile(Base) :
+		targets = { 'EXE' : r'{File:.*}-{Sz}' }
+		deps    = { 'SRC' :  '{File   }.c'    }
 		autodep = 'ld_preload'                                                                 # clang seems to be hostile to ld_audit
 		cmd     = f'PATH={gxx.gxx_dir}:$PATH {gxx.gxx} -m{{Sz}} -O0 -g -o {{EXE}} -xc {{SRC}}'
 
-	class Dut(Rule) :
-		target  = r'dut-{Sz:32|64}.{Method:\w+}'
+	class Dut(Base) :
+		target  = r'dut-{Sz}.{Method:\w+}'
 		autodep = '{Method}'
 		deps    = { 'EXE':'hello_world-{Sz}' }
 		cmd     = './{EXE}'
 
-	class Test(Rule) :
-		target = r'test-{Sz:32|64}.{Method:\w+}'
+	class Test(Base) :
+		target = r'test-{Sz}.{Method:\w+}'
 		deps   = {
 			'DUT' : 'dut-{Sz}.{Method}'
 		,	'REF' : 'ref'
@@ -65,7 +68,7 @@ else :
 	autodeps = ('none',*lmake.autodeps)
 
 	ut.lmake(
-		*(f'test-{sz}.{m}' for sz in (64,32) for m in autodeps)
+		*(f'test-{sz}.{m}' for sz in ('32',64) for m in autodeps) # x32 is generally not supported
 	,	new    = 2
 	,	done   = 2 + 4*len(autodeps)
 	)

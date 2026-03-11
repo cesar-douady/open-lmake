@@ -434,11 +434,11 @@ namespace Engine {
 			//
 			for( auto& [target,td] : digest.targets ) {
 				target->set_buildable() ;
-				Tflags tflags          = td.tflags              ;
-				bool   static_phony    = ::static_phony(tflags) ;
-				bool   is_src_anti     = target->is_src_anti()  ;
-				Crc    crc             = td.crc                 ;
-				bool   unexpected      = false                  ;
+				Tflags tflags       = td.tflags              ;
+				bool   static_phony = ::static_phony(tflags) ;
+				bool   is_src_anti  = target->is_src_anti()  ;
+				Crc    crc          = td.crc                 ;
+				bool   unexpected   = false                  ;
 				//
 				old_targets.erase(target) ;
 				//

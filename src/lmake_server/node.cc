@@ -622,6 +622,7 @@ namespace Engine {
 		g_kpi.n_node_make++ ;
 		SWEAR( prod_idx==NoIdx , prod_idx ) ;
 		for( chk_regenerate=true ;; chk_regenerate=false ) { // only check regenerate once (e.g. in case of submit_loop, we would try forever)
+			trace(STR(chk_regenerate),STR(ri.single)) ;
 			for (;;) {
 				SWEAR( ri.prio_idx!=NoIdx , ri ) ;
 				if (!ri.single) {                            // fast path : cannot have several jobs not gather new jobs if we consider only a single (existing) job
