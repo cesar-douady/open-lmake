@@ -179,9 +179,9 @@ Return :
 	_is_slow = will_be_slow ;
 }
 
-void Record::report_cached( JobExecRpcReq&& jerr , bool force ) {
+bool/*sent*/ Record::report_cached( JobExecRpcReq&& jerr , bool force ) {
 	SWEAR( jerr.proc==Proc::Access , jerr.proc ) ;
-	if ( !force && !enable ) return ;
+	if ( !force && !enable ) return false/*sent*/ ;
 	if (jerr.sync!=Yes) {
 		switch (jerr.digest.write) {
 			case No : {
@@ -199,12 +199,13 @@ void Record::report_cached( JobExecRpcReq&& jerr , bool force ) {
 					return false/*erase*/ ;
 				} ) ;
 			} break ;
-			case Yes :                                                                       // from now on, read accesses need not be reported as file has been written
+			case Yes :                                                                       // from now on, read accesses need not be reported as files have been written
 				for( auto const& [f,_] : jerr.files ) (*s_access_cache)[f] = ~CacheEntry() ;
 			break ;
 		DN}
 	}
 	if (+jerr.files) report_direct(::move(jerr),force) ;
+	return +jerr.files ;
 }
 
 JobExecRpcReply Record::report_sync(JobExecRpcReq&& jerr) {
@@ -230,9 +231,10 @@ JobExecRpcReq::Id Record::report_access( JobExecRpcReq&& jerr , bool force ) {
 	// if _real_path.pid is not 0, we are ptracing, pid is meaningless but we are single thread and dates are different
 	// else, ::gettid() would be a good id but it is not available on all systems,
 	// however, within a process, dates are always different, so mix pid and date (multipication is to inject entropy in high order bits, practically suppressing all conflict possibilities)
-	Time::Pdate now     ;
-	Jerr::Id    id      = jerr.id                                        ;
-	bool        need_id = !id && jerr.digest.write==Maybe && +jerr.files ;
+	Time::Pdate now       ;
+	Jerr::Id    id        = jerr.id                         ;
+	bool        may_write = jerr.digest.write==Maybe        ;
+	bool        need_id   = !id && may_write && +jerr.files ;
 	static_assert(sizeof(Jerr::Id)==8) ;                                                                                                          // else, rework shifting
 	if      (need_id   ) { now = New ; id = now.val() ; if (!_real_path.pid) id += Jerr::Id(::getpid())*((uint64_t(1)<<48)+(uint64_t(1)<<32)) ; } // .
 	else if (!jerr.date)   now = New ;
@@ -242,9 +244,9 @@ JobExecRpcReq::Id Record::report_access( JobExecRpcReq&& jerr , bool force ) {
 	if (need_id              )                                           jerr.id   = id                     ;
 	if (+jerr.digest.accesses) for( auto& [f,fi] : jerr.files ) if (!fi) fi        = {{s_repo_root_fd(),f}} ;
 	//
-	report_cached( ::move(jerr) , force ) ;
-	if (jerr.digest.write==Maybe) return id ;
-	else                          return 0  ;
+	bool sent = report_cached( ::move(jerr) , force ) ;
+	if ( sent && may_write ) return id ;
+	else                     return 0  ;
 }
 
 JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , bool force ) {

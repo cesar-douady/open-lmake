@@ -78,6 +78,7 @@ enum class VarCmd : uint8_t {
 ,	Targets , Match , StarMatch
 ,	Deps    , Dep
 ,	Rsrcs   , Rsrc
+,	JobName
 } ;
 
 // END_OF_VERSIONING
@@ -390,7 +391,7 @@ namespace Engine {
 	} ;
 
 	using EvalCtxFuncStr = ::function<void( VarCmd , VarIdx idx , ::string const& key , ::string  const& val )> ;
-	using EvalCtxFuncDct = ::function<void( VarCmd , VarIdx idx , ::string const& key , ::vmap_ss const& val )> ;
+	using EvalCtxFuncDct = ::function<void( VarCmd ,              ::string const& key , ::vmap_ss const& val )> ;
 
 	struct DynBase {
 		static void s_eval( Job , Rule::RuleMatch&/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& , EvalCtxFuncDct const& ) ;
@@ -905,7 +906,7 @@ namespace Engine {
 				if (vc!=VarCmd::StarMatch) tmp_glbs->set_item(key,*Py::Ptr<Py::Str>(val)) ;
 				else                       to_eval += r->gen_py_line( job , match , vc , i , key , val ) ;
 			}
-		,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) {
+		,	[&]( VarCmd , ::string const& key , ::vmap_ss const& val ) {
 				to_del.push_back(key) ;
 				Py::Ptr<Py::Dict> py_dct { New } ;
 				for( auto const& [k,v] : val ) py_dct->set_item(k,*Py::Ptr<Py::Str>(v)) ;

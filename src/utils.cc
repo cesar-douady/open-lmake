@@ -728,7 +728,8 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 ::string const& host() {
 	static ::string s_res = []()->::string {
 		char buf[HOST_NAME_MAX+1] ;
-		int  rc                   = ::gethostname( buf , sizeof(buf) ) ; SWEAR_PROD( rc==0 , errno ) ;
+		int  rc                   = ::gethostname( buf , sizeof(buf) ) ; buf[HOST_NAME_MAX]= 0 ; SWEAR_PROD( rc==0 , StrErr() ) ;
+		/**/                                                                                     SWEAR_PROD( buf[0]           ) ; // ensure name is not empty
 		return buf ;
 	}() ;
 	return s_res ;

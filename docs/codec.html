@@ -243,7 +243,7 @@ such a dir may contain a file <code>LMAKE/file_sync</code> containing one of <co
 <p>A dir containing an association table can be edited by hand to customize codes.
 Each assocation <code>code</code>&lt;-&gt;<code>value</code> is recorded as :</p>
 <ul>
-<li>Let <code>checksum</code> be a 128-bits checksum computed after <code>value</code> as a hex string (of size 32).</li>
+<li>Let <code>checksum</code> be a 128-bits checksum computed after <code>value</code> as a base-64 string.</li>
 <li>The file <code>store/checksum</code> contains <code>value</code>.</li>
 <li>There is a symbolic link in <code>tab/context/code.decode</code> pointing to this file, e.g. <code>../../store/checksum</code> if context has no embedded <code>/</code>.
 This file is used for decoding, i.e. for getting <code>value</code> given <code>code</code>.</li>

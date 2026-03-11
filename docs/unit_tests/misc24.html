@@ -104,35 +104,42 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">lmake</span>
-    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
+    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;a/b/c.py&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;step.py&#39;</span>
     <span class="p">)</span>
 
-    <span class="k">class</span> <span class="nc">Dut1</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span>  <span class="o">=</span> <span class="s1">&#39;dut1&#39;</span>
-        <span class="n">environ</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;PYTHONPATH&#39;</span> <span class="p">:</span> <span class="s1">&#39;a&#39;</span> <span class="p">}</span> <span class="c1"># check namespaces with several branches : based on repo root (automatic) and on a</span>
-        <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
-            <span class="kn">import</span> <span class="nn">b.c</span>                   <span class="c1"># check namespace based import from a</span>
-            <span class="kn">import</span> <span class="nn">a.b.c</span>                 <span class="c1"># check namespace based import from repo root</span>
+    <span class="kn">from</span> <span class="nn">step</span> <span class="kn">import</span> <span class="n">step</span>
 
-    <span class="k">class</span> <span class="nc">Dut2</span><span class="p">(</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut2&#39;</span>
-        <span class="n">cmd</span>    <span class="o">=</span> <span class="s2">&quot;python3 -c &#39;import a.b.c&#39;&quot;</span> <span class="c1"># check we can call python (even if not the system python, leveraging py_clmake) from bash with same flexibility as direct python cmd</span>
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DUT&#39;</span><span class="p">:(</span><span class="s1">&#39;dut&#39;</span><span class="p">,</span><span class="s1">&#39;optional&#39;</span><span class="p">)</span> <span class="p">}</span>
+        <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">1</span> <span class="p">:</span> <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;echo bad &gt;</span><span class="si">{DUT}</span><span class="s1">&#39;</span>
+        <span class="k">else</span>       <span class="p">:</span> <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+    <span class="k">class</span> <span class="nc">Good</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">prio</span>   <span class="o">=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;echo good&#39;</span>
+
+    <span class="k">class</span> <span class="nc">Test</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span>
+        <span class="n">deps</span>   <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DUT&#39;</span><span class="p">:</span><span class="s1">&#39;dut&#39;</span> <span class="p">}</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;[ &quot;$(cat </span><span class="si">{DUT}</span><span class="s1">)&quot; = good ]&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">os</span>
-
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;a/b&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;b&#39;</span>  <span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># this dir is searched, but c.py is not there</span>
-    <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;a/b/c.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+<span class="c1">#   print(&#39;step=1&#39;,file=open(&#39;step.py&#39;,&#39;w&#39;))</span>
+<span class="c1">#   ut.lmake( &#39;test&#39; , done=2 )</span>
 
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut1&#39;</span><span class="p">,</span><span class="s1">&#39;dut2&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">2</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=1&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=2&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;test&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">3</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>

@@ -143,7 +143,7 @@ public :
 		else                                          return _do_send_report(pid) ;
 	}
 	void              report_direct(           JobExecRpcReq&& ,                                    bool force=false ) ; // if force, report even if disabled
-	void              report_cached(           JobExecRpcReq&& ,                                    bool force=false ) ; // .
+	bool/*sent*/      report_cached(           JobExecRpcReq&& ,                                    bool force=false ) ; // .
 	JobExecRpcReq::Id report_access(           JobExecRpcReq&& ,                                    bool force=false ) ; // .
 	JobExecRpcReq::Id report_access( FileLoc , JobExecRpcReq&& ,                                    bool force=false ) ; // .
 	JobExecRpcReq::Id report_access( FileLoc , JobExecRpcReq&& , FileLoc fl0 , ::string const& f0 , bool force=false ) ; // .

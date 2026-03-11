@@ -2188,6 +2188,7 @@ This is achieved because open-lmake lib dir contains a <code>usercustomize.py</c
 <p>During evaluation, its global <code>dict</code> is populated to contain values referenced in these functions.
 Values may come from (by order of preference):</p>
 <ul>
+<li><code>job_name</code> that contain the official job name.</li>
 <li>The stems, targets, deps, resources, side targets and side deps, as named in their respective <code>dict</code>.</li>
 <li><code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> that contain their respective whole <code>dict</code>.</li>
 <li>if a single target was specified with the <code>target</code> attribute, that target is named <code>target</code>.</li>
@@ -2196,6 +2197,7 @@ Values may come from (by order of preference):</p>
 <li>Any value in the module globals.</li>
 <li>Any builtin value.</li>
 <li>undefined variables are not defined, which is ok as long as they are not accessed (or they are accessed in a try/except block that handle the <code>NameError</code> exception).</li>
+<li>Dunders of the form <code>__lmake_xxx__</code> are internally used by open-lmake for its own management.</li>
 </ul>
 <p>Static targets, deps, side targets and side deps are defined as <code>str</code>.
 Star targets, side targets and side deps are defined as functions taking the star-stems as argument and returning the then fully specified file.
@@ -2941,7 +2943,7 @@ such a dir may contain a file <code>LMAKE/file_sync</code> containing one of <co
 <p>A dir containing an association table can be edited by hand to customize codes.
 Each assocation <code>code</code>&lt;-&gt;<code>value</code> is recorded as :</p>
 <ul>
-<li>Let <code>checksum</code> be a 128-bits checksum computed after <code>value</code> as a hex string (of size 32).</li>
+<li>Let <code>checksum</code> be a 128-bits checksum computed after <code>value</code> as a base-64 string.</li>
 <li>The file <code>store/checksum</code> contains <code>value</code>.</li>
 <li>There is a symbolic link in <code>tab/context/code.decode</code> pointing to this file, e.g. <code>../../store/checksum</code> if context has no embedded <code>/</code>.
 This file is used for decoding, i.e. for getting <code>value</code> given <code>code</code>.</li>

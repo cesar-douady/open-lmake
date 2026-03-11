@@ -73,7 +73,7 @@ StdAttrs = { #!               type   dynamic
 ,	'views'               : ( dict  , True  )
 }
 
-Keywords     = {'dep','deps','python','resources','shell','stems','target','targets'}
+Keywords     = {'dep','deps','job_name','python','resources','shell','stems','target','targets'}
 DictAttrs    = { k for k,v in StdAttrs.items() if v[0]==dict }
 SimpleStemRe = re.compile(r'{\s*\w+\s*}|{{|}}'           )     # include {{ and }} to prevent them from being recognized as stem, as in '{{foo}}'
 SimpleFstrRe = re.compile(r'^([^{}]|{{|}}|{\s*\w+\s*})*$')     # this means stems in {} are simple identifiers, e.g. 'foo{a}bar but not 'foo{a+b}bar'
@@ -458,7 +458,7 @@ class Handle :
 
 	def prepare(self) :
 		self.static_stems = find_static_stems(self.rule_rep.job_name)
-		self.aggregate_per_job = {'stems','target','targets'}
+		self.aggregate_per_job = {'job_name','stems','target','targets'}
 		self.per_job = {
 			*self.static_stems
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )

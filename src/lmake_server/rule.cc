@@ -184,15 +184,14 @@ namespace Engine {
 	}
 
 	void DynBase::s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
-		RuleData const&  rd                  = *( +j ? j->rule() : m.rule )                        ;
-		::vmap_ss const& rsrcs_spec          = rd.submit_rsrcs_attrs.spec.rsrcs                    ;
+		RuleData const&  rd                  = *( +j ? j->rule() : m.rule )     ;
+		::vmap_ss const& rsrcs_spec          = rd.submit_rsrcs_attrs.spec.rsrcs ;
 		::vector_s       mtab                ;
 		::vmap_ss        dtab                ;
 		::umap_ss        rtab                ;
 		Iota2<VarIdx>    static_targets_iota = rd.matches_iotas[false/*star*/][+MatchKind::Target] ;
 		//
-		auto match = [&]()->Rule::RuleMatch const& { { if (!m) m = Rule::RuleMatch(j) ; } return m             ; } ;                                                            // solve lazy evaluation
-		auto stems = [&]()->::vector_s      const& {                                      return match().stems ; } ;
+		auto match = [&]()->Rule::RuleMatch const& { { if (!m) m = Rule::RuleMatch(j) ; } return m ; } ; // solve lazy evaluation
 		//
 		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,rd.sub_repo_s)) ; } return mtab ; } ;
 		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps_holes() ) dtab.emplace_back(k,mk_lcl(dn.txt,rd.sub_repo_s)) ; } return dtab ; } ;
@@ -200,17 +199,18 @@ namespace Engine {
 		for( auto [vc,i] : ctx ) {
 			::vmap_ss dct ;
 			switch (vc) {
-				case VarCmd::Stem      :                                                                        cb_str(vc,i,rd.stems  [i].first,stems  ()[i]       ) ;   break ;
+				case VarCmd::Stem      :                                                                        cb_str(vc,i,rd.stems  [i].first,match().stems[i]   ) ;   break ;
 				case VarCmd::StarMatch :
 				case VarCmd::Match     :                                                                        cb_str(vc,i,rd.matches[i].first,matches()[i]       ) ;   break ;
 				case VarCmd::Dep       :                                                                        cb_str(vc,i,deps()    [i].first,deps   ()[i].second) ;   break ;
 				case VarCmd::Rsrc      : { auto it = rsrcs().find(rsrcs_spec[i].first) ; if (it!=rsrcs().end()) cb_str(vc,i,it->first          ,it->second         ) ; } break ;
+				case VarCmd::JobName   :                                                                        cb_str(vc,i,"job_name"         ,match().name()     ) ;   break ;
 				//
-				case VarCmd::Stems   : for( VarIdx j : iota(rd.n_static_stems) ) dct.emplace_back(rd.stems  [j].first,stems  ()[j]) ; cb_dct(vc,i,"stems"    ,dct   ) ; break ;
-				case VarCmd::Targets : for( VarIdx j : static_targets_iota     ) dct.emplace_back(rd.matches[j].first,matches()[j]) ; cb_dct(vc,i,"targets"  ,dct   ) ; break ;
-				case VarCmd::Deps    : for( auto const& [k,d] : deps()         ) dct.emplace_back(k                  ,d           ) ; cb_dct(vc,i,"deps"     ,dct   ) ; break ;
-				case VarCmd::Rsrcs   :                                                                                                cb_dct(vc,i,"resources",rsrcs_) ; break ;
-			DF}                                                                                                                                                                 // NO_COV
+				case VarCmd::Stems   : for( VarIdx j : iota(rd.n_static_stems) ) dct.emplace_back(rd.stems  [j].first,match().stems[j]) ; cb_dct(vc,"stems"    ,dct   ) ; break ;
+				case VarCmd::Targets : for( VarIdx j : static_targets_iota     ) dct.emplace_back(rd.matches[j].first,matches()    [j]) ; cb_dct(vc,"targets"  ,dct   ) ; break ;
+				case VarCmd::Deps    : for( auto const& [k,d] : deps()         ) dct.emplace_back(k                  ,d               ) ; cb_dct(vc,"deps"     ,dct   ) ; break ;
+				case VarCmd::Rsrcs   :                                                                                                    cb_dct(vc,"resources",rsrcs_) ; break ;
+			DF}                                                                                                                                                                   // NO_COV
 		}
 	}
 
@@ -232,7 +232,7 @@ namespace Engine {
 		fi = 0 ;
 		::string res = ::move(fixed[fi++]) ;
 		auto cb_str = [&]( VarCmd , VarIdx , ::string const& /*key*/ , ::string  const&   val   ) { res<<val<<fixed[fi++] ; } ;
-		auto cb_dct = [&]( VarCmd , VarIdx , ::string const& /*key*/ , ::vmap_ss const& /*val*/ ) { FAIL()                ; } ; // NO_COV
+		auto cb_dct = [&]( VarCmd ,          ::string const& /*key*/ , ::vmap_ss const& /*val*/ ) { FAIL()                ; } ; // NO_COV
 		DynBase::s_eval(job,match,rsrcs,ctx_,cb_str,cb_dct) ;
 		return res ;
 	}
@@ -574,7 +574,7 @@ namespace Engine {
 			,	[&]( VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) {
 					res += r->gen_py_line( match , vc , i , key , val ) ;
 				}
-			,	[&]( VarCmd , VarIdx , ::string const& key , ::vmap_ss const& val ) {
+			,	[&]( VarCmd , ::string const& key , ::vmap_ss const& val ) {
 					res<<key<<" = {\n" ;
 					bool f = true ;
 					for( auto const& [k,v] : val ) {

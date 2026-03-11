@@ -618,7 +618,7 @@ _bin/lcache_dump  :                    $(CACHE_SAN_OBJS)   src/cache/lcache_dump
 bin/lcodec_repair : $(SERVER_SAN_OBJS) $(CACHE_SAN_OBJS)   src/lcodec_repair$(SAN).o
 _bin/lkpi         : $(SERVER_SAN_OBJS)                     src/lkpi$(SAN).o
 
-LMAKE_DBG_FILES += bin/lmake_server bin/lmake_repair _bin/lmake_dump _bin/lcache_dump _bin/lkpi
+LMAKE_DBG_FILES += bin/lmake_server bin/lmake_repair _bin/lmake_dump bin/lcache_server bin/lcache_repair _bin/lcache_dump bin/lcodec_repair _bin/lkpi
 bin/lmake_server bin/lmake_repair _bin/lmake_dump bin/lcache_server bin/lcache_repair _bin/lcache_dump bin/lcodec_repair _bin/lkpi :
 	@mkdir -p $(@D)
 	@echo link to $@
@@ -949,11 +949,10 @@ docs/index.html : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS))
 # html doc is under git as _bin/mdbook cannot be downloaded in launchpad.net
 # also this makes the html doc directly available on github
 docs.manifest_stamp : Manifest docs/index.html $(MAN_FILES:%.1=docs/%.html) $(DOC_PY:%.py=docs/%.html)
-	echo collate
+	@echo check doc manifest to $@
 	@printf '%s\n' $(foreach d,examples lib man unit_tests,$(filter docs/$d/%,$(SRCS))) | sort > docs.ref_manifest
 	@printf '%s\n' $(MAN_FILES:%.1=docs/%.html) $(DOC_PY:%.py=docs/%.html)              | sort > docs.actual_manifest
-	@diff docs.ref_manifest docs.actual_manifest
-	>$@
+	@diff docs.ref_manifest docs.actual_manifest >$@ || { cat $@ ; exit 1 ; }
 
 BOOK : docs.manifest_stamp
 

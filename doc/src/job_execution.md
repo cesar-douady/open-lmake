@@ -46,6 +46,7 @@ In that case, this attribute is called to run the job.
 During evaluation, its global `dict` is populated to contain values referenced in these functions.
 Values may come from (by order of preference):
 
+- `job_name` that contain the official job name, as specified by the `job_name` rule attribute (the first target by default).
 - The stems, targets, deps, resources, side targets and side deps, as named in their respective `dict`.
 - `stems`, `targets`, `deps`, `resources` that contain their respective whole `dict`.
 - if a single target was specified with the `target` attribute, that target is named `target`.

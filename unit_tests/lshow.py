@@ -53,6 +53,7 @@ if __name__!='__main__' :
 else :
 
 	import os
+	import socket
 	import subprocess as sp
 
 	import ut
@@ -207,6 +208,7 @@ else :
 				( 'start_overhead'    , ''               )
 			,	( 'chdir'             , os.getcwd()      )
 			,	( 'start_info(reply)' , ''               )
+			,	( 'fqdn'              , socket.getfqdn() )
 			,	( 'washed'            , ''               )
 			,	( 'stdout'            , 'hello+world_sh' )
 			,	( 'start_job'         , ''               )

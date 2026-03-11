@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 33      ; // 47c327397f42448308b09ac27c68b860
+	uint64_t    constexpr Cache = 34      ; // df04704b319345150a1476e0956e089e
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 29      ; // 94f863a04678999bb2c1ad769370975a
-	uint64_t    constexpr Job   = 17      ; // 48b0af5af14d24f6b96ab73c4888b551
+	uint64_t    constexpr Repo  = 30      ; // 281b30fc074fbb4d0b67cc9bc19799ff
+	uint64_t    constexpr Job   = 18      ; // 0a9f347b6d065b5733fc658ea804dcea
 	const char* const     Major = "26.03" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 47c327397f42448308b09ac27c68b860 *
+// * Cache : df04704b319345150a1476e0956e089e *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -822,6 +822,7 @@ namespace Version {
 //	,	Encode
 //	,	EndJob           , EndOverhead
 //	,	EnteredNamespace
+//	,	Fqdn
 //	,	Hot
 //	,	Kill
 //	,	List
@@ -1070,7 +1071,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 94f863a04678999bb2c1ad769370975a *
+// * Repo : 281b30fc074fbb4d0b67cc9bc19799ff *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1200,6 +1201,7 @@ namespace Version {
 //			h += g_config->os_info      ;    // this has an influence on job execution , hence is part of cmd def
 //			h += sub_repo_s             ;
 //			h += Node::s_src_dirs_crc() ;    // src_dirs influences deps recording
+//			h += job_name               ;    // may be accessed by cmd,                         not always necessary but simpler to code
 //			h += matches                ;    // these define names and influence cmd execution, all is not necessary but simpler to code
 //			h += force                  ;
 //			h += is_python              ;
@@ -1562,6 +1564,7 @@ namespace Version {
 //	,	Targets , Match , StarMatch
 //	,	Deps    , Dep
 //	,	Rsrcs   , Rsrc
+//	,	JobName
 //	} ;
 //
 //	// END_OF_VERSIONING
@@ -2283,6 +2286,7 @@ namespace Version {
 //	,	Encode
 //	,	EndJob           , EndOverhead
 //	,	EnteredNamespace
+//	,	Fqdn
 //	,	Hot
 //	,	Kill
 //	,	List
@@ -2384,7 +2388,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 48b0af5af14d24f6b96ab73c4888b551 *
+// * Job : 0a9f347b6d065b5733fc658ea804dcea *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2719,6 +2723,7 @@ namespace Version {
 //	,	Encode
 //	,	EndJob           , EndOverhead
 //	,	EnteredNamespace
+//	,	Fqdn
 //	,	Hot
 //	,	Kill
 //	,	List

@@ -368,6 +368,8 @@ namespace Engine {
 					for( VarIdx mi : matches_iotas[star][+k] )
 						var_idxs[matches[mi].first] = { star?VarCmd::StarMatch:VarCmd::Match , mi } ;
 			//
+			var_idxs["job_name"] = { VarCmd::JobName , 0 } ;
+			//
 			field = "deps" ;
 			if (dct.contains("deps_attrs")) deps_attrs = { rules , dct["deps_attrs"].as_a<Dict>() , var_idxs , self } ;
 			//
@@ -492,8 +494,8 @@ namespace Engine {
 		res << title <<'\n' ;
 		for( auto const& [k,v] : m ) if ( !uniq || keys.insert(k).second ) {
 			res <<'\t'<< widen(k,wk) ;
-			if (v==DynMrkr) res <<" <dynamic>" ;
-			if (+v        ) res <<" : "<< v    ;
+			if      (v==DynMrkr) res <<" <dynamic>" ;
+			else if (+v        ) res <<" : "<< v    ;
 			else            res <<" :"         ;
 			res <<'\n' ;
 		}
@@ -792,6 +794,7 @@ namespace Engine {
 			case VarCmd::Match     : res.push_back   (matches                      [i].first) ; break ;
 			case VarCmd::Dep       : res.push_back   (deps_attrs        .spec .deps[i].first) ; break ;
 			case VarCmd::Rsrc      : res.push_back   (submit_rsrcs_attrs.spec.rsrcs[i].first) ; break ;
+			case VarCmd::JobName   : res.emplace_back("job_name"                            ) ; break ;
 			case VarCmd::Stems     : res.emplace_back("stems"                               ) ; break ;
 			case VarCmd::Targets   : res.emplace_back("targets"                             ) ; break ;
 			case VarCmd::Deps      : res.emplace_back("deps"                                ) ; break ;
@@ -830,6 +833,7 @@ namespace Engine {
 		h += g_config->os_info      ;    // this has an influence on job execution , hence is part of cmd def
 		h += sub_repo_s             ;
 		h += Node::s_src_dirs_crc() ;    // src_dirs influences deps recording
+		h += job_name               ;    // may be accessed by cmd,                         not always necessary but simpler to code
 		h += matches                ;    // these define names and influence cmd execution, all is not necessary but simpler to code
 		h += force                  ;
 		h += is_python              ;

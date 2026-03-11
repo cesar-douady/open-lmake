@@ -190,6 +190,7 @@ int main( int argc , char* argv[] ) {
 		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                                               } // NO_COV defensive programming
 		//
 		g_start_info.autodep_env.fqdn = fqdn(g_start_info.domain_name) ;                                                        // call fqdn() before potential chroot in g_start_info.enter()
+		g_user_trace->emplace_back( New/*date*/ , Comment::Fqdn , CommentExts() , g_start_info.autodep_env.fqdn ) ;
 		//
 		NfsGuard   nfs_guard    { g_start_info.autodep_env.file_sync } ;
 		bool       incremental  = false/*garbage*/                     ;

@@ -1187,10 +1187,10 @@ void JobStartRpcReply::mk_lmake_version() {
 				case 's' : if (key=="std_path"           ) lmake_version.std_path            = val.substr(1,val.size()-2) ; break ; // .
 			DN}
 		}
-		throw_unless( v_job                   , "expected version ",Version::Job," (for jobs) not found" ) ;
-		throw_unless( v_job==Version::Job     , "version ",v_job,"!=",Version::Job," (for jobs)"         ) ;
-		throw_unless( +lmake_version.python   , "python path not found"                                  ) ;
-		throw_unless( +lmake_version.std_path , "standard PATH not found"                                ) ;
+		throw_unless( v_job                   , "expected job-version "  ,Version::Job," not found" ) ;
+		throw_unless( v_job==Version::Job     , "job-version ",v_job,"!=",Version::Job              ) ;
+		throw_unless( +lmake_version.python   , "python path not found"                             ) ;
+		throw_unless( +lmake_version.std_path , "standard PATH not found"                           ) ;
 		#if HAS_LD_AUDIT
 			if (method==AutodepMethod::LdAudit) throw_unless( has_ld_audit , "ld_audit is not supported as autodep method" ) ;
 		#endif

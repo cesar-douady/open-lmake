@@ -255,6 +255,7 @@ enum class Comment : uint8_t {
 ,	Encode
 ,	EndJob           , EndOverhead
 ,	EnteredNamespace
+,	Fqdn
 ,	Hot
 ,	Kill
 ,	List
