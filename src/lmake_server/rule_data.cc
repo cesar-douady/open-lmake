@@ -251,12 +251,12 @@ namespace Engine {
 							}
 						) ;
 					}
-					if (             kind==MatchKind::Target  ) flags.tflags       |= Tflag::Target      ;
-					if ( !is_star && kind==MatchKind::Target  ) flags.tflags       |= Tflag::Essential   ;       // static targets are essential by default
-					if ( !is_star                             ) flags.tflags       |= Tflag::Static      ;
-					if (             kind!=MatchKind::SideDep ) flags.extra_tflags |= ExtraTflag::Allow  ;
-					if ( !is_star                             ) flags.extra_dflags |= ExtraDflag::NoStar ;
+					if ( !is_star && kind==MatchKind::Target ) flags.tflags       |= Tflag::Essential   ;       // static targets are essential by default
+					if ( !is_star                            ) flags.extra_dflags |= ExtraDflag::NoStar ;
 					Rule::s_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , /*out*/flags , kind==MatchKind::SideDep ) ;
+					if (             kind==MatchKind::Target                   ) flags.tflags       |= Tflag::Target     ;
+					if ( !is_star && !flags.extra_tflags[ExtraTflag::Optional] ) flags.tflags       |= Tflag::Static     ;
+					if (             kind!=MatchKind::SideDep                  ) flags.extra_tflags |= ExtraTflag::Allow ;
 					// check
 					if ( target.starts_with(*g_repo_root_s)                                        ) throw cat(kind," must be relative to root dir : "                   ,target) ;
 					if ( !target                                                                   ) throw cat(kind," must not be empty"                                        ) ;
@@ -264,7 +264,8 @@ namespace Engine {
 					if ( +missing_stems                                                            ) throw cat("missing stems ",missing_stems," in ",kind," : "          ,target) ;
 					if (  is_star                                    && !is_plain()                ) throw cat("star ",kind,"s are meaningless for source and anti-rules"       ) ;
 					if (  is_star                                    && is_stdout                  ) throw     "stdout cannot be directed to a star target"s                      ;
-					if ( flags.tflags      [Tflag     ::Incremental] && is_stdout                  ) throw     "stdout cannot be directed to an incremental target"s              ;
+					if ( flags.tflags      [Tflag     ::Incremental] && is_stdout                  ) throw     "stdout cannot be incremental"s                                    ;
+					if ( flags.extra_tflags[ExtraTflag::Optional   ] && is_stdout                  ) throw     "stdout cannot be optional"s                                       ;
 					if ( flags.extra_tflags[ExtraTflag::Optional   ] && is_star                    ) throw cat("star targets are natively optional : "                   ,target) ;
 					if ( flags.extra_tflags[ExtraTflag::Optional   ] && flags.tflags[Tflag::Phony] ) throw cat("cannot be simultaneously optional and phony : "          ,target) ;
 					bool is_top = flags.extra_tflags[ExtraTflag::Top] || flags.extra_dflags[ExtraDflag::Top] ;
