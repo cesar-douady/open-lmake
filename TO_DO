@@ -159,7 +159,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* consider rules taking locks :
+* make job_name usable in cmd
+? consider rules taking locks :
 	- provide a llock command
 		- llock A B C sub-cmd
 	- ask lock to server

@@ -507,8 +507,7 @@ namespace Engine {
 		,	{ "environ_resources" , {start_rsrcs_attrs    .spec.env,start_rsrcs_attrs    .spec.dyn_env} }
 		,	{ "environ_ancillary" , {start_ancillary_attrs.spec.env,start_ancillary_attrs.spec.dyn_env} }
 		}) ) {
-			if ( m_d.second) { res <<" <dynamic>\n" ; continue ; }
-			if (!m_d.first )                          continue ;
+			if (!m_d.first) continue ;
 			size_t wk = ::max<size_t>( m_d.first , [](auto const& k_v) { return k_v.first.size() ; } ) ;
 			res << h <<" :\n" ;
 			for( auto const& [k,v] : m_d.first ) {
