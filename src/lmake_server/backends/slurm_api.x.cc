@@ -100,28 +100,32 @@ namespace Backends::Slurm::SlurmApi {
 			first =false ;
 		}
 		for( int i=0 ; i<SlurmSpawnTrials ; i++ ) {
-			submit_response_msg_t* msg = nullptr/*garbage*/ ;
-			bool                   err = false  /*garbage*/ ;
+			submit_response_msg_t* resp = nullptr/*garbage*/ ;
+			bool                   err  = false  /*garbage*/ ;
 			errno = 0 ;                                                                // normally useless
 			{	Lock lock { slurm_mutex } ;
 				if (!job_descs) {                                                      // single element case
-					err = _submit_batch_job(&job_desc0,&msg)!=SLURM_SUCCESS ;
+					err = _submit_batch_job(&job_desc0,&resp)!=SLURM_SUCCESS ;
 				} else {                                                               // multi-elements case
 					auto* l = _list_create(nullptr/*dealloc_func*/) ;                  // depending on version, this may be List* or list_t*
 					/**/                                  _list_append(l,&job_desc0) ; // first element
 					for ( job_desc_msg_t& c : job_descs ) _list_append(l,&c        ) ; // other elements
-					err = _submit_batch_het_job(l,&msg)!=SLURM_SUCCESS ;
+					err = _submit_batch_het_job(l,&resp)!=SLURM_SUCCESS ;
 					_list_destroy(l) ;
 				}
 			}
 			int sav_errno = errno ;                                                    // save value before calling any slurm or libc function
-			if (msg) {
-				SlurmId res = msg->job_id ;
+			if (resp) {
+				#if SLURM_VERSION_NUMBER>=SLURM_VERSION_NUM(25,11,0)
+					SlurmId res = resp->step_id.job_id ;
+				#else
+					SlurmId res = resp->job_id         ;
+				#endif
 				SWEAR(res!=0) ;                                                        // null id is used to signal absence of id
-				_free_submit_response_response_msg(msg) ;
+				_free_submit_response_response_msg(resp) ;
 				if (!sav_errno) { SWEAR_PROD( !err , err ) ; return res ; }
 			}
-			SWEAR_PROD(sav_errno!=0) ;                                                 // if err, we should have a errno, else if no errno, we should have had a msg containing an id
+			SWEAR_PROD(sav_errno!=0) ;                                                 // if err, we should have a errno, else if no errno, we should have had a resp containing an id
 			::string err_msg ;
 			switch (sav_errno) {
 				#if EWOULDBLOCK!=EAGAIN
@@ -139,21 +143,19 @@ namespace Backends::Slurm::SlurmApi {
 						throw "interrupted while connecting to slurm daemon"s ;
 					}
 				} continue ;
-			#if SLURM_VERSION_NUMBER>=0x170200
-				case ESLURM_LICENSES_UNAVAILABLE :
-			#endif
+				#if SLURM_VERSION_NUMBER>=SLURM_VERSION_NUM(23,2,0)
+					case ESLURM_LICENSES_UNAVAILABLE :
+				#endif
 				case ESLURM_INVALID_LICENSES :
 					err_msg = job_desc0.licenses ;                                     // licenses are only on first step
 				break ;
+				#if SLURM_VERSION_NUMBER>=SLURM_VERSION_NUM(22,5,0)
+					case ESLURM_INSUFFICIENT_GRES :
+				#endif
 				case ESLURM_INVALID_GRES   :
 				case ESLURM_DUPLICATE_GRES :
-			#if SLURM_VERSION_NUMBER>=0x130500
 				case ESLURM_INVALID_GRES_TYPE :
 				case ESLURM_UNSUPPORTED_GRES  :
-			#endif
-			#if SLURM_VERSION_NUMBER>=0x160500
-				case ESLURM_INSUFFICIENT_GRES :
-			#endif
 					/**/                                                  err_msg <<(rsrcs.size()>1?"[ ":"") ;
 					for( First first ; RsrcsDataSingle const& r : rsrcs ) err_msg <<first(""," , ")<< r.gres ;
 					/**/                                                  err_msg <<(rsrcs.size()>1?" ]":"") ;
@@ -279,7 +281,11 @@ namespace Backends::Slurm::SlurmApi {
 		cancel_func    = _cancel    ;
 		//
 		Daemon res ;
-		res.manage_mem = conf->select_type_param&CR_MEMORY ;
+		#if SLURM_VERSION_NUMBER>=SLURM_VERSION_NUM(25,11,0)
+			res.manage_mem = conf->select_type_param&SELECT_MEMORY ;
+		#else
+			res.manage_mem = conf->select_type_param&CR_MEMORY     ;
+		#endif
 		trace(STR(res.manage_mem)) ;
 		if (conf->priority_params) {
 			static ::string const to_mrkr  = "time_origin=" ;
