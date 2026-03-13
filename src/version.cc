@@ -2,7 +2,7 @@
 namespace Version {
 	uint64_t    constexpr Cache = 34      ; // df04704b319345150a1476e0956e089e
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 30      ; // 281b30fc074fbb4d0b67cc9bc19799ff
+	uint64_t    constexpr Repo  = 31      ; // b5db21766f1b1f141090144c8a529f11
 	uint64_t    constexpr Job   = 18      ; // 0a9f347b6d065b5733fc658ea804dcea
 	const char* const     Major = "26.03" ;
 	uint64_t    constexpr Tag   = 0       ;
@@ -1071,7 +1071,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 281b30fc074fbb4d0b67cc9bc19799ff *
+// * Repo : b5db21766f1b1f141090144c8a529f11 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1322,29 +1322,33 @@ namespace Version {
 //				JobIdx   n_jobs   = 1000         ;
 //				// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO
-//				::serdes( s , caches                                            ) ;
-//				::serdes( s , ddate_prec,heartbeat,heartbeat_tick,network_delay ) ;
-//				::serdes( s , extra_manifest                                    ) ;
-//				::serdes( s , max_dep_depth,path_max                            ) ;
-//				::serdes( s , rules_action,srcs_action                          ) ;
-//				::serdes( s , sub_repos_s                                       ) ;
-//				::serdes( s , system_tag                                        ) ;
-//				::serdes( s , trace                                             ) ;
+//				::serdes( s , caches                                                                        ) ;
+//				::serdes( s , ddate_prec,heartbeat,heartbeat_tick,network_delay                             ) ;
+//				::serdes( s , extra_manifest                                                                ) ;
+//				::serdes( s , max_dep_depth,path_max                                                        ) ;
+//				::serdes( s , req_start_proc,req_end_proc,server_start_proc,server_end_proc,system_tag_proc ) ;
+//				::serdes( s , rules_action,srcs_action                                                      ) ;
+//				::serdes( s , sub_repos_s                                                                   ) ;
+//				::serdes( s , trace                                                                         ) ;
 //				// END_OF_VERSIONING REPO
 //			// START_OF_VERSIONING REPO
-//			::vmap_s<::vmap_ss> caches         ;
-//			Time::Delay         ddate_prec     { 0.01 } ; // precision of dates on disk
-//			::vector_s          extra_manifest ;
-//			Time::Delay         heartbeat      { 10   } ; // min time between successive heartbeat probes for any given job
-//			Time::Delay         heartbeat_tick { 0.01 } ; // min time between successive heartbeat probes
-//			DepDepth            max_dep_depth  = 100    ; // max dep of the whole flow used to detect infinite recursion
-//			Time::Delay         network_delay  { 1    } ;
-//			size_t              path_max       = 200    ; // if -1 <=> unlimited
-//			::string            rules_action   ;          // action to perform to read independently of config
-//			::string            srcs_action    ;          // .
-//			::vector_s          sub_repos_s    ;
-//			::string            system_tag     ;
-//			TraceConfig         trace          ;
+//			::vmap_s<::vmap_ss> caches            ;
+//			Time::Delay         ddate_prec        { 0.01 } ; // precision of dates on disk
+//			::vector_s          extra_manifest    ;
+//			Time::Delay         heartbeat         { 10   } ; // min time between successive heartbeat probes for any given job
+//			Time::Delay         heartbeat_tick    { 0.01 } ; // min time between successive heartbeat probes
+//			DepDepth            max_dep_depth     = 100    ; // max dep of the whole flow used to detect infinite recursion
+//			Time::Delay         network_delay     { 1    } ;
+//			size_t              path_max          = 200    ; // if -1 <=> unlimited
+//			::string            req_end_proc      ;
+//			::string            req_start_proc    ;
+//			::string            rules_action      ;          // action to perform to read independently of config
+//			::string            server_end_proc   ;
+//			::string            server_start_proc ;
+//			::string            srcs_action       ;          // .
+//			::vector_s          sub_repos_s       ;
+//			::string            system_tag_proc   ;
+//			TraceConfig         trace             ;
 //			// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO
 //				::string  domain_name ;

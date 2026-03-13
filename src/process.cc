@@ -204,8 +204,8 @@ void AutoServerBase::start() {
 		trace("vanished",file_mrkr) ;
 	}
 	server_fd = { 0/*backlog*/ , false/*reuse_addr*/ } ;
-	if (!is_daemon) Fd::Stdout.write(serialize(server_fd.service(0/*addr*/))) ; // pass connection info to client, no need for addr as client is necessarily local
-	::close(Fd::Stdout) ;
+	if (!is_daemon)
+		AcFd(3).write(serialize(server_fd.service(0/*addr*/))) ; // pass connection info to client, no need for addr as client is necessarily local
 	if (writable) {
 		SWEAR(+server_mrkr) ;
 		mode_t   mod    = 0666 & ~((get_umask()&0222)<<1)                    ;  // if we have access to server, we grant write access, so suppress read access for those not having write access
@@ -230,6 +230,13 @@ void AutoServerBase::start() {
 				watch_fd.close() ;                                                                                 // useless if we cannot watch
 	}
 	trace("done",STR(rescue)) ;
+}
+
+static int/*rc*/ _pre_exec(void* arg) {
+	AcPipe& pipe = *reinterpret_cast<AcPipe*>(arg) ;
+	pipe.read.close() ;
+	if (pipe.write.fd!=3) { int rc = ::dup2( pipe.write.fd , 3 ) ; pipe.write.close() ; return rc<0    ; }
+	else                                                                                return 0/*rc*/ ;
 }
 
 ::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir_s , Channel chnl ) {
@@ -272,14 +279,18 @@ void AutoServerBase::start() {
 		// server calls ::setpgid(0/*pid*/,0/*pgid*/) to create a new group by itself, after initialization, so during init, a ^C will propagate to server
 		trace("try_new",i) ;
 		//
-		server.stdin  = Child::PipeFd ;
-		server.stdout = Child::PipeFd ;
+		AcPipe pipe { New , 0/*flags*/ , true/*no_std*/ } ;
+		server.stdin        = Child::PipeFd ;
+		server.pre_exec     = _pre_exec     ;
+		server.pre_exec_arg = &pipe         ;
 		server.spawn() ;
+		pipe.write.close() ;
 		//
 		try {
-			auto                       service = deserialize<KeyedService>(server.stdout.read()) ;
+			auto                       service = deserialize<KeyedService>(pipe.read.read()) ;
 			::pair<ClientSockFd,pid_t> res     { mk_client(service) , server.pid }               ;
 			server.stdin.close() ;                                                                 // now that we have connected to server, we can release its stdin
+			pipe.read   .close() ;
 			server.mk_daemon() ;                                                                   // let process survive to server dxtor
 			return res ;
 		} catch (::string const&) {

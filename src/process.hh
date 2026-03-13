@@ -166,17 +166,17 @@ template<class T> bool/*interrupted*/ AutoServer<T>::event_loop() {
 		trace("new_slave",fd,key) ;
 		::string magic_str ( sizeof(T::Magic) , 0 ) ; encode_int( magic_str.data() , T::Magic ) ;
 		try                     { fd.write(magic_str) ; }
-		catch (::string const&) { trace("no_report") ;  }                                                                              // client is dead
+		catch (::string const&) { trace("no_report") ;  }                                                              // client is dead
 		Lock lock     { _slaves_mutex }                                         ;
 		auto inserted = _slaves.try_emplace( fd , SlaveEntry{.key=key} ).second ; SWEAR( inserted , fd ) ;
 		static_cast<T&>(self).start_connection(fd) ;
 	} ;
 	//                                                                wait
-	if (+server_fd) { epoll.add_read( server_fd , EventKind::Master , is_daemon ) ; trace("read_master",server_fd) ; }                 // if read-only, we do not expect additional connections
+	if (+server_fd) { epoll.add_read( server_fd , EventKind::Master , is_daemon ) ; trace("read_master",server_fd) ; } // if read-only, we do not expect additional connections
 	/**/              epoll.add_sig ( SIGHUP    , EventKind::Int    , false     ) ; trace("read_hup"             ) ;
 	/**/              epoll.add_sig ( SIGINT    , EventKind::Int    , false     ) ; trace("read_int"             ) ;
 	if (+watch_fd ) { epoll.add_read( watch_fd  , EventKind::Watch  , false     ) ; trace("read_watch" ,watch_fd ) ; }
-	if (!is_daemon) { epoll.add_read( Fd::Stdin , EventKind::Stdin  , true      ) ; trace("read_stdin" ,Fd::Stdin) ; }
+	if (!is_daemon) { epoll.add_read( Fd::Stdin , EventKind::Stdin  , true      ) ; trace("read_stdin" ,Fd::Stdin) ; } // if !daemon : stay alive until first connection
 	//
 	while (+epoll) {
 		bool new_fd = false ;
@@ -195,10 +195,10 @@ template<class T> bool/*interrupted*/ AutoServer<T>::event_loop() {
 					interrupted = true ;
 					if (static_cast<T&>(self).interrupt()) goto Done ;
 				break ;
-				case EventKind::Stdin :
-					Fd::Stdin.read() ;
-					epoll.close(false/*write*/,Fd::Stdin) ;
-				break ;
+				case EventKind::Stdin : {
+					epoll.del( false/*write*/ , Fd::Stdin ) ;
+					int rc = ::dup2( AcFd("/dev/null") , Fd::Stdin ) ; SWEAR_PROD( rc>=0 , StrErr() ) ;                // ensure stdin stays open to a safe stream in case some python code reads it
+				} break ;
 				case EventKind::Master :
 					// it may be that in a single poll, we get the end of a previous run and a request for a new one
 					// problem lies in this sequence :

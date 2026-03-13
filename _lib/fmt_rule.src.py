@@ -26,8 +26,7 @@ repo_root_s  = repo_root +'/'
 
 # helper constants
 StdAttrs = { #!               type   dynamic
-	'allow_stderr'        : ( bool  , True  ) # XXX> : suppress when backward compatibility is no more necessary
-,	'autodep'             : ( str   , True  )
+	'autodep'             : ( str   , True  )
 ,	'auto_mkdir'          : ( bool  , True  )
 ,	'backend'             : ( str   , True  )
 ,	'cache'               : ( str   , True  )
@@ -519,18 +518,17 @@ class Handle :
 		if self.attrs.is_python : interpreter = 'python'
 		else                    : interpreter = 'shell'
 		self._init()
-		self._handle_val( 'auto_mkdir'                               )
-		self._handle_val( 'chroot_dir'                               )
-		self._handle_val( 'env'             , rep_key='environ'      )
-		self._handle_val( 'interpreter'     , rep_key=interpreter    )
-		self._handle_val( 'ignore_stat'                              )
-		self._handle_val( 'lmake_view'                               )
-		self._handle_val( 'mount_chroot_ok'                          )
-		self._handle_val( 'repo_view'                                )
-		self._handle_val( 'stderr_ok'                                )
-		self._handle_val( 'stderr_ok'       , rep_key='allow_stderr' ) # XXX> : suppress when backward compatibility is no more necessary
-		self._handle_val( 'tmp_view'                                 )
-		self._handle_val( 'views'                                    )
+		self._handle_val( 'auto_mkdir'                            )
+		self._handle_val( 'chroot_dir'                            )
+		self._handle_val( 'env'             , rep_key='environ'   )
+		self._handle_val( 'interpreter'     , rep_key=interpreter )
+		self._handle_val( 'ignore_stat'                           )
+		self._handle_val( 'lmake_view'                            )
+		self._handle_val( 'mount_chroot_ok'                       )
+		self._handle_val( 'repo_view'                             )
+		self._handle_val( 'stderr_ok'                             )
+		self._handle_val( 'tmp_view'                              )
+		self._handle_val( 'views'                                 )
 		self.rule_rep.start_cmd_attrs = self._finalize()
 
 	def handle_start_rsrcs(self) :

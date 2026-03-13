@@ -93,14 +93,14 @@ namespace Engine {
 		bool operator==(ConfigStatic const&) const = default ;
 		template<IsStream S> void serdes(S& s) {
 			// START_OF_VERSIONING REPO
-			::serdes( s , caches                                            ) ;
-			::serdes( s , ddate_prec,heartbeat,heartbeat_tick,network_delay ) ;
-			::serdes( s , extra_manifest                                    ) ;
-			::serdes( s , max_dep_depth,path_max                            ) ;
-			::serdes( s , rules_action,srcs_action                          ) ;
-			::serdes( s , sub_repos_s                                       ) ;
-			::serdes( s , system_tag                                        ) ;
-			::serdes( s , trace                                             ) ;
+			::serdes( s , caches                                                                        ) ;
+			::serdes( s , ddate_prec,heartbeat,heartbeat_tick,network_delay                             ) ;
+			::serdes( s , extra_manifest                                                                ) ;
+			::serdes( s , max_dep_depth,path_max                                                        ) ;
+			::serdes( s , req_start_proc,req_end_proc,server_start_proc,server_end_proc,system_tag_proc ) ;
+			::serdes( s , rules_action,srcs_action                                                      ) ;
+			::serdes( s , sub_repos_s                                                                   ) ;
+			::serdes( s , trace                                                                         ) ;
 			// END_OF_VERSIONING REPO
 			if (IsIStream<S>) _compile() ;
 		}
@@ -111,19 +111,23 @@ namespace Engine {
 		// /!\ default values must stay in sync with _lib/lmake/config.src.py
 	public :
 		// START_OF_VERSIONING REPO
-		::vmap_s<::vmap_ss> caches         ;
-		Time::Delay         ddate_prec     { 0.01 } ; // precision of dates on disk
-		::vector_s          extra_manifest ;
-		Time::Delay         heartbeat      { 10   } ; // min time between successive heartbeat probes for any given job
-		Time::Delay         heartbeat_tick { 0.01 } ; // min time between successive heartbeat probes
-		DepDepth            max_dep_depth  = 100    ; // max dep of the whole flow used to detect infinite recursion
-		Time::Delay         network_delay  { 1    } ;
-		size_t              path_max       = 200    ; // if -1 <=> unlimited
-		::string            rules_action   ;          // action to perform to read independently of config
-		::string            srcs_action    ;          // .
-		::vector_s          sub_repos_s    ;
-		::string            system_tag     ;
-		TraceConfig         trace          ;
+		::vmap_s<::vmap_ss> caches            ;
+		Time::Delay         ddate_prec        { 0.01 } ; // precision of dates on disk
+		::vector_s          extra_manifest    ;
+		Time::Delay         heartbeat         { 10   } ; // min time between successive heartbeat probes for any given job
+		Time::Delay         heartbeat_tick    { 0.01 } ; // min time between successive heartbeat probes
+		DepDepth            max_dep_depth     = 100    ; // max dep of the whole flow used to detect infinite recursion
+		Time::Delay         network_delay     { 1    } ;
+		size_t              path_max          = 200    ; // if -1 <=> unlimited
+		::string            req_end_proc      ;
+		::string            req_start_proc    ;
+		::string            rules_action      ;          // action to perform to read independently of config
+		::string            server_end_proc   ;
+		::string            server_start_proc ;
+		::string            srcs_action       ;          // .
+		::vector_s          sub_repos_s       ;
+		::string            system_tag_proc   ;
+		TraceConfig         trace             ;
 		// END_OF_VERSIONING
 		// not stored on disk
 		::umap_s<CacheIdx> cache_idxes ;

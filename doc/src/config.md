@@ -244,19 +244,43 @@ It is subject to infinite recursion and several means are provided to avoid it.
 
 The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called `infinite`.
 
+### [`req_end_proc`](unit_tests/procs.html#:~:text=lmake%2Econfig%2Ereq%5Fend%5Fproc%20%3D%20req%5Fend%5Fproc)
+
+This attribute allows the specification of a function which is called after a `lmake` command has terminated.
+
+It is called with no argument.
+
+### [`req_start_proc`](unit_tests/procs.html#:~:text=lmake%2Econfig%2Ereq%5Fstart%5Fproc%20%3D%20req%5Fstart%5Fproc)
+
+This attribute allows the specification of a function which is called before a `lmake` command is executed.
+
+It is called with no argument.
+
+### [`server_end_proc`](unit_tests/procs.html#:~:text=lmake%2Econfig%2Eserver%5Fend%5Fproc%20%3D%20server%5Fend%5Fproc)
+
+This attribute allows the specification of a function which is called after `lmake_server` has terminated.
+
+It is called with no argument.
+
+### [`server_start_proc`](unit_tests/procs.html#:~:text=lmake%2Econfig%2Eserver%5Fstart%5Fproc%20%3D%20server%5Fstart%5Fproc)
+
+This attribute allows the specification of a function which is called before `lmake_server` is executed.
+
+It is called with no argument.
+
 ### [`sub_repos`](unit_tests/sub_repos.html#:~:text=lmake%2Econfig%2Esub%5Frepos%20%3D%20%28%27a%27%2C%27b%27%29%20%23%20for%20top%20level%20only%2C%20overwritten%20in%20sub%2Drepos) : Static (`()`)
 
-This attribute provide the list of sub-repos.
+This attribute provides the list of sub-repos.
 
 Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a `Lmakefile.py`.
 Inside such sub-repos, the applied flow is the one described in it (cf. [Subrepos](experimental_subrepos.html)).
 
-### [`system_tag`](lib/lmake/config_.html#:~:text=%2C%20system%5Ftag%20%3D%20%5Fsystem%5Ftag%20%23%20force%20config%20re%2Dread%20if%20the%20result%20of%20this%20function%20changes) : Static (see below)
+### [`system_tag_proc`](lib/lmake/config_.html#:~:text=%2C%20system%5Ftag%5Fproc%20%3D%20%5Fsystem%5Ftag)
 
-This attribute provide a way to identify hosts by category to ensure proper config reload.
+This attribute allows the specification of a way to identify hosts by category to ensure proper config reload in the form of a function.
 
 Some configuration elements may vary from one host to another.
-To ensure config is reloaded when elements change, this attribute, which must be function, is run and if its result is not the same as last time, config is reloaded.
+To ensure config is reloaded when elements change, this attribute is run and if its result (when called with no argument) differs from its previous execution, config is reloaded.
 
 By default, the `hostname` is returned, so config is reloaded as soon as the open-lmake server is launched on a different host.
 

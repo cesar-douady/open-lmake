@@ -22,7 +22,7 @@ def _run(cmd_line,**kwds) :
 _lmake_root = _osp.dirname(_osp.dirname(_osp.dirname(__file__)))
 def _bin(f) : return _lmake_root+'/bin/'+f
 
-# python3 prototype would be (but not available with python2) : XXX> : restore better prototype when python2 no longer needs to be supported
+# python3 prototype would be (but not available with python2) : XXX> : restore better prototype when python2 is no longer supported
 #	def depend(
 #		*args
 #	,	critical=False , essential=False , ignore_error=False , required=True , ignore=False , readdir_ok=False
@@ -45,7 +45,7 @@ def depend( *args , **kwds ) :
 	cmd_line += args
 	_run(cmd_line)
 
-# python3 prototype would be (but not available with python2) : XXX> : restore better prototype when python2 no longer needs to be supported
+# python3 prototype would be (but not available with python2) : XXX> : restore better prototype when python2 is no longer supported
 #	def target(
 #		*args
 #	,	essential=False , incremental=False , no_uniquify=False , no_warning=False , phony=False , ignore=False , no_allow=False , source_ok=False

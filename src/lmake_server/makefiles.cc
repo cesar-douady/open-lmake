@@ -141,16 +141,17 @@ namespace Engine::Makefiles {
 		for( ::string const& sd_s : Record::s_autodep_env().src_dirs_s )
 			if (!is_lcl(sd_s)) glb_sds_s.emplace_back(mk_glb(sd_s,*g_repo_root_s),is_abs(sd_s)) ;
 		//
-		::string deps_str ;
-		/**/                        deps_str << "# * : lmake root"                                                                   <<'\n' ;
-		/**/                        deps_str << "# ~ : repo root"                                                                    <<'\n' ;
-		if (action==Action::Config) deps_str << "# ^ : system tag"                                                                   <<'\n' ;
-		/**/                        deps_str << "# ! : file does not exist"                                                          <<'\n' ;
-		/**/                        deps_str << "# + : file exists and date is compared with last read date"                         <<'\n' ;
-		/**/                        deps_str << "# = : env variable (no value if not found in environ)"                              <<'\n' ;
-		/**/                        deps_str << '*'<<*g_lmake_root_s                                                                 <<'\n' ;
-		/**/                        deps_str << '~'<<*g_repo_root_s                                                                  <<'\n' ;
-		if (action==Action::Config) deps_str << '^'<<mk_printable(g_config->system_tag+"ok=system_tag=="+g_config->system_tag_val()) <<'\n' ;
+		::string deps_str   ;
+		::string system_tag ; if (action==Action::Config) system_tag = g_config->system_tag_val() ;
+		/**/             deps_str << "# * : lmake root"                                                         <<'\n' ;
+		/**/             deps_str << "# ~ : repo root"                                                          <<'\n' ;
+		if (+system_tag) deps_str << "# ^ : system tag"                                                         <<'\n' ;
+		/**/             deps_str << "# ! : file does not exist"                                                <<'\n' ;
+		/**/             deps_str << "# + : file exists and date is compared with last read date"               <<'\n' ;
+		/**/             deps_str << "# = : env variable (no value if not found in environ)"                    <<'\n' ;
+		/**/             deps_str << '*'<<*g_lmake_root_s                                                       <<'\n' ;
+		/**/             deps_str << '~'<<*g_repo_root_s                                                        <<'\n' ;
+		if (+system_tag) deps_str << '^'<<mk_printable(g_config->system_tag_proc+"ok = system_tag=="+system_tag)<<'\n' ;
 		for( ::string const& d : deps.files ) {
 			SWEAR_PROD(+d) ;
 			deps_str << ( FileInfo(d).exists() ? '+' : '!' ) ;
@@ -182,7 +183,6 @@ namespace Engine::Makefiles {
 		::string data_file = cat(PrivateAdminDirS,action,"_data.py") ;
 		Gather   gather    ;
 		::string tmp_dir_s = cat(_g_tmp_dir_s,action,'/')            ;
-		//
 		//
 		gather.method                     = AutodepMethod::DfltLd                                                                                                     ; // non-ld are not supported
 		gather.autodep_env                = Record::s_autodep_env()                                                                                                   ;

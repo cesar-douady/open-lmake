@@ -63,9 +63,9 @@ namespace Engine {
 	}                                                                                           // END_OF_NO_COV
 
 	::string ConfigStatic::system_tag_val() const {
-		if (!system_tag) return {} ;
+		if (!system_tag_proc) return {} ;
 		Gil gil ;
-		return *py_run(system_tag)->get_item("system_tag").repr() ;
+		return *py_run(system_tag_proc)->get_item("system_tag").repr() ;
 	}
 
 	void ConfigStatic::_compile() {
@@ -122,7 +122,11 @@ namespace Engine {
 			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
 			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
 			fields[0] = "nice"                ; if (py_map.contains(fields[0])) nice                   = uint8_t                   (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "system_tag"          ; if (py_map.contains(fields[0])) system_tag             = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
+			fields[0] = "req_start_proc"      ; if (py_map.contains(fields[0])) req_start_proc         = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
+			fields[0] = "req_end_proc"        ; if (py_map.contains(fields[0])) req_end_proc           = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
+			fields[0] = "server_start_proc"   ; if (py_map.contains(fields[0])) server_start_proc      = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
+			fields[0] = "server_end_proc"     ; if (py_map.contains(fields[0])) server_end_proc        = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
+			fields[0] = "system_tag_proc"     ; if (py_map.contains(fields[0])) system_tag_proc        = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
 			//
 			fields[0] = "extra_manifest" ;
 			if (py_map.contains(fields[0])) {
@@ -143,11 +147,6 @@ namespace Engine {
 				else                           lnk_support = mk_enum<LnkSupport>(py_lnk_support.as_a<Str>()) ;
 			}
 			if (has_remote_backends) {
-				fields[0] = "reliable_dirs" ;                                                                  // XXX> : suppress when backward compatibility is no more required
-				if (py_map.contains(fields[0])) {
-					Fd::Stderr.write("reliable_dirs is deprecated, use lmake.config.file_sync='none' instead\n") ;
-					if (+py_map[fields[0]]) file_sync = FileSync::None ;
-				}
 				fields[0] = "file_sync" ;
 				if (py_map.contains(fields[0])) {
 					Object const& py_file_sync = py_map[fields[0]] ;
@@ -364,7 +363,11 @@ namespace Engine {
 		/**/                             res << "\tnetwork_delay       : " << network_delay .short_str() <<'\n' ;
 		if (path_max!=size_t(-1)       ) res << "\tpath_max            : " << size_t(path_max     )      <<'\n' ;
 		else                             res << "\tpath_max            : " <<        "<unlimited>"       <<'\n' ;
-		if (+system_tag                ) res << "\tsystem_tag :\n"         << indent(system_tag,2)              ;
+		if (+req_start_proc            ) res << "\treq_start_proc :\n"     << indent(req_start_proc   ,2)       ;
+		if (+req_end_proc              ) res << "\treq_end_proc :\n"       << indent(req_end_proc     ,2)       ;
+		if (+server_start_proc         ) res << "\tserver_start_proc :\n"  << indent(server_start_proc,2)       ;
+		if (+server_end_proc           ) res << "\tserver_end_proc :\n"    << indent(server_end_proc  ,2)       ;
+		if (+system_tag_proc           ) res << "\tsystem_tag_proc  :\n"   << indent(system_tag_proc  ,2)       ;
 		if (+extra_manifest) {
 			res << "\textra_manifest :\n" ;
 			for( ::string const& s : extra_manifest ) res <<"\t\t"<< s <<'\n' ;

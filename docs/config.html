@@ -315,14 +315,26 @@ It is a value between 0 and 20 that decreases the priority of jobs (cf. <a href=
 <p>The <a href="rule_selection.html">rule selection</a> process is a recursive one.
 It is subject to infinite recursion and several means are provided to avoid it.</p>
 <p>The search stops if any file with a name longer than the value of this attribute, leading to the selection of a special internal rule called <code>infinite</code>.</p>
+<h3 id="req_end_proc"><a class="header" href="#req_end_proc"><a href="unit_tests/procs.html#:~:text=lmake%2Econfig%2Ereq%5Fend%5Fproc%20%3D%20req%5Fend%5Fproc"><code>req_end_proc</code></a></a></h3>
+<p>This attribute allows the specification of a function which is called after a <code>lmake</code> command has terminated.</p>
+<p>It is called with no argument.</p>
+<h3 id="req_start_proc"><a class="header" href="#req_start_proc"><a href="unit_tests/procs.html#:~:text=lmake%2Econfig%2Ereq%5Fstart%5Fproc%20%3D%20req%5Fstart%5Fproc"><code>req_start_proc</code></a></a></h3>
+<p>This attribute allows the specification of a function which is called before a <code>lmake</code> command is executed.</p>
+<p>It is called with no argument.</p>
+<h3 id="server_end_proc"><a class="header" href="#server_end_proc"><a href="unit_tests/procs.html#:~:text=lmake%2Econfig%2Eserver%5Fend%5Fproc%20%3D%20server%5Fend%5Fproc"><code>server_end_proc</code></a></a></h3>
+<p>This attribute allows the specification of a function which is called after <code>lmake_server</code> has terminated.</p>
+<p>It is called with no argument.</p>
+<h3 id="server_start_proc"><a class="header" href="#server_start_proc"><a href="unit_tests/procs.html#:~:text=lmake%2Econfig%2Eserver%5Fstart%5Fproc%20%3D%20server%5Fstart%5Fproc"><code>server_start_proc</code></a></a></h3>
+<p>This attribute allows the specification of a function which is called before <code>lmake_server</code> is executed.</p>
+<p>It is called with no argument.</p>
 <h3 id="sub_repos--static-"><a class="header" href="#sub_repos--static-"><a href="unit_tests/sub_repos.html#:~:text=lmake%2Econfig%2Esub%5Frepos%20%3D%20%28%27a%27%2C%27b%27%29%20%23%20for%20top%20level%20only%2C%20overwritten%20in%20sub%2Drepos"><code>sub_repos</code></a> : Static (<code>()</code>)</a></h3>
-<p>This attribute provide the list of sub-repos.</p>
+<p>This attribute provides the list of sub-repos.</p>
 <p>Sub repos are sub-dirs of the repo that are themselves repos, i.e. they have a <code>Lmakefile.py</code>.
 Inside such sub-repos, the applied flow is the one described in it (cf. <a href="experimental_subrepos.html">Subrepos</a>).</p>
-<h3 id="system_tag--static-see-below"><a class="header" href="#system_tag--static-see-below"><a href="lib/lmake/config_.html#:~:text=%2C%20system%5Ftag%20%3D%20%5Fsystem%5Ftag%20%23%20force%20config%20re%2Dread%20if%20the%20result%20of%20this%20function%20changes"><code>system_tag</code></a> : Static (see below)</a></h3>
-<p>This attribute provide a way to identify hosts by category to ensure proper config reload.</p>
+<h3 id="system_tag_proc"><a class="header" href="#system_tag_proc"><a href="lib/lmake/config_.html#:~:text=%2C%20system%5Ftag%5Fproc%20%3D%20%5Fsystem%5Ftag"><code>system_tag_proc</code></a></a></h3>
+<p>This attribute allows the specification of a way to identify hosts by category to ensure proper config reload in the form of a function.</p>
 <p>Some configuration elements may vary from one host to another.
-To ensure config is reloaded when elements change, this attribute, which must be function, is run and if its result is not the same as last time, config is reloaded.</p>
+To ensure config is reloaded when elements change, this attribute is run and if its result (when called with no argument) differs from its previous execution, config is reloaded.</p>
 <p>By default, the <code>hostname</code> is returned, so config is reloaded as soon as the open-lmake server is launched on a different host.</p>
 <h3 id="trace--dynamic"><a class="header" href="#trace--dynamic"><a href="lib/lmake/config_.html#:~:text=%2C%20trace%20%3D%20pdict%28%20%23%20size%20%3D%20100%3C%3C20%20%23%20overall%20size%20of%20lmake_server%20trace%20%23%20%2C%20n%5Fjobs%20%3D%201000%20%23%20number%20of%20kept%20job%20traces%20%23%20%2C%20channels%20%3D%20%28%27backend%27%2C%27default%27%29%20%23%20channels%20traced%20in%20lmake_server%20trace%20%29"><code>trace</code></a> : Dynamic</a></h3>
 <p>This is a sub-configuration for all attributes pertaining to the optional tracing facility of open-lmake.</p>

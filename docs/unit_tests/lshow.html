@@ -151,6 +151,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">else</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">os</span>
+    <span class="kn">import</span> <span class="nn">socket</span>
     <span class="kn">import</span> <span class="nn">subprocess</span> <span class="k">as</span> <span class="nn">sp</span>
 
     <span class="kn">import</span> <span class="nn">ut</span>
@@ -305,6 +306,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
                 <span class="p">(</span> <span class="s1">&#39;start_overhead&#39;</span>    <span class="p">,</span> <span class="s1">&#39;&#39;</span>               <span class="p">)</span>
             <span class="p">,</span>   <span class="p">(</span> <span class="s1">&#39;chdir&#39;</span>             <span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span>      <span class="p">)</span>
             <span class="p">,</span>   <span class="p">(</span> <span class="s1">&#39;start_info(reply)&#39;</span> <span class="p">,</span> <span class="s1">&#39;&#39;</span>               <span class="p">)</span>
+            <span class="p">,</span>   <span class="p">(</span> <span class="s1">&#39;fqdn&#39;</span>              <span class="p">,</span> <span class="n">socket</span><span class="o">.</span><span class="n">getfqdn</span><span class="p">()</span> <span class="p">)</span>
             <span class="p">,</span>   <span class="p">(</span> <span class="s1">&#39;washed&#39;</span>            <span class="p">,</span> <span class="s1">&#39;&#39;</span>               <span class="p">)</span>
             <span class="p">,</span>   <span class="p">(</span> <span class="s1">&#39;stdout&#39;</span>            <span class="p">,</span> <span class="s1">&#39;hello+world_sh&#39;</span> <span class="p">)</span>
             <span class="p">,</span>   <span class="p">(</span> <span class="s1">&#39;start_job&#39;</span>         <span class="p">,</span> <span class="s1">&#39;&#39;</span>               <span class="p">)</span>

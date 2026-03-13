@@ -187,7 +187,7 @@ This is achieved because open-lmake lib dir contains a <code>usercustomize.py</c
 <p>During evaluation, its global <code>dict</code> is populated to contain values referenced in these functions.
 Values may come from (by order of preference):</p>
 <ul>
-<li><code>job_name</code> that contain the official job name.</li>
+<li><code>job_name</code> that contain the official job name, as specified by the <code>job_name</code> rule attribute (the first target by default).</li>
 <li>The stems, targets, deps, resources, side targets and side deps, as named in their respective <code>dict</code>.</li>
 <li><code>stems</code>, <code>targets</code>, <code>deps</code>, <code>resources</code> that contain their respective whole <code>dict</code>.</li>
 <li>if a single target was specified with the <code>target</code> attribute, that target is named <code>target</code>.</li>

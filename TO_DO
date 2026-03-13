@@ -174,20 +174,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- merge user info with existing info
 	- not much heavier than user_name
 	- consider to simply extend user_name action to keep users existing in chroot image
-? add a new autodep mechanism based on seccomp
-	- man 2 seccomp with SECCOMP_FILTER_FLAG_NEW_LISTENER
-	- man 2 seccomp_unotify
-	- allow more control than ptrace
-		- including fd injection
-			- for example to allow cheating on /proc/<pid>/status
-				- for example to lie about Seccomp and Secomp_filters entries
-	- complicated because
-		- we are notified before the access, sometimes we need the outcome
-			- hence we have to emulate the access
-			- which is tricky in case /proc/self or /dev/std{in,out,err} is accessed
-		- we need to get notification file descriptor
-			- somewhat fancy
-		- if we need a dedicated process, then it is marginally better ptrace
 ? manage permission bits in cache
 	- for example ssh keys must be protected to be used by ssh
 	- if cache restore with too large permissions, ssh will refuse to use it
@@ -365,14 +351,14 @@ X manage HUGE pages in store
 * TESTS
 ****************************************************************************************************
 
-* test -mx32 mode
 * test chroot actions
 * test chroot&mount not allowed unless mount_chroot_ok
 * improve cache test coverage
 	- add a stress test
 * test codec errors
 	- including non existent codec files
-* test system_tag
+* test system_tag_proc
+! test -mx32 mode
 ! add a unit_test to validate max_retries_on_lost
 ! idx overflow
 	- check with 8-bits indexes

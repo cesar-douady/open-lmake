@@ -187,13 +187,11 @@ struct BlockedSig {
 template<class F> struct _Pipe {
 	// cxtors & casts
 	_Pipe() = default ;
-	_Pipe( NewType                            ) { open(             ) ; }
-	_Pipe( NewType , int flags , bool no_std_ ) { open(flags,no_std_) ; }
+	_Pipe( NewType , int flags=0 , bool no_std_=false ) { open(flags,no_std_) ; }
 	// services
-	void open(                          ) { open(0/*flags*/,false/*no_std*/) ; }
-	void open( int flags , bool no_std_ ) {
+	void open( int flags=0 , bool no_std_=false ) {
 		int fds[2] ;
-		if (::pipe2(fds,flags)!=0) fail_prod( cat("cannot create pipes (flags=0x",to_hex(uint(flags)),") : ",StrErr()) ) ;
+		if (::pipe2(fds,flags)!=0) FAIL_PROD( cat(to_hex(uint(flags)),StrErr()) ) ;
 		read  = F(fds[0],no_std_) ;
 		write = F(fds[1],no_std_) ;
 	}
@@ -292,12 +290,12 @@ template<Enum E> struct Epoll {
 	}
 	void add( bool write , Fd fd , E data={} , bool wait=true ) {
 		Event event { write , fd , data } ;
-		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )!=0) fail_prod("cannot add",fd,"to epoll",_fd,'(',StrErr(),')') ;
+		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )!=0) FAIL_PROD(fd,_fd,StrErr()) ;
 		if (wait) _n_waits ++ ;
 		/**/      _n_events++ ;
 	}
-	void del( bool /*write*/ , Fd fd , bool wait=true ) {                                                                                 // wait must be coherent with corresponding add
-		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr/*event*/ )!=0) fail_prod("cannot del",fd,"from epoll",_fd,'(',StrErr(),')') ;
+	void del( bool /*write*/ , Fd fd , bool wait=true ) {                                                                     // wait must be coherent with corresponding add
+		if (::epoll_ctl( _fd , EPOLL_CTL_DEL , fd , nullptr/*event*/ )!=0) FAIL_PROD(fd,_fd,StrErr()) ;
 		if (wait) { SWEAR(_n_waits >0) ; _n_waits -- ; }
 		/**/        SWEAR(_n_events>0) ; _n_events-- ;
 	}
@@ -389,7 +387,7 @@ public :
 								SWEAR( int(si.ssi_signo)==sig , si.ssi_signo,sig ) ;
 								found |= pid_t(si.ssi_pid)==pid ;
 							}
-							SWEAR_PROD( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR) , n,fd,errno ) ;                // fd is non-blocking
+							SWEAR_PROD( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR) , n,fd,errno ) ;           // fd is non-blocking
 							if (!found) { e = {} ; shorten = true ; }                                                       // event is supposed to represent that pid is terminated
 						}
 						if (shorten) {

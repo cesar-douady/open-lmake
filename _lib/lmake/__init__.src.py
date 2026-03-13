@@ -85,7 +85,7 @@ class Autodep :
 		self.set_env( 'LD_PRELOAD' , self.prev_ld_preload )
 		self.set_env( 'LD_AUDIT'   , self.prev_ld_audit   )
 
-#def run_cc(*cmd_line,marker='...',stdin=None) :                             # XXX> : use this prototype when python2 is no more supported
+#def run_cc(*cmd_line,marker='...',stdin=None) :                             # XXX> : use this prototype when python2 is no longer supported
 def run_cc(*cmd_line,**kwds) :
 	'''
 		Run cmd_line assuming it is a C/C++ compiler.
@@ -98,7 +98,7 @@ def run_cc(*cmd_line,**kwds) :
 	'''
 	marker = '...'
 	stdin  = None
-	for k,v in kwds.items() :                                                # XXX> : suppress kwds analysis when python2 is no more supported
+	for k,v in kwds.items() :                                                # XXX> : suppress kwds analysis when python2 is no longer supported
 		if   k=='marker' : marker = v
 		elif k=='stdin'  : stdin  = v
 		else             : raise TypeError('unexpected keyword argument '+k)

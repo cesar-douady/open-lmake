@@ -97,22 +97,26 @@ if '.config.' in actions :
 	elif is_pkg and find_spec('Lmakefile.rules')   : rules_action  = 'rules_import'
 	else                                           : actions      += 'rules.'
 	#
-	if 'system_tag' in config :
-		expr = serialize.get_expr(
-			config.system_tag
-		,	ctx            = (config.__dict__,)
-		,	no_imports     = fmt_rule.lcl_mod_file # dynamic attributes cannot afford local imports, so serialize in place all of them
-		,	call_callables = True
-		)
-		config.system_tag = expr.glbs+'system_tag = '+expr.expr
+	if 'system_tag_proc' not in config and 'system_tag' in config : # XXX> : suppress when compatibility with 26.02 is no more necessary
+		print(f'lmake.config.system_tag is deprecated',file=sys.stderr)
+		print(f'use lmake.config.system_tag_proc'     ,file=sys.stderr)
+		config.system_tag_proc = config.system_tag
+	for proc in ('req_start_proc','req_end_proc','server_start_proc','server_end_proc','system_tag_proc') :
+		if proc in config :
+			expr = serialize.get_expr(
+				config[proc]
+			,	ctx            = (config.__dict__,)
+			,	no_imports     = fmt_rule.lcl_mod_file # dynamic attributes cannot afford local imports, so serialize in place all of them
+			,	call_callables = True
+			)
+			if proc=='system_tag_proc' : res_eq = 'system_tag = '
+			else                       : res_eq = ''
+			config[proc] = (
+				expr.glbs+res_eq+expr.expr+'\n'
+			+	"print(end='',flush=True)\n"
+			)
 	if is_top :
 		git = '$GIT'                                                                                                          # substitued at build time
-		if 'backends' in config :
-			for tag,be in config.backends.items() :
-				if 'interface' in be :
-					del be['interface']                                                                                       # XXX> suppress when compatibility with v25.07 is no more necessary
-					print(f'lmake.config.backends.{tag}.interface is deprecated and ignored',file=sys.stderr)
-					print(f'use lmake.config.backends.{tag}.domain_name if necessary'       ,file=sys.stderr)
 		if 'caches' in config :
 			for cache in config.caches.values() :
 				if 'repo_key' in cache : continue

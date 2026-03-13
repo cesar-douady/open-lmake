@@ -240,6 +240,7 @@ static bool/*interrupted*/ _engine_loop() {
 								if (+msg) audit_err( ecr.fd , ecr.options , msg ) ;
 								trace("new_req",req) ;
 								req.alloc() ; allocated = true ;
+								if (+g_config->req_start_proc) { Py::Gil gil ; Py::py_run(g_config->req_start_proc) ; }
 								//vvvvvvvvvvv
 								req.make(ecr) ;
 								//^^^^^^^^^^^
@@ -268,6 +269,7 @@ static bool/*interrupted*/ _engine_loop() {
 						//vvvvvvvvv
 						req.close() ;
 						//^^^^^^^^^
+						if (+g_config->req_end_proc) { Py::Gil gil ; Py::py_run(g_config->req_end_proc) ; }
 						if (out_active==Maybe)   out_active = No ;                                           // mark req is closed
 						else                   { fd_tab.erase(it) ; req.dealloc() ; }                        // dealloc when req can be reused, i.e. after Kill and Close
 					} break ;
@@ -383,9 +385,11 @@ int main( int argc , char** argv ) {
 	//
 	if ( Record::s_is_simple( *g_repo_root_s , No/*deps_in_system*/ ) )
 		exit(Rc::Usage,"cannot use lmake inside a system directory ",*g_repo_root_s,rm_slash) ;                          // all local files would be seen as simple, defeating autodep
+	if (+g_config->server_start_proc) { Py::Gil gil ; Py::py_run(g_config->server_start_proc) ; }
 	//                 vvvvvvvvvvvvvv
 	bool interrupted = _engine_loop() ;
 	//                 ^^^^^^^^^^^^^^
+	if (+g_config->server_end_proc) { Py::Gil gil ; Py::py_run(g_config->server_end_proc) ; }
 	if (_g_server.writable) {
 		try { unlnk_inside_s(cat(AdminDirS,"auto_tmp/"),{.force=true}) ; } catch (::string const&) {}                    // cleanup
 		if (_g_seen_make) AcFd( cat(PrivateAdminDirS,"kpi") , {O_WRONLY|O_TRUNC|O_CREAT} ).write( g_kpi.pretty_str() ) ;
