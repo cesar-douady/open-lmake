@@ -12,9 +12,6 @@
 using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
-	app_init({.read_only_ok=false}) ;
-	Trace trace("main") ;
-	//
 	ReqSyntax syntax {{
 		{ ReqKey::Add    , { .short_name='a' , .doc="mark args"              } }
 	,	{ ReqKey::Delete , { .short_name='d' , .doc="delete marks of args"   } }
@@ -26,6 +23,9 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::NoTrigger , { .short_name='t' , .doc="do not trigger rebuild of dependent jobs"          } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
+	//
+	app_init({.read_only_ok=false}) ;
+	Trace trace("main") ;
 	//
 	if ( is_mark_glb(cmd_line.key) && +cmd_line.args                              ) syntax.usage("cannot have files when listing or deleting all") ;
 	if ( cmd_line.flags[ReqFlag::Freeze] + cmd_line.flags[ReqFlag::NoTrigger] !=1 ) syntax.usage("need exactly one mark : freeze or no-trigger"  ) ;

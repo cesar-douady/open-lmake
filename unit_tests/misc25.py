@@ -8,34 +8,36 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
+	from step import step
+
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
 	)
 
-	from step import step
+	class Hi(Rule) :
+		prio = 1
+		if step==1 : targets = { 'T' :  r'a{D*:.*}'          }
+		else       : targets = { 'T' : (r'a{D*:.*}','phony') }
+		cmd = ''
 
-	class Dut(Rule) :
-		targets = { 'DUT':('dut','optional') }
-		if step==1 : cmd = 'echo bad >{DUT}'
-		else       : cmd = ''
 
-	class Good(Rule) :
-		prio   = -1
-		target = 'dut'
-		cmd    = 'echo good'
+	class Low(Rule):
+		target = 'a'
+		cmd    = 'echo low'
+
 
 	class Test(Rule) :
 		target = 'test'
-		deps   = { 'DUT':'dut' }
-		cmd    = '[ "$(cat {DUT})" = good ]'
+		dep    = 'a'
+		cmd    = 'cat'
 
 else :
 
 	import ut
 
-	print('step=1',file=open('step.py','w'))
-	ut.lmake( 'dut' , done=1 )
+	print( 'step=1' , file=open('step.py','w') )
+	ut.lmake( 'test' , steady=1 , done=2 )
 
-	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'test' , done=3 )
+	print( 'step=2' , file=open('step.py','w') )
+	ut.lmake( 'test' , steady=1 , unlinked=1 , failed=1 , rc=1 )

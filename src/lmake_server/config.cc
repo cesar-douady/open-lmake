@@ -111,52 +111,55 @@ namespace Engine {
 				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
 				catch (::string const& e) { Fd::Stderr.write("Warning : backend "+fields[1]+" could not be configured : "+e+'\n') ; }
 			}
-			bool has_remote_backends = ::any_of( iota(BackendTag::Remote,All<BackendTag>) , [&](BackendTag t) { return backends[+t].configured && Backends::Backend::s_ready(t) ; } ) ;
 			fields.pop_back() ;
+			bool has_remote_backends = ::any_of( iota(BackendTag::Remote,All<BackendTag>) , [&](BackendTag t) { return backends[+t].configured && Backends::Backend::s_ready(t) ; } ) ;
 			//
-			fields[0] = "disk_date_precision" ; if (py_map.contains(fields[0])) ddate_prec             = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "heartbeat"           ; if (py_map.contains(fields[0])) heartbeat              = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "heartbeat_tick"      ; if (py_map.contains(fields[0])) heartbeat_tick         = +py_map[fields[0]] ? Delay(py_map[fields[0]].as_a<Float>()) : Delay() ;
-			fields[0] = "local_admin_dir"     ; if (py_map.contains(fields[0])) user_local_admin_dir_s = with_slash                (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "max_dep_depth"       ; if (py_map.contains(fields[0])) max_dep_depth          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "max_error_lines"     ; if (py_map.contains(fields[0])) max_err_lines          = size_t                    (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "network_delay"       ; if (py_map.contains(fields[0])) network_delay          = Time::Delay               (py_map[fields[0]].as_a<Float>())           ;
-			fields[0] = "nice"                ; if (py_map.contains(fields[0])) nice                   = uint8_t                   (py_map[fields[0]].as_a<Int  >())           ;
-			fields[0] = "req_start_proc"      ; if (py_map.contains(fields[0])) req_start_proc         = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "req_end_proc"        ; if (py_map.contains(fields[0])) req_end_proc           = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "server_start_proc"   ; if (py_map.contains(fields[0])) server_start_proc      = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "server_end_proc"     ; if (py_map.contains(fields[0])) server_end_proc        = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
-			fields[0] = "system_tag_proc"     ; if (py_map.contains(fields[0])) system_tag_proc        = with_nl                   (py_map[fields[0]].as_a<Str  >())           ;
-			//
-			fields[0] = "extra_manifest" ;
-			if (py_map.contains(fields[0])) {
-				Sequence const& py_extra_manifest = py_map[fields[0]].as_a<Sequence>() ;
-				for( Object const& py_src : py_extra_manifest ) extra_manifest.push_back(py_src.as_a<Str>()) ;
-			}
-			fields[0] = "path_max" ;
-			if (py_map.contains(fields[0])) {
-				Object const& py_path_max = py_map[fields[0]] ;
-				if (py_path_max==None) path_max = size_t(-1                     ) ;                            // deactivate
-				else                   path_max = size_t(py_path_max.as_a<Int>()) ;
-			}
-			fields[0] = "link_support" ;
-			if (py_map.contains(fields[0])) {
-				Object const& py_lnk_support = py_map[fields[0]] ;
-				if      (!py_lnk_support     ) lnk_support = LnkSupport::None                                ;
-				else if (py_lnk_support==True) lnk_support = LnkSupport::Full                                ;
-				else                           lnk_support = mk_enum<LnkSupport>(py_lnk_support.as_a<Str>()) ;
-			}
-			if (has_remote_backends) {
-				fields[0] = "file_sync" ;
-				if (py_map.contains(fields[0])) {
-					Object const& py_file_sync = py_map[fields[0]] ;
-					if (!py_file_sync) file_sync = FileSync::None                              ;
-					else               file_sync = mk_enum<FileSync>(py_file_sync.as_a<Str>()) ;
+			{	::string& f0 = fields[0] ;                                                                     // has long as fields in not pushed/popped, we can store a ref into it
+				//
+				f0 = "disk_date_precision" ; if (py_map.contains(f0)) { ddate_prec             = Delay     (py_map[f0].as_a<Float>()) ; throw_unless( ddate_prec    >Delay() , "must be positive" ) ; }
+				f0 = "heartbeat"           ; if (py_map.contains(f0)) { heartbeat              = Delay     (py_map[f0].as_a<Float>()) ; throw_unless( heartbeat     >Delay() , "must be positive" ) ; }
+				f0 = "heartbeat_tick"      ; if (py_map.contains(f0)) { heartbeat_tick         = Delay     (py_map[f0].as_a<Float>()) ; throw_unless( heartbeat_tick>Delay() , "must be positive" ) ; }
+				f0 = "local_admin_dir"     ; if (py_map.contains(f0))   user_local_admin_dir_s = with_slash(py_map[f0].as_a<Str  >()) ;
+				f0 = "max_dep_depth"       ; if (py_map.contains(f0))   max_dep_depth          = size_t    (py_map[f0].as_a<Int  >()) ;
+				f0 = "max_error_lines"     ; if (py_map.contains(f0))   max_err_lines          = size_t    (py_map[f0].as_a<Int  >()) ;
+				f0 = "network_delay"       ; if (py_map.contains(f0)) { network_delay          = Delay     (py_map[f0].as_a<Float>()) ; throw_unless( network_delay >Delay() , "must be positive" ) ; }
+				f0 = "nice"                ; if (py_map.contains(f0))   nice                   = uint8_t   (py_map[f0].as_a<Int  >()) ;
+				f0 = "req_start_proc"      ; if (py_map.contains(f0))   req_start_proc         = with_nl   (py_map[f0].as_a<Str  >()) ;
+				f0 = "req_end_proc"        ; if (py_map.contains(f0))   req_end_proc           = with_nl   (py_map[f0].as_a<Str  >()) ;
+				f0 = "server_start_proc"   ; if (py_map.contains(f0))   server_start_proc      = with_nl   (py_map[f0].as_a<Str  >()) ;
+				f0 = "server_end_proc"     ; if (py_map.contains(f0))   server_end_proc        = with_nl   (py_map[f0].as_a<Str  >()) ;
+				f0 = "system_tag_proc"     ; if (py_map.contains(f0))   system_tag_proc        = with_nl   (py_map[f0].as_a<Str  >()) ;
+				//
+				f0 = "extra_manifest" ;
+				if (py_map.contains(f0)) {
+					Sequence const& py_extra_manifest = py_map[f0].as_a<Sequence>() ;
+					for( Object const& py_src : py_extra_manifest ) extra_manifest.push_back(py_src.as_a<Str>()) ;
 				}
-			} else {
-				file_sync = FileSync::None ;                                                                   // no remote backend, no need for file synchronization
+				f0 = "path_max" ;
+				if (py_map.contains(f0)) {
+					Object const& py_path_max = py_map[f0] ;
+					if (py_path_max==None) path_max = size_t(-1                     ) ;                        // deactivate
+					else                   path_max = size_t(py_path_max.as_a<Int>()) ;
+				}
+				f0 = "link_support" ;
+				if (py_map.contains(f0)) {
+					Object const& py_lnk_support = py_map[f0] ;
+					if      (!py_lnk_support     ) lnk_support = LnkSupport::None                                ;
+					else if (py_lnk_support==True) lnk_support = LnkSupport::Full                                ;
+					else                           lnk_support = mk_enum<LnkSupport>(py_lnk_support.as_a<Str>()) ;
+				}
+				if (has_remote_backends) {
+					f0 = "file_sync" ;
+					if (py_map.contains(f0)) {
+						Object const& py_file_sync = py_map[f0] ;
+						if (!py_file_sync) file_sync = FileSync::None                              ;
+						else               file_sync = mk_enum<FileSync>(py_file_sync.as_a<Str>()) ;
+					}
+				} else {
+					file_sync = FileSync::None ;                                                               // no remote backend, no need for file synchronization
+				}
+				server_file_sync = auto_file_sync(file_sync) ;
 			}
-			server_file_sync = auto_file_sync(file_sync) ;
 			//
 			fields[0] = "caches" ;
 			if (py_map.contains(fields[0])) {
@@ -289,7 +292,7 @@ namespace Engine {
 				if (py_console.contains(fields[1])) {
 					Object const& py_date_prec = py_console[fields[1]] ;
 					if (py_date_prec==None)   console.date_prec = uint8_t(-1                      ) ;
-					else                    { console.date_prec = uint8_t(py_date_prec.as_a<Int>()) ; throw_unless(console.date_prec<=9,"must be at most 9") ; }
+					else                    { console.date_prec = uint8_t(py_date_prec.as_a<Int>()) ; throw_unless( console.date_prec<=9 , "must be at most 9" ) ; }
 				}
 				fields[1] = "history_days" ;
 				if (py_console.contains(fields[1])) {
@@ -326,8 +329,8 @@ namespace Engine {
 			if (py_map.contains(fields[0])) {
 				Dict const& py_trace = py_map[fields[0]].as_a<Dict>() ;
 				fields.emplace_back() ;
-				fields[1] = "size"     ; if (py_trace.contains(fields[1])) trace.sz     = from_string_with_unit(*py_trace[fields[1]].str()) ;
-				fields[1] = "n_jobs"   ; if (py_trace.contains(fields[1])) trace.n_jobs = py_trace[fields[1]].as_a<Int>()                   ;
+				fields[1] = "size"     ; if (py_trace.contains(fields[1]))   trace.sz     = from_string_with_unit(*py_trace[fields[1]].str()) ;
+				fields[1] = "n_jobs"   ; if (py_trace.contains(fields[1])) { trace.n_jobs = py_trace[fields[1]].as_a<Int>()                   ; throw_unless( trace.n_jobs , "cannot be 0" ) ; }
 				fields[1] = "channels" ; if (py_trace.contains(fields[1])) {
 					trace.channels = {} ;
 					for( Object const& py_c : py_trace[fields[1]].as_a<Sequence>() ) trace.channels |= mk_enum<Channel>(py_c.as_a<Str>()) ;
@@ -479,7 +482,7 @@ namespace Engine {
 		//
 		Trace trace("Config::open") ;
 		//
-		SWEAR_PROD(+key) ;                                               // ensure no init problem
+		SWEAR_PROD(+key) ;                                          // ensure no init problem
 		::string std_dir_s = cat(PrivateAdminDirS,"local_admin/") ;
 		if (!user_local_admin_dir_s) {
 			local_admin_dir_s = ::move(std_dir_s) ;

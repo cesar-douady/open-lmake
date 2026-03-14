@@ -40,6 +40,8 @@ If accessed, the environment is standard and contains:
 
 When a type is mentioned as `f-str`, it means that although written as plain `str`, they are dynamically interpreted as python f-strings, as for dynamic values.
 This is actually a form of dynamic value.
+Unless mentioned otherwise, such values may also be functions taking no argument and the value will be obtained by calling it.
+Note that `lambda`s cannot be used.
 
 Note on `f-str`: typically, the necessary variables (such as stems) are not available when python reads the rule, so such attributes cannot be actual python f-strings,
 but the python f-string syntax is powerful and intuitive to mention variable parts.

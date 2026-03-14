@@ -44,7 +44,7 @@ By default :
 - If `lmake.extra_manifest` is not set, it is empty.
 
 Sources are files that are deemed as intrinsic.
-They cannot be derived using rules as explained in the following section.
+Unless when explicitly stated otherwise (such as using the `--source-ok` option) they cannot be derived using rules as explained in the following section.
 
 Also, if a file cannot be derived and is not a source, it is deemed unbuildable, even if it actually exists.
 In this latter case, it will be considered dangling and this is an error condition.
@@ -55,7 +55,7 @@ The purpose of this restriction is to ensure repeatability : all buildable files
 - Files located in the repo
 - Dirs (ending with `/`), in which case:
 	- The whole subtree underneath the dir are considered sources.
-	- They may be inside the repo or outside, but cannot contain or lie within system dirs such as `/usr`, `/proc`, `/etc`, etc.
+	- They may be inside the repo or outside it.
 	- If outside, they can be relative or absolute.
 
 In both cases, names must be canonical, i.e. contain no empty component nor `.`, nor `..` except initially for relative names outside repo.

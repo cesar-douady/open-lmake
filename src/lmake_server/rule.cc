@@ -312,7 +312,7 @@ namespace Engine {
 			if (item.is_a<Str>()) {
 				::string flag_str = item.as_a<Str>() ;
 				bool     neg      = flag_str[0]=='-' ;
-				if (neg) flag_str.erase(0,1) ;                        // suppress initial - sign
+				if (neg) flag_str.erase(0,1) ;                            // suppress initial - sign
 				//
 				if      ( Tflag      f ; !dep_only && can_mk_enum<Tflag     >(flag_str) && (f=mk_enum<Tflag     >(flag_str))<Tflag     ::NRule ) flags.tflags      .set(f,!neg) ;
 				else if ( ExtraTflag f ; !dep_only && can_mk_enum<ExtraTflag>(flag_str) && (f=mk_enum<ExtraTflag>(flag_str))<ExtraTflag::NRule ) flags.extra_tflags.set(f,!neg) ;
@@ -328,14 +328,14 @@ namespace Engine {
 	}
 	::string Rule::s_split_flags( ::string const& key , Object const& py , uint8_t n_skip , MatchFlags&/*out*/ flags , bool dep_only ) {
 		if (py.is_a<Str>()) {
-			SWEAR(n_skip==1) ;                                        // cannot skip 2 values with a single Str
+			SWEAR(n_skip==1) ;                                            // cannot skip 2 values with a single Str
 			return py.as_a<Str>() ;
 		}
 		Sequence const* py_seq ;
 		try                       { py_seq = &py.as_a<Sequence>() ; }
-		catch (::string const& e) { throw e+" nor a str" ;          } // e is a type error
+		catch (::string const& e) { throw e+" nor a str" ;          }     // e is a type error
 		SWEAR( py_seq->size()>=n_skip   , key ) ;
-		SWEAR( (*py_seq)[0].is_a<Str>() , key ) ;
+		(*py_seq)[0].as_a<Str>() ;                                        // check type
 		_mk_flags( key , *py_seq , n_skip , /*inout*/flags , dep_only ) ;
 		return (*py_seq)[0].as_a<Str>() ;
 	}

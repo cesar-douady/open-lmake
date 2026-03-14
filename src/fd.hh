@@ -87,15 +87,15 @@ struct SockFd : AcFd {
 	static constexpr uint32_t    NConnectTrials    =  100                       ;
 	static constexpr Time::Delay ConnectTimeout    { 1000     }                 ;
 	// statics
-	static bool            s_is_loopback    ( in_addr_t a                               ) {                                             return (a&LoopbackMask)==(LoopbackAddr&LoopbackMask) ; }
-	static in_addr_t       s_random_loopback(                                           ) ;
-	static ::string        s_addr_str       ( in_addr_t                                 ) ;
-	static in_addr_t       s_addr           ( ::string const& host , bool name_ok=false ) ;                    // if !name_ok, host must be empty or in dot notation
-	static ::string const& s_host           ( in_addr_t                                 ) ;
-	static ::string        s_host           ( ::string const& service                   ) { size_t    pos=service.rfind(':')          ; return service.substr(0,pos)                         ; }
-	static SockAddr        s_sock_addr      ( Fd    , bool peer                         ) ;
-	static in_port_t       s_port           ( Fd fd , bool peer                         ) {                                             return s_sock_addr(fd,peer).port()                   ; }
-	static in_addr_t       s_addr           ( Fd fd , bool peer                         ) { in_addr_t a  =s_sock_addr(fd,peer).addr() ; return s_is_loopback(a) ? 0 : a                      ; }
+	static bool            s_is_loopback    ( in_addr_t a                         ) {                                           return (a&LoopbackMask)==(LoopbackAddr&LoopbackMask) ; }
+	static in_addr_t       s_random_loopback(                                     ) ;
+	static ::string        s_addr_str       ( in_addr_t                           ) ;
+	static in_addr_t       s_addr           ( ::string const& host , bool name_ok ) ;                    // if !name_ok, host must be empty or in dot notation
+	static ::string const& s_host           ( in_addr_t                           ) ;
+	static ::string        s_host           ( ::string const& service             ) { size_t pos=service.rfind(':')           ; return service.substr(0,pos)                         ; }
+	static SockAddr        s_sock_addr      ( Fd    , bool peer                   ) ;
+	static in_port_t       s_port           ( Fd fd , bool peer                   ) {                                           return s_sock_addr(fd,peer).port()                   ; }
+	static in_addr_t       s_addr           ( Fd fd , bool peer                   ) { in_addr_t a=s_sock_addr(fd,peer).addr() ; return s_is_loopback(a) ? 0 : a                      ; }
 	// cxtors & casts
 protected :
 	SockFd() = default ;

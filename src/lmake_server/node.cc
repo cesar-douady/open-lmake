@@ -699,26 +699,36 @@ namespace Engine {
 			}
 		DoWakeup :
 			if (prod_idx==NoIdx) {
-				if (!query) _set_no_job( ri , false/*query*/ ) ;                                                                   // no producing job
+				if (!query) _set_no_job( ri , false/*query*/ ) ;                                           // no producing job
 				set_status(NodeStatus::None) ;
-				chk_regenerate = false ;                                                                                           // cannot regenerate from nothing
+				chk_regenerate = false ;                                                                   // cannot regenerate from nothing
 			} else if (multi[0]!=NoIdx) {
-				SWEAR(multi[1]!=NoIdx) ;                                                                                           // both must contain a valid index or none of them
+				SWEAR(multi[1]!=NoIdx) ;                                                                   // both must contain a valid index or none of them
 				set_status(NodeStatus::Multi) ;
 				trace("multi",ri,multi) ;
 				/**/                     req->audit_node(Color::Err ,"multi",idx()                     ) ;
 				/**/                     req->audit_info(Color::Note,"at least 2 rules match :"      ,1) ;
 				for( RuleIdx i : multi ) req->audit_info(Color::Note,job_tgts[i]->rule()->user_name(),2) ;
-				chk_regenerate = false ;                                                                                           // cannot regenerate from multi
+				chk_regenerate = false ;                                                                   // cannot regenerate from multi
 			} else {
 				set_conform_idx(prod_idx) ;
+				JobTgt const& jt = job_tgts[prod_idx] ;
+				if ( +actual_job && actual_job!=jt ) {                                                     // this may occur in case of phony target that is non-existent (but deemed produced)
+					SWEAR( jt.sure() , idx(),jt,actual_job ) ;                                             // should always be phony, but this is too expensive to check
+					actual_job = jt ;                                                                      // we are actually produced non-existent by our official job
+					if (crc!=Crc::None) {
+						unlnk( name() ) ;
+						set_crc_date( Crc::None , {FileInfo()}/*sig*/ ) ;
+						req->audit_node( Color::Note , "unlinked" , idx() ) ;
+					}
+				}
 			}
 			ri.done_ = ri.goal ;
 			if (!( chk_regenerate && _may_need_regenerate(self,ri,make_action) )) break ;
 			prod_idx = NoIdx ;
 		}
 	Wakeup :
-		SWEAR( done(ri) , ri ) ;
+		SWEAR( ri.done() , ri ) ;
 		trace("wakeup",ri,conform_idx(),actual_job) ;
 		ri.wakeup_watchers() ;
 	Wait :
@@ -814,7 +824,7 @@ namespace Engine {
 			ReqInfo& ri = req_info(r) ;
 			if (ri.manual!=Manual::Ok) {
 				 if      (m==Manual::Ok) m = ri.manual     ;
-				 else if (m!=ri.manual ) m = Manual::Modif ; // in case of different info, check file
+				 else if (m!=ri.manual ) m = Manual::Modif ;   // in case of different info, check file
 			}
 			ri.manual = {} ;
 		}
@@ -822,8 +832,12 @@ namespace Engine {
 			case Manual::Ok      :                     break ;
 			case Manual::Unlnked : crc = Crc::None   ; break ;
 			case Manual::Empty   : crc = Crc::Empty  ; break ;
-			case Manual::Modif   : crc = Crc(name()) ; break ;
-		DF}
+			default : {                                        // by default, recompute crc, but this must be pretty rare
+				FileInfo fi ;
+				crc = Crc( name() , /*out*/fi ) ;
+				sig = fi.sig()                  ;
+			} break ;
+		}
 	}
 
 	Manual NodeData::manual_refresh( Accesses a , Req req ) {

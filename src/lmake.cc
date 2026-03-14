@@ -99,11 +99,17 @@ int main( int argc , char* argv[] ) {
 	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                                                         }
 	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+cmd_line.flag_args[+ReqFlag::Jobs]) ;                               }
 	//
-	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::RetryOnError],true/*empty_ok*/) ;                                                 }
-	catch (::string const& e) { syntax.usage("cannot understand retry count ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                              }
+	try                       { from_string<uint16_t>(cmd_line.flag_args[+ReqFlag::MaxSubmits],true/*empty_ok*/) ;                                                 }
+	catch (::string const& e) { syntax.usage("cannot understand max-submits count ("+e+") : "+cmd_line.flag_args[+ReqFlag::MaxSubmits]) ;                          }
+	//
+	try                       { from_string<uint16_t>(cmd_line.flag_args[+ReqFlag::MaxRuns],true/*empty_ok*/) ;                                                    }
+	catch (::string const& e) { syntax.usage("cannot understand max-runs count ("+e+") : "+cmd_line.flag_args[+ReqFlag::MaxRuns]) ;                                }
 	//
 	try                       { uint8_t n = from_string<uint8_t>(cmd_line.flag_args[+ReqFlag::Nice],true/*empty_ok*/) ; throw_unless(n<=20,"must be at most 20") ; }
 	catch (::string const& e) { syntax.usage("cannot understand nice value ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                               }
+	//
+	try                       { from_string<uint8_t>(cmd_line.flag_args[+ReqFlag::RetryOnError],true/*empty_ok*/) ;                                                }
+	catch (::string const& e) { syntax.usage("cannot understand retry-on-error count ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                     }
 	//
 	try                       { if (cmd_line.flags[ReqFlag::CacheMethod]) mk_enum<CacheMethod>(cmd_line.flag_args[+ReqFlag::CacheMethod]) ;                        }
 	catch (::string const& e) { syntax.usage("unexpected cache method : "+cmd_line.flag_args[+ReqFlag::CacheMethod]) ;                                             }

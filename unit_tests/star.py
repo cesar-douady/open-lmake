@@ -18,7 +18,7 @@ if __name__!='__main__' :
 	)
 
 	class Opt(Rule) :
-		targets = { 'DST' : (r'{File:.*}.opt','Optional') }
+		targets = { 'DST' : (r'{File:.*}.opt','optional') }
 		cmd     = '[ {File} != ok ] || echo 1 >{DST}'
 
 	class Opt2(Rule) :

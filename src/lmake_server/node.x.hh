@@ -557,9 +557,9 @@ namespace Engine {
 			case NodeGoal::Dsk    : return false                                  ;
 		DF}                                                                         // NO_COV
 	}
-	inline bool NodeData::done( ReqInfo const& cri               ) const { return done(cri          ,cri.goal) ; }
-	inline bool NodeData::done( Req            r   , NodeGoal ng ) const { return done(c_req_info(r),ng      ) ; }
-	inline bool NodeData::done( Req            r                 ) const { return done(c_req_info(r)         ) ; }
+	inline bool NodeData::done( ReqInfo const& cri               ) const { return done( cri           , cri.goal ) ; }
+	inline bool NodeData::done( Req            r   , NodeGoal ng ) const { return done( c_req_info(r) , ng       ) ; }
+	inline bool NodeData::done( Req            r                 ) const { return done( c_req_info(r)            ) ; }
 
 	inline Manual NodeData::manual( FileSig sig_ , Accesses a ) const {
 		SWEAR( buildable!=Buildable::Codec , idx() ) ;                                                                               // handled by caller to avoid computing sig in most cases

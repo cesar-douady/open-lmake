@@ -1015,7 +1015,7 @@ By default :</p>
 <li>If <code>lmake.extra_manifest</code> is not set, it is empty.</li>
 </ul>
 <p>Sources are files that are deemed as intrinsic.
-They cannot be derived using rules as explained in the following section.</p>
+Unless when explicitly stated otherwise (such as using the <code>--source-ok</code> option) they cannot be derived using rules as explained in the following section.</p>
 <p>Also, if a file cannot be derived and is not a source, it is deemed unbuildable, even if it actually exists.
 In this latter case, it will be considered dangling and this is an error condition.
 The purpose of this restriction is to ensure repeatability : all buildable files can be (possibly indirectly) derived from sources using rules.</p>
@@ -1025,7 +1025,7 @@ The purpose of this restriction is to ensure repeatability : all buildable files
 <li>Dirs (ending with <code>/</code>), in which case:
 <ul>
 <li>The whole subtree underneath the dir are considered sources.</li>
-<li>They may be inside the repo or outside, but cannot contain or lie within system dirs such as <code>/usr</code>, <code>/proc</code>, <code>/etc</code>, etc.</li>
+<li>They may be inside the repo or outside it.</li>
 <li>If outside, they can be relative or absolute.</li>
 </ul>
 </li>
@@ -1348,7 +1348,9 @@ If accessed, the environment is standard and contains:</p>
 </tbody></table>
 </div>
 <p>When a type is mentioned as <code>f-str</code>, it means that although written as plain <code>str</code>, they are dynamically interpreted as python f-strings, as for dynamic values.
-This is actually a form of dynamic value.</p>
+This is actually a form of dynamic value.
+Unless mentioned otherwise, such values may also be functions taking no argument and the value will be obtained by calling it.
+Note that <code>lambda</code>s cannot be used.</p>
 <p>Note on <code>f-str</code>: typically, the necessary variables (such as stems) are not available when python reads the rule, so such attributes cannot be actual python f-strings,
 but the python f-string syntax is powerful and intuitive to mention variable parts.
 For example for the attribute <code>cmd</code>:</p>

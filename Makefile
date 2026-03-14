@@ -211,6 +211,7 @@ SPLIT_DBG_CMD = \
 
 LMAKE_SERVER_PY_FILES := \
 	_lib/read_makefiles.py              \
+	_lib/fmt_config.py                  \
 	_lib/fmt_rule.py                    \
 	_lib/serialize.py                   \
 	_lib/version.py                     \

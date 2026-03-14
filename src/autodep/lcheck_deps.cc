@@ -26,9 +26,12 @@ int main( int argc , char* argv[]) {
 	//
 	app_init({ .chk_version=No , .trace=No }) ;
 	//
-	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }                                                       ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
-	Delay             delay    { from_string<double>( cmd_line.flag_args[+Flag::Delay] , true/*empty_ok*/ ) } ;
-	bool              sync     = cmd_line.flags[Flag::Sync]                                                   ;
+	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }     ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
+	bool              sync     = cmd_line.flags[Flag::Sync] ;
+	Delay             delay    ;
+	try                       { delay = Delay( from_string<double>( cmd_line.flag_args[+Flag::Delay] , true/*empty_ok*/ ) ) ; }
+	catch (::string const& e) { syntax.usage(cat("malformed delay must be a float : ",cmd_line.flag_args[+Flag::Delay])) ;    }
+	if (delay<Delay())          syntax.usage(cat("delay must nost be negative : "    ,cmd_line.flag_args[+Flag::Delay])) ;
 	try {
 		Bool3 ok = JobSupport::chk_deps( delay , sync ) ;
 		if (sync) return ok!=Yes ;

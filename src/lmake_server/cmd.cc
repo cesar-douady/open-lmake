@@ -14,7 +14,7 @@ using namespace Re   ;
 namespace Engine {
 
 	static bool/*ok*/ _collect(EngineClosureReq const& ecr) {
-		SWEAR_PROD(!ecr.is_job()) ;                                                // targets are typically dirs, passing a job is non-sense
+		SWEAR_PROD(!ecr.is_job()) ;                                           // targets are typically dirs, passing a job is non-sense
 		Fd                        fd            = ecr.fd                    ;
 		ReqOptions const&         ro            = ecr.options               ;
 		ConfigDyn::Collect const& collect       = g_config->collect         ;
@@ -598,11 +598,10 @@ namespace Engine {
 		}
 		//
 		::string const& key = ro.flag_args[+ReqFlag::Key] ;
-		auto            it  = g_config->dbg_tab.find(key) ;
-		throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",key ) ;
-		throw_unless( +it->second                 , "empty debug method "  ,key ) ;
-		::string runner    = split(it->second)[0]                       ;                                                          // allow doc after first word
-		::string dbg_dir_s = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
+		auto            it  = g_config->dbg_tab.find(key) ;                  throw_unless( it!=g_config->dbg_tab.end() , "unknown debug method ",key            ) ;
+		/**/                                                                 throw_unless( +it->second                 , "empty debug method "  ,key            ) ;
+		::vector_s runner_vec = split(it->second)                          ; throw_unless( runner_vec.size()>=1        , "malformed debug method : ",it->second ) ; // allow doc after first word
+		::string   dbg_dir_s  = job->ancillary_file(AncillaryTag::Dbg)+'/' ;
 		//
 		::string script_file     = dbg_dir_s+"script"     ;
 		::string gen_script_file = dbg_dir_s+"gen_script" ;
@@ -611,7 +610,7 @@ namespace Engine {
 			gen_script << "import sys\n"                                                                                         ;
 			gen_script << "import os\n"                                                                                          ;
 			gen_script << "sys.path[0:0] = ("<<mk_py_str(*g_lmake_root_s+"lib")<<','<<mk_py_str(no_slash(*g_repo_root_s))<<")\n" ; // repo_root is not in path as script is in LMAKE/debug/<job>
-			gen_script << "from "<<runner<<" import gen_script\n"                                                                ;
+			gen_script << "from "<<runner_vec[0]<<" import gen_script\n"                                                         ;
 			gen_script << _mk_gen_script_line(job,ro,::move(job_info),dbg_dir_s,key)                                             ;
 			gen_script << "print( script , file=open("<<mk_py_str(script_file)<<",'w') )\n"                                      ;
 			gen_script << "os.chmod("<<mk_py_str(script_file)<<",0o755)\n"                                                       ;

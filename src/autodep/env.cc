@@ -214,18 +214,13 @@ AcFd AutodepEnv::fast_report_fd() const {
 }
 
 ClientSockFd AutodepEnv::slow_report_fd() const {
+	if (!self) return {} ;
 	try {
-		if (!self) return {} ;
-		KeyedService s = service ;
-		if (mail()==fast_mail) s.addr = 0 ;
-		try {
-			return ClientSockFd(s) ;
-		} catch (::string const&) {
-			if (!fqdn) throw ;
-			s.addr = SockFd::s_addr(fqdn) ;            // 2nd chance if addr does not work
-			return ClientSockFd(s) ;
-		}
-	} catch (::string const& e) {                      // START_OF_NO_COV
-		fail_prod("while trying to report deps :",e) ;
-	}                                                  // END_OF_NO_COV
+		SWEAR( !service.addr , service.addr ) ;
+		SWEAR( +fqdn                        ) ;
+		if (mail()==fast_mail)                                                                              return ClientSockFd(service) ;   // local case
+		else                   { KeyedService s = service ; s.addr = SockFd::s_addr(fqdn,true/*name_ok*/) ; return ClientSockFd(s      ) ; } // remote case
+	} catch (::string const& e) {                                                                                                            // START_OF_NO_COV
+		FAIL_PROD(e) ;
+	}                                                                                                                                        // END_OF_NO_COV
 }

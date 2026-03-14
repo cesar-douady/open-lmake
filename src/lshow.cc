@@ -10,9 +10,6 @@
 #include "rpc_client.hh"
 
 int main( int argc , char* argv[] ) {
-	bool read_only = app_init() ;
-	Trace trace("main") ;
-	//
 	ReqSyntax syntax {{
 		{ ReqKey::Bom        , { .short_name='b' , .doc="show necessary sources"                        } }
 	,	{ ReqKey::Cmd        , { .short_name='c' , .doc="show cmd"                                      } }
@@ -30,6 +27,9 @@ int main( int argc , char* argv[] ) {
 		{ ReqFlag::Porcelaine , { .short_name='p' , .doc="generate output as an easy to parse python object" } }
 	}} ;
 	ReqCmdLine cmd_line { syntax , argc , argv } ;
+	//
+	bool read_only = app_init() ;
+	Trace trace("main") ;
 	//
 	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"    ) ;
 	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key==ReqKey::InvTargets ) syntax.usage("producing jobs cannot be shown for jobs") ;

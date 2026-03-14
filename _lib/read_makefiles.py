@@ -37,6 +37,7 @@ if True   : os.environ['REPO_ROOT'    ] = cwd
 
 import lmake
 from   lmake import _maybe_lcl
+import fmt_config
 import fmt_rule
 import serialize
 
@@ -80,9 +81,7 @@ if '.config.' in actions :
 		elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
 	except Exception as e : report_user_err(e)
 	#
-	config = lmake.config
-	if not isinstance(config,pdict) : config = pdict.mk_deep(config)
-	config.extra_manifest = lmake.extra_manifest
+	config = fmt_config.fmt_config( lmake.config , is_top )
 	srcs_action = ''
 	if   lmake.manifest                              : actions     += 'sources.'
 	elif not is_top                                  : pass
@@ -97,33 +96,6 @@ if '.config.' in actions :
 	elif is_pkg and find_spec('Lmakefile.rules')   : rules_action  = 'rules_import'
 	else                                           : actions      += 'rules.'
 	#
-	if 'system_tag_proc' not in config and 'system_tag' in config : # XXX> : suppress when compatibility with 26.02 is no more necessary
-		print(f'lmake.config.system_tag is deprecated',file=sys.stderr)
-		print(f'use lmake.config.system_tag_proc'     ,file=sys.stderr)
-		config.system_tag_proc = config.system_tag
-	for proc in ('req_start_proc','req_end_proc','server_start_proc','server_end_proc','system_tag_proc') :
-		if proc in config :
-			expr = serialize.get_expr(
-				config[proc]
-			,	ctx            = (config.__dict__,)
-			,	no_imports     = fmt_rule.lcl_mod_file # dynamic attributes cannot afford local imports, so serialize in place all of them
-			,	call_callables = True
-			)
-			if proc=='system_tag_proc' : res_eq = 'system_tag = '
-			else                       : res_eq = ''
-			config[proc] = (
-				expr.glbs+res_eq+expr.expr+'\n'
-			+	"print(end='',flush=True)\n"
-			)
-	if is_top :
-		git = '$GIT'                                                                                                          # substitued at build time
-		if 'caches' in config :
-			for cache in config.caches.values() :
-				if 'repo_key' in cache : continue
-				key = cwd
-				try    : key += ' '+sp.check_output((git,'rev-parse','--verify','-q','HEAD'),universal_newlines=True).strip()
-				except : pass                                                                                                 # if not under git, ignore
-				cache['repo_key'] = key
 
 srcs = []
 if '.sources.' in actions :

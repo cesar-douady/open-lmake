@@ -142,6 +142,10 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1">#,  nice                = 0                                 # nice value to apply to all jobs</span>
 <span class="p">,</span>   <span class="n">path_max</span>            <span class="o">=</span> <span class="mi">200</span>                               <span class="c1"># max path length, smaller values make debugging easier (if None, not activated)</span>
 <span class="p">,</span>   <span class="n">sub_repos</span>           <span class="o">=</span> <span class="p">[]</span>                                <span class="c1"># list of sub_repos</span>
+<span class="c1">#,  req_start_proc      = my_proc                           # executed at start of each lmake command</span>
+<span class="c1">#,  req_end_proc        = my_proc                           # executed at end   of each lmake command</span>
+<span class="c1">#,  server_start_proc   = my_proc                           # executed at start of lmake_server</span>
+<span class="c1">#,  server_end_proc     = my_proc                           # executed at end   of lmake_server</span>
 <span class="p">,</span>   <span class="n">system_tag_proc</span>     <span class="o">=</span> <span class="n">_system_tag</span>                       <span class="c1"># force config re-read if the result of this function changes</span>
 <span class="p">,</span>   <span class="n">backends</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>                                       <span class="c1"># PER_BACKEND : provide a default configuration for each backend</span>
         <span class="n">local</span> <span class="o">=</span> <span class="n">pdict</span><span class="p">(</span>                                      <span class="c1"># entries mention the total availability of resources</span>

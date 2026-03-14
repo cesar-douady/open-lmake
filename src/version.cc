@@ -2,7 +2,7 @@
 namespace Version {
 	uint64_t    constexpr Cache = 34      ; // df04704b319345150a1476e0956e089e
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 31      ; // b5db21766f1b1f141090144c8a529f11
+	uint64_t    constexpr Repo  = 32      ; // 6c3fd05fb399d60d47cab9c8f68b2027
 	uint64_t    constexpr Job   = 18      ; // 0a9f347b6d065b5733fc658ea804dcea
 	const char* const     Major = "26.03" ;
 	uint64_t    constexpr Tag   = 0       ;
@@ -1071,7 +1071,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : b5db21766f1b1f141090144c8a529f11 *
+// * Repo : 6c3fd05fb399d60d47cab9c8f68b2027 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1181,28 +1181,34 @@ namespace Version {
 //					} ;
 //					// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			::vmap_s<bool> targets ;
+//			::vmap_s<uint8_t> targets ;
 //			for( bool star : {false,true} )
-//				for( VarIdx mi : matches_iotas[star][+MatchKind::Target] ) // targets (static and star) must be kept first in matches so RuleTgt is stable when match_crc is stable
-//					targets.emplace_back( matches[mi].second.pattern , matches[mi].second.flags.extra_tflags[ExtraTflag::Optional] ) ; // keys and flags have no influence on matching, except Optional
-//			h += special ;                                                                                                             // in addition to distinguishing special from other, ...
-//			h += stems   ;                                                                                                             // ... this guarantees that shared rules have different crc's
+//				for( VarIdx mi : matches_iotas[star][+MatchKind::Target] ) { // targets (static and star) must be kept first in matches so RuleTgt is stable when match_crc is stable
+//					MatchEntry const& match = matches[mi].second ;
+//					uint8_t flags =
+//						( match.flags.extra_tflags[ExtraTflag::Optional]      )
+//					+	( match.flags.tflags      [Tflag     ::Phony   ] << 1 )
+//					;
+//					targets.emplace_back( match.pattern , flags ) ;          // keys and flags have no influence on matching, except Optional
+//				}
+//			h += special ;                                                   // in addition to distinguishing special from other, ...
+//			h += stems   ;                                                   // ... this guarantees that shared rules have different crc's
 //			h += targets ;
-//			deps_attrs.update_hash( /*inout*/h , rules ) ;                                                                             // no deps for source & anti
+//			deps_attrs.update_hash( /*inout*/h , rules ) ;                   // no deps for source & anti
 //			if (is_plain()) h += job_name  ;
-//			else            h += allow_ext ; // only exists for special rules
+//			else            h += allow_ext ;                                 // only exists for special rules
 //			Crc match_crc = h.digest() ;
 //			//
-//			if (!is_plain()) {               // no cmd nor resources for special rules
+//			if (!is_plain()) {                                               // no cmd nor resources for special rules
 //				crc = {match_crc} ;
 //				return ;
 //			}
-//			h += g_config->lnk_support  ;    // this has an influence on generated deps, hence is part of cmd def
-//			h += g_config->os_info      ;    // this has an influence on job execution , hence is part of cmd def
+//			h += g_config->lnk_support  ;                                    // this has an influence on generated deps, hence is part of cmd def
+//			h += g_config->os_info      ;                                    // this has an influence on job execution , hence is part of cmd def
 //			h += sub_repo_s             ;
-//			h += Node::s_src_dirs_crc() ;    // src_dirs influences deps recording
-//			h += job_name               ;    // may be accessed by cmd,                         not always necessary but simpler to code
-//			h += matches                ;    // these define names and influence cmd execution, all is not necessary but simpler to code
+//			h += Node::s_src_dirs_crc() ;                                    // src_dirs influences deps recording
+//			h += job_name               ;                                    // may be accessed by cmd,                         not always necessary but simpler to code
+//			h += matches                ;                                    // these define names and influence cmd execution, all is not necessary but simpler to code
 //			h += force                  ;
 //			h += is_python              ;
 //			start_cmd_attrs.update_hash( /*inout*/h , rules ) ;
