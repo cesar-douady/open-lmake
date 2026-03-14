@@ -815,8 +815,8 @@ namespace Engine {
 			case Manual::Ok      :                     break ;
 			case Manual::Unlnked : crc = Crc::None   ; break ;
 			case Manual::Empty   : crc = Crc::Empty  ; break ;
-			case Manual::Modif   : crc = Crc(name()) ; break ;
-		DF}
+			default              : crc = Crc(name()) ; break ;
+		}
 	}
 
 	Manual NodeData::manual_refresh( Accesses a , Req req ) {
