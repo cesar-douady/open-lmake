@@ -637,8 +637,9 @@ void JobSpace::enter(
 ,	::string   const&                  sub_repo_s
 ,	::vector_s const&                  src_dirs_s
 ,	bool                               kill_daemons
+,	bool                               may_mount_in_tmp
 ) {
-	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s,STR(kill_daemons)) ;
+	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s,STR(kill_daemons),STR(may_mount_in_tmp)) ;
 	//
 	bool need_chroot = +self || +chroot_info.dir_s ;
 	repo_root_s = repo_view_s | phy_repo_root_s ;
@@ -679,7 +680,7 @@ void JobSpace::enter(
 	::string const& phy_repo_super_s   = +repo_view_s ? phy_repo_super_s_ : repo_super_s ;      // fast path : only compute phy_repo_super_s if necessary
 	::string const& lmake_root_s       = lmake_view_s | phy_lmake_root_s                 ;
 	::string const& tmp_dir_s          = tmp_view_s   | phy_tmp_dir_s                    ;
-	bool            clean_tmp_dir_here = true                                            ;
+	bool            clean_tmp_dir_here = !may_mount_in_tmp                               ;      // if job may mount in tmp, we must clean tmp after umount
 	//
 	bool bind_lmake =                 +lmake_view_s || +created_files.user_chroot_dir   ;
 	bool bind_repo  =                 +repo_view_s  || +created_files.user_chroot_dir   ;
@@ -1231,11 +1232,12 @@ void JobStartRpcReply::enter(
 	,	         small_id
 	,	         phy_lmake_root_s
 	,	         phy_repo_root_s
-	,	         phy_tmp_dir_s          , keep_tmp
+	,	         phy_tmp_dir_s               , keep_tmp
 	,	         chroot_info
 	,	         autodep_env.sub_repo_s
 	,	         autodep_env.src_dirs_s
 	,	         kill_daemons
+	,	         autodep_env.mount_chroot_ok
 	) ;
 	trace("done",accesses,repo_root_s) ;
 }

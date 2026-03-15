@@ -762,6 +762,7 @@ struct JobSpace {
 	,	::string   const&                  sub_repo_s
 	,	::vector_s const&                  src_dirs_s
 	,	bool                               kill_daemons
+	,	bool                               may_mount_in_tmp
 	) ;
 	void exit() ;
 	//

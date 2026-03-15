@@ -116,11 +116,18 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 }
 
 // chroot
-[[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_chroot( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
-	try {
-		Record::Chroot( r , _path<false/*At*/>(proc_mem,args+0) , c ) ;
+[[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_chroot( Record& r , Fd proc_mem , uint64_t args[6] , bool emulate , Comment c ) {
+	try { //!                                                           At
+		if (emulate) { Record::Chroot  cr {                     r,_path<false>(proc_mem,args+0),c} ; cr(r) ; return {                    } ; } // cannot emulate chroot, record access in all cases
+		else         { Record::Chroot& cr = *new Record::Chroot{r,_path<false>(proc_mem,args+0),c} ;         return {&cr,false/*refresh*/} ; }
 	} catch (::string const&) {}
 	return {} ;
+}
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_chroot( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+	return _do_exit<Record::Chroot>( ctx , rc
+	,	[ ](Record::Chroot&              )->int64_t { FAIL() ;   }                                                                             // cannot emulate chroot
+	,	[&](Record::Chroot& cr,int64_t rc)          { cr(r,rc) ; }
+	) ;
 }
 
 // creat
@@ -155,8 +162,8 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 
 // getdents
 [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_getdents( Record& r , Fd , uint64_t args[6] , bool emulate , Comment c ) {
-	if (emulate) { Record::ReadDir  rd {                       r , Fd(args[0]) , c } ; rd(r) ; return {                        } ; }            // cannot emulate readdir, record access in all cases
-	else         { Record::ReadDir& rd = *new Record::ReadDir{ r , Fd(args[0]) , c } ;         return { &rd , false/*refresh*/ } ; }
+	if (emulate) { Record::ReadDir  rd {                      r,Fd(args[0]),c} ; rd(r) ; return {                    } ; }                      // cannot emulate readdir, record access in all cases
+	else         { Record::ReadDir& rd = *new Record::ReadDir{r,Fd(args[0]),c} ;         return {&rd,false/*refresh*/} ; }
 }
 [[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_getdents( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
 	return _do_exit<Record::ReadDir>( ctx , rc
@@ -190,11 +197,18 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 }
 
 // mount
-[[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_mount( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
-	try {
-		Record::Mount( r , _path<false/*At*/>(proc_mem,args+1) , c ) ;
+[[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_mount( Record& r , Fd proc_mem , uint64_t args[6] , bool emulate , Comment c ) {
+	try { //!                                                        At
+		if (emulate) { Record::Mount  m {                    r,_path<false>(proc_mem,args+1),c} ; m(r) ; return {                   } ; } // cannot emulate mount, record access in all cases
+		else         { Record::Mount& m = *new Record::Mount{r,_path<false>(proc_mem,args+1),c} ;        return {&m,false/*refresh*/} ; }
 	} catch (::string const&) {}
 	return {} ;
+}
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_mount( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+	return _do_exit<Record::Mount>( ctx , rc
+	,	[ ](Record::Mount&             )->int64_t { FAIL() ;  }                                                                           // cannot emulate mount
+	,	[&](Record::Mount& m,int64_t rc)          { m(r,rc) ; }
+	) ;
 }
 
 // name_to_handle_at (open_by_handle_at is priviledged, no need to handle it)
@@ -415,7 +429,7 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 	FILL_ENTRY( fchdir            , { _entry_chdir            <true            > , nullptr        , -1  , false   , Comment::fchdir            } ) ;
 	FILL_ENTRY( chmod             , { _entry_chmod            <false,FlagNever > , _exit_chmod    ,  0  , false   , Comment::chmod             } ) ;
 	FILL_ENTRY( fchmodat          , { _entry_chmod            <true ,3         > , _exit_chmod    ,  1  , false   , Comment::fchmodat          } ) ;
-	FILL_ENTRY( chroot            , { _entry_chroot                              , nullptr        , -1  , false   , Comment::chroot            } ) ;
+	FILL_ENTRY( chroot            , { _entry_chroot                              , _exit_chroot   , -1  , false   , Comment::chroot            } ) ;
 	FILL_ENTRY( creat             , { _entry_creat                               , _exit_creat    ,  0  , true    , Comment::creat             } ) ;
 	FILL_ENTRY( execve            , { _entry_execve           <false,FlagNever > , nullptr        , -1  , false   , Comment::execve            } ) ;
 	FILL_ENTRY( execveat          , { _entry_execve           <true ,4         > , nullptr        , -1  , false   , Comment::execveat          } ) ;
@@ -425,7 +439,7 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 	FILL_ENTRY( linkat            , { _entry_lnk              <true ,4         > , _exit_lnk      ,  3  , false   , Comment::linkat            } ) ;
 	FILL_ENTRY( mkdir             , { _entry_mkdir            <false           > , nullptr        ,  0  , false   , Comment::mkdir             } ) ;
 	FILL_ENTRY( mkdirat           , { _entry_mkdir            <true            > , nullptr        ,  1  , false   , Comment::mkdirat           } ) ;
-	FILL_ENTRY( mount             , { _entry_mount                               , nullptr        , -1  , false   , Comment::mount             } ) ;
+	FILL_ENTRY( mount             , { _entry_mount                               , _exit_mount    , -1  , false   , Comment::mount             } ) ;
 	FILL_ENTRY( name_to_handle_at , { _entry_name_to_handle_at                   , nullptr        ,  1  , false   , Comment::name_to_handle_at } ) ;
 	FILL_ENTRY( open              , { _entry_open             <false           > , _exit_open     ,  0  , true    , Comment::open              } ) ;
 	FILL_ENTRY( openat            , { _entry_open             <true            > , _exit_open     ,  1  , true    , Comment::openat            } ) ;

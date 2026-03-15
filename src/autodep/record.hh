@@ -327,7 +327,8 @@ public :
 	} ;
 	struct Chroot : Solve<> {
 		Chroot() = default ;
-		Chroot( Record& , Path&& , Comment ) ;
+		Chroot( Record& r , Path&& dst , Comment c ) : Solve<>{r,::move(dst),true/*no_follow*/,false/*read*/,false/*create*/,c} { send_report(r) ; }
+		int operator()( Record& , int rc=0 ) ;
 	} ;
 	struct Hide {
 		Hide( Record&          ) {              }         // in case nothing to hide, just to ensure invariants
@@ -381,8 +382,8 @@ public :
 	} ;
 	struct Mount : Solve<> {
 		Mount() = default ;
-		Mount( Record& , Path&& dst , Comment ) ;
-		int operator()( Record& , int rc ) { return rc ; }
+		Mount( Record& r , Path&& dst , Comment c ) : Solve<>{r,::move(dst),true/*no_follow*/,false/*read*/,false/*create*/,c} { send_report(r) ; }
+		int operator()( Record& , int rc=0 ) ;
 	} ;
 	struct Open : SolveModify {
 		// cxtors & casts

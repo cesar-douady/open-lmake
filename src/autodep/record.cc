@@ -286,9 +286,12 @@ Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comm
 	send_report(r) ;
 }
 
-Record::Chroot::Chroot( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
-	r.report_direct({.proc=JobExecProc::Chroot,.comment=Comment::chroot,.files={{real,{}}}}) ;
-	send_report(r) ;
+int Record::Chroot::operator()( Record& r , int rc ) {
+	if (rc==0) {
+		r.report_direct({.proc=JobExecProc::Chroot,.comment=Comment::chroot,.files={{real,FileInfo(real)}}}) ;
+		send_report(r) ;
+	}
+	return rc ;
 }
 
 static Record* _g_glob_auditor = nullptr/*garbage*/ ;
@@ -335,10 +338,12 @@ Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve<>{ r , ::mov
 	send_report(r) ;
 }
 
-Record::Mount::Mount( Record& r , Path&& dst_ , Comment c ) : Solve<>{r,::move(dst_),true/*no_follow*/ ,false/*read*/,false/*create*/,c} {
-	if (file_loc>FileLoc::Dep) return ;
-	r.report_direct({.proc=JobExecProc::Mount,.comment=Comment::mount,.files={{real,FileInfo(real)}}}) ;
-	send_report(r) ;
+int Record::Mount::operator()( Record& r , int rc ) {
+	if (rc==0) {
+		r.report_direct({.proc=JobExecProc::Mount,.comment=Comment::mount,.files={{real,FileInfo(real)}}}) ;
+		send_report(r) ;
+	}
+	return rc ;
 }
 
 static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )                     ; }

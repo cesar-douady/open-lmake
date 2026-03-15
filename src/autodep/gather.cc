@@ -871,9 +871,9 @@ Status Gather::_exec_child() {
 										::string d = no_slash(dst) ;
 										switch (jerr.files[0].second.tag()) {
 											case FileTag::Dir : msg << Pfx<<"mount source_dir as " <<dst<<" :\n  - "<<rule<<".views = { "<<mk_py_str   (d+'/')<<" : 'source_dir/' }"<<'\n' ; break ;
-											case FileTag::Lnk : msg << Pfx<<"copy source_link to " <<dst<<" :\n  - cp source_lnk "       <<mk_shell_str(d    )                      <<'\n' ; break ;
+											case FileTag::Lnk : msg << Pfx<<"copy source_link to " <<dst<<" :\n  - cp -P source_lnk "    <<mk_shell_str(d    )                      <<'\n' ; break ;
 											case FileTag::Reg : msg << Pfx<<"mount source_file as "<<dst<<" :\n  - "<<rule<<".views = { "<<mk_py_str   (d    )<<" : 'source_file' }"<<'\n' ; break ;
-										DF}
+										DN}
 									}
 									msg << "  consider, if you are certain you want to proceed with "<<jerr.comment<<" :"<<'\n' ;
 									msg << "  - "<<rule<<".mount_chroot_ok = True"                                       <<'\n' ;
