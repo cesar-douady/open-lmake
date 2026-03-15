@@ -498,14 +498,24 @@ namespace Engine {
 		//
 		res << ",\tcmd =\n" << mk_py_str(jsrr.cmd) <<'\n' ;
 		//
+		jsrr.small_id = 0 ;
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
-		//
-		if (+jsrr.interpreter) jsrr.update_val( jsrr.interpreter[0] , *g_repo_root_s , tmp_dir_s ) ;
+		jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , job_space.tmp_view_s|tmp_dir_s ) ;
+		::vmap_ss expanded_env = _mk_env(job_info).first ;
 		//
 		if (+env.first) {
 			res << ",\tenv = {" ;
 			First first ;
 			for( auto const& [k,v] : env.first ) res << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
+			res << "}\n" ;
+		}
+		if (+expanded_env) {
+			res << ",\texpanded_env = {" ;
+			First first ;
+			for( size_t i : iota(env.first.size()) ) {
+				SWEAR( env.first[i].first==expanded_env[i].first , env.first[i].first,expanded_env[i].first ) ;
+				if (env.first[i].second!=expanded_env[i].second) res << first("\n\t\t",",\t") << mk_py_str(expanded_env[i].first) <<" : "<< mk_py_str(expanded_env[i].second) <<"\n\t" ;
+			}
 			res << "}\n" ;
 		}
 		if (+env.second) {

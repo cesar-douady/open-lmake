@@ -262,7 +262,7 @@ namespace Backends::Slurm::SlurmApi {
 		//
 		slurm_conf_t const* conf    = ::launder(reinterpret_cast<slurm_conf_t const*>(conf_)) ;
 		::string            version = conf->version                                           ; if (version.size()>5) version = version.substr(0,5) ; // only keep major and minor
-		throw_unless( Version==version , "slurm version mismatch : found ",version," expected ",Version ) ;
+		throw_unless( Version==version , "slurm version mismatch (found ",version,"!=expected ",Version,')' ) ;
 		//
 		_load_func( _free_job_info_msg                 , "slurm_free_job_info_msg"                 ) ;
 		_load_func( _free_submit_response_response_msg , "slurm_free_submit_response_response_msg" ) ;

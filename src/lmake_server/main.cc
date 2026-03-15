@@ -362,7 +362,7 @@ int main( int argc , char** argv ) {
 		if (+e.first) exit( e.second , "cannot start ",*g_exe_name," : ",e.first ) ;
 		else          exit( e.second                                             ) ;
 	}
-	//                             vvvvvvvvvvvvvvvvv
+	//
 	static ::jthread reqs_thread { _reqs_thread_func } ;
 	//                             ^^^^^^^^^^^^^^^^^
 	::string     msg ;

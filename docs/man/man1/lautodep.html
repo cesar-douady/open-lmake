@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Mar 12 13:03:43 2026 -->
+<!-- CreationDate: Sun Mar 15 18:16:35 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -202,6 +202,106 @@ attribute <b>readdir_ok</b>=<i>True</i>.</p>
 a tuple or list of str using the python syntax (which most
 probably requires shell quoting). Listed variables are kept
 from the environment.</p>
+
+<p style="margin-left:9%;"><b>-E</b>,
+<b>--expand-env</b></p>
+
+<p style="margin-left:18%;">Expand keys in environment and
+in first word of interpreter.</p>
+
+<p style="margin-left:18%; margin-top: 1em">Keys are:
+<b><br>
+$LMAKE_ROOT</b></p>
+
+<p style="margin-left:27%;">The root dir of the open-lmake
+package</p>
+
+<p style="margin-left:18%;"><b>$PHYSICAL_REPO_ROOT</b></p>
+
+<p style="margin-left:27%;">The physical dir of the
+subrepo</p>
+
+<p style="margin-left:18%;"><b>$PHYSICAL_TMPDIR</b></p>
+
+<p style="margin-left:27%;">The physical dir of the tmp
+dir</p>
+
+
+<p style="margin-left:18%;"><b>$PHYSICAL_TOP_REPO_ROOT</b></p>
+
+<p style="margin-left:27%;">The physical dir of the
+top-level repo</p>
+
+<p style="margin-left:18%;"><b>$PYTHON</b></p>
+
+<p style="margin-left:27%;">The full absolute path to the
+standard python (as provided at build time)</p>
+
+
+<p style="margin-left:18%;"><b>$PYTHON_LD_LIBRARY_PATH</b></p>
+
+<p style="margin-left:27%;">The necessary
+<i>$LD_LIBRARY_PATH</i> to ensure standard python works as
+expected</p>
+
+<p style="margin-left:18%;"><b>$PYTHON2</b></p>
+
+<p style="margin-left:27%;">The full absolute path to the
+standard python2 (as provided at build time)</p>
+
+
+<p style="margin-left:18%;"><b>$PYTHON2_LD_LIBRARY_PATH</b></p>
+
+<p style="margin-left:27%;">The necessary
+<i>$LD_LIBRARY_PATH</i> to ensure standard python2 works as
+expected</p>
+
+<p style="margin-left:18%;"><b>$REPO_ROOT</b></p>
+
+<p style="margin-left:27%;">The absolute dir of the subrepo
+as seen by job</p>
+
+<p style="margin-left:18%;"><b>$SEQUENCE_ID</b></p>
+
+<p style="margin-left:27%;">A unique value for each job
+execution (at least 1)</p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="8%">
+
+
+<p><b>$SHELL</b></p></td>
+<td width="1%"></td>
+<td width="11%">
+
+
+<p><i>/bin/bash</i></p></td>
+<td width="62%">
+</td></tr>
+</table>
+
+<p style="margin-left:18%;"><b>$STD_PATH</b></p>
+
+<p style="margin-left:27%;">The standard path as provided
+by bash when $PATH is not set</p>
+
+<p style="margin-left:18%;"><b>$SMALL_ID</b></p>
+
+<p style="margin-left:27%;">A unique value among
+simultaneously running jobs (at least 1)</p>
+
+<p style="margin-left:18%;"><b>$TMPDIR</b></p>
+
+<p style="margin-left:27%;">The absolute dir of the tmp
+dir, as seen by the job</p>
+
+<p style="margin-left:18%;"><b>$TOP_REPO_ROOT</b></p>
+
+<p style="margin-left:27%;">The absolute dir of the
+top-level repo, as seen by the job</p>
 
 <p style="margin-left:9%;"><b>-k</b>, <b>--keep-tmp</b></p>
 

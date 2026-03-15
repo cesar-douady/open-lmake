@@ -116,7 +116,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="p">)</span>
 
     <span class="k">class</span> <span class="nc">Opt</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DST&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="sa">r</span><span class="s1">&#39;{File:.*}.opt&#39;</span><span class="p">,</span><span class="s1">&#39;Optional&#39;</span><span class="p">)</span> <span class="p">}</span>
+        <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DST&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="sa">r</span><span class="s1">&#39;{File:.*}.opt&#39;</span><span class="p">,</span><span class="s1">&#39;optional&#39;</span><span class="p">)</span> <span class="p">}</span>
         <span class="n">cmd</span>     <span class="o">=</span> <span class="s1">&#39;[ </span><span class="si">{File}</span><span class="s1"> != ok ] || echo 1 &gt;</span><span class="si">{DST}</span><span class="s1">&#39;</span>
 
     <span class="k">class</span> <span class="nc">Opt2</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>

@@ -35,6 +35,7 @@ enum class CmdFlag : uint8_t {
 ,	LmakeRoot
 ,	LmakeView
 ,	MountChrootOk
+,	ExpandEnv
 ,	Out
 ,	ReaddirOk
 ,	RepoView
@@ -117,6 +118,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Cwd           , { .short_name='d' , .has_arg=true  , .doc="current working directory in which to execute job"                                                           } }
 	,	{ CmdFlag::ReaddirOk     , { .short_name='D' , .has_arg=false , .doc="allow reading local non-ignored dirs"                                                                        } }
 	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                         } }
+	,	{ CmdFlag::ExpandEnv     , { .short_name='E' , .has_arg=false , .doc="expand keys (e.g. $REPO_ROOT) in environment and first interpreter word"                                     } }
 	,	{ CmdFlag::KeepTmp       , { .short_name='k' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                          } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                             } }
 	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                        } }
@@ -192,8 +194,7 @@ int main( int argc , char* argv[] ) {
 		,	         with_slash(tmp_dir)
 		,	         *g_lmake_root_s
 		) ;
-		jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ;           // updateg jsrr.env and jsrr.interpreter
-		//
+		if (cmd_line.flags[CmdFlag::ExpandEnv]) jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
 	autodep_env.file_sync = FileSync::None         ;                                                               // no parallel processing with lautodep

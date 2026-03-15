@@ -54,6 +54,28 @@ Item(B_(-e) I_(list),B_(--env)=I_(list))
 I_(list) must be provided as a  tuple or list of str using the python syntax (which most probably requires shell quoting).
 Listed variables are kept from the environment.
 
+Item(B_(-E),B_(--expand-env))
+Expand keys in environment and in first word of interpreter.
+.IP
+Keys are:
+	.RS
+	Item(B_($LMAKE_ROOT))              The root dir of the open-lmake package
+	Item(B_($PHYSICAL_REPO_ROOT))      The physical dir of the subrepo
+	Item(B_($PHYSICAL_TMPDIR))         The physical dir of the tmp dir
+	Item(B_($PHYSICAL_TOP_REPO_ROOT))  The physical dir of the top-level repo
+	Item(B_($PYTHON))                  The full absolute path to the standard python (as provided at build time)
+	Item(B_($PYTHON_LD_LIBRARY_PATH))  The necessary I_($LD_LIBRARY_PATH) to ensure standard python works as expected
+	Item(B_($PYTHON2))                 The full absolute path to the standard python2 (as provided at build time)
+	Item(B_($PYTHON2_LD_LIBRARY_PATH)) The necessary I_($LD_LIBRARY_PATH) to ensure standard python2 works as expected
+	Item(B_($REPO_ROOT))               The absolute dir of the subrepo as seen by job
+	Item(B_($SEQUENCE_ID))             A unique value for each job execution (at least 1)
+	Item(B_($SHELL))                   I_(/bin/bash)
+	Item(B_($STD_PATH))                The standard path as provided by bash when $PATH is not set
+	Item(B_($SMALL_ID))                A unique value among simultaneously running jobs (at least 1)
+	Item(B_($TMPDIR))                  The absolute dir of the tmp dir, as seen by the job
+	Item(B_($TOP_REPO_ROOT))           The absolute dir of the top-level repo, as seen by the job
+	.RE
+
 Item(B_(-k),B_(--keep-tmp))
 Dont erase tmp dir after execution.
 

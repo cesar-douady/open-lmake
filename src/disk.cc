@@ -522,14 +522,17 @@ namespace Disk {
 		if (!version_fd) {
 			throw_unless( action.chk==Maybe , action.key," not initialized, consider : ",action.init_msg ) ;
 			AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.umask=action.umask} ).write( cat(action.version,'\n') ) ;
+			try { sym_lnk( cat(AdminDirS,"lmake_root") , no_slash(dir_name_s(get_exe(),2)) ) ; } catch (::string const&) {}
 		} else {
 			::string stored = version_fd.read() ;
 			throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
 			stored.pop_back() ;
-			if (from_string<uint64_t>(stored)!=action.version) {
-				::string msg = action.clean_msg ;
-				if (msg.find('\n')==Npos) throw cat("version mismatch, consider : " ,       msg )  ;
-				else                      throw cat("version mismatch, consider :\n",indent(msg)) ;
+			uint64_t stored_int = from_string<uint64_t>(stored) ;
+			if (stored_int!=action.version) {
+				::string r   = read_lnk(cat(AdminDirS,"lmake_root")) ;
+				::string msg = action.clean_msg                      ; if (+r) msg << add_nl<<"use "<<r<<"/bin/"<<base_name(get_exe())<<'\n' ;
+				if (msg.find('\n')==Npos) throw cat("version mismatch (found ",stored_int,"!=expected ",action.version,") consider : " ,       msg )  ;
+				else                      throw cat("version mismatch (found ",stored_int,"!=expected ",action.version,") consider :\n",indent(msg)) ;
 			}
 		}
 	}
