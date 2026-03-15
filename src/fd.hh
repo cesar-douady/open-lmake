@@ -16,7 +16,7 @@
 	#define SOCK_CLOEXEC 0 // CLOEXEC is just defensive programming, not really needed
 #endif
 
-::string const& fqdn(::string const& domain_name={}) ;
+::string fqdn(::string const& domain_name={}) ;
 
 struct Service {
 	friend ::string& operator+=( ::string& , Service const& ) ;

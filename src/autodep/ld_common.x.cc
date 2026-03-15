@@ -767,19 +767,19 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		void* ctx = nullptr ;
 		if (descr.entry) {
 			LockRecordAndErrno lock ;
-			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			ctx = descr.entry( auditor() , {}/*proc_mem*/ , args , descr.comment ).first ;
-		} //!     ^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^^^^^^^^
-		long res = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
-		//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			ctx = descr.entry( auditor() , {}/*proc_mem*/ , args , false/*emulate*/ , descr.comment ).first ;
+		} //!     v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		long rc = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
+		//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (ctx) {
 			SWEAR( descr.exit , syscall ) ;
 			LockRecordAndErrno lock ;
-			//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			tie(res,errno) = descr.exit( ctx , auditor() , {}/*proc_mem*/ , false/*emulate*/ , res ) ;          // we do not emulate, setting res and errno is only for magic readlink
-			//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			tie(rc,errno) = descr.exit( ctx , auditor() , {}/*proc_mem*/ ,  rc ) ;                             // we do not emulate, setting res and errno is only for magic readlink
+			//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
-		return res ;
+		return rc ;
 	}
 
 	#undef NO_SERVER

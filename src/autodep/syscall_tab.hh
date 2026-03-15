@@ -36,11 +36,11 @@ struct SyscallDescr {
 	constexpr bool operator+() const { return entry || exit ; }
 	// data
 	// /!\ there must be no memory allocation nor cxtor/dxtor as this must be statically allocated when malloc is not available
-	::pair<void*  /*ctx*/,bool/*refresh_mem*/> (*entry)(          Record& , Fd proc_mem , uint64_t args[6] , Comment ) = nullptr       ;
-	::pair<int64_t/*res*/,int /*errno      */> (*exit )( void*  , Record& , Fd proc_mem , bool emulate , int64_t res ) = nullptr       ;
-	int                                        filter                                                                  = -1            ; // argument to filter out when known to require no processing
-	bool                                       return_fd                                                               = false         ; // if true <=> return val is a fd
-	Comment                                    comment                                                                 = Comment::None ;
+	::pair<void*  /*ctx*/,bool/*refresh_mem*/> (*entry)(      Record&,Fd proc_mem,uint64_t args[6],bool emulate,Comment) = nullptr       ; // emulate in exit if emulate=true
+	::pair<int64_t/*rc */,int /*errno      */> (*exit )(void*,Record&,Fd proc_mem,::optional<int64_t> rc               ) = nullptr       ; // emulate if no rc available
+	int                                        filter                                                                    = -1            ; // argument to filter out when known to require no processing
+	bool                                       return_fd                                                                 = false         ; // if true <=> return val is a fd
+	Comment                                    comment                                                                   = Comment::None ;
 } ;
 
 #ifdef LD_PRELOAD

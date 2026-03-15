@@ -29,47 +29,33 @@ StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
 ::string& operator+=( ::string& os , EventFd      const& fd ) { return fd.append_to_str(os,"EventFd"                 ) ; } // NO_COV
 ::string& operator+=( ::string& os , SignalFd     const& fd ) { return fd.append_to_str(os,"SignalFd"                ) ; } // NO_COV
 
-::string const& fqdn(::string const& domain_name) {
-	static ::optional_s           s_domain_name ;                           // domain name used when last called if it was necessary
-	static ::string               s_fqdn        ;                           // fqdn returned when last called
-	static Mutex<MutexLvl::Inner> s_mutex       ;
-	//
-	Lock lock { s_mutex } ;
-	//
-	if (+s_fqdn) {
-		if (!s_domain_name             ) return s_fqdn ;                    // fqdn was last computed without needing domain_name
-		if (!domain_name               ) return s_fqdn ;                    // use last call result
-		if (*s_domain_name==domain_name) return s_fqdn ;                    // last call used same domain name
-	} else {
+::string fqdn(::string const& domain_name) {
+	static ::umap_ss s_fqdns = []() {
+		::umap_ss          res   ;
+		::string const&    h     = host()  ; if (h.find('.')!=Npos) return res ;                           // do not ask network if host is fully qualified
 		struct ::addrinfo  hints = {}      ; hints.ai_family = AF_UNSPEC ; hints.ai_flags = AI_CANONNAME ;
 		struct ::addrinfo* ai    = nullptr ;
-		s_fqdn = host() ;
-		if (::getaddrinfo(s_fqdn.c_str(),nullptr/*service*/,&hints,&ai)==0) {
-			for( bool first_pass : {true,false} )
-				for( struct ::addrinfo* p=ai ; p ; p=p->ai_next ) {         // search names and try to keep the best one
-					if (!p->ai_canonname) continue ;
-					//
-					::string_view v { p->ai_canonname } ;
-					bool          d = v.find('.')!=Npos ;
-					if (d!=first_pass             ) continue ;              // 1st pass : consider compound names, 2nd pass : consider simple names
-					if (v.starts_with("localhost")) continue ;              // filter out common name that do not designate a real host
-					if (!first_pass) {
-						switch (v[0]) {                                     // filter out more common name that do not designate a real host
-							case 'l' : if (v=="local"  ) continue ; break ;
-							case 'u' : if (v=="unknown") continue ; break ;
-							case '(' : if (v=="(none)" ) continue ; break ;
-						}
-					}
-					s_fqdn = v ;
-					::freeaddrinfo(ai) ;
-					return s_fqdn ;
-				}
-			::freeaddrinfo(ai) ;
+		if (::getaddrinfo(h.c_str(),nullptr/*service*/,&hints,&ai)!=0) return res ;
+		for( struct ::addrinfo* p=ai ; p ; p=p->ai_next ) {                                                // search names and try to keep the best one
+			if (!p->ai_canonname) continue ;
+			//
+			::string_view v   { p->ai_canonname } ; if (v.starts_with("localhost")) continue ;             // filter out common name that do not designate a real host
+			size_t        pos = v.find('.')       ; if (pos==Npos                 ) continue ;             // consider only compound names
+			res.try_emplace( ::string(v.substr(pos+1)) , ::string(v) ) ;
 		}
-		if (s_fqdn.find('.')!=Npos) return s_fqdn ;
+		::freeaddrinfo(ai) ;
+		return res ;
+	}() ;
+	if (+domain_name) {
+		auto it = s_fqdns.find(domain_name) ;
+		if (it!=s_fqdns.end()) return it->second ;
+		::string hn = host() ;
+		if (hn.find('.')==Npos) hn << '.'<<domain_name ;
+		return hn ;
+	} else {
+		if (+s_fqdns) return s_fqdns.begin()->second ;
+		else          return host()                  ;
 	}
-	if (+(s_domain_name=domain_name)) s_fqdn << '.'<<domain_name ;
-	return s_fqdn ;
 }
 
 //

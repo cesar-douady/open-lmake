@@ -120,25 +120,25 @@ namespace AutodepPtrace {
 					SyscallDescr const& descr =                                               SyscallDescr::s_tab[syscall] ;
 				#endif
 				SWEAR_PROD( +descr && descr.entry , is_32,syscall ) ;                                   // syscall should have been filtered out by BPF
-				#if HAS_PTRACE_GET_SYSCALL_INFO                                                     // use portable calls if implemented
+				#if HAS_PTRACE_GET_SYSCALL_INFO                                                         // use portable calls if implemented
 					// ensure args is actually an array of uint64_t although one is declared as unsigned long and the other is unsigned long long
 					auto& sc_args = syscall_info.seccomp.args ;
 					static_assert( sizeof(sc_args[0])==sizeof(uint64_t) && ::is_unsigned_v<::remove_reference_t<decltype(sc_args[0])>> ) ;
 					uint64_t* args = reinterpret_cast<uint64_t*>(sc_args) ;
 				#else
-					::array<uint64_t,6> arg_array = NonPortable::ptrace_get_args(pid) ;             // use non-portable calls if portable accesses are not implemented
-					uint64_t*           args      = arg_array.data()                  ;             // we need a variable to hold the data while we pass the pointer
+					::array<uint64_t,6> arg_array = NonPortable::ptrace_get_args(pid) ;                 // use non-portable calls if portable accesses are not implemented
+					uint64_t*           args      = arg_array.data()                  ;                 // we need a variable to hold the data while we pass the pointer
 				#endif
 				if (!proc_mem) proc_mem = AcFd( cat("/proc/",pid,"/mem") , {O_RDWR} ) ;
 				bool refresh = false ;
-				//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				tie(ctx,refresh) = descr.entry( record , proc_mem , args , descr.comment ) ;
-				//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				tie(ctx,refresh) = descr.entry( record , proc_mem , args , false/*emulate*/ , descr.comment ) ;
+				//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (refresh) {
 					proc_mem.close() ;
 					is_32 = Maybe ;
 				}
-				if (!descr.exit) SWEAR_PROD( !ctx , syscall ) ;                                     // no need for a context if we are not called at exit
+				if (!descr.exit) SWEAR_PROD( !ctx , syscall ) ;                                         // no need for a context if we are not called at exit
 			} else {
 				// syscall exit
 				#if HAS_PTRACE_GET_SYSCALL_INFO
@@ -149,20 +149,20 @@ namespace AutodepPtrace {
 				#else
 					int64_t res = NonPortable::ptrace_get_res(pid) ;                                    // use non-portable calls if portable accesses are not implemented
 				#endif
-				int64_t old_res = res ; if (res<0) { old_res = -1 ; errno = -res ; }                    // we do not emulate, handling errno is only for magic readlink
-				::pair<int64_t,int> res_errno ;
+				int64_t old_rc = res ; if (res<0) { old_rc = -1 ; errno = -res ; }                      // we do not emulate, handling errno is only for magic readlink
+				::pair<int64_t,int> rc_errno ;
 				#if HAS_32
 					SyscallDescr const& descr = is_32==Yes ? SyscallDescr::s_tab32[syscall] : SyscallDescr::s_tab[syscall] ;
 				#else
 					SyscallDescr const& descr =                                               SyscallDescr::s_tab[syscall] ;
 				#endif
-				//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				res_errno = descr.exit( ctx , record , proc_mem , false/*emulate*/ , old_res ) ;
-				//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				rc_errno = descr.exit( ctx , record , proc_mem , old_rc ) ;
+				//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				ctx = nullptr ;
-				if (res_errno.first<0   ) { SWEAR( res_errno.first==-1 , syscall,res_errno ) ; res_errno.first = -res_errno.second ; }
-				if (res_errno.first!=res)
-				NonPortable::ptrace_set_res( pid , res_errno.first ) ;
+				if (rc_errno.first<0   ) { SWEAR( rc_errno.first==-1 , syscall,rc_errno ) ; rc_errno.first = -rc_errno.second ; }
+				if (rc_errno.first!=res)
+				NonPortable::ptrace_set_res( pid , rc_errno.first ) ;
 			}
 		} catch (::string const& e) {
 			Trace("event","process_is_dead",e) ;
@@ -414,15 +414,15 @@ namespace AutodepPtrace {
 								if (descr.entry) {
 									// XXX : call SECCOMP_IOCTL_NOTIF_ID_VALID to validate if tid is still the right one, cf man 2 seccomp_unotify
 									if (!info.proc_mem) info.proc_mem = AcFd( cat("/proc/",tid,"/mem") , {O_RDWR} ) ;
-									//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-									auto [ctx,refresh] = descr.entry( info.record , info.proc_mem , args , descr.comment ) ;
-									//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+									//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+									auto [ctx,refresh] = descr.entry( info.record , info.proc_mem , args , true/*emulate*/ , descr.comment ) ;
+									//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 									if (ctx) {
 										// because descr.entry is careful at not generating emulation context when operating outside repo,
 										// there is no need to take care of /proc/self and /dev/std{in,out,err} not being interpreted identically in tracee and tracer
-										//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-										auto [val,e/*errno*/] = descr.exit( ctx , info.record , info.proc_mem , true/*emulate*/ , 0/*garbage*/ ) ;
-										//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+										//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+										auto [val,e/*errno*/] = descr.exit( ctx , info.record , info.proc_mem , {}/*rc*/ ) ;
+										//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 										if ( descr.return_fd && val>=0 ) {
 											addfd_notif = {
 												.id          = recv_notif.id
