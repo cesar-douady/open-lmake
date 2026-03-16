@@ -232,7 +232,7 @@ int main( int argc , char* argv[] ) {
 		//
 		::vector_s enter_accesses ;
 		::string   repo_root_s    ;
-		if (+g_start_info.chroot_info.dir_s) {
+		if ( +g_start_info.chroot_info.dir_s && g_start_info.chroot_info.dir_s!="/" ) {
 			chroot_tag = base_name(g_start_info.chroot_info.dir_s) ;
 			if ( size_t pos=chroot_tag.find('.') ; pos!=Npos ) chroot_tag.resize(pos) ;
 			else                                               rm_slash(chroot_tag)   ;

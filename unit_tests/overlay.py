@@ -28,7 +28,7 @@ if __name__!='__main__' :
 	class Dut2(PyRule) :
 		tmp_view = '/tmp'
 		views    = { '/tmp/merged' : {'upper':'/tmp/upper','lower':'/usr/include','copy_up':'sys/'} } # create an overlay over a read-only dir
-		target   = 'write/dut2'
+		target   = r'write/dut2{Sfx:(-\d+)?}'
 		def cmd():
 			import stat
 			dir = '/tmp/merged/sys'                                                                   # a subdir that exists in /usr/include
@@ -43,9 +43,9 @@ if __name__!='__main__' :
 			print(open('/tmp/merged/read/src').read(),end='')
 
 	class Test(Rule) :
-		target = r'{Test:.*}.ok'
+		target = r'{Test:[^-]*}{Sfx:(-\d+)?}.ok'
 		deps = {
-			'DUT' : '{Test}'
+			'DUT' : '{Test}{Sfx}'
 		,	'REF' : '{Test}.ref'
 		}
 		cmd = 'diff {REF} {DUT}'
@@ -65,4 +65,7 @@ else :
 	print('good',file=open('write/dut2.ref','w'))
 	print('good',file=open('dut3.ref'      ,'w'))
 
-	ut.lmake( 'write/dut.ok' , 'write/dut2.ok' , 'dut3.ok'  , new=4 , done=6 )
+	n = 4
+	ut.lmake( *(f'write/dut2-{i}' for i in range(n)) , done=n )
+
+	ut.lmake( 'write/dut.ok' , 'write/dut2.ok' , 'dut3.ok' , new=4 , done=6 )

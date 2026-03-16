@@ -677,10 +677,10 @@ void JobSpace::enter(
 		) ;
 		phy_repo_super_s_ = dir_name_s(phy_repo_root_s,src_dir_depth) ; SWEAR(phy_repo_super_s_!="/") ;
 	}
-	::string const& phy_repo_super_s   = +repo_view_s ? phy_repo_super_s_ : repo_super_s ;      // fast path : only compute phy_repo_super_s if necessary
+	::string const& phy_repo_super_s   = +repo_view_s ? phy_repo_super_s_ : repo_super_s ;                                  // fast path : only compute phy_repo_super_s if necessary
 	::string const& lmake_root_s       = lmake_view_s | phy_lmake_root_s                 ;
 	::string const& tmp_dir_s          = tmp_view_s   | phy_tmp_dir_s                    ;
-	bool            clean_tmp_dir_here = !may_mount_in_tmp                               ;      // if job may mount in tmp, we must clean tmp after umount
+	bool            clean_tmp_dir_here = !may_mount_in_tmp                               ;                                  // if job may mount in tmp, we must clean tmp after umount
 	//
 	bool bind_lmake =                 +lmake_view_s || +created_files.user_chroot_dir   ;
 	bool bind_repo  =                 +repo_view_s  || +created_files.user_chroot_dir   ;
@@ -697,19 +697,22 @@ void JobSpace::enter(
 	//
 	// if a dir (or a file) is mounted in tmp dir, we cannot directly clean it up as we should umount it beforehand to avoid unlinking the mounted info
 	// but umount is privileged, so what we do instead is forking
-	// in child , we are outside the namespace where the mount is not seen and we can clean tmp dir safely
+	// in parent, we are outside the namespace where the mount is not seen and we can clean tmp dir safely
 	if ( !clean_tmp_dir_here && +phy_tmp_dir_s ) {
 		trace("clean_tmp_process",phy_tmp_dir_s) ;
-		if ( pid_t pid=::fork() ; pid!=0 ) {                                                    // in parent
+		if ( pid_t pid=::fork() ; pid!=0 ) {                                                                                // in parent
 			throw_unless( pid!=-1 , "cannot set up to wait (",StrErr(),") to clean tmp" ) ;
-			int   wstatus   ;
-			pid_t child_pid = ::waitpid( pid , &wstatus , 0/*flags*/ );
-			if (child_pid==-1) {
-				Fd::Stderr.write(cat("cannot wait (",StrErr(),") for job to finsh")) ;
-				::_exit(+Rc::System) ;                                                          // all the cleanup is done by the child, so nothing to do here
-			}
-			unlnk( phy_tmp_dir_s , {.abs_ok=true,.dir_ok=true} ) ;                              // clean tmp from outside namespace when child is done
-			::_exit(mimic_wstatus(wstatus)) ;                                                   // all the cleanup is done by the child, so nothing to do here
+			// /!\ we are not supposed to exit this scope (in particular, dont throw), if we do, all sort of UB is to be expected
+			// /!\ it is forbidden to trace here are the trace mapping is shared with child but pointers will live independently
+			try {
+				int   wstatus   ;
+				pid_t child_pid = ::waitpid( pid , &wstatus , 0/*flags*/ ); throw_unless(child_pid!=-1 , "cannot wait (",StrErr(),") for job to finsh" ) ;
+				try { unlnk( phy_tmp_dir_s , {.abs_ok=true,.dir_ok=true} ) ; } catch (::string const&) {}                   // clean tmp from outside namespace when child is done
+				::_exit(mimic_wstatus(wstatus)) ;                                                                           // all the cleanup is done by the child, so nothing to do here
+			} catch (::string const& e) {
+				if (+e) Fd::Stderr.write(e+'\n') ;
+			} catch (...) {}
+			::_exit(+Rc::System) ;
 		}
 	}
 	//
@@ -868,7 +871,10 @@ void JobSpace::enter(
 
 void JobSpace::exit() {
 	Trace trace("JobSpace::exit",_tmp_dir_s) ;
-	if (+_tmp_dir_s) try { unlnk(_tmp_dir_s,{.abs_ok=true,.dir_ok=true}) ; } catch (::string const&) {} // best effort
+	if (+_tmp_dir_s) {
+		trace("unlink",_tmp_dir_s) ;
+		try { unlnk(_tmp_dir_s,{.abs_ok=true,.dir_ok=true}) ; } catch (::string const&) {} // best effort
+	}
 }
 
 // XXX! : implement recursive views
@@ -1294,17 +1300,24 @@ void JobStartRpcReply::update_val( ::string&/*inout*/ v , ::string const& phy_re
 }
 
 void JobStartRpcReply::update_env( ::vmap_ss&/*out*/ dyn_env , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId seq_id ) {
-	::string const& tmp_dir_s    = job_space.tmp_view_s | phy_tmp_dir_s ;
-	bool            seen_tmp_dir = !phy_tmp_dir_s                       ;
+	bool     seen_tmp_dir = false ;
+	::uset_s to_erase     ;
 	//
-	if (!phy_tmp_dir_s) ::erase_if( env , [](::pair_ss const& k_v) { return k_v.first=="TMPDIR" ; } ) ;
+	auto tmp_dir = [&]() { return no_slash(job_space.tmp_view_s|phy_tmp_dir_s) ; } ;
+	//
 	for( auto& [k,v] : env ) {
-		if      ( +phy_tmp_dir_s && k=="TMPDIR" ) { seen_tmp_dir = true ; v = no_slash(tmp_dir_s) ;                        }
-		if      ( v!=PassMrkr                   )   update_val( v , phy_repo_root_s , phy_tmp_dir_s , seq_id ) ;
-		else if ( has_env(k)                    ) { ::string ev=get_env(k) ; dyn_env.emplace_back(k,ev) ; v = ::move(ev) ; } // use value from environment (typically from slurm)
+		if (k=="TMPDIR") {
+			seen_tmp_dir = true ;
+			if (+phy_tmp_dir_s) { v = tmp_dir() ;                                              continue ; }
+		} else {
+			if (v!=PassMrkr   ) { update_val( v , phy_repo_root_s , phy_tmp_dir_s , seq_id ) ; continue ; }
+			if (has_env(k)    ) { dyn_env.emplace_back( k , v=get_env(k) ) ;                   continue ; } // use value from environment (typically from slurm)
+		}
+		to_erase.insert(k) ;
 	}
-	if (!seen_tmp_dir) env.emplace_back( "TMPDIR" , no_slash(tmp_dir_s) )                      ;
-	if (+interpreter ) update_val( interpreter[0] , phy_repo_root_s , phy_tmp_dir_s , seq_id ) ;
+	if ( +to_erase                       ) ::erase_if( env , [&](::pair_ss const& k_v) { return to_erase.contains(k_v.first) ; } ) ;
+	if ( !seen_tmp_dir && +phy_tmp_dir_s ) env.emplace_back( "TMPDIR" , tmp_dir() )                                                ;
+	if ( +interpreter                    ) update_val( interpreter[0] , phy_repo_root_s , phy_tmp_dir_s , seq_id )                 ;
 }
 
 void JobStartRpcReply::exit() {

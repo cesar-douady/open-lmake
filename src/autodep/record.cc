@@ -42,8 +42,9 @@ Fd                                          Record::_s_report_fd [2/*fast*/] ;
 pid_t                                       Record::_s_report_pid[2/*fast*/] = { 0  , 0  } ;
 
 bool Record::s_is_simple( const char* file , bool empty_is_simple , Bool3 deps_in_system ) {
-	bool   special = false        ;
-	size_t pfx_sz  = 0/*garbage*/ ;
+	//
+	bool   special = false        ;             // files in /dev, /proc, /run, /sys and /var are never considered, even when englobed in source dirs, ...
+	size_t pfx_sz  = 0/*garbage*/ ;             // ... note /tmp is not considered simple at all so repo can be put in /tmp
 	if (!file        ) return empty_is_simple ; // no file is simple (not documented, but used in practice)
 	if (!file[0]     ) return empty_is_simple ; // empty file is simple
 	if ( file[0]!='/') return false           ; // relative files are complex, in particular we dont even know relative to what (the dirfd arg is not passed in)
@@ -55,16 +56,16 @@ Restart :
 		case 'b' : if (::strncmp(file+1,"bin" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
 		case 'e' : if (::strncmp(file+1,"etc" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
 		case 'o' : if (::strncmp(file+1,"opt" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;                      // used to install 3rd party software, not a data dir
-		case 'r' : if (::strncmp(file+1,"run" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
+		case 'r' : if (::strncmp(file+1,"run" ,3)==0) { pfx_sz=5 ; special=true ; break ; } goto ReturnFalse ;
 		case 's' : if (::strncmp(file+1,"sbin",4)==0) { pfx_sz=6 ;                break ; }
 		/**/       if (::strncmp(file+1,"sys" ,3)==0) { pfx_sz=5 ; special=true ; break ; } goto ReturnFalse ;
 		case 'u' : if (::strncmp(file+1,"usr" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
-		case 'v' : if (::strncmp(file+1,"var" ,3)==0) { pfx_sz=5 ;                break ; } goto ReturnFalse ;
+		case 'v' : if (::strncmp(file+1,"var" ,3)==0) { pfx_sz=5 ; special=true ; break ; } goto ReturnFalse ;
 		case 'd' :
-			special = true ;
 			if (::strncmp(file+1,"dev",3)!=0) goto ReturnFalse ;                                                                    // not in /dev  => not simple
 			if (!file[4]                    ) return true      ;                                                                    // /dev         =>     simple
 			if (file[4]!='/'                ) goto ReturnFalse ;                                                                    // false prefix => not simple
+			special = true ;
 			switch (file[5]) {
 				case 'f' : if ( ::strncmp(file+5,"fd",2   )==0 && (!file[7]||file[7]=='/') ) goto ReturnFalse ; break ;             // in /dev/fd   => not simple
 				case 'r' : if ( ::strcmp (file+5,"random" )==0                             ) return false     ; break ;             // /dev/random  => not simple
@@ -87,10 +88,10 @@ Restart :
 			else                                   pfx_sz = 5 ;                                                                     // in lib      =>     simple
 		break ;
 		case 'p' :                                                  // for /proc, must be a somewhat surgical because of jemalloc accesses and making these simple is the easiest way to avoid malloc's
-			special = true ;
 			if ( ::strncmp(file+1,"proc",4)!=0 ) goto ReturnFalse ; // not in /proc            => not simple
 			if ( !file[5]                      ) return true      ; // /proc                   =>     simple
 			if ( file[5]!='/'                  ) goto ReturnFalse ; // false prefix            => not simple
+			special = true ;
 			if ( file[6]>='0' && file[6]<='9'  ) goto ReturnFalse ; // probably in /proc/<pid> => not simple
 			if ( ::strncmp(file+6,"self",4)==0 ) goto ReturnFalse ; // probably in /proc/self  => not simple
 			pfx_sz = 6 ;

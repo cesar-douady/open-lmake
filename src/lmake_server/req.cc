@@ -514,7 +514,7 @@ namespace Engine {
 
 	void ReqData::audit_job( Color c , Pdate date , ::string const& step , ::string const& rule_name , ::string const& job_name , in_addr_t host , ::string const& tag , Delay exe_time ) const {
 		::string msg ;
-		::string h   = SockFd::s_host(host) ; if (+tag) h << ':'<<tag ;
+		::string h   = SockFd::s_host(host) ; if ( +tag) h << ':'<<tag ;
 		if (g_config->console.date_prec!=uint8_t(-1)) msg <<            date.str(g_config->console.date_prec,true/*in_day*/)                             <<' ' ;
 		if (g_config->console.host_len              ) msg <<      widen(h                                                   ,g_config->console.host_len) <<' ' ;
 		/**/                                          msg <<      widen(step                                                ,StepSz                    )       ;

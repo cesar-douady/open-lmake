@@ -140,6 +140,7 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 	_Dvg in_repo { _env->repo_root_s , real } ;                           // keep track of where we are w.r.t. repo , track symlinks according to lnk_support policy
 	_Dvg in_tmp  { tmp_dir_s         , real } ;                           // keep track of where we are w.r.t. tmp  , always track symlinks
 	_Dvg in_proc { "/proc/"          , real } ;                           // keep track of where we are w.r.t. /proc, always track symlinks
+	_Dvg in_dev  { "/dev/"           , real } ;                           // keep track of where we are w.r.t. /proc, always track symlinks
 	// loop INVARIANT : accessed file is real+'/'+file.substr(pos)
 	// when pos>file.size(), we are done and result is real
 	size_t   end      ;
@@ -151,6 +152,7 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 		,	in_repo.update( _env->repo_root_s , real )                    // all domains start only when inside, i.e. the domain root is not part of the domain
 		,	in_tmp .update( tmp_dir_s         , real )                    // .
 		,	in_proc.update( "/proc/"          , real )                    // .
+		,	in_dev .update( "/dev/"           , real )                    // .
 	) {
 		end = file.file.find( '/' , pos ) ;
 		bool last = end==Npos ;
@@ -167,10 +169,10 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 		size_t src_idx        = Npos        ;                             // Npos means not in a source dir
 		real.push_back('/')           ;
 		real.append(file.file,pos,end-pos) ;
-		if ( !exists             ) continue       ;                       // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
-		if ( no_follow && last   ) continue       ;                       // dont care about last component if no_follow
-		if ( +in_tmp || +in_proc ) goto HandleLnk ;                       // note that tmp can lie within repo
-		if ( +in_repo            ) {
+		if ( !exists                        ) continue       ;            // if !exists, no hope to find a symbolic link but continue cleanup of empty, . and .. components
+		if ( no_follow && last              ) continue       ;            // dont care about last component if no_follow
+		if ( +in_tmp || +in_proc || +in_dev ) goto HandleLnk ;            // note that tmp can lie within repo
+		if ( +in_repo                       ) {
 			if (real.size()<_repo_root_sz) continue ;                     // at repo root, no sym link to handle
 		} else {
 			src_idx = _find_src_idx(real) ;
@@ -192,7 +194,7 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 			// - d & d/e will be indrectly depended on through caller depending on d/e/f (the real accessed file returned as the result)
 			continue ;
 		}
-		if ( !in_tmp && !in_proc ) {
+		if ( !in_tmp && !in_proc && !in_dev ) {
 			// if not in repo, real lie in a source dir
 			if      (!in_repo                                                    ) lnks.push_back( _env->src_dirs_s[src_idx] + substr_view(real,_abs_src_dirs_s[src_idx].size()) ) ;
 			else if (_lcl_file_loc(substr_view(real,_repo_root_sz))<=FileLoc::Dep) lnks.push_back( real.substr(_repo_root_sz)                                                    ) ;
@@ -209,6 +211,7 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 	// tmp may be in_repo, repo root is in_repo
 	if      (+in_tmp ) res.file_loc = FileLoc::Tmp  ;
 	else if (+in_proc) res.file_loc = FileLoc::Proc ;
+	else if (+in_dev ) res.file_loc = FileLoc::Proc ;                     // /dev is like /proc (typically /dev/fd or /dev/stdin,stdout,stderr) or they have already been filtered-out as simple
 	else if (+in_repo) {
 		if (real.size()<_repo_root_sz) {
 			res.file_loc = FileLoc::RepoRoot ;
