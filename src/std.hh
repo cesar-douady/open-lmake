@@ -42,6 +42,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <semaphore>
 #include <set>
 #include <shared_mutex>
 #include <span>
@@ -64,6 +65,7 @@ using std::atomic                              ;
 using std::atomic_signal_fence                 ;
 using std::basic_string                        ;
 using std::basic_string_view                   ;
+using std::binary_semaphore                    ;
 using std::bit_ceil                            ;
 using std::bit_width                           ;
 using std::chars_format                        ;

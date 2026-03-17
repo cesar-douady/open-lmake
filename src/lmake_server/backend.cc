@@ -794,11 +794,11 @@ namespace Backends {
 				goto Next ;
 			}
 		Wakeup :
-			if (now-start_date<started_min_job_age) continue ;                 // job is too young ==> no check, no wait
+			if (now-start_date<started_min_job_age) continue ;                                                           // job is too young ==> no check, no wait
 			_s_wakeup_remote(job,conn,start_date,JobMngtProc::Heartbeat) ;
 		Next :
-			if (g_config->heartbeat_tick.sleep_for(stop)) continue ;           // limit job checks
-			else                                          break    ;
+			g_config->heartbeat_tick.sleep_for(stop,false/*flush*/) ;
+			continue ;
 		WrapAround :
 			for( Tag t : iota(All<Tag>) ) if (s_ready(t)) {
 				TraceLock lock { _s_mutex , BeChnl , "_heartbeat_thread_func2" } ;
@@ -812,15 +812,14 @@ namespace Backends {
 				/**/      Job         last_dyn_job   = Rule::s_last_dyn_job  ;
 				/**/      const char* last_dyn_msg   = Rule::s_last_dyn_msg  ;
 				/**/      Rule        last_dyn_rule  = Rule::s_last_dyn_rule ;
-				fence() ; Pdate       last_dyn_date2 = Rule::s_last_dyn_date ; // resample atomic value after associated info
-				if ( last_dyn_date2==last_dyn_date ) {                         // when both dates are equal, we are sure job and msg are associated to it
+				fence() ; Pdate       last_dyn_date2 = Rule::s_last_dyn_date ;                                           // resample atomic value after associated info
+				if ( last_dyn_date2==last_dyn_date ) {                                                                   // when both dates are equal, we are sure job and msg are associated to it
 					if (+last_dyn_job) Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_job ->name     (),'\n')) ;
 					else               Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_rule->user_name(),'\n')) ;
 				}
 			}
 			//
-			if ((last_wrap_around+g_config->heartbeat).sleep_until(stop,false/*flush*/)) { last_wrap_around = Pdate(New) ; continue ; } // limit job checks
-			else                                                                                                           break    ;
+			if ((last_wrap_around+g_config->heartbeat).sleep_until(stop,false/*flush*/)) last_wrap_around = Pdate(New) ; // limit job checks
 		}
 		trace("done") ;
 	}

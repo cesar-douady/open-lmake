@@ -722,10 +722,10 @@ namespace Engine {
 					lvl-- ;
 					if (porcelaine) { audit( fd , ro , "  }" , true/*as_is*/ , lvl ) ; firsts.pop_back() ; }
 				}
-			} else if ( verbose || node->status()<=NodeStatus::Makable ) { //!                                                                                              as_is
-				if      (porcelaine) audit( fd , ro ,                               cat(firsts.back()("  ",", "),mk_py_str(node->name())," : ",buildable?"True":"False") , true  , lvl ) ;
-				else if (verbose   ) audit( fd , ro , !buildable?CH:is_src?CN:CW  , cat(buildable?'+':'!',' '   ,mk_file  (node->name())                               ) , false , lvl ) ;
-				else                 audit( fd , ro , !buildable?CH:is_src?CN:CW  ,                              mk_file  (node->name())                                 , false , lvl ) ;
+			} else if ( verbose || node->status()<=NodeStatus::Makable ) { //!                                                                                            as_is
+				if      (porcelaine) audit( fd , ro ,                              cat(firsts.back()("  ",", "),mk_py_str(node->name())," : ",buildable?"True":"False") , true  , lvl ) ;
+				else if (verbose   ) audit( fd , ro , !buildable?CH:is_src?CN:CW , cat(buildable?'+':'!',' '   ,mk_file  (node->name())                               ) , false , lvl ) ;
+				else                 audit( fd , ro , !buildable?CH:is_src?CN:CW ,                              mk_file  (node->name())                                 , false , lvl ) ;
 			}
 		}
 	} ;

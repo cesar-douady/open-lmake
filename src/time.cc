@@ -102,6 +102,12 @@ namespace Time {
 		/**/                      return "forevr"                                                             ; // ensure  size is 6
 	}
 
+	void Delay::sleep_for() const {
+		if (_val<=0) return ;
+		TimeSpec ts(self) ;
+		::nanosleep(&ts,nullptr/*rem*/) ;
+	}
+
 	//
 	// CoarseDelay
 	//
@@ -192,6 +198,17 @@ namespace Time {
 			_s_min_next.fetch_max(now.val()) ;
 		#endif
 		self = Pdate(New,_s_min_next++) ;
+	}
+
+	bool/*slept*/ Pdate::sleep_until( ::stop_token stkn , bool flush ) const { // if flush, consider we slept even if stop requested, as long as sleep is not necessary
+		Pdate              now { New                           } ; if (self<=now) return flush || !stkn.stop_requested() ;
+		::binary_semaphore sem { 0                             } ;
+		::stop_callback    cb  { stkn , [&]{ sem.release() ; } } ;             // called when stop is requested
+		for(; self>now ; now=New ) {
+			if (stkn.stop_requested()) return false/*slept*/ ;
+			sem.try_acquire_for(::chrono::nanoseconds((self-now).nsec())) ;
+		}
+		return true/*slept*/ ;
 	}
 
 }

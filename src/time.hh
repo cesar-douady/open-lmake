@@ -338,21 +338,8 @@ namespace Time {
 	inline constexpr Date Delay::operator+(Date d) const {
 		return Date(New,_val+d._val) ;
 	}
-	inline bool/*slept*/ Delay::_s_sleep( ::stop_token stkn , Delay sleep , Pdate until , bool flush ) { // if flush, consider we slept if asked to stop but we do not have to wait
-		if (sleep<=Delay()) return flush || !stkn.stop_requested() ;
-		Mutex<> m   ;
-		Lock    lck { m } ;
-		::condition_variable_any cv  ;
-		bool slept = cv.wait_for( lck , stkn , ::chrono::nanoseconds(sleep.nsec()) , [until](){ return Pdate(New)>=until ; } ) ;
-		return slept ;
-	}
 	inline bool/*slept*/ Delay::sleep_for( ::stop_token stkn , bool flush ) const {                      // if flush, consider we slept if asked to stop but we do not have to wait
-		return _s_sleep( stkn , self , Pdate(New)+self , flush ) ;
-	}
-	inline void Delay::sleep_for() const {
-		if (_val<=0) return ;
-		TimeSpec ts(self) ;
-		::nanosleep(&ts,nullptr/*rem*/) ;
+		return (Pdate(New)+self).sleep_until( stkn , flush ) ;
 	}
 	template<class T> requires(::is_arithmetic_v<T>) constexpr Delay Delay::operator*(T f) const { return Delay(New,int64_t(_val*                   f )) ; }
 	template<class T> requires(::is_signed_v    <T>) constexpr Delay Delay::operator/(T f) const { return Delay(New,int64_t(_val/                   f )) ; }
@@ -368,8 +355,7 @@ namespace Time {
 	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,Delay::Tick(_val   -other._val   )) ; }
 	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,Delay::Tick(_date()-other._date())) ; }
 	//
-	inline bool/*slept*/ Pdate::sleep_until( ::stop_token stkn , bool flush ) const { return Delay::_s_sleep( stkn , self-Pdate(New) , self , flush ) ; } // if flush, consider we slept if asked ...
-	inline void          Pdate::sleep_until(                                ) const { (self-Pdate(New)).sleep_for()                                   ; } // ... to stop but we do not have to wait
+	inline void Pdate::sleep_until() const { (self-Pdate(New)).sleep_for() ; }
 
 	//
 	// Ddate
