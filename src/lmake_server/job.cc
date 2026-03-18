@@ -358,7 +358,7 @@ namespace Engine {
 			ReqInfo& ri = self->req_info(req) ;
 			if ( ri.live_out && ri.miss_live_out ) {
 				live_out(ri,txt) ;                   // report missed info
-				ri.miss_live_out = false ;           // we are now up to date with reports
+				ri.miss_live_out = false ;           // we are now up-to-date with reports
 			}
 		}
 	}

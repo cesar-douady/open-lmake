@@ -189,7 +189,7 @@ we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the b
 	- `Node::make`  : analyze a Node, calling Job::make on job candidates that can produce it
 		- calls `Job::make` on Job candidates (down-hill recursion)
 		- calls `Job::make` on Job's waiting for it as a dep (up-hill recursion)
-	- `Job::make`   : analyze a Job, looking at deps and calling submit if necessary, and waking up dependents if up to date
+	- `Job::make`   : analyze a Job, looking at deps and calling submit if necessary, and waking up dependents if up-to-date
 		- calls `Node::make` on all deps (down-hill recursion)
 		- calls `Job::submit`
 		- calls `Node::make` on targets just made up-to-date (up-hill recursion)

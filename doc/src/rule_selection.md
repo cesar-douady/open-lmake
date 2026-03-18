@@ -5,7 +5,7 @@
 
 # Rule selection
 
-When open-lmake needs to ensure that a file is up to date, the first action is to identify which rule, if any, must be used to generate it.
+When open-lmake needs to ensure that a file is up-to-date, the first action is to identify which rule, if any, must be used to generate it.
 This rule selection process works in several steps described below.
 
 A file is deemed buildable if the rule selection process leads to a job that generates the file.

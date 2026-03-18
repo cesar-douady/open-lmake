@@ -156,7 +156,7 @@ However, imagine the following scenario:
 - you build `foo.o`
 
 In that case, there is a dependency to `dir2/my_lib.h`, but not to `dir1/my_lib.h`.
-Build systems relying on such use of `gcc -M` (including `bazel` as this part is left to the user) will incorrectly consider `foo.o` as up to date.
+Build systems relying on such use of `gcc -M` (including `bazel` as this part is left to the user) will incorrectly consider `foo.o` as up-to-date.
 This is in contradiction with `bazel` advertising "speed through correctness".
 
 Open-lmake correctly maintains a dependency to `dir1/my_lib.h`, in addition to `dir2/my_lib.h`.

@@ -69,7 +69,7 @@ ClientOptions(job,color)
 SpecificOptions
 
 Item(B_(-a),B_(--archive))
-Ensure all intermediate files are up to date, in addition to the asked targets.
+Ensure all intermediate files are up-to-date, in addition to the asked targets.
 This is useful for example if you want to archive a fully built repo.
 
 Item(B_(-b) I_(value),B_(--backend)=I_(value))

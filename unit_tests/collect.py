@@ -59,7 +59,7 @@ else :
 
 	print('step=1',file=open('step.py','w'))
 
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2   ) # check targets are out of date
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2   ) # check targets are out-of-date
 
 	os.makedirs('to_collect1',exist_ok=True)
 	open('to_collect1/a','w')

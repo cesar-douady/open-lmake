@@ -107,7 +107,7 @@ namespace Engine {
 				}
 			} break ;
 		DF}                                              // NO_COV
-		if (!query) SWEAR(stamp) ;                       // so ri.manual is guaranteed up to date after manual_wash with !query
+		if (!query) SWEAR(stamp) ;                       // so ri.manual is guaranteed up-to-date after manual_wash with !query
 		if (stamp) {
 			if ( +res && res!=ri.manual ) Trace trace("manual_wash",idx(),"stamp",res) ;
 			ri.manual = res ;

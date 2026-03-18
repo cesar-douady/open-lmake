@@ -205,7 +205,7 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::ClashTarget        , "multiple simultaneous writes"               }
 // with dep
 ,	{ JobReasonTag::BusyDep            , "waiting dep"                                }
-,	{ JobReasonTag::DepOutOfDate       , "dep out of date"                            }
+,	{ JobReasonTag::DepOutOfDate       , "dep out-of-date"                            }
 ,	{ JobReasonTag::DepTransient       , "dep dir is a symbolic link"                 }
 ,	{ JobReasonTag::DepUnlnked         , "dep not on disk"                            }
 ,	{ JobReasonTag::DepUnstable        , "dep changed during job execution"           }

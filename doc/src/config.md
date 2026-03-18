@@ -137,8 +137,8 @@ Values contain the module name optionnaly followed by a human description (that 
 This attribute instruct open-lmake to take some margin (expressed in seconds) when it must rely on file dates to decide about event orders.
 It must account for file date granularity (generally a few ms) and date discrepancy between executing hosts and disk servers (generally a few ms when using NTP).
 
-- If too low, there are risks that open-lmake consider that data read by a job are up to date while they have been modified shortly after.
-- If too high, there is a small impact on performance as open-lmake will consider out of date data that are actually up to date.
+- If too low, there are risks that open-lmake consider that data read by a job are up-to-date while they have been modified shortly after.
+- If too high, there is a small impact on performance as open-lmake will consider out-of-date data that are actually up-to-date.
 
 The default value should be safe in usual cases and user should hardly need to modify it.
 

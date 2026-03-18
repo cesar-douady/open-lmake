@@ -90,8 +90,8 @@ else :
 			size = 1<<20
 		''')[1:],file=open('CACHE/LMAKE/config.py','w'))
 
-		ut.lmake( 'hello+auto1.hide.ok' , done=4 , may_rerun=1 , new=2 ) # check target is out of date
-		ut.lmake( 'hello+auto1.hide.ok' , done=0                       ) # check target is up to date
+		ut.lmake( 'hello+auto1.hide.ok' , done=4 , may_rerun=1 , new=2 ) # check target is out-of-date
+		ut.lmake( 'hello+auto1.hide.ok' , done=0                       ) # check target is up-to-date
 		ut.lmake( 'mkdir.dut.ok'        , done=2 ,               new=1 ) # check everything is ok with dirs and empty files
 
 		os.system('find CACHE -type f -ls')

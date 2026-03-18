@@ -46,18 +46,18 @@ else :
 	sp.run(('lmark','-f','-c'           ),check=True) ; None                              ; ut.lmake( 'src.cpy2' ,                    done=2 )
 
 	# no-trigger
-	None                                                             ; print(5,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check out of date
-	None                                                             ; print(6,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check up to date
-	sp.run(('lmark','-t','-a','src'),check=True)                     ; None                          ; ut.lmake( 'src.cpy'                      ) # check up to date
-	None                                                             ; print(7,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up to date despite src modified
-	sp.run(('lmark','-t','-d','src'),check=True)                     ; None                          ; ut.lmake( 'src.cpy' ,             done=1 ) # check out of date now that src is no more no-trigger
-	sp.run(('lmark','-t','-a','src'),check=True)                     ; None                          ; ut.lmake( 'src.cpy'                      ) # check up to date
+	None                                                             ; print(5,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check out-of-date
+	None                                                             ; print(6,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check up-to-date
+	sp.run(('lmark','-t','-a','src'),check=True)                     ; None                          ; ut.lmake( 'src.cpy'                      ) # check up-to-date
+	None                                                             ; print(7,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up-to-date despite src modified
+	sp.run(('lmark','-t','-d','src'),check=True)                     ; None                          ; ut.lmake( 'src.cpy' ,             done=1 ) # check out-of-date now that src is no more no-trigger
+	sp.run(('lmark','-t','-a','src'),check=True)                     ; None                          ; ut.lmake( 'src.cpy'                      ) # check up-to-date
 	x = sp.check_output(('lmark','-t','-l'),universal_newlines=True) ; assert 'src' in x
-	None                                                             ; print(8,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up to date despite src modified
-	sp.run(('lmark','-t','-c'      ),check=True)                     ; None                          ; ut.lmake( 'src.cpy' ,             done=1 ) # check out of date now that src is no more no-trigger
+	None                                                             ; print(8,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1          ) # check up-to-date despite src modified
+	sp.run(('lmark','-t','-c'      ),check=True)                     ; None                          ; ut.lmake( 'src.cpy' ,             done=1 ) # check out-of-date now that src is no more no-trigger
 
 	# manual
-	None                              ; ut.lmake( 'src.cpy2' ,             done=1        ) # check src.cpy up to date
-	print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                             ) # check up to date, therefore no check
-	print(9,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy2' , changed=1 , done=2 , rc=0 ) # check out of date, therefore manual (quarantined)
-	print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                             ) # check up to date
+	None                              ; ut.lmake( 'src.cpy2' ,             done=1        ) # check src.cpy is up-to-date
+	print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                             ) # check up-to-date, therefore no check
+	print(9,file=open('src'    ,'w')) ; ut.lmake( 'src.cpy2' , changed=1 , done=2 , rc=0 ) # check out-of-date, therefore manual (quarantined)
+	print(0,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2'                             ) # check up-to-date

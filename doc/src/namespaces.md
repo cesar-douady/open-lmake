@@ -21,7 +21,7 @@ Namespaces can be used in the following situations :
   This is current practice, in particular in the EDA tools community (which may be rather heavy and where caching is mostly desirable).
   Using the `repo_view` attribute is an effective way to circumvent this obstacle.
 - Open-lmake tracks all deps inside the reposity and listed source dirs. But it does not track external deps, typically the system (e.g.the `/usr` dir).
-  However, the `chroot_dir` attribute is part of the command definition and a job will be considered out of date if its value is modified.
+  However, the `chroot_dir` attribute is part of the command definition and a job will be considered out-of-date if its value is modified.
   Hence, this can be used as a marker representing the whole system to ensure jobs are rerun upon system updates.
 - some software packagess (e.g. EDA tools) are designed to operate on a dir rather than dealing with distinct input and output files/dirs.
   This goes against reentrancy and thus reliability, repeatability, parallelism etc.

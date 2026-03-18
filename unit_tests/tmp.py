@@ -91,6 +91,6 @@ else :
 
 	import ut
 
-	ut.lmake      ( 'ok1','ok2' , done=6             ) # check target is out of date
+	ut.lmake      ( 'ok1','ok2' , done=6             ) # check target is out-of-date
 	cnt = ut.lmake( 'test.chk'  , done=3 , rerun=... )
 	assert cnt.rerun<=1                                # test.dir/d/b may (rarely) be hot as it is very recent and not an already known dep

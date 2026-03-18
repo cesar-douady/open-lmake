@@ -343,35 +343,36 @@ namespace Engine {
 		// data
 	public :
 		InfoMap<Job >        jobs           ;
-		InfoMap<Node>        nodes          ;                     // nodes are observed in job start thread
+		InfoMap<Node>        nodes          ;                       // nodes are observed in job start thread
 		Idx                  idx_by_start   = Idx(-1)           ;
 		Idx                  idx_by_eta     = Idx(-1)           ;
-		Job                  job            ;                     // owned if job->rule->special==Special::Req
+		Job                  job            ;                       // owned if job->rule->special==Special::Req
 		::vector_s           files          ;
 		::umap<Job,JobAudit> missing_audits ;
 		ReqStats             stats          ;
-		Fd                   audit_fd       ;                     // to report to user
-		AcFd                 log_fd         ;                     // saved output
-		Job mutable          last_info      ;                     // used to identify last message to generate an info line in case of ambiguity
+		Fd                   audit_fd       ;                       // to report to user
+		AcFd                 log_fd         ;                       // saved output
+		Job mutable          last_info      ;                       // used to identify last message to generate an info line in case of ambiguity
 		ReqOptions           options        ;
 		Pdate                start_pdate    ;
 		Ddate                start_ddate    ;
-		Pdate                et1            ;                     // Estimated Time of Arrival
-		Delay                et2            ;                     // Estimated Time Enroute
-		::umap<Rule,JobIdx>  ete_n_rules    ;                     // number of jobs participating to stats.ete with exec_time from rule
-		::set_s              refresh_codecs ;                     // codec files that must be refreshed at end of execution
+		Pdate                et1            ;                       // Estimated Time of Arrival
+		Delay                et2            ;                       // Estimated Time Enroute
+		::umap<Rule,JobIdx>  ete_n_rules    ;                       // number of jobs participating to stats.ete with exec_time from rule
+		::set_s              refresh_codecs ;                       // codec files that must be refreshed at end of execution
 		uint16_t             n_runs         = 0                 ;
 		uint16_t             n_submits      = 0                 ;
 		uint8_t              n_retries      = 0                 ;
-		uint8_t              nice           = -1                ; // -1 means not specified (legal values are between 0 and 20)
+		uint8_t              nice           = -1                ;   // -1 means not specified (legal values are between 0 and 20)
 		CacheMethod          cache_method   = CacheMethod::Dflt ;
 		bool                 has_backend    = false             ;
 		// summary
-		::vector<Node>                   up_to_dates  ;           // asked nodes already done when starting
-		OrderedSet<Job >                 frozen_jobs  ;           // frozen     jobs                                   (value is just for summary ordering purpose)
-		OrderedSet<Node>                 frozen_nodes ;           // frozen     nodes                                  (value is just for summary ordering purpose)
-		OrderedSet<Node>                 no_triggers  ;           // no-trigger nodes                                  (value is just for summary ordering purpose)
-		OrderedMap<Node,::pair<Job,Job>> clash_nodes  ;           // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
+		bool                             job_up_to_date   = false ; // asked job   already done when starting
+		::vector<Node>                   node_up_to_dates ;         // asked nodes already done when starting
+		OrderedSet<Job >                 frozen_jobs      ;         // frozen     jobs                                   (value is just for summary ordering purpose)
+		OrderedSet<Node>                 frozen_nodes     ;         // frozen     nodes                                  (value is just for summary ordering purpose)
+		OrderedSet<Node>                 no_triggers      ;         // no-trigger nodes                                  (value is just for summary ordering purpose)
+		OrderedMap<Node,::pair<Job,Job>> clash_nodes      ;         // nodes that have been written by simultaneous jobs (value is just for summary ordering purpose)
 	} ;
 
 }

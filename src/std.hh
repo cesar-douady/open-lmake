@@ -261,10 +261,10 @@ template<class T> constexpr          void              stable_sort  ( T      & x
 template<class T> constexpr          void              stable_sort  ( T      & x                                     ) {        ::stable_sort  ( x.begin() , x.end()            ) ; }
 template<class T> constexpr typename T::iterator       copy         ( T const& s , typename T::iterator d            ) { return ::copy         ( s.begin() , s.end() , d        ) ; }
 
-template<class V,class T> V  max( T const& x , ::function<V(VT const&)> val , V  init={} ) { for( auto const& v : x ) init = ::max(init,val(v)) ; return ::move(init) ; }
-template<class V,class T> V  min( T const& x , ::function<V(VT const&)> val , V  init={} ) { for( auto const& v : x ) init = ::min(init,val(v)) ; return ::move(init) ; }
-template<        class T> VT max( T const& x ,                                VT init={} ) { for( auto const& v : x ) init = ::max(init,    v ) ; return ::move(init) ; }
-template<        class T> VT min( T const& x ,                                VT init={} ) { for( auto const& v : x ) init = ::min(init,    v ) ; return ::move(init) ; }
+template<class V,class T> V  max( T const& x , ::function<V(VT const&)> val , V  init={} ) { for( auto const& v : x ) init = ::max(init,val(v)) ; return init ; }
+template<class V,class T> V  min( T const& x , ::function<V(VT const&)> val , V  init={} ) { for( auto const& v : x ) init = ::min(init,val(v)) ; return init ; }
+template<        class T> VT max( T const& x ,                                VT init={} ) { for( auto const& v : x ) init = ::max(init,    v ) ; return init ; }
+template<        class T> VT min( T const& x ,                                VT init={} ) { for( auto const& v : x ) init = ::min(init,    v ) ; return init ; }
 
 #undef DFLT_PRED
 #undef FUNC

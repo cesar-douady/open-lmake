@@ -41,4 +41,4 @@ else :
 	print('hello',file=open('{hello}{}','w'))
 	print('world',file=open('{world}{}','w'))
 
-	ut.lmake( '{hello}{}{world}_sh' , '{hello}{}{world}_py' , done=2 , new=2 ) # check targets are out of date
+	ut.lmake( '{hello}{}{world}_sh' , '{hello}{}{world}_py' , done=2 , new=2 ) # check targets are out-of-date

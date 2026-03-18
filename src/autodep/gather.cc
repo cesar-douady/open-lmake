@@ -49,6 +49,10 @@ Accesses Gather::AccessInfo::accesses() const {
 	return res ;
 }
 
+bool Gather::AccessInfo::allow() const {
+	return _allow<_max_write() && ( _write<_write_ignore || ::min(_read,Pdate::Future)<_read_ignore ) ;
+}
+
 Pdate Gather::AccessInfo::first_read(bool with_readdir) const {
 	PD    res = PD::Future               ;
 	Pdate mr  = _max_read(false/*phys*/) ;
@@ -120,15 +124,15 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 }                                                         // END_OF_NO_COV
 
 void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Bool3 late , Comment c , CommentExts ces ) {
-	SWEAR( +file , c , ces        ) ;
-	SWEAR( +pd   , c , ces , file ) ;
+	SWEAR( +file , c,ces      ) ;
+	SWEAR( +pd   , c,ces,file ) ;
 	if (late==Maybe) SWEAR( ad.write==No ) ;                                                                          // when writing, we must know if job is started
-	size_t                old_sz   = accesses.size()  ;
+	size_t                old_sz    = accesses.size()            ;
 	::pair_s<AccessInfo>& file_info = _access_info(::move(file)) ;
-	bool                  is_new   = accesses.size() > old_sz    ;
-	::string       const& f        = file_info.first             ;
-	AccessInfo&           info     = file_info.second            ;
-	AccessInfo            old_info = info                        ;                                                    // for tracing only
+	bool                  is_new    = accesses.size() > old_sz   ;
+	::string       const& f         = file_info.first            ;
+	AccessInfo&           info      = file_info.second           ;
+	AccessInfo            old_info  = info                       ;                                                    // for tracing only
 	if (ad.write==Maybe) {
 		// wait until file state can be safely inspected as in case of interrupted write, syscall may continue past end of process
 		// this may be long, but is exceptionnal
@@ -154,10 +158,10 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 
 Gather::Digest Gather::analyze(Status status) {
 	Trace trace("analyze",status,accesses.size()) ;
-	Digest  res                   ;                 res.deps.reserve(accesses.size()) ;                            // typically most of accesses are deps
-	Pdate   prev_first_read       = Pdate::Future ;
-	bool    readdir_warned        = false         ;
-	bool    seen_unexpected_write = false         ;
+	Digest res                   ;                 res.deps.reserve(accesses.size()) ;                             // typically most of accesses are deps
+	Pdate  prev_first_read       = Pdate::Future ;
+	bool   readdir_warned        = false         ;
+	bool   seen_unexpected_write = false         ;
 	//
 	reorder(status!=Status::New) ;
 	for( auto& [file,info] : accesses ) {
@@ -195,11 +199,12 @@ Gather::Digest Gather::analyze(Status status) {
 		//
 		if (file==".") continue ;                                                                                  // . is only reported when reading dir but otherwise is an external file
 		//
-		Pdate first_read = info.first_read(false/*with_readdir*/)                                               ;
-		bool  was_read   = first_read<Pdate::Future                                                             ;
-		bool  is_dep     = force_is_dep || +accesses || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
-		bool  allow      = info.allow()                                                                         ;
-		bool  is_tgt     = was_written || allow                                                                 ;
+		Pdate first_read    = info.first_read(false/*with_readdir*/)                                               ;
+		bool  was_read      = first_read<Pdate::Future                                                             ;
+		bool  is_dep        = force_is_dep || +accesses || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
+		bool  allow         = info.allow()                                                                         ;
+		bool  is_static_tgt = flags.tflags[Tflag::Target] && flags.tflags[Tflag::Static]                           ;
+		bool  is_tgt        = was_written || allow || is_static_tgt                                                ;
 		//
 		if ( !is_dep && !is_tgt ) {
 			trace("ignore ",file) ;
@@ -236,11 +241,16 @@ Gather::Digest Gather::analyze(Status status) {
 		}
 		// handle targets
 		if (is_tgt) {
-			FileStat     st        ;                                                                                                  if (::lstat(file.c_str(),/*out*/&st)!=0) st.st_mode = 0 ;
-			FileSig      sig       { st }                                                                                           ;
-			TargetDigest td        { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags }                                      ;
-			bool         unlnk     = !sig                                                                                           ;
-			bool         mandatory = td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ;
+			FileStat st ;
+			int      rc = ::lstat(file.c_str(),/*out*/&st) ;
+			if (rc!=0) {
+				if (errno!=ENOENT) res.msg << "cannot access ("<<StrErr()<<") "<<file ;
+				st.st_mode = 0 ;
+			}
+			//
+			FileSig      sig   { st }                                                      ;
+			TargetDigest td    { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags } ;
+			bool         unlnk = !sig                                                      ;
 			//
 			if (is_dep) td.tflags    |= Tflag::Incremental                            ;                            // if is_dep, previous target state is guaranteed by being a dep, use it
 			/**/        td.pre_exist  = info.seen() && !td.tflags[Tflag::Incremental] ;
@@ -286,7 +296,7 @@ Gather::Digest Gather::analyze(Status status) {
 				if ( status<=Status::Garbage || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
 				else                                                          res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
 			}
-			if ( mandatory && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                     // target is expected, not produced and no more important reason
+			if ( is_static_tgt && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                 // target is expected, not produced and no more important reason
 				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                 // warn specifically
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets.emplace_back(file,td) ;
@@ -310,7 +320,7 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=
 	Trace trace("_send_to_server",fd,jerr) ;
 	//
 	if (!jerr.sync) fd = {} ;                                                                             // dont reply if not sync
-	JobMngtRpcReq jmrr   ;
+	JobMngtRpcReq jmrr ;
 	jmrr.seq_id = seq_id ;
 	jmrr.job    = job    ;
 	jmrr.fd     = fd     ;

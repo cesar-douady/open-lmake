@@ -607,7 +607,7 @@ namespace Engine {
 									case Manual::Modif   : state.reason |= {JobReasonTag::DepUnstable,+dep} ; dep_err = RunStatus::DepError ; trace("dangling",dep,cdri->manual) ; break ;
 									case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                                 trace("unlnked" ,dep             ) ; break ;
 								DN}
-							} else if ( dep_modif && at_end && dep_missing_dsk ) {       // dep out of date but we do not wait for it being rebuilt
+							} else if ( dep_modif && at_end && dep_missing_dsk ) {       // dep out-of-date but we do not wait for it being rebuilt
 								dep_goal = NodeGoal::Dsk ;                               // we must ensure disk integrity for detailed analysis
 								trace("restart_dep",dep) ;
 								goto RestartDep/*BACKWARD*/ ;
@@ -1282,7 +1282,7 @@ namespace Engine {
 		Trace trace("Jforget",idx(),STR(targets_),STR(deps_)) ;
 		for( [[maybe_unused]] Req r : running_reqs() ) return false ; // ensure job is not running
 		status = Status::New ;
-		fence() ;                                                     // once status is New, we are sure target is not up to date, we can safely modify it
+		fence() ;                                                     // once status is New, we are sure target is not up-to-date, we can safely modify it
 		run_status = RunStatus::Ok ;
 		if (deps_) {
 			::vector<Dep> static_deps ;

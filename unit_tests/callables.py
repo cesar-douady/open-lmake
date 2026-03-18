@@ -49,6 +49,6 @@ else :
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
 
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 ) # check targets are out of date
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 ) # check targets are up to date
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=2 , new=2 ) # check targets are out-of-date
+	ut.lmake( 'hello+world_sh' , 'hello+world_py' , done=0 , new=0 ) # check targets are up-to-date
 	ut.lmake( 'hello+hello_sh' , 'world+world_py' , done=2         ) # check reconvergence

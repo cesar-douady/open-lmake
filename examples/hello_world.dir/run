@@ -17,8 +17,8 @@ except :
 	def lmake(*cmd_line,**kwds) :
 		sp.run( ('lmake',)+cmd_line , stdin=None )
 
-lmake( 'hello-world-sh' , 'hello-world-py' , done=2 , new=2 )     # check targets are out of date : 2 new sources (hello and world), 2 new targets
-lmake( 'hello-world-sh' , 'hello-world-py' , done=0 , new=0 )     # check targets are up to date : nothing has changed, nothing is remade
+lmake( 'hello-world-sh' , 'hello-world-py' , done=2 , new=2 )     # check targets are out-of-date : 2 new sources (hello and world), 2 new targets
+lmake( 'hello-world-sh' , 'hello-world-py' , done=0 , new=0 )     # check targets are up-to-date : nothing has changed, nothing is remade
 #
 lmake( 'world-world-sh' , done=1 )                                # prepare for next call
 #

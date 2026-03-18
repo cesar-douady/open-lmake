@@ -26,6 +26,6 @@ else :
 	import ut
 	ut.lmake(     'b',new=1,failed=1,rc=1) # a does not exist
 	ut.lmake(     'a',      done  =1     )
-	ut.lmake(     'b',      done  =0,rc=1) # b is up to date
+	ut.lmake(     'b',      done  =0,rc=1) # b is up-to-date
 	ut.lmake('-e','b',      done  =1     ) # b is remade because it was in error
 	ut.lmake(     'a'                    ) # check a is not remade because b ran
