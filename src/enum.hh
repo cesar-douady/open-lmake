@@ -176,7 +176,7 @@ template<UEnum E> struct BitMap {
 	constexpr explicit BitMap(Val v) : _val{v} {}
 	//
 	template<Same<E>... Args> constexpr BitMap(Args... e) {
-		((_val|=(1<<+e)),...) ;
+		( (_val|=(Val(1)<<+e)) , ... ) ;
 	}
 	// accesses
 	constexpr Val operator+() const { return _val ; }

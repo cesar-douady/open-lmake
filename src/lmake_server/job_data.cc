@@ -514,6 +514,12 @@ namespace Engine {
 				}
 				if (seen_all             ) break ;
 				if (stamped_seen_critical) break ;
+				//
+				if (special!=Special::Req) {
+					if ( ro.flags[ReqFlag::NoDeps       ]                                  ) continue ;
+					if ( ro.flags[ReqFlag::EssentialDeps] && !dep.dflags[Dflag::Essential] ) continue ;
+				}
+				//
 				NodeData &         dnd         = *Node(dep)                                     ;
 				bool               dep_modif   = false                                          ;
 				RunStatus          dep_err     = RunStatus::Ok                                  ;

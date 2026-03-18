@@ -1190,8 +1190,8 @@ Values contain the module name optionnaly followed by a human description (that 
 <p>This attribute instruct open-lmake to take some margin (expressed in seconds) when it must rely on file dates to decide about event orders.
 It must account for file date granularity (generally a few ms) and date discrepancy between executing hosts and disk servers (generally a few ms when using NTP).</p>
 <ul>
-<li>If too low, there are risks that open-lmake consider that data read by a job are up to date while they have been modified shortly after.</li>
-<li>If too high, there is a small impact on performance as open-lmake will consider out of date data that are actually up to date.</li>
+<li>If too low, there are risks that open-lmake consider that data read by a job are up-to-date while they have been modified shortly after.</li>
+<li>If too high, there is a small impact on performance as open-lmake will consider out-of-date data that are actually up-to-date.</li>
 </ul>
 <p>The default value should be safe in usual cases and user should hardly need to modify it.</p>
 <h3 id="file_sync--static-dir-if-non-local-backends-are-used-else-none"><a class="header" href="#file_sync--static-dir-if-non-local-backends-are-used-else-none"><a href="lib/lmake/config_.html#:~:text=%2C%20file%5Fsync%20%3D%20%27dir%27%20%23%20method%20used%20to%20ensure%20real%20close%2Dto%2Dopen%20file%20synchronization%20%3A"><code>file_sync</code></a> : Static (<code>'dir'</code> if non-local backends are used, else <code>None</code>)</a></h3>
@@ -2282,7 +2282,7 @@ in which case the user takes the responsibility of its stability.</p>
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="rule-selection"><a class="header" href="#rule-selection">Rule selection</a></h1>
-<p>When open-lmake needs to ensure that a file is up to date, the first action is to identify which rule, if any, must be used to generate it.
+<p>When open-lmake needs to ensure that a file is up-to-date, the first action is to identify which rule, if any, must be used to generate it.
 This rule selection process works in several steps described below.</p>
 <p>A file is deemed buildable if the rule selection process leads to a job that generates the file.</p>
 <h3 id="name-length"><a class="header" href="#name-length">Name length</a></h3>
@@ -2589,7 +2589,7 @@ In that case, the cache will be inefficient as the result in a repo is not ident
 This is current practice, in particular in the EDA tools community (which may be rather heavy and where caching is mostly desirable).
 Using the <code>repo_view</code> attribute is an effective way to circumvent this obstacle.</li>
 <li>Open-lmake tracks all deps inside the reposity and listed source dirs. But it does not track external deps, typically the system (e.g.the <code>/usr</code> dir).
-However, the <code>chroot_dir</code> attribute is part of the command definition and a job will be considered out of date if its value is modified.
+However, the <code>chroot_dir</code> attribute is part of the command definition and a job will be considered out-of-date if its value is modified.
 Hence, this can be used as a marker representing the whole system to ensure jobs are rerun upon system updates.</li>
 <li>some software packagess (e.g. EDA tools) are designed to operate on a dir rather than dealing with distinct input and output files/dirs.
 This goes against reentrancy and thus reliability, repeatability, parallelism etc.

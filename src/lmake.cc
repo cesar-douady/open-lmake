@@ -67,20 +67,22 @@ int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
 	ReqSyntax syntax {{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated"   } }
+	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send arguments to backend"                     } }
 	,	{ ReqFlag::CacheMethod     , { .short_name='c' , .has_arg=true  , .doc="cache method (none, download, check or plain)" } }
+	,	{ ReqFlag::EssentialDeps   , { .short_name='d' , .has_arg=false , .doc="only check essential deps"                     } }
+	,	{ ReqFlag::NoDeps          , { .short_name='D' , .has_arg=false , .doc="dont check deps"                               } }
 	,	{ ReqFlag::ForgetOldErrors , { .short_name='e' , .has_arg=false , .doc="assume old errors are transient"               } }
 	,	{ ReqFlag::Ete             , { .short_name='E' , .has_arg=true  , .doc="estimated time of execution for scheduling"    } }
 	,	{ ReqFlag::NoIncremental   , { .short_name='I' , .has_arg=false , .doc="ignore incremental flag on targets"            } }
 	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of concurrent jobs"                 } }
 	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                       } }
-	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"             } }
 	,	{ ReqFlag::MaxRuns         , { .short_name='m' , .has_arg=true  , .doc="max runs on top of rule prescription"          } }
 	,	{ ReqFlag::MaxSubmits      , { .short_name='M' , .has_arg=true  , .doc="max submits on top of rule prescription"       } }
 	,	{ ReqFlag::Nice            , { .short_name='N' , .has_arg=true  , .doc="nice value to apply to jobs"                   } }
+	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"             } }
 	,	{ ReqFlag::RetryOnError    , { .short_name='r' , .has_arg=true  , .doc="retry jobs in error"                           } }
 	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"               } }
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"              } }
-	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send arguments to backend"                     } }
 	}} ;
 	// add args passed in environment
 	SWEAR(argc>0) ;

@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Mar 12 13:03:43 2026 -->
+<!-- CreationDate: Wed Mar 18 13:38:44 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -504,7 +504,7 @@ are specific to <b>lmake</b> : <b><br>
 -a</b>, <b>--archive</b></p>
 
 <p style="margin-left:18%;">Ensure all intermediate files
-are up to date, in addition to the asked targets. This is
+are up-to-date, in addition to the asked targets. This is
 useful for example if you want to archive a fully built
 repo.</p>
 
@@ -581,6 +581,21 @@ exists, coherence is checked.</p></td></tr>
 <p><i>plain</i> : job results are downloaded from the cache
 in case of hit, and cache is updated in case of miss.</p></td></tr>
 </table>
+
+<p style="margin-left:9%;"><b>-d</b>,
+<b>--essential-deps</b></p>
+
+<p style="margin-left:18%;">When checking if a job is
+up-to-date, non-essential deps are ignored. Note that other
+criteria (e.g. job is in error and <b>-e</b> option is
+given) are still checked.</p>
+
+<p style="margin-left:9%;"><b>-D</b>, <b>--no-deps</b></p>
+
+<p style="margin-left:18%;">When checking if a job is
+up-to-date, deps are ignored. Note that other criteria (e.g.
+job is in error and <b>-e</b> option is given) are still
+checked.</p>
 
 <p style="margin-left:9%;"><b>-e</b>,
 <b>--forget-old-errors</b></p>

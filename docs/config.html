@@ -236,8 +236,8 @@ Values contain the module name optionnaly followed by a human description (that 
 <p>This attribute instruct open-lmake to take some margin (expressed in seconds) when it must rely on file dates to decide about event orders.
 It must account for file date granularity (generally a few ms) and date discrepancy between executing hosts and disk servers (generally a few ms when using NTP).</p>
 <ul>
-<li>If too low, there are risks that open-lmake consider that data read by a job are up to date while they have been modified shortly after.</li>
-<li>If too high, there is a small impact on performance as open-lmake will consider out of date data that are actually up to date.</li>
+<li>If too low, there are risks that open-lmake consider that data read by a job are up-to-date while they have been modified shortly after.</li>
+<li>If too high, there is a small impact on performance as open-lmake will consider out-of-date data that are actually up-to-date.</li>
 </ul>
 <p>The default value should be safe in usual cases and user should hardly need to modify it.</p>
 <h3 id="file_sync--static-dir-if-non-local-backends-are-used-else-none"><a class="header" href="#file_sync--static-dir-if-non-local-backends-are-used-else-none"><a href="lib/lmake/config_.html#:~:text=%2C%20file%5Fsync%20%3D%20%27dir%27%20%23%20method%20used%20to%20ensure%20real%20close%2Dto%2Dopen%20file%20synchronization%20%3A"><code>file_sync</code></a> : Static (<code>'dir'</code> if non-local backends are used, else <code>None</code>)</a></h3>

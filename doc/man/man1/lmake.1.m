@@ -87,6 +87,14 @@ Bullet I_(download) : job results are downloaded from the cache but the cache is
 Bullet I_(upload)   : job results are not downloaded from the cache, but new results are uploaded and if an entry already exists, coherence is checked.
 Bullet I_(plain)    : job results are downloaded from the cache in case of hit, and cache is updated in case of miss.
 
+Item(B_(-d),B_(--essential-deps))
+When checking if a job is up-to-date, non-essential deps are ignored.
+Note that other criteria (e.g. job is in error and B_(-e) option is given) are still checked.
+
+Item(B_(-D),B_(--no-deps))
+When checking if a job is up-to-date, deps are ignored.
+Note that other criteria (e.g. job is in error and B_(-e) option is given) are still checked.
+
 Item(B_(-e),B_(--forget-old-errors))
 Assume previous errors (before this command) are transient.
 Contrarily to the B_(lforget -e) command, this only concerns this execution, not subsequent ones.

@@ -83,6 +83,7 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	CacheMethod                // if proc==Make    , whether to download/upload/check cache
 ,	Deps                       // if proc==Forget  , forget deps
 ,	DryRun                     // if proc==Collect , dont execute, just report
+,	EssentialDeps              // if proc==Make    , only check essential deps
 ,	Ete                        // if proc==Make    , estimated time of execution for scheduling purpose
 ,	Force                      // if proc==Mark    , act if doable, even if awkward
 ,	ForgetOldErrors            // if proc==Make    , assume old errors are transient
@@ -96,6 +97,7 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	MaxRuns                    // if proc==Make    , max run    count, on top of rule prescription
 ,	MaxSubmits                 // if proc==Make    , max submit count, on top of rule prescription
 ,	Nice                       // if proc==Make    , dont execute, just generate files
+,	NoDeps                     // if proc==Make    , dont check deps
 ,	NoExec                     // if proc==Debug   , dont execute, just generate files
 ,	NoIncremental              // if proc==Make    , ignore incremental flag for targets
 ,	NoTrigger                  // if proc==Mark    , prevent lmake from rebuilding dependent jobs

@@ -106,41 +106,24 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="kn">import</span> <span class="nn">lmake</span>
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="s1">&#39;Lmakefile.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;hello&#39;</span>
-    <span class="p">)</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,)</span>
 
-    <span class="k">class</span> <span class="nc">Auto</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;auto{Digit:\d}&#39;</span>
-        <span class="n">cmd</span>    <span class="o">=</span> <span class="s2">&quot;echo &#39;#auto&#39;</span><span class="si">{Digit}</span><span class="s2">&quot;</span>
+    <span class="k">class</span> <span class="nc">Dirty</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DIRTY&#39;</span> <span class="p">:</span> <span class="p">(</span><span class="s1">&#39;dirty&#39;</span><span class="p">,</span><span class="s1">&#39;optional&#39;</span><span class="p">)</span> <span class="p">}</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">            ltarget -I </span><span class="si">{DIRTY}</span>
+<span class="s1">            echo dirty &gt;</span><span class="si">{DIRTY}</span>
+<span class="s1">        &#39;&#39;&#39;</span>
 
-    <span class="k">class</span> <span class="nc">Hide</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span>    <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;{File:.*}.hide&#39;</span>
-        <span class="n">stderr_ok</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">cmd</span>       <span class="o">=</span> <span class="s1">&#39;cat </span><span class="si">{File}</span><span class="s1"> || :&#39;</span>
-
-    <span class="k">class</span> <span class="nc">Cat</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">prio</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="n">stems</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s1">&#39;File1&#39;</span> <span class="p">:</span> <span class="sa">r</span><span class="s1">&#39;.*&#39;</span>
-        <span class="p">,</span>   <span class="s1">&#39;File2&#39;</span> <span class="p">:</span> <span class="sa">r</span><span class="s1">&#39;.*&#39;</span>
-        <span class="p">}</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{File1}</span><span class="s1">+</span><span class="si">{File2}</span><span class="s1">&#39;</span>
-        <span class="n">deps</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s1">&#39;FIRST&#39;</span>  <span class="p">:</span> <span class="s1">&#39;</span><span class="si">{File1}</span><span class="s1">&#39;</span>
-        <span class="p">,</span>   <span class="s1">&#39;SECOND&#39;</span> <span class="p">:</span> <span class="s1">&#39;</span><span class="si">{File2}</span><span class="s1">&#39;</span>
-        <span class="p">}</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;cat </span><span class="si">{FIRST}</span><span class="s1"> </span><span class="si">{SECOND}</span><span class="s1">&#39;</span>
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;cat dirty&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;hello&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;hello&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;hello+auto1.hide&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">3</span> <span class="p">,</span> <span class="n">may_rerun</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># check target is out-of-date</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;hello+auto1.hide&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">0</span> <span class="p">,</span>               <span class="n">new</span><span class="o">=</span><span class="mi">0</span> <span class="p">)</span> <span class="c1"># check target is up-to-date</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">may_rerun</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">steady</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">dangling</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">was_failed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>
