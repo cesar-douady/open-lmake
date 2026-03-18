@@ -245,14 +245,18 @@ Retry :
 		if (action.flags&O_CREAT) {
 			if ( mode_t mod2=action.mod2() ; !mod2 ) ::fchmod( res , mod2 ) ;
 		}
-	} else {
-		if ( errno==ENOENT && (action.flags&O_CREAT) && !retried && action.mk_dir ) {
-			if (action.flags&O_TMPFILE) mk_dir_s ( {file.at,with_slash(file.file)} , action ) ;
-			else                        dir_guard(  file                           , action ) ;
-			retried = true ;                                                                    // ensure we retry at most once
-			goto Retry ;
-		}
-		throw_if( !action.err_ok , "cannot open (",StrErr(),") : ",file ) ;
+	} else switch (errno) {
+		case ENOSPC :
+		case EDQUOT : exit( Rc::System , "cannot open (",StrErr(),") ",file ) ; break ;
+		case ENOENT :
+			if ( (action.flags&O_CREAT) && !retried && action.mk_dir ) {
+				if (action.flags&O_TMPFILE) mk_dir_s ( {file.at,with_slash(file.file)} , action ) ;
+				else                        dir_guard(  file                           , action ) ;
+				retried = true ;                                                                    // ensure we retry at most once
+				goto Retry ;
+			}
+		break ;
+		default : throw_if( !action.err_ok , "cannot open (",StrErr(),") : ",file ) ;
 	}
 	return res ;
 }
@@ -260,8 +264,10 @@ Retry :
 void Fd::write(::string_view data) const {
 	for( size_t cnt=0 ; cnt<data.size() ;) {
 		ssize_t c = ::write( fd , data.data()+cnt , data.size()-cnt ) ;
-		if (c<=0) {
+		if (c<=0)
 			switch (errno) {
+				case ENOSPC :
+				case EDQUOT : exit( Rc::System , "cannot write (",StrErr(),") to ",read_lnk(cat("/proc/self/fd/",fd)) ) ; break ;
 				#if EWOULDBLOCK!=EAGAIN
 					case EWOULDBLOCK :
 				#endif
@@ -269,7 +275,6 @@ void Fd::write(::string_view data) const {
 				case EINTR  : c = 0 ; break                                               ;
 				default     :         throw cat("cannot write (",StrErr(),") to fd ",fd ) ;
 			}
-		}
 		cnt += c ;
 	}
 }

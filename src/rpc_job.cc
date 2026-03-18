@@ -332,15 +332,15 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 		if (e.n_lnks==e.files.size()) { trace("all_lnks",e.files) ; continue ; }                                                       // we have all the links, nothing to do
 		trace("uniquify",e.n_lnks,e.files) ;
 		//
-		const char* err = nullptr/*garbage*/ ;
+		::string err ;
 		{	const char* f0   = e.files[0].c_str()                                 ;
-			AcFd        rfd  = ::open    ( f0 , O_RDONLY|O_NOFOLLOW             ) ; if (!rfd   ) { err = "cannot open for reading" ; goto Bad ; }
-			int         urc  = ::unlink  ( f0                                   ) ; if (urc !=0) { err = "cannot unlink"           ; goto Bad ; }
-			AcFd        wfd  = ::open    ( f0 , O_WRONLY|O_CREAT , e.mod        ) ; if (!wfd   ) { err = "cannot open for writing" ; goto Bad ; }
-			int         sfrc = ::sendfile( wfd , rfd , nullptr/*offset*/ , e.sz ) ; if (sfrc<0 ) { err = "cannot copy"             ; goto Bad ; }
+			AcFd        rfd  = ::open    ( f0 , O_RDONLY|O_NOFOLLOW             ) ; if (!rfd   ) { err = cat("cannot open ("  ,StrErr(),") for reading") ; goto Bad ; }
+			int         urc  = ::unlink  ( f0                                   ) ; if (urc !=0) { err = cat("cannot unlink (",StrErr(),')'            ) ; goto Bad ; }
+			AcFd        wfd  = ::open    ( f0 , O_WRONLY|O_CREAT , e.mod        ) ; if (!wfd   ) { err = cat("cannot open ("  ,StrErr(),") for writing") ; goto Bad ; }
+			int         sfrc = ::sendfile( wfd , rfd , nullptr/*offset*/ , e.sz ) ; if (sfrc<0 ) { err = cat("cannot copy ("  ,StrErr(),')'            ) ; goto Bad ; }
 			for( size_t i : iota(1,e.files.size()) ) {
-				if (::unlink(   e.files[i].c_str())!=0) { err = "cannot unlink" ; goto Bad ; }
-				if (::link  (f0,e.files[i].c_str())!=0) { err = "cannot link"   ; goto Bad ; }
+				if (::unlink(   e.files[i].c_str())!=0) { err = cat("cannot unlink (",StrErr(),')') ; goto Bad ; }
+				if (::link  (f0,e.files[i].c_str())!=0) { err = cat("cannot link ("  ,StrErr(),')') ; goto Bad ; }
 			}
 			TimeSpec times[2] = { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , e.mtim } ;
 			::futimens(wfd,times) ;                                                                                                    // maintain original date

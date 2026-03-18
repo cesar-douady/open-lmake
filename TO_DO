@@ -16,15 +16,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-? bug Thomas
-	- lmake step A
-		-> needs X
-	- lmake step A during which dep D is modified
-		-> dep_error : dep D overwritten
-	- lmark -a -f step A
-	- lmake step B
-		- needs step A
-	===>>> X not built
 ? seen once : server blocked
 	- seems to be while taking GIL
 
@@ -162,9 +153,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
-* provide a lmake option to only check essential deps
-	- useful when iterating on deep files such as utils.py
-	- useful in conjonction with -e to rerun files in error
 ? consider rules taking locks :
 	- provide a llock command
 		- llock A B C sub-cmd

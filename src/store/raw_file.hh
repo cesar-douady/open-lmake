@@ -102,7 +102,7 @@ namespace Store {
 		void chk_writable() const { throw_unless( writable , name," is read-only" ) ;                               }
 	private :
 		void _chk_rc( int rc, const char* msg ) {
-			if (rc<0) fail_prod("cannot",msg,'(',StrErr(),") for file :",name) ;
+			if (rc<0) exit( Rc::System , "cannot ",msg," (",StrErr(),") ",name ) ;
 		}
 		void _dealloc() {
 			SWEAR(base) ;

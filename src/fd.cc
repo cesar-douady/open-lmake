@@ -20,7 +20,7 @@ using namespace Time ;
 
 static constexpr bool ReuseAddr = false ; // XXX : need to do some trials to know if this is still required now that we have randomization of local communications
 
-StaticUniqPtr<::uset<int>> _s_epoll_sigs = new ::uset<int> ;
+::uset<int>* _s_epoll_sigs = nullptr ;
 
 ::string& operator+=( ::string& os , SockFd       const& fd ) { return fd.append_to_str(os,"SockFd"      ,cat(fd.key)) ; } // NO_COV
 ::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return fd.append_to_str(os,"SlaveSockFd" ,cat(fd.key)) ; } // NO_COV

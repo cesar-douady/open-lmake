@@ -90,7 +90,7 @@ struct SockFd : AcFd {
 	static bool            s_is_loopback    ( in_addr_t a                         ) {                                           return (a&LoopbackMask)==(LoopbackAddr&LoopbackMask) ; }
 	static in_addr_t       s_random_loopback(                                     ) ;
 	static ::string        s_addr_str       ( in_addr_t                           ) ;
-	static in_addr_t       s_addr           ( ::string const& host , bool name_ok ) ;                    // if !name_ok, host must be empty or in dot notation
+	static in_addr_t       s_addr           ( ::string const& host , bool name_ok ) ;                          // if !name_ok, host must be empty or in dot notation
 	static ::string const& s_host           ( in_addr_t                           ) ;
 	static ::string        s_host           ( ::string const& service             ) { size_t pos=service.rfind(':')           ; return service.substr(0,pos)                         ; }
 	static SockAddr        s_sock_addr      ( Fd    , bool peer                   ) ;
@@ -257,7 +257,7 @@ public :
 // Epoll
 //
 
-extern StaticUniqPtr<::uset<int>> _s_epoll_sigs ;      // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
+extern ::uset<int>* _s_epoll_sigs ;                    // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
 template<Enum E=NewType/*when_unused*/> struct Epoll ;
 template<Enum E> ::string& operator+=( ::string& os , Epoll<E> const& ep ) {
 	return os<<"Epoll("<<ep._fd.fd<<','<<ep._n_waits<<')' ;
@@ -301,10 +301,11 @@ template<Enum E> struct Epoll {
 	}
 private :
 	void _add_sig( int sig , E data , pid_t pid , bool wait ) {
-		Fd         fd       = SignalFd(New,sig).detach()                                                  ;
-		bool       inserted = _sig_infos   . try_emplace(sig,fd     ).second ; SWEAR(inserted,fd,sig    ) ;
-		/**/       inserted = _fd_infos    . try_emplace(fd ,sig,pid).second ; SWEAR(inserted,fd,sig,pid) ;
-		/**/       inserted = _s_epoll_sigs->insert     (sig        ).second ; SWEAR(inserted,fd,sig    ) ;
+		if (!_s_epoll_sigs) _s_epoll_sigs = new ::uset<int> ;
+		Fd   fd       = SignalFd(New,sig).detach()                                              ;
+		bool inserted = _sig_infos.try_emplace(sig,fd     ).second ; SWEAR(inserted,fd,sig    ) ;
+		/**/ inserted = _fd_infos .try_emplace(fd ,sig,pid).second ; SWEAR(inserted,fd,sig,pid) ;
+		/**/ inserted = _s_epoll_sigs->insert (sig        ).second ; SWEAR(inserted,fd,sig    ) ;
 		add( false/*write*/ , fd , data , wait ) ;
 		_n_sigs++ ;
 	}
