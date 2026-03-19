@@ -244,7 +244,13 @@ Gather::Digest Gather::analyze(Status status) {
 			FileStat st ;
 			int      rc = ::lstat(file.c_str(),/*out*/&st) ;
 			if (rc!=0) {
-				if (errno!=ENOENT) res.msg << "cannot access ("<<StrErr()<<") "<<file ;
+				switch (errno) {
+					case ENOENT       :
+					case ENOTDIR      :                                                            break ;
+					case ELOOP        :
+					case ENAMETOOLONG : FAIL( StrErr(),file ) ;                                    break ;         // file is supposed to be real and should not be reported if too long
+					default           : res.msg << "cannot access ("<<StrErr()<<") "<<file<<'\n' ; break ;
+				}
 				st.st_mode = 0 ;
 			}
 			//

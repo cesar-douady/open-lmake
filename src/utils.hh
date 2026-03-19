@@ -66,13 +66,11 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 ,	None
 // level 1
 ,	JobExec
-,	Rule
 ,	StartJob
 // level 2
 ,	Backend                     // must follow StartJob
 // level 3
 ,	BackendId                   // must follow Backend
-,	NodeCrcDate                 // must follow Backend
 ,	Req                         // must follow Backend
 ,	TargetDir                   // must follow Backend
 ,	Workload                    // must follow Backend
@@ -84,7 +82,6 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 ,	Node                        // must follow NodeCrcDate and ReqInfo
 // level 6
 ,	Autodep                     // must follow Gil
-,	Gather                      // must follow Gil
 // level 7
 ,	Record                      // must follow Autodep
 // inner (locks that take no other locks except very special locks below)

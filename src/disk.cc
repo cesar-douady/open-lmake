@@ -208,7 +208,7 @@ namespace Disk {
 		/**/                                            SWEAR_PROD( +file                           , action.abs_ok ) ; // do not unlink cwd
 		if (!action.abs_ok                            ) SWEAR_PROD( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
 		if (::unlinkat(file.at,file.file.c_str(),0)==0) return true /*done*/ ;
-		if (errno==ENOENT                             ) return false/*.   */ ;
+		if ( errno==ENOENT || errno==ENOTDIR          ) return false/*.   */ ;
 		//
 		if ( !action.dir_ok || errno!=EISDIR ) throw cat("cannot unlink file (",StrErr(),") ",file ) ;
 		//
@@ -222,24 +222,25 @@ namespace Disk {
 	void rmdir_s( FileRef dir_s , _RmDirAction action ) {
 		SWEAR(+dir_s.file) ;
 		if      ( action.nfs_guard                                                     ) action.nfs_guard->change(dir_s) ;
-		if      ( ::unlinkat(dir_s.at,dir_s.file.c_str(),AT_REMOVEDIR)!=0              ) throw_unless( errno==ENOENT , "cannot rmdir (",StrErr(),") ",dir_s ) ;
+		if      ( ::unlinkat(dir_s.at,dir_s.file.c_str(),AT_REMOVEDIR)!=0              ) throw_unless( errno==ENOENT||errno==ENOTDIR , "cannot rmdir (",StrErr(),") ",dir_s ) ;
 		else if ( action.uphill && has_dir(dir_s.file) && !dir_s.file.ends_with("../") )
 			for( ::string d_s=dir_name_s(dir_s.file) ; +d_s && d_s!="/" && !d_s.ends_with("../") ; d_s=dir_name_s(d_s) )
 				if (::unlinkat(dir_s.at,d_s.c_str(),AT_REMOVEDIR)!=0) break ;
 	}
 
 	static void _touch( FileRef file , TimeSpec date , _CreatAction action ) {
-		bool     retried       = false                                    ;
 		TimeSpec time_specs[2] { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , date } ;
-		if ( action.nfs_guard                                                                 ) action.nfs_guard->change(file) ;
+		bool     retried       = false                                    ;
+		if (action.nfs_guard) action.nfs_guard->change(file) ;
 	Retry :
-		if ( ::utimensat( file.at , file.file.c_str() , time_specs , AT_SYMLINK_NOFOLLOW )!=0 ) {
-			if ( errno==ENOENT && !retried && action.mk_dir ) {
-				retried = true ;                                // ensure we retry at most once
-				dir_guard( file , action ) ;
-				goto Retry/*BACKWARD*/ ;
-			}
+		if ( ::utimensat( file.at , file.file.c_str() , time_specs , AT_SYMLINK_NOFOLLOW )==0 ) return ;
+		if ( errno==ENOENT && !retried ) {
+			Fd::Action fd_action = action ; fd_action.flags = O_WRONLY|O_CREAT ;
+			AcFd( file , fd_action ) ;
+			if (date.tv_nsec==UTIME_NOW)                    return ;
+			else                         { retried = true ; goto Retry ; }
 		}
+		throw cat("cannot touch (",StrErr(),") ",file) ;
 	}
 	void touch( FileRef file , Ddate date , _CreatAction action ) { _touch( file , {.tv_sec=time_t(date.sec()),.tv_nsec=int32_t(date.nsec_in_s())} , action ) ; }
 	void touch( FileRef file , Pdate date , _CreatAction action ) { _touch( file , {.tv_sec=time_t(date.sec()),.tv_nsec=int32_t(date.nsec_in_s())} , action ) ; }
@@ -318,8 +319,7 @@ namespace Disk {
 					if ( action.force && FileInfo({dir_s.at,d_s},{.nfs_guard=action.nfs_guard}).tag()!=FileTag::Dir )   unlnk({dir_s.at,d_s},{.abs_ok=true,.nfs_guard=action.nfs_guard} ) ;   // retry
 					else                                                                                              { pos = d_s.size()-1 ; to_mk_s.pop_back() ;                           } // done
 				break ;
-				case ENOENT  :
-				case ENOTDIR :
+				case ENOENT :
 					if ( action.mk_dir && has_dir(d_s)) to_mk_s.push_back(dir_name_s(d_s)) ; // retry after parent is created
 					else                                msg = "cannot create top dir" ;      // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break ;
