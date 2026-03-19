@@ -128,8 +128,10 @@ static void _chk_os() {
 	if ( !id                                                      ) exit(Rc::System,"cannot find ID in"        ,ReleaseFile) ;
 	if ( !version_id                                              ) exit(Rc::System,"cannot find VERSION_ID in",ReleaseFile) ;
 	//
-	id << '-'<<version_id ;
-	if (_os_compat(id)!=_os_compat(OS_ID)) exit(Rc::System,"bad OS in ",ReleaseFile," : ",id,"!=",OS_ID) ;
+	id << '/'<<version_id ;
+	::string found    = _os_compat(id   ) ;
+	::string expected = _os_compat(OS_ID) ;
+	if (found!=expected) exit(Rc::System,"bad OS (",id,") in ",ReleaseFile," : found ",found," != expected ",expected) ;
 }
 
 static void _record_targets(Job job) {

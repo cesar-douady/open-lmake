@@ -298,7 +298,7 @@ esac
 #
 # OS (OS_ID)
 #
-OS_ID="$ID-$VERSION_ID"
+OS_ID="$ID/$VERSION_ID"
 
 #
 # PATH (STD_PATH)
