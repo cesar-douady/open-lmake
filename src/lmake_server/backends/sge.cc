@@ -21,11 +21,19 @@ namespace Backends::Sge {
 	//
 
 	struct RsrcsData {
-		friend ::string& operator+=( ::string& , RsrcsData const& ) ;
 		// cxtors & casts
 		RsrcsData() = default ;
 		RsrcsData(::vmap_ss&&) ;
 		// accesses
+		void operator>>(::string& os) const {                                  // START_OF_NO_COV
+			/**/                              os <<"(cpu="<<       cpu       ;
+			if (mem   )                       os <<",mem="<<       mem<<"MB" ;
+			if (tmp   )                       os <<",tmp="<<       tmp<<"MB" ;
+			for( auto const& [k,v] : tokens ) os <<','<< k <<'='<< v         ;
+			if (+hard )                       os <<",H:"<<         hard      ;
+			if (+soft )                       os <<",S:"<<         soft      ;
+			/**/                              os <<')'                       ;
+		}                                                                      // END_OF_NO_COV
 		bool operator==(RsrcsData const&) const = default ;
 		// services
 		RsrcsData round(Backend const&) const {
@@ -35,7 +43,7 @@ namespace Backends::Sge {
 			/**/                       res.cpu  = round_rsrc(cpu) ;
 			/**/                       res.mem  = round_rsrc(mem) ;
 			/**/                       res.tmp  = round_rsrc(tmp) ;
-			/**/                       res.hard = hard            ; // cannot round as syntax is not managed
+			/**/                       res.hard = hard            ;            // cannot round as syntax is not managed
 			//                         soft are not signficant for launching/not launching, not pertinent
 			for( auto const& [k,t] : tokens ) res.tokens.emplace_back(k,round_rsrc(t)) ;
 			return res ;
@@ -354,16 +362,6 @@ namespace Backends::Sge {
 	//
 	// RsrcsData
 	//
-
-	::string& operator+=( ::string& os , RsrcsData const& rsd ) {                  // START_OF_NO_COV
-		/**/                                  os <<"(cpu="<<       rsd.cpu       ;
-		if (rsd.mem   )                       os <<",mem="<<       rsd.mem<<"MB" ;
-		if (rsd.tmp   )                       os <<",tmp="<<       rsd.tmp<<"MB" ;
-		for( auto const& [k,v] : rsd.tokens ) os <<','<< k <<'='<< v             ;
-		if (+rsd.hard )                       os <<",H:"<<         rsd.hard      ;
-		if (+rsd.soft )                       os <<",S:"<<         rsd.soft      ;
-		return                                os <<')'                           ;
-	}                                                                              // END_OF_NO_COV
 
 	::vector_s _split_rsrcs(::string const& s) {
 		// validate syntax as violating it could lead to unexpected behavior, such as executing an unexpected command

@@ -92,11 +92,12 @@ namespace Engine {
 	inline ::string color_sfx( ReqOptions const& , Color           ) ;
 
 	struct Kpi {
-		friend ::string& operator+=( ::string& , Kpi const& ) ;
 		struct ReqEntry {
 			size_t n_job_req_info  = 0 ;
 			size_t n_node_req_info = 0 ;
 		} ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::string pretty_str() const ;
 		// data
@@ -145,12 +146,15 @@ namespace Engine {
 	}
 
 	struct EngineClosureGlobal {
+		// accesses
+		void operator>>(::string&) const ;
+		// data
 		GlobalProc proc = {} ;
 	} ;
 
 	struct EngineClosureReq {
-		friend ::string& operator+=( ::string& , EngineClosureReq const& ) ;
 		// accesses
+		void operator>>(::string&) const ;
 		bool is_job() const {
 			if (options.flags[ReqFlag::Job]) { SWEAR(files.size()==1,files) ; return true  ; }
 			else                             {                                return false ; }
@@ -192,7 +196,7 @@ namespace Engine {
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive
 	struct EngineClosureJobStart {
-		friend ::string& operator+=( ::string& , EngineClosureJobStart const& ) ;
+		void operator>>(::string&) const ;
 		bool                       report        = false ;
 		::vmap<Node,FileActionTag> report_unlnks = {}    ;
 		MsgStderr                  msg_stderr    = {}    ;
@@ -200,13 +204,13 @@ namespace Engine {
 	#pragma GCC diagnostic pop
 
 	struct EngineClosureJobReportStart {
-		friend ::string& operator+=( ::string& , EngineClosureJobReportStart const& ) ;
+		void operator>>(::string&) const ;
 	} ;
 
 	#pragma GCC diagnostic push
 	#pragma GCC diagnostic ignored "-Wmaybe-uninitialized" // XXX/ : gcc-11 -O[12] and gcc-14 -O2 seem to hit a false positive
 	struct EngineClosureJobGiveUp {
-		friend ::string& operator+=( ::string& , EngineClosureJobGiveUp const& ) ;
+		void operator>>(::string&) const ;
 		Req  req    = {}    ;
 		bool report = false ;
 	} ;
@@ -218,8 +222,6 @@ namespace Engine {
 	:	             ::variant< ::monostate/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ >
 	{	using Base = ::variant< ::monostate/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ > ;
 		//
-		friend ::string& operator+=( ::string& , EngineClosureJob const& ) ;
-		//
 		using Proc = JobRpcProc ;
 		// cxtors & casts
 		EngineClosureJob( JobExec const& je , EngineClosureJobStart      && ecjs  ) : Base{::move(ecjs )} , job_exec{je} {}
@@ -227,8 +229,9 @@ namespace Engine {
 		EngineClosureJob( JobExec const& je , EngineClosureJobGiveUp     && ecjgu ) : Base{::move(ecjgu)} , job_exec{je} {}
 		EngineClosureJob( JobExec const& je , JobDigest<Node>            && jd    ) : Base{::move(jd   )} , job_exec{je} {}
 		// accesses
-		/**/             Proc proc() const { return Proc(index()) ; }
-		template<Proc P> bool is_a() const { return index()==+P   ; }
+		/**/             void operator>>(::string&) const ;
+		/**/             Proc proc      (         ) const { return Proc(index()) ; }
+		template<Proc P> bool is_a      (         ) const { return index()==+P   ; }
 		//
 		EngineClosureJobStart       const& start       () const { return ::get<EngineClosureJobStart      >(self) ; }
 		EngineClosureJobStart            & start       ()       { return ::get<EngineClosureJobStart      >(self) ; }
@@ -244,7 +247,7 @@ namespace Engine {
 	#pragma GCC diagnostic pop
 
 	struct EngineClosureJobMngt {
-		friend ::string& operator+=( ::string& , EngineClosureJobMngt const& ) ;
+		void operator>>(::string&) const ;
 		JobMngtProc               proc     = {} ;
 		Fd                        fd       = {} ;
 		SeqId                     seq_id   = 0  ;
@@ -257,8 +260,6 @@ namespace Engine {
 	struct EngineClosure
 	:	             ::variant< EngineClosureGlobal , EngineClosureReq , EngineClosureJob , EngineClosureJobMngt >
 	{	using Base = ::variant< EngineClosureGlobal , EngineClosureReq , EngineClosureJob , EngineClosureJobMngt > ;
-		//
-		friend ::string& operator+=( ::string& , EngineClosure const& ) ;
 		//
 		using Kind = EngineClosureKind    ;
 		using ECG  = EngineClosureGlobal  ;
@@ -305,8 +306,9 @@ namespace Engine {
 			SWEAR( p==JMP::DepDirect || p==JMP::DepVerbose , p ) ;
 		}
 		// accesses
-		/**/             Kind kind() const { return Kind(index()) ; }
-		template<Kind K> bool is_a() const { return index()==+K   ; }
+		/**/             void operator>>(::string&) const ;
+		/**/             Kind kind      (         ) const { return Kind(index()) ; }
+		template<Kind K> bool is_a      (         ) const { return index()==+K   ; }
 		//
 		ECG  const& ecg () const { return ::get<ECG >(self) ; }
 		ECG       & ecg ()       { return ::get<ECG >(self) ; }

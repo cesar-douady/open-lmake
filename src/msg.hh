@@ -13,7 +13,6 @@
 //
 
 struct MsgBuf {
-	friend ::string& operator+=( ::string& , MsgBuf const& ) ;
 	using Len = uint32_t    ;                                    // /!\ dont use size_t in serialized stream to make serialization interoperable between 32-bit and 64-bit
 	using Key = SockFd::Key ;
 	// statics
@@ -24,15 +23,13 @@ struct MsgBuf {
 	// cxtors & casts
 	MsgBuf() = default ;                                         // suppress aggregate cxtors
 	// accesses
-	bool   operator+() const { return +_buf       ; }
-	size_t size     () const { return _buf.size() ; }
+	void   operator>>(::string& os) const { os << "MsgBuf("<<_buf.size()<<')' ; } // NO_COV
+	bool   operator+ (            ) const { return +_buf       ; }
+	size_t size      (            ) const { return _buf.size() ; }
 	// data
 protected :
 	::string _buf = {} ;
 } ;
-inline ::string& operator+=( ::string& os , MsgBuf const& mb ) { // START_OF_NO_COV
-	return os<<"MsgBuf("<<mb._buf.size()<<')' ;
-}                                                                // END_OF_NO_COV
 
 struct IMsgBuf : MsgBuf {
 	// services

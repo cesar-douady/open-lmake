@@ -15,52 +15,53 @@ namespace Engine {
 	// JobTgts
 	//
 
-	::string& operator+=( ::string& os , JobTgts jts ) { // START_OF_NO_COV
-		return os<<jts.view() ;
-	}                                                    // END_OF_NO_COV
+	void JobTgts::operator>>(::string& os) const { // START_OF_NO_COV
+		os << view() ;
+	}                                              // END_OF_NO_COV
 
 	//
 	// JobTgt
 	//
 
-	::string& operator+=( ::string& os , JobTgt jt ) {    // START_OF_NO_COV
-		if (!jt) return            os << "(J())"        ;
-		/**/                       os << "(" << Job(jt) ;
-		if (jt._is_static_phony()) os << ",static"      ;
-		else                       os << ",star"        ;
-		return                     os << ')'            ;
-	}                                                     // END_OF_NO_COV
+	void JobTgt::operator>>(::string& os) const {      // START_OF_NO_COV
+		/**/                    os << '('            ;
+		/**/                    os << "("<<Job(self) ;
+		if (!self             ) {}
+		if (_is_static_phony()) os << ",static"      ;
+		else                    os << ",star"        ;
+		/**/                    os << ')'            ;
+	}                                                  // END_OF_NO_COV
 
 	//
 	// JobReqInfo
 	//
 
-	::string& operator+=( ::string& os , JobReqInfo::State const& ris ) {                                                      // START_OF_NO_COV
+	void JobReqInfo::State::operator>>(::string& os) const {                                               // START_OF_NO_COV
 		First first ;
-		/**/                                          os <<'('                                                               ;
-		if ( +ris.reason                            ) os <<first("",",")<<       ris.reason                                  ;
-		if (  ris.missing_dsk                       ) os <<first("",",")<<'D'                                                ;
-		if ( +ris.stamped.err   || +ris.proto.err   ) os <<first("",",")<<"E:"<< ris.stamped.err     <<"->"<<ris.proto.err   ;
-		if (  ris.stamped.modif ||  ris.proto.modif ) os <<first("",",")<<"M:"<< ris.stamped.modif   <<"->"<<ris.proto.modif ;
-		return                                        os <<')'                                                               ;
-	}                                                                                                                          // END_OF_NO_COV
+		/**/                                  os <<'('                                                   ;
+		if ( +reason                        ) os <<first("",",")<<      reason                           ;
+		if (  missing_dsk                   ) os <<first("",",")<<'D'                                    ;
+		if ( +stamped.err   || +proto.err   ) os <<first("",",")<<"E:"<<stamped.err  <<"->"<<proto.err   ;
+		if (  stamped.modif ||  proto.modif ) os <<first("",",")<<"M:"<<stamped.modif<<"->"<<proto.modif ;
+		/**/                                  os <<')'                                                   ;
+	}                                                                                                      // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , JobReqInfo const& ri ) { // START_OF_NO_COV
-		/**/                   os << "JRI(" << ri.req     ;
-		if ( ri.speculate!=No) os <<",S:" << ri.speculate ;
-		if ( ri.modified     ) os <<",mod"                ;
-		/**/                   os <<','   << ri.step()    ;
-		/**/                   os <<'@'   << ri.iter      ;
-		/**/                   os <<':'   << ri.state     ;
-		if ( ri.n_wait       ) os <<",W:" << ri.n_wait    ;
-		if (+ri.reason       ) os <<','   << ri.reason    ;
-		if (+ri.n_losts      ) os <<",NL:"<< ri.n_losts   ;
-		if (+ri.n_retries    ) os <<",NR:"<< ri.n_retries ;
-		if (+ri.n_submits    ) os <<",NS:"<< ri.n_submits ;
-		if (+ri.n_runs       ) os <<",NX:"<< ri.n_runs    ;
-		if ( ri.miss_live_out) os <<",miss_live_out"      ;
-		return                 os <<')'                   ;
-	}                                                             // END_OF_NO_COV
+	void JobReqInfo::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/                os << "JRI("<<req       ;
+		if ( speculate!=No) os << ",S:" <<speculate ;
+		if ( modified     ) os << ",mod"            ;
+		/**/                os << ','   <<step()    ;
+		/**/                os << '@'   <<iter      ;
+		/**/                os << ':'   <<state     ;
+		if ( n_wait       ) os << ",W:" <<n_wait    ;
+		if (+reason       ) os << ','   <<reason    ;
+		if (+n_losts      ) os << ",NL:"<<n_losts   ;
+		if (+n_retries    ) os << ",NR:"<<n_retries ;
+		if (+n_submits    ) os << ",NS:"<<n_submits ;
+		if (+n_runs       ) os << ",NX:"<<n_runs    ;
+		if ( miss_live_out) os << ",miss_live_out"  ;
+		/**/                os << ')'               ;
+	}                                                 // END_OF_NO_COV
 
 	void JobReqInfo::set_step( Step s , Job j ) {
 		if (_step==s) return ;                    // fast path
@@ -96,11 +97,11 @@ namespace Engine {
 		s_real_path = new RealPath{*_s_rpe} ;
 	}
 
-	::string& operator+=( ::string& os , Job j ) { // START_OF_NO_COV
-		/**/    os << "J(" ;
-		if (+j) os << +j   ;
-		return  os << ')'  ;
-	}                                              // END_OF_NO_COV
+	void Job::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/       os << "J("  ;
+		if (+self) os << +self ;
+		/**/       os << ')'   ;
+	}                                          // END_OF_NO_COV
 
 	void Job::pop(Req req) {
 		Trace trace("pop",self,req) ;
@@ -229,19 +230,19 @@ namespace Engine {
 	// JobExec
 	//
 
-	::string& operator+=( ::string& os , JobExec const& je ) { // START_OF_NO_COV
-		if (!je) return os << "JE()" ;
+	void JobExec::operator>>(::string& os) const { // START_OF_NO_COV
+		if (!self) { os << "JE()" ; return ; }
 		//
-		/**/         os <<'('<< Job(je)                     ;
-		if (je.host) os <<','<< SockFd::s_addr_str(je.host) ;
-		if (je.start_date==je.end_date) {
-			os <<','<< je.start_date ;
+		/**/      os << '('<<Job(self)                 ;
+		if (host) os << ','<< SockFd::s_addr_str(host) ;
+		if (start_date==end_date) {
+			os << ','<<start_date ;
 		} else {
-			if (+je.start_date) os <<",S:"<< je.start_date ;
-			if (+je.end_date  ) os <<",E:"<< je.end_date   ;
+			if (+start_date) os << ",S:"<<start_date ;
+			if (+end_date  ) os << ",E:"<<end_date   ;
 		}
-		return os <<')' ;
-	}                                                          // END_OF_NO_COV
+		os << ')' ;
+	}                                              // END_OF_NO_COV
 
 	void JobExec::give_up( Req req , bool report ) {
 		Trace trace("give_up",self,req) ;
@@ -773,16 +774,16 @@ namespace Engine {
 	// JobInfo
 	//
 
-	::string& operator+=( ::string& os , SubmitInfo const& si ) {    // START_OF_NO_COV
+	void SubmitInfo::operator>>(::string& os) const {          // START_OF_NO_COV
 		First first ;
-		/**/                  os << "SubmitInfo("                  ;
-		if (+si.used_backend) os <<first("",",")<< si.used_backend ;
-		if ( si.live_out    ) os <<first("",",")<< "live_out"      ;
-		if (+si.pressure    ) os <<first("",",")<< si.pressure     ;
-		if (+si.deps        ) os <<first("",",")<< si.deps         ;
-		if (+si.reason      ) os <<first("",",")<< si.reason       ;
-		return                os <<')'                             ;
-	}                                                                // END_OF_NO_COV
+		/**/               os << "SubmitInfo("               ;
+		if (+used_backend) os << first("",",")<<used_backend ;
+		if ( live_out    ) os << first("",",")<<"live_out"   ;
+		if (+pressure    ) os << first("",",")<<pressure     ;
+		if (+deps        ) os << first("",",")<<deps         ;
+		if (+reason      ) os << first("",",")<<reason       ;
+		/**/               os << ')'                         ;
+	}                                                          // END_OF_NO_COV
 
 	void SubmitInfo::cache_cleanup() {
 		reason   = {}    ;             // execution dependent
@@ -803,9 +804,9 @@ namespace Engine {
 		}
 	}
 
-	::string& operator+=( ::string& os , JobInfoStart const& jis ) {                                                      // START_OF_NO_COV
-		return os << "JobInfoStart(" << jis.submit_info <<','<< jis.rsrcs <<','<< jis.pre_start <<','<< jis.start <<')' ;
-	}                                                                                                                     // END_OF_NO_COV
+	void JobInfoStart::operator>>(::string& os) const {                                    // START_OF_NO_COV
+		os << "JobInfoStart("<<submit_info<<','<<rsrcs<<','<<pre_start<<','<<start <<')' ;
+	}                                                                                      // END_OF_NO_COV
 
 	void JobInfoStart::cache_cleanup() {
 		submit_info.cache_cleanup() ;

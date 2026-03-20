@@ -15,16 +15,16 @@ namespace Engine {
 	// NodeReqInfo
 	//
 
-	::string& operator+=( ::string& os , NodeReqInfo const& ri ) {         // START_OF_NO_COV
-		/**/                          os << "NRI("<<ri.req<<','<<ri.goal ;
-		if (ri.prio_idx==Node::NoIdx) os << ",NoIdx"                     ;
-		else                          os << ','<<ri.prio_idx             ;
-		if (+ri.done_               ) os << ",Done@"<<ri.done_           ;
-		if ( ri.n_wait              ) os << ",wait:"<<ri.n_wait          ;
-		if ( ri.overwritten         ) os << ",overwritten"               ;
-		if (+ri.manual              ) os << ','<<ri.manual               ;
-		return                        os << ')'                          ;
-	}                                                                      // END_OF_NO_COV
+	void NodeReqInfo::operator>>(::string& os) const {             // START_OF_NO_COV
+		/**/                        os << "NRI("<<req<<','<<goal ;
+		if ( prio_idx==Node::NoIdx) os << ",NoIdx"               ;
+		else                        os << ','<<prio_idx          ;
+		if (+done_                ) os << ",Done@"<<done_        ;
+		if ( n_wait               ) os << ",wait:"<<n_wait       ;
+		if ( overwritten          ) os << ",overwritten"         ;
+		if (+manual               ) os << ','<<manual            ;
+		/**/                        os << ')'                    ;
+	}                                                              // END_OF_NO_COV
 
 	NodeReqInfo::NodeReqInfo( Req r , Node n ) : ReqInfo{r} {
 		if (!n) return ;
@@ -39,11 +39,11 @@ namespace Engine {
 
 	Hash::Crc Node::_s_src_dirs_crc ;
 
-	::string& operator+=( ::string& os , Node const n ) { // START_OF_NO_COV
-		/**/    os << "N(" ;
-		if (+n) os << +n   ;
-		return  os << ')'  ;
-	}                                                     // END_OF_NO_COV
+	void Node::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/       os << "N("  ;
+		if (+self) os << +self ;
+		/**/       os << ')'   ;
+	}                                           // END_OF_NO_COV
 
 	Hash::Crc Node::s_src_dirs_crc() {
 		if (!_s_src_dirs_crc) {
@@ -58,13 +58,13 @@ namespace Engine {
 	// NodeData
 	//
 
-	::string& operator+=( ::string& os , NodeData const& nd ) { // START_OF_NO_COV
-		/**/                os <<'('<< nd.crc <<','<< nd.sig ;
-		if (!nd.match_ok()) os << ",~job:"                   ;
-		else                os << ",job:"                    ;
-		/**/                os << +Job(nd.actual_job)        ;
-		return              os <<')'                         ;
-	}                                                           // END_OF_NO_COV
+	void NodeData::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/             os << '('<<crc<<','<<sig ;
+		if (!match_ok()) os << ",~job:"           ;
+		else             os << ",job:"            ;
+		/**/             os << +Job(actual_job)   ;
+		/**/             os << ')'                ;
+	}                                               // END_OF_NO_COV
 
 	Manual NodeData::manual_wash( ReqInfo& ri , bool query , bool dangling ) {
 		if (ri.manual!=Manual::Unknown) return ri.manual ;
@@ -870,31 +870,31 @@ namespace Engine {
 	// Target
 	//
 
-	::string& operator+=( ::string& os , Target const t ) { // START_OF_NO_COV
-		/**/           os << "T("         ;
-		if (+t       ) os << +t           ;
-		if (+t.tflags) os <<','<<t.tflags ;
-		return         os << ')'          ;
-	}                                                       // END_OF_NO_COV
+	void Target::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/         os << "T("       ;
+		if (+self  ) os << +self      ;
+		if (+tflags) os <<','<<tflags ;
+		/**/         os << ')'        ;
+	}                                             // END_OF_NO_COV
 
 
 	//
 	// Dep
 	//
 
-	::string& operator+=( ::string& os , Dep const& d ) {         // START_OF_NO_COV
-		return os << static_cast<DepDigestBase<Node> const&>(d) ;
-	}                                                             // END_OF_NO_COV
+	void Dep::operator>>(::string& os) const {                // START_OF_NO_COV
+		os << static_cast<DepDigestBase<Node> const&>(self) ;
+	}                                                         // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , GenericDep const& gd ) { // START_OF_NO_COV
+	void GenericDep::operator>>(::string& os) const { // START_OF_NO_COV
 		os << "GenericDep(" ;
-		if (gd.hdr.sz) {
-			os << gd.hdr.chunk_accesses()         <<',' ;
-			os << ::span((&gd)[1].chunk,gd.hdr.sz)<<',' ;
+		if (hdr.sz) {
+			os << hdr.chunk_accesses()        <<',' ;
+			os << ::span(this[1].chunk,hdr.sz)<<',' ;
 		}
-		os << gd.hdr ;
-		return os << ')' ;
-	}                                                             // END_OF_NO_COV
+		os << hdr ;
+		os << ')' ;
+	}                                                 // END_OF_NO_COV
 
 	::string Dep::accesses_str() const {
 		::string res ; res.reserve(N<Access>) ;
@@ -931,9 +931,9 @@ namespace Engine {
 	// Deps
 	//
 
-	::string& operator+=( ::string& os , DepsIter::Digest const& did ) { // START_OF_NO_COV
-		return os <<'('<< did.hdr <<','<< did.i_chunk <<')'  ;
-	}                                                                    // END_OF_NO_COV
+	void DepsIter::Digest::operator>>(::string& os) const { // START_OF_NO_COV
+		os << '('<<hdr<<','<<i_chunk<<')' ;
+	}                                                       // END_OF_NO_COV
 
 	static void _append_dep( ::vector<GenericDep>& deps , Dep const& dep , size_t& hole ) {
 		bool can_compress = dep.is_crc && dep.crc()==Crc::None && dep.dflags==DflagsDfltDyn && !dep.parallel ;

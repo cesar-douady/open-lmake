@@ -339,7 +339,8 @@ void quarantine( ::string const& file , NfsGuard* =nullptr ) ;
 bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::string const& std_shell , ::vmap_ss const& cmd_env ) ;
 
 struct FileAction {
-	friend ::string& operator+=( ::string& , FileAction const& ) ;
+	// accesses
+	void operator>>(::string&) const ;
 	// data
 	// START_OF_VERSIONING REPO CACHE
 	FileActionTag tag    = {} ;
@@ -352,7 +353,6 @@ struct FileAction {
 ::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& , NfsGuard* ) ;
 
 struct ChrootInfo {
-	friend ::string& operator+=( ::string& , ChrootInfo const& ) ;
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , dir_s ) ;
 		if (+dir_s) {
@@ -361,7 +361,8 @@ struct ChrootInfo {
 		}
 	}
 	// accesses
-	bool operator+() const { return +dir_s ; }
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +dir_s ; }
 	// data
 	::string      dir_s   ;      // absolute dir which job must chroot to before execution (empty if unused)
 	ChrootActions actions = {} ; // valid if +dir_s
@@ -381,15 +382,15 @@ struct AccDflags {
 } ;
 
 struct JobReason {
-	friend ::string& operator+=( ::string& , JobReason const& ) ;
 	using Tag = JobReasonTag ;
 	// cxtors & casts
 	JobReason() = default ;
 	JobReason( Tag t             ) :           tag{t} { SWEAR( t< Tag::HasNode          , t        ) ; }
 	JobReason( Tag t , NodeIdx n ) : node{n} , tag{t} { SWEAR( t>=Tag::HasNode && +node , t , node ) ; }
 	// accesses
-	bool operator+() const { return +tag                           ; }
-	bool need_run () const { return +tag and tag<JobReasonTag::Err ; }
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +tag                           ; }
+	bool need_run  (         ) const { return +tag and tag<JobReasonTag::Err ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
 		/**/                            ::serdes( s , tag  ) ;
@@ -421,9 +422,9 @@ struct JobStats {
 } ;
 
 struct MsgStderr {
-	friend ::string& operator+=( ::string& , MsgStderr const& ) ;
 	// accesses
-	bool operator+() const { return +msg || +stderr ; }
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +msg || +stderr ; }
 	// data
 	::string msg    = {} ;
 	::string stderr = {} ;
@@ -440,8 +441,6 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	// START_OF_VERSIONING REPO CACHE
 	using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 	// END_OF_VERSIONING
-	friend ::string& operator+=( ::string& , DepInfo const& ) ;
-	//
 	using Kind     = DepInfoKind    ;
 	using Crc      = Hash::Crc      ;
 	using FileSig  = Disk::FileSig  ;
@@ -456,6 +455,7 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 		else                     self = ddb.sig() ;
 	}
 	// accesses
+	void operator>>(::string&        ) const ;
 	bool operator==(DepInfo const& di) const { // if true => self and di are identical (but there may be false negative if one is a Crc)
 		if      ( kind()==di.kind()                         ) return static_cast<Base const&>(self)==static_cast<Base const&>(di) ;
 		else if ( is_a<Kind::Crc>() || di.is_a<Kind::Crc>() ) return exists()==No && di.exists()==No                              ; // this is all we can check with one Crc (and not the other)
@@ -538,6 +538,20 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		/**/                                                 return _sig==ddb._sig ;
 	}
 	// accesses
+	void operator>>(::string& os) const {                                                                                                                              // START_OF_NO_COV
+		First first ;
+		/**/                                   os << "D("                                       ;
+		if constexpr ( !::is_void_v<B>       ) os << first("",",")<<static_cast<B const&>(self) ;
+		if           (  accesses_            ) os << first("",",")<<accesses()                  ;
+		if           (  dflags!=DflagsDflt   ) os << first("",",")<<dflags                      ;
+		if           (  parallel             ) os << first("",",")<<"parallel"                  ;
+		if           (  accesses_ && !is_crc ) os << first("",",")<<sig()                       ;
+		else if      (  accesses_ && +crc()  ) os << first("",",")<<crc()                       ;
+		if           (  hot                  ) os << first("",",")<<"hot"                       ;
+		if           (  err                  ) os << first("",",")<<"err"                       ;
+		if           (  create_encode        ) os << first("",",")<<"create_encode"             ;
+		/**/                                   os << ')'                                        ;
+	}                                                                                                                                                                  // END_OF_NO_COV
 	constexpr Accesses accesses      () const {                  return Accesses(accesses_      )    ; }
 	constexpr Accesses chunk_accesses() const {                  return Accesses(chunk_accesses_)    ; }
 	constexpr Crc      crc           () const { SWEAR( is_crc) ; return _crc                         ; }
@@ -571,7 +585,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		if (is_crc) ::serdes( s , _crc ) ;
 		else        ::serdes( s , _sig ) ;
 	}
-	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {                               // assumes ddb has been accessed after us
+	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {            // assumes ddb has been accessed after us
 		if constexpr (HasBase) SWEAR( Base::operator==(ddb) , self,ddb ) ;
 		/**/                   SWEAR( !sz                   , self     ) ;
 		/**/                   SWEAR( !ddb.sz               , ddb      ) ;
@@ -579,9 +593,9 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 			set_crc_sig(ddb) ;
 			parallel = ddb.parallel ;
 		} else if (ddb.accesses_) {
-			if      (is_crc!=ddb.is_crc)                         del_crc() ;                      // destroy info if digests disagree
-			else if (is_crc            ) { if (crc()!=ddb.crc()) del_crc() ; }                    // .
-			else                         { if (sig()!=ddb.sig()) del_crc() ; }                    // .
+			if      (is_crc!=ddb.is_crc)                         del_crc() ;   // destroy info if digests disagree
+			else if (is_crc            ) { if (crc()!=ddb.crc()) del_crc() ; } // .
+			else                         { if (sig()!=ddb.sig()) del_crc() ; } // .
 			// parallel is kept untouched as ddb follows us
 		}
 		dflags        |= ddb.dflags        ;
@@ -593,43 +607,30 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	// data
 	// START_OF_VERSIONING REPO CACHE
-	uint8_t       sz                        = 0          ;                                        //   8 bits, number of items in chunk following header (semantically before)
-	Dflags        dflags                    = DflagsDflt ;                                        // 7<8 bits
-	Accesses::Val accesses_      :N<Access> = 0          ;                                        //   4 bits
-	Accesses::Val chunk_accesses_:N<Access> = 0          ;                                        //   4 bits
-	bool          parallel       :1         = false      ;                                        //   1 bit , dep is parallel with prev dep
-	bool          is_crc         :1         = true       ;                                        //   1 bit
-	bool          hot            :1         = false      ;                                        //   1 bit , if true <= file date was very close from access date (within date granularity)
-	bool          err            :1         = false      ;                                        //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
-	bool          create_encode  :1         = false      ;                                        //   1 bit , if true <=> dep has been created because of encode
+	uint8_t       sz                        = 0          ;                     //   8 bits, number of items in chunk following header (semantically before)
+	Dflags        dflags                    = DflagsDflt ;                     // 7<8 bits
+	Accesses::Val accesses_      :N<Access> = 0          ;                     //   4 bits
+	Accesses::Val chunk_accesses_:N<Access> = 0          ;                     //   4 bits
+	bool          parallel       :1         = false      ;                     //   1 bit , dep is parallel with prev dep
+	bool          is_crc         :1         = true       ;                     //   1 bit
+	bool          hot            :1         = false      ;                     //   1 bit , if true <= file date was very close from access date (within date granularity)
+	bool          err            :1         = false      ;                     //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+	bool          create_encode  :1         = false      ;                     //   1 bit , if true <=> dep has been created because of encode
 private :
 	union {
-		Crc     _crc = {} ;                                                                       // ~45<64 bits
-		FileSig _sig ;                                                                            // ~40<64 bits
+		Crc     _crc = {} ;                                                    // ~45<64 bits
+		FileSig _sig ;                                                         // ~40<64 bits
 	} ;
 	// END_OF_VERSIONING
 } ;
-template<class B> ::string& operator+=( ::string& os , DepDigestBase<B> const& dd ) {             // START_OF_NO_COV
-	First first ;
-	/**/                                         os << "D("                                     ;
-	if constexpr ( !::is_void_v<B>             ) os << first("",",")<<static_cast<B const&>(dd) ;
-	if           (  dd.accesses_               ) os << first("",",")<<dd.accesses()             ;
-	if           (  dd.dflags!=DflagsDflt      ) os << first("",",")<<dd.dflags                 ;
-	if           (  dd.parallel                ) os << first("",",")<<"parallel"                ;
-	if           (  dd.accesses_ && !dd.is_crc ) os << first("",",")<<dd.sig()                  ;
-	else if      (  dd.accesses_ && +dd.crc()  ) os << first("",",")<<dd.crc()                  ;
-	if           (  dd.hot                     ) os << first("",",")<<"hot"                     ;
-	if           (  dd.err                     ) os << first("",",")<<"err"                     ;
-	if           (  dd.create_encode           ) os << first("",",")<<"create_encode"           ;
-	return                                       os << ')'                                      ;
-}                                                                                                 // END_OF_NO_COV
 
 using DepDigest = DepDigestBase<void> ;
 static_assert(::is_trivially_copyable_v<DepDigest>) ; // as long as this holds, we do not have to bother about union member cxtor/dxtor
 
 struct TargetDigest {
-	friend ::string& operator+=( ::string& , TargetDigest const& ) ;
 	using Crc = Hash::Crc ;
+	// accesses
+	void operator>>(::string&) const ;
 	// data
 	// START_OF_VERSIONING REPO CACHE
 	Tflags        tflags       = {}    ;
@@ -641,7 +642,7 @@ struct TargetDigest {
 	// END_OF_VERSIONING
 } ;
 
-template<class Key=::string> struct JobDigest {                                            // Key may be ::string or Node
+template<class Key=::string> struct JobDigest {                                     // Key may be ::string or Node
 	// cxtors & casts
 	template<class KeyTo> operator JobDigest<KeyTo>() const {
 		JobDigest<KeyTo> res {
@@ -664,31 +665,32 @@ template<class Key=::string> struct JobDigest {                                 
 		return res ;
 	}
 	void chk(bool for_cache=false) const ;
+	// accesses
+	void operator>>(::string& os) const {                                           // START_OF_NO_COV
+		/**/                 os << "JobDigest("<<status                           ;
+		if ( upload_key    ) os << ','<<         to_hex(upload_key)               ;
+		if ( has_msg_stderr) os << ','<<         'E'                              ;
+		/**/                 os << ','<<         targets.size()<<','<<deps.size() ;
+		if (+refresh_codecs) os << ','<<         refresh_codecs                   ;
+		if (+chroot_tag    ) os << ','<<         chroot_tag                       ;
+		if (+upload_key    ) os << ','<<         upload_key                       ;
+		/**/                 os << ')'                                            ;
+	}                                                                               // END_OF_NO_COV
 	// services
 	void cache_cleanup() ;
 	// data
 	// START_OF_VERSIONING REPO CACHE
 	CacheUploadKey           upload_key     = {}          ;
 	::vmap<Key,TargetDigest> targets        = {}          ;
-	::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
+	::vmap<Key,DepDigest   > deps           = {}          ;                         // INVARIANT : sorted in first access order
 	::vector_s               refresh_codecs = {}          ;
 	::string                 chroot_tag     = {}          ;
 	Time::CoarseDelay        exe_time       = {}          ;
 	Status                   status         = Status::New ;
-	bool                     has_msg_stderr = false       ;                                // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
-	bool                     incremental    = false       ;                                // if true <= job was run with existing incremental targets
+	bool                     has_msg_stderr = false       ;                         // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
+	bool                     incremental    = false       ;                         // if true <= job was run with existing incremental targets
 	// END_OF_VERSIONING
 } ;
-template<class Key> ::string& operator+=( ::string& os , JobDigest<Key> const& jd ) {      // START_OF_NO_COV
-	/**/                    os <<"JobDigest("<< jd.status                                ;
-	if ( jd.upload_key    ) os <<','<<          to_hex(jd.upload_key)                    ;
-	if ( jd.has_msg_stderr) os <<','<<          'E'                                      ;
-	/**/                    os <<','<<          jd.targets.size() <<','<< jd.deps.size() ;
-	if (+jd.refresh_codecs) os <<','<<          jd.refresh_codecs                        ;
-	if (+jd.chroot_tag    ) os <<','<<          jd.chroot_tag                            ;
-	if (+jd.upload_key    ) os <<','<<          jd.upload_key                            ;
-	return                  os << ')'                                                    ;
-}                                                                                          // END_OF_NO_COV
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 	if constexpr (::is_same_v<Key,::string>) { //!                                                 ext_ok
 		for( auto const& [t,_] : targets ) throw_unless( +t && !Disk::is_abs(t) && Disk::is_canon(t,false) , "bad target" ) ;
@@ -703,12 +705,13 @@ template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 }
 
 struct UserTraceEntry {
-	friend ::string& operator+=( ::string& , UserTraceEntry const& ) ;
 	// cxtor & casts
 	// mimic aggregate cxtors as clang would not accept emplace_back if not explicitely provided
 	UserTraceEntry() = default ;
 	UserTraceEntry( Time::Pdate d , Comment c , CommentExts ces={} , ::string const& f={} ) : date{d} , comment{c} , comment_exts{ces} , file{       f } {}
 	UserTraceEntry( Time::Pdate d , Comment c , CommentExts ces    , ::string     && f    ) : date{d} , comment{c} , comment_exts{ces} , file{::move(f)} {}
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , date                   ) ;
@@ -727,24 +730,24 @@ struct UserTraceEntry {
 } ;
 
 struct JobSpace {
-	friend ::string& operator+=( ::string& , JobSpace const& ) ;
 	struct ViewDescr {
-		friend ::string& operator+=( ::string& , ViewDescr const& ) ;
 		// accesses
-		bool operator+() const { return +phys_s ; }
+		void operator>>(::string&) const ;
+		bool operator+ (         ) const { return +phys_s ; }
 		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , phys_s,copy_up ) ;
 		}
 		// data
 		// START_OF_VERSIONING REPO CACHE
-		::vector_s phys_s  = {} ;                                                              // (upper,lower...)
-		::vector_s copy_up = {} ;                                                              // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
+		::vector_s phys_s  = {} ;                                                                        // (upper,lower...)
+		::vector_s copy_up = {} ;                                                                        // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
-		bool is_dyn = false ;                                                                  // only used in rule attributes
+		bool is_dyn = false ;                                                                            // only used in rule attributes
 	} ;
 	// accesses
-	bool operator+() const { return +lmake_view_s || +repo_view_s || +tmp_view_s || +views ; } // true if namespace needed
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +lmake_view_s || +repo_view_s || +tmp_view_s || +views ; } // true if namespace needed
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , lmake_view_s,repo_view_s,tmp_view_s ) ;
@@ -766,30 +769,30 @@ struct JobSpace {
 	) ;
 	void exit() ;
 	//
-	::vmap_s<::vector_s> flat_phys_s() const ;                                                 // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	::vmap_s<::vector_s> flat_phys_s() const ; // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
 	void mk_canon( ::string const& phy_repo_root_s , ::string const& sub_repo_s , bool has_chroot )       ;
 	void chk     (                                                                                ) const ;
 	// data
 	// START_OF_VERSIONING REPO CACHE
-	::string            lmake_view_s = {} ;                                                    // absolute dir under which job sees open-lmake root dir (empty if unused)
-	::string            repo_view_s  = {} ;                                                    // absolute dir under which job sees repo root dir       (empty if unused)
-	::string            tmp_view_s   = {} ;                                                    // absolute dir under which job sees tmp dir             (empty if unused)
-	::vmap_s<ViewDescr> views        = {} ;                                                    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
+	::string            lmake_view_s = {} ;    // absolute dir under which job sees open-lmake root dir (empty if unused)
+	::string            repo_view_s  = {} ;    // absolute dir under which job sees repo root dir       (empty if unused)
+	::string            tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir             (empty if unused)
+	::vmap_s<ViewDescr> views        = {} ;    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
 	// END_OF_VERSIONING
 private :
-	::string _tmp_dir_s   ;                                                                    // to be unlinked upon exit
-	Bool3    _force_creat = Maybe ;                                                            // if Yes => create a chroot (dont know if Maybe)
+	::string _tmp_dir_s   ;                    // to be unlinked upon exit
+	Bool3    _force_creat = Maybe ;            // if Yes => create a chroot (dont know if Maybe)
 } ;
 
 struct CacheRemoteSide {
-	friend ::string& operator+=( ::string& , CacheRemoteSide const& ) ;
 	struct UploadDigest {
 		CacheUploadKey upload_key ;
 		Disk::DiskSz   z_sz       ; // compressed
 	} ;
 	// accesses
-	bool operator+() const { return +dir_s ; }
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +dir_s ; }
 	// services
 	UploadDigest upload ( uint32_t conn_id , Time::Delay exe_time , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl ) const ;
 	void         dismiss( CacheUploadKey upload_key , uint32_t conn_id=0                                                                   ) const ;
@@ -816,10 +819,11 @@ struct JobRpcReq {
 } ;
 
 struct JobStartRpcReq : JobRpcReq {
-	friend ::string& operator+=( ::string& , JobStartRpcReq const& ) ;
 	// cxtors & casts
 	JobStartRpcReq() = default ;
 	JobStartRpcReq( JobRpcReq jrr , KeyedService s , ::string&& msg_={} ) : JobRpcReq{jrr} , service{s} , msg{::move(msg_)} {}
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
@@ -834,8 +838,7 @@ struct JobStartRpcReq : JobRpcReq {
 	// END_OF_VERSIONING)
 } ;
 
-struct JobStartRpcReply {                                                // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
-	friend ::string& operator+=( ::string& , JobStartRpcReply const& ) ;
+struct JobStartRpcReply {                                      // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	using Crc  = Hash::Crc  ;
 	using Proc = JobRpcProc ;
 	struct LmakeVersion {
@@ -846,7 +849,8 @@ struct JobStartRpcReply {                                                // NOLI
 		::string py2_ld_library_path ;
 	} ;
 	// accesses
-	bool operator+() const { return +interpreter ; }                     // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +interpreter ; } // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , autodep_env                   ) ;
@@ -902,10 +906,10 @@ struct JobStartRpcReply {                                                // NOLI
 	ChrootInfo                              chroot_info      ;
 	::string                                cmd              ;
 	Time::Delay                             ddate_prec       ;
-	::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
+	::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ; // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
 	::string                                domain_name      ;
 	::vmap_ss                               env              ;
-	::vector_s                              interpreter      ;                       // actual interpreter used to execute cmd
+	::vector_s                              interpreter      ; // actual interpreter used to execute cmd
 	JobSpace                                job_space        ;
 	bool                                    keep_tmp         = false               ;
 	::string                                key              ;                       // key used to uniquely identify repo
@@ -936,9 +940,10 @@ struct JobEndRpcReq : JobRpcReq {
 	using SI  = SeqId               ;
 	using JI  = JobIdx              ;
 	using MDD = ::vmap_s<DepDigest> ;
-	friend ::string& operator+=( ::string& , JobEndRpcReq const& ) ;
 	// cxtors & casts
 	JobEndRpcReq(JobRpcReq jrr={}) : JobRpcReq{jrr} {}
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
@@ -980,7 +985,8 @@ struct JobMngtRpcReq : JobRpcReq {
 	using SI   = SeqId               ;
 	using JI   = JobIdx              ;
 	using MDD  = ::vmap_s<DepDigest> ;
-	friend ::string& operator+=( ::string& , JobMngtRpcReq const& ) ;
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
@@ -1004,9 +1010,10 @@ struct JobMngtRpcReq : JobRpcReq {
 } ;
 
 struct JobMngtRpcReply {
-	friend ::string& operator+=( ::string& , JobMngtRpcReply const& ) ;
 	using Crc  = Hash::Crc   ;
 	using Proc = JobMngtProc ;
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc  ) ;

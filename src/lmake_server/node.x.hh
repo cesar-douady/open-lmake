@@ -143,7 +143,6 @@ namespace Engine {
 	//
 
 	struct Node : NodeBase {
-		friend ::string& operator+=( ::string& , Node const ) ;
 		using MakeAction = NodeMakeAction ;
 		using ReqInfo    = NodeReqInfo    ;
 		//
@@ -155,7 +154,10 @@ namespace Engine {
 	private :
 		static Hash::Crc _s_src_dirs_crc ;
 		// cxtors & casts
+	public :
 		using NodeBase::NodeBase ;
+		// accesses
+		void operator>>(::string&) const ;
 	} ;
 
 	//
@@ -166,12 +168,12 @@ namespace Engine {
 		static_assert(Node::NGuardBits>=1) ;                            // need 1 bit to store static_phony state
 		static constexpr uint8_t NGuardBits = Node::NGuardBits-1      ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
-		friend ::string& operator+=( ::string& , Target const ) ;
 		// cxtors & casts
 		Target() = default ;
 		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} { SWEAR(+self) ; }
 		// accesses
-		bool static_phony() const { return ::static_phony(tflags) ; }
+		void operator>>  (::string&) const ;
+		bool static_phony(         ) const { return ::static_phony(tflags) ; }
 		// services
 		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
 		// data
@@ -185,13 +187,13 @@ namespace Engine {
 
 	struct Dep : DepDigestBase<Node> {
 		using Base = DepDigestBase<Node> ;
-		friend ::string& operator+=( ::string& , Dep const& ) ;
 		// cxtors & casts
 		using Base::Base ;
 		// accesses
-		::string accesses_str() const ;
-		::string dflags_str  () const ;
-		::string crc_str     () const ;
+		void     operator>>  (::string&) const ;
+		::string accesses_str(         ) const ;
+		::string dflags_str  (         ) const ;
+		::string crc_str     (         ) const ;
 		// services
 		bool up_to_date () const ;
 		void acquire_crc()       ;
@@ -202,9 +204,10 @@ namespace Engine {
 
 	union GenericDep {
 		static constexpr uint8_t NodesPerDep = sizeof(Dep)/sizeof(Node) ;
-		friend ::string& operator+=( ::string& , GenericDep const& ) ;
 		// cxtors & casts
 		GenericDep(Dep const& d={}) : hdr{d} {}
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		GenericDep const* next() const { return this+1+div_up<GenericDep::NodesPerDep>(hdr.sz) ; }
 		GenericDep      * next()       { return this+1+div_up<GenericDep::NodesPerDep>(hdr.sz) ; }
@@ -221,7 +224,7 @@ namespace Engine {
 		using value_type      = Dep       ;
 		using difference_type = ptrdiff_t ;
 		struct Digest {
-			friend ::string& operator+=( ::string& , Digest const& ) ;
+			void operator>>(::string&    ) const ;
 			bool operator==(Digest const&) const = default ;
 			DepsIdx hdr     = 0 ;
 			uint8_t i_chunk = 0 ;
@@ -305,8 +308,6 @@ namespace Engine {
 namespace Engine {
 
 	struct NodeReqInfo : ReqInfo {                                            // watchers of Node's are Job's or Node's (in case of uphill)
-		friend ::string& operator+=( ::string& os , NodeReqInfo const& ri ) ;
-		//
 		using MakeAction = NodeMakeAction ;
 		//
 		static constexpr RuleIdx NoIdx = Node::NoIdx ;
@@ -315,8 +316,9 @@ namespace Engine {
 		NodeReqInfo() = default ;
 		NodeReqInfo( Req , Node ) ;
 		// accesses
-		bool done(NodeGoal ng) const { return done_>=ng   ; }
-		bool done(           ) const { return done_>=goal ; }
+		void operator>>(::string&  ) const ;
+		bool done      (NodeGoal ng) const { return done_>=ng   ; }
+		bool done      (           ) const { return done_>=goal ; }
 		// data
 	public :
 //		ReqInfo                                                               //    128 bits, inherits
@@ -377,7 +379,8 @@ namespace Engine {
 			job_tgts.pop() ;
 		}
 		// accesses
-		Node idx () const { return Node::s_idx(self) ; }
+		void operator>>(::string&) const ;
+		Node idx       (         ) const { return Node::s_idx(self) ; }
 		//
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;

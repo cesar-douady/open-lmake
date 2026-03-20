@@ -250,13 +250,13 @@ void mk_room( DiskSz sz , Cjob keep_job ) {
 	trace("done",sz,hdr.total_sz) ;
 }
 
-::string& operator+=( ::string& os , Ckey      const& k  ) { os << "Ckey("      ; if (+k      ) os << +k             ;                                      return os << ')' ; }
-::string& operator+=( ::string& os , CjobName  const& jn ) { os << "CjobName("  ; if (+jn     ) os << +jn            ;                                      return os << ')' ; }
-::string& operator+=( ::string& os , CnodeName const& nn ) { os << "CnodeName(" ; if (+nn     ) os << +nn            ;                                      return os << ')' ; }
-::string& operator+=( ::string& os , Cjob      const& j  ) { os << "CJ("        ; if (+j      ) os << +j             ;                                      return os << ')' ; }
-::string& operator+=( ::string& os , Crun      const& r  ) { os << "CR("        ; if (+r      ) os << +r             ;                                      return os << ')' ; }
-::string& operator+=( ::string& os , Cnode     const& n  ) { os << "CN("        ; if (+n      ) os << +n             ;                                      return os << ')' ; }
-::string& operator+=( ::string& os , LruEntry  const& e  ) { os << "LruEntry("  ; if (+e.newer) os <<"N:"<< +e.newer ; if (+e.older) os <<"O:"<< +e.older ; return os << ')' ; }
+void Ckey     ::operator>>(::string& os) const { os << "Ckey("      ; if (+self ) os << +self        ;                                  os << ')' ; }
+void CjobName ::operator>>(::string& os) const { os << "CjobName("  ; if (+self ) os << +self        ;                                  os << ')' ; }
+void CnodeName::operator>>(::string& os) const { os << "CnodeName(" ; if (+self ) os << +self        ;                                  os << ')' ; }
+void Cjob     ::operator>>(::string& os) const { os << "CJ("        ; if (+self ) os << +self        ;                                  os << ')' ; }
+void Crun     ::operator>>(::string& os) const { os << "CR("        ; if (+self ) os << +self        ;                                  os << ')' ; }
+void Cnode    ::operator>>(::string& os) const { os << "CN("        ; if (+self ) os << +self        ;                                  os << ')' ; }
+void LruEntry ::operator>>(::string& os) const { os << "LruEntry("  ; if (+newer) os <<"N:"<< +newer ; if (+older) os <<"O:"<< +older ; os << ')' ; }
 
 //
 // Ckey
@@ -349,10 +349,10 @@ void LruEntry::chk( LruEntry const& hdr , Crun run , LruEntry CrunData::* lru ) 
 // CkeyData
 //
 
-::string& operator+=( ::string& os , CkeyData const& kd ) {
-	/**/            os << "CkeyData(" ;
-	if (kd.ref_cnt) os << kd.ref_cnt  ;
-	return          os << ')'         ;
+void CkeyData::operator>>(::string& os) const {
+	/**/         os << "CkeyData(" ;
+	if (ref_cnt) os << ref_cnt     ;
+	/**/         os << ')'         ;
 }
 
 //
@@ -382,10 +382,10 @@ void CjobData::s_rescue() {
 	}
 }
 
-::string& operator+=( ::string& os , CjobData const& jd ) {
-	/**/         os << "CjobData(" ;
-	if (+jd.lru) os << +jd.lru     ;
-	return       os << ')'         ;
+void CjobData::operator>>(::string& os) const {
+	/**/      os << "CjobData(" ;
+	if (+lru) os << +lru        ;
+	/**/      os << ')'         ;
 }
 
 ::pair<Crun,CacheHitInfo> CjobData::match( ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) {
@@ -506,11 +506,11 @@ CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r 
 	for( Cnode d : ds ) d->inc() ;
 }
 
-::string& operator+=( ::string& os , CrunData const& rd ) {
-	/**/                 os << "CrunData("<<rd.key ;
-	if (+rd.key_is_last) os << ",last"             ;
-	else                 os << ",first"            ;
-	return               os << ')'                 ;
+void CrunData::operator>>(::string& os) const {
+	/**/              os << "CrunData("<<key ;
+	if (+key_is_last) os << ",last"          ;
+	else              os << ",first"         ;
+	/**/              os << ')'              ;
 }
 
 void CrunData::access() {
@@ -646,8 +646,8 @@ void CnodeData::s_rescue() {
 	}
 }
 
-::string& operator+=( ::string& os , CnodeData const& nd ) {
-	/**/            os << "CnodeData(" ;
-	if (nd.ref_cnt) os << nd.ref_cnt   ;
-	return          os << ')'          ;
+void CnodeData::operator>>(::string& os) const {
+	/**/         os << "CnodeData(" ;
+	if (ref_cnt) os << ref_cnt      ;
+	/**/         os << ')'          ;
 }

@@ -94,7 +94,6 @@ namespace Time {
 
 	struct Delay : TimeBase<int64_t> {
 		using Base = TimeBase<int64_t> ;
-		friend ::string& operator+=( ::string& , Delay const ) ;
 		friend Date        ;
 		friend Ddate       ;
 		friend Pdate       ;
@@ -112,6 +111,8 @@ namespace Time {
 		constexpr Delay(Base v         ) : Base(v) {}
 		/**/      Delay(::string const&) ;                                                                // format is same as short_str
 		operator ::chrono::nanoseconds() const { return ::chrono::nanoseconds(nsec()) ; }
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		constexpr bool              operator== (Delay const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
 		constexpr ::strong_ordering operator<=>(Delay const& other) const { return _val<=>other._val  ; }
@@ -149,7 +150,6 @@ namespace Time {
 	// when exp<=0, representation is linear after TicksPerSecond
 	// else       , it is floating point
 	struct CoarseDelay {
-		friend ::string& operator+=( ::string& , CoarseDelay const ) ;
 		using Val = uint16_t ;
 		static constexpr int64_t  TicksPerSecond = 1000  ; // this may be freely modified
 		static constexpr uint8_t  Mantissa       = 11    ; // .
@@ -181,7 +181,8 @@ namespace Time {
 		constexpr explicit operator double() const { return double(Delay(self)) ; }
 		constexpr explicit operator float () const { return float (Delay(self)) ; }
 		// accesses
-		constexpr bool operator+() const { return _val ; }
+		/**/      void operator>>(::string&) const ;
+		constexpr bool operator+ (         ) const { return _val ; }
 		//
 		constexpr Delay::Tick   sec      () const { return Delay(self).sec      () ; }
 		constexpr Delay::Tick   nsec     () const { return Delay(self).nsec     () ; }
@@ -214,13 +215,14 @@ namespace Time {
 
 	struct Date : TimeBase<uint64_t> {
 		using Base = TimeBase<uint64_t> ;
-		friend ::string& operator+=( ::string& , Date const ) ;
 		friend Delay ;
 		friend Ddate ;
 		friend Pdate ;
 		// cxtors & casts
 		using Base::Base ;
 		Date(::string_view) ; // read a reasonable approximation of ISO8601
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		using Base::operator+ ;
 		constexpr Date  operator+ (Delay other) const {                     return Date(New,_val+other._val) ; }
@@ -244,7 +246,6 @@ namespace Time {
 	//
 
 	struct Pdate : Date {
-		friend ::string& operator+=( ::string& , Pdate const ) ;
 		friend Delay ;
 		static const Pdate Future  ;                        // highest date, used as infinity
 		static const Pdate Future1 ;                        // last date before Future
@@ -260,6 +261,8 @@ namespace Time {
 	public :
 		using Date::Date ;
 		Pdate(NewType) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		constexpr bool              operator== (Pdate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
 		constexpr ::strong_ordering operator<=>(Pdate const& other) const { return _val<=>other._val  ; }
@@ -284,7 +287,6 @@ namespace Time {
 	// DDate represents the date of a file, together with its tag (as the lsb's of _val)
 	// we lose a few bits of precision, but real disk dates have around ms precision anyway, so we have around 20 bits of margin
 	struct Ddate : Date {
-		friend ::string& operator+=( ::string& , Ddate const ) ;
 		friend Delay ;
 		static const Ddate Future  ;                                                                      // highest date, used as infinity
 		static const Ddate Future1 ;                                                                      // last date before Future
@@ -296,8 +298,9 @@ namespace Time {
 		constexpr Ddate(                           FileTag tag=FileTag::None )                    {                    _val  = +tag ; }
 		constexpr Ddate( struct ::stat const& st , FileTag tag               ) : Date{st.st_mtim} { _val &= ~_TagMsk ; _val |= +tag ; }
 		// accesses
-		constexpr bool    operator+() const { return _date()               ; }
-		constexpr FileTag tag      () const { return FileTag(_val&_TagMsk) ; }
+		/**/      void    operator>>(::string&) const ;
+		constexpr bool    operator+ (         ) const { return _date()               ; }
+		constexpr FileTag tag       (         ) const { return FileTag(_val&_TagMsk) ; }
 	private :
 		constexpr Tick _date() const { return _val&~_TagMsk ; }
 		// services

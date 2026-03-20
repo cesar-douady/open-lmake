@@ -7,6 +7,11 @@
 
 using namespace Disk ;
 
+void Zlvl::operator>>(::string& os) const { // START_OF_NO_COV
+	/**/       os <<      tag ;
+	if (+self) os << ':'<<lvl ;
+}                                           // END_OF_NO_COV
+
 DiskSz DeflateFd::s_max_sz( DiskSz sz , Zlvl zlvl ) {
 	if (!zlvl) return sz ;
 	switch (zlvl.tag) {

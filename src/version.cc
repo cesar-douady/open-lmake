@@ -1,6 +1,6 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 34      ; // df04704b319345150a1476e0956e089e
+	uint64_t    constexpr Cache = 34      ; // 586fef97e49c2684ad40fb62e31ac5f7
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
 	uint64_t    constexpr Repo  = 32      ; // 6c3fd05fb399d60d47cab9c8f68b2027
 	uint64_t    constexpr Job   = 18      ; // 0a9f347b6d065b5733fc658ea804dcea
@@ -9,7 +9,7 @@ namespace Version {
 }
 
 // ********************************************
-// * Cache : df04704b319345150a1476e0956e089e *
+// * Cache : 586fef97e49c2684ad40fb62e31ac5f7 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -187,9 +187,9 @@ namespace Version {
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE
 //	struct LruEntry {
-//		friend ::string& operator+=( ::string& , LruEntry const& ) ;
 //		// accesses
-//		bool operator+() const { return +newer || +older ; }
+//		void operator>>(::string&) const ;
+//		bool operator+ (         ) const { return +newer || +older ; }
 //		// services
 //		bool/*first*/ insert_top( LruEntry      & hdr , Crun , LruEntry CrunData::* lru )       ;
 //		bool/*last*/  erase     ( LruEntry      & hdr ,        LruEntry CrunData::* lru )       ;
@@ -583,19 +583,19 @@ namespace Version {
 //		using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
-//		uint8_t       sz                        = 0          ;                                        //   8 bits, number of items in chunk following header (semantically before)
-//		Dflags        dflags                    = DflagsDflt ;                                        // 7<8 bits
-//		Accesses::Val accesses_      :N<Access> = 0          ;                                        //   4 bits
-//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                                        //   4 bits
-//		bool          parallel       :1         = false      ;                                        //   1 bit , dep is parallel with prev dep
-//		bool          is_crc         :1         = true       ;                                        //   1 bit
-//		bool          hot            :1         = false      ;                                        //   1 bit , if true <= file date was very close from access date (within date granularity)
-//		bool          err            :1         = false      ;                                        //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
-//		bool          create_encode  :1         = false      ;                                        //   1 bit , if true <=> dep has been created because of encode
+//		uint8_t       sz                        = 0          ;                     //   8 bits, number of items in chunk following header (semantically before)
+//		Dflags        dflags                    = DflagsDflt ;                     // 7<8 bits
+//		Accesses::Val accesses_      :N<Access> = 0          ;                     //   4 bits
+//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                     //   4 bits
+//		bool          parallel       :1         = false      ;                     //   1 bit , dep is parallel with prev dep
+//		bool          is_crc         :1         = true       ;                     //   1 bit
+//		bool          hot            :1         = false      ;                     //   1 bit , if true <= file date was very close from access date (within date granularity)
+//		bool          err            :1         = false      ;                     //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+//		bool          create_encode  :1         = false      ;                     //   1 bit , if true <=> dep has been created because of encode
 //	private :
 //		union {
-//			Crc     _crc = {} ;                                                                       // ~45<64 bits
-//			FileSig _sig ;                                                                            // ~40<64 bits
+//			Crc     _crc = {} ;                                                    // ~45<64 bits
+//			FileSig _sig ;                                                         // ~40<64 bits
 //		} ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
@@ -609,23 +609,23 @@ namespace Version {
 //		// START_OF_VERSIONING REPO CACHE
 //		CacheUploadKey           upload_key     = {}          ;
 //		::vmap<Key,TargetDigest> targets        = {}          ;
-//		::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
+//		::vmap<Key,DepDigest   > deps           = {}          ;                         // INVARIANT : sorted in first access order
 //		::vector_s               refresh_codecs = {}          ;
 //		::string                 chroot_tag     = {}          ;
 //		Time::CoarseDelay        exe_time       = {}          ;
 //		Status                   status         = Status::New ;
-//		bool                     has_msg_stderr = false       ;                                // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
-//		bool                     incremental    = false       ;                                // if true <= job was run with existing incremental targets
+//		bool                     has_msg_stderr = false       ;                         // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
+//		bool                     incremental    = false       ;                         // if true <= job was run with existing incremental targets
 //		// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
-//			::vector_s phys_s  = {} ;                                                              // (upper,lower...)
-//			::vector_s copy_up = {} ;                                                              // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
+//			::vector_s phys_s  = {} ;                                                                        // (upper,lower...)
+//			::vector_s copy_up = {} ;                                                                        // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 //			// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
-//		::string            lmake_view_s = {} ;                                                    // absolute dir under which job sees open-lmake root dir (empty if unused)
-//		::string            repo_view_s  = {} ;                                                    // absolute dir under which job sees repo root dir       (empty if unused)
-//		::string            tmp_view_s   = {} ;                                                    // absolute dir under which job sees tmp dir             (empty if unused)
-//		::vmap_s<ViewDescr> views        = {} ;                                                    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
+//		::string            lmake_view_s = {} ;    // absolute dir under which job sees open-lmake root dir (empty if unused)
+//		::string            repo_view_s  = {} ;    // absolute dir under which job sees repo root dir       (empty if unused)
+//		::string            tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir             (empty if unused)
+//		::vmap_s<ViewDescr> views        = {} ;    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
 //		SeqId  seq_id = 0 ;
@@ -642,10 +642,10 @@ namespace Version {
 //		ChrootInfo                              chroot_info      ;
 //		::string                                cmd              ;
 //		Time::Delay                             ddate_prec       ;
-//		::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
+//		::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ; // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
 //		::string                                domain_name      ;
 //		::vmap_ss                               env              ;
-//		::vector_s                              interpreter      ;                       // actual interpreter used to execute cmd
+//		::vector_s                              interpreter      ; // actual interpreter used to execute cmd
 //		JobSpace                                job_space        ;
 //		bool                                    keep_tmp         = false               ;
 //		::string                                key              ;                       // key used to uniquely identify repo
@@ -738,10 +738,10 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		Tflags      tflags       = {} ;                                   // if kind>=Target
-//		Dflags      dflags       = {} ;                                   // if kind>=Dep
-//		ExtraTflags extra_tflags = {} ;                                   // if kind>=Target
-//		ExtraDflags extra_dflags = {} ;                                   // if kind>=Dep
+//		Tflags      tflags       = {} ;                            // if kind>=Target
+//		Dflags      dflags       = {} ;                            // if kind>=Dep
+//		ExtraTflags extra_tflags = {} ;                            // if kind>=Target
+//		ExtraDflags extra_dflags = {} ;                            // if kind>=Dep
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Comment : uint8_t {
@@ -2057,19 +2057,19 @@ namespace Version {
 //		using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
-//		uint8_t       sz                        = 0          ;                                        //   8 bits, number of items in chunk following header (semantically before)
-//		Dflags        dflags                    = DflagsDflt ;                                        // 7<8 bits
-//		Accesses::Val accesses_      :N<Access> = 0          ;                                        //   4 bits
-//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                                        //   4 bits
-//		bool          parallel       :1         = false      ;                                        //   1 bit , dep is parallel with prev dep
-//		bool          is_crc         :1         = true       ;                                        //   1 bit
-//		bool          hot            :1         = false      ;                                        //   1 bit , if true <= file date was very close from access date (within date granularity)
-//		bool          err            :1         = false      ;                                        //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
-//		bool          create_encode  :1         = false      ;                                        //   1 bit , if true <=> dep has been created because of encode
+//		uint8_t       sz                        = 0          ;                     //   8 bits, number of items in chunk following header (semantically before)
+//		Dflags        dflags                    = DflagsDflt ;                     // 7<8 bits
+//		Accesses::Val accesses_      :N<Access> = 0          ;                     //   4 bits
+//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                     //   4 bits
+//		bool          parallel       :1         = false      ;                     //   1 bit , dep is parallel with prev dep
+//		bool          is_crc         :1         = true       ;                     //   1 bit
+//		bool          hot            :1         = false      ;                     //   1 bit , if true <= file date was very close from access date (within date granularity)
+//		bool          err            :1         = false      ;                     //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+//		bool          create_encode  :1         = false      ;                     //   1 bit , if true <=> dep has been created because of encode
 //	private :
 //		union {
-//			Crc     _crc = {} ;                                                                       // ~45<64 bits
-//			FileSig _sig ;                                                                            // ~40<64 bits
+//			Crc     _crc = {} ;                                                    // ~45<64 bits
+//			FileSig _sig ;                                                         // ~40<64 bits
 //		} ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
@@ -2083,23 +2083,23 @@ namespace Version {
 //		// START_OF_VERSIONING REPO CACHE
 //		CacheUploadKey           upload_key     = {}          ;
 //		::vmap<Key,TargetDigest> targets        = {}          ;
-//		::vmap<Key,DepDigest   > deps           = {}          ;                                // INVARIANT : sorted in first access order
+//		::vmap<Key,DepDigest   > deps           = {}          ;                         // INVARIANT : sorted in first access order
 //		::vector_s               refresh_codecs = {}          ;
 //		::string                 chroot_tag     = {}          ;
 //		Time::CoarseDelay        exe_time       = {}          ;
 //		Status                   status         = Status::New ;
-//		bool                     has_msg_stderr = false       ;                                // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
-//		bool                     incremental    = false       ;                                // if true <= job was run with existing incremental targets
+//		bool                     has_msg_stderr = false       ;                         // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
+//		bool                     incremental    = false       ;                         // if true <= job was run with existing incremental targets
 //		// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
-//			::vector_s phys_s  = {} ;                                                              // (upper,lower...)
-//			::vector_s copy_up = {} ;                                                              // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
+//			::vector_s phys_s  = {} ;                                                                        // (upper,lower...)
+//			::vector_s copy_up = {} ;                                                                        // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 //			// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
-//		::string            lmake_view_s = {} ;                                                    // absolute dir under which job sees open-lmake root dir (empty if unused)
-//		::string            repo_view_s  = {} ;                                                    // absolute dir under which job sees repo root dir       (empty if unused)
-//		::string            tmp_view_s   = {} ;                                                    // absolute dir under which job sees tmp dir             (empty if unused)
-//		::vmap_s<ViewDescr> views        = {} ;                                                    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
+//		::string            lmake_view_s = {} ;    // absolute dir under which job sees open-lmake root dir (empty if unused)
+//		::string            repo_view_s  = {} ;    // absolute dir under which job sees repo root dir       (empty if unused)
+//		::string            tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir             (empty if unused)
+//		::vmap_s<ViewDescr> views        = {} ;    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
 //		SeqId  seq_id = 0 ;
@@ -2116,10 +2116,10 @@ namespace Version {
 //		ChrootInfo                              chroot_info      ;
 //		::string                                cmd              ;
 //		Time::Delay                             ddate_prec       ;
-//		::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ;                       // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
+//		::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ; // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
 //		::string                                domain_name      ;
 //		::vmap_ss                               env              ;
-//		::vector_s                              interpreter      ;                       // actual interpreter used to execute cmd
+//		::vector_s                              interpreter      ; // actual interpreter used to execute cmd
 //		JobSpace                                job_space        ;
 //		bool                                    keep_tmp         = false               ;
 //		::string                                key              ;                       // key used to uniquely identify repo
@@ -2212,10 +2212,10 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		Tflags      tflags       = {} ;                                   // if kind>=Target
-//		Dflags      dflags       = {} ;                                   // if kind>=Dep
-//		ExtraTflags extra_tflags = {} ;                                   // if kind>=Target
-//		ExtraDflags extra_dflags = {} ;                                   // if kind>=Dep
+//		Tflags      tflags       = {} ;                            // if kind>=Target
+//		Dflags      dflags       = {} ;                            // if kind>=Dep
+//		ExtraTflags extra_tflags = {} ;                            // if kind>=Target
+//		ExtraDflags extra_dflags = {} ;                            // if kind>=Dep
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Comment : uint8_t {
@@ -2649,10 +2649,10 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		Tflags      tflags       = {} ;                                   // if kind>=Target
-//		Dflags      dflags       = {} ;                                   // if kind>=Dep
-//		ExtraTflags extra_tflags = {} ;                                   // if kind>=Target
-//		ExtraDflags extra_dflags = {} ;                                   // if kind>=Dep
+//		Tflags      tflags       = {} ;                            // if kind>=Target
+//		Dflags      dflags       = {} ;                            // if kind>=Dep
+//		ExtraTflags extra_tflags = {} ;                            // if kind>=Target
+//		ExtraDflags extra_dflags = {} ;                            // if kind>=Dep
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Comment : uint8_t {

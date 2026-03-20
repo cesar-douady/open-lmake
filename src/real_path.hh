@@ -30,7 +30,8 @@ enum class LnkSupport : uint8_t {
 // END_OF_VERSIONING
 
 struct RealPathEnv {
-	friend ::string& operator+=( ::string& , RealPathEnv const& ) ;
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	FileLoc file_loc(::string const& file) const ;
 	void    chk     (bool for_cache=false) const ;
@@ -45,9 +46,9 @@ struct RealPathEnv {
 } ;
 
 struct RealPath {
-	friend ::string& operator+=( ::string& , RealPath const& ) ;
 	struct SolveReport {
-		friend ::string& operator+=( ::string& , SolveReport const& ) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// data
 		::string   real          = {}           ;                     // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir, else empty
 		::vector_s lnks          = {}           ;                     // links followed to get to real
@@ -73,6 +74,8 @@ public :
 	// tmp_dir_s must be absolute and canonic
 	RealPath() = default ;
 	RealPath ( RealPathEnv const& rpe , pid_t p=0 ) ;
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	FileLoc file_loc(::string const& real) const { return _env->file_loc(real) ; }
 	//
@@ -98,4 +101,3 @@ private :
 	pid_t              _cwd_pid        = 0       ;                    // pid for which _cwd is valid if pid==0
 	NfsGuard           _nfs_guard      ;
 } ;
-::string& operator+=( ::string& , RealPath::SolveReport const& ) ;

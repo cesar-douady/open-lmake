@@ -21,11 +21,6 @@ namespace Backends {
 
 	// share actual resources data as we typically have a lot of jobs with the same resources
 	template< class Data , ::unsigned_integral RefCnt > struct Shared {
-		friend ::string& operator+=( ::string& os , Shared const& s ) {         // START_OF_NO_COV
-			/**/           os << "Shared" ;
-			if (+s) return os << *s       ;
-			else    return os << "()"     ;
-		}                                                                       // END_OF_NO_COV
 		// static data
 	private :
 		static ::umap<Data,RefCnt> _s_store ;                                   // map rsrcs to refcount, always >0 (erased when reaching 0)
@@ -56,6 +51,11 @@ namespace Backends {
 		//
 		bool operator==(Shared const&) const = default ;
 		// access
+		void operator>>(::string& os) const {                                   // START_OF_NO_COV
+			/**/       os << "Shared" ;
+			if (+self) os << *self    ;
+			else       os << "()"     ;
+		}                                                                       // END_OF_NO_COV
 		Data const& operator* () const { return *data  ; }
 		Data const* operator->() const { return &*self ; }
 		bool        operator+ () const { return data   ; }
@@ -116,41 +116,43 @@ namespace Backends {
 	template<class Rsrcs> struct _WaitEntry {
 		_WaitEntry() = default ;
 		_WaitEntry( Rsrcs const& rs , SubmitInfo const& si , bool v ) : submit_info{si} , rsrcs{rs} , n_reqs{1} , verbose{v} {}
+		// accesses
+		void operator>>(::string& os) const {                                       // START_OF_NO_COV
+			/**/         os << "WaitEntry("<<rsrcs<<','<<n_reqs<<','<<submit_info ;
+			if (verbose) os << ",verbose"                                         ;
+			/**/         os << ')'                                                ;
+		}                                                                           // END_OF_NO_COV
 		// data
 		SubmitInfo submit_info ;
 		Rsrcs      rsrcs       ;
-		ReqIdx     n_reqs      = 0     ;                                                           // number of reqs waiting for this job
+		ReqIdx     n_reqs      = 0     ;                                            // number of reqs waiting for this job
 		bool       verbose     = false ;
 	} ;
-	template<class Rsrcs> ::string& operator+=( ::string& os , _WaitEntry<Rsrcs> const& we ) {     // START_OF_NO_COV
-		/**/            os << "WaitEntry(" << we.rsrcs <<','<< we.n_reqs <<','<< we.submit_info ;
-		if (we.verbose) os << ",verbose"                                                         ;
-		return          os << ')'                                                                ;
-	}                                                                                              // END_OF_NO_COV
 
 	template<class Rsrcs> struct _SpawnedEntry {
 		// cxtors & casts
 		_SpawnedEntry() = default ;
 		_SpawnedEntry( Rsrcs const& rsrcs_ , Rsrcs const& rounded_rsrcs_ ) : rsrcs{rsrcs_} , rounded_rsrcs{rounded_rsrcs_} {}
+		// accesses
+		void operator>>(::string& os) const {                       // START_OF_NO_COV
+			os << "SpawnedEntry(" ;
+			if (!zombie) {
+				/**/          os <<      rsrcs ;
+				if (id!=NoId) os << ','<<id    ;
+				if (started ) os << ",started" ;
+				if (verbose ) os << ",verbose" ;
+			}
+			os << ')' ;
+		}                                                           // END_OF_NO_COV
 		// data
 		Rsrcs                               rsrcs         ;
 		Rsrcs                               rounded_rsrcs ;
 		Atomic<SpawnId,MutexLvl::BackendId> id            = NoId  ;
-		Atomic<bool                       > started       = false ;                                 // if true <=> start() has been called for this job, for assert only
+		Atomic<bool                       > started       = false ; // if true <=> start() has been called for this job, for assert only
 		Atomic<bool                       > verbose       = false ;
-		Atomic<bool                       > zombie        = false ;                                 // if true <=> entry waiting for suppression
-		Atomic<bool                       > hold          = false ;                                 // when held, entry cannot be destroyed
+		Atomic<bool                       > zombie        = false ; // if true <=> entry waiting for suppression
+		Atomic<bool                       > hold          = false ; // when held, entry cannot be destroyed
 	} ;
-	template< class Rsrcs > ::string& operator+=( ::string& os , _SpawnedEntry<Rsrcs> const& se ) { // START_OF_NO_COV
-		os << "SpawnedEntry(" ;
-		if (!se.zombie) {
-			/**/             os <<      se.rsrcs ;
-			if (se.id!=NoId) os <<','<< se.id    ;
-			if (se.started ) os <<",started"     ;
-			if (se.verbose ) os <<",verbose"     ;
-		}
-		return os <<')' ;
-	}                                                                                               // END_OF_NO_COV
 
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_etas to reorder them upon need
 	// but this is too heavy to code and because there are few reqs and probably most of them have local jobs if there are local jobs at all, the perf gain would be marginal, if at all

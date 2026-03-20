@@ -393,7 +393,7 @@ version.checked : FORCE
 # use a stamp to implement a by value update (while make works by date)
 src/version.cc.stamp : _bin/version version.src src/version.hh version.checked
 	@echo computing versions to $(@:%.stamp=%)
-	@LD_LIBRARY_PATH=$(PY_LIB_DIR) PYTHON=$(PYTHON) VERSION=$(VERSION) TAG=$(TAG) ./$< gen src/version.hh $(@:%.stamp=%) version.src >$@
+	@LD_LIBRARY_PATH=$(PY_LIB_DIR) PYTHON=$(PYTHON) PYTHONPATH= VERSION=$(VERSION) TAG=$(TAG) ./$< gen src/version.hh $(@:%.stamp=%) version.src >$@
 	@# dont touch output if it is steady
 	@if cmp -s $@ $(@:%.stamp=%) ; then                        echo steady version info $(@:%.stamp=%) ; \
 	else                                cp $@ $(@:%.stamp=%) ; echo new    version info $(@:%.stamp=%) ; \
@@ -402,9 +402,9 @@ src/version.cc : src/version.cc.stamp ;
 
 _lib/version.py : _bin/version src/version.hh src/version.cc sys_config.py
 	@echo convert version to py to $@
-	@LD_LIBRARY_PATH=$(PY_LIB_DIR) PYTHON=$(PYTHON) ./$< cc_to_py src/version.hh src/version.cc > $@
-	@echo '#'                                                                                   >>$@
-	@cat sys_config.py                                                                          >>$@
+	@LD_LIBRARY_PATH=$(PY_LIB_DIR) PYTHON=$(PYTHON) PYTHONPATH= ./$< cc_to_py src/version.hh src/version.cc > $@
+	@echo '#'                                                                                               >>$@
+	@cat sys_config.py                                                                                      >>$@
 
 #
 # LMAKE
@@ -466,7 +466,7 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 	@echo big test "(2000000)" to $@
 	@mkdir -p $(@D)
 	@rm -rf   $(@D)/LMAKE
-	@PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; LD_LIBRARY_PATH=$(PY_LIB_DIR) $(PYTHON) ../big_test.py / 2000000 )
+	@PATH=$$PWD/_bin:$$PWD/bin:$$PATH ; ( cd $(@D) ; LD_LIBRARY_PATH=$(PY_LIB_DIR) PYTHONPATH= $(PYTHON) ../big_test.py / 2000000 )
 	@touch $@
 
 #

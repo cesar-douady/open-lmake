@@ -91,11 +91,8 @@ namespace Hash {
 	// Crc
 	//
 
-	template<uint8_t Sz> struct _Crc ;
-	template<uint8_t Sz> ::string& operator+=( ::string& , _Crc<Sz> const ) ;
 	template<uint8_t Sz> struct _Crc {
 		static_assert( Sz>0 ) ;                                                                   // meaningless and painful to code
-		friend ::string& operator+=<Sz>( ::string& , _Crc<Sz> const ) ;
 		#if HAS_UINT128
 			using Val = ::conditional_t<(Sz>64),uint128_t,uint64_t> ;
 		#else
@@ -157,9 +154,10 @@ namespace Hash {
 		constexpr explicit operator CrcSpecial() const { return _val>=+CrcSpecial::Plain ? CrcSpecial::Plain : CrcSpecial(_val) ; }
 		// accesses
 	public :
-		explicit operator ::string() const ;
-		::string hex              () const ;
-		::string base64           () const ;
+		void     operator>>       (::string&) const ;
+		explicit operator ::string(         ) const ;
+		::string hex              (         ) const ;
+		::string base64           (         ) const ;
 		//
 		constexpr bool              operator== (_Crc const&) const = default ;
 		constexpr ::strong_ordering operator<=>(_Crc const&) const = default ;

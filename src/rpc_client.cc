@@ -5,32 +5,32 @@
 
 #include "rpc_client.hh"
 
-::string& operator+=( ::string& os , ReqOptions const& ro ) {   // START_OF_NO_COV
-	const char* sep = "" ;
-	/**/                          os << "ReqOptions("         ;
-	if (+ro.startup_dir_s     ) { os <<      ro.startup_dir_s ; sep = "," ; }
-	if ( ro.reverse_video==Yes) { os <<sep<< "reverse_video"  ; sep = "," ; }
-	if ( ro.reverse_video==No ) { os <<sep<< "normal_video"   ; sep = "," ; }
-	if (+ro.key               ) { os <<sep<< ro.key           ; sep = "," ; }
-	if (+ro.flags             )   os <<sep<< ro.flags         ;
-	return                        os <<')'                    ;
-}                                                               // END_OF_NO_COV
+void ReqOptions::operator>>(::string& os) const {                   // START_OF_NO_COV
+	First first ;
+	/**/                     os << "ReqOptions("                  ;
+	if (+startup_dir_s     ) os << first("",",")<<startup_dir_s   ;
+	if ( reverse_video==Yes) os << first("",",")<<"reverse_video" ;
+	if ( reverse_video==No ) os << first("",",")<<"normal_video"  ;
+	if (+key               ) os << first("",",")<<key             ;
+	if (+flags             ) os << first("",",")<<flags           ;
+	/**/                     os << ')'                            ;
+}                                                                   // END_OF_NO_COV
 
-::string& operator+=( ::string& os , ReqRpcReq const& rrr ) {                  // START_OF_NO_COV
-	/**/                            os << "ReqRpcReq(" << rrr.proc           ;
-	if (rrr.proc>=ReqProc::HasArgs) os <<','<< rrr.files <<','<< rrr.options ;
-	return                          os <<')'                                 ;
-}                                                                              // END_OF_NO_COV
+void ReqRpcReq::operator>>(::string& os) const {                 // START_OF_NO_COV
+	/**/                        os << "ReqRpcReq("<<proc       ;
+	if (proc>=ReqProc::HasArgs) os << ','<<files<<','<<options ;
+	/**/                        os << ')'                      ;
+}                                                                // END_OF_NO_COV
 
-::string& operator+=( ::string& os , ReqRpcReply const& rrr ) { // START_OF_NO_COV
+void ReqRpcReply::operator>>(::string& os) const { // START_OF_NO_COV
 	using Proc = ReqRpcReplyProc ;
-	os << "ReqRpcReply("<<rrr.proc ;
-	switch (rrr.proc) {
-		case Proc::None   :                        break ;
-		case Proc::Status : os << rrr.rc         ; break ;
+	os << "ReqRpcReply("<<proc ;
+	switch (proc) {
+		case Proc::None   :                    break ;
+		case Proc::Status : os << rc         ; break ;
 		case Proc::File   :
 		case Proc::Stderr :
-		case Proc::Stdout : os <<",T:"<< rrr.txt ; break ;
-	DF}                                                         // NO_COV
-	return os << ')' ;
-}                                                               // END_OF_NO_COV
+		case Proc::Stdout : os << ",T:"<<txt ; break ;
+	DF}
+	os << ')' ;
+}                                                  // END_OF_NO_COV

@@ -33,7 +33,8 @@ if __name__!='__main__' :
 else :
 
 	os_candidates = (
-		'centos7'
+		'alma9'
+	,	'centos7'
 	,	'debian12' , 'debian13'
 	,	'fedora43'
 	,	'rocky8'   , 'rocky9'   , 'rocky10'

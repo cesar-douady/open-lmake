@@ -17,30 +17,30 @@ using namespace Time ;
 
 namespace Cache {
 
-	::string& operator+=( ::string& os , CacheRpcReq const& crr ) {
-		/**/                  os << "CacheRpcReq("<<crr.proc    ;
-		if (+crr.repo_key   ) os << ",K:"<<crr.repo_key         ;
-		if (+crr.job        ) os << ','  <<crr.job              ;
-		if (+crr.repo_deps  ) os << ",D:"<<crr.repo_deps.size() ;
-		if (+crr.conn_id    ) os << ",C:"<<crr.conn_id          ;
-		if (+crr.reserved_sz) os << ",S:"<<crr.reserved_sz      ;
-		if (+crr.total_z_sz ) os << ",Z:"<<crr.total_z_sz       ;
-		if (+crr.job_info_sz) os << ",J:"<<crr.job_info_sz      ;
-		if (+crr.exe_time   ) os << ','  <<crr.exe_time         ;
-		if (+crr.upload_key ) os << ",U:"<<crr.upload_key       ;
-		return                os << ')'                         ;
+	void CacheRpcReq::operator>>(::string& os) const {
+		/**/              os << "CacheRpcReq("<<proc    ;
+		if (+repo_key   ) os << ",K:"<<repo_key         ;
+		if (+job        ) os << ','  <<job              ;
+		if (+repo_deps  ) os << ",D:"<<repo_deps.size() ;
+		if (+conn_id    ) os << ",C:"<<conn_id          ;
+		if (+reserved_sz) os << ",S:"<<reserved_sz      ;
+		if (+total_z_sz ) os << ",Z:"<<total_z_sz       ;
+		if (+job_info_sz) os << ",J:"<<job_info_sz      ;
+		if (+exe_time   ) os << ','  <<exe_time         ;
+		if (+upload_key ) os << ",U:"<<upload_key       ;
+		/**/              os << ')'                     ;
 	}
 
-	::string& operator+=( ::string& os , CacheRpcReply const& crr ) {
-		/**/                  os << "CacheRpcReply("<<crr.proc                 ;
-		if (+crr.conn_id    ) os << ",C:"<<crr.conn_id                         ;
-		if (+crr.hit_info   ) os << ','  <<crr.hit_info                        ;
-		if (+crr.key        ) os << ",K:"<<crr.key<<'-'<<"FL"[crr.key_is_last] ;
-		if (+crr.dep_ids    ) os << ",D:"<<crr.dep_ids.size()                  ;
-		if (+crr.job_id     ) os << ",J:"<<crr.job_id                          ;
-		if (+crr.upload_key ) os << ','  <<crr.upload_key                      ;
-		if (+crr.msg        ) os << ','  <<crr.msg                             ;
-		return                os << ')'                                        ;
+	void CacheRpcReply::operator>>(::string& os) const {
+		/**/              os << "CacheRpcReply("<<proc             ;
+		if (+conn_id    ) os << ",C:"<<conn_id                     ;
+		if (+hit_info   ) os << ','  <<hit_info                    ;
+		if (+key        ) os << ",K:"<<key<<'-'<<"FL"[key_is_last] ;
+		if (+dep_ids    ) os << ",D:"<<dep_ids.size()              ;
+		if (+job_id     ) os << ",J:"<<job_id                      ;
+		if (+upload_key ) os << ','  <<upload_key                  ;
+		if (+msg        ) os << ','  <<msg                         ;
+		/**/              os << ')'                                ;
 	}
 
 }

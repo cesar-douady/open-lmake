@@ -41,26 +41,26 @@ namespace Codec {
 
 namespace Engine {
 
-	::string& operator+=( ::string& os , Config::Backend const& be ) { // START_OF_NO_COV
+	void Config::Backend::operator>>(::string& os) const { // START_OF_NO_COV
 		os << "Backend(" ;
-		if (be.configured) {
-			if (+be.domain_name) os <<','<< be.domain_name ;
-			/**/                 os <<      be.dct         ;
-			if (+be.env        ) os <<','<< be.env         ;
+		if (configured) {
+			if (+domain_name) os << ','<<domain_name ;
+			/**/              os <<      dct         ;
+			if (+env        ) os << ','<<env         ;
 		}
-		return os <<')' ;
-	}                                                                  // END_OF_NO_COV
+		os << ')' ;
+	}                                                      // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , Config const& sc ) {                                   // START_OF_NO_COV
-		/**/                                          os << "Config(" << sc.lnk_support       ;
-		if (sc.max_dep_depth       )                  os <<",MD" << sc.max_dep_depth          ;
-		if (sc.max_err_lines       )                  os <<",EL" << sc.max_err_lines          ;
-		if (sc.path_max!=size_t(-1))                  os <<",PM" << sc.path_max               ;
-		if (+sc.caches             )                  os <<','   << sc.caches                 ;
-		if (+sc.sub_repos_s        )                  os <<','   << sc.sub_repos_s            ;
-		for( BackendTag t : iota(1,All<BackendTag>) ) os <<','   << t <<':'<< sc.backends[+t] ; // local backend is always present
-		return os<<')' ;
-	}                                                                                           // END_OF_NO_COV
+	void Config::operator>>(::string& os) const {                                         // START_OF_NO_COV
+		/**/                                          os << "Config("<<lnk_support      ;
+		if ( max_dep_depth       )                    os << ",MD"<<max_dep_depth        ;
+		if ( max_err_lines       )                    os << ",EL"<<max_err_lines        ;
+		if ( path_max!=size_t(-1))                    os << ",PM"<<path_max             ;
+		if (+caches              )                    os << ','  <<caches               ;
+		if (+sub_repos_s         )                    os << ','  <<sub_repos_s          ;
+		for( BackendTag t : iota(1,All<BackendTag>) ) os << ','  <<t<<':'<<backends[+t] ; // local backend is always present
+		/**/                                          os << ')'                         ;
+	}                                                                                     // END_OF_NO_COV
 
 	::string ConfigStatic::system_tag_val() const {
 		if (!system_tag_proc) return {} ;

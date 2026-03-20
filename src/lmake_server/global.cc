@@ -195,77 +195,77 @@ namespace Engine {
 	// EngineClosure
 	//
 
-	::string& operator+=( ::string& os , EngineClosureGlobal const& ecg ) { // START_OF_NO_COV
-		return os << "Glb(" << ecg.proc <<')' ;
+	void EngineClosureGlobal::operator>>(::string& os) const { // START_OF_NO_COV
+		os << "Glb("<<proc<<')' ;
 	}                                                                       // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureReq const& ecr ) {                                         // START_OF_NO_COV
-		os << "Ecr(" << ecr.proc <<',' ;
-		switch (ecr.proc) {
+	void EngineClosureReq::operator>>(::string& os) const {                                         // START_OF_NO_COV
+		os << "Ecr("<<proc<<',' ;
+		switch (proc) {
 			case ReqProc::None    :
-			case ReqProc::Kill    : os << ecr.req <<','<< ecr.fd                                       ; break ;
-			case ReqProc::Close   : os << ecr.req                                                      ; break ;
+			case ReqProc::Kill    : os << req <<','<<fd                           ; break ;
+			case ReqProc::Close   : os << req                                     ; break ;
 			case ReqProc::Collect :                                                                              // PER_CMD : format for tracing
 			case ReqProc::Debug   :                                                                              // PER_CMD : format for tracing
 			case ReqProc::Forget  :
 			case ReqProc::Mark    :
-			case ReqProc::Show    : os <<                 ecr.fd <<','<< ecr.options <<','<< ecr.files ; break ;
-			case ReqProc::Make    : os << ecr.req <<','<< ecr.fd <<','<< ecr.options <<','<< ecr.files ; break ;
+			case ReqProc::Show    : os <<           fd <<','<<options<<','<<files ; break ;
+			case ReqProc::Make    : os << req<<','<<fd <<','<<options<<','<<files ; break ;
 		DF}                                                                                                      // NO_COV
-		return os <<')' ;
+		os << ')' ;
 	}                                                                                                            // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJobStart const& ecjs ) { // START_OF_NO_COV
+	void EngineClosureJobStart::operator>>(::string& os) const { // START_OF_NO_COV
 		First first ;
-		/**/                     os << "Ecjs("                           ;
-		if (ecjs.report        ) os <<first("",",")<< "report"           ;
-		if (+ecjs.report_unlnks) os <<first("",",")<< ecjs.report_unlnks ;
-		if (+ecjs.msg_stderr   ) os <<first("",",")<< ecjs.msg_stderr    ;
-		return                   os <<')'                                ;
+		/**/                os << "Ecjs("                      ;
+		if ( report       ) os << first("",",")<<"report"      ;
+		if (+report_unlnks) os << first("",",")<<report_unlnks ;
+		if (+msg_stderr   ) os << first("",",")<<msg_stderr    ;
+		/**/                os << ')'                          ;
 	}                                                                          // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJobReportStart const& ) { // START_OF_NO_COV
-		return os << "Ecjrs()" ;
+	void EngineClosureJobReportStart::operator>>(::string& os) const { // START_OF_NO_COV
+		os << "Ecjrs()" ;
 	}                                                                           // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJobGiveUp const& ecjgu ) { // START_OF_NO_COV
+	void EngineClosureJobGiveUp::operator>>(::string& os) const { // START_OF_NO_COV
 		First first ;
-		/**/               os << "Ecjgu("                 ;
-		if ( ecjgu.report) os <<first("",",")<< "report"  ;
-		if (+ecjgu.req   ) os <<first("",",")<< ecjgu.req ;
-		return             os <<')'                       ;
+		/**/         os << "Ecjgu("                ;
+		if ( report) os << first("",",")<<"report" ;
+		if (+req   ) os << first("",",")<<req      ;
+		/**/         os << ')'                     ;
 	}                                                                            // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJob const& ecj ) {                  // START_OF_NO_COV
-		/**/                               os << "(" << ecj.proc() <<','<< ecj.job_exec ;
-		switch (ecj.proc()) {
-			case JobRpcProc::Start       : os << ecj.start       () ; break ;
-			case JobRpcProc::ReportStart : os << ecj.report_start() ; break ;
-			case JobRpcProc::GiveUp      : os << ecj.give_up     () ; break ;
-			case JobRpcProc::End         : os << ecj.end         () ; break ;
+	void EngineClosureJob::operator>>(::string& os) const {                  // START_OF_NO_COV
+		os << '('<<proc()<<','<<job_exec ;
+		switch (proc()) {
+			case JobRpcProc::Start       : os << start       () ; break ;
+			case JobRpcProc::ReportStart : os << report_start() ; break ;
+			case JobRpcProc::GiveUp      : os << give_up     () ; break ;
+			case JobRpcProc::End         : os << end         () ; break ;
 		DF}                                                                               // NO_COV
-		return                             os <<')' ;
+		os << ')' ;
 	}                                                                                     // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosureJobMngt const& ecjm ) {                    // START_OF_NO_COV
-		/**/                               os << "JobMngt(" << ecjm.proc <<','<< ecjm.job_exec ;
-		switch (ecjm.proc) {
-			case JobMngtProc::LiveOut    : os <<','<< ecjm.txt.size() ; break ;
-			case JobMngtProc::DepVerbose : os <<','<< ecjm.deps       ; break ;
-			case JobMngtProc::ChkDeps    : os <<','<< ecjm.deps       ; break ;
-		DF}                                                                                      // NO_COV
-		return                             os << ')' ;
+	void EngineClosureJobMngt::operator>>(::string& os) const {                    // START_OF_NO_COV
+		os << "JobMngt("<<proc<<','<<job_exec ;
+		switch (proc) {
+			case JobMngtProc::LiveOut    : os << ','<<txt.size() ; break ;
+			case JobMngtProc::DepVerbose : os << ','<<deps       ; break ;
+			case JobMngtProc::ChkDeps    : os << ','<<deps       ; break ;
+		DF}                                                                                // NO_COV
+		os << ')' ;
 	}                                                                                            // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , EngineClosure const& ec ) {                        // START_OF_NO_COV
-		/**/                                    os << "EngineClosure(" << ec.kind() <<',' ;
-		switch (ec.kind()) {
-			case EngineClosure::Kind::Global  : os << ec.ecg () ; break ;
-			case EngineClosure::Kind::Req     : os << ec.ecr () ; break ;
-			case EngineClosure::Kind::Job     : os << ec.ecj () ; break ;
-			case EngineClosure::Kind::JobMngt : os << ec.ecjm() ; break ;
+	void EngineClosure::operator>>(::string& os) const {                        // START_OF_NO_COV
+		os << "EngineClosure("<<kind()<<',' ;
+		switch (kind()) {
+			case EngineClosure::Kind::Global  : os << ecg () ; break ;
+			case EngineClosure::Kind::Req     : os << ecr () ; break ;
+			case EngineClosure::Kind::Job     : os << ecj () ; break ;
+			case EngineClosure::Kind::JobMngt : os << ecjm() ; break ;
 		DF}                                                                                 // NO_COV
-		return                                  os << ')' ;
+		os << ')' ;
 	}                                                                                       // END_OF_NO_COV
 
 	Job EngineClosureReq::job() const {
@@ -291,16 +291,16 @@ namespace Engine {
 	// Kpi
 	//
 
-	::string& operator+=( ::string& os , Kpi const& kpi ) { // START_OF_NO_COV
-		os << "Kpi(" ;
-		if ( kpi.n_aborted_job_creation) os <<",AJC:" << kpi.n_aborted_job_creation ;
-		if ( kpi.n_job_make            ) os <<",JM:"  << kpi.n_job_make             ;
-		if ( kpi.n_node_make           ) os <<",NM:"  << kpi.n_node_make            ;
-		if ( kpi.n_job_set_pressure    ) os <<",JSP:" << kpi.n_job_set_pressure     ;
-		if ( kpi.n_node_set_pressure   ) os <<",NSP:" << kpi.n_node_set_pressure    ;
-		if (+kpi.py_exe_time           ) os <<",ET:"  << kpi.py_exe_time            ;
-		if (+kpi.reqs                  ) os <<",Reqs:"<< kpi.reqs.size()            ;
-		return os << ")" ;
+	void Kpi::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/                         os << "Kpi("                           ;
+		if ( n_aborted_job_creation) os << ",AJC:" <<n_aborted_job_creation ;
+		if ( n_job_make            ) os << ",JM:"  <<n_job_make             ;
+		if ( n_node_make           ) os << ",NM:"  <<n_node_make            ;
+		if ( n_job_set_pressure    ) os << ",JSP:" <<n_job_set_pressure     ;
+		if ( n_node_set_pressure   ) os << ",NSP:" <<n_node_set_pressure    ;
+		if (+py_exe_time           ) os << ",ET:"  <<py_exe_time            ;
+		if (+reqs                  ) os << ",Reqs:"<<reqs.size()            ;
+		/**/                         os << ')'                              ;
 	}                                                       // END_OF_NO_COV
 
 	::string Kpi::pretty_str() const {

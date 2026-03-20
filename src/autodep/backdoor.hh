@@ -97,10 +97,11 @@ namespace Backdoor {
 	}
 
 	struct Enable {
-		friend ::string& operator+=( ::string& , Enable const& ) ;
 		static constexpr char   Cmd[]              = "enable"     ;
 		static constexpr bool   ReliableMaxReplySz = true         ;
 		static constexpr size_t MaxReplySz         = sizeof(bool) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		bool/*enabled*/ process(Record&         r        )       ;
 		::string        descr  (::string const& reason={}) const ;
@@ -109,10 +110,11 @@ namespace Backdoor {
 	} ;
 
 	struct Regexpr {
-		friend ::string& operator+=( ::string& , Regexpr const& ) ;
 		static constexpr char   Cmd[]              = "regexpr" ;
 		static constexpr bool   ReliableMaxReplySz = true      ;
 		static constexpr size_t MaxReplySz         = 0         ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::monostate process(Record&         r        )       ;
 		::string    descr  (::string const& reason={}) const ;
@@ -137,50 +139,55 @@ namespace Backdoor {
 	} ;
 
 	struct Depend : AccessBase {
-		friend ::string& operator+=( ::string& , Depend const& ) ;
 		static constexpr char   Cmd[]              = "depend" ;
 		static constexpr bool   ReliableMaxReplySz = true     ;
 		static constexpr size_t MaxReplySz         = 0        ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::monostate process(Record& r                )       ;
 		::string    descr  (::string const& reason={}) const { return AccessBase::_descr(Cmd,reason) ; }
 	} ;
 
 	struct DependVerbose : AccessBase {
-		friend ::string& operator+=( ::string& , DependVerbose const& ) ;
 		static constexpr char   Cmd[]              = "depend_verbose"                           ;
 		static constexpr bool   ReliableMaxReplySz = false                                      ;
 		static constexpr size_t MaxReplySz         = sizeof(SerdesSz) + 256*sizeof(VerboseInfo) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::vector<VerboseInfo> process(Record&         r        )       ;
 		::string              descr  (::string const& reason={}) const { return AccessBase::_descr(Cmd,reason) ; }
 	} ;
 
 	struct DependDirect : AccessBase {
-		friend ::string& operator+=( ::string& , DependDirect const& ) ;
 		static constexpr char   Cmd[]              = "depend_direct" ;
 		static constexpr bool   ReliableMaxReplySz = true            ;
 		static constexpr size_t MaxReplySz         = sizeof(bool)    ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		bool/*ok*/ process(Record&         r        )       ;
 		::string   descr  (::string const& reason={}) const { return AccessBase::_descr(Cmd,reason) ; }
 	} ;
 
 	struct Target : AccessBase {
-		friend ::string& operator+=( ::string& , Target const& ) ;
 		static constexpr char   Cmd[]              = "target" ;
 		static constexpr bool   ReliableMaxReplySz = true     ;
 		static constexpr size_t MaxReplySz         = 0        ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::monostate process(Record&         r        )       ;
 		::string    descr  (::string const& reason={}) const { return AccessBase::_descr(Cmd,reason) ; }
 	} ;
 
 	struct ChkDeps {
-		friend ::string& operator+=( ::string& , ChkDeps const& ) ;
 		static constexpr char   Cmd[]              = "check_deps"  ;
 		static constexpr bool   ReliableMaxReplySz = true          ;
 		static constexpr size_t MaxReplySz         = sizeof(Bool3) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		Bool3    process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const { return cat(Cmd,reason) ; }
@@ -190,10 +197,11 @@ namespace Backdoor {
 	} ;
 
 	struct List {
-		friend ::string& operator+=( ::string& , List const& ) ;
 		static constexpr char   Cmd[]              = "list" ;
 		static constexpr bool   ReliableMaxReplySz = false  ;
 		static constexpr size_t MaxReplySz         = 1<<16  ; // well, not many clues to choose a good fit, 64k should be ok
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::vector_s process(Record& r                )       ;
 		::string   descr  (::string const& reason={}) const ;
@@ -204,10 +212,11 @@ namespace Backdoor {
 	} ;
 
 	struct ListRootS {
-		friend ::string& operator+=( ::string& , ListRootS const& ) ;
 		static constexpr char   Cmd[]              = "list_root"               ;
 		static constexpr bool   ReliableMaxReplySz = true                      ;
 		static constexpr size_t MaxReplySz         = sizeof(::string)+PATH_MAX ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const { return cat("list root",reason," in ",dir) ; }
@@ -216,10 +225,11 @@ namespace Backdoor {
 	} ;
 
 	struct Decode {
-		friend ::string& operator+=( ::string& , Decode const& ) ;
 		static constexpr char   Cmd[]              = "decode" ;
 		static constexpr bool   ReliableMaxReplySz = false    ;
 		static constexpr size_t MaxReplySz         = 1<<16    ; // 64k is already a pretty comfortable size for values
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const ;
@@ -230,10 +240,11 @@ namespace Backdoor {
 	} ;
 
 	struct Encode {
-		friend ::string& operator+=( ::string& , Encode const& ) ;
 		static constexpr char   Cmd[]              = "encode"                                       ;
 		static constexpr bool   ReliableMaxReplySz = true                                           ;
 		static constexpr size_t MaxReplySz         = sizeof(::optional_s)+Codec::CodecCrc::Base64Sz ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const ;

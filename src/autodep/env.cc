@@ -57,29 +57,29 @@ namespace Codec {
 		return res ;
 	}
 
-	::string& operator+=( ::string& os , CodecRemoteSide const& crs ) { // START_OF_NO_COV
-		/**/                        os << "Codec("<<crs.tab          ;
-		if (+crs.file_sync        ) os << ','<<crs.file_sync         ;
-		if ( crs.umask!=mode_t(-1)) os << ','<<mod_to_str(crs.umask) ;
-		return                      os << ')'                        ;
-	}                                                                   // END_OF_NO_COV
+	void CodecRemoteSide::operator>>(::string& os) const {           // START_OF_NO_COV
+		/**/                    os << "Codec("<<tab          ;
+		if (+file_sync        ) os << ','<<file_sync         ;
+		if ( umask!=mode_t(-1)) os << ','<<mod_to_str(umask) ;
+		/**/                    os << ')'                    ;
+	}                                                          // END_OF_NO_COV
 
 }
 
-::string& operator+=( ::string& os , AutodepEnv const& ade ) {                             // START_OF_NO_COV
-	/**/                       os << "AutodepEnv("<<static_cast<RealPathEnv const&>(ade) ;
-	if (+ade.fast_mail       ) os << ','<<ade.fast_mail                                  ;
-	if (+ade.fast_report_pipe) os << ','<<ade.fast_report_pipe                           ;
-	/**/                       os << ','<<ade.service                                    ;
-	if (+ade.fqdn            ) os << ','<<ade.fqdn                                       ;
-	if ( ade.disabled        ) os << ",disabled"                                         ;
-	if ( ade.auto_mkdir      ) os << ",auto_mkdir"                                       ;
-	if ( ade.mount_chroot_ok ) os << ",mount_chroot_ok"                                  ;
-	if ( ade.readdir_ok      ) os << ",readdir_ok"                                       ;
-	if (+ade.sub_repo_s      ) os << ','<<ade.sub_repo_s                                 ;
-	if (+ade.codecs          ) os << ','<<ade.codecs                                     ;
-	if (+ade.views_s         ) os << ','<<ade.views_s                                    ;
-	return                     os << ')'                                                 ;
+void AutodepEnv::operator>>(::string& os) const {                             // START_OF_NO_COV
+	/**/                   os << "AutodepEnv("<<static_cast<RealPathEnv const&>(self) ;
+	if (+fast_mail       ) os << ','<<fast_mail                                       ;
+	if (+fast_report_pipe) os << ','<<fast_report_pipe                                ;
+	/**/                   os << ','<<service                                         ;
+	if (+fqdn            ) os << ','<<fqdn                                            ;
+	if ( disabled        ) os << ",disabled"                                          ;
+	if ( auto_mkdir      ) os << ",auto_mkdir"                                        ;
+	if ( mount_chroot_ok ) os << ",mount_chroot_ok"                                   ;
+	if ( readdir_ok      ) os << ",readdir_ok"                                        ;
+	if (+sub_repo_s      ) os << ','<<sub_repo_s                                      ;
+	if (+codecs          ) os << ','<<codecs                                          ;
+	if (+views_s         ) os << ','<<views_s                                         ;
+	/**/                   os << ')'                                                  ;
 }                                                                                          // END_OF_NO_COV
 
 AutodepEnv::AutodepEnv( ::string const& env ) {

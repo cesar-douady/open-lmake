@@ -17,15 +17,15 @@ using namespace Time ;
 // AccessDigest
 //
 
-::string& operator+=( ::string& os , AccessDigest const& ad ) {                                      // START_OF_NO_COV
+void AccessDigest::operator>>(::string& os) const {                                            // START_OF_NO_COV
 	First first ;
-	/**/                                  os << "AccessDigest("                                    ;
-	if (+ad.accesses                    ) os <<first("",",")<< ad.accesses                         ;
-	if ( ad.read_dir                    ) os <<first("",",")<< "read_dir"                          ;
-	if ( ad.flags!=AccessDigest().flags ) os <<first("",",")<< ad.flags                            ;
-	if ( ad.write!=No                   ) os <<first("",",")<< "written"<<(ad.write==Maybe?"?":"") ;
-	return                                os <<')'                                                 ;
-}                                                                                                    // END_OF_NO_COV
+	/**/                               os << "AccessDigest("                                 ;
+	if (+accesses                    ) os << first("",",")<<accesses                         ;
+	if ( read_dir                    ) os << first("",",")<<"read_dir"                       ;
+	if ( flags!=AccessDigest().flags ) os << first("",",")<<flags                            ;
+	if ( write!=No                   ) os << first("",",")<<"written"<<(write==Maybe?"?":"") ;
+	/**/                               os << ')'                                             ;
+}                                                                                              // END_OF_NO_COV
 
 AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 	if (write!=Yes) accesses     |= ad.accesses     ;
@@ -39,17 +39,17 @@ AccessDigest& AccessDigest::operator|=(AccessDigest const& ad) {
 // JobExecRpcReq
 //
 
-::string& operator+=( ::string& os , JobExecRpcReq const& jerr ) { // START_OF_NO_COV
-	/**/                    os << "JobExecRpcReq(" << jerr.proc ;
-	if (+jerr.date        ) os <<','  << jerr.date              ;
-	if ( jerr.sync!=No    ) os <<",S:"<< jerr.sync              ;
-	/**/                    os <<','  << jerr.digest            ;
-	if (+jerr.id          ) os <<','  << jerr.id                ;
-	if (+jerr.files       ) os <<','  << jerr.files             ;
-	if (+jerr.comment     ) os <<','  << jerr.comment           ;
-	if (+jerr.comment_exts) os <<','  << jerr.comment_exts      ;
-	return                  os <<')'                            ;
-}                                                                  // END_OF_NO_COV
+void JobExecRpcReq::operator>>(::string& os) const {  // START_OF_NO_COV
+	/**/               os << "JobExecRpcReq("<<proc ;
+	if (+date        ) os << ','  <<date            ;
+	if ( sync!=No    ) os << ",S:"<<sync            ;
+	/**/               os << ','  <<digest          ;
+	if (+id          ) os << ','  <<id              ;
+	if (+files       ) os << ','  <<files           ;
+	if (+comment     ) os << ','  <<comment         ;
+	if (+comment_exts) os << ','  <<comment_exts    ;
+	/**/               os << ')'                    ;
+}                                                     // END_OF_NO_COV
 
 JobExecRpcReply JobExecRpcReq::mimic_server() && {
 	if (proc==Proc::DepVerbose) {
@@ -63,17 +63,17 @@ JobExecRpcReply JobExecRpcReq::mimic_server() && {
 // JobExecRpcReply
 //
 
-::string& operator+=( ::string& os , JobExecRpcReply const& jerr ) {                 // START_OF_NO_COV
-	os << "JobExecRpcReply(" << jerr.proc ;
-	switch (jerr.proc) {
-		case JobExecProc::None       :                                     ; break ;
+void JobExecRpcReply::operator>>(::string& os) const { // START_OF_NO_COV
+	os << "JobExecRpcReply("<<proc ;
+	switch (proc) {
+		case JobExecProc::None       :                          ; break ;
 		case JobExecProc::ChkDeps    :
-		case JobExecProc::DepDirect  : os <<','<< jerr.ok                  ; break ;
-		case JobExecProc::DepVerbose : os <<','<< jerr.verbose_infos       ; break ;
-		case JobExecProc::List       : os <<','<< jerr.files               ; break ;
-	DF}                                                                              // NO_COV
-	return os << ')' ;
-}                                                                                    // END_OF_NO_COV
+		case JobExecProc::DepDirect  : os << ','<<ok            ; break ;
+		case JobExecProc::DepVerbose : os << ','<<verbose_infos ; break ;
+		case JobExecProc::List       : os << ','<<files         ; break ;
+	DF}
+	os << ')' ;
+}                                                      // END_OF_NO_COV
 
 //
 // codec
@@ -92,16 +92,16 @@ namespace Codec {
 			// START_OF_VERSIONING CODEC
 			AcFd( {dir_s.at,tmp_data} , {.flags=O_WRONLY|O_CREAT,.mod=0444,.umask=umask} ).write( val ) ;
 			// END_OF_VERSIONING
-			rename( {dir_s.at,tmp_data} , {dir_s.at,data} , {.nfs_guard=nfs_guard} ) ;                    // ok even if created concurrently as this is content addressable
+			rename( {dir_s.at,tmp_data} , {dir_s.at,data} , {.nfs_guard=nfs_guard} ) ; // ok even if created concurrently as this is content addressable
 		}
 	}
 
-	::string& operator+=( ::string& os , CodecFile const& cf ) {         // START_OF_NO_COV
-		/**/                os <<"CodecFile("<< cf.file <<','<< cf.ctx ;
-		if (cf.is_encode()) os <<",E:"<< cf.val_crc()                  ;
-		else                os <<",D:"<< cf.code   ()                  ;
-		return              os <<')'                                   ;
-	}                                                                    // END_OF_NO_COV
+	void CodecFile::operator>>(::string& os) const {          // START_OF_NO_COV
+		/**/             os << "CodecFile("<<file<<','<<ctx ;
+		if (is_encode()) os << ",E:"<<val_crc()             ;
+		else             os << ",D:"<<code   ()             ;
+		/**/             os << ')'                          ;
+	}                                                         // END_OF_NO_COV
 
 	CodecFile::CodecFile( NewType , ::string const& node ) {
 		// START_OF_VERSIONING CACHE JOB REPO
@@ -172,9 +172,9 @@ namespace Codec {
 	}
 	// END_OF_VERSIONING
 
-	::string& operator+=( ::string& os , Entry const& e ) {               // START_OF_NO_COV
-		return os <<"Entry("<< e.ctx <<','<< e.code <<','<< e.val <<')' ;
-	}                                                                     // END_OF_NO_COV
+	void Entry::operator>>(::string& os) const {        // START_OF_NO_COV
+		os << "Entry("<<ctx<<','<<code<<','<<val<<')' ;
+	}                                                   // END_OF_NO_COV
 
 	Entry::Entry(::string const& line) {
 		// START_OF_VERSIONING CODEC

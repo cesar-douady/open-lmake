@@ -39,9 +39,9 @@ namespace Backdoor {
 	// Enable
 	//
 
-	::string& operator+=( ::string& os , Enable const& e ) { // START_OF_NO_COV
-		return os<<"Enable("<<e.enable<<')' ;
-	}                                                        // END_OF_NO_COV
+	void Enable::operator>>(::string& os) const { // START_OF_NO_COV
+		os << "Enable("<<enable<<')' ;
+	}                                             // END_OF_NO_COV
 
 	bool/*enabled*/ Enable::process(Record& r) {
 		bool res = r.enable ;
@@ -64,9 +64,9 @@ namespace Backdoor {
 	// Regexpr
 	//
 
-	::string& operator+=( ::string& os , Regexpr const& re ) {           // START_OF_NO_COV
-		return os << "Regexpr(" << re.files << re.access_digest << ')' ;
-	}                                                                    // END_OF_NO_COV
+	void Regexpr::operator>>(::string& os) const {    // START_OF_NO_COV
+		os << "Regexpr("<<files<<access_digest<<')' ;
+	}                                                 // END_OF_NO_COV
 
 	::monostate Regexpr::process(Record& r) {
 		::vmap_s<FileInfo> files_ ; for( ::string& f : files ) files_.emplace_back(::move(f),FileInfo()) ;
@@ -111,11 +111,11 @@ namespace Backdoor {
 	// Depend
 	//
 
-	::string& operator+=( ::string& os , Depend const& d ) {                   // START_OF_NO_COV
-		/**/              os << "Depend(" << d.files <<','<< d.access_digest ;
-		if ( d.no_follow) os << ",no_follow"                                 ;
-		return            os << ')'                                          ;
-	}                                                                          // END_OF_NO_COV
+	void Depend::operator>>(::string& os) const {                    // START_OF_NO_COV
+		/**/            os << "Depend("<<files<<','<<access_digest ;
+		if ( no_follow) os << ",no_follow"                         ;
+		/**/            os << ')'                                  ;
+	}                                                                // END_OF_NO_COV
 
 	::monostate Depend::process(Record& r) {
 		JobExecRpcReq jerr {
@@ -136,11 +136,11 @@ namespace Backdoor {
 	// DependVerbose
 	//
 
-	::string& operator+=( ::string& os , DependVerbose const& dv ) {                     // START_OF_NO_COV
-		/**/               os << "DependVerbose(" << dv.files <<','<< dv.access_digest ;
-		if ( dv.no_follow) os << ",no_follow"                                          ;
-		return             os << ')'                                                   ;
-	}                                                                                    // END_OF_NO_COV
+	void DependVerbose::operator>>(::string& os) const {                    // START_OF_NO_COV
+		/**/            os << "DependVerbose("<<files<<','<<access_digest ;
+		if ( no_follow) os << ",no_follow"                                ;
+		/**/            os << ')'                                         ;
+	}                                                                       // END_OF_NO_COV
 
 	::vector<VerboseInfo> DependVerbose::process(Record& r) {
 		::vector<NodeIdx    > dep_idxs1 ;
@@ -166,11 +166,11 @@ namespace Backdoor {
 	// DependDirect
 	//
 
-	::string& operator+=( ::string& os , DependDirect const& dd ) {                     // START_OF_NO_COV
-		/**/               os << "DependDirect(" << dd.files <<','<< dd.access_digest ;
-		if ( dd.no_follow) os << ",no_follow"                                         ;
-		return             os << ')'                                                  ;
-	}                                                                                   // END_OF_NO_COV
+	void DependDirect::operator>>(::string& os) const {                    // START_OF_NO_COV
+		/**/            os << "DependDirect("<<files<<','<<access_digest ;
+		if ( no_follow) os << ",no_follow"                               ;
+		/**/            os << ')'                                        ;
+	}                                                                      // END_OF_NO_COV
 
 	bool/*ok*/ DependDirect::process(Record& r) {
 		JobExecRpcReq jerr {
@@ -190,11 +190,11 @@ namespace Backdoor {
 	// Target
 	//
 
-	::string& operator+=( ::string& os , Target const& t ) {                  // START_OF_NO_COV
-		/**/             os << "Target(" << t.files <<','<< t.access_digest ;
-		if (t.no_follow) os << ",no_follow"                                 ;
-		return           os << ')'                                          ;
-	}                                                                         // END_OF_NO_COV
+	void Target::operator>>(::string& os) const {                   // START_OF_NO_COV
+		/**/           os << "Target("<<files<<','<<access_digest ;
+		if (no_follow) os << ",no_follow"                         ;
+		/**/           os << ')'                                  ;
+	}                                                               // END_OF_NO_COV
 
 	::monostate Target::process(Record& r) {
 		::vector<Record::Solve<false/*Send*/>> srs         ;         srs.reserve(files.size()) ;
@@ -232,13 +232,13 @@ namespace Backdoor {
 	// ChkDeps
 	//
 
-	::string& operator+=( ::string& os , ChkDeps const& cd ) { // START_OF_NO_COV
+	void ChkDeps::operator>>(::string& os) const { // START_OF_NO_COV
 		First first ;
-		/**/           os << "ChkDeps("              ;
-		if (+cd.delay) os <<first("",",")<< cd.delay ;
-		if (+cd.sync ) os <<first("",",")<< "sync"   ;
-		return         os << ')'                     ;
-	}                                                          // END_OF_NO_COV
+		/**/        os << "ChkDeps("            ;
+		if (+delay) os << first("",",")<<delay  ;
+		if (+sync ) os << first("",",")<<"sync" ;
+		/**/        os << ')'                   ;
+	}                                              // END_OF_NO_COV
 
 	Bool3 ChkDeps::process(Record& r) {
 		return r.report_sync({ .proc=JobExecProc::ChkDeps , .sync=No|sync , .comment=Comment::CheckDeps , .date=Pdate(New)+delay }).ok ;
@@ -248,12 +248,12 @@ namespace Backdoor {
 	// List
 	//
 
-	::string& operator+=( ::string& os , List const& l ) { // START_OF_NO_COV
-		/**/            os << "List(" << l.write ;
-		if (+l.dir    ) os <<','<< l.dir         ;
-		if (+l.regexpr) os <<','<< l.regexpr     ;
-		return          os << ')'                ;
-	}                                                      // END_OF_NO_COV
+	void List::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/          os << "List("<<write ;
+		if (+dir    ) os << ','<<dir       ;
+		if (+regexpr) os << ','<<regexpr   ;
+		/**/          os << ')'            ;
+	}                                           // END_OF_NO_COV
 
 	::vector_s List::process(Record& r) {
 		// report files as seen from cwd
@@ -302,9 +302,9 @@ namespace Backdoor {
 	// ListRootS
 	//
 
-	::string& operator+=( ::string& os , ListRootS const& lr_s ) { // START_OF_NO_COV
-		return os << "ListRootS(" << lr_s.dir <<')' ;
-	}                                                              // END_OF_NO_COV
+	void ListRootS::operator>>(::string& os) const { // START_OF_NO_COV
+		os << "ListRootS("<<dir<<')' ;
+	}                                                // END_OF_NO_COV
 
 	::string ListRootS::process(Record& r) {
 		// report dir as used as prefix when listing dir
@@ -377,9 +377,9 @@ namespace Backdoor {
 	// Decode
 	//
 
-	::string& operator+=( ::string& os , Decode const& d ) {                 // START_OF_NO_COV
-		return os << "Decode(" << d.tab <<','<< d.ctx <<','<< d.code <<')' ;
-	}                                                                        // END_OF_NO_COV
+	void Decode::operator>>(::string& os) const {        // START_OF_NO_COV
+		os << "Decode("<<tab<<','<<ctx<<','<<code<<')' ;
+	}                                                    // END_OF_NO_COV
 
 	// /!\ this function must stay in sync with Engine::_create in job_data.cc
 	::string Decode::process(Record& r) {
@@ -416,9 +416,9 @@ namespace Backdoor {
 	// Encode
 	//
 
-	::string& operator+=( ::string& os , Encode const& e ) {                                         // START_OF_NO_COV
-		return os << "Encode(" << e.tab <<','<< e.ctx <<','<< e.val.size() <<','<< e.min_len <<')' ;
-	}                                                                                                // END_OF_NO_COV
+	void Encode::operator>>(::string& os) const {                             // START_OF_NO_COV
+		os << "Encode("<<tab<<','<<ctx<<','<<val.size()<<','<<min_len <<')' ;
+	}                                                                         // END_OF_NO_COV
 
 	// /!\ this function must stay in sync with Engine::_create in job_data.cc
 	::string Encode::process(Record& r) {

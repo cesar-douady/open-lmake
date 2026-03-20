@@ -42,7 +42,6 @@ namespace Engine {
 	struct Req
 	:	             Idxed<ReqIdx>
 	{	using Base = Idxed<ReqIdx> ;
-		friend ::string& operator+=( ::string& , Req const ) ;
 		using ErrReport = ::vmap<Node,DepDepth/*lvl*/> ;
 		// init
 		static void s_init() {}
@@ -78,10 +77,11 @@ namespace Engine {
 			self = {s_small_ids.acquire()} ;
 		}
 		// accesses
-		ReqData const& operator* () const ;
-		ReqData      & operator* ()       ;
-		ReqData const* operator->() const { return &*self ; }
-		ReqData      * operator->()       { return &*self ; }
+		void           operator>>(::string&) const ;
+		ReqData const& operator* (         ) const ;
+		ReqData      & operator* (         )       ;
+		ReqData const* operator->(         ) const { return &*self ; }
+		ReqData      * operator->(         )       { return &*self ; }
 		//
 		bool zombie(      ) const { return _s_zombie_tab[+self] ;             }                            // req has been killed, waiting to be closed when all jobs are done
 		void zombie(bool z)       { SWEAR(+self) ; _s_zombie_tab[+self] = z ; }                            // ensure Req 0 is always zombie
@@ -135,7 +135,8 @@ namespace Engine {
 	} ;
 
 	struct JobAudit {
-		friend ::string& operator+=( ::string& os , JobAudit const& ) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// data
 		JobReport report         = {}    ; // if not Hit, it is a rerun and this is the report to do if finally not a rerun
 		bool      has_msg_stderr = false ;
@@ -153,8 +154,7 @@ namespace Engine {
 
 	struct ReqInfo {
 		friend Req ;
-		friend ::string& operator+=( ::string& , ReqInfo const& ) ;
-		using Idx    = ReqIdx    ;
+		using Idx = ReqIdx ;
 		static constexpr uint8_t NWatchers  = sizeof(::vector<Watcher>*)/sizeof(Watcher) ; // size of array that fits within the layout of a pointer
 		static constexpr uint8_t VectorMrkr = NWatchers+1                                ; // special value to mean that watchers are in vector
 
@@ -185,11 +185,12 @@ namespace Engine {
 			return self ;
 		}
 		// acesses
-		void       inc_wait    ()       {                 n_wait++ ; SWEAR(n_wait) ;                       }
-		void       dec_wait    ()       { SWEAR(n_wait) ; n_wait-- ;                                       }
-		bool       waiting     () const { return n_wait                                                  ; }
-		bool       has_watchers() const { return _n_watchers                                             ; }
-		WatcherIdx n_watchers  () const { return _n_watchers==VectorMrkr?_watchers_v->size():_n_watchers ; }
+		void       operator>>  (::string&) const ;
+		void       inc_wait    (         )       {                 n_wait++ ; SWEAR(n_wait) ;                       }
+		void       dec_wait    (         )       { SWEAR(n_wait) ; n_wait-- ;                                       }
+		bool       waiting     (         ) const { return n_wait                                                  ; }
+		bool       has_watchers(         ) const { return _n_watchers                                             ; }
+		WatcherIdx n_watchers  (         ) const { return _n_watchers==VectorMrkr?_watchers_v->size():_n_watchers ; }
 		// services
 	private :
 		void _add_watcher(Watcher watcher) ;

@@ -132,9 +132,17 @@ enum class MatchKind : uint8_t {
 } ;
 
 struct MatchFlags {
-	friend ::string& operator+=( ::string& , MatchFlags const& ) ;
 	using Kind = MatchKind ;
 	// accesses
+	void operator>>(::string& os) const {                      // START_OF_NO_COV
+		First first ;
+		/**/               os << "MatchFlags("               ;
+		if (+tflags      ) os << first("",",")<<tflags       ;
+		if (+extra_tflags) os << first("",",")<<extra_tflags ;
+		if (+dflags      ) os << first("",",")<<dflags       ;
+		if (+extra_dflags) os << first("",",")<<extra_dflags ;
+		/**/               os << ')'                         ;
+	}                                                          // END_OF_NO_COV
 	bool operator==(MatchFlags const&) const = default ;
 	bool operator+ (                 ) const { return +tflags || +dflags || +extra_tflags || +extra_dflags ; }
 	//
@@ -160,21 +168,12 @@ struct MatchFlags {
 	}
 	// data
 	// START_OF_VERSIONING CACHE JOB REPO
-	Tflags      tflags       = {} ;                                   // if kind>=Target
-	Dflags      dflags       = {} ;                                   // if kind>=Dep
-	ExtraTflags extra_tflags = {} ;                                   // if kind>=Target
-	ExtraDflags extra_dflags = {} ;                                   // if kind>=Dep
+	Tflags      tflags       = {} ;                            // if kind>=Target
+	Dflags      dflags       = {} ;                            // if kind>=Dep
+	ExtraTflags extra_tflags = {} ;                            // if kind>=Target
+	ExtraDflags extra_dflags = {} ;                            // if kind>=Dep
 	// END_OF_VERSIONING
 } ;
-inline ::string& operator+=( ::string& os , MatchFlags const& mfs ) { // START_OF_NO_COV
-	First first ;
-	/**/                   os <<"MatchFlags("                    ;
-	if (+mfs.tflags      ) os <<first("",",")<< mfs.tflags       ;
-	if (+mfs.extra_tflags) os <<first("",",")<< mfs.extra_tflags ;
-	if (+mfs.dflags      ) os <<first("",",")<< mfs.dflags       ;
-	if (+mfs.extra_dflags) os <<first("",",")<< mfs.extra_dflags ;
-	return                 os <<')'                              ;
-}                                                                     // END_OF_NO_COV
 
 // START_OF_VERSIONING CACHE JOB REPO
 enum class Comment : uint8_t {
@@ -309,12 +308,11 @@ using CommentExts = BitMap<CommentExt> ;
 // END_OF_VERSIONING
 
 struct VerboseInfo {
-	friend ::string& operator+=( ::string& , VerboseInfo ) ;
-	Bool3     ok  = Maybe ;                                     // Maybe is used when info has been masked
+	void operator>>(::string& os) const { // START_OF_NO_COV
+		/**/      os << '('<<ok  ;
+		if (+crc) os << ','<<crc ;
+		/**/      os << ')'      ;
+	}                                     // END_OF_NO_COV
+	Bool3     ok  = Maybe ;               // Maybe is used when info has been masked
 	Hash::Crc crc = {}    ;
 } ;
-inline ::string& operator+=( ::string& os , VerboseInfo dvi ) { // START_OF_NO_COV
-	/**/          os <<'('<< dvi.ok  ;
-	if (+dvi.crc) os <<','<< dvi.crc ;
-	return        os <<')'           ;
-}                                                               // END_OF_NO_COV

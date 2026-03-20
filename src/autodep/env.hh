@@ -13,13 +13,13 @@
 
 namespace Codec {
 	struct CodecRemoteSide {
-		friend ::string& operator+=( ::string& , CodecRemoteSide const& ) ;
 		// cxtors & casts
 		CodecRemoteSide() = default ;
 		CodecRemoteSide(           ::string const& descr ) ; // used when read from $LMAKE_AUTODEP_ENV
 		CodecRemoteSide( NewType , ::string const& dir_s ) ; // used when directly using and external dir
 		operator ::string() const ;
 		// accesses
+		void operator>>(::string&             ) const ;
 		bool operator==(CodecRemoteSide const&) const = default ;
 		bool is_dir() const { return Disk::is_dir_name(tab) ; }
 		// services
@@ -36,7 +36,6 @@ namespace Codec {
 }
 
 struct AutodepEnv : RealPathEnv {
-	friend ::string& operator+=( ::string& , AutodepEnv const& ) ;
 	// cxtors & casts
 	AutodepEnv() = default ;
 	// env format : server:port:fast_mail:fast_report_pipe:options:fqdn:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:codecs:views_s
@@ -45,7 +44,8 @@ struct AutodepEnv : RealPathEnv {
 	AutodepEnv(NewType            ) : AutodepEnv{get_env("LMAKE_AUTODEP_ENV")} {}
 	operator ::string() const ;
 	// accesses
-	bool operator+() const { return +service ; }
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +service ; }
 	// services
 	template<IsStream S> void serdes(S& s) {
 		/**/                        ::serdes(s,static_cast<RealPathEnv&>(self)) ;

@@ -182,6 +182,13 @@ public :
 		}
 		~_Path() { _deallocate() ; }
 		// accesses
+		void operator>>(::string& os) const { // START_OF_NO_COV
+			const char* sep = "" ;
+			/**/                   os << "Path("   ;
+			if ( at!=Fd::Cwd   ) { os <<       at   ; sep = "," ; }
+			if ( file && *file )   os << sep<< file ;
+			/**/                   os << ')'        ;
+		}                                                                                                 // END_OF_NO_COV
 		bool operator==(_Path const& p) const {
 			return at==p.at && ::strcmp(file,p.file)==0 ;
 		}
@@ -260,6 +267,11 @@ public :
 			if ( Send                                ) r.send_report() ;
 		}
 		// accesses
+		void operator>>(::string& os) const { // START_OF_NO_COV
+			/**/        os << "Solve("<<real<<','<<file_loc<<','<<accesses ;
+			if (+real0) os << ','<<real0<<','<<file_loc0                   ;
+			/**/        os << ')'                                          ;
+		}                                                                                                                                            // END_OF_NO_COV
 		::string const& real_write() const { return real0 | real ; }
 		::string      & real_write()       { return real0 | real ; }
 		// services
@@ -493,17 +505,3 @@ private :
 } ;
 
 template<bool Send,bool Writable,Bool3 SkipSimple> constexpr size_t Record::Solve<Send,Writable,SkipSimple>::MaxSz = 2*PATH_MAX+sizeof(Solve<Send,Writable,SkipSimple>) ;
-
-template<bool Writable> ::string& operator+=( ::string& os , Record::_Path<Writable> const& p ) { // START_OF_NO_COV
-	const char* sep = "" ;
-	/**/                       os << "Path("     ;
-	if ( p.at!=Fd::Cwd     ) { os <<      p.at   ; sep = "," ; }
-	if ( p.file && *p.file )   os <<sep<< p.file ;
-	return                     os <<')'          ;
-}                                                                                                 // END_OF_NO_COV
-
-template<bool Send,bool Writable,Bool3 SkipSimple> ::string& operator+=( ::string& os , Record::Solve<Send,Writable,SkipSimple> const& s ) { // START_OF_NO_COV
-	/**/          os << "Solve("<< s.real <<','<< s.file_loc <<','<< s.accesses ;
-	if (+s.real0) os <<','<< s.real0 <<','<< s.file_loc0                        ;
-	return        os <<')'                                                      ;
-}                                                                                                                                            // END_OF_NO_COV

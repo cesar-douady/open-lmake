@@ -41,17 +41,15 @@ template<class T> static typename ::umap<pid_t,T>::const_iterator _get_ppid( pid
 }
 
 struct PidInfoBase {
-	friend ::string& operator+=( ::string& , PidInfoBase const& ) ;
 	// cxtors & casts
 	PidInfoBase() = default ;
 	PidInfoBase( pid_t pid , Bool3 enable ) : record{ New , enable , pid } {}
+	// accesses
+	void operator>>(::string& os) const { os << proc_mem ; }
 	// data
 	Record record   ;
 	AcFd   proc_mem ;
 } ;
-::string& operator+=( ::string& os , PidInfoBase const& pib ) {
-	return os << pib.proc_mem ;
-}
 
 namespace AutodepPtrace {
 
@@ -244,9 +242,8 @@ namespace AutodepPtrace {
 		// good news    : we can freely reset Record instances, so we can erase any item from pid table without notice (only perf is impacted).
 		// synthesis    : we keep a fixed number of entries in pid table and we use a LRU to recycle old entries, exceptionnaly needing to reopen a closed entry.
 		struct TidInfoTab {
-			friend ::string& operator+=( ::string& , TidInfoTab const& ) ;
 			struct Lru {
-				friend ::string& operator+=( ::string& , Lru const& ) ;
+				void operator>>(::string& os) const { os << newer<<','<<older ; }
 				size_t newer = 0/*garbage*/ ;                                                      // circular list : newer of newest is oldest
 				size_t older = 0/*.      */ ;                                                      // circular list : older of oldest is newest
 			} ;
@@ -256,6 +253,18 @@ namespace AutodepPtrace {
 					_lrus[i].newer = i==NCtxs-1   ? size_t(0) : i+1 ;
 					_lrus[i].older = i==size_t(0) ? NCtxs-1   : i-1 ;
 				}
+			}
+			// accesses
+			void operator>>(::string& os) const {
+				::array<pid_t,NCtxs> tids  = {} ; for( auto [tid,idx] : _idxs ) tids[idx] = tid ;
+				First                first ;
+				bool                 start = true ;
+				os << "TidInfoTab(" ;
+				for( size_t i=_newest ; start || i!=_newest ; i=_lrus[i].older ) {
+					if (tids[i]) os << first("",",")<<(tids[i])<<':'<<i ;
+					start = false ;
+				}
+				os << ')' ;
 			}
 			// services
 			TidInfo& emplace(pid_t tid) {
@@ -294,20 +303,6 @@ namespace AutodepPtrace {
 			::umap<pid_t,size_t>   _idxs   ;
 			size_t                 _newest = 0 ;                                                   // it is a circular list, any index is ok as initial value
 		} ;
-		::string& operator+=( ::string& os , TidInfoTab const& pit ) {
-			::array<pid_t,NCtxs> tids  = {} ; for( auto [tid,idx] : pit._idxs ) tids[idx] = tid ;
-			First                first ;
-			bool                 start = true ;
-			os << "TidInfoTab(" ;
-			for( size_t i=pit._newest ; start || i!=pit._newest ; i=pit._lrus[i].older ) {
-				if (tids[i]) os << first("",",")<<(tids[i])<<':'<<i ;
-				start = false ;
-			}
-			return os << ')' ;
-		}
-		::string& operator+=( ::string& os , TidInfoTab::Lru const& l ) {
-			return os << l.newer<<','<<l.older ;
-		}
 
 		static NotifSizes _seccomp_get_sizes() {
 			NotifSizes res ;

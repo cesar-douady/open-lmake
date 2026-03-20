@@ -20,16 +20,16 @@ using namespace Time ;
 // Gather::AccessInfo
 //
 
-::string& operator+=( ::string& os , Gather::AccessInfo const& ai ) { // START_OF_NO_COV
-	Pdate fr = ai.first_read() ;
-	/**/                          os << "AccessInfo("           ;
-	if (fr       !=Pdate::Future) os << "R:" <<fr         <<',' ;
-	if (ai._allow!=Pdate::Future) os << "A:" <<ai._allow  <<',' ;
-	if (ai._write!=Pdate::Future) os << "W:" <<ai._write  <<',' ;
-	if (+ai.dep_info            ) os << ai.dep_info       <<',' ;
-	/**/                          os << ai.flags                ;
-	if (ai._seen!=Pdate::Future ) os <<",seen"                  ;
-	return                        os <<')'                      ;
+void Gather::AccessInfo::operator>>(::string& os) const { // START_OF_NO_COV
+	Pdate fr = first_read() ;
+	/**/                       os << "AccessInfo("     ;
+	if (fr    !=Pdate::Future) os << "R:"<<fr    <<',' ;
+	if (_allow!=Pdate::Future) os << "A:"<<_allow<<',' ;
+	if (_write!=Pdate::Future) os << "W:"<<_write<<',' ;
+	if (+dep_info            ) os << dep_info    <<',' ;
+	/**/                       os << flags             ;
+	if (_seen!=Pdate::Future ) os << ",seen"           ;
+	/**/                       os << ')'               ;
 }                                                                     // END_OF_NO_COV
 
 Pdate Gather::AccessInfo::_max_read(bool phys) const {
@@ -103,24 +103,24 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 // Gather
 //
 
-::string& operator+=( ::string& os , Gather::ServerSlaveEntry const& sse ) { // START_OF_NO_COV
+void Gather::ServerSlaveEntry::operator>>(::string& os) const { // START_OF_NO_COV
 	First first ;
-	/**/          os << "ServerSlaveEntry("           ;
-	if (+sse.buf) os <<first("",",")<< sse.buf.size() ;
-	if (+sse.key) os <<first("",",")<< sse.key        ;
-	return        os <<')'                            ;
+	/**/      os << "ServerSlaveEntry("       ;
+	if (+buf) os << first("",",")<<buf.size() ;
+	if (+key) os << first("",",")<<key        ;
+	/**/      os << ')'                       ;
 }                                                                            // END_OF_NO_COV
 
-::string& operator+=( ::string& os , Gather::JobSlaveEntry const& jse ) { // START_OF_NO_COV
+void Gather::JobSlaveEntry::operator>>(::string& os) const { // START_OF_NO_COV
 	First first ;
-	/**/          os << "JobSlaveEntry("              ;
-	if (+jse.buf) os <<first("",",")<< jse.buf.size() ;
-	if (+jse.key) os <<first("",",")<< jse.key        ;
-	return        os <<')'                            ;
+	/**/      os << "JobSlaveEntry("          ;
+	if (+buf) os << first("",",")<<buf.size() ;
+	if (+key) os << first("",",")<<key        ;
+	/**/      os << ')'                       ;
 }                                                                         // END_OF_NO_COV
 
-::string& operator+=( ::string& os , Gather const& gd ) { // START_OF_NO_COV
-	return os << "Gather("<<gd.accesses<<')' ;
+void Gather::operator>>(::string& os) const { // START_OF_NO_COV
+	os << "Gather("<<accesses<<')' ;
 }                                                         // END_OF_NO_COV
 
 void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Bool3 late , Comment c , CommentExts ces ) {
@@ -246,9 +246,9 @@ Gather::Digest Gather::analyze(Status status) {
 			if (rc!=0) {
 				switch (errno) {
 					case ENOENT       :
-					case ENOTDIR      :                                                            break ;
+					case ENOTDIR      :
 					case ELOOP        :
-					case ENAMETOOLONG : FAIL( StrErr(),file ) ;                                    break ;         // file is supposed to be real and should not be reported if too long
+					case ENAMETOOLONG :                                                            break ;
 					default           : res.msg << "cannot access ("<<StrErr()<<") "<<file<<'\n' ; break ;
 				}
 				st.st_mode = 0 ;

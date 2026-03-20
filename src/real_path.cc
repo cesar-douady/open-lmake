@@ -23,14 +23,14 @@ static FileLoc _lcl_file_loc(::string_view file) {
 // RealPathEnv
 //
 
-::string& operator+=( ::string& os , RealPathEnv const& rpe ) {    // START_OF_NO_COV
-	/**/                 os << "RealPathEnv(" << rpe.lnk_support ;
-	if (+rpe.file_sync ) os <<','<< rpe.file_sync                ;
-	/**/                 os <<','<< rpe.repo_root_s              ;
-	if (+rpe.tmp_dir_s ) os <<','<< rpe.tmp_dir_s                ;
-	if (+rpe.src_dirs_s) os <<','<< rpe.src_dirs_s               ;
-	return               os <<')'                                ;
-}                                                                  // END_OF_NO_COV
+void RealPathEnv::operator>>(::string& os) const {       // START_OF_NO_COV
+	/**/             os << "RealPathEnv("<<lnk_support ;
+	if (+file_sync ) os << ','<<file_sync              ;
+	/**/             os << ','<<repo_root_s            ;
+	if (+tmp_dir_s ) os << ','<<tmp_dir_s              ;
+	if (+src_dirs_s) os << ','<<src_dirs_s             ;
+	/**/             os << ')'                         ;
+}                                                        // END_OF_NO_COV
 
 // /!\ : this code must be in sync with RealPath::solve
 FileLoc RealPathEnv::file_loc(::string const& real) const {
@@ -65,17 +65,17 @@ void RealPathEnv::chk(bool for_cache) const {
 // RealPath
 //
 
-::string& operator+=( ::string& os , RealPath::SolveReport const& sr ) {               // START_OF_NO_COV
-	return os << "SolveReport(" << sr.real <<','<< sr.file_loc <<','<< sr.lnks <<')' ;
-}                                                                                      // END_OF_NO_COV
+void RealPath::SolveReport::operator>>(::string& os) const {    // START_OF_NO_COV
+	os << "SolveReport("<<real<<','<<file_loc<<','<<lnks<<')' ;
+}                                                               // END_OF_NO_COV
 
-::string& operator+=( ::string& os , RealPath const& rp ) {  // START_OF_NO_COV
-	/**/                     os << "RealPath("             ;
-	if (+rp.pid            ) os << rp.pid <<','            ;
-	/**/                     os <<      rp._cwd            ;
-	if (+rp._abs_src_dirs_s) os <<','<< rp._abs_src_dirs_s ;
-	return                   os <<')'                      ;
-}                                                            // END_OF_NO_COV
+void RealPath::operator>>(::string& os) const {             // START_OF_NO_COV
+	/**/                  os << "RealPath("               ;
+	if (+pid            ) os <<       pid           <<',' ;
+	/**/                  os <<      _cwd                 ;
+	if (+_abs_src_dirs_s) os << ','<<_abs_src_dirs_s      ;
+	/**/                  os << ')'                       ;
+}                                                           // END_OF_NO_COV
 
 void RealPath::_Dvg::update( ::string_view domain_s , ::string const& chk ) {
 	if (!domain_s) return ;                                                   // always false

@@ -175,41 +175,6 @@ template<void (*Handler)(int sig)> struct WithSigHandler {
 	struct sigaction sav_sa = {} ;
 } ;
 
-// START_OF_NO_COV for debug only
-
-/**/                 [[noreturn]] inline    void compile_time_crash(                                                      ) { throw 0 ; } // not constexpr, which forces a compile-time error
-template<class... A> [[noreturn]]           void run_time_crash    ( int n_hide , int sig , int n_hdrs , A const&... args ) ;             // isolate so ::string can be declared with clang
-template<class... A> [[noreturn]] constexpr void crash             ( int n_hide , int sig , int n_hdrs , A const&... args ) {
-	if (::is_constant_evaluated()) compile_time_crash(                                   ) ;
-	else                           run_time_crash    ( n_hide , sig , n_hdrs , args... ) ;
-}
-
-template<class... A> [[noreturn]] constexpr void _fail_prod (             int n_hdrs , A const&... args ) {            crash( 1 , SIGABRT , 1+n_hdrs , "fail : "               ,args... ) ; }
-template<class... A>              constexpr void _swear_prod( bool cond , int n_hdrs , A const&... args ) { if (!cond) crash( 1 , SIGABRT , 1+n_hdrs , "assertion violation : ",args... ) ; }
-#ifndef NDEBUG
-	template<class... A> [[noreturn]] constexpr void _fail (             int n_hdrs , A const&... args ) { _fail_prod (        n_hdrs , args... ) ; }
-	template<class... A>              constexpr void _swear( bool cond , int n_hdrs , A const&... args ) { _swear_prod( cond , n_hdrs , args... ) ; }
-#else
-	template<class... A> [[noreturn]] constexpr void _fail (             int        , A const&...      ) {            ::unreachable() ;             }
-	template<class... A>              constexpr void _swear( bool cond , int        , A const&...      ) { if (!cond) ::unreachable() ;             }
-#endif //!                                                                                                      n_hdrs
-template<class... A> [[noreturn]] constexpr void fail      (             A const&... args ) { _fail      (        0  , args... ) ; }
-template<class... A>              constexpr void swear     ( bool cond , A const&... args ) { _swear     ( cond , 0  , args... ) ; }
-template<class... A> [[noreturn]] constexpr void fail_prod (             A const&... args ) { _fail_prod (        0  , args... ) ; }
-template<class... A>              constexpr void swear_prod( bool cond , A const&... args ) { _swear_prod( cond , 0  , args... ) ; }
-
-// END_OF_NO_COV
-
-#define _FAIL_STR2(x) #x
-#define _FAIL_STR(x) _FAIL_STR2(x)
-#define FAIL(           ...) _fail      (       3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__             __VA_OPT__(," : " #__VA_ARGS__ " = ",) __VA_ARGS__)
-#define FAIL_PROD(      ...) _fail_prod (       3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__             __VA_OPT__(," : " #__VA_ARGS__ " = ",) __VA_ARGS__)
-#define SWEAR(     cond,...) _swear     ((cond),3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__," : " #cond __VA_OPT__( " : " #__VA_ARGS__ " = ",) __VA_ARGS__)
-#define SWEAR_PROD(cond,...) _swear_prod((cond),3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__," : " #cond __VA_OPT__( " : " #__VA_ARGS__ " = ",) __VA_ARGS__)
-
-#define DF default : FAIL() ; // for use at end of switch statements
-#define DN default :        ; // .
-
 //
 // math
 //
@@ -257,8 +222,8 @@ public :
 	// data
 	T bounds[1+WithStart] = {} ;
 } ; //!                                   with_start
-template<         class T > constexpr Iota<false   ,T > iota(            T  end ) {                                    return {   end} ; }
-template<class T1,class T2> constexpr Iota<true    ,T2> iota( T1 begin , T2 end ) { T2 b2=T2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
+template<         class T > constexpr Iota<false   ,T > iota(            T  end ) ;
+template<class T1,class T2> constexpr Iota<true    ,T2> iota( T1 begin , T2 end ) ;
 //                                  with_start
 template<class T> using Iota1 = Iota<false   ,T> ;
 template<class T> using Iota2 = Iota<true    ,T> ;
@@ -271,15 +236,7 @@ struct First {
 	//
 	/**/              const char* operator()(                                       ) { return advance() , ""                                        ; }
 	template<class T> T           operator()( T&& first , T&& other =T()            ) { return advance() ? ::forward<T>(first) : ::forward<T>(other) ; }
-	template<class T> T           operator()( T&& first , T&& second    , T&& other ) {
-		uint8_t v = _val ;
-		advance() ;
-		switch (v) {
-			case 0 : return ::forward<T>(first ) ;
-			case 1 : return ::forward<T>(second) ;
-			case 2 : return ::forward<T>(other ) ;
-		DF}                                        // NO_COV
-	}
+	template<class T> T           operator()( T&& first , T&& second    , T&& other ) ;
 	//
 	const char* operator()( const char* first ,                      const char* other="" ) { return operator()<const char*&>(first,       other) ; }
 	const char* operator()( const char* first , const char* second , const char* other    ) { return operator()<const char*&>(first,second,other) ; }
@@ -293,7 +250,41 @@ private :
 // string formatting
 //
 
-template<class T> ::string& operator<<( ::string& s , T&& x ) ;
+template<class F> concept _CanDoFunc    = requires(::string s,::decay_t<F> f) { f(s) ; } ;
+template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                 ; // use a template to avoid having too high a priority when compiler selects an overload
+template<class T> concept _CanDoPtr     = !_CanDoFunc<T*>                                ;
+template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>  ;
+
+/**/                                       void operator>>( ::string_view          , ::string& ) ;
+/**/                                       void operator>>( ::string const&        , ::string& ) ;
+/**/                                       void operator>>( char                   , ::string& ) ;
+/**/                                       void operator>>( const char*            , ::string& ) ;
+/**/                                       void operator>>(       char*            , ::string& ) ;
+/**/                                       void operator>>( nullptr_t              , ::string& ) ;
+/**/                                       void operator>>( uint8_t                , ::string& ) ;
+/**/                                       void operator>>( int8_t                 , ::string& ) ;
+template<_CanDoFunc    F                 > void operator>>( F               const& , ::string& ) ;
+template<_CanDoBool    B                 > void operator>>( B                      , ::string& ) ;
+template<_CanDoPtr     T                 > void operator>>( T*                     , ::string& ) ;
+template<_CanDoToChars N                 > void operator>>( N                      , ::string& ) ;
+template<class         T,size_t N        > void operator>>(          T[N]          , ::string& ) ;
+template<class         T,size_t N        > void operator>>( ::array <T,N  > const& , ::string& ) ;
+template<class         T                 > void operator>>( ::vector<T    > const& , ::string& ) ;
+template<class         T                 > void operator>>( ::span  <T    > const& , ::string& ) ;
+template<class         K                 > void operator>>( ::uset  <K    > const& , ::string& ) ;
+template<class         K                 > void operator>>( ::set   <K    > const& , ::string& ) ;
+template<class         K,         class C> void operator>>( ::set   <K,  C> const& , ::string& ) ;
+template<class         K,class V         > void operator>>( ::umap  <K,V  > const& , ::string& ) ;
+template<class         K,class V         > void operator>>( ::map   <K,V  > const& , ::string& ) ;
+template<class         K,class V ,class C> void operator>>( ::map   <K,V,C> const& , ::string& ) ;
+template<class         A,class B         > void operator>>( ::pair<A,B>     const& , ::string& ) ;
+template<class         T                 > void operator>>( ::optional<T>   const& , ::string& ) ;
+#if HAS_UINT128
+	void operator>>( uint128_t i , ::string& os ) ;
+	void operator>>( int128_t  i , ::string& os ) ;
+#endif
+
+template<class T> ::string& operator<<( ::string& os , T&& ) ;
 
 inline ::string widen( ::string && s , size_t sz , bool right=false , char fill=' ' ) {
 	if (s.size()>=sz) return ::move(s)   ;
@@ -310,6 +301,37 @@ inline ::string widen( ::string const& s , size_t sz , bool right=false , char f
 
 // START_OF_NO_COV for debug/trace only
 
+/**/                 [[noreturn]] inline    void compile_time_crash(                                                      ) { throw 0 ; } // not constexpr, which forces a compile-time error
+template<class... A> [[noreturn]]           void run_time_crash    ( int n_hide , int sig , int n_hdrs , A const&... args ) ;             // isolate so ::string can be declared with clang
+template<class... A> [[noreturn]] constexpr void crash             ( int n_hide , int sig , int n_hdrs , A const&... args ) {
+	if (::is_constant_evaluated()) compile_time_crash(                                   ) ;
+	else                           run_time_crash    ( n_hide , sig , n_hdrs , args... ) ;
+}
+
+template<class... A> [[noreturn]] constexpr void _fail_prod (             int n_hdrs , A const&... args ) {            crash( 1 , SIGABRT , 1+n_hdrs , "fail : "               ,args... ) ; }
+template<class... A>              constexpr void _swear_prod( bool cond , int n_hdrs , A const&... args ) { if (!cond) crash( 1 , SIGABRT , 1+n_hdrs , "assertion violation : ",args... ) ; }
+#ifndef NDEBUG
+	template<class... A> [[noreturn]] constexpr void _fail (             int n_hdrs , A const&... args ) { _fail_prod (        n_hdrs , args... ) ; }
+	template<class... A>              constexpr void _swear( bool cond , int n_hdrs , A const&... args ) { _swear_prod( cond , n_hdrs , args... ) ; }
+#else
+	template<class... A> [[noreturn]] constexpr void _fail (             int        , A const&...      ) {            ::unreachable() ;             }
+	template<class... A>              constexpr void _swear( bool cond , int        , A const&...      ) { if (!cond) ::unreachable() ;             }
+#endif //!                                                                                                      n_hdrs
+template<class... A> [[noreturn]] constexpr void fail      (             A const&... args ) { _fail      (        0  , args... ) ; }
+template<class... A>              constexpr void swear     ( bool cond , A const&... args ) { _swear     ( cond , 0  , args... ) ; }
+template<class... A> [[noreturn]] constexpr void fail_prod (             A const&... args ) { _fail_prod (        0  , args... ) ; }
+template<class... A>              constexpr void swear_prod( bool cond , A const&... args ) { _swear_prod( cond , 0  , args... ) ; }
+
+#define _FAIL_STR2(x) #x
+#define _FAIL_STR(x) _FAIL_STR2(x)
+#define FAIL(           ...) _fail      (       3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__             __VA_OPT__(," : " #__VA_ARGS__ " = ",) __VA_ARGS__)
+#define FAIL_PROD(      ...) _fail_prod (       3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__             __VA_OPT__(," : " #__VA_ARGS__ " = ",) __VA_ARGS__)
+#define SWEAR(     cond,...) _swear     ((cond),3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__," : " #cond __VA_OPT__( " : " #__VA_ARGS__ " = ",) __VA_ARGS__)
+#define SWEAR_PROD(cond,...) _swear_prod((cond),3,"@" __FILE__ ":" _FAIL_STR(__LINE__) " in ",__PRETTY_FUNCTION__," : " #cond __VA_OPT__( " : " #__VA_ARGS__ " = ",) __VA_ARGS__)
+
+#define DF default : FAIL() ; // for use at end of switch statements
+#define DN default :        ; // .
+
 template<::unsigned_integral I> ::string to_hex( I v , uint8_t width=sizeof(I)*2 ) {
 	::string res ( width , '0' ) ;
 	for( uint8_t i : iota(width) ) {
@@ -322,11 +344,6 @@ template<::unsigned_integral I> ::string to_hex( I v , uint8_t width=sizeof(I)*2
 	return res ;
 }
 
-template<class T> concept _CanDoBool    = ::is_same_v<::decay_t<T>,bool>                    ; // use a template to avoid having too high a priority when compiler selects an overload
-template<class F> concept _CanDoFunc    = requires(::string s,F* f) { (*f)(s) ; }           ;
-template<class T> concept _CanDoPtr     = !::is_same_v<::decay_t<T>,char> && !_CanDoFunc<T> ;
-template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,char,bool>     ;
-
 #if __cplusplus<202600L
 	inline ::string operator+( ::string     && s , ::string_view   v ) {                    s.append(  v.data(),v.size()) ; return ::move(s) ; }
 	inline ::string operator+( ::string_view   v , ::string     && s ) {                    s.insert(0,v.data(),v.size()) ; return ::move(s) ; }
@@ -334,43 +351,43 @@ template<class N> concept _CanDoToChars = ::is_arithmetic_v<N> && !IsOneOf<N,cha
 	inline ::string operator+( ::string_view   v , ::string const& s ) { ::string r { v } ; r.append(  s.data(),s.size()) ; return        r  ; }
 #endif
 
-#if __cplusplus<202600L
-	inline ::string& operator+=( ::string& s , ::string_view v ) { s.append(  v.data(),v.size()) ; return s ; }
-#endif
-inline                    ::string& operator+=( ::string& s , nullptr_t   ) { return s += "(null)"                                                    ; }
-template<_CanDoBool    B> ::string& operator+=( ::string& s , B         b ) { return s +=  b?"true":"false"                                           ; }
-template<_CanDoPtr     T> ::string& operator+=( ::string& s , T*        p ) { return s += p ? "0x"+to_hex(reinterpret_cast<uintptr_t>(p)) : "(null)"s ; }
-template<_CanDoToChars N> ::string& operator+=( ::string& s , N         n ) {
-	size_t old_sz = s.size()  ;
+inline                    void operator>>( ::string_view   v , ::string& os ) { os.append   (v)                                    ; }
+inline                    void operator>>( ::string const& s , ::string& os ) { os.append   (s)                                    ; }
+inline                    void operator>>( char            c , ::string& os ) { os.push_back(c)                                    ; }
+inline                    void operator>>( const char*     s , ::string& os ) { os.append   (s)                                    ; }
+inline                    void operator>>(       char*     s , ::string& os ) { os.append   (s)                                    ; }
+inline                    void operator>>( nullptr_t         , ::string& os ) { os << "<null>"                                     ; }
+inline                    void operator>>( uint8_t         i , ::string& os ) { os << uint32_t(i)                                  ; }                             // avoid char when actually a int
+inline                    void operator>>( int8_t          i , ::string& os ) { os << int32_t (i)                                  ; }                             // .
+template<_CanDoFunc    F> void operator>>( F        const& f , ::string& os ) { f(os)                                              ; }
+template<_CanDoBool    B> void operator>>( B               b , ::string& os ) { os << (b?"true":"false")                           ; }
+template<_CanDoPtr     T> void operator>>( T*              p , ::string& os ) { os << "0x"<<to_hex(reinterpret_cast<uintptr_t>(p)) ; }
+template<_CanDoToChars N> void operator>>( N               n , ::string& os ) {
+	size_t old_sz = os.size()  ;
 	size_t new_sz = old_sz+30 ;                                                                                                                                    // more than enough to print a number
-	s.resize(new_sz) ;
-	::to_chars_result rc = ::to_chars( s.data()+old_sz , s.data()+new_sz , n ) ; SWEAR(rc.ec==::errc()) ; SWEAR(rc.ptr<=s.data()+new_sz) ;
-	s.resize(rc.ptr-s.data()) ;
-	return s ;
+	os.resize(new_sz) ;
+	::to_chars_result rc = ::to_chars( os.data()+old_sz , os.data()+new_sz , n ) ; SWEAR(rc.ec==::errc()) ; SWEAR(rc.ptr<=os.data()+new_sz) ;
+	os.resize(rc.ptr-os.data()) ;
 }
 //
-template<_CanDoFunc F> ::string& operator+=( ::string& s , F* f ) { (*f)(s) ; return s ; }
-//
-template<class T,size_t N        > ::string& operator+=(::string& os,         T             a[N]) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-template<class T,size_t N        > ::string& operator+=(::string& os,::array <T,N  > const& a   ) { First f ; os <<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } return os <<']' ; }
-template<class T                 > ::string& operator+=(::string& os,::vector<T    > const& v   ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-template<class T                 > ::string& operator+=(::string& os,::span  <T    > const& v   ) { First f ; os <<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } return os <<']' ; }
-template<class K                 > ::string& operator+=(::string& os,::uset  <K    > const& s   ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-template<class K                 > ::string& operator+=(::string& os,::set   <K    > const& s   ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-template<class K,         class C> ::string& operator+=(::string& os,::set   <K,  C> const& s   ) { First f ; os <<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } return os <<'}' ; }
-template<class K,class V         > ::string& operator+=(::string& os,::umap  <K,V  > const& m   ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
-template<class K,class V         > ::string& operator+=(::string& os,::map   <K,V  > const& m   ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
-template<class K,class V ,class C> ::string& operator+=(::string& os,::map   <K,V,C> const& m   ) { First f ; os <<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } return os <<'}' ; }
-//
-template<class A,class B> ::string& operator+=( ::string& os , ::pair<A,B> const& p ) { return os <<'('<< p.first <<','<< p.second <<')' ; }
-//
-template<class T> ::string& operator+=( ::string& os , ::optional<T> const& o ) { return +o ? os<<*o : os<<"<none>" ; }
+template<class T,size_t N        > void operator>>(          T             a[N] , ::string& os ) { First f ; os<<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } os<<']' ; }
+template<class T,size_t N        > void operator>>( ::array <T,N  > const& a    , ::string& os ) { First f ; os<<'[' ; for( T    const&  x    : a ) { os<<f("",",")<<x         ; } os<<']' ; }
+template<class T                 > void operator>>( ::vector<T    > const& v    , ::string& os ) { First f ; os<<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } os<<']' ; }
+template<class T                 > void operator>>( ::span  <T    > const& v    , ::string& os ) { First f ; os<<'[' ; for( T    const&  x    : v ) { os<<f("",",")<<x         ; } os<<']' ; }
+template<class K                 > void operator>>( ::uset  <K    > const& s    , ::string& os ) { First f ; os<<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } os<<'}' ; }
+template<class K                 > void operator>>( ::set   <K    > const& s    , ::string& os ) { First f ; os<<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } os<<'}' ; }
+template<class K,         class C> void operator>>( ::set   <K,  C> const& s    , ::string& os ) { First f ; os<<'{' ; for( K    const&  k    : s ) { os<<f("",",")<<k         ; } os<<'}' ; }
+template<class K,class V         > void operator>>( ::umap  <K,V  > const& m    , ::string& os ) { First f ; os<<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } os<<'}' ; }
+template<class K,class V         > void operator>>( ::map   <K,V  > const& m    , ::string& os ) { First f ; os<<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } os<<'}' ; }
+template<class K,class V ,class C> void operator>>( ::map   <K,V,C> const& m    , ::string& os ) { First f ; os<<'{' ; for( auto const& [k,v] : m ) { os<<f("",",")<<k<<':'<<v ; } os<<'}' ; }
+template<class A,class B         > void operator>>( ::pair<A,B>     const& p    , ::string& os ) { os <<'('<<p.first<<','<<p.second<<')' ;                                                   }
+template<class T                 > void operator>>( ::optional<T>   const& o    , ::string& os ) { if (+o) os<<*o ; else os<<"<none>" ;                                                      }
 //
 #if HAS_UINT128
-	inline ::string& operator+=( ::string& os , uint128_t i ) {                                                                                                    // non-standard
+	inline void operator>>( uint128_t i , ::string& os ) {                                                                                                         // non-standard
 		static constexpr uint64_t Max10 = uint64_t(10)*uint64_t(1000000000)*uint64_t(1000000000) ; static_assert( Max<uint64_t>/2<Max10 && Max10<Max<uint64_t> ) ; // 10^19
 		// try easy case
-		if (i<=Max<uint64_t>) return os << uint64_t(i) ;
+		if (i<=Max<uint64_t>) { os << uint64_t(i) ; return ; }
 		// do complex case
 		uint128_t msb     = i/Max10 ;
 		uint64_t  lsb     = i%Max10 ;
@@ -378,22 +395,20 @@ template<class T> ::string& operator+=( ::string& os , ::optional<T> const& o ) 
 		::string  s       ;
 		s << msb                                         ;
 		s << widen(lsb_str,19,true/*right*/,'0'/*fill*/) ;
-		return os << s ;
+		os << s ;
 	}
-	inline ::string& operator+=( ::string& os , int128_t  i ) {                                                                                                    // non-standard
-		if (i>=0) return os <<     uint128_t( i) ;
-		else      return os <<'-'<<uint128_t(-i) ;
+	inline void operator>>( int128_t i , ::string& os ) {                                                                                                          // non-standard
+		if (i>=0) os <<      uint128_t( i) ;
+		else      os << '-'<<uint128_t(-i) ;
 	}
 #endif
-inline ::string& operator+=( ::string& os , uint8_t i ) { return os << uint32_t(i) ; } // avoid output a char when actually a int
-inline ::string& operator+=( ::string& os , int8_t  i ) { return os << int32_t (i) ; } // .
 
 // END_OF_NO_COV
 
 template<class... A> struct _CatHelper {
 	static ::string s_cat(A&&... args) {
 		::string res ;
-		((res+=args),...) ;
+		((res<<args),...) ;
 		return res ;
 	}
 } ;
@@ -477,4 +492,17 @@ template<::integral I> void encode_int( char* p , I x ) {
 // Implementation
 //
 
-template<class T> ::string& operator<<( ::string& s , T&& x ) { s += ::forward<T>(x) ; return s ; }
+template<class T> ::string& operator<<( ::string& os , T&& x ) { ::forward<T>(x)>>os ; return os ; }
+
+template<         class T > constexpr Iota<false   ,T > iota(            T  end ) {                                    return {   end} ; }
+template<class T1,class T2> constexpr Iota<true    ,T2> iota( T1 begin , T2 end ) { T2 b2=T2(begin) ; SWEAR(b2<=end) ; return {b2,end} ; }
+
+template<class T> T First::operator()( T&& first , T&& second , T&& other ) {
+	uint8_t v = _val ;
+	advance() ;
+	switch (v) {
+		case 0 : return ::forward<T>(first ) ;
+		case 1 : return ::forward<T>(second) ;
+		case 2 : return ::forward<T>(other ) ;
+	DF}                                        // NO_COV
+}

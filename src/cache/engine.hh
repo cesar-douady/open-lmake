@@ -62,16 +62,16 @@ void mk_room          ( Disk::DiskSz                       ) ;
 
 struct Ckey : Idxed<CkeyIdx> {
 	using Base = Idxed<CkeyIdx> ;
-	friend ::string& operator+=( ::string& , Ckey const& ) ;
 	// cxtors & casts
 	using Base::Base ;
 	Ckey(           ::string const& ) ; // make empty if not found
 	Ckey( NewType , ::string const& ) ; // create new if not found
 	// accesses
-	CkeyData const& operator* () const ;
-	CkeyData      & operator* ()       ;
-	CkeyData const* operator->() const { return &*self ; }
-	CkeyData      * operator->()       { return &*self ; }
+	void            operator>>(::string&) const ;
+	CkeyData const& operator* (         ) const ;
+	CkeyData      & operator* (         )       ;
+	CkeyData const* operator->(         ) const { return &*self ; }
+	CkeyData      * operator->(         )       { return &*self ; }
 	::string str() const ;
 	// services
 	void inc      () ;
@@ -81,62 +81,62 @@ struct Ckey : Idxed<CkeyIdx> {
 
 struct CjobName : Idxed<CjobNameIdx> {
 	using Base = Idxed<CjobNameIdx> ;
-	friend ::string& operator+=( ::string& , CjobName const& ) ;
 	// cxtors & casts
 	using Base::Base ;
 	// accesses
-	::string str() const ;
+	void     operator>>(::string&) const ;
+	::string str       (         ) const ;
 } ;
 
 struct CnodeName : Idxed<CnodeNameIdx> {
 	using Base = Idxed<CnodeNameIdx> ;
-	friend ::string& operator+=( ::string& , CnodeName const& ) ;
 	// cxtors & casts
 	using Base::Base ;
 	// accesses
-	::string str() const ;
+	void     operator>>(::string&) const ;
+	::string str       (         ) const ;
 } ;
 
 struct Cjob : Idxed<CjobIdx> {
 	using Base = Idxed<CjobIdx> ;
-	friend ::string& operator+=( ::string& , Cjob const& ) ;
 	// statics
 	// cxtors & casts
 	using Base::Base ;
 	Cjob(           ::string const& name                    ) ; // make empty if not found
 	Cjob( NewType , ::string const& name , VarIdx n_statics ) ; // create new if not found
 	// accesses
-	CjobData const& operator* () const ;
-	CjobData      & operator* ()       ;
-	CjobData const* operator->() const { return &*self ; }
-	CjobData      * operator->()       { return &*self ; }
+	void            operator>>(::string&) const ;
+	CjobData const& operator* (         ) const ;
+	CjobData      & operator* (         )       ;
+	CjobData const* operator->(         ) const { return &*self ; }
+	CjobData      * operator->(         )       { return &*self ; }
 } ;
 
 struct Crun : Idxed<CrunIdx> {
 	using Base = Idxed<CrunIdx> ;
-	friend ::string& operator+=( ::string& , Crun const& ) ;
 	// cxtors& casts
 	using Base::Base ;
 	template<class... A> Crun( NewType , A&&... ) ; // args are passed to CrunData cxtor
 	// accesses
-	CrunData const& operator* () const ;
-	CrunData      & operator* ()       ;
-	CrunData const* operator->() const { return &*self ; }
-	CrunData      * operator->()       { return &*self ; }
+	void            operator>>(::string&) const ;
+	CrunData const& operator* (         ) const ;
+	CrunData      & operator* (         )       ;
+	CrunData const* operator->(         ) const { return &*self ; }
+	CrunData      * operator->(         )       { return &*self ; }
 } ;
 
 struct Cnode : Idxed<CnodeIdx> {
 	using Base = Idxed<CnodeIdx> ;
-	friend ::string& operator+=( ::string& , Cnode const& ) ;
 	// cxtors & casts
 	using Base::Base ;
 	Cnode(           ::string const& name ) ; // make empty if not found
 	Cnode( NewType , ::string const& name ) ; // create new if not found
 	// accesses
-	CnodeData const& operator* () const ;
-	CnodeData      & operator* ()       ;
-	CnodeData const* operator->() const { return &*self ; }
-	CnodeData      * operator->()       { return &*self ; }
+	void             operator>>(::string&) const ;
+	CnodeData const& operator* (         ) const ;
+	CnodeData      & operator* (         )       ;
+	CnodeData const* operator->(         ) const { return &*self ; }
+	CnodeData      * operator->(         )       { return &*self ; }
 } ;
 
 struct DaemonCacheMrkr {} ;
@@ -145,9 +145,9 @@ using Ccrcs  = Vector::Simple<CcrcsIdx ,Hash::Crc,DaemonCacheMrkr> ;
 
 // START_OF_VERSIONING CACHE
 struct LruEntry {
-	friend ::string& operator+=( ::string& , LruEntry const& ) ;
 	// accesses
-	bool operator+() const { return +newer || +older ; }
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +newer || +older ; }
 	// services
 	bool/*first*/ insert_top( LruEntry      & hdr , Crun , LruEntry CrunData::* lru )       ;
 	bool/*last*/  erase     ( LruEntry      & hdr ,        LruEntry CrunData::* lru )       ;
@@ -161,7 +161,8 @@ struct LruEntry {
 
 struct CkeyData {
 	friend struct Ckey ;
-	friend ::string& operator+=( ::string& , CkeyData const& ) ;
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	bool operator==(CkeyData const&) const = default ;
 	// data
@@ -172,7 +173,6 @@ struct CkeyData {
 
 struct CjobData {
 	friend struct Cjob ;
-	friend ::string& operator+=( ::string& , CjobData const& ) ;
 	// statics
 	static CnodeIdx s_size       () ;
 	static void     s_empty_trash() ;
@@ -183,9 +183,10 @@ struct CjobData {
 	CjobData() = default ;
 	CjobData( CjobName n , VarIdx nss ) : n_statics{nss},_name{n} {}
 	// accesses
-	Cjob     idx      () const ;
-	bool     operator+() const { return +n_runs     ; }
-	::string name     () const { return _name.str() ; }
+	void     operator>>(::string&) const ;
+	Cjob     idx       (         ) const ;
+	bool     operator+ (         ) const { return +n_runs     ; }
+	::string name      (         ) const { return _name.str() ; }
 	// services
 	::pair<Crun,CacheHitInfo> match( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ;     // updates lru related info when hit
 	bool/*done*/ insert(                                                                         // like match, but create when miss
@@ -213,7 +214,6 @@ struct CrunHdr {
 
 struct CrunData {
 	friend struct Crun ;
-	friend ::string& operator+=( ::string& , CrunData const& ) ;
 	// statics
 	static CrunHdr      & s_hdr  () ;
 	static CrunHdr const& s_c_hdr() ;
@@ -223,9 +223,10 @@ struct CrunData {
 	CrunData() = default ;
 	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
 	// accesses
-	bool     operator+() const { return +job                                         ; }
-	Crun     idx      () const ;
-	::string name     () const { return run_file( job->name() , +key , key_is_last ) ; }
+	void     operator>>(::string&) const ;
+	bool     operator+ (         ) const { return +job                                         ; }
+	Crun     idx       (         ) const ;
+	::string name      (         ) const { return run_file( job->name() , +key , key_is_last ) ; }
 	// services
 	void                   access   (                                                     )       ; // move to top in LRU (both job and glb)
 	bool/*job_victimzied*/ victimize( bool victimize_job=true , NfsGuard* =nullptr        )       ; // if victimize_job, victimize job if last run
@@ -249,7 +250,6 @@ static_assert( sizeof(CrunData)==56 ) ;
 
 struct CnodeData {
 	friend struct Cnode ;
-	friend ::string& operator+=( ::string& , CnodeData const& ) ;
 	// statics
 	static CnodeIdx s_size       () ;
 	static void     s_empty_trash() ;
@@ -260,9 +260,10 @@ struct CnodeData {
 	CnodeData() = default ;
 	CnodeData(CnodeName n) : _name{n} {}
 	// accesses
-	Cnode    idx      () const ;
-	bool     operator+() const { return ref_cnt>0   ; }
-	::string name     () const { return _name.str() ; }
+	void     operator>>(::string&) const ;
+	Cnode    idx       (         ) const ;
+	bool     operator+ (         ) const { return ref_cnt>0   ; }
+	::string name      (         ) const { return _name.str() ; }
 	// services
 	void inc      () {                          ref_cnt++ ;                             }
 	void dec      () { SWEAR(ref_cnt>0,idx()) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }

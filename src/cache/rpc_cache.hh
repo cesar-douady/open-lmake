@@ -75,6 +75,11 @@ namespace Cache {
 		StrId(::string const& n) : name{n} {}
 		StrId(I               i) : id  {i} {}
 		// accesses
+		void operator>>(::string& os) const {
+			if      (is_name()) os << name ;
+			else if (id       ) os << id   ;
+			else                os << "()" ;
+		}
 		bool operator+() const { return +name || +id ; }
 		bool is_name  () const { return +name        ; }
 		// services
@@ -85,14 +90,10 @@ namespace Cache {
 		::string name ;
 		I        id   = {} ;
 	} ;
-	template<class I> ::string& operator+=( ::string& os , StrId<I> const& si ) {
-		if      (si.is_name()) return os << si.name ;
-		else if (si.id       ) return os << si.id   ;
-		else                   return os << "()"    ;
-	}
 
 	struct CacheConfig {
-		friend ::string& operator+=( ::string& , CacheConfig const& ) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// data
 		// START_OF_VERSIONING CACHE
 		Disk::DiskSz max_sz           = 0     ;
@@ -104,9 +105,9 @@ namespace Cache {
 	} ;
 
 	struct CacheRpcReq {
-		friend ::string& operator+=( ::string& , CacheRpcReq const& ) ;
 		// accesses
-		bool operator+() const { return +proc ; }
+		void operator>>(::string&) const ;
+		bool operator+ (         ) const { return +proc ; }
 		// service
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , proc ) ;
@@ -136,9 +137,9 @@ namespace Cache {
 	} ;
 
 	struct CacheRpcReply {
-		friend ::string& operator+=( ::string& , CacheRpcReply const& ) ;
 		// accesses
-		bool operator+() const { return +proc ; }
+		void operator>>(::string&) const ;
+		bool operator+ (         ) const { return +proc ; }
 		// service
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , proc ) ;

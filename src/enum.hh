@@ -131,10 +131,10 @@ template<Enum E> ::string      snake_str(E e) { return ::string(EnumHelper::Enum
 
 template<UEnum E> static constexpr size_t NBits<E> = n_bits(N<E>) ;
 
-template<Enum E> ::string  operator+ ( ::string     && s , E               e ) { return ::move(s)+snake(e)                          ; }
-template<Enum E> ::string  operator+ ( ::string const& s , E               e ) { return        s +snake(e)                          ; }
-template<Enum E> ::string  operator+ ( E               e , ::string const& s ) { return snake (e)+      s                           ; }
-template<Enum E> ::string& operator+=( ::string      & s , E               e ) { return e<All<E> ? s<<snake(e) : s<<"N+"<<(+e-N<E>) ; }
+template<Enum E> ::string  operator+ ( ::string     && s , E               e  ) { return ::move(s)+snake(e)                             ; }
+template<Enum E> ::string  operator+ ( ::string const& s , E               e  ) { return        s +snake(e)                             ; }
+template<Enum E> ::string  operator+ ( E               e , ::string const& s  ) { return snake (e)+      s                              ; }
+template<Enum E> void      operator>>( E               e , ::string      & os ) { if (e<All<E>) os<<snake(e) ; else os<<"N+"<<(+e-N<E>) ; }
 
 template<UEnum E> bool can_mk_enum(::string const& x) {
 	return +EnumHelper::mk_enum<E>(x) ;
@@ -165,9 +165,7 @@ template<Enum E> void encode_enum( char* p , E e ) { encode_int(p,+e) ;         
 //
 
 template<UEnum E> struct BitMap ;
-template<UEnum E> ::string& operator+=( ::string& , BitMap<E> ) ;
 template<UEnum E> struct BitMap {
-	friend ::string& operator+=<E>( ::string& , BitMap const ) ;
 	using Elem =       E    ;
 	using Val  = Uint<N<E>> ;
 	// cxtors & casts
@@ -179,6 +177,16 @@ template<UEnum E> struct BitMap {
 		( (_val|=(Val(1)<<+e)) , ... ) ;
 	}
 	// accesses
+	void operator>>(::string& os) const {
+		bool first = true ;
+		os << '(' ;
+		for( E e : iota(All<E>) )
+			if (self[e]) {
+				if (first) { os <<      e ; first = false ; }
+				else         os << '|'<<e ;
+			}
+		os << ')' ;
+	}
 	constexpr Val operator+() const { return _val ; }
 	// services
 	constexpr bool    operator==( BitMap const&     ) const = default ;
@@ -203,16 +211,6 @@ template<UEnum E> BitMap<E> mk_bitmap( ::string const& x , char sep=',' ) {
 	BitMap<E> res ;
 	for( ::string const& s : split(x,sep) ) res |= mk_enum<E>(s) ;
 	return res ;
-}
-
-template<UEnum E> ::string& operator+=( ::string& os , BitMap<E> bm ) {
-	os <<'(' ;
-	bool first = true ;
-	for( E e : iota(All<E>) ) if (bm[e]) {
-		if (first) { os <<      e ; first = false ; }
-		else       { os <<'|'<< e ;                 }
-	}
-	return os <<')' ;
 }
 
 // used in static_assert when defining a table indexed by enum to fire if enum updates are not propagated to tab def

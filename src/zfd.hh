@@ -34,8 +34,8 @@ enum class ZlvlTag : uint8_t {
 // END_OF_VERSIONING
 
 struct Zlvl {
-	friend ::string& operator+=( ::string& , Zlvl ) ;
-	bool operator+() const { return +tag && lvl ; }
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +tag && lvl ; }
 	ZlvlTag tag = {} ;
 	uint8_t lvl = 0  ;
 } ;

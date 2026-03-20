@@ -19,7 +19,6 @@
 ::string fqdn(::string const& domain_name={}) ;
 
 struct Service {
-	friend ::string& operator+=( ::string& , Service const& ) ;
 	using Key = uint64_t ;
 	// cxtors & casts
 	Service( in_addr_t a , in_port_t p=0            ) : addr{a} , port{p} {}
@@ -28,9 +27,10 @@ struct Service {
 	//
 	operator ::string() const { return str() ; }
 	// access
-	bool     operator+(                    ) const { return addr || port ;                                 }
-	::string str      (::string const& host) const { ::string res = host ; res <<':'<< port ; return res ; }
-	::string str      (                    ) const ;
+	void     operator>>(::string&       os  ) const { os << str() ;                                         }
+	bool     operator+ (                    ) const { return addr || port ;                                 }
+	::string str       (::string const& host) const { ::string res = host ; res <<':'<< port ; return res ; }
+	::string str       (                    ) const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , addr,port ) ;
@@ -41,7 +41,6 @@ struct Service {
 } ;
 
 struct KeyedService : Service {
-	friend ::string& operator+=( ::string& , KeyedService const& ) ;
 	// cxtors & casts
 	KeyedService() = default ;
 	KeyedService( Service s , Key k={}                   ) : Service{s} , key{k} {}
@@ -49,10 +48,11 @@ struct KeyedService : Service {
 	//
 	operator ::string() const { return str() ; }
 	// access
-	::string str     (::string const& host) const { ::string res = Service::str(host) ; if (key) res <<'/'<< key ; return res ; }
-	::string user_str(::string const& host) const { ::string res = Service::str(host) ;                            return res ; }
-	::string str     (                    ) const ;
-	::string user_str(                    ) const ;
+	void     operator>>(::string&       os  ) const { os << str() ;                                                               }
+	::string str       (::string const& host) const { ::string res = Service::str(host) ; if (key) res <<'/'<< key ; return res ; }
+	::string user_str  (::string const& host) const { ::string res = Service::str(host) ;                            return res ; }
+	::string str       (                    ) const ;
+	::string user_str  (                    ) const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		Service::serdes<S>(s) ;
@@ -77,7 +77,6 @@ struct SockAddr : private ::sockaddr_in { // ensure fields cannot be accessed di
 } ;
 
 struct SockFd : AcFd {
-	friend ::string& operator+=( ::string& , SockFd const& ) ;
 	using Key = Service::Key ;
 	static constexpr in_addr_t   LoopbackAddr      = 0x7f000001                 ;                              // 127.0.0.1
 	static constexpr in_addr_t   LoopbackMask      = 0xff000000                 ;
@@ -101,8 +100,10 @@ protected :
 	SockFd() = default ;
 	SockFd(          Key k , bool reuse_addr , in_addr_t local_addr , bool for_server ) ;                      // for Server and Client
 	SockFd( int fd , Key k                                                            ) : AcFd{fd} , key{k} {} // for Slave
-	// services
+	// accesses
 public :
+	void operator>>(::string& os) const { append_to_str(os,"SockFd",cat(key)) ; }
+	// services
 	// if timeout is 0, it means infinity (no timeout)
 	void set_receive_timeout(Time::Delay to={}) { Time::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
 	void set_send_timeout   (Time::Delay to={}) { Time::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to_tv , sizeof(to_tv) ) ; }
@@ -122,17 +123,19 @@ public :
 } ;
 
 struct SlaveSockFd : SockFd {
-	friend ::string& operator+=( ::string& , SlaveSockFd const& ) ;
 	// cxtors & casts
 	SlaveSockFd() = default ;
 	SlaveSockFd( int fd , Key k={} ) : SockFd{fd,k} {}
+	// accesses
+	void operator>>(::string& os) const { append_to_str(os,"SlaveSockFd",cat(key)) ; }
 } ;
 
 struct ServerSockFd : SockFd {
-	friend ::string& operator+=( ::string& , ServerSockFd const& ) ;
 	// cxtors & casts
 	ServerSockFd() = default ;
 	ServerSockFd( int backlog , bool reuse_addr=true , in_addr_t local_addr=0 ) ;
+	// accesses
+	void operator>>(::string& os) const { append_to_str(os,"ServerSockFd",cat(key)) ; }
 	// services                                                                        peer
 	KeyedService service    (in_addr_t       a   ) const { return SockFd::service    ( false , a    ) ; }
 	KeyedService service    (                    ) const { return SockFd::service    ( false        ) ; }
@@ -142,10 +145,11 @@ struct ServerSockFd : SockFd {
 } ;
 
 struct ClientSockFd : SockFd {
-	friend ::string& operator+=( ::string& , ClientSockFd const& ) ;
 	// cxtors & casts
 	ClientSockFd() = default ;
 	ClientSockFd( KeyedService , bool reuse_addr=true , Time::Delay timeout={} ) ;
+	// accesses
+	void operator>>(::string& os) const { append_to_str(os,"ClientSockFd",cat(key)) ; }
 	// services                                                                        peer
 	KeyedService service    (in_addr_t       a   ) const { return SockFd::service    ( true , a    ) ; }
 	KeyedService service    (                    ) const { return SockFd::service    ( true        ) ; }
@@ -211,10 +215,11 @@ using AcPipe = _Pipe<AcFd> ;
 //
 
 struct EventFd : AcFd {
-	friend ::string& operator+=( ::string& , EventFd const& ) ;
 	// cxtors & casts
 	EventFd(NewType) : AcFd{::eventfd(0/*initval*/,O_CLOEXEC),true/*no_std*/} {}
 	EventFd(Fd fd_ ) : AcFd{fd_                                             } {}
+	// accesses
+	void operator>>(::string& os) const { append_to_str(os,"EventFd") ; }
 	// services
 	void wakeup() const {
 		static constexpr uint64_t One = 1 ;
@@ -233,7 +238,6 @@ struct EventFd : AcFd {
 //
 
 struct SignalFd : AcFd {
-	friend ::string& operator+=( ::string& , SignalFd const& ) ;
 	// cxtors & casts
 	SignalFd( NewType, int sig ) : AcFd{_mk_fd(sig),true/*no_std*/} {}
 	SignalFd( Fd fd_           ) : AcFd{fd_                       } {}
@@ -243,8 +247,10 @@ private :
 		::sigset_t sig_set  ;                                                 sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
 		return ::signalfd( -1/*fd*/ , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
 	}
-	// services
+	// accesses
 public :
+	void operator>>(::string& os) const { append_to_str(os,"SignalFd") ; }
+	// services
 	int/*sig*/ read() const {
 		struct ::signalfd_siginfo si ;
 		ssize_t  cnt = ::read(self,&si,sizeof(si)) ;
@@ -258,12 +264,7 @@ public :
 //
 
 extern ::uset<int>* _s_epoll_sigs ;                    // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
-template<Enum E=NewType/*when_unused*/> struct Epoll ;
-template<Enum E> ::string& operator+=( ::string& os , Epoll<E> const& ep ) {
-	return os<<"Epoll("<<ep._fd.fd<<','<<ep._n_waits<<')' ;
-}
-template<Enum E> struct Epoll {
-	friend ::string& operator+=<>( ::string& , Epoll const& ) ;
+template<Enum E=NewType/*when_unused*/> struct Epoll {
 	struct Event : ::epoll_event {
 		// cxtors & casts
 		using ::epoll_event::epoll_event ;
@@ -282,8 +283,9 @@ template<Enum E> struct Epoll {
 		for( auto [fd,sig_pid] : _fd_infos ) _s_epoll_sigs->erase(sig_pid.first) ;
 	}
 	// accesses
-	uint operator+() const { return _n_waits ;                }
-	void dec      ()       { SWEAR(_n_waits>0) ; _n_waits-- ; }
+	void operator>>(::string& os) const { os<<"Epoll("<<_fd.fd<<','<<_n_waits<<')' ; }
+	uint operator+ (            ) const { return _n_waits ;                          }
+	void dec       (            )       { SWEAR(_n_waits>0) ; _n_waits-- ;           }
 	// services
 	void init() {
 		_fd = AcFd( ::epoll_create1(EPOLL_CLOEXEC) , true/*no_std*/ ) ;

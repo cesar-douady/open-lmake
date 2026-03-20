@@ -111,7 +111,6 @@ namespace Engine {
 	} ;
 
 	struct Rule : RuleBase {
-		friend ::string& operator+=( ::string& , Rule const ) ;
 		struct RuleMatch ;
 		//
 		static constexpr char   StarMrkr =  0 ; // signal a star stem in job_name
@@ -129,12 +128,15 @@ namespace Engine {
 		// cxtors & casts
 		using RuleBase::RuleBase ;
 		Rule(RuleBase const& rb) : RuleBase{rb} {}
+		// accesses
+		void operator>>(::string&) const ;
 	} ;
 
 	struct RuleCrc : RuleCrcBase {
-		friend ::string& operator+=( ::string& , RuleCrc const ) ;
 		// cxtors & casts
 		using RuleCrcBase::RuleCrcBase ;
+		// accesses
+		void operator>>(::string&) const ;
 	} ;
 
 }
@@ -179,7 +181,8 @@ namespace Engine {
 	} ;
 
 	struct DepSpec {
-		friend ::string& operator+=( ::string& , DepSpec const& ) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// data
 		::string    txt          ;
 		Dflags      dflags       ;
@@ -488,7 +491,6 @@ namespace Engine {
 	} ;
 
 	struct RuleData {                                                // NOLINT(clang-analyzer-optin.performance.Padding) prefer logical order
-		friend ::string& operator+=( ::string& , RuleData const& ) ;
 		friend Rule ;
 		static constexpr char   JobMrkr =  0          ;              // ensure no ambiguity between job names and node names
 		static constexpr VarIdx NoVar   = Rule::NoVar ;
@@ -523,6 +525,7 @@ namespace Engine {
 	public :
 		::string pretty_str() const ;
 		// accesses
+		void   operator>>  (::string&) const ;
 		bool   is_plain    (         ) const {                    return special==Special::Plain         ; }
 		bool   user_defined(         ) const {                    return !allow_ext                      ; }                                    // used to decide to print in LMAKE/rules
 		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags ; }
@@ -604,8 +607,9 @@ namespace Engine {
 	} ;
 
 	struct RuleCrcData {
-		friend ::string& operator+=( ::string& , RuleCrcData const& ) ;
 		using State = RuleCrcState ;
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::vmap_ss descr() const;
 		// data
@@ -620,7 +624,6 @@ namespace Engine {
 
 	// RuleMatch does not call python and only provides services that can be served with this constraint
 	struct Rule::RuleMatch {
-		friend ::string& operator+=( ::string& , RuleMatch const& ) ;
 		// cxtors & casts
 	public :
 		RuleMatch() = default ;
@@ -632,6 +635,7 @@ namespace Engine {
 		RuleMatch( Rule , TargetPattern const& , ::string const& , Bool3 chk_psfx=Yes ) ;                                              // .
 		// accesses
 	public :
+		void operator>>(::string&          ) const ;
 		bool operator==(RuleMatch const& rm) const { return rule==rm.rule && stems==rm.stems ; }
 		bool operator+ (                   ) const { return +rule                            ; }
 		::vector<Re::Pattern> star_patterns(         ) const ;
@@ -663,12 +667,12 @@ namespace Engine {
 	} ;
 
 	struct RuleTgt : RuleCrc {
-		friend ::string& operator+=( ::string& , RuleTgt const ) ;
 		using Rep = Uint< NBits<RuleCrc> + NBits<VarIdx> > ;
 		//cxtors & casts
 		RuleTgt() = default ;
 		RuleTgt( RuleCrc rc , VarIdx ti ) : RuleCrc{rc} , tgt_idx{ti} {}
 		// accesses
+		void               operator>>  (::string&     ) const ;
 		Rep                operator+   (              ) const { return (+RuleCrc(self)<<NBits<VarIdx>) | tgt_idx  ; }
 		bool               operator==  (RuleTgt const&) const = default ;
 		::partial_ordering operator<=> (RuleTgt const&) const = default ;

@@ -162,13 +162,13 @@ namespace Disk {
 		NfsGuard* nfs_guard = nullptr ;
 	} ;
 	struct FileInfo {
-		friend ::string& operator+=( ::string& , FileInfo const& ) ;
 		using Action = _FileInfoAction ;
 		// cxtors & casts
 		FileInfo( FileTag tag=FileTag::Unknown ) : date{tag} {}
 		FileInfo( FileRef path , Action ={}    ) ;
 		FileInfo( FileStat const&              ) ;
 		// accesses
+		void    operator>>(::string&      ) const ;
 		bool    operator==(FileInfo const&) const = default ;
 		bool    operator+ (               ) const { return tag()!=FileTag::Unknown ; }
 		bool    exists    (               ) const { return tag()>=FileTag::Target  ; }
@@ -184,7 +184,6 @@ namespace Disk {
 	} ;
 
 	struct FileSig {
-		friend ::string& operator+=( ::string& , FileSig const& ) ;
 		using Action = _FileInfoAction ;
 		// cxtors & casts
 	public :
@@ -194,7 +193,7 @@ namespace Disk {
 		FileSig( FileInfo const&                 ) ;
 		FileSig( FileTag tag                     ) : _val{+tag}                     {}
 		// accesses
-	public :
+		void operator>>(::string&        ) const ;
 		bool operator==(FileSig const& fs) const {
 			if( !self && !fs ) return true          ; // consider Dir and None as identical
 			else               return _val==fs._val ;
@@ -211,11 +210,11 @@ namespace Disk {
 	inline FileSig FileInfo::sig() const { return FileSig(self) ; }
 
 	struct SigDate {
-		friend ::string& operator+=( ::string& , SigDate const& ) ;
 		// cxtors & casts
 		SigDate() = default ;
 		SigDate( FileSig s , Time::Pdate d=New ) : sig{s} , date{d} {}
 		// accesses
+		void operator>>(::string&     ) const ;
 		bool operator==(SigDate const&) const = default ;
 		bool operator+ (              ) const { return +date || +sig ; }
 		// data

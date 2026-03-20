@@ -247,11 +247,11 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 	return a.tv_sec==b.tv_sec && a.tv_nsec==b.tv_nsec ;
 }
 
-::string& operator+=( ::string& os , FileAction const& fa ) {           // START_OF_NO_COV
-	/**/                                os << "FileAction(" << fa.tag ;
-	if (fa.tag<=FileActionTag::HasFile) os <<','<< fa.sig             ;
-	return                              os <<')'                      ;
-}                                                                       // END_OF_NO_COV
+void FileAction::operator>>(::string& os) const {               // START_OF_NO_COV
+	/**/                             os << "FileAction("<<tag ;
+	if (tag<=FileActionTag::HasFile) os << ','<<sig           ;
+	/**/                             os << ')'                ;
+}                                                               // END_OF_NO_COV
 
 ::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& pre_actions , NfsGuard* nfs_guard ) {
 	::uset_s                  keep_dirs       ;
@@ -364,23 +364,23 @@ bool operator==( TimeSpec const& a , TimeSpec const& b ) {
 // ChrootInfo
 //
 
-::string& operator+=( ::string& os , ChrootInfo const& ci ) {                    // START_OF_NO_COV
-	/**/                                     os << "ChrootInfo("               ;
-	if (+ci.dir_s                          ) os << ci.dir_s                    ;
-	if (+ci.actions                        ) os << ','<<ci.actions             ;
-	if (+ci.actions[ChrootAction::UserName]) os << ','<<ci.user<<','<<ci.group ;
-	return                                   os << ')'                         ;
-}                                                                                // END_OF_NO_COV
+void ChrootInfo::operator>>(::string& os) const {                       // START_OF_NO_COV
+	/**/                                  os << "ChrootInfo("         ;
+	if (+dir_s                          ) os <<     dir_s             ;
+	if (+actions                        ) os << ','<<actions          ;
+	if (+actions[ChrootAction::UserName]) os << ','<<user<<','<<group ;
+	/**/                                  os << ')'                   ;
+}                                                                       // END_OF_NO_COV
 
 //
 // JobReason
 //
 
-::string& operator+=( ::string& os , JobReason const& jr ) { // START_OF_NO_COV
-	/**/                               os <<"JR("<< jr.tag ;
-	if (jr.tag>=JobReasonTag::HasNode) os <<','<< jr.node  ;
-	return                             os <<')'            ;
-}                                                            // END_OF_NO_COV
+void JobReason::operator>>(::string& os) const {       // START_OF_NO_COV
+	/**/                            os << "JR("<<tag ;
+	if (tag>=JobReasonTag::HasNode) os << ','<<node  ;
+	/**/                            os << ')'        ;
+}                                                      // END_OF_NO_COV
 
 void JobReason::chk() const {
 	if (tag<JobReasonTag::HasNode) throw_unless( !node , "bad node" ) ;
@@ -390,21 +390,23 @@ void JobReason::chk() const {
 // MsgStderr
 //
 
-::string& operator+=( ::string& os , MsgStderr const& ms ) { // START_OF_NO_COV
-	return os <<'('<< ms.msg <<','<< ms.stderr <<')' ;
-}                                                            // END_OF_NO_COV
+void MsgStderr::operator>>(::string& os) const { // START_OF_NO_COV
+	os << '('<<msg<<','<<stderr<<')' ;
+}                                                // END_OF_NO_COV
 
 //
 // DepInfo
 //
 
-::string& operator+=( ::string& os , DepInfo const& di ) {           // START_OF_NO_COV
-	switch (di.kind()) {
-		case DepInfoKind::Crc  : return os <<'('<< di.crc () <<')' ;
-		case DepInfoKind::Sig  : return os <<'('<< di.sig () <<')' ;
-		case DepInfoKind::Info : return os <<'('<< di.info() <<')' ;
-	DF}                                                              // NO_COV
-}                                                                    // END_OF_NO_COV
+void DepInfo::operator>>(::string& os) const {          // START_OF_NO_COV
+	os << '(' ;
+	switch (kind()) {
+		case DepInfoKind::Crc  : os << crc () ; break ;
+		case DepInfoKind::Sig  : os << sig () ; break ;
+		case DepInfoKind::Info : os << info() ; break ;
+	DF}                                                 // NO_COV
+	os << ')' ;
+}                                                       // END_OF_NO_COV
 
 //
 // JobRpcReq
@@ -423,35 +425,25 @@ void JobRpcReq::chk(bool for_cache) const {
 }
 
 //
-// Zlvl
-//
-
-::string& operator+=( ::string& os , Zlvl zl ) { // START_OF_NO_COV
-	/**/     os <<      zl.tag ;
-	if (+zl) os <<':'<< zl.lvl ;
-	return   os                ;
-}                                                // END_OF_NO_COV
-
-//
 // JobSpace
 //
 
-::string& operator+=( ::string& os , JobSpace::ViewDescr const& vd ) { // START_OF_NO_COV
-	/**/             os <<"ViewDescr("<< vd.phys_s ;
-	if (+vd.copy_up) os <<",CU:"<< vd.copy_up      ;
-	return           os <<')'                      ;
-}                                                                      // END_OF_NO_COV
+void JobSpace::ViewDescr::operator>>(::string& os) const { // START_OF_NO_COV
+	/**/          os << "ViewDescr("<<phys_s ;
+	if (+copy_up) os << ",CU:"<<copy_up      ;
+	/**/          os << ')'                  ;
+}                                                          // END_OF_NO_COV
 
-::string& operator+=( ::string& os , JobSpace const& js ) {                                        // START_OF_NO_COV
+void JobSpace::operator>>(::string& os) const {                                               // START_OF_NO_COV
 	First first ;
-	/**/                         os <<"JobSpace("                                                ;
-	if ( js._force_creat!=Maybe) os <<first("",",")<<(js._force_creat==No?"!":"")<<"force_creat" ;
-	if (+js.lmake_view_s       ) os <<first("",",")<<"L:"<< js.lmake_view_s                      ;
-	if (+js.repo_view_s        ) os <<first("",",")<<"R:"<< js.repo_view_s                       ;
-	if (+js.tmp_view_s         ) os <<first("",",")<<"T:"<< js.tmp_view_s                        ;
-	if (+js.views              ) os <<first("",",")<<"V:"<< js.views                             ;
-	return                       os <<')'                                                        ;
-}                                                                                                  // END_OF_NO_COV
+	/**/                      os << "JobSpace("                                             ;
+	if ( _force_creat!=Maybe) os << first("",",")<<(_force_creat==No?"!":"")<<"force_creat" ;
+	if (+lmake_view_s       ) os << first("",",")<<"L:"<<lmake_view_s                       ;
+	if (+repo_view_s        ) os << first("",",")<<"R:"<<repo_view_s                        ;
+	if (+tmp_view_s         ) os << first("",",")<<"T:"<<tmp_view_s                         ;
+	if (+views              ) os << first("",",")<<"V:"<<views                              ;
+	/**/                      os << ')'                                                     ;
+}                                                                                             // END_OF_NO_COV
 
 static void _chroot(::string const& dir) { Trace trace("_chroot",dir) ; int rc = ::chroot(dir.c_str()) ; throw_unless( rc==0 , "cannot chroot to ",dir,rm_slash," : ",StrErr() ) ; }
 static void _chdir (::string const& dir) { Trace trace("_chdir" ,dir) ; int rc = ::chdir (dir.c_str()) ; throw_unless( rc==0 , "cannot chdir to " ,dir,rm_slash," : ",StrErr() ) ; }
@@ -971,15 +963,15 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 // CacheRemoteSide
 //
 
-::string& operator+=( ::string& os , CacheRemoteSide const& crs ) {
+void CacheRemoteSide::operator>>(::string& os) const {
 	First first ;
-	/**/                        os << "CacheRemoteSide("                   ;
-	if (+crs.dir_s            ) os << first("",",")<<crs.dir_s             ;
-	if (+crs.service          ) os << first("",",")<<crs.service           ;
-	if (+crs.max_rate         ) os << first("",",")<<crs.max_rate          ;
-	if (+crs.file_sync        ) os << first("",",")<<crs.file_sync         ;
-	if ( crs.umask!=mode_t(-1)) os << first("",",")<<mod_to_str(crs.umask) ;
-	return                      os << ')'                                  ;
+	/**/                    os << "CacheRemoteSide("               ;
+	if (+dir_s            ) os << first("",",")<<dir_s             ;
+	if (+service          ) os << first("",",")<<service           ;
+	if (+max_rate         ) os << first("",",")<<max_rate          ;
+	if (+file_sync        ) os << first("",",")<<file_sync         ;
+	if ( umask!=mode_t(-1)) os << first("",",")<<mod_to_str(umask) ;
+	/**/                    os << ')'                              ;
 }
 
 CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay exe_time , ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) const {
@@ -1059,9 +1051,9 @@ void CacheRemoteSide::dismiss( CacheUploadKey upload_key , uint32_t conn_id ) co
 // JobStartRpcReq
 //
 
-::string& operator+=( ::string& os , JobStartRpcReq const& jsrr ) {                                              // START_OF_NO_COV
-	return os << "JobStartRpcReq(" << jsrr.seq_id <<','<< jsrr.job <<','<< jsrr.service <<','<< jsrr.msg <<')' ;
-}                                                                                                                // END_OF_NO_COV
+void JobStartRpcReq::operator>>(::string& os) const {                             // START_OF_NO_COV
+	os << "JobStartRpcReq("<<seq_id<<','<<job<<','<<service<<','<<msg<<')' ;
+}                                                                                 // END_OF_NO_COV
 
 void JobStartRpcReq::cache_cleanup() {
 	JobRpcReq::cache_cleanup() ;
@@ -1092,25 +1084,25 @@ template<> void JobDigest<>::cache_cleanup() {
 // JobEndRpcReq
 //
 
-::string& operator+=( ::string& os , UserTraceEntry const& ete ) {                       // START_OF_NO_COV
-	return os <<"UserTraceEntry("<< ete.date <<','<< ete.step() <<','<< ete.file <<')' ;
-}                                                                                        // END_OF_NO_COV
-
-::string& operator+=( ::string& os , TargetDigest const& td ) {  // START_OF_NO_COV
-	First first ;
-	/**/                  os <<"TargetDigest("                 ;
-	if ( td.pre_exist   ) os <<first("",",")<< "pre_exist"     ;
-	if ( td.written     ) os <<first("",",")<< "written"       ;
-	if (+td.tflags      ) os <<first("",",")<< td.tflags       ;
-	if (+td.extra_tflags) os <<first("",",")<< td.extra_tflags ;
-	if (+td.crc         ) os <<first("",",")<< td.crc          ;
-	if (+td.sig         ) os <<first("",",")<< td.sig          ;
-	return                os <<')'                             ;
+void UserTraceEntry::operator>>(::string& os) const {            // START_OF_NO_COV
+	os << "UserTraceEntry("<<date<<','<<step()<<','<<file<<')' ;
 }                                                                // END_OF_NO_COV
 
-::string& operator+=( ::string& os , JobEndRpcReq const& jerr ) {                                                                            // START_OF_NO_COV
-	return os << "JobEndRpcReq(" << jerr.seq_id <<','<< jerr.job <<','<< jerr.digest <<','<< jerr.phy_tmp_dir_s <<','<< jerr.dyn_env <<')' ;
-}                                                                                                                                            // END_OF_NO_COV
+void TargetDigest::operator>>(::string& os) const {        // START_OF_NO_COV
+	First first ;
+	/**/               os << "TargetDigest("             ;
+	if ( pre_exist   ) os << first("",",")<<"pre_exist"  ;
+	if ( written     ) os << first("",",")<<"written"    ;
+	if (+tflags      ) os << first("",",")<<tflags       ;
+	if (+extra_tflags) os << first("",",")<<extra_tflags ;
+	if (+crc         ) os << first("",",")<<crc          ;
+	if (+sig         ) os << first("",",")<<sig          ;
+	/**/               os << ')'                         ;
+}                                                          // END_OF_NO_COV
+
+void JobEndRpcReq::operator>>(::string& os) const {                                               // START_OF_NO_COV
+	os << "JobEndRpcReq("<<seq_id<<','<<job<<','<<digest<<','<<phy_tmp_dir_s<<','<<dyn_env<<')' ;
+}                                                                                                 // END_OF_NO_COV
 
 void JobEndRpcReq::cache_cleanup() {
 	JobRpcReq::cache_cleanup() ;
@@ -1130,32 +1122,32 @@ void JobEndRpcReq::chk(bool for_cache) const {
 // JobStartRpcReply
 //
 
-::string& operator+=( ::string& os , JobStartRpcReply const& jsrr ) {      // START_OF_NO_COV
-	/**/                        os << "JobStartRpcReply("<<jsrr.rule     ;
-	/**/                        os <<','  << jsrr.autodep_env            ;
-	if (+jsrr.job_space       ) os <<','  << jsrr.job_space              ;
-	if ( jsrr.keep_tmp        ) os <<','  << "keep"                      ;
-	if (+jsrr.ddate_prec      ) os <<','  << jsrr.ddate_prec             ;
-	/**/                        os <<','  << mk_printable(cat(jsrr.env)) ; // env may contain the non-printable PassMrkr value
-	/**/                        os <<','  << jsrr.interpreter            ;
-	/**/                        os <<','  << jsrr.kill_sigs              ;
-	if ( jsrr.live_out        ) os <<','  << "live_out"                  ;
-	if (+jsrr.phy_lmake_root_s) os <<','  << jsrr.phy_lmake_root_s       ;
-	if ( jsrr.nice            ) os <<','  << "nice:"<<jsrr.nice          ;
-	if ( jsrr.stderr_ok       ) os <<','  << "stderr_ok"                 ;
-	/**/                        os <<','  << jsrr.method                 ;
-	if (+jsrr.network_delay   ) os <<','  << jsrr.network_delay          ;
-	if (+jsrr.pre_actions     ) os <<','  << jsrr.pre_actions            ;
-	/**/                        os <<','  << jsrr.small_id               ;
-	if (+jsrr.star_matches    ) os <<','  << jsrr.star_matches           ;
-	if (+jsrr.deps            ) os <<'<'  << jsrr.deps                   ;
-	if (+jsrr.static_matches  ) os <<'>'  << jsrr.static_matches         ;
-	if (+jsrr.stdin           ) os <<'<'  << jsrr.stdin                  ;
-	if (+jsrr.stdout          ) os <<'>'  << jsrr.stdout                 ;
-	if (+jsrr.timeout         ) os <<','  << jsrr.timeout                ;
-	/**/                        os <<','  << jsrr.cmd                    ; // last as it is most probably multi-line
-	return                      os <<')'                                 ;
-}                                                                          // END_OF_NO_COV
+void JobStartRpcReply::operator>>(::string& os) const {        // START_OF_NO_COV
+	/**/                   os << "JobStartRpcReply("<<rule   ;
+	/**/                   os << ','<<autodep_env            ;
+	if (+job_space       ) os << ','<<job_space              ;
+	if ( keep_tmp        ) os << ','<<"keep"                 ;
+	if (+ddate_prec      ) os << ','<<ddate_prec             ;
+	/**/                   os << ','<<mk_printable(cat(env)) ; // env may contain the non-printable PassMrkr value
+	/**/                   os << ','<<interpreter            ;
+	/**/                   os << ','<<kill_sigs              ;
+	if ( live_out        ) os << ','<<"live_out"             ;
+	if (+phy_lmake_root_s) os << ','<<phy_lmake_root_s       ;
+	if ( nice            ) os << ','<<"nice:"<<nice          ;
+	if ( stderr_ok       ) os << ','<<"stderr_ok"            ;
+	/**/                   os << ','<<method                 ;
+	if (+network_delay   ) os << ','<<network_delay          ;
+	if (+pre_actions     ) os << ','<<pre_actions            ;
+	/**/                   os << ','<<small_id               ;
+	if (+star_matches    ) os << ','<<star_matches           ;
+	if (+deps            ) os << '<'<<deps                   ;
+	if (+static_matches  ) os << '>'<<static_matches         ;
+	if (+stdin           ) os << '<'<<stdin                  ;
+	if (+stdout          ) os << '>'<<stdout                 ;
+	if (+timeout         ) os << ','<<timeout                ;
+	/**/                   os << ','<<cmd                    ; // last as it is most probably multi-line
+	/**/                   os << ')'                         ;
+}                                                              // END_OF_NO_COV
 
 void JobStartRpcReply::mk_canon( ::string const& phy_repo_root_s ) {
 	_mk_canon( chroot_info.dir_s , "chroot_dir" , true /*root_ok*/ , true/*contains_repo_ok*/ , phy_repo_root_s ) ;
@@ -1357,24 +1349,24 @@ void JobStartRpcReply::chk(bool for_cache) const {
 // JobMngtRpcReq
 //
 
-::string& operator+=( ::string& os , JobMngtRpcReq const& jmrr ) {                                // START_OF_NO_COV
-	/**/               os << "JobMngtRpcReq(" << jmrr.proc <<','<< jmrr.seq_id <<','<< jmrr.job ;
-	if (+jmrr.fd     ) os <<','<< jmrr.fd                                                       ;
-	if (+jmrr.targets) os <<','<< jmrr.targets                                                  ;
-	if (+jmrr.deps   ) os <<','<< jmrr.deps                                                     ;
-	if (+jmrr.txt    ) os <<','<< jmrr.txt                                                      ;
-	return             os <<')'                                                                 ;
-}                                                                                                 // END_OF_NO_COV
+void JobMngtRpcReq::operator>>(::string& os) const {                    // START_OF_NO_COV
+	/**/          os << "JobMngtRpcReq("<<proc<<','<<seq_id<<','<<job ;
+	if (+fd     ) os << ','<<fd                                       ;
+	if (+targets) os << ','<<targets                                  ;
+	if (+deps   ) os << ','<<deps                                     ;
+	if (+txt    ) os << ','<<txt                                      ;
+	/**/          os << ')'                                           ;
+}                                                                       // END_OF_NO_COV
 
 //
 // JobMngtRpcReply
 //
 
-::string& operator+=( ::string& os , JobMngtRpcReply const& jmrr ) {                     // START_OF_NO_COV
-	/**/                     os << "JobMngtRpcReply(" << jmrr.proc <<','<< jmrr.seq_id ;
-	if (+jmrr.fd           ) os <<','<< jmrr.fd                                        ;
-	if (+jmrr.verbose_infos) os <<','<< jmrr.verbose_infos                             ;
-	if (+jmrr.txt          ) os <<','<< jmrr.txt                                       ;
-	/**/                     os <<','<< jmrr.ok                                        ;
-	return                   os <<')'                                                  ;
-}                                                                                        // END_OF_NO_COV
+void JobMngtRpcReply::operator>>(::string& os) const {                // START_OF_NO_COV
+	/**/                os << "JobMngtRpcReply("<<proc<<','<<seq_id ;
+	if (+fd           ) os << ','<<fd                               ;
+	if (+verbose_infos) os << ','<<verbose_infos                    ;
+	if (+txt          ) os << ','<<txt                              ;
+	/**/                os << ','<<ok                               ;
+	/**/                os << ')'                                   ;
+}                                                                     // END_OF_NO_COV

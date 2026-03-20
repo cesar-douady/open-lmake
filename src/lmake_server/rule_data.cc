@@ -24,9 +24,9 @@ namespace Engine {
 		_parse_target( str , [&](FileNameIdx,VarIdx s) { return cb(s) ; } ) ;
 	}
 
-	::string& operator+=( ::string& os , RuleData const& rd ) { // START_OF_NO_COV
-		return os << "RD(" << rd.name << ')' ;
-	}                                                           // END_OF_NO_COV
+	void RuleData::operator>>(::string& os) const { // START_OF_NO_COV
+		os << "RD("<<name<<')' ;
+	}                                               // END_OF_NO_COV
 
 	::string RuleData::gen_py_line( Job j , Rule::RuleMatch& m/*lazy*/ , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const {
 		if (vc!=VarCmd::StarMatch) return key+" = "+mk_py_str(val)+'\n' ;
@@ -663,12 +663,12 @@ namespace Engine {
 			if (!ds.txt) continue ;
 			::string flags ;
 			bool     first = true ;
-			for( Dflag      df  : iota(Dflag     ::NRule) ) if (ds.dflags      [df ]) { flags += first?" : ":" , " ; first = false ; flags += df  ; }
-			for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (ds.extra_dflags[edf]) { flags += first?" : ":" , " ; first = false ; flags += edf ; }
-			/**/        res <<'\t'<< widen(k,wk) <<" : "      ;
-			if (+flags) res << widen(patterns[k],wd) << flags ;
-			else        res <<       patterns[k]              ;
-			/**/        res <<'\n' ;
+			for( Dflag      df  : iota(Dflag     ::NRule) ) if (ds.dflags      [df ]) { flags << (first?" : ":" , ") ; first = false ; flags << df  ; }
+			for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (ds.extra_dflags[edf]) { flags << (first?" : ":" , ") ; first = false ; flags << edf ; }
+			/**/        res << '\t'<< widen(k,wk)<<" : "    ;
+			if (+flags) res << widen(patterns[k],wd)<<flags ;
+			else        res <<       patterns[k]            ;
+			/**/        res << '\n'                         ;
 		}
 		return res ;
 	}

@@ -84,7 +84,6 @@ namespace Engine {
 namespace Engine {
 
 	struct Job : JobBase {
-		friend ::string& operator+=( ::string& , Job const ) ;
 		friend struct JobData ;
 		//
 		using JobBase::side ;
@@ -114,6 +113,7 @@ namespace Engine {
 		//
 		explicit operator ::string() const ;
 		// accesses
+		void operator>>(::string&) const ;
 		bool is_plain(bool frozen_ok=false) const ;
 		//
 		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
@@ -131,7 +131,6 @@ namespace Engine {
 		static_assert(Job::NGuardBits>=1) ;                                                                                                          // need 1 bit to store is_static_phony bit
 		static constexpr uint8_t NGuardBits = Job::NGuardBits-1       ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
-		friend ::string& operator+=( ::string& , JobTgt ) ;
 		// cxtors & casts
 		JobTgt() = default ;
 		JobTgt( Job j , bool isp=false                                                            ) : Job{j} { if (+j) _set_is_static_phony(isp) ; } // if no job, ensure !sure()
@@ -145,19 +144,21 @@ namespace Engine {
 	private :
 		bool _is_static_phony    (        ) const { return Job::side<1>() ;                             }
 		void _set_is_static_phony(bool isp)       { { if (isp) SWEAR(+self) ; } Job::set_side<1>(isp) ; }
-		// services
+		// accesses
 	public :
+		void operator>>(::string&) const ;
+		// services
 		bool produces( Node , bool actual=false ) const ; // if actual, return if node was actually produced, in addition to being officially produced
 	} ;
 
 	struct JobTgts : JobTgtsBase {
-		friend ::string& operator+=( ::string& , JobTgts ) ;
 		// cxtors & casts
 		using JobTgtsBase::JobTgtsBase ;
+		// accesses
+		void operator>>(::string&) const ;
 	} ;
 
 	struct JobExec : Job {
-		friend ::string& operator+=( ::string& , JobExec const& ) ;
 		struct EndDigest {
 			bool          can_upload        = true               ;
 			bool          has_new_deps      = false              ;
@@ -168,12 +169,13 @@ namespace Engine {
 			::vector<Req> running_reqs      ;
 		} ;
 		// cxtors & casts
-	public :
 		JobExec() = default ;
 		JobExec( Job j ,               Pdate s           ) : Job{j} ,           start_date{s} , end_date{s} {}
 		JobExec( Job j , in_addr_t h , Pdate s           ) : Job{j} , host{h} , start_date{s} , end_date{s} {}
 		JobExec( Job j ,               Pdate s , Pdate e ) : Job{j} ,           start_date{s} , end_date{e} {}
 		JobExec( Job j , in_addr_t h , Pdate s , Pdate e ) : Job{j} , host{h} , start_date{s} , end_date{e} {}
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		// called in main thread after start
 		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start and started
@@ -220,13 +222,13 @@ namespace Engine {
 namespace Engine {
 
 	struct JobReqInfo : ReqInfo {                                      // watchers of Job's are Node's
-		friend ::string& operator+=( ::string& , JobReqInfo const& ) ;
 		using Step       = JobStep       ;
 		using MakeAction = JobMakeAction ;
 		// cxtors & casts
 		JobReqInfo() = default ;
 		JobReqInfo( Req r , Job ) : ReqInfo{r} {}
 		// accesses
+		void operator>>(::string&) const ;
 		bool running(bool hit_ok=false) const {
 			switch (step()) {
 				case Step::Queued :
@@ -265,13 +267,14 @@ namespace Engine {
 		}
 		// data
 		struct State {
-			friend ::string& operator+=( ::string& , State const& ) ;
 			struct Bits {
 				RunStatus err  :NBits<RunStatus> = {}    ;
 				bool      modif:1                = false ;
 			} ;
 			// cxtors & casts
 			State() = default ;
+			// accesses
+			void operator>>(::string&) const ;
 			// data
 			JobReason reason      = {}    ;                            //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
 			bool      missing_dsk = false ;                            //   1  <=  8 bits, if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
@@ -303,7 +306,6 @@ namespace Engine {
 	//
 
 	struct SubmitInfo {
-		friend ::string& operator+=( ::string& , SubmitInfo const& ) ;
 		// services
 		SubmitInfo& operator|=(SubmitInfo const& si) {
 			// cache, deps and tag are independent of req but may not always be present
@@ -322,6 +324,9 @@ namespace Engine {
 			res |= si ;
 			return res ;
 		}
+		// accesses
+		void operator>>(::string&) const ;
+		// services
 		void cache_cleanup() ;
 		void chk(bool for_cache=false) const ;
 		// data
@@ -338,9 +343,9 @@ namespace Engine {
 	} ;
 
 	struct JobInfoStart {
-		friend ::string& operator+=( ::string& , JobInfoStart const& ) ;
 		// accesses
-		bool operator+() const { return +pre_start ; }
+		void operator>>(::string&) const ;
+		bool operator+ (         ) const { return +pre_start ; }
 		// services
 		void cache_cleanup() ;                 // clean up info before uploading to cache
 		void chk(bool for_cache=false) const ;

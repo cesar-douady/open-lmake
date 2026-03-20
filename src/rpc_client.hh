@@ -144,7 +144,6 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 using ReqCmdLine = CmdLine<ReqKey,ReqFlag> ;
 
 struct ReqOptions {
-	friend ::string& operator+=( ::string& , ReqOptions const& ) ;
 	using FlagArgs = ::array_s<N<ReqFlag>> ;
 	// cxtors & casts
 	ReqOptions(                    ) : flag_args{*new FlagArgs} {             }
@@ -177,6 +176,8 @@ struct ReqOptions {
 		user_env      = ro.user_env      ;
 		return self ;
 	}
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , startup_dir_s   ) ;
@@ -196,12 +197,13 @@ struct ReqOptions {
 } ;
 
 struct ReqRpcReq {
-	friend ::string& operator+=( ::string& , ReqRpcReq const& ) ;
 	using Proc = ReqProc ;
 	// cxtors & casts
 	ReqRpcReq() = default ;
 	ReqRpcReq( Proc p                                               ) : proc{p}                           { SWEAR(proc< Proc::HasArgs,proc) ; }
 	ReqRpcReq( Proc p , ::vector_s const& fs , ReqOptions const& ro ) : proc{p} , files{fs} , options{ro} { SWEAR(proc>=Proc::HasArgs,proc) ; }
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	bool operator+() const { return +proc ; }
 	template<IsStream S> void serdes(S& s) {
@@ -215,12 +217,13 @@ struct ReqRpcReq {
 } ;
 
 struct ReqRpcReply {
-	friend ::string& operator+=( ::string& , ReqRpcReply const& ) ;
 	using Proc = ReqRpcReplyProc ;
 	// cxtors & casts
 	ReqRpcReply() = default ;
 	ReqRpcReply( Proc p , Rc         rc_  ) : proc{p} , rc {rc_         } { SWEAR( p==Proc::Status                                     ) ; }
 	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Stderr || p==Proc::Stdout ) ; }
+	// accesses
+	void operator>>(::string&) const ;
 	// services
 	bool operator+() const { return +proc ; }
 	template<IsStream S> void serdes(S& s) {

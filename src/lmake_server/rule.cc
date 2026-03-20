@@ -84,9 +84,9 @@ namespace Engine {
 	// Dyn
 	//
 
-	::string& operator+=( ::string& os , DepSpec const& ds ) {                            // START_OF_NO_COV
-		return os <<"DepSpec("<< ds.txt <<','<< ds.dflags <<','<< ds.extra_dflags <<')' ;
-	}                                                                                     // END_OF_NO_COV
+	void DepSpec::operator>>(::string& os) const {                   // START_OF_NO_COV
+		os << "DepSpec("<<txt<<','<<dflags<<','<<extra_dflags<<')' ;
+	}                                                                // END_OF_NO_COV
 
 	DynEntry::DynEntry( RulesBase const& rules , Bool3 is_python , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , bool compile_ ) {
 		switch (is_python) {
@@ -246,11 +246,11 @@ namespace Engine {
 	const char*   Rule::s_last_dyn_msg  = nullptr ;
 	Rule          Rule::s_last_dyn_rule ;
 
-	::string& operator+=( ::string& os , Rule const r ) { // START_OF_NO_COV
-		/**/    os << "R(" ;
-		if (+r) os << +r   ;
-		return  os << ')'  ;
-	}                                                     // END_OF_NO_COV
+	void Rule::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/       os << "R("  ;
+		if (+self) os << +self ;
+		/**/       os << ')'   ;
+	}                                           // END_OF_NO_COV
 
 	::string/*msg*/ Rule::s_reject_msg( MatchKind mk , ::string const& file , bool has_pfx , bool has_sfx ) {
 		if ( !has_pfx && !has_sfx && file=="." ) {
@@ -344,19 +344,19 @@ namespace Engine {
 	// RuleCrc
 	//
 
-	::string& operator+=( ::string& os , RuleCrc const r ) { // START_OF_NO_COV
-		/**/    os << "RC(" ;
-		if (+r) os << +r   ;
-		return  os << ')'  ;
-	}                                                        // END_OF_NO_COV
+	void RuleCrc::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/       os << "RC(" ;
+		if (+self) os << +self ;
+		/**/       os << ')'   ;
+	}                                              // END_OF_NO_COV
 
 	//
 	// RuleTgt
 	//
 
-	::string& operator+=( ::string& os , RuleTgt const rt ) {              // START_OF_NO_COV
-		return os << "RT(" << RuleCrc(rt) <<':'<< int(rt.tgt_idx) << ')' ;
-	}                                                                      // END_OF_NO_COV
+	void RuleTgt::operator>>(::string& os) const {      // START_OF_NO_COV
+		os << "RT("<<RuleCrc(self)<<':'<<tgt_idx<<')' ;
+	}                                                   // END_OF_NO_COV
 
 	//
 	// Attrs
@@ -594,9 +594,9 @@ namespace Engine {
 	// RuleCrcData
 	//
 
-	::string& operator+=( ::string& os , RuleCrcData const& rcd ) {                                                    // START_OF_NO_COV
-		return os << "RCD(" << rcd.rule <<','<< rcd.state <<','<< rcd.match <<','<< rcd.cmd <<','<< rcd.rsrcs << ')' ;
-	}                                                                                                                  // END_OF_NO_COV
+	void RuleCrcData::operator>>(::string& os) const {                          // START_OF_NO_COV
+		os << "RCD("<<rule<<','<<state<<','<<match<<','<<cmd<<','<<rsrcs<<')' ;
+	}                                                                           // END_OF_NO_COV
 
 	::vmap_ss RuleCrcData::descr() const {
 		return {
@@ -631,10 +631,9 @@ namespace Engine {
 		Trace("RuleMatch","stems",r,name,chk_psfx,stems) ;
 	}
 
-	::string& operator+=( ::string& os , Rule::RuleMatch const& m ) { // START_OF_NO_COV
-		os << "RM(" << m.rule << ',' << m.stems << ')' ;
-		return os ;
-	}                                                                 // END_OF_NO_COV
+	void Rule::RuleMatch::operator>>(::string& os) const { // START_OF_NO_COV
+		os << "RM("<<rule<<','<<stems<<')' ;
+	}                                                      // END_OF_NO_COV
 
 	::uset<Node> Rule::RuleMatch::target_dirs() const {
 		::uset<Node> dirs ;

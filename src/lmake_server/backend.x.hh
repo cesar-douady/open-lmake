@@ -54,12 +54,11 @@ namespace Backends {
 			// a job stops being reasonable when it has already run longer than its last known exe_time
 			// a workload is a sum of weighted exec times in ms, i.e. with 3 jobs for 4 tokens in parallel workload advances by 4 each ms
 			// all delays and dates are rounded to ms to avoid rounding errors
-			friend ::string& operator+=( ::string& , Workload const& ) ;
 			using Val    = uint64_t                  ;
 			using Tokens = Uint<sizeof(Tokens1)*8+1> ;                         // +1 to allow adding 1 without overflow
-		private :
+			// accesses
+			void operator>>(::string&) const ;
 			//services
-		public :
 			void submit( Req r                   , Job ) ;                     // anticipate job execution
 			void add   ( Req r                   , Job ) ;                     // queue job if not already started
 			void kill  ( Req r                   , Job ) ;                     // finally decide not to execute it
@@ -86,11 +85,10 @@ namespace Backends {
 		} ;
 
 		struct StartEntry {
-			friend ::string& operator+=( ::string& , StartEntry const& ) ;
 			struct Conn {
-				friend ::string& operator+=( ::string& , Conn const& ) ;
 				// accesses
-				bool operator+() const { return seq_id ; }
+				void operator>>(::string&) const ;
+				bool operator+ (         ) const { return seq_id ; }
 				// data
 				SeqId        seq_id   = 0  ;
 				SmallId      small_id = 0  ;
@@ -99,7 +97,8 @@ namespace Backends {
 			// cxtors & casts
 			StartEntry() = default ;
 			// accesses
-			bool operator+() const { return +conn ; }
+			void operator>>(::string&) const ;
+			bool operator+ (         ) const { return +conn ; }
 			// services
 			::pair<Pdate/*eta*/,bool/*keep_tmp*/> req_info() const ;
 			// data
@@ -117,9 +116,10 @@ namespace Backends {
 		} ;
 
 		struct DeferredEntry {
-			friend ::string& operator+=( ::string& , DeferredEntry const& ) ;
 			// cxtors & casts
 			DeferredEntry( SeqId si=0 , JobExec je={} ) : seq_id{si} , job_exec{je} {}
+			// accesses
+			void operator>>(::string&) const ;
 			// data
 			SeqId   seq_id   = 0 ;
 			JobExec job_exec ;

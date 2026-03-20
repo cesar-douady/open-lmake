@@ -46,31 +46,30 @@ namespace Backends {
 	// Backend::*
 	//
 
-	::string& operator+=( ::string& os , Backend::Workload const& wl ) {         // START_OF_NO_COV
-		os << "Workload("                                                      ;
-		os <<      wl._ref_workload       /1000. <<'@'<< wl._ref_date          ;
-		os <<','<< wl._reasonable_workload/1000. <<'/'<< wl._reasonable_tokens ;
-		os <<','<< wl._running_tokens                                          ;
+	void Backend::Workload::operator>>(::string& os) const {             // START_OF_NO_COV
+		os << "Workload("                                              ;
+		os <<      _ref_workload       /1000.<<'@'<<_ref_date          ;
+		os << ','<<_reasonable_workload/1000.<<'/'<<_reasonable_tokens ;
+		os << ','<<_running_tokens                                     ;
 		//
 		First first ;
-		/**/                                  os <<",["                                          ;
-		for( Req r : Req::s_reqs_by_start() ) os <<first("",",")<< r <<':'<< wl._queued_cost[+r] ;
-		/**/                                  os <<']'                                           ;
-		//
-		return os <<')' ;
+		/**/                                  os << ",["                                    ;
+		for( Req r : Req::s_reqs_by_start() ) os << first("",",")<<r<<':'<<_queued_cost[+r] ;
+		/**/                                  os << ']'                                     ;
+		os <<')' ;
+	}                                                                    // END_OF_NO_COV
+
+	void Backend::StartEntry::operator>>(::string& os) const {                   // START_OF_NO_COV
+		os << "StartEntry("<<conn<<','<<tag<<','<<reqs<<','<<submit_info<< ')' ;
 	}                                                                            // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , Backend::StartEntry const& ste ) {                                      // START_OF_NO_COV
-		return os << "StartEntry(" << ste.conn <<','<< ste.tag <<','<< ste.reqs <<','<< ste.submit_info << ')' ;
-	}                                                                                                            // END_OF_NO_COV
+	void Backend::StartEntry::Conn::operator>>(::string& os) const { // START_OF_NO_COV
+		os << "Conn("<<service<<','<<seq_id<<','<<small_id<<')' ;
+	}                                                                // END_OF_NO_COV
 
-	::string& operator+=( ::string& os , Backend::StartEntry::Conn const& c ) {        // START_OF_NO_COV
-		return os << "Conn(" << c.service <<','<< c.seq_id <<','<< c.small_id << ')' ;
-	}                                                                                  // END_OF_NO_COV
-
-	::string& operator+=( ::string& os , Backend::DeferredEntry const& de ) {   // START_OF_NO_COV
-		return os << "DeferredEntry(" << de.seq_id <<','<< de.job_exec << ')' ;
-	}                                                                           // END_OF_NO_COV
+	void Backend::DeferredEntry::operator>>(::string& os) const { // START_OF_NO_COV
+		os << "DeferredEntry("<<seq_id<<','<<job_exec<<')' ;
+	}                                                             // END_OF_NO_COV
 
 	void Backend::Workload::_refresh() {
 		Pdate now = Pdate(New).round_msec() ;                                                   // avoid rounding errors

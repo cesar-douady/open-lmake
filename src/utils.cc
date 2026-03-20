@@ -223,9 +223,6 @@ mode_t mod_from_str(::string const& s) {
 	return res ;
 }
 
-::string& operator+=( ::string& os , Fd   const& fd ) { return fd.append_to_str( os , "Fd"   ) ; }
-::string& operator+=( ::string& os , AcFd const& fd ) { return fd.append_to_str( os , "AcFd" ) ; }
-
 int Fd::_s_mk_fd( FileRef file , Action action ) {
 	if (action.nfs_guard) {
 		if (action.flags&O_DIRECTORY) {
@@ -725,10 +722,6 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 //
 // miscellaneous
 //
-
-::string& operator+=( ::string& os , StrErr const& se ) {
-	return os << ::string(se) ;
-}
 
 ::string const& host() {
 	static ::string s_res = []()->::string {

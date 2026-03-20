@@ -396,11 +396,11 @@ namespace Disk {
 	// FileInfo
 	//
 
-	::string& operator+=( ::string& os , FileInfo const& fi ) { // START_OF_NO_COV
-		/**/     os << "FileInfo("           ;
-		if (+fi) os << fi.sz <<','<< fi.date ;
-		return   os << ')'                   ;
-	}                                                           // END_OF_NO_COV
+	void FileInfo::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/       os << "FileInfo("     ;
+		if (+self) os << sz <<','<< date ;
+		/**/       os << ')'             ;
+	}                                               // END_OF_NO_COV
 
 	FileInfo::FileInfo(FileStat const& st) {
 		FileTag tag = FileTag::None/*garbage*/ ;
@@ -432,9 +432,9 @@ namespace Disk {
 	// FileSig
 	//
 
-	::string& operator+=( ::string& os , FileSig const& sig ) {                              // START_OF_NO_COV
-		return os<< "FileSig(" << to_hex(sig._val>>NBits<FileTag>) <<':'<< sig.tag() <<')' ;
-	}                                                                                        // END_OF_NO_COV
+	void FileSig::operator>>(::string& os) const {                            // START_OF_NO_COV
+		os<< "FileSig(" << to_hex(_val>>NBits<FileTag>) <<':'<< tag() <<')' ;
+	}                                                                         // END_OF_NO_COV
 
 	// START_OF_VERSIONING CACHE REPO
 	FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
@@ -459,9 +459,9 @@ namespace Disk {
 	// SigDate
 	//
 
-	::string& operator+=( ::string& os , SigDate const& sd ) { // START_OF_NO_COV
-		return os <<'('<< sd.sig <<','<< sd.date <<')' ;
-	}                                                          // END_OF_NO_COV
+	void SigDate::operator>>(::string& os) const { // START_OF_NO_COV
+		os << '('<<sig<<','<<date<<')' ;
+	}                                              // END_OF_NO_COV
 
 	//
 	// FileMap

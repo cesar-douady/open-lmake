@@ -101,6 +101,7 @@ static bool         _g_seen_make = false        ;
 static ::string _os_compat(::string const& os_id) {
 	::string res = os_id ;
 	switch (res[0]) {
+		case 'a' : if (res.starts_with("alma/"         )) res = "rhel"+res.substr(res.find('/')) ; break ; // alma         is inter-operable with rhel
 		case 'c' : if (res.starts_with("centos/"       )) res = "rhel"+res.substr(res.find('/')) ; break ; // centos       is inter-operable with rhel
 		case 'o' : if (res.starts_with("opensuse-leap/")) res = "suse"+res.substr(res.find('/')) ; break ; // openSUSE     is inter-operable with all SUSE
 		case 'r' : if (res.starts_with("rocky/"        )) res = "rhel"+res.substr(res.find('/')) ; break ; // rocky        is inter-operable with rhel
@@ -129,7 +130,9 @@ static void _chk_os() {
 	if ( !version_id                                              ) exit(Rc::System,"cannot find VERSION_ID in",ReleaseFile) ;
 	//
 	id << '/' << version_id ;
-	if (_os_compat(id)!=_os_compat(OS_ID)) exit(Rc::System,"bad OS in ",ReleaseFile," : ",id,"!=",OS_ID) ;
+	::string found    = _os_compat(id   ) ;
+	::string expected = _os_compat(OS_ID) ;
+	if (found!=expected) exit(Rc::System,"bad OS (",id,") in ",ReleaseFile," : found ",found," != expected ",expected) ;
 }
 
 static void _record_targets(Job job) {

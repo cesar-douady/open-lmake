@@ -12,13 +12,13 @@ using namespace Time ;
 static constexpr Crc::Val CrcOrNone = 1<< NBits<CrcSpecial>    ;
 static constexpr Crc::Val CrcErr    = 1<<(NBits<CrcSpecial>+1) ;
 
-::string& operator+=( ::string& os , CompileDigest const& cd ) {
+void CompileDigest::operator>>(::string& os) const {
 	First first ;
-	/**/               os << "CompileDigest("                         ;
-	if ( cd.n_statics) os << first("",",")<<"NS:"<<cd.n_statics       ;
-	if (+cd.deps     ) os << first("",",")<<"D:" <<cd.deps    .size() ;
-	if (+cd.dep_crcs ) os << first("",",")<<"DC:"<<cd.dep_crcs.size() ;
-	return             os << ')'                                      ;
+	/**/            os << "CompileDigest("                      ;
+	if ( n_statics) os << first("",",")<<"NS:"<<n_statics       ;
+	if (+deps     ) os << first("",",")<<"D:" <<deps    .size() ;
+	if (+dep_crcs ) os << first("",",")<<"DC:"<<dep_crcs.size() ;
+	/**/            os << ')'                                   ;
 }
 
 CompileDigest::~CompileDigest() {

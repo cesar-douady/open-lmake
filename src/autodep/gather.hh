@@ -45,7 +45,6 @@ enum class KillStep : uint8_t {
 } ;
 
 struct Gather {                                                       // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
-	friend ::string& operator+=( ::string& , Gather const& ) ;
 	using Kind = GatherKind    ;
 	using Proc = JobExecProc   ;
 	using Jerr = JobExecRpcReq ;
@@ -54,12 +53,12 @@ struct Gather {                                                       // NOLINT(
 	using DI   = DepInfo       ;
 	static constexpr Time::Delay HeartbeatTick { 10 } ;               // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 100s seems a good compromize
 	struct AccessInfo {
-		friend ::string& operator+=( ::string& , AccessInfo const& ) ;
 		// cxtors & casts
 		AccessInfo() = default ;
 		//
 		bool operator==(AccessInfo const&) const = default ;
 		// accesses
+		void operator>>(::string&) const ;
 		PD                       first_read (bool with_readdir=true) const ;
 		PD                       first_write(                      ) const ;
 		::pair<PD,bool/*write*/> sort_key   (                      ) const ;
@@ -115,13 +114,15 @@ struct Gather {                                                       // NOLINT(
 		::string               msg            ;
 	} ;
 	struct ServerSlaveEntry {
-		friend ::string& operator+=( ::string& , ServerSlaveEntry const& ) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// data
 		IMsgBuf     buf = {} ;
 		SockFd::Key key = {} ;
 	} ;
 	struct JobSlaveEntry {
-		friend ::string& operator+=( ::string& , JobSlaveEntry const& ) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// data
 		Jerr                            jerr       = {} ;                              // used for DepDirect/DepVerbose until server reply
 		::umap<Jerr::Id,::vector<Jerr>> to_confirm = {} ;                              // jerrs waiting for confirmation
@@ -131,7 +132,11 @@ struct Gather {                                                       // NOLINT(
 	// statics
 private :
 	static void _s_trace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_trace_child(report_fd,ready) ; }
+public :
+	// accesses
+	void operator>>(::string&) const ;
 	// services
+private :
 	void _send_to_server( JobMngtRpcReq const&                  ) ;
 	void _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                    // files are required for DepVerbose and forbidden for other
 	//

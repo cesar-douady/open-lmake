@@ -24,9 +24,11 @@ namespace Engine {
 	::vector<Req>                               Req::_s_reqs_by_eta   ;
 	::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> Req::_s_zombie_tab    = { true } ; // Req 0 is zombie, all other ones are not
 
-	::string& operator+=( ::string& os , Req const r ) { // START_OF_NO_COV
-		return os << "Rq(" << int(+r) << ')' ;
-	}                                                    // END_OF_NO_COV
+	void Req::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/       os << "Rq(" ;
+		if (+self) os << +self ;
+		/**/       os << ')'   ;
+	}                                          // END_OF_NO_COV
 
 	void Req::make(EngineClosureReq const& ecr) {
 		SWEAR(s_store.size()>+self) ;             // ensure data exist
@@ -337,9 +339,9 @@ namespace Engine {
 	// ReqInfo
 	//
 
-	::string& operator+=( ::string& os , ReqInfo const& ri ) {                        // START_OF_NO_COV
-		return os<<"ReqInfo("<<ri.req<<",W:"<<ri.n_wait<<"->"<<ri.n_watchers()<<')' ;
-	}                                                                                 // END_OF_NO_COV
+	void ReqInfo::operator>>(::string& os) const {                      // START_OF_NO_COV
+		os << "ReqInfo("<<req<<",W:"<<n_wait<<"->"<<n_watchers()<<')' ;
+	}                                                                   // END_OF_NO_COV
 
 	void ReqInfo::_add_watcher(Watcher watcher) {
 		switch (_n_watchers) {
@@ -680,10 +682,10 @@ namespace Engine {
 	// JobAudit
 	//
 
-	::string& operator+=( ::string& os , JobAudit const& ja ) { // START_OF_NO_COV
-		/**/                    os << "JobAudit("<<ja.report ;
-		if ( ja.has_msg_stderr) os << ",has_msg_stderr"      ;
-		return                  os << ')'                    ;
+	void JobAudit::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/                os << "JobAudit("<<report ;
+		if (has_msg_stderr) os << ",has_msg_stderr"   ;
+		/**/                os << ')'                 ;
 
 	} // END_OF_NO_COV
 

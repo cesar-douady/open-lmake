@@ -22,13 +22,6 @@ static constexpr bool ReuseAddr = false ; // XXX : need to do some trials to kno
 
 ::uset<int>* _s_epoll_sigs = nullptr ;
 
-::string& operator+=( ::string& os , SockFd       const& fd ) { return fd.append_to_str(os,"SockFd"      ,cat(fd.key)) ; } // NO_COV
-::string& operator+=( ::string& os , SlaveSockFd  const& fd ) { return fd.append_to_str(os,"SlaveSockFd" ,cat(fd.key)) ; } // NO_COV
-::string& operator+=( ::string& os , ServerSockFd const& fd ) { return fd.append_to_str(os,"ServerSockFd",cat(fd.key)) ; } // NO_COV
-::string& operator+=( ::string& os , ClientSockFd const& fd ) { return fd.append_to_str(os,"ClientSockFd",cat(fd.key)) ; } // NO_COV
-::string& operator+=( ::string& os , EventFd      const& fd ) { return fd.append_to_str(os,"EventFd"                 ) ; } // NO_COV
-::string& operator+=( ::string& os , SignalFd     const& fd ) { return fd.append_to_str(os,"SignalFd"                ) ; } // NO_COV
-
 ::string fqdn(::string const& domain_name) {
 	static ::umap_ss s_fqdns = []() {
 		::umap_ss          res   ;
@@ -62,19 +55,11 @@ static constexpr bool ReuseAddr = false ; // XXX : need to do some trials to kno
 // SockFd
 //
 
-::string& operator+=( ::string& os , Service const& s ) { // START_OF_NO_COV
-	return os<<s.str() ;
-}                                                         // END_OF_NO_COV
-
 Service::Service( ::string const& s , bool name_ok ) {
 	size_t pos = s.rfind(':') ;
 	addr = SockFd::s_addr        ( s.substr(0,pos) , name_ok               ) ; if (pos==Npos) return ;
 	port = from_string<in_port_t>( substr_view(s,pos+1) , true/*empty_ok*/ ) ;
 }
-
-::string& operator+=( ::string& os , KeyedService const& ks ) { // START_OF_NO_COV
-	return os<<ks.str() ;
-}                                                               // END_OF_NO_COV
 
 KeyedService::KeyedService( ::string const& s , bool name_ok ) {
 	size_t pos = s.find('/') ;

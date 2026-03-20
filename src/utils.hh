@@ -124,9 +124,9 @@ template<class... As> void dbg(                                  const char*    
 ::string const& mail() ; // user@host
 
 struct StrErr {
-	friend ::string& operator+=( ::string& , StrErr const& ) ;
 	StrErr(int e=errno) : err{e} {}
-	operator ::string() const { return ::strerror(err) ; }
+	/**/ operator ::string(            ) const { return ::strerror(err) ; }
+	void operator>>       (::string& os) const { os << ::string(self) ;   }
 	int err ;
 } ;
 
@@ -388,15 +388,13 @@ template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
 	using Base::Base      ;
 	using Base::operator= ;
 	// accesses
-	auto  operator+ () const { return +load() ; }
-	auto& operator* () const { return *load() ; }
-	auto* operator->() const { return &*self  ; }
+	void  operator>>(::string& os) const { os << "Atomic("<<load()<<')' ; } // NO_COV
+	auto  operator+ (            ) const { return +load() ;               }
+	auto& operator* (            ) const { return *load() ;               }
+	auto* operator->(            ) const { return &*self  ;               }
 	// services
 	void wait(T const& old) requires(bool(+Lvl)) ;
 } ;
-template<class T,MutexLvl Lvl> ::string& operator+=( ::string& os , Atomic<T,Lvl> const& a ) { // START_OF_NO_COV
-	return os <<"Atomic("<< a.load() <<')' ;
-}                                                                                              // END_OF_NO_COV
 
 //
 // Save
@@ -519,7 +517,6 @@ private :
 struct NfsGuard ;
 //
 template<class F> struct _File ;
-template<class F> ::string& operator+=( ::string& os , _File<F> const& fs ) ;
 using File     = _File<::string       > ;
 using FileRef  = _File<::string const&> ;
 using FileView = _File<::string_view  > ;
@@ -567,8 +564,6 @@ inline _CreatAction::operator _FdAction   () const { return { .mod=mod , .force=
 inline _FdAction   ::operator _CreatAction() const { return { .mod=mod , .force=force , .mk_dir=mk_dir , .nfs_guard=nfs_guard , .umask=umask } ; }
 
 struct Fd {
-	friend ::string& operator+=( ::string& , Fd const& ) ;
-	//
 	static const Fd Cwd    ;
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
@@ -591,6 +586,8 @@ public :
 	constexpr bool operator+() const { return fd>=0 || fd==AT_FDCWD ; }                      // other negative values are used to spawn processes
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
+	// accesses
+	void operator>>(::string& os) const { append_to_str( os , "Fd" ) ; }                     // NO_COV
 	// services
 	constexpr bool              operator== (Fd const&                    ) const = default ;
 	constexpr ::strong_ordering operator<=>(Fd const&                    ) const = default ;
@@ -624,7 +621,6 @@ constexpr Fd Fd::Stderr{2            } ;
 constexpr Fd Fd::Std   {2            } ;
 
 struct AcFd : Fd {
-	friend ::string& operator+=( ::string& , AcFd const& ) ;
 	// cxtors & casts
 	AcFd() = default ;
 	AcFd( Fd fd_                       ) : Fd{fd_        } {              }
@@ -639,10 +635,11 @@ struct AcFd : Fd {
 	AcFd& operator=(int       fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return self ; }
 	AcFd& operator=(Fd const& fd_ ) { self = fd_.fd ;                       return self ; }
 	AcFd& operator=(AcFd   && acfd) { swap(acfd) ;                          return self ; }
+	// accesses
+	void operator>>(::string& os) const { append_to_str( os , "AcFd" ) ; } // NO_COV
 } ;
 
 template<class F> struct _File {
-	friend ::string& operator+=<>( ::string& , _File<F> const& ) ;
 	static constexpr bool IsStr  = ::is_same_v<F,::string       > ;
 	static constexpr bool IsRef  = ::is_same_v<F,::string const&> ;
 	static constexpr bool IsView = ::is_same_v<F,::string_view  > ;
@@ -670,6 +667,12 @@ public :
 	template<class F2> _File& operator=(F2     && f2) requires(IsStr) { at = f2.at ; file = ::move(f2.file) ; return self ; }
 	//
 	// accesses
+	void operator>>(::string& os) const {                                                                           // START_OF_NO_COV
+		if      (at==Fd::Cwd) {}
+		else if (+at        ) os << '<'<<at.fd<<">/" ;
+		else                  os << "<>/"            ;
+		os << file ;
+	}                                                                                                               // END_OF_NO_COV
 	bool operator+() const { return +at ; }
 	// services
 	template<class F2> bool operator==(_File<F2> const& f2) const { return at==f2.at && file==f2.file ; }
@@ -678,13 +681,6 @@ public :
 	Fd at   ;
 	F  file ;
 } ;
-template<class F> ::string& operator+=( ::string& os , _File<F> const& f ) {
-	if (f.at!=Fd::Cwd) {
-		if (+f.at) os <<'<'<< f.at.fd <<">/" ;
-		else       os <<"<>/"                ;
-	}
-	return os << f.file ;
-}
 struct NfsGuardDir {                                              // open/close uphill dirs before read accesses and after write accesses
 	// cxtors & casts
 	~NfsGuardDir() { flush() ; }
@@ -807,9 +803,7 @@ private :
 // meant to be used as static variables for which destuction at end of execution is a mess because of order
 template<class T,MutexLvl A=MutexLvl::Unlocked> struct StaticUniqPtr ;
 //
-template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) ;
 template<class T,MutexLvl A> struct StaticUniqPtr {
-	friend ::string& operator+=<>( ::string& , StaticUniqPtr<T,A> const& ) ;
 	template<class,MutexLvl> friend struct StaticUniqPtr ;
 	// cxtors & casts
 	/**/                 StaticUniqPtr() = default ;
@@ -829,19 +823,17 @@ template<class T,MutexLvl A> struct StaticUniqPtr {
 	StaticUniqPtr           (StaticUniqPtr const&) = delete ;
 	StaticUniqPtr& operator=(StaticUniqPtr const&) = delete ;
 	// accesses
-	bool     operator+ () const { return _ptr    ; }
-	T      & operator* ()       { return *_ptr   ; }
-	T const& operator* () const { return *_ptr   ; }
-	T      * operator->()       { return &*self  ; }
-	T const* operator->() const { return &*self  ; }
-	void     detach    ()       { _ptr = nullptr ; }
+	void     operator>>(::string& os) const { os << _ptr ;     } // NO_COV
+	bool     operator+ (            ) const { return _ptr    ; }
+	T      & operator* (            )       { return *_ptr   ; }
+	T const& operator* (            ) const { return *_ptr   ; }
+	T      * operator->(            )       { return &*self  ; }
+	T const* operator->(            ) const { return &*self  ; }
+	void     detach    (            )       { _ptr = nullptr ; }
 	// data
 private :
 	::conditional_t<+A,Atomic<T*,A>,T*> _ptr = nullptr ;
 } ;
-template<class T,MutexLvl A> ::string& operator+=( ::string& os , StaticUniqPtr<T,A> const& sup ) {                           // START_OF_NO_COV
-	return os << sup._ptr ;
-}                                                                                                                             // END_OF_NO_COV
 
 template<class... As> [[noreturn]] void exit( Rc rc , As const&... args ) {
 	Fd::Stderr.write(cat(args...,add_nl)) ;
@@ -936,7 +928,7 @@ inline void kill_self(int sig) {      // raise kills the thread, not the process
 // START_OF_NO_COV for debug only
 extern bool _crash_busy ;
 template<class... A> [[noreturn]] void run_time_crash( int n_hide , int sig , int n_hdrs , A const&... args ) { // isolate so ::string can be declared with clang
-	if (!_crash_busy) {                          // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
+	if (!_crash_busy) {                        // avoid recursive call in case syscalls are highjacked (hoping sig handler management are not)
 		_crash_busy = true ;
 		::string err_msg = get_exe() ;
 		int      i       = 0         ;
@@ -944,14 +936,14 @@ template<class... A> [[noreturn]] void run_time_crash( int n_hide , int sig , in
 		auto comma = [&](::string& s) {
 			if (i++>n_hdrs) s << ',' ;
 		} ;
-		if (t_thread_key!='?') err_msg << ':'<<t_thread_key                     ;
-		/**/                   err_msg << " ("<<_crash_get_now()<<") : "        ;
-		/**/                (( err_msg << (&comma)<<args                 ),...) ;
-		/**/                   err_msg << '\n'                                  ;
+		if (t_thread_key!='?') err_msg << ':'<<t_thread_key              ;
+		/**/                   err_msg << " ("<<_crash_get_now()<<") : " ;
+		/**/               ( ( err_msg << comma<<args ) , ... )          ;
+		/**/                   err_msg << '\n'                           ;
 		Fd::Stderr.write(err_msg) ;
 		set_sig_handler<SIG_DFL>(sig) ;
 		write_backtrace(Fd::Stderr,n_hide+1) ;
-		kill_self(sig) ;                         // rather than merely calling abort, this works even if crash_handler is not installed
+		kill_self(sig) ;                       // rather than merely calling abort, this works even if crash_handler is not installed
 		// continue to abort in case kill did not work for some reason
 	}
 	set_sig_handler<SIG_DFL>(SIGABRT) ;

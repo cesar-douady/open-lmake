@@ -53,15 +53,15 @@ namespace Hash {
 		else {
 			if ( is_lnk==Maybe && !seen_data ) return {} ;
 			XXH128_hash_t d = XXH3_128bits_digest(&_state) ;
-			typename _Crc<Sz>::Val v = d.low64 ; // stay in 64 bits, prevent compiler from complaining if we kept 64
+			typename _Crc<Sz>::Val v = d.low64 ;             // stay in 64 bits, prevent compiler from complaining if we kept 64
 			#if HAS_UINT128
 				v |= uint128_t(d.high64)<<64 ;
 			#endif
 			return { v&_Crc<Sz>::Msk , is_lnk } ;
 		}
 	} //!         Sz       Sz
-	template _Crc<64> _Xxh<64>::digest() const ;                    // explicit instanciation
-	template _Crc<96> _Xxh<96>::digest() const ;                    // .
+	template _Crc<64> _Xxh<64>::digest() const ;             // explicit instanciation
+	template _Crc<96> _Xxh<96>::digest() const ;             // .
 
 	template<uint8_t Sz> _Xxh<Sz>& _Xxh<Sz>::operator+=(::string_view sv) {
 		seen_data |= sv.size() ;
@@ -76,18 +76,18 @@ namespace Hash {
 	// Crc
 	//
 
-	template<uint8_t Sz> ::string& operator+=( ::string& os , _Crc<Sz> const crc ) { // START_OF_NO_COV
-		CrcSpecial special { crc } ;
-		/**/                            os << "Crc"         ;
-		if (Sz!=64                    ) os << Sz            ;
-		/**/                            os << '('           ;
-		if (special==CrcSpecial::Plain) os << ::string(crc) ;
-		else                            os << special       ;
-		return                          os << ')'           ;
-	}                                                                                // END_OF_NO_COV
-	//!                                                Sz
-	template ::string& operator+=( ::string& os , _Crc<64> const crc ) ;             // explicit instanciation
-	template ::string& operator+=( ::string& os , _Crc<96> const crc ) ;             // .
+	template<uint8_t Sz> void _Crc<Sz>::operator>>(::string& os) const { // START_OF_NO_COV
+		CrcSpecial special { self } ;
+		/**/                            os << "Crc"          ;
+		if (Sz!=64                    ) os << Sz             ;
+		/**/                            os << '('            ;
+		if (special==CrcSpecial::Plain) os << ::string(self) ;
+		else                            os << special        ;
+		/**/                            os << ')'            ;
+	}                                                                    // END_OF_NO_COV
+	//!                Sz
+	template void _Crc<64>::operator>>(::string&) const ;                // explicit instanciation
+	template void _Crc<96>::operator>>(::string&) const ;                // .
 
 	// START_OF_VERSIONING CACHE JOB REPO
 	template<uint8_t Sz> _Crc<Sz>::_Crc(::string const& filename) {

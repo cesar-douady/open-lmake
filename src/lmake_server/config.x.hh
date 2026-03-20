@@ -137,11 +137,12 @@ namespace Engine {
 	struct ConfigDyn {
 		//
 		struct Backend {
-			friend ::string& operator+=( ::string& , Backend const& ) ;
 			using Tag = BackendTag ;
 			// cxtors & casts
 			Backend() = default ;
 			Backend(Py::Dict const& py_map) ;
+			// accesses
+			void operator>>(::string&) const ;
 			// services
 			bool operator==(Backend const&) const = default ;
 			template<IsStream S> void serdes(S& s) {
@@ -199,12 +200,12 @@ namespace Engine {
 	} ;
 
 	struct Config : ConfigClean , ConfigStatic , ConfigDyn {
-		friend ::string& operator+=( ::string& , Config const& ) ;
 		// cxtors & casts
 		Config() = default ;
 		Config(Py::Dict const& py_map) ;
 		// accesses
-		bool operator+() const { return booted ; }
+		void operator>>(::string&) const ;
+		bool operator+ (         ) const { return booted ; }
 		// services
 		template<IsStream S> void serdes(S& s) {
 			// START_OF_VERSIONING REPO

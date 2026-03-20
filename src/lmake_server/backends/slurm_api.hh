@@ -10,7 +10,8 @@ namespace Backends::Slurm {
 	using SlurmId = uint32_t ;
 
 	struct Daemon {
-		friend ::string& operator+=( ::string& , Daemon const& ) ;
+		// accesses
+		void operator>>(::string&) const ;
 		// data
 		Pdate           time_origin { "2023-01-01 00:00:00" } ; // this leaves room til 2091
 		float           nice_factor { 1                     } ; // conversion factor in the form of number of nice points per second
@@ -19,8 +20,8 @@ namespace Backends::Slurm {
 	} ;
 
 	struct RsrcsDataSingle {
-		friend ::string& operator+=( ::string& , RsrcsDataSingle const& ) ;
 		// accesses
+		void operator>>(::string&             ) const ;
 		bool operator==(RsrcsDataSingle const&) const = default ;
 		// services
 		RsrcsDataSingle round() const {

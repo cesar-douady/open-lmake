@@ -290,28 +290,28 @@ namespace Backends::Slurm {
 	// Daemon
 	//
 
-	::string& operator+=( ::string& os , Daemon const& d ) {                                                                           // START_OF_NO_COV
-		return os << "Daemon(" << d.time_origin <<','<< d.nice_factor <<','<< d.licenses <<','<< (d.manage_mem?"mem":"no_mem") <<')' ;
-	}                                                                                                                                  // END_OF_NO_COV
+	void Daemon::operator>>(::string& os) const {                                                              // START_OF_NO_COV
+		os << "Daemon("<<time_origin<<','<<nice_factor<<','<<licenses<<','<<(manage_mem?"mem":"no_mem")<<')' ;
+	}                                                                                                          // END_OF_NO_COV
 
 	//
 	// RsrcsData
 	//
 
-	::string& operator+=( ::string& os , RsrcsDataSingle const& rsds ) { // START_OF_NO_COV
-		/**/                 os <<'('<< rsds.cpu       ;
-		if ( rsds.mem      ) os <<','<< rsds.mem<<"MB" ;
-		if ( rsds.tmp      ) os <<','<< rsds.tmp<<"MB" ;
-		if (+rsds.partition) os <<','<< rsds.partition ;
-		if (+rsds.gres     ) os <<','<< rsds.gres      ;
-		if (+rsds.licenses ) os <<','<< rsds.licenses  ;
-		if (+rsds.features ) os <<','<< rsds.features  ;
-		if (+rsds.qos      ) os <<','<< rsds.qos       ;
-		if (+rsds.reserv   ) os <<','<< rsds.reserv    ;
-		if (+rsds.excludes ) os <<','<< rsds.excludes  ;
-		if (+rsds.nodes    ) os <<','<< rsds.nodes     ;
-		return              os <<')'                  ;
-	}                                                                    // END_OF_NO_COV
+	void RsrcsDataSingle::operator>>(::string& os) const { // START_OF_NO_COV
+		/**/            os <<'('<< cpu       ;
+		if ( mem      ) os <<','<< mem<<"MB" ;
+		if ( tmp      ) os <<','<< tmp<<"MB" ;
+		if (+partition) os <<','<< partition ;
+		if (+gres     ) os <<','<< gres      ;
+		if (+licenses ) os <<','<< licenses  ;
+		if (+features ) os <<','<< features  ;
+		if (+qos      ) os <<','<< qos       ;
+		if (+reserv   ) os <<','<< reserv    ;
+		if (+excludes ) os <<','<< excludes  ;
+		if (+nodes    ) os <<','<< nodes     ;
+		/**/            os <<')'             ;
+	}                                                      // END_OF_NO_COV
 
 	static void _sort(::string& s) {
 		if (s.find(',')==Npos) return ;

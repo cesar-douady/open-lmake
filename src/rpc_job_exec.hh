@@ -38,10 +38,10 @@ struct JobExecRpcReq   ;
 struct JobExecRpcReply ;
 
 struct AccessDigest {                                                                        // semantic access order is first read, first write, last write, unlink
-	friend ::string& operator+=( ::string& , AccessDigest const& ) ;
 	// accesses
-	bool has_read () const { return +accesses || read_dir   ; }                              // true if some read access of some sort is done
-	bool operator+() const { return has_read() || write!=No ; }                              // true if some      access of some sort is done
+	void operator>>(::string&) const ;
+	bool has_read  (         ) const { return +accesses || read_dir   ; }                    // true if some read access of some sort is done
+	bool operator+ (         ) const { return has_read() || write!=No ; }                    // true if some      access of some sort is done
 	// services
 	bool          operator==(AccessDigest const&   ) const = default ;
 	AccessDigest& operator|=(AccessDigest const&   )       ;
@@ -57,13 +57,13 @@ struct AccessDigest {                                                           
 } ;
 
 struct JobExecRpcReq {
-	friend ::string& operator+=( ::string& , JobExecRpcReq const& ) ;
 	// make short lines
 	using Proc = JobExecProc ;
 	using Id   = uint64_t    ;
 	// accesses
-	::string const& txt() const { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; }                                     // reuse files to pass specific info
-	::string      & txt()       { SWEAR( proc==Proc::Panic  || proc==Proc::Trace  , proc ) ; return files[0].first ; }                                     // .
+	void            operator>>(::string&) const ;
+	::string const& txt       (         ) const { SWEAR( proc==Proc::Panic || proc==Proc::Trace  , proc ) ; return files[0].first ; }                      // reuse files to pass specific info
+	::string      & txt       (         )       { SWEAR( proc==Proc::Panic || proc==Proc::Trace  , proc ) ; return files[0].first ; }                      // .
 	// services
 	void chk() const {
 		/**/                                                 SWEAR( (+files)==(proc>=Proc::HasFile)                                                , proc,files ) ;
@@ -120,10 +120,10 @@ struct JobExecRpcReq {
 } ;
 
 struct JobExecRpcReply {
-	friend ::string& operator+=( ::string& , JobExecRpcReply const& ) ;
 	using Proc = JobExecProc ;
 	// accesses
-	bool operator+() const { return proc!=Proc::None ; }
+	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return proc!=Proc::None ; }
 	// services
 	void chk() const {
 		switch (proc) {
@@ -162,7 +162,6 @@ namespace Codec {
 	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , mode_t umask , NfsGuard* ) ; // ensure data exist in store
 
 	struct CodecFile {
-		friend ::string& operator+=( ::string& , CodecFile const& ) ;
 		// statics
 		static ::string s_pfx_s(bool tmp=false) {
 			if (tmp) return cat(PrivateAdminDirS,"codec_tmp/") ;
@@ -191,11 +190,12 @@ namespace Codec {
 		CodecFile( NewType , ::string const& node                                   ) ; // for local    file codec
 		CodecFile( NewType , ::string const& node , ::string const& ext_codec_dir_s ) ; // for external dir  codec
 		// acceses
-		bool            is_encode() const { return        _code_val_crc.index()==1 ; }
-		::string const& code     () const { return get<0>(_code_val_crc)           ; }
-		::string      & code     ()       { return get<0>(_code_val_crc)           ; }
-		CodecCrc const& val_crc  () const { return get<1>(_code_val_crc)           ; }
-		CodecCrc      & val_crc  ()       { return get<1>(_code_val_crc)           ; }
+		void            operator>>(::string&) const ;
+		bool            is_encode (         ) const { return        _code_val_crc.index()==1 ; }
+		::string const& code      (         ) const { return get<0>(_code_val_crc)           ; }
+		::string      & code      (         )       { return get<0>(_code_val_crc)           ; }
+		CodecCrc const& val_crc   (         ) const { return get<1>(_code_val_crc)           ; }
+		CodecCrc      & val_crc   (         )       { return get<1>(_code_val_crc)           ; }
 		// services
 		::string ctx_dir_s(bool tmp=false) const ;
 		::string name     (bool tmp=false) const ;
@@ -208,11 +208,12 @@ namespace Codec {
 	} ;
 
 	struct Entry {
-		friend ::string& operator+=( ::string& , Entry const& ) ;
 		// cxtors & casts
 		Entry() = default ;
 		Entry( ::string const& x , ::string const& c , ::string const& v ) : ctx{x} , code{c} , val{v} {}
 		Entry( ::string const& line                                      ) ;                              // format : "\t<code>\t<ctx>\t<val>" exactly
+		// accesses
+		void operator>>(::string&) const ;
 		// services
 		::string line(bool with_nl=false) const ;                                                         // .
 		// data
