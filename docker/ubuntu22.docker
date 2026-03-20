@@ -27,7 +27,6 @@ RUN apt-get install -y libpcre2-dev
 RUN apt-get install -y libslurm-dev
 RUN apt-get install -y python2
 RUN apt-get install -y python3-numba python3-venv
-RUN apt-get install -y strace
 RUN apt-get install -y uidmap
 
 # necessary to build and install debian package

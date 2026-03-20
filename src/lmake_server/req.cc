@@ -99,8 +99,8 @@ namespace Engine {
 
 	void Req::close() {
 		Trace trace("Rclose",self) ;
-		SWEAR(  self->is_open  ()                     ) ;
-		SWEAR( !self->n_running() , self->n_running() ) ;
+		SWEAR(  self->is_open  ()                 ) ;
+		SWEAR( !self->n_running , self->n_running ) ;
 		g_kpi.reqs.push_back({
 			.n_job_req_info  = self->jobs .size()
 		,	.n_node_req_info = self->nodes.size()
@@ -392,7 +392,7 @@ namespace Engine {
 
 	void ReqData::clear() {
 		Trace trace("clear",job) ;
-		SWEAR( !n_running() , n_running() ) ;
+		SWEAR( !n_running , n_running ) ;
 		if ( +job && job->rule()->special==Special::Req ) job.pop(idx());
 		self = {} ;
 	}

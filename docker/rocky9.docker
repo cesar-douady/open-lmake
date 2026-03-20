@@ -22,7 +22,6 @@ RUN \
 			gcc-toolset-12 gcc-toolset-12-libstdc++-devel                    \
 			gcc-toolset-12-libstdc++-devel.i686 glibc-devel.i686 libgcc.i686 \
 			pcre2 pcre2-devel                                                \
-			strace                                                           \
 			#slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work
 	&&	dnf clean all
 

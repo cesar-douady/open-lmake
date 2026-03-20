@@ -16,6 +16,11 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* bug Sylvain :
+	Hello sur v26.02, tu avais modifie quelque chose autour des sourceRule ? car j'ai souvent ce genre de msg:
+	dep has been overwritten : hw/rtl/misc/dvm/pkg/+Base+paramDir/bebcf23f
+	dep_error          CenvDiagXmlWithParam                          0.668s hw/rtl/misc/dvm/stub/bench/bench/+Bench+_hw0_02d1025e.sdir/diag/random+_sw1_reqW500_rspB500_cplB500_nI200_s1.xml
+	J'ai pas encore active (lencode/decode)
 ? seen once : server blocked
 	- seems to be while taking GIL
 
@@ -88,11 +93,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* count separately :
-	- counting number of running jobs to feed req->n_running() (simple and reliable)
-	- stats (complex and realiability is best effort)
-* suppress dependency on strace
-	- write a small test based on ptrace
 * implement a test of userland overlay mount in sys_config
 	- and dont propose overlay if not supported
 	- and suppress corresponding TUs

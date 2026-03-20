@@ -269,16 +269,15 @@ LMAKE_SERVER_FILES := \
 
 LMAKE_REMOTE_SLIBS := $(if $(HAS_LD_AUDIT),ld_audit.so) ld_preload.so ld_preload_jemalloc.so
 LMAKE_REMOTE_FILES := \
-	                    $(patsubst %,_d$(LD_SO_LIB)/%    ,$(LMAKE_REMOTE_SLIBS))  \
-	$(if $(HAS_32)     ,$(patsubst %,_d$(LD_SO_LIB_32)/% ,$(LMAKE_REMOTE_SLIBS))) \
-	$(if $(HAS_X32)    ,$(patsubst %,_d$(LD_SO_LIB_X32)/%,$(LMAKE_REMOTE_SLIBS))) \
-	$(if $(HAS_PY_DYN) ,lib/clmake$(PY_EXT))                                      \
-	$(if $(HAS_PY2_DYN),lib/clmake2.so)                                           \
-	_bin/job_exec                                                                 \
-	bin/lcheck_deps                                                               \
-	bin/ldecode                                                                   \
-	bin/lencode                                                                   \
-	bin/ldepend                                                                   \
+	                    $(patsubst %,_d$(LD_SO_LIB)/%   ,$(LMAKE_REMOTE_SLIBS))  \
+	$(if $(HAS_32)     ,$(patsubst %,_d$(LD_SO_LIB_32)/%,$(LMAKE_REMOTE_SLIBS))) \
+	$(if $(HAS_PY_DYN) ,lib/clmake$(PY_EXT))                                     \
+	$(if $(HAS_PY2_DYN),lib/clmake2.so)                                          \
+	_bin/job_exec                                                                \
+	bin/lcheck_deps                                                              \
+	bin/ldecode                                                                  \
+	bin/lencode                                                                  \
+	bin/ldepend                                                                  \
 	bin/ltarget
 
 LMAKE_DOC_FILES := \
@@ -784,13 +783,6 @@ _d$(LD_SO_LIB_32)/ld_audit.so            : $(AUTODEP_OBJS:%.o=%-m32.o) src/autod
 _d$(LD_SO_LIB_32)/ld_preload.so          : $(AUTODEP_OBJS:%.o=%-m32.o) src/autodep/ld_preload-m32.o
 _d$(LD_SO_LIB_32)/ld_preload_jemalloc.so : $(AUTODEP_OBJS:%.o=%-m32.o) src/autodep/ld_preload_jemalloc-m32.o
 
-ifneq ($(LD_SO_LIB_X32),)
-# if system uses a different $LIB value for -mx32 mode, we must provide the file, but for us there is no difference
-_d$(LD_SO_LIB_X32)/%.so :
-	@mkdir -p $(@D)
-	@echo sym link to $@
-	@ln -s $(@:_d$(LD_SO_LIB_X32)/%.so=../_d$(LD_SO_LIB)/%.so)
-endif
 %.so :
 	@mkdir -p $(@D)
 	@echo link to $@

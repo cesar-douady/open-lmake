@@ -249,6 +249,7 @@ namespace Engine {
 		JobData& jd = *self ;
 		if (+req) {
 			ReqInfo& ri = jd.req_info(req) ;
+			req->n_running-- ;
 			ri.set_step(Step::End,self)        ;                                                                           // ensure no confusion with previous run
 			jd.make( ri , MakeAction::GiveUp ) ;
 			if      (!jd.running_reqs(false/*with_zombies*/)) for( Node t : self->targets() ) t->busy = false ;            // if job does not continue, targets are no more busy
@@ -635,6 +636,7 @@ namespace Engine {
 			ri.modified |= modified ;                                      // accumulate modifications until reported
 			if (!ri.running()) continue ;
 			SWEAR( ri.step()==Step::Exec , ri ) ;
+			req->n_running-- ;
 			ri.set_step(Step::End,self) ;                                  // ensure no confusion with previous run, all steps must be updated before any make() is called
 		}
 		//

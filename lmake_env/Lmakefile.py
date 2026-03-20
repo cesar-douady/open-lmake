@@ -160,7 +160,7 @@ class SysConfig(PathRule,TraceRule) :    # XXX : handle PCRE
 	,	'MK'    : r'sys_config.dir/{*:.*}'
 	}
 	deps = { 'EXE' : '_bin/sys_config' }
-	autodep = 'ld_preload'               # ptrace is not supported as _bin/sys_config calls strace and ptrace under ptrace is forbidden
+	autodep = 'ld_preload'               # ptrace is not supported as _bin/sys_config calls ptrace and ptrace under ptrace is forbidden
 	cmd  = '''
 		OS={os.uname().sysname} CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/mk {H} 2>&1
 		while read k e v ; do

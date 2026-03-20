@@ -677,7 +677,10 @@ namespace Engine {
 					maybe_new_deps = _submit_plain( ri , dep_pressure ) ;
 					//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					inc_submits( rt , ri.waiting() ) ;
-					if (ri.waiting()) goto Wait ;
+					if (ri.waiting()) {
+						req->n_running++ ;
+						goto Wait ;
+					}
 					missing_rerun_report = cache_hit_info<CacheHitInfo::Miss ? MissingRerunReport::Hit : MissingRerunReport::Early ;
 				}
 				if (maybe_new_deps) {                                                    // if cached, there may be new deps, we must re-analyze

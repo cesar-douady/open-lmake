@@ -21,7 +21,6 @@ RUN apt-get install -y gdb
 RUN apt-get install -y libpcre2-dev
 RUN apt-get install -y libslurm-dev
 RUN apt-get install -y python3-venv
-RUN apt-get install -y strace
 #
 ## necessary to build and install debian package
 RUN apt-get install -y dh-make devscripts debhelper equivs apparmor dh-apparmor

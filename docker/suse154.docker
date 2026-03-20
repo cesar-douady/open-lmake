@@ -29,7 +29,6 @@ RUN zypper install -y clang
 RUN zypper install -y gdb
 RUN zypper install -y pcre2-devel
 RUN zypper install -y slurm-devel
-RUN zypper install -y strace
 RUN zypper install -y sudo
 RUN zypper install -y vi
 

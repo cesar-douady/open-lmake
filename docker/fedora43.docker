@@ -22,7 +22,6 @@ RUN \
 			#optional
 			glibc-devel.i686 libgcc.i686 \
 			pcre2 pcre2-devel            \
-			strace                       \
 	&&	dnf clean all
 
 # RUN dnf install -y slurm slurm-slurmd slurm-libpmi slurm-munge slurm-devel # does not work

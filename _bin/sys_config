@@ -147,27 +147,143 @@ config_python() {
 config_python "$PYTHON2" 2  || { echo "no python2 support ($msg)" >>$SUM_FILE ; PYTHON2= ; }                                               # python2 is optional
 config_python "$PYTHON"  '' || { echo                      $msg   >>$ERR_FILE ; exit 1   ; }                                               # python3 is compulsory
 
+# mimic a minimal strace to probe the behavior of ld.so
+# this way, no dependency on the strace package
+cat <<"EOF" >ld_so_probe.cc
+	#include <elf.h>
+	#include <fcntl.h>
+	#include <sys/ptrace.h>
+	#include <sys/wait.h>
+	#include <sys/user.h>
+	#include <sys/reg.h>
+	#include <sys/uio.h>
+	#include <syscall.h>
+	#include <unistd.h>
+
+	#include <cstdint>
+	#include <cstring>
+
+	#include <iostream>
+	#include <string>
+	#include <unordered_set>
+
+	using namespace std ;
+
+	int main( int argc , char** argv ) {
+		static constexpr char Pattern1     [] = ">>>/$LIB/<<<"                                  ;
+		static constexpr char Pattern2     [] = ">>><<<"                                        ;
+		static constexpr char* DummyCmdLine[] { (char*)"/proc/self/exe" , nullptr/*sentinel*/ } ;        // exec ourselves with an argument to distinguish from the original code
+		//
+		if (argc==1) return 0 ;                                                                          // we are the child which is exec'ed, just do nothing
+		//
+		pid_t child = ::fork() ;
+		if (child==0) {                                                                                  // child
+			switch (argv[1][0]) {
+				case '1' :
+					if (::setenv( "LD_PRELOAD" , Pattern1 , true/*overwrite*/ )!=0) return 1 ;
+				break ;
+				case '2' :
+					if (::setenv( "LD_PRELOAD"      , Pattern2 , true/*overwrite*/ )!=0) return 2 ;
+					if (::setenv( "LD_LIBRARY_PATH" , ""       , true/*overwrite*/ )!=0) return 3 ;
+				break ;
+				default  :                                                                 return 4 ;
+			}
+			if (::ptrace( PTRACE_TRACEME , 0/*pid*/ , nullptr/*addr*/ , nullptr/*data*/ )!=0) return 5 ;
+			if (::close(2)                                                               !=0) return 6 ; // avoid errors due to non-existent lib
+			::execv( DummyCmdLine[0] , DummyCmdLine ) ;
+			return 7 ;
+		}
+		if (child<=1) return 8 ;                                                                         // abnormal
+		//
+		::unordered_set<::string> seen     ;
+		char                      buf[256] = {} ;
+		int  wstatus  ;
+		//
+		if (::waitpid(                     child , &wstatus , 0/*flags*/                   )< 0) return 9  ;
+		if (::ptrace ( PTRACE_SETOPTIONS , child , nullptr/*addr*/ , PTRACE_O_TRACESYSGOOD )!=0) return 10 ;
+		for (;;) {
+			if (::ptrace ( PTRACE_SYSCALL , child , nullptr/*addr*/ , reinterpret_cast<void*>(0) )!=0) return 11 ;
+			if (::waitpid(                  child , &wstatus , 0                                 )< 0) return 12 ;
+			//
+			if (!WIFSTOPPED(wstatus)) {
+				switch (argv[1][0]) {
+					case '1' : return 13 ;                                                               // child ended and we did not find our info
+					case '2' : return 0  ;                                                               // all standard libs have been tried
+					default  : return 14 ;
+				}
+			}
+			//
+			struct ::user_regs_struct regs ;
+			struct ::iovec            iov  ; iov.iov_base = &regs ; iov.iov_len = sizeof(regs) ;
+			//
+			if (::ptrace( PTRACE_GETREGSET , child , reinterpret_cast<void*>(NT_PRSTATUS) , &iov )!=0) return 15 ;
+			//
+			using SyscallArg = ::pair<int,uintptr_t> ;
+			#if __x86_64__
+				SyscallArg syscall_arg = { regs.orig_rax , regs.orig_rax==SYS_open?regs.rdi    :regs.rsi     } ;
+			#elif __i386__
+				SyscallArg syscall_arg = { regs.orig_eax , regs.orig_eax==SYS_open?regs.ebx    :regs.ecx     } ;
+			#elif __aarch64__
+				SyscallArg syscall_arg = { regs.regs[8]  , regs.regs[8] ==SYS_open?regs.regs[0]:regs.regs[1] } ;
+			#elif __arm__
+				SyscallArg syscall_arg = { regs.r7       , regs.r7      ==SYS_open?regs.r0     :regs.r1      } ;
+			#elif __s390x__ || __s390__
+				SyscallArg syscall_arg = { regs.gprs[1]  , regs.gprs[1] ==SYS_open?regs.gprs[2]:regs.gprs[3] } ;
+			#else
+				#error unexpected architecture
+			#endif
+			//
+			switch (syscall_arg.first) {
+				case SYS_open   :
+				case SYS_openat : break    ;
+				default         : continue ;
+			}
+			int     mem_fd = ::open( ("/proc/"s+::to_string(child)+"/mem").c_str() , O_RDONLY )    ; if (mem_fd<0) return 16 ;
+			ssize_t rc     = ::pread64( mem_fd , buf , sizeof(buf) , int64_t(syscall_arg.second) ) ;
+			::close(mem_fd) ;
+			if (rc<0) continue ;
+			buf[sizeof(buf)-1] = 0 ;                                                                     // ensure terminating null
+			//
+			::string path = buf              ;
+			size_t   pos  = path.find(">>>") ; if (pos==::string::npos   ) continue ;
+			/**/                               if (!path.ends_with("<<<")) continue ;
+			switch (argv[1][0]) {
+				case '1' :
+					if ( path[pos+3]!='/' || path[path.size()-4]!='/' ) return 17 ;
+					::cout << path.substr(pos+4,path.size()-pos-8)<<'\n' ;                               // strip prefix and suffix
+					::kill( child , SIGKILL ) ;
+					return 0 ;
+				case '2' :
+					if (pos) {
+						if (path[pos-1]!='/') return 18 ;
+						path.resize(pos-1) ;
+						if (seen.insert(path).second) {
+							if (seen.size()>1) ::cout << ':'  ;
+							/**/               ::cout << path ;                                          // strip / before magic prefix
+						}
+					}
+				break ;
+				default : return 19 ;
+			}
+		}
+	}
+EOF
+cc -o ld_so_probe         -std=c++20 ld_so_probe.cc || :
+cc -o ld_so_probe_32 -m32 -std=c++20 ld_so_probe.cc || :
+
 #
-# HAS_32 (HAS_32+HAS_X32+LD_SO_LIB+LD_SO_LIB_32)
+# HAS_32 (HAS_32+LD_SO_LIB+LD_SO_LIB_32)
 #
-type -p strace >/dev/null || {
-	echo "strace not available" >>$ERR_FILE
-	exit 1
-}
-show_lib() {
-	strace -E LD_PRELOAD='/>>>$LIB<<<' $1 2>&1 | awk '/>>>.*<<</ { sub(/.*>>>/,"") ; sub(/<<<.*/,"") ; print ; exit }'
-}
-cc -o ld_so_lib -xc++ - <<< 'int main(){}' && LD_SO_LIB=$(show_lib ./ld_so_lib)
+LD_SO_LIB=$(./ld_so_probe 1)
 [ "$LD_SO_LIB" ] || {
 	echo "cannot determine $LIB substitution by ld.so" >>$ERR_FILE
 	exit 1
 }
 HAS_32=0
-HAS_X32=0
 if [ "$(getconf LONG_BIT)" != 64 ] ; then
 	echo "running on 32 bits system" >>$SUM_FILE
 else
-	cc -m32 -o ld_so_lib_32 -xc++ - <<< 'int main(){}' && LD_SO_LIB_32=$(show_lib ./ld_so_lib_32)
+	LD_SO_LIB_32=$(./ld_so_probe_32 1 || :)
 	if   [ ! "$LD_SO_LIB_32"                ] ; then echo "no 32 bits support"                    >>$SUM_FILE
 	elif [   "$LD_SO_LIB_32" = "$LD_SO_LIB" ] ; then echo "cannot distinguish 32 and 64 bits exe" >>$ERR_FILE
 	else                                             HAS_32=IS_64                                             # HAS_32 is only set when compiling 64-bit
@@ -251,11 +367,8 @@ esac
 #
 # LD_LIBRARY_PATH (STD_LIBRARY_PATH+STD_LIBRARY_PATH_32+LINK_LIB_PATH+LINK_LIB_PATH32)
 #
-show_std_library_path() {
-	strace -E LD_PRELOAD='magic1234.so' -E LD_LIBRARY_PATH= $1 2>&1 | awk '/\/magic1234.so/ {sub(/[^"]*"/,"") ; sub(/\/magic1234.so.*/,"") ; printf("%s%s",sep,$0) ; sep=":" }'
-}
-cc -m64 -o std_library_path    -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH=$(   show_std_library_path ./std_library_path   )
-cc -m32 -o std_library_path_32 -xc++ - <<< 'int main(){}' && STD_LIBRARY_PATH_32=$(show_std_library_path ./std_library_path_32)
+STD_LIBRARY_PATH=$(   ./ld_so_probe    2     )
+STD_LIBRARY_PATH_32=$(./ld_so_probe_32 2 || :)
 #
 LINK_LIB_PATH=$(find_cc_ld_library_path $CXX)
 LINK_LIB_PATH=${LINK_LIB_PATH//:/ }
@@ -400,7 +513,7 @@ cat <<-"EOF" >has_pidfd.cc
 			pidfd_open(0,0   )
 		+	pidfd_getfd(0,0,0)
 		;
-		return x ;                             // use variable
+		return x ; // use variable
 	}
 EOF
 HAS_PIDFD=$(ok cc -o /dev/null -std=c++20 has_pidfd.cc )
@@ -532,7 +645,6 @@ cat >$MK_FILE <<-EOF
 	GCOV                      := $GCOV
 	GIT                       := $(type -p git)
 	HAS_32                    := ${HAS_32#0}
-	HAS_X32                   := ${HAS_X32#0}
 	HAS_LD_AUDIT              := ${HAS_LD_AUDIT#0}
 	HAS_PCRE                  := ${HAS_PCRE#0}
 	HAS_PY_DYN                := ${HAS_PY_DYN#0}
@@ -541,7 +653,6 @@ cat >$MK_FILE <<-EOF
 	HAS_ZSTD                  := ${HAS_ZSTD#0}
 	LD_SO_LIB                 := $LD_SO_LIB
 	LD_SO_LIB_32              := $LD_SO_LIB_32
-	LD_SO_LIB_X32             := $LD_SO_LIB_X32
 	LIB_STACKTRACE            := $LIB_STACKTRACE
 	LIB_STACKTRACE_32         := $LIB_STACKTRACE_32
 	LINK_LIB_PATH             := $LINK_LIB_PATH

@@ -308,10 +308,9 @@ namespace Engine {
 	public :
 		void clear() ;
 		// accesses
-		bool   operator+() const {                    return +job                                                ; }
-		bool   is_open  () const {                    return idx_by_start!=Idx(-1)                               ; }
-		JobIdx n_running() const {                    return stats.cur(JobStep::Queued)+stats.cur(JobStep::Exec) ; }
-		Req    idx      () const { SWEAR(is_open()) ; return this-Req::s_store.data()                            ; }
+		bool   operator+() const {                    return +job                     ; }
+		bool   is_open  () const {                    return idx_by_start!=Idx(-1)    ; }
+		Req    idx      () const { SWEAR(is_open()) ; return this-Req::s_store.data() ; }
 		// services
 		void audit_summary(bool err) const ;
 		//
@@ -361,6 +360,7 @@ namespace Engine {
 		Delay                et2            ;                       // Estimated Time Enroute
 		::umap<Rule,JobIdx>  ete_n_rules    ;                       // number of jobs participating to stats.ete with exec_time from rule
 		::set_s              refresh_codecs ;                       // codec files that must be refreshed at end of execution
+		JobIdx               n_running      = 0                 ;   // number of currently queued and running jobs
 		uint16_t             n_runs         = 0                 ;
 		uint16_t             n_submits      = 0                 ;
 		uint8_t              n_retries      = 0                 ;
@@ -412,8 +412,7 @@ namespace Engine {
 	}
 
 	inline void Req::chk_end() {
-		if (self->n_running()) return ;
-		_do_chk_end() ;
+		if (!self->n_running) _do_chk_end() ;
 	}
 
 	//

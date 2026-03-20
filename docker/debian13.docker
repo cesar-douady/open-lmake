@@ -27,7 +27,6 @@ RUN \
 			libslurm-dev \
 			procps       \
 			python3-venv \
-			strace       \
 			#
 			## necessary to build and install debian package
 			dh-make devscripts debhelper equivs apparmor dh-apparmor \
