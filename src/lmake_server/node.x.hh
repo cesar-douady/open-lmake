@@ -561,7 +561,6 @@ namespace Engine {
 	inline bool NodeData::done( Req            r                 ) const { return done(c_req_info(r)         ) ; }
 
 	inline Manual NodeData::manual( FileSig sig_ , Accesses a ) const {
-		SWEAR( buildable!=Buildable::Codec , idx() ) ;                                                                               // handled by caller to avoid computing sig in most cases
 		if (    sig_      ==          sig.sig          )                                                  return Manual::Ok      ;   // None and Dir are deemed identical
 		if (Crc(sig_.tag()).match(Crc(sig.sig.tag()),a))                                                  return Manual::Ok      ;   // if tags are enough, do as if no modif
 		if (!sig_                                      ) { Trace("manual","unlnked",idx(),sig_,crc,sig) ; return Manual::Unlnked ; }
@@ -624,10 +623,11 @@ namespace Engine {
 	}
 
 	inline void Dep::acquire_crc() {
-		if (is_crc              ) return ;                                                                 // already a crc ==> nothing to do
-		if (!self->crc.valid()  ) return ;                                                                 // nothing to acquire
-		if (self->crc==Crc::None) { if (sig().tag()<FileTag::Target) set_crc(self->crc,self->ok()==No) ; } // no file (cannot test sig as it contains date at which file was known non-existent)
-		else                      { if (sig()==self->sig.sig       ) set_crc(self->crc,self->ok()==No) ; } // existing file
+		/**/                         if (is_crc                      ) return ;   // already a crc ==> nothing to do
+		NodeData const& nd = *self ; if (!nd.crc.valid()             ) return ;   // nothing to acquire
+		if (nd.crc==Crc::None) {     if (sig().tag()>=FileTag::Target) return ; } // no file
+		else                   {     if (+nd.manual(sig(),accesses())) return ; } // existing file
+		set_crc( nd.crc , nd.ok()==No ) ;
 	}
 
 	//
