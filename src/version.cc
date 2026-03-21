@@ -5,7 +5,7 @@ namespace Version {
 	uint64_t    constexpr Repo  = 28      ; // 080864dfdb4c36b20245fb2f4c71b7bd
 	uint64_t    constexpr Job   = 17      ; // e9815ab26bf928f163f771390de178e6
 	const char* const     Major = "26.02" ;
-	uint64_t    constexpr Tag   = 9       ;
+	uint64_t    constexpr Tag   = 10      ;
 }
 
 // ********************************************

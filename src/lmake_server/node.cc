@@ -30,7 +30,7 @@ namespace Engine {
 		if (!n) return ;
 		NodeData& nd = *n ;
 		nd.set_buildable() ;
-		if (nd.is_src()) overwritten = FileInfo(nd.name()).date>r->start_ddate ; // if a source has an actual job, it is dynamically created and overwritten is not tracked
+		if ( nd.is_src() && !nd.actual_job ) overwritten = FileInfo(nd.name()).date>r->start_ddate ; // if a source has an actual job, it is dynamically created and overwritten is not tracked
 	}
 
 	//
@@ -157,10 +157,10 @@ namespace Engine {
 			//vvvvvvvvvvvvvvvvvvvvvvvvv
 			set_crc_date( crc_ , sig_ ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (updated)
-				for( Req r : reqs() )
-					if (fi.date>r->start_ddate) req_info(r).overwritten = true ;
 			if (!actual_job) {                                                         // if a source has an actual job, it is dynamically created and not reported as source
+				if (updated)
+					for( Req r : reqs() )
+						if (fi.date>r->start_ddate) req_info(r).overwritten = true ;
 				const char* step = !prev_ok ? "new" : updated ? "changed" : "steady" ;
 				Color       c    = frozen ? Color::Warning : Color::HiddenOk         ;
 				for( Req r : reqs_ ) {
