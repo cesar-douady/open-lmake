@@ -74,8 +74,9 @@ Unless I_(--quiet), each line is composed of 5 or 6 fields separated by spaces :
 		Item(B_(E))
 		dep status has been sensed, typically with a call to B_(depend(verbose=True)) or B_(ldepend --verbose).
 		.RE
-	Bullet Checksum : the checksum of the dep if I_(--verbose), i.e. the checksum that must match the one of the underlying file or the job will be rerun.
-	Bullet Key : the key if the dep is static, else blank.
+	Bullet Checksum          : if I_(--verbose), the checksum of the dep i.e. the checksum that must match the one of the underlying file or the job will be rerun.
+	Bullet Checksum validity : if I_(--verbose), the checksum is followed with a B_(*) if it has not been computed on the file actually present on disk.
+	Bullet Key               : the key if the dep is static, else blank.
 	Bullet Ascii art showing parallel deps (deps coming from a single call to C_(ldepend) or B_(lmake.depend) are considered parallel).
 	Bullet Name of the dep.
 	.RE

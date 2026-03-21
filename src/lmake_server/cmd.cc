@@ -260,6 +260,21 @@ namespace Engine {
 		/**/                                 return {}                                         ;
 	}
 
+	static ::string _node_crc( Node n , Crc crc , size_t width=0 ) {
+		::string res { crc } ;
+		if (width                  ) res =  widen(res,width-1) ;
+		if (+n->manual({n->name()})) res << '*'                ;
+		else                         res << ' '                ;
+		return res ;
+	}
+	static ::string _node_crc( Node n , size_t width=0 ) {
+		return _node_crc( n , n->crc , width ) ;
+	}
+	static ::string _dep_crc( Dep const& d , size_t width=0 ) {
+		if (d.is_crc) return _node_crc( d , d.crc() , width ) ;
+		else          return _node_crc( d , Crc()   , width ) ;
+	}
+
 	static Color _job_color( Job j , bool hide=false ) {
 		Color color = {} ;
 		if      (hide                 ) color = Color::HiddenNote ;
@@ -337,8 +352,8 @@ namespace Engine {
 			if ( !d.parallel                      ) dep_group++ ;
 			if ( !verbose && c==Color::HiddenNote ) continue ;
 			dep_groups.push_back(dep_group) ;
-			if (porcelaine) w_crc  = ::max( w_crc  , mk_py_str(d.crc_str()).size() ) ;
-			else            w_crc  = ::max( w_crc  ,           d.crc_str() .size() ) ;
+			if (porcelaine) w_crc  = ::max( w_crc  , mk_py_str(_dep_crc(d)).size() ) ;
+			else            w_crc  = ::max( w_crc  ,           _dep_crc(d) .size() ) ;
 			if (porcelaine) w_file = ::max( w_file , mk_py_str(d->name()  ).size() ) ;
 			::string        dn     = d->name()                                       ;
 			::string const* dk     = nullptr                                         ;
@@ -378,7 +393,7 @@ namespace Engine {
 			if (porcelaine) {
 				/**/         dep_str << "( " <<      mk_py_str(dep.dflags_str  ())         ;
 				/**/         dep_str << " , "<<      mk_py_str(dep.accesses_str())         ;
-				if (verbose) dep_str << " , "<<widen(mk_py_str(dep.crc_str     ()),w_crc ) ;
+				if (verbose) dep_str << " , "<<widen(mk_py_str(_dep_crc(dep)),w_crc ) ;
 				if (dep_key) dep_str << " , "<<widen(mk_py_str(*dep_key          ),w_key ) ;
 				else         dep_str << " , "<<widen("None"                       ,w_key ) ;
 				/**/         dep_str << " , "<<widen(mk_py_str(dep_name          ),w_file) ;
@@ -389,11 +404,11 @@ namespace Engine {
 				else if ( !start_group && !end_group ) audit( fd , ro , cat(' '                 ," , ",dep_str        ) , true , lvl ) ;
 				else                                   audit( fd , ro , cat(' '                 ," , ",dep_str,"\n  }") , true , lvl ) ;
 			} else {
-				/**/         dep_str <<            dep.dflags_str  ()         ;
-				/**/         dep_str << ' '<<      dep.accesses_str()         ;
-				if (verbose) dep_str << ' '<<widen(dep.crc_str     (),w_crc)  ;
-				if (dep_key) dep_str << ' '<<widen(*dep_key          ,w_key)  ;
-				else         dep_str << ' '<<widen(""                ,w_key)  ;
+				/**/         dep_str <<               dep.dflags_str  ()        ;
+				/**/         dep_str << ' '<<         dep.accesses_str()        ;
+				if (verbose) dep_str << ' '<<_dep_crc(dep               ,w_crc) ;
+				if (dep_key) dep_str << ' '<<widen(  *dep_key           ,w_key) ;
+				else         dep_str << ' '<<widen(""                   ,w_key) ;
 				/**/         dep_str << ' '<<"|\\/ "[2*start_group+end_group] ;
 				if ( dep.dflags[Dflag::Codec] && codec_files.contains(dep) ) {
 					CodecFile const& cdf = codec_files.at(dep) ;
@@ -1038,7 +1053,7 @@ namespace Engine {
 									/**/                      push_entry( "cost"                  , job->cost()     .short_str()                                                        ) ;
 									/**/                      push_entry( "total targets size"    , to_short_string_with_unit(end.total_sz  )+'B'                                       ) ;
 									if ( has_z_sz           ) push_entry( "total compressed size" , to_short_string_with_unit(end.total_z_sz)+'B' , z_sz_color                          ) ;
-									if ( verbose && +target ) push_entry( "checksum"              , ::string(target->crc)                                                               ) ;
+									if ( verbose && +target ) push_entry( "checksum"              , _node_crc(target)                                                                   ) ;
 								}
 							}
 							//
@@ -1178,11 +1193,11 @@ namespace Engine {
 					if (it!=rev_map.end())                                                     key = it->second ;
 					else                   for ( auto const& [k,e] : res ) if (+e.match(tn)) { key = k          ; break ; }
 					keys.push_back(key) ;
-					if (porcelaine) wc = ::max( wc , mk_py_str(::string(t->crc)).size() ) ;
-					else            wc = ::max( wc ,           ::string(t->crc) .size() ) ;
-					if (porcelaine) wk = ::max( wk , mk_py_str(key             ).size() ) ;
-					else            wk = ::max( wk ,           key              .size() ) ;
-					if (porcelaine) wt = ::max( wt , mk_py_str(tn              ).size() ) ;
+					if (porcelaine) wc = ::max( wc , mk_py_str(_node_crc(t)).size() ) ;
+					else            wc = ::max( wc ,           _node_crc(t) .size() ) ;
+					if (porcelaine) wk = ::max( wk , mk_py_str(key         ).size() ) ;
+					else            wk = ::max( wk ,           key          .size() ) ;
+					if (porcelaine) wt = ::max( wt , mk_py_str(tn          ).size() ) ;
 				}
 				NodeIdx ti = 0 ;
 				for( Target t : job->targets() ) {
@@ -1198,21 +1213,21 @@ namespace Engine {
 					::string flags ;                               for( Tflag tf : iota(All<Tflag>) ) flags << (t.tflags[tf]?TflagChars[+tf].second:'-') ;
 					//                                                                                                                                                  as_is
 					if (porcelaine) {
-						::string     target_str = first("{",",")                                ;
-						/**/         target_str <<" ( "<<       mk_py_str(wr              )     ;
-						/**/         target_str <<" , "<<       mk_py_str(flags           )     ;
-						if (verbose) target_str <<" , "<< widen(mk_py_str(::string(t->crc)),wc) ;
-						/**/         target_str <<" , "<< widen(mk_py_str(k               ),wk) ;
-						/**/         target_str <<" , "<< widen(mk_py_str(tn              ),wt) ;
-						/**/         target_str <<" )"                                          ;
+						::string     target_str = first("{",",")                            ;
+						/**/         target_str <<" ( "<<       mk_py_str(wr          )     ;
+						/**/         target_str <<" , "<<       mk_py_str(flags       )     ;
+						if (verbose) target_str <<" , "<< widen(mk_py_str(_node_crc(t)),wc) ;
+						/**/         target_str <<" , "<< widen(mk_py_str(k           ),wk) ;
+						/**/         target_str <<" , "<< widen(mk_py_str(tn          ),wt) ;
+						/**/         target_str <<" )"                                      ;
 						audit( fd , ro ,     target_str , true/*as_is*/  , lvl ) ;
 					} else {
 						::string     target_str ;
-						/**/         target_str <<             wr                   ;
-						/**/         target_str <<' ' <<       flags                ;
-						if (verbose) target_str <<' ' << widen(::string(t->crc),wc) ;
-						/**/         target_str <<' ' << widen(k               ,wk) ;
-						/**/         target_str <<' ' <<       mk_file(tn)          ;
+						/**/         target_str <<       wr              ;
+						/**/         target_str <<' ' << flags           ;
+						if (verbose) target_str <<' ' << _node_crc(t,wc) ;
+						/**/         target_str <<' ' << widen    (k,wk) ;
+						/**/         target_str <<' ' << mk_file(tn)     ;
 						audit( fd , ro , c , target_str , false/*as_is*/ , lvl ) ;
 					}
 				}
@@ -1312,7 +1327,7 @@ namespace Engine {
 							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())!=target->sig.sig ) c = Color::Warning ;
 							//
 							/**/         entries.push_back({ "special"  , {snake_str(::copy(target->buildable)),{}} }) ;
-							if (verbose) entries.push_back({ "checksum" , {::string(target->crc)               ,c } }) ;
+							if (verbose) entries.push_back({ "checksum" , {_node_crc(target)                   ,c } }) ;
 						} else {
 							entries.push_back({"special",{}}) ;
 						}

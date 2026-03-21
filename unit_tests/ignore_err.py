@@ -38,7 +38,7 @@ if __name__!='__main__' :
 		target = 'dep_verbose_sh'
 		# ensure cmd is independent of step, so dont check status
 		cmd = '''
-				from_server="$(ldepend -e -v bad)"
+			from_server="$(ldepend -e -v bad)"
 				[ "$from_server" = "ok - bad"    ] \
 			||	[ "$from_server" = "error - bad" ]
 		'''

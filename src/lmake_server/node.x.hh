@@ -193,7 +193,6 @@ namespace Engine {
 		void     operator>>  (::string&) const ;
 		::string accesses_str(         ) const ;
 		::string dflags_str  (         ) const ;
-		::string crc_str     (         ) const ;
 		// services
 		bool up_to_date () const ;
 		void acquire_crc()       ;
@@ -307,7 +306,7 @@ namespace Engine {
 
 namespace Engine {
 
-	struct NodeReqInfo : ReqInfo {                                            // watchers of Node's are Job's or Node's (in case of uphill)
+	struct NodeReqInfo : ReqInfo {               // watchers of Node's are Job's or Node's (in case of uphill)
 		using MakeAction = NodeMakeAction ;
 		//
 		static constexpr RuleIdx NoIdx = Node::NoIdx ;
@@ -321,14 +320,14 @@ namespace Engine {
 		bool done      (           ) const { return done_>=goal ; }
 		// data
 	public :
-//		ReqInfo                                                               //    128 bits, inherits
-		RuleIdx  prio_idx    = NoIdx           ;                              //     16 bits, index to the first job of the current prio being or having been analyzed
-		bool     single      = false           ;                              // 1<=  8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
-		bool     overwritten = false           ;                              // 1<=  8 bits, if true <=  file has been updated since start of req
-		Manual   manual      = Manual::Unknown ;                              // 3<=  8 bits, info is available as soon as done_=Dsk
-		Bool3    speculate   = Yes             ;                              // 2<=  8 bits, Yes : prev dep not ready, Maybe : prev dep in error
-		NodeGoal goal        = NodeGoal::None  ;                              // 2<=  8 bits, asked level
-		NodeGoal done_       = NodeGoal::None  ;                              // 2<=  8 bits, done level
+//		ReqInfo                                  //    128 bits, inherits
+		RuleIdx  prio_idx    = NoIdx           ; //     16 bits, index to the first job of the current prio being or having been analyzed
+		bool     single      = false           ; // 1<=  8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
+		bool     overwritten = false           ; // 1<=  8 bits, if true <=  file has been updated since start of req
+		Manual   manual      = Manual::Unknown ; // 3<=  8 bits, info is available as soon as done_=Dsk
+		Bool3    speculate   = Yes             ; // 2<=  8 bits, Yes : prev dep not ready, Maybe : prev dep in error
+		NodeGoal goal        = NodeGoal::None  ; // 2<=  8 bits, asked level
+		NodeGoal done_       = NodeGoal::None  ; // 2<=  8 bits, done level
 	} ;
 
 }
@@ -367,12 +366,12 @@ namespace Engine {
 		using Idx        = NodeIdx        ;
 		using ReqInfo    = NodeReqInfo    ;
 		using MakeAction = NodeMakeAction ;
-		using LvlIdx     = RuleIdx        ;                                                                                               // lvl may indicate the number of rules tried
+		using LvlIdx     = RuleIdx        ;                                                                                                   // lvl may indicate the number of rules tried
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData() = delete ;                                                                                                             // if necessary, we must take care of the union
+		NodeData() = delete ;                                                                                                                 // if necessary, we must take care of the union
 		NodeData( NodeName n             ) : NodeDataBase{n} {              }
 		NodeData( NodeName n , Node dir_ ) : NodeDataBase{n} { dir = dir_ ; }
 		~NodeData() {
@@ -385,7 +384,7 @@ namespace Engine {
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;
 		ReqInfo      & req_info  ( Req                       ) const ;
-		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                    // make R/W while avoiding look up (unless allocation)
+		ReqInfo      & req_info  ( ReqInfo const&            ) const ;                                                                        // make R/W while avoiding look up (unless allocation)
 		::vector<Req>  reqs      (                           ) const ;
 		bool           waiting   (                           ) const ;
 		bool           done      ( ReqInfo const& , NodeGoal ) const ;
@@ -398,7 +397,7 @@ namespace Engine {
 		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return actual_job==j                      ; }
 		//
 		Manual manual        ( FileSig , Accesses=FullAccesses          ) const ;
-		Manual manual_refresh(           Accesses              , Req={} )       ; // refresh date if file was updated but steady
+		Manual manual_refresh(           Accesses              , Req={} )       ;                                                             // refresh date if file was updated but steady
 		//
 		bool/*modified*/ refresh_src_anti( ::string const& , Accesses , bool report_no_file , bool keep_actual_job , ::vector<Req> const& ) ; // Req's are for reporting only
 		//
@@ -566,8 +565,7 @@ namespace Engine {
 	inline bool NodeData::done( Req            r                 ) const { return done( c_req_info(r)            ) ; }
 
 	inline Manual NodeData::manual( FileSig sig_ , Accesses a ) const {
-		SWEAR( buildable!=Buildable::Codec , idx() ) ;                                                                               // handled by caller to avoid computing sig in most cases
-		if (    sig_      ==          sig.sig          )                                                  return Manual::Ok      ;   // None and Dir are deemed identical
+		if (    sig_       ==         sig.sig          )                                                  return Manual::Ok      ;   // None and Dir are deemed identical
 		if (Crc(sig_.tag()).match(Crc(sig.sig.tag()),a))                                                  return Manual::Ok      ;   // if tags are enough, do as if no modif
 		if (!sig_                                      ) { Trace("manual","unlnked",idx(),sig_,crc,sig) ; return Manual::Unlnked ; }
 		if (sig_.tag()==FileTag::Empty                 ) { Trace("manual","empty"  ,idx(),sig_,crc,sig) ; return Manual::Empty   ; }
@@ -629,10 +627,11 @@ namespace Engine {
 	}
 
 	inline void Dep::acquire_crc() {
-		if (is_crc              ) return ;                                                                 // already a crc ==> nothing to do
-		if (!self->crc.valid()  ) return ;                                                                 // nothing to acquire
-		if (self->crc==Crc::None) { if (sig().tag()<FileTag::Target) set_crc(self->crc,self->ok()==No) ; } // no file (cannot test sig as it contains date at which file was known non-existent)
-		else                      { if (sig()==self->sig.sig       ) set_crc(self->crc,self->ok()==No) ; } // existing file
+		/**/                         if (is_crc                      ) return ;   // already a crc ==> nothing to do
+		NodeData const& nd = *self ; if (!nd.crc.valid()             ) return ;   // nothing to acquire
+		if (nd.crc==Crc::None) {     if (sig().tag()>=FileTag::Target) return ; } // no file
+		else                   {     if (+nd.manual(sig(),accesses())) return ; } // existing file
+		set_crc( nd.crc , nd.ok()==No ) ;
 	}
 
 	//

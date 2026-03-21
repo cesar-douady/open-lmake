@@ -591,7 +591,7 @@ namespace Engine {
 					if (nd.is_src_anti()) dep.full_refresh( true/*report_no_file*/ , self , res.running_reqs ) ; // the goal is to detect overwritten
 					res.has_unstable_deps = true ;
 				}
-				trace("dep",dep,STR(dep.is_crc),STR(dep.is_crc&&dep.crc().valid())) ;
+				trace("dep",dep,STR(updated_dep_crc),STR(dep.is_crc),STR(dep.is_crc&&dep.crc().valid())) ;
 				/**/                   deps    .push_back   (dep                    ) ;
 				if (updated_dep_crc) { dep_crcs.emplace_back(dep.crc(),bool(dep.err)) ; has_updated_dep_crcs = true ; }
 				else                   dep_crcs.emplace_back(Crc()    ,false        ) ;

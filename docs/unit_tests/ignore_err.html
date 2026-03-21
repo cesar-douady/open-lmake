@@ -136,7 +136,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dep_verbose_sh&#39;</span>
         <span class="c1"># ensure cmd is independent of step, so dont check status</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">                from_server=&quot;$(ldepend -e -v bad)&quot;</span>
+<span class="s1">            from_server=&quot;$(ldepend -e -v bad)&quot;</span>
 <span class="s1">                [ &quot;$from_server&quot; = &quot;ok - bad&quot;    ] </span><span class="se">\</span>
 <span class="s1">            ||  [ &quot;$from_server&quot; = &quot;error - bad&quot; ]</span>
 <span class="s1">        &#39;&#39;&#39;</span>

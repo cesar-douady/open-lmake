@@ -909,11 +909,6 @@ namespace Engine {
 		return res ;
 	}
 
-	::string Dep::crc_str() const {
-		if (is_crc) return ::string(crc()) ;
-		else        return ::string(Crc()) ;
-	}
-
 	void Dep::full_refresh( bool report_no_file , Job j , ::vector<Req> const& reqs ) const { // reqs are for reporting only
 		NodeData& nd = *Node(self) ;
 		if (+reqs) nd.set_buildable(reqs[0]) ;

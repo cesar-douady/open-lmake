@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Mar 12 13:03:43 2026 -->
+<!-- CreationDate: Sat Mar 21 15:45:39 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -490,8 +490,8 @@ As a rule of thumb, this flag is positioned with
 </td></tr>
 </table>
 
-<p style="margin-left:27%; margin-top: 1em">Checksum : the
-checksum of the dep if <i>--verbose</i>, i.e. the checksum
+<p style="margin-left:27%; margin-top: 1em">Checksum : if
+<i>--verbose</i>, the checksum of the dep i.e. the checksum
 that must match the one of the underlying file or the job
 will be rerun.</p>
 
@@ -507,8 +507,21 @@ will be rerun.</p>
 <td width="73%">
 
 
-<p style="margin-top: 1em">Key : the key if the dep is
-static, else blank.</p></td></tr>
+<p style="margin-top: 1em">Checksum validity : if
+<i>--verbose</i>, the checksum is followed with a <b>*</b>
+if it has not been computed on the file actually present on
+disk.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p>Key : the key if the dep is static, else blank.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
