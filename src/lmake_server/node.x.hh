@@ -397,9 +397,10 @@ namespace Engine {
 		bool has_actual_job(     ) const {                     return +actual_job && +actual_job->rule() ; }
 		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return actual_job==j                      ; }
 		//
-		Manual           manual          ( FileSig         , Accesses=FullAccesses                                              ) const ;
-		Manual           manual_refresh  (                   Accesses              , Req={}                                     )       ; // refresh date if file was updated but steady
-		bool/*modified*/ refresh_src_anti( ::string const& , Accesses              , ::vector<Req> const& , bool report_no_file )       ; // Req's are for reporting only
+		Manual manual        ( FileSig , Accesses=FullAccesses          ) const ;
+		Manual manual_refresh(           Accesses              , Req={} )       ; // refresh date if file was updated but steady
+		//
+		bool/*modified*/ refresh_src_anti( ::string const& , Accesses , bool report_no_file , bool keep_actual_job , ::vector<Req> const& ) ; // Req's are for reporting only
 		//
 		RuleIdx    conform_idx    (              ) const { if   (_conform_idx<=MaxRuleIdx)   return _conform_idx              ; else return NoIdx             ; }
 		void       set_conform_idx(RuleIdx    idx)       { SWEAR(idx         <=MaxRuleIdx) ; _conform_idx = idx               ;                                 }

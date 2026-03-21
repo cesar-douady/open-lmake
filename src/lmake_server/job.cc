@@ -440,7 +440,6 @@ namespace Engine {
 				bool   static_phony = ::static_phony(tflags) ;
 				bool   is_src_anti  = target->is_src_anti()  ;
 				Crc    crc          = td.crc                 ;
-				bool   unexpected   = false                  ;
 				//
 				old_targets.erase(target) ;
 				//
@@ -509,16 +508,14 @@ namespace Engine {
 								case Buildable::Src         : res.severe_msg << " source"         ; break ;
 								case Buildable::SubSrc      : res.severe_msg << " sub-source"     ; break ;
 							DF}                                                                             // NO_COV
-							res.severe_msg <<" : "<< mk_file(target->name(),No/*exists*/) <<'\n' ;
-							unexpected = true ;
+							res.severe_msg <<" : "<< mk_file(target->name()) <<'\n' ;
 							if (ok==Yes) status = Status::Err ;
 						SourceOk : ;
 						}
 					}
 					//
 					bool target_modified ;
-					if (unexpected) target_modified = !target->crc.match(crc)                                                                          ;
-					else            target_modified = target->set_crc_date( crc , { td.sig , td.extra_tflags[ExtraTflag::Late]?end_date:start_date } ) ;
+					target_modified = target->set_crc_date( crc , { td.sig , td.extra_tflags[ExtraTflag::Late]?end_date:start_date } ) ;
 					modified |= target_modified && tflags[Tflag::Target] ;
 				}
 				if ( crc==Crc::None && !static_phony ) {
