@@ -94,7 +94,7 @@ if __name__!='__main__' :
 		force  = True
 		def start_delay() :
 			if step==1 : raise RuntimeError
-			return File=='yes'
+			return 2*(File=='yes')
 		cmd = ''
 
 	class Autodep(Rule) :

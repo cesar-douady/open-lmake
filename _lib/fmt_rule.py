@@ -160,10 +160,10 @@ def handle_inheritance(rule) :
 				if k=='combine'                            : continue
 				if k=='cmd' :                                               # special case cmd that has a very special behavior to provide base classes adapted to both python & shell cmd's
 					if is_python :
-						if not callable(v) : raise TypeError(f'{r.__name__}.cmd is not callable for python rule {rule.__name__}')
+						if not callable(v) : raise TypeError(f'{r.__name__}.cmd is not callable for python rule {rule.name}')
 					else :
 						if callable(v) and hasattr(v,'shell') : v = v.shell
-						if not isinstance(v,str)              : raise TypeError(f'{r.__name__}.cmd is not a str for shell rule {rule.__name__}')
+						if not isinstance(v,str)              : raise TypeError(f'{r.__name__}.cmd is not a str for shell rule {rule.name}')
 					dct[k].append(v)
 				elif k in combine :
 					if k in dct : dct[k] = update(dct[k],v,paths,k)
@@ -193,7 +193,7 @@ def handle_inheritance(rule) :
 				attrs[k] = v
 		else :
 			attrs[k] = v
-	attrs.name        = rule.__dict__.get('name',rule.__name__)             # name is not inherited as it must be different for each rule and defaults to class name
+	attrs.name        = rule.name
 	attrs.__special__ = rule.__special__
 	attrs.is_python   = is_python
 	qualify(attrs,is_python)
@@ -663,3 +663,14 @@ def fmt_rule(rule) :
 		if True                                : print(f"{tab}\t{e.__class__.__name__} : {' '.join(e.args)}" ,file=sys.stderr                )
 		if hasattr(e,'consider')               : print(f'{tab}\tconsider :\n'+textwrap.indent(e.consider,f'{tab}\t\t'),file=sys.stderr,end='') # ending new line is already in e.consider
 		sys.exit(2)
+
+def disambiguate_rule_names(rules) :
+	tab = {}                                                                                  # name -> rules bearing name
+	for r in rules :
+		if 'name' not in r.__dict__ : r.name = r.__name__                                     # name is not inherited as it must be different for each rule (defaults to class name)
+	for r in rules : tab       .setdefault( r.name , []         ).append( r )
+	for n,rs in tab.items() :
+		if len(rs)==1 : continue                                                              # no ambiguity
+		pfx_len = len(osp.commonprefix([ f'.{r.__module__}.' for r in rs ]).rsplit('.',1)[0]) # get common prefix of modules as this part is non-significative
+		for r in rs :
+			r.name = f'{r.__module__}.{r.name}'[pfx_len:]

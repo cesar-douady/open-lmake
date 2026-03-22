@@ -75,7 +75,7 @@ config = pdict()
 if '.config.' in actions :
 	from importlib.util import find_spec
 	try :
-		import Lmakefile                           # import only when necessary
+		import Lmakefile                       # import only when necessary
 		is_pkg = hasattr(Lmakefile,'__path__')
 		if   callable(getattr(Lmakefile,'config',None)) : Lmakefile.config()
 		elif is_pkg and find_spec('Lmakefile.config')   : import Lmakefile.config
@@ -125,6 +125,7 @@ if '.rules.' in actions :
 			import Lmakefile.rules
 	except Exception as e : report_user_err(e)
 	#
+	fmt_rule.disambiguate_rule_names(lmake._rules)                                                       # make efforts to associate best names to rules
 	fmt_rule.no_imports |= { r.__module__ for r in lmake._rules if fmt_rule.lcl_mod_file(r.__module__) } # transport by value all local modules that contain at least one rule
 	for r in lmake._rules :
 		r2 = fmt_rule.fmt_rule(r)
