@@ -316,8 +316,9 @@ namespace Backends {
 		// because the only thing that can happend between the 2 locks is that entry disappears, we can move info from entry during 1st lock
 		{	TraceLock lock { _s_mutex , BeChnl , "_s_handle_job_start1" } ;                         // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//                                                                                                                                                 keep_fd
-			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab1",job                              ) ; return false ; }
-			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id1",job,entry.conn.seq_id,jsrr.seq_id) ; return false ; }
+			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab1" ,job                              ) ; return false ; }
+			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jsrr.seq_id) { trace("bad seq_id1" ,job,entry.conn.seq_id,jsrr.seq_id) ; return false ; }
+			/**/                                          if (+entry.start_date             ) { trace("double_start",job,entry.start_date             ) ; return false ; }
 			submit_attrs                = ::move(entry.submit_attrs) ;
 			rsrcs                       = ::move(entry.rsrcs       ) ;
 			reqs                        =        entry.reqs          ;
