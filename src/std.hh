@@ -33,6 +33,7 @@
 #include <charconv> // from_chars, to_chars
 #include <concepts>
 #include <condition_variable>
+#include <exception>
 #include <functional>
 #include <initializer_list>
 #include <iterator>

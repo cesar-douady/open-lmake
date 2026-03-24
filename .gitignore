@@ -54,8 +54,12 @@ __pycache__
 *.*_stamp
 *.stamp
 */stamp
-src/lmake_server/backends/slurm_api-*.cc
 *-light.cc
+src/lmake_server/backends/slurm_api-*.cc
+
+# vim-lsp
+.cache/
+compile_commands.json
 
 # tests
 tok

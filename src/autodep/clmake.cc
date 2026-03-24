@@ -212,18 +212,23 @@ static Ptr<Str> _list_root_s( Tuple const& py_args , Dict const& py_kwds ) {
 
 // encode and decode are very similar, it is easier to define a template for both
 // cv means code for decode and val for encode
-template<bool Encode> static Ptr<Str> _codec( Tuple const& py_args , Dict const& py_kwds ) {
+template<bool Encode> static Ptr<> _codec( Tuple const& py_args , Dict const& py_kwds ) {
 	static constexpr const char* Cv = Encode ? "val" : "code" ;
-	size_t n_args = py_args.size() ;
-	//
-	::optional_s        file    ;
-	::optional_s        ctx     ;
-	::optional_s        cv      ;
-	::optional<uint8_t> min_len ;
+	size_t              n_args      = py_args.size() ;
+	::optional_s        file        ;
+	::optional_s        ctx         ;
+	::optional_s        cv          ;
+	bool                cv_is_bytes = false          ;
+	::optional<uint8_t> min_len     ;
+	auto get_cv = [&](Object const& a) {
+			cv_is_bytes = a.is_a<Bytes>() ;
+			if (cv_is_bytes) cv = ::string(a.as_a<Bytes>()) ;
+			else             cv = *a.str()                  ;
+	} ;
 	if (n_args>(Encode?4:3)) throw cat("too many args : ",n_args,'>',Encode?4:3) ;
 	switch (n_args) {
 		case 4 : min_len = _mk_uint8(py_args[3],"min_len") ; [[fallthrough]] ;
-		case 3 : cv      =          *py_args[2].str()      ; [[fallthrough]] ;
+		case 3 : get_cv(             py_args[2]          ) ; [[fallthrough]] ;
 		case 2 : ctx     =          *py_args[1].str()      ; [[fallthrough]] ;
 		case 1 : file    =          *py_args[0].str()      ; [[fallthrough]] ;
 		case 0 : break ;
@@ -232,11 +237,11 @@ template<bool Encode> static Ptr<Str> _codec( Tuple const& py_args , Dict const&
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
 		switch (key[0]) {
-			case 'c' : if (key=="ctx"    ) { throw_if(+ctx    ,"arg ",key,MsgEnd) ; ctx     =          *py_val.str() ; continue ; }
-			/**/       if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =          *py_val.str() ; continue ; } break ;
-			case 't' : if (key=="table"  ) { throw_if(+file   ,"arg ",key,MsgEnd) ; file    =          *py_val.str() ; continue ; } break ;
-			case 'v' : if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =          *py_val.str() ; continue ; } break ;
-			case 'm' : if (key=="min_len") { throw_if(+min_len,"arg ",key,MsgEnd) ; min_len = _mk_uint8(py_val,key)  ; continue ; } break ;
+			case 'c' : if (key=="ctx"    ) { throw_if(+ctx    ,"arg ",key,MsgEnd) ; ctx     =          *py_val.str()  ; continue ; }
+			/**/       if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; get_cv(             py_val      ) ; continue ; } break ;
+			case 't' : if (key=="table"  ) { throw_if(+file   ,"arg ",key,MsgEnd) ; file    =          *py_val.str()  ; continue ; } break ;
+			case 'v' : if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =          *py_val.str()  ; continue ; } break ;
+			case 'm' : if (key=="min_len") { throw_if(+min_len,"arg ",key,MsgEnd) ; min_len = _mk_uint8(py_val,key)   ; continue ; } break ;
 		DN}
 		throw "unexpected keyword arg "+key ;
 	}
@@ -246,10 +251,12 @@ template<bool Encode> static Ptr<Str> _codec( Tuple const& py_args , Dict const&
 	if (!Encode) throw_if    ( +min_len , "unexpected arg min_len" ) ;
 	//
 	try {
-		return
+		::string res =
 			Encode ? JobSupport::encode( ::move(*file) , ::move(*ctx) , ::move(*cv/*val*/ ) , min_len.value_or(1) )
 			:        JobSupport::decode( ::move(*file) , ::move(*ctx) , ::move(*cv/*code*/)                       )
 		;
+		if (cv_is_bytes) return Ptr<Bytes>(res) ;
+		else             return Ptr<Str  >(res) ;
 	} catch (::string const& e) {
 		throw ::pair(PyException::RuntimeErr,e) ;
 	}
@@ -496,12 +503,12 @@ PyMODINIT_FUNC
 			"list_root(dir)\n"
 			"Return passed dir as used as prefix in list_deps and list_targets.\n"
 		)
-	,	F( "decode" , (_py_func<Str,_codec<false/*Encode*/>>) ,
+	,	F( "decode" , (_py_func<Object,_codec<false/*Encode*/>>) ,
 			"decode(table,ctx,code)\n"
 			"Return the associated (long) value passed by encode(table,ctx,val) when it returned (short) code.\n"
 			"This call to encode must have been done before calling decode.\n"
 		)
-	,	F( "encode" , (_py_func<Str,_codec<true/*Encode*/>>) ,
+	,	F( "encode" , (_py_func<Object,_codec<true/*Encode*/>>) ,
 			"encode(table,ctx,val,min_length=1)\n"
 			"Return a (short) code associated with (long) val. If necessary create such a code of\n"
 			"length at least min_length based on a checksum computed from value.\n"

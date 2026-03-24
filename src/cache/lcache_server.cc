@@ -6,7 +6,6 @@
 #include "py.hh" // /!\ must be included first as Python.h must be included first
 
 #include "app.hh"
-#include "hash.hh"
 #include "process.hh"
 
 #include "cache_utils.hh"
@@ -15,7 +14,6 @@
 
 using namespace Cache ;
 using namespace Disk  ;
-using namespace Hash  ;
 
 struct ConnEntry {
 	Ckey                   key         = {} ;

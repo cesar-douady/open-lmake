@@ -45,7 +45,7 @@ if __name__!='__main__' :
 			,	'mem' : '10M'
 			}
 			def cmd(backend=backend) :
-				lmake.depend(f'touch_{backend}_{N}',verbose=Verbose)
+				lmake.depend(f'touch_{backend}_{N}',read=Verbose,verbose=Verbose)
 
 	class All(PyRule):
 		target = r'all_{Backend:slurm|local}{Verbose:(_verbose)?}_{N:\d+}{SFX:.*}'

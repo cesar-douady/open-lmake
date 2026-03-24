@@ -106,6 +106,7 @@ SRCS     := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 # this is the recommanded way to insert a , when calling functions
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
 COMMA := ,
+TAB   := $()	$()
 
 # XXX! : add -fdebug_prefix-map=$(REPO_ROOT)=??? when we know a sound value (e.g. the dir in which sources will be installed)
 HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
@@ -434,10 +435,12 @@ bin/% : _bin/%
 	@mkdir -p $(@D)
 	cp $< $@
 
+COMPILE_COMMANDS := compile_commands.json $(patsubst %,%compile_commands.json,$(filter-out museum/%,$(sort $(foreach f,$(filter-out %.x.cc,$(filter %.cc,$(SRCS))),$(dir $f)))))
+
 LMAKE_DOC    : $(LMAKE_DOC_FILES)
 LMAKE_SERVER : $(LMAKE_SERVER_FILES)
 LMAKE_REMOTE : $(LMAKE_REMOTE_FILES)
-LMAKE_TGT    : LMAKE_DOC LMAKE_SERVER LMAKE_REMOTE
+LMAKE_TGT    : LMAKE_DOC LMAKE_SERVER LMAKE_REMOTE $(COMPILE_COMMANDS)
 LMAKE        : LMAKE_TGT.SUMMARY
 
 #
@@ -482,11 +485,10 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 %-py2.s : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -S -fverbose-asm              -o $@ $<
 %-san.s : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -S -fverbose-asm $(SAN_FLAGS) -o $@ $<
 
-COMPILE_O = $(COMPILE) -c -frtti -fPIC
-%.o     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                             -o $@ $<
-%-m32.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                -m32         -o $@ $<
-%-py2.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE_O)                             -o $@ $<
-%-san.o : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE_O)                $(SAN_FLAGS) -o $@ $<
+%.o     : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -c -frtti -fPIC              -o $@ $<
+%-m32.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -c -frtti -fPIC -m32         -o $@ $<
+%-py2.o : %.cc ; @echo $(CXX) $(USER_FLAGS)              to $@ ; $(COMPILE) -c -frtti -fPIC              -o $@ $<
+%-san.o : %.cc ; @echo $(CXX) $(USER_FLAGS) $(SAN_FLAGS) to $@ ; $(COMPILE) -c -frtti -fPIC $(SAN_FLAGS) -o $@ $<
 
 %.chk   : %.cc
 	@echo $(LINT) $(USER_FLAGS) to $@
@@ -497,6 +499,7 @@ COMPILE_O = $(COMPILE) -c -frtti -fPIC
 	@$(COMPILE) \
 		-MM -MG                                              \
 		-MF $@                                               \
+		-MT '$(@:%.d=%.json)'                                \
 		-MT '$(@:%.d=%.i) $(@:%.d=%-m32.i) $(@:%-py2.d=%.i)' \
 		-MT '$(@:%.d=%.s) $(@:%.d=%-m32.s) $(@:%.d=%-py2.s)' \
 		-MT '$(@:%.d=%.o) $(@:%.d=%-m32.o) $(@:%.d=%-py2.o)' \
@@ -509,6 +512,20 @@ SLURM_SRCS := $(patsubst ext/slurm/%/slurm/slurm.h,src/lmake_server/backends/slu
 #
 DEP_SRCS   := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(SLURM_SRCS)
 include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
+
+# XXX/ : for a mysterious reason, clangd does not support -Werror and -Wno-misleading-indentation
+$(COMPILE_COMMANDS) : % : $(filter-out museum/%,$(filter-out %.x.cc,$(filter %.cc,$(SRCS))))
+	@{ \
+		echo -n '[' ;                                          \
+		for f in $(filter $(filter-out ./,$(dir $@))%,$^) ; do \
+			echo "$$p"'$(TAB){$(TAB)"directory"  : "$(abspath .)"'                                                                              ; \
+			echo      '$(TAB),$(TAB)"file"       : "'"$$f"'"'                                                                                   ; \
+			echo      '$(TAB),$(TAB)"command"    : "$(filter-out PATH=%,$(COMPILE)) -Wno-error $(CLANG_WARNING_FLAGS) -c -frtti -fPIC '"$$f"'"' ; \
+			echo      '$(TAB)}'                                                                                                                 ; \
+			p=','                                                                                                                               ; \
+		done ;     \
+		echo ']' ; \
+	} >$@
 
 #
 # slurm

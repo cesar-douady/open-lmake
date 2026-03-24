@@ -528,8 +528,8 @@ namespace Backends {
 			//
 			{	TraceLock lock { _s_mutex , BeChnl , "_s_handle_job_start2" } ;      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 				//
-				auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()   ) { trace("not_in_tab2",job                         ) ; return ; }
-				StartEntry& entry = it->second              ; if (entry.conn.seq_id!=seq_id) { trace("bad seq_id2",job,entry.conn.seq_id,seq_id) ; return ; }
+				auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()   ) { trace("not_in_tab2" ,job                               ) ; return ; }
+				StartEntry& entry = it->second              ; if (entry.conn.seq_id!=seq_id) { trace("bad seq_id2" ,job,entry.conn.seq_id,seq_id      ) ; return ; }
 				//
 				entry.max_stderr_len = start_ancillary_attrs.max_stderr_len ;
 				//

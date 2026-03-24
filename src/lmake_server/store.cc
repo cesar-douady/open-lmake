@@ -8,9 +8,6 @@
 #include <tuple>
 
 #include "py.hh"
-#include "rpc_job.hh"
-
-using Backends::Backend ;
 
 using namespace Disk ;
 using namespace Py   ;

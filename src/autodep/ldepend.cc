@@ -6,10 +6,7 @@
 #include "app.hh"
 #include "disk.hh"
 
-#include "rpc_job.hh"
-
 #include "job_support.hh"
-#include "record.hh"
 
 using namespace Disk ;
 using namespace Hash ;
@@ -55,16 +52,17 @@ int main( int argc , char* argv[]) {
 	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
 	Rc                rc       = Rc::Ok                 ;
 	::string          out      ;
+	BitMap<Flag>      flags    = cmd_line.flags         ;
 	//
 	app_init({ .chk_version=No , .trace=No }) ;
 	//
-	if (cmd_line.flags[Flag::List]) {
+	if (flags[Flag::List]) {
 		//
-		if ( cmd_line.args.size() > cmd_line.flags[Flag::Regexpr]                    ) syntax.usage("cannot list deps with args other than a single regexpr"                     ) ;
-		if ( +( cmd_line.flags & ~BitMap<Flag>(Flag::Dir,Flag::List,Flag::Regexpr) ) ) syntax.usage("the --list flag is exclusive with any other flag except --dir and --regexpr") ;
+		if ( cmd_line.args.size() > flags[Flag::Regexpr]                    ) syntax.usage("cannot list deps with args other than a single regexpr"                     ) ;
+		if ( +( flags & ~BitMap<Flag>(Flag::Dir,Flag::List,Flag::Regexpr) ) ) syntax.usage("the --list flag is exclusive with any other flag except --dir and --regexpr") ;
 		//
-		::optional_s dir     ; if ( cmd_line.flags[Flag::Dir]                       ) dir     = cmd_line.flag_args[+Flag::Dir] ;
-		::optional_s regexpr ; if ( cmd_line.flags[Flag::Regexpr] && +cmd_line.args ) regexpr = cmd_line.args[0]               ;
+		::optional_s dir     ; if ( flags[Flag::Dir]                       ) dir     = cmd_line.flag_args[+Flag::Dir] ;
+		::optional_s regexpr ; if ( flags[Flag::Regexpr] && +cmd_line.args ) regexpr = cmd_line.args[0]               ;
 		//
 		try                       { for( ::string const& d : JobSupport::list( No/*write*/ , ::move(dir) , ::move(regexpr) ) ) out << d <<'\n' ; }
 		catch (::string const& e) { exit(Rc::System,e) ;                                                                                         }
@@ -75,20 +73,20 @@ int main( int argc , char* argv[]) {
 		for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot depend on empty file") ;
 		//
 		AccessDigest ad      { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
-		bool         verbose = cmd_line.flags[Flag::Verbose]                                          ;
-		bool         direct  = cmd_line.flags[Flag::Direct ]                                          ;
+		bool         verbose = flags[Flag::Verbose]                                                   ;
+		bool         direct  = flags[Flag::Direct ]                                                   ;
 		//
-		if (cmd_line.flags[Flag::Read         ]) ad.accesses            = DataAccesses             ;
-		if (cmd_line.flags[Flag::Critical     ]) ad.flags.dflags       |=  Dflag     ::Critical    ;
-		if (cmd_line.flags[Flag::Essential    ]) ad.flags.dflags       |=  Dflag     ::Essential   ;
-		if (cmd_line.flags[Flag::Ignore       ]) ad.flags.extra_dflags |=  ExtraDflag::Ignore      ;
-		if (cmd_line.flags[Flag::IgnoreError  ]) ad.flags.dflags       |=  Dflag     ::IgnoreError ;
-		if (cmd_line.flags[Flag::NoRequired   ]) ad.flags.dflags       &= ~Dflag     ::Required    ;
-		if (cmd_line.flags[Flag::ReaddirOk    ]) ad.flags.extra_dflags |=  ExtraDflag::ReaddirOk   ;
-		if (cmd_line.flags[Flag::NoExcludeStar]) ad.flags.extra_dflags &= ~ExtraDflag::NoStar      ;
+		if (flags[Flag::Read         ]) ad.accesses            = DataAccesses             ;
+		if (flags[Flag::Critical     ]) ad.flags.dflags       |=  Dflag     ::Critical    ;
+		if (flags[Flag::Essential    ]) ad.flags.dflags       |=  Dflag     ::Essential   ;
+		if (flags[Flag::Ignore       ]) ad.flags.extra_dflags |=  ExtraDflag::Ignore      ;
+		if (flags[Flag::IgnoreError  ]) ad.flags.dflags       |=  Dflag     ::IgnoreError ;
+		if (flags[Flag::NoRequired   ]) ad.flags.dflags       &= ~Dflag     ::Required    ;
+		if (flags[Flag::ReaddirOk    ]) ad.flags.extra_dflags |=  ExtraDflag::ReaddirOk   ;
+		if (flags[Flag::NoExcludeStar]) ad.flags.extra_dflags &= ~ExtraDflag::NoStar      ;
 		::pair<::vector<VerboseInfo>,bool/*ok*/> dep_infos ;
-		try                       { dep_infos = JobSupport::depend( ::copy(cmd_line.args) , ad , !cmd_line.flags[Flag::FollowSymlinks] , cmd_line.flags[Flag::Regexpr] , direct , verbose ) ; }
-		catch (::string const& e) { exit(Rc::Usage,e) ;                                                                                                                                       }
+		try                       { dep_infos = JobSupport::depend( ::copy(cmd_line.args) , ad , !flags[Flag::FollowSymlinks] , flags[Flag::Regexpr] , direct , verbose ) ; }
+		catch (::string const& e) { syntax.usage(e) ;                                                                                                                       }
 		//
 		SWEAR_PROD(!(direct&&verbose)) ;
 		if (direct) {
@@ -116,7 +114,7 @@ int main( int argc , char* argv[]) {
 				out <<' '<< cmd_line.args[i]             ;
 				out <<'\n'                               ;
 			}
-			if (cmd_line.flags[Flag::IgnoreError]) rc = Rc::Ok ;
+			if (flags[Flag::IgnoreError]) rc = Rc::Ok ;
 		}
 	}
 	if (+out) Fd::Stdout.write(out) ;

@@ -5,8 +5,6 @@
 
 #include "py.hh" // /!\ must be included first as Python.h must be included first
 
-#include "process.hh"
-
 static const ::amap<PyException,PyObject*,N<PyException>> PyExceptionTab {{
 	{ PyException::OsErr      , PyExc_OSError      }
 ,	{ PyException::RuntimeErr , PyExc_RuntimeError }

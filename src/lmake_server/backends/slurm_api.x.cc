@@ -3,8 +3,6 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <setjmp.h>
-
 #include "slurm_api.hh"
 
 namespace Backends::Slurm::SlurmApi {
@@ -63,13 +61,15 @@ namespace Backends::Slurm::SlurmApi {
 		SWEAR     ( rsrcs.size()> 0        ) ;
 		SWEAR_PROD( nice        >=0 , nice ) ;
 		// first element is treated specially to avoid allocation in the very frequent case of a single element
-		::string                 job_name    = key + job->name()        ;
-		::string                 script      = _cmd_to_string(cmd_line) ;
-		::string                 stderr_file ;                            if(verbose) dir_guard(stderr_file=get_stderr_file(job)) ; //                 keep alive until slurm is called
-		job_desc_msg_t           job_desc0   ;                                                                                      // first element   .
-		::string                 gres0       ;                                                                                      // .             , .
-		::vector<job_desc_msg_t> job_descs   ;                            if (rsrcs.size()>1) job_descs.reserve(rsrcs.size()-1) ;   // other elements  .
-		::vector_s               gress       ;                            if (rsrcs.size()>1) gress    .reserve(rsrcs.size()-1) ;   // .             , .
+		::string                 job_name     = job->name()              ;
+		::string                 key_job_name = key + job_name           ;
+		::string                 comment      ;                            if (key_job_name.size()>256) comment = ::move(job_name) ;
+		::string                 script       = _cmd_to_string(cmd_line) ;
+		::string                 stderr_file  ;                            if(verbose) dir_guard(stderr_file=get_stderr_file(job)) ; //                 keep alive until slurm is called
+		job_desc_msg_t           job_desc0    ;                                                                                      // first element   .
+		::string                 gres0        ;                                                                                      // .             , .
+		::vector<job_desc_msg_t> job_descs    ;                            if (rsrcs.size()>1) job_descs.reserve(rsrcs.size()-1) ;   // other elements  .
+		::vector_s               gress        ;                            if (rsrcs.size()>1) gress    .reserve(rsrcs.size()-1) ;   // .             , .
 		for( bool first=true ; RsrcsDataSingle const& r : rsrcs ) {
 			//                           first element other elements
 			job_desc_msg_t& j    = first ? job_desc0 : job_descs.emplace_back() ;                                                   // keep alive
@@ -78,10 +78,11 @@ namespace Backends::Slurm::SlurmApi {
 			gres = "gres:"+r.gres ;
 			//
 			_init_job_desc_msg(&j) ;
+			/**/                     j.comment         = const_cast<char*>(comment.c_str())                            ;
 			/**/                     j.cpus_per_task   = r.cpu                                                         ;
 			/**/                     j.environment     = const_cast<char**>(env)                                       ;            // terminated with an empty string
 			/**/                     j.env_size        = 1                                                             ;            // seems to only work when 1
-			/**/                     j.name            = const_cast<char*>(job_name.c_str())                           ;
+			/**/                     j.name            = const_cast<char*>(key_job_name.c_str())                       ;
 			/**/                     j.pn_min_memory   = r.mem                                                         ;            //in MB
 			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;            //in MB
 			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;

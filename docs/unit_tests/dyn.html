@@ -192,7 +192,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">force</span>  <span class="o">=</span> <span class="kc">True</span>
         <span class="k">def</span> <span class="nf">start_delay</span><span class="p">()</span> <span class="p">:</span>
             <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">1</span> <span class="p">:</span> <span class="k">raise</span> <span class="ne">RuntimeError</span>
-            <span class="k">return</span> <span class="n">File</span><span class="o">==</span><span class="s1">&#39;yes&#39;</span>
+            <span class="k">return</span> <span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">File</span><span class="o">==</span><span class="s1">&#39;yes&#39;</span><span class="p">)</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&#39;</span>
 
     <span class="k">class</span> <span class="nc">Autodep</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>

@@ -8,7 +8,6 @@
 #include "disk.hh"
 
 #include "repo.hh"
-#include "rpc_client.hh"
 
 #include "lmake_server/makefiles.hh"
 

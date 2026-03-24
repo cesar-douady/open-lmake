@@ -5,8 +5,6 @@
 
 #include "core.hh" // /!\ must be first to include Python.h first
 
-#include <stdexcept>
-
 using namespace Disk ;
 using namespace Time ;
 

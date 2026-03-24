@@ -6,7 +6,6 @@
 #include "trace.hh"
 
 #include "client.hh"
-#include "repo.hh"
 #include "rpc_client.hh"
 
 int main( int argc , char* argv[] ) {

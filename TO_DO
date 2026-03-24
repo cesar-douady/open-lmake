@@ -23,6 +23,7 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* accept bytes in lmake.encode and lmake.decode
 * allow using strace with autodep=ptrace
 ! manage 32 bits executables with ptrace
 	- mode -mx32 seems easy
@@ -356,12 +357,12 @@ X manage HUGE pages in store
 * TOOLS
 ****************************************************************************************************
 
-* consider vim plugins :
-	- vim-lsp + clangd
 * consider using codeclip, -ffunction-sections -fdata-sections -Wl,--gc-sections
 ! develop lmake under lmake
 	- autodep must support to be audited by autodep for unit tests
 	- provide a bootstrap script
+? rename .x.hh into .hxx
+	- to improve clangd experience as .x.hh is not recognized as a suffix
 ? consider serialization libs :
 	- https://github.com/alibaba/yalantinglibs
 		- https://alibaba.github.io/yalantinglibs/resource/A%20Faster%20Serialization%20Library%20Based%20on%20Compile-time%20Reflection%20and%20C++%2020.pdf

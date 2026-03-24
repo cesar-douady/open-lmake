@@ -122,6 +122,9 @@ Else an exception is raised.
 In the former case, an external dir must lie within a source dir.
 When an external dir, it may contain a file `LMAKE/file_sync` containing one of `auto`, `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
 
+If `code` is a `bytes`, it is used as is and the result is a `bytes`.
+Else it is transformed into a `str` by calling the `str()` function and encoded in UTF-8, in which case the result is a `str`.
+
 Cf. [encode/decode](codec.html).
 
 Associations are usually created using `encode` but not necessarily (they can be created by hand).
@@ -149,7 +152,7 @@ To simulate a plain access, you need to pass `read=True` to associate accesses a
 
 If `direct`, dep are built before function returns (cf. note (6)).
 
-If `verbose`, return a `dict` with one entry par dep where:
+If `verbose`, (at least one of `read` or `ignore_error` must also be true) return a `dict` with one entry par dep where:
 
 - The key is the dep name.
 - The value is a `dict` composed of:
@@ -220,6 +223,9 @@ Else a code is created, of length at least `min_length`, is associated to `val` 
 
 In the former case, an external dir must lie within a source dir.
 When an external dir, it may contain a file `LMAKE/file_sync` containing one of `auto`, `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
+
+If `val` is a `bytes`, it is used as is and the result is a `bytes`.
+Else it is transformed into a `str` by calling the `str()` function and encoded in UTF-8, in which case the result is a `str`.
 
 Cf. [encode/decode](codec.html).
 

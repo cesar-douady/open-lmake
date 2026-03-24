@@ -26,9 +26,7 @@
 #endif
 
 #include "disk.hh"
-#include "fd.hh"
 #include "hash.hh"
-#include "process.hh"
 #include "time.hh"
 
 using namespace Disk ;

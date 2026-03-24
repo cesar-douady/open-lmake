@@ -13,7 +13,6 @@
 
 #include "non_portable.hh"
 
-#include "backdoor.hh"
 #include "record.hh"
 
 #include "syscall_tab.hh"

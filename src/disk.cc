@@ -6,7 +6,6 @@
 #include <endian.h>
 
 #include "hash.hh"
-#include "process.hh"
 
 #include "disk.hh"
 

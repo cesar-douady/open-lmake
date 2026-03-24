@@ -4,7 +4,6 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "disk.hh"
-#include "re.hh"
 #include "time.hh"
 
 #include "backdoor.hh"
@@ -36,8 +35,11 @@ namespace JobSupport {
 			ad.read_dir     |= +ad.accesses     ;                                       // if reading and allow dir access, assume user meant reading a dir
 		}
 		if (verbose) {
-			if (+(ad.accesses&FullAccesses)          ) ad.force_is_dep  = true        ; // we access the content of the file even if file has been written to
-			if (  ad.flags.dflags[Dflag::IgnoreError]) ad.accesses     |= Access::Err ; // if errors are not ignored, reporting them is meaningless as deps are necessarily ok
+			bool read       = +(ad.accesses&FullAccesses)         ;
+			bool ignore_err = ad.flags.dflags[Dflag::IgnoreError] ;
+			throw_unless( read || ignore_err , "verbose is meaningless without read or ignore_error" ) ;
+			if (read      ) ad.force_is_dep  = true        ; // we access the content of the file even if file has been written to
+			if (ignore_err) ad.accesses     |= Access::Err ; // if errors are not ignored, reporting them is meaningless as deps are necessarily ok
 		}
 		_chk_files(files) ;
 		//

@@ -5,8 +5,6 @@
 
 #include "lmake_server/core.hh" // /!\ must be first to include Python.h first
 
-#include "repo.hh"
-
 using namespace Engine ;
 
 static void _out( ::string const& jn , ::string const& r , ::string const& n ) {

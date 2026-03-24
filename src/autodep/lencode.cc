@@ -4,16 +4,8 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "app.hh"
-#include "disk.hh"
-#include "hash.hh"
-
-#include "rpc_job.hh"
 
 #include "job_support.hh"
-#include "record.hh"
-
-using namespace Disk ;
-using namespace Hash ;
 
 enum class Key : uint8_t { None } ;
 

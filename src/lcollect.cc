@@ -4,12 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "client.hh"
-#include "disk.hh"
 #include "trace.hh"
-
-#include "repo.hh"
-
-using namespace Disk ;
 
 int main( int argc , char* argv[] ) {
 	ReqSyntax syntax {

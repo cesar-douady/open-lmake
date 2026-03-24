@@ -12,10 +12,7 @@
 #include "fd.hh"
 #include "time.hh"
 
-#include "repo.hh"
-
 #include "gather.hh"
-#include "record.hh"
 
 using namespace Disk ;
 using namespace Py   ;

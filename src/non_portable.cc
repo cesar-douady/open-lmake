@@ -9,7 +9,6 @@
 #include "world_32.h"
 
 #include "utils.hh"
-#include "disk.hh"
 
 #include "non_portable.hh"
 

@@ -4,7 +4,6 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "app.hh"
-#include "disk.hh"
 #include "msg.hh"
 #include "process.hh"
 #include "rpc_client.hh"
@@ -14,7 +13,6 @@
 
 #include "client.hh"
 
-using namespace Disk ;
 using namespace Time ;
 
 ClientSockFd g_server_fd ;

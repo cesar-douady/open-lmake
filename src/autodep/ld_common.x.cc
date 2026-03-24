@@ -17,7 +17,6 @@
 
 #define NE noexcept
 
-#include "gather.hh"
 #include "record.hh"
 #include "syscall_tab.hh"
 

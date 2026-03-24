@@ -8,7 +8,6 @@
 #include "disk.hh"
 #include "trace.hh"
 
-#include "repo.hh"
 #include "client.hh"
 
 using namespace Disk ;

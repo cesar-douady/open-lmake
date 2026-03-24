@@ -5,8 +5,6 @@
 
 #include "lmake_server/core.hh" // /!\ must be first to include Python.h first
 
-#include "repo.hh"
-
 using namespace Engine ;
 
 int main( int argc , char* /*argv*/[] ) {

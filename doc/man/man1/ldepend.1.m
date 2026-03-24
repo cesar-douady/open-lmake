@@ -45,6 +45,7 @@ Bullet
 Item(B_(-L),B_(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
 Item(B_(-d),B_(--direct))          Build deps before command completion (cf. note (5)).
 Item(B_(-v),B_(--verbose))
+	B_(--read)/B_(-r) or B_(--ignore-error)/B_(-e) must be provided when using this option.
 	Write lines composed of:
 	.RS
 	Item(I_(status))   If B_(--ignore_error) was also passed, B_(ok) if dep is built ok, B_(error) if dep is built in error. In all other cases, B_(-).
