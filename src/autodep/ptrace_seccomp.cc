@@ -110,7 +110,9 @@ namespace AutodepPtrace {
 						throw cat("bad arch 32-bit versus 64-bit") ;
 					}
 				#endif
-				syscall &= ~__X32_SYSCALL_BIT ;                                                         // we only look at char*, so mode x32 has no impact
+				#ifdef _X32_SYSCALL_BIT
+					syscall &= ~__X32_SYSCALL_BIT ;                                                     // we only look at char*, so mode x32 has no impact
+				#endif
 				SWEAR_PROD( syscall>=0 && syscall<SyscallDescr::NSyscalls , syscall ) ;                 // bad syscall should have been filtered out by BPF
 				#if HAS_32
 					SyscallDescr const& descr = is_32==Yes ? SyscallDescr::s_tab32[syscall] : SyscallDescr::s_tab[syscall] ;
