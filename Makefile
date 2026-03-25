@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 26.03
-TAG            := 0
+TAG            := 1
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -435,7 +435,7 @@ bin/% : _bin/%
 	@mkdir -p $(@D)
 	cp $< $@
 
-COMPILE_COMMANDS := compile_commands.json $(patsubst %,%compile_commands.json,$(filter-out museum/%,$(sort $(foreach f,$(filter-out %.x.cc,$(filter %.cc,$(SRCS))),$(dir $f)))))
+COMPILE_COMMANDS := compile_commands.json $(patsubst %,%compile_commands.json,$(sort $(foreach f,$(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))),$(dir $f))))
 
 LMAKE_DOC    : $(LMAKE_DOC_FILES)
 LMAKE_SERVER : $(LMAKE_SERVER_FILES)
@@ -514,7 +514,7 @@ DEP_SRCS   := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(SLURM_SRCS)
 include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
 
 # XXX/ : for a mysterious reason, clangd does not support -Werror and -Wno-misleading-indentation
-$(COMPILE_COMMANDS) : % : $(filter-out museum/%,$(filter-out %.x.cc,$(filter %.cc,$(SRCS))))
+$(COMPILE_COMMANDS) : % : $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS)))
 	@{ \
 		echo -n '[' ;                                          \
 		for f in $(filter $(filter-out ./,$(dir $@))%,$^) ; do \

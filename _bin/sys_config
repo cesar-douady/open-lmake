@@ -155,7 +155,6 @@ cat <<"EOF" >ld_so_probe.cc
 	#include <sys/ptrace.h>
 	#include <sys/wait.h>
 	#include <sys/user.h>
-	#include <sys/reg.h>
 	#include <sys/uio.h>
 	#include <syscall.h>
 	#include <unistd.h>
