@@ -217,25 +217,39 @@ cat <<"EOF" >ld_so_probe.cc
 			//
 			if (::ptrace( PTRACE_GETREGSET , child , reinterpret_cast<void*>(NT_PRSTATUS) , &iov )!=0) return 15 ;
 			//
+			#ifdef SYS_open                                                                    // ARM architectures do not use open
+				#define IF_SYS_OPEN(sc,if_true,if_false) ((sc)==SYS_open?(if_true):(if_false))
+			#else
+				#define IF_SYS_OPEN(sc,if_true,if_false) (if_false)
+			#endif
 			using SyscallArg = ::pair<int,uintptr_t> ;
 			#if __x86_64__
-				SyscallArg syscall_arg = { regs.orig_rax , regs.orig_rax==SYS_open?regs.rdi    :regs.rsi     } ;
+				SyscallArg syscall_arg = { regs.orig_rax , IF_SYS_OPEN(regs.orig_rax,regs.rdi    ,regs.rsi    ) } ;
 			#elif __i386__
-				SyscallArg syscall_arg = { regs.orig_eax , regs.orig_eax==SYS_open?regs.ebx    :regs.ecx     } ;
+				SyscallArg syscall_arg = { regs.orig_eax , IF_SYS_OPEN(regs.orig_eax,regs.ebx    ,regs.ecx    ) } ;
 			#elif __aarch64__
-				SyscallArg syscall_arg = { regs.regs[8]  , regs.regs[8] ==SYS_open?regs.regs[0]:regs.regs[1] } ;
+				SyscallArg syscall_arg = { regs.regs[8]  , IF_SYS_OPEN(regs.regs[8] ,regs.regs[0],regs.regs[1]) } ;
 			#elif __arm__
-				SyscallArg syscall_arg = { regs.r7       , regs.r7      ==SYS_open?regs.r0     :regs.r1      } ;
+				SyscallArg syscall_arg = { regs.r7       , IF_SYS_OPEN(regs.r7      ,regs.r0     ,regs.r1     ) } ;
 			#elif __s390x__ || __s390__
-				SyscallArg syscall_arg = { regs.gprs[1]  , regs.gprs[1] ==SYS_open?regs.gprs[2]:regs.gprs[3] } ;
+				SyscallArg syscall_arg = { regs.gprs[1]  , IF_SYS_OPEN(regs.gprs[1] ,regs.gprs[2],regs.gprs[3]) } ;
 			#else
 				#error unexpected architecture
 			#endif
+			#undef IF_SYS_OPEN
 			//
 			switch (syscall_arg.first) {
-				case SYS_open   :
-				case SYS_openat : break    ;
-				default         : continue ;
+				#ifdef SYS_open
+					case SYS_open :
+				#endif
+				#ifdef SYS_openat
+					case SYS_openat :
+				#endif
+				#ifdef SYS_openat2
+					case SYS_openat2 :
+				#endif
+				break ;
+				default : continue ;
 			}
 			int     mem_fd = ::open( ("/proc/"s+::to_string(child)+"/mem").c_str() , O_RDONLY )    ; if (mem_fd<0) return 16 ;
 			ssize_t rc     = ::pread64( mem_fd , buf , sizeof(buf) , int64_t(syscall_arg.second) ) ;
