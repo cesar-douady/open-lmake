@@ -5,7 +5,7 @@
 
 include sys_config.mk
 
-VERSION        := 26.03
+VERSION        := 26.04
 TAG            := 0
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
@@ -102,6 +102,7 @@ endif
 include Manifest.inc_stamp                                 # Manifest is used in this makefile
 EXCLUDES := $(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc)
 SRCS     := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
+CC_SRCS  := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS)))
 
 # this is the recommanded way to insert a , when calling functions
 # /!\ cannot put a comment on the following line or a lot of spaces will be inserted in the variable definition
@@ -306,7 +307,7 @@ DOCKER_FILES := $(filter docker/%.docker,$(SRCS))
 LMAKE_ALL_FILES     := $(LMAKE_FILES) $(LMAKE_DOC_FILES)
 LMAKE_ALL_FILES_DBG := $(LMAKE_ALL_FILES) $(LMAKE_BIN_FILES)
 
-LINT : $(patsubst %.cc,%.chk, $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) )
+LINT : $(patsubst %.cc,%.chk, $(CC_SRCS) )
 
 align.tok : _bin/align_comments $(filter-out lmake_env/ext_lnk,$(SRCS))
 	@echo check comments alignment
@@ -435,7 +436,7 @@ bin/% : _bin/%
 	@mkdir -p $(@D)
 	cp $< $@
 
-COMPILE_COMMANDS := compile_commands.json $(patsubst %,%compile_commands.json,$(filter-out museum/%,$(sort $(foreach f,$(filter-out %.x.cc,$(filter %.cc,$(SRCS))),$(dir $f)))))
+COMPILE_COMMANDS := compile_commands.json $(patsubst %,%compile_commands.json,$(sort $(foreach f,$(CC_SRCS),$(dir $f))))
 
 LMAKE_DOC    : $(LMAKE_DOC_FILES)
 LMAKE_SERVER : $(LMAKE_SERVER_FILES)
@@ -510,11 +511,12 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 
 SLURM_SRCS := $(patsubst ext/slurm/%/slurm/slurm.h,src/lmake_server/backends/slurm_api-%.cc,$(filter ext/slurm/%/slurm/slurm.h,$(SRCS)))
 #
-DEP_SRCS   := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS))) $(SLURM_SRCS)
+DEP_SRCS   := $(CC_SRCS) $(SLURM_SRCS)
 include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
 
 # XXX/ : for a mysterious reason, clangd does not support -Werror and -Wno-misleading-indentation
-$(COMPILE_COMMANDS) : % : $(filter-out museum/%,$(filter-out %.x.cc,$(filter %.cc,$(SRCS))))
+$(COMPILE_COMMANDS) : % : $(CC_SRCS)
+	@echo generate $@
 	@{ \
 		echo -n '[' ;                                          \
 		for f in $(filter $(filter-out ./,$(dir $@))%,$^) ; do \
@@ -548,7 +550,7 @@ world_32.h :
 	@>$@
 else
 world_32.h :
-	@echo generating $@
+	@echo generate $@
 	@# for sys/user.h, we generate structs with -m32 but we are going to use in 64-bit world, and these struct contain long int which are not size independent
 	@{ \
 		echo '#include <syscall.h>'  | $(COMPILE) -E -dM -m32 -xc++ - | grep '#define  *__NR_' | sed 's: __NR_: SYS32_:' | sort ; \

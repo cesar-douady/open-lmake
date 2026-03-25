@@ -23,7 +23,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* accept bytes in lmake.encode and lmake.decode
 * allow using strace with autodep=ptrace
 ! manage 32 bits executables with ptrace
 	- mode -mx32 seems easy
