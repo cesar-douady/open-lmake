@@ -498,8 +498,8 @@ template<uint8_t N> static constexpr ::array<BpfInstr,NBpfInstrs<N>> _mk_bpf_fil
 		constexpr uint8_t N21 = N-N/2 ;
 		SWEAR( NBpfInstrs<N2><=Max<uint8_t> , N ) ;
 		res[0] = { .code=BPF_JMP|BPF_JGE|BPF_K , .jt=NBpfInstrs<N2> , .jf=0 , .k=idx+N2 } ;
-		::copy( _mk_bpf_filter_tree<N2 >(idx   ,n_after_trace+NBpfInstrs<N21>,n_after_allow+NBpfInstrs<N21>) , res.begin()+1                ) ;
-		::copy( _mk_bpf_filter_tree<N21>(idx+N2,n_after_trace                ,n_after_allow                ) , res.begin()+1+NBpfInstrs<N2> ) ;
+		::copy( _mk_bpf_filter_tree<N2 >(idx   ,n_after_allow+NBpfInstrs<N21>,n_after_trace+NBpfInstrs<N21>) , res.begin()+1                ) ;
+		::copy( _mk_bpf_filter_tree<N21>(idx+N2,n_after_allow                ,n_after_trace                ) , res.begin()+1+NBpfInstrs<N2> ) ;
 	}
 	return res ;
 }

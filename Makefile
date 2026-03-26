@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 26.03
-TAG            := 3
+TAG            := 4
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -391,7 +391,7 @@ version.checked : FORCE
 	@[ -e $@ ] || { >$@ ; }
 
 # use a stamp to implement a by value update (while make works by date)
-src/version.cc.stamp : _bin/version version.src src/version.hh version.checked
+src/version.cc.stamp : _bin/version version.src src/version.hh version.checked Makefile
 	@echo computing versions to $(@:%.stamp=%)
 	@LD_LIBRARY_PATH=$(PY_LIB_DIR) PYTHON=$(PYTHON) PYTHONPATH= VERSION=$(VERSION) TAG=$(TAG) ./$< gen src/version.hh $(@:%.stamp=%) version.src >$@
 	@# dont touch output if it is steady
