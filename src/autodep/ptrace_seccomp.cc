@@ -119,7 +119,7 @@ namespace AutodepPtrace {
 				#else
 					SyscallDescr const& descr =                                               SyscallDescr::s_tab[syscall] ;
 				#endif
-				SWEAR_PROD( +descr && descr.entry , is_32,syscall ) ;                                   // syscall should have been filtered out by BPF
+				SWEAR_PROD( descr.entry , is_32,syscall ) ;                                             // syscall should have been filtered out by BPF
 				#if HAS_PTRACE_GET_SYSCALL_INFO                                                         // use portable calls if implemented
 					// ensure args is actually an array of uint64_t although one is declared as unsigned long and the other is unsigned long long
 					auto& sc_args = syscall_info.seccomp.args ;
@@ -131,9 +131,9 @@ namespace AutodepPtrace {
 				#endif
 				if (!proc_mem) proc_mem = AcFd( cat("/proc/",pid,"/mem") , {O_RDWR} ) ;
 				bool refresh = false ;
-				//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				tie(ctx,refresh) = descr.entry( record , proc_mem , args , false/*emulate*/ , descr.comment ) ;
-				//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (refresh) {
 					proc_mem.close() ;
 					is_32 = Maybe ;
@@ -143,8 +143,6 @@ namespace AutodepPtrace {
 				// syscall exit
 				#if HAS_PTRACE_GET_SYSCALL_INFO
 					SWEAR_PROD( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) ;
-				#endif
-				#if HAS_PTRACE_GET_SYSCALL_INFO                                                         // use portable calls if implemented
 					int64_t res = syscall_info.exit.rval ;
 				#else
 					int64_t res = NonPortable::ptrace_get_res(pid) ;                                    // use non-portable calls if portable accesses are not implemented
@@ -156,6 +154,7 @@ namespace AutodepPtrace {
 				#else
 					SyscallDescr const& descr =                                               SyscallDescr::s_tab[syscall] ;
 				#endif
+				SWEAR_PROD( descr.exit , is_32,syscall ) ;
 				//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				rc_errno = descr.exit( ctx , record , proc_mem , old_rc ) ;
 				//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

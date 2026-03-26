@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <termios.h>
+
 #include "app.hh"
 #include "msg.hh"
 #include "process.hh"
@@ -17,9 +19,9 @@ using namespace Time ;
 
 ClientSockFd g_server_fd ;
 
-static Bool3 is_reverse_video( Fd in_fd , Fd out_fd ) {
+static Bool3 is_dark_video( Fd in_fd , Fd out_fd ) {
 	using Event = Epoll<NewType>::Event ;
-	Trace trace("is_reverse_video",in_fd,out_fd) ;
+	Trace trace("is_dark_video",in_fd,out_fd) ;
 	struct ::stat in_stat  ;
 	struct ::stat out_stat ;
 	::fstat(in_fd ,&in_stat ) ;
@@ -106,19 +108,21 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	bool       sync           = cmd_line.flags[ReqFlag::Sync] ;
 	::vector_s cmd_line_files ;                                 try { cmd_line_files = cmd_line.files() ; } catch (::string const& e) { syntax.usage(e) ; }
 	//
-	Bool3    rv     = Maybe/*garbage*/ ;
-	::string rv_str ;
-	if (!rv_str) { rv_str = cmd_line.flag_args[+ReqFlag::Video] ; trace("cmd_line",rv_str) ; }
-	if (!rv_str) { rv_str = get_env("LMAKE_VIDEO")              ; trace("env"     ,rv_str) ; }
-	switch (rv_str[0]) {
-		case 'n' : case 'N' : rv = No                                     ; break ;
-		case 'r' : case 'R' : rv = Yes                                    ; break ;
-		case 'f' : case 'F' : rv = Maybe                                  ; break ;                                   // force no color
-		default  :            rv = is_reverse_video(Fd::Stdin,Fd::Stdout) ;
+	Bool3    dv     = Maybe/*garbage*/ ;
+	::string dv_str ;
+	if (!dv_str) { dv_str = cmd_line.flag_args[+ReqFlag::Video] ; trace("cmd_line",dv_str) ; }
+	if (!dv_str) { dv_str = get_env("LMAKE_VIDEO")              ; trace("env"     ,dv_str) ; }
+	switch (dv_str[0]) {
+		case 'd' : case 'D' : dv = Yes   ;                                                                                       break ; // dark mode
+		case 'l' : case 'L' : dv = No    ;                                                                                       break ; // light mode
+		case 'n' : case 'N' : dv = No    ; Fd::Stderr.write(cat("video mode ",dv_str," is deprecated, use l(ight) instead\n")) ; break ; // XXX> : suppress in 26.03+2
+		case 'r' : case 'R' : dv = Yes   ; Fd::Stderr.write(cat("video mode ",dv_str," is deprecated, use d(ark) instead\n" )) ; break ; // .
+		case 'f' : case 'F' : dv = Maybe ;                                                                                       break ; // f(ile) : force no color
+		default  :            dv = is_dark_video(Fd::Stdin,Fd::Stdout) ;
 	}
-	trace("reverse_video",rv) ;
+	trace("dark_video",dv) ;
 	//
-	ReqRpcReq rrr        { proc , cmd_line_files , { rv , cmd_line } } ;
+	ReqRpcReq rrr        { proc , cmd_line_files , { dv , cmd_line } } ;
 	Rc        rc         = Rc::ServerCrash                             ;
 	pid_t     server_pid = 0                                           ;
 	//

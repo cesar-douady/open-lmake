@@ -13,14 +13,14 @@ if __name__!='__main__' :
 
 	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
 		lmake.config.backends.slurm = {
-			'interface'         : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
-		,	'use_nice'          : True
+			'use_nice'          : True
 		,	'n_max_queued_jobs' : 10
 		}
 		backend = 'slurm'
 	else :
 		backend = 'local'
 
+	lmake.config.console.host_len = 0
 
 	lmake.manifest = ('Lmakefile.py',)
 

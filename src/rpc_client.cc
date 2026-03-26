@@ -5,16 +5,16 @@
 
 #include "rpc_client.hh"
 
-void ReqOptions::operator>>(::string& os) const {                   // START_OF_NO_COV
+void ReqOptions::operator>>(::string& os) const {                    // START_OF_NO_COV
 	First first ;
-	/**/                     os << "ReqOptions("                  ;
-	if (+startup_dir_s     ) os << first("",",")<<startup_dir_s   ;
-	if ( reverse_video==Yes) os << first("",",")<<"reverse_video" ;
-	if ( reverse_video==No ) os << first("",",")<<"normal_video"  ;
-	if (+key               ) os << first("",",")<<key             ;
-	if (+flags             ) os << first("",",")<<flags           ;
-	/**/                     os << ')'                            ;
-}                                                                   // END_OF_NO_COV
+	/**/                       os << "ReqOptions("                 ;
+	if      (+startup_dir_s  ) os << first("",",")<<startup_dir_s  ;
+	if      ( dark_video==Yes) os << first("",",")<<"dark_video"   ;
+	else if ( dark_video==No ) os << first("",",")<<"light_video"  ;
+	if      (+key            ) os << first("",",")<<key            ;
+	if      (+flags          ) os << first("",",")<<flags          ;
+	/**/                       os << ')'                           ;
+}                                                                    // END_OF_NO_COV
 
 void ReqRpcReq::operator>>(::string& os) const {                 // START_OF_NO_COV
 	/**/                        os << "ReqRpcReq("<<proc       ;

@@ -841,10 +841,9 @@ namespace Backends {
 		//
 		TraceLock lock { _s_mutex , BeChnl , "s_config" } ;
 		for( Tag t : iota(1,All<Tag>) ) {                                                                               // local backend is always available
-			::string               warning_sentinel = cat(PrivateAdminDirS,"backend_warning_",t) ;
-			auto                 & be               = s_tab [+t]                                 ; if (!be) { trace("not_implemented",t) ; continue ; }
-			bool                   was_ready        = s_ready(t)                                 ;
-			Config::Backend const& cfg              = cfgs[+t]                                   ;
+			auto&                  be        = s_tab [+t] ; if (!be) { trace("not_implemented",t) ; continue ; }
+			bool                   was_ready = s_ready(t) ;
+			Config::Backend const& cfg       = cfgs[+t]   ;
 			if (!cfg.configured) {
 				throw_if( !first_time && was_ready , "cannot dynamically suppress backend ",t ) ;
 				be->config_err = "not configured" ;                                                                     // empty config_err means ready
@@ -852,27 +851,7 @@ namespace Backends {
 				continue ;
 			}
 			be->domain_name = cfg.domain_name ;
-			try {
-				be->config(cfg.dct,cfg.env) ;
-				if (FileInfo(warning_sentinel).exists()) {
-					Fd::Stderr.write(cat("Warning : backend ",t," is now used\n")) ;                                    // avoid annoying user with warnings when they are already aware of
-					unlnk(warning_sentinel) ;
-				}
-			} catch (::string const& e) {
-				throw_if( !first_time && was_ready , "cannot dynamically suppress backend : ",e ) ;
-				if (+e) {
-					be->config_err = e ;
-					if (!FileInfo(warning_sentinel).exists()) {
-						Fd::Stderr.write(cat("Warning : backend ",t," could not be configured :\n",indent(e),add_nl)) ; // avoid annoying user with warnings when they are already aware of
-						AcFd( warning_sentinel , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=0000} ) ;
-					}
-					trace("err",t,e) ;
-				} else {
-					be->config_err = "no backend" ;
-					trace("no_backend",t) ;
-				}
-				continue ;
-			}
+			be->config(cfg.dct,cfg.env) ;
 			if ( !first_time && !was_ready ) {
 				SWEAR(+be->config_err) ;                                                                                // empty config_err means ready
 				throw cat("cannot dynamically add backend ",t) ;

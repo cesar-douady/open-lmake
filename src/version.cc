@@ -2,7 +2,7 @@
 namespace Version {
 	uint64_t    constexpr Cache = 34      ; // 586fef97e49c2684ad40fb62e31ac5f7
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 32      ; // 6c3fd05fb399d60d47cab9c8f68b2027
+	uint64_t    constexpr Repo  = 33      ; // 15ae0120652a861b661a88e019a5b020
 	uint64_t    constexpr Job   = 18      ; // 0a9f347b6d065b5733fc658ea804dcea
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
@@ -1071,7 +1071,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 6c3fd05fb399d60d47cab9c8f68b2027 *
+// * Repo : 15ae0120652a861b661a88e019a5b020 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1370,22 +1370,23 @@ namespace Version {
 //				// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO
 //				uint8_t  date_prec    = 0     ; // -1 means no date at all in console output
-//				uint8_t  host_len     = 0     ; //  0 means no host at all in console output
+//				uint8_t  host_len     = 10    ; //  0 means no host at all in console output
 //				uint32_t history_days = 7     ; // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
 //				bool     has_exe_time = true  ;
 //				bool     show_eta     = false ;
 //				bool     show_ete     = true  ;
 //				// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			FileSync                                                                file_sync        = {}  ; // method to ensure file sync when over an unreliable filesystem such as NFS
-//			size_t                                                                  max_err_lines    = 0   ; // unlimited
-//			uint8_t                                                                 nice             = 0   ; // nice value applied to jobs
-//			FileSync                                                                server_file_sync = {}  ; // method to use on server side
-//			Collect                                                                 collect          ;
-//			Console                                                                 console          ;
-//			::array<Backend,N<BackendTag>>                                          backends         ;       // backend may refuse dynamic modification
-//			::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors           = {}  ;
-//			::map_ss                                                                dbg_tab          = {}  ; // maps debug keys to modules to import, ordered to be serializable
+//			FileSync                                                                file_sync           = {}  ; // method to ensure file sync when over an unreliable filesystem such as NFS
+//			size_t                                                                  max_err_lines       = 0   ; // unlimited
+//			uint8_t                                                                 nice                = 0   ; // nice value applied to jobs
+//			FileSync                                                                server_file_sync    = {}  ; // method to use on server side
+//			Collect                                                                 collect             ;
+//			Console                                                                 console             ;
+//			bool                                                                    has_remote_backends = false ;
+//			::array<Backend,N<BackendTag>>                                          backends            ;       // backend may refuse dynamic modification
+//			::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors              = {}  ;
+//			::map_ss                                                                dbg_tab             = {}  ; // maps debug keys to modules to import, ordered to be serializable
 //			// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO
 //				::serdes(s,static_cast<ConfigClean &>(self)) ;

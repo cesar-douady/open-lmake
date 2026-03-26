@@ -3,7 +3,12 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import os.path as osp
+
 import lmake
+
+has_slurm = 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf')
+host_len = 20 if has_slurm else 0
 
 if __name__!='__main__' :
 
@@ -11,11 +16,12 @@ if __name__!='__main__' :
 
 	from lmake.rules import Rule,PyRule
 
-	lmake.config.backends.local.cpu =  1000 # a unreasonable but stressing value
-	lmake.config.network_delay      =    10 # under heavy load, delays can grow up
-	lmake.config.trace.n_jobs       = 10000 # ensure we keep all traces for analysis
+	lmake.config.backends.local.cpu =  1000    # a unreasonable but stressing value
+	lmake.config.network_delay      =    10    # under heavy load, delays can grow up
+	lmake.config.trace.n_jobs       = 10000    # ensure we keep all traces for analysis
+	lmake.config.console.host_len   = host_len
 
-	if 'slurm' in lmake.backends :
+	if has_slurm :
 		lmake.config.backends.slurm = {
 			'use_nice'          : True
 		,	'n_max_queued_jobs' : 10
@@ -62,6 +68,7 @@ else :
 	import os.path as osp
 
 	import ut
+	ut.Ut.host_len = host_len
 
 	n = 100  # use a higher value, e.g. 10000, for a really stressing test
 	p = 1000 # send numerous simultaneous targets doing depend verbose

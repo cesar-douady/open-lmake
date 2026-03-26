@@ -108,11 +108,10 @@ namespace Engine {
 				fields[1] = snake(t) ;
 				if (!Backends::Backend::s_tab[+t]   ) continue ;                                                                      // not implemented
 				if (!py_backends.contains(fields[1])) continue ;                                                                      // not configured
-				try                       { backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;                         }
-				catch (::string const& e) { Fd::Stderr.write("Warning : backend "+fields[1]+" could not be configured : "+e+'\n') ; }
+				backends[+t] = Backend( py_backends[fields[1]].as_a<Dict>() ) ;
 			}
 			fields.pop_back() ;
-			bool has_remote_backends = ::any_of( iota(BackendTag::Remote,All<BackendTag>) , [&](BackendTag t) { return backends[+t].configured && Backends::Backend::s_ready(t) ; } ) ;
+			has_remote_backends = ::any_of( iota(BackendTag::Remote,All<BackendTag>) , [&](BackendTag t) { return backends[+t].configured && Backends::Backend::s_ready(t) ; } ) ;
 			//
 			{	::string& f0 = fields[0] ;                                                                     // has long as fields in not pushed/popped, we can store a ref into it
 				//
@@ -195,16 +194,16 @@ namespace Engine {
 				Sequence const& py_c1 = py_colors[fields[1]].as_a<Sequence>() ;
 				throw_unless( py_c1.size()==2 , "size is ",py_c1.size(),"!=2" ) ;
 				fields.emplace_back() ;
-				for( bool r : {false,true} ) {
-					fields[2] = r?"reverse":"normal" ;
-					Sequence const& py_c2 = py_c1[r].as_a<Sequence>() ;
+				for( bool d : {false,true} ) {
+					fields[2] = d?"dark":"light" ;
+					Sequence const& py_c2 = py_c1[d].as_a<Sequence>() ;
 					throw_unless( py_c2.size()==3 , "size is ",py_c2.size(),"!=3" ) ;
 					fields.emplace_back() ;
 					for( size_t rgb : iota(3) ) {
 						fields[3] = ::string( &"rgb"[rgb] , 1 ) ;
 						size_t cc = py_c2[rgb].as_a<Int>() ;
 						throw_unless( cc<256 , "color is ",cc,">=256" ) ;
-						colors[+c][r][rgb] = py_c2[rgb].as_a<Int>() ;
+						colors[+c][d][rgb] = py_c2[rgb].as_a<Int>() ;
 					}
 					fields.pop_back() ;
 				}
@@ -303,6 +302,7 @@ namespace Engine {
 				if (py_console.contains(fields[1])) {
 					Object const& py_host_len = py_console[fields[1]] ;
 					if (+py_host_len) console.host_len = static_cast<uint8_t>(py_host_len.as_a<Int>()) ;
+					else              console.host_len = 0                                             ;
 				}
 				//
 				fields.pop_back() ;

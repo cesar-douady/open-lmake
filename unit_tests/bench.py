@@ -40,6 +40,7 @@ def link_cmd(with_out,output,*inputs) :
 
 if __name__!='__main__' :
 
+	import os.path as osp
 	import socket
 
 	import gxx
@@ -47,11 +48,11 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule,PyRule
 
-	lmake.config.link_support = 'none'
-
+	lmake.config.link_support        = 'none'
 	lmake.config.backends.local.cpu *= 2
-
-	lmake.config.backends.slurm = {}
+	lmake.config.console.host_len    = 0
+	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
+		lmake.config.backends.slurm      = {}
 
 	lmake.manifest = (
 		'Lmakefile.py'

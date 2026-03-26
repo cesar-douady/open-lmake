@@ -19,9 +19,7 @@ if __name__!='__main__' :
 	from lmake.rules import Rule
 
 	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
-		lmake.config.backends.slurm = {
-			'interface' : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
-		}
+		lmake.config.backends.slurm = {}
 		backend = 'slurm'
 	else :
 		backend = 'local'

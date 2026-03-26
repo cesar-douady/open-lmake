@@ -35,7 +35,7 @@ define(`ClientGeneralities',`
 	ifelse(`$1',color,`
 		.LP
 		If launched from a terminal, output is colored.
-		Colors are different depending on whether terminal is normal (black on white) or reverse (white on black) video.
+		Colors are different depending on whether terminal is light (black on white) or dark (white on black) video mode.
 		These colors can be configured.
 		The colors bears a semantic:
 		Bullet Green means success.
@@ -84,8 +84,8 @@ define(`ClientOptions',`
 	ifelse(`$2',color,`
 		Item(B_(-V) I_(mode),B_(--video)=I_(mode))
 		Explicitly ask for a video mode instead of interrogating connected terminal.
-		If mode starts with B_(n) or B_(N), normal video (black on white) is assumed.
-		If it starts with B_(r) or B_(R), reverse video (white on black) is assumed.
+		If mode starts with B_(l) or B_(L), light video mode (black on white) is assumed.
+		If it starts with B_(d) or B_(D), dark video mode (white on black) is assumed.
 		Else output is not colorized.
 		video mode has an impact on generated colors as nice looking colors are not the same in each case.
 	')

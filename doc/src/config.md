@@ -91,7 +91,7 @@ Open-lmake generate colorized output if it is connected to a terminal (and if it
 
 This attribute is a `pdict` with one entry for each symbolic color.
 Each entry is a 2-tuple of 3-tuple's.
-The first 3-tuple provides the color in normal video mode (black/white) and the second one the color in reverse video (white/black).
+The first 3-tuple provides the color in light video mode (black on white) and the second one the color in dark video mode (white on black).
 Each color is a triplet RGB of values between 0 and 255.
 
 ### [`console`](lib/lmake/config_.html#:~:text=%2C%20console,command) : Dynamic

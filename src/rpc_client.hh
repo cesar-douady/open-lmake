@@ -150,30 +150,30 @@ struct ReqOptions {
 	ReqOptions(ReqOptions const& ro) : ReqOptions{}             { self = ro ; }
 	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ::umap_ss const& ue , ReqFlags f={} , FlagArgs const& fa={} ) :
 		startup_dir_s { sds               }
-	,	reverse_video { rv                }
-	,	key           { k                 }
-	,	flags         { f                 }
-	,	flag_args     { *new FlagArgs{fa} }
-	,	user_env      { ue                }
+	,	dark_video { rv                }
+	,	key        { k                 }
+	,	flags      { f                 }
+	,	flag_args  { *new FlagArgs{fa} }
+	,	user_env   { ue                }
 	{}
 	ReqOptions( Bool3 rv , ReqCmdLine cl ) :
 		startup_dir_s { *g_startup_dir_s            }
-	,	reverse_video { rv                          }
-	,	key           { cl.key                      }
-	,	flags         { cl.flags                    }
-	,	flag_args     { *new FlagArgs{cl.flag_args} }
-	,	user_env      { mk_environ()                }
+	,	dark_video { rv                          }
+	,	key        { cl.key                      }
+	,	flags      { cl.flags                    }
+	,	flag_args  { *new FlagArgs{cl.flag_args} }
+	,	user_env   { mk_environ()                }
 	{}
 	~ReqOptions() {
 		delete &flag_args ;
 	}
 	ReqOptions& operator=(ReqOptions const& ro) {
 		startup_dir_s = ro.startup_dir_s ;
-		reverse_video = ro.reverse_video ;
-		key           = ro.key           ;
-		flags         = ro.flags         ;
-		flag_args     = ro.flag_args     ;
-		user_env      = ro.user_env      ;
+		dark_video = ro.dark_video ;
+		key        = ro.key        ;
+		flags      = ro.flags      ;
+		flag_args  = ro.flag_args  ;
+		user_env   = ro.user_env   ;
 		return self ;
 	}
 	// accesses
@@ -181,7 +181,7 @@ struct ReqOptions {
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , startup_dir_s   ) ;
-		::serdes( s , reverse_video   ) ;
+		::serdes( s , dark_video      ) ;
 		::serdes( s , key             ) ;
 		::serdes( s , flags,flag_args ) ;
 		if constexpr (IsIStream<S>) ::serdes( s , user_env         ) ;
@@ -189,7 +189,7 @@ struct ReqOptions {
 	}
 	// data
 	::string               startup_dir_s ;
-	Bool3                  reverse_video = Maybe        ; // if Maybe <=> not a terminal, do not colorize
+	Bool3                  dark_video    = Maybe        ; // if Maybe <=> not a terminal, do not colorize
 	ReqKey                 key           = ReqKey::None ;
 	ReqFlags               flags         ;
 	::array_s<N<ReqFlag>>& flag_args     ;                // owned, avoid putting enormous array in place as it appears in g_engine_queue and that would make *all* items enormous

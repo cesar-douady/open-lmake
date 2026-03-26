@@ -31,6 +31,8 @@ if __name__!='__main__' :
 	#,	'tmp_resource' : 'tmp'
 	}
 
+	lmake.config.console.host_len = 0
+
 	class Cat(Rule) :
 		stems = {
 			'File1' : r'.*'

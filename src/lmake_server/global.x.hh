@@ -393,18 +393,18 @@ namespace Engine {
 	}
 
 	inline ::string title( ReqOptions const& ro , ::string const& s ) {
-		if (ro.reverse_video==Maybe) return {} ;
+		if (ro.dark_video==Maybe) return {} ;
 		return "\x1b]0;" + s + '\a' ;
 	}
 
 	inline ::string color_pfx( ReqOptions const& ro , Color color ) {
-		if ( color==Color::None || ro.reverse_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
-		::array<uint8_t,3/*RGB*/> const& colors = g_config->colors[+color][ro.reverse_video==Yes] ;
+		if ( color==Color::None || ro.dark_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
+		::array<uint8_t,3/*RGB*/> const& colors = g_config->colors[+color][ro.dark_video==Yes] ;
 		return cat( "\x1b[38;2;" , int(colors[0/*R*/]) ,';', int(colors[1/*G*/]) ,';', int(colors[2/*B*/]) , 'm' ) ;
 	}
 
 	inline ::string color_sfx(ReqOptions const& ro , Color color ) {
-		if ( color==Color::None || ro.reverse_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
+		if ( color==Color::None || ro.dark_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
 		return "\x1b[0m" ;
 	}
 

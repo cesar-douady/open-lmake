@@ -31,9 +31,10 @@ if __name__!='__main__' :
 		deps      = { 'WINE_INIT' : 'wine_init' }
 		side_deps = {
 			'TOP_DIR'    : ('.'            ,'readdir_ok')                            # wine seems to sometimes readdir that
-		,	'LOCAL_DIR'  : ('.local'       ,'readdir_ok')                            # .
 		,	'CONFIG_DIR' : ('.config'      ,'readdir_ok')                            # .
+		,	'LOCAL_DIR'  : ('.local'       ,'readdir_ok')                            # .
 		,	'MENUS_DIR'  : ('.config/menus','readdir_ok')                            # .
+		,	'WINE_DIR'   : ('.wine'        ,'readdir_ok')                            # .
 		}
 		kill_daemons = True
 		environ      = { 'WINEDEBUG' : '-all' }

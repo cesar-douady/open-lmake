@@ -50,7 +50,6 @@ else :
 		exit()
 
 	import ut
-	ut.Ut.host_len = host_len
 
 	ut.lmake( *(f'dut-ld_preload-{os}' for os in os_known) , done=n_known )
 	ut.lmake( *(f'dut-ptrace-{os}'     for os in os_known) , done=n_known )

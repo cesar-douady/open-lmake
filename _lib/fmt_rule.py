@@ -658,9 +658,9 @@ def fmt_rule(rule) :
 			print(f'in sub-repo {lmake.repo_root[len(lmake.top_repo_root)+1:]} :',file=sys.stderr)
 			tab = '\t'
 		print(f'{tab}while processing {rule.__name__}{name} :',file=sys.stderr)
-		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'                         ,file=sys.stderr                )
-		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}'                   ,file=sys.stderr                )
-		if True                                : print(f"{tab}\t{e.__class__.__name__} : {' '.join(e.args)}" ,file=sys.stderr                )
+		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'                                  ,file=sys.stderr       )
+		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}'                            ,file=sys.stderr       )
+		if True                                : print(f"{tab}\t{e.__class__.__name__} : {' '.join(e.args)}"          ,file=sys.stderr       )
 		if hasattr(e,'consider')               : print(f'{tab}\tconsider :\n'+textwrap.indent(e.consider,f'{tab}\t\t'),file=sys.stderr,end='') # ending new line is already in e.consider
 		sys.exit(2)
 

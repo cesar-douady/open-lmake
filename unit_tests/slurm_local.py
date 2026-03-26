@@ -11,9 +11,7 @@ if __name__!='__main__' :
 
 	from lmake.rules import Rule,PyRule
 
-	lmake.config.backends.slurm = {
-		'interface' : lmake.user_environ.get('LMAKE_INTERFACE',socket.gethostname())
-	}
+	lmake.config.backends.slurm = {}
 
 	lmake.manifest = (
 		'Lmakefile.py'

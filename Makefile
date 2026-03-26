@@ -392,7 +392,7 @@ version.checked : FORCE
 	@[ -e $@ ] || { >$@ ; }
 
 # use a stamp to implement a by value update (while make works by date)
-src/version.cc.stamp : _bin/version version.src src/version.hh version.checked
+src/version.cc.stamp : _bin/version version.src src/version.hh version.checked Makefile
 	@echo computing versions to $(@:%.stamp=%)
 	@LD_LIBRARY_PATH=$(PY_LIB_DIR) PYTHON=$(PYTHON) PYTHONPATH= VERSION=$(VERSION) TAG=$(TAG) ./$< gen src/version.hh $(@:%.stamp=%) version.src >$@
 	@# dont touch output if it is steady
@@ -896,7 +896,7 @@ lmake_env/stamp : lmake_env/Manifest $(patsubst %,lmake_env/%,$(LMAKE_SRCS))
 lmake_env/tok : $(LMAKE_ALL_FILES) lmake_env/stamp lmake_env/Lmakefile.py
 	@set -e ; cd lmake_env                            ; \
 	export CXX=$(CXX)                                 ; \
-	$(REPO_ROOT)/bin/lmake lmake.tar.gz -Vn & sleep 1 ; \
+	$(REPO_ROOT)/bin/lmake lmake.tar.gz -Vl & sleep 1 ; \
 	$(REPO_ROOT)/bin/lmake lmake.tar.gz >$(@F).tmp    ; \
 	wait $$!                                          ; \
 	rm -rf LMAKE.bck                                  ; \
