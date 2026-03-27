@@ -56,7 +56,7 @@ Hence, there must be a cache replacement policy.
 
 There are several factors that are taken into account when deciding which run to victimize from the cache to make room.
 
-#### 1/ At most 2 runs are kept from a given repo a given commit (e.g. the git commit hash).
+#### 1/ At most 2 runs are kept for a given job from a given repo and a given commit (e.g. the git commit hash).
 
 To avoid cache pollution in case a repo evolves rapidly (which is typical during active development), the number of stored runs from this repo must be limited
 as the cache is typically useless locally.
@@ -72,7 +72,7 @@ By keeping both, we get a reasonable compromize between pollution avoidance and 
 
 The reason is two-fold.
 
-First, if there are, say, 50 users using the cache, there is not real reason to keep more than 100 runs for a given job.
+First, if there are, say, 50 users using the cache, there is no real reasons to keep more than 100 runs for a given job.
 If more than this many runs have been uploaded, Probably that the older ones are now useless.
 
 Second, the cache must frequently walk through all the runs of a given job (a direct key look-up cannot be used as deps are not always known when the cache is consulted for download).

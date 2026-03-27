@@ -49,7 +49,7 @@ namespace Store {
 				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				_fd = AcFd( name , {writable?O_RDWR|O_CREAT:O_RDONLY} ) ;              // mode is only used if created, which implies writable
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (writable) _chk_rc( ::lseek(_fd,0/*offset*/,SEEK_END) , "lseek" ) ; // ensure writes (when expanding) are done at end of file when resizing
+				if (writable) _chk_rc( ::lseek(_fd,0/*offset*/,SEEK_END)>=0 , "lseek" ) ; // ensure writes (when expanding) are done at end of file when resizing
 				SWEAR_PROD(+_fd) ;
 				Disk::FileInfo fi{_fd} ;
 				SWEAR_PROD( fi.tag()>=FileTag::Reg , fi ) ;
@@ -80,7 +80,7 @@ namespace Store {
 			sz = ::min( _s_round_up(sz) , Capacity                          ) ;        // legalize
 			if (+_fd)
 				try                     { _fd.write(::string(sz-size,0/*ch*/)) ; }     // /!\ dont use ftruncate to avoid race in kernel between ftruncate and write back of dirty pages
-				catch (::string const&) { _chk_rc(-1,"expand") ;                 }     // NO_COV
+				catch (::string const&) { _chk_rc(false/*ok*/,"expand") ;        }     // NO_COV
 			_map(sz) ;
 		}
 		void clear(size_t sz=0) {
@@ -92,7 +92,7 @@ namespace Store {
 			//
 			_dealloc() ;
 			//                 vvvvvvvvvvvvvvvvvvv
-			if (+_fd) _chk_rc( ::ftruncate(_fd,sz) , "truncate" ) ;                    // /!\ can use ftruncate here as there is no mapping, hence no page write back, hence no race
+			if (+_fd) _chk_rc( ::ftruncate(_fd,sz)==0 , "truncate" ) ;                    // /!\ can use ftruncate here as there is no mapping, hence no page write back, hence no race
 			//                 ^^^^^^^^^^^^^^^^^^^
 			_alloc() ;
 			_map(sz) ;
@@ -101,12 +101,12 @@ namespace Store {
 		void chk_thread  () const { if (ThreadKey) SWEAR( t_thread_key==ThreadKey , ThreadKey,t_thread_key,name ) ; }
 		void chk_writable() const { throw_unless( writable , name," is read-only" ) ;                               }
 	private :
-		void _chk_rc( int rc, const char* msg ) {
-			if (rc<0) exit( Rc::System , "cannot ",msg," (",StrErr(),") ",name ) ;
+		void _chk_rc( bool ok , const char* msg ) {
+			if (!ok) exit( Rc::System , "cannot ",msg," (",StrErr(),") ",name ) ;
 		}
 		void _dealloc() {
 			SWEAR(base) ;
-			_chk_rc( ::munmap(base,Capacity) , "unmap" ) ;
+			_chk_rc( ::munmap(base,Capacity)==0 , "unmap" ) ;
 			base = nullptr ;
 		}
 		void _alloc() {

@@ -3,12 +3,13 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh" // /!\ must be first to include Python.h first
+#include "core.hh"      // /!\ must be first to include Python.h first
 
 #include <pwd.h>
 
 #include "re.hh"
 #include "autodep/gather.hh"
+
 #include "makefiles.hh"
 
 using namespace Disk ;
@@ -303,13 +304,12 @@ namespace Engine::Makefiles {
 
 	// msg may be updated even if throwing
 	// startup_dir_s is for diagnostic purpose only
-	static void _refresh( ::string&/*out*/ msg , bool rescue , bool refresh_ , ::umap_ss const& user_env , ::string const& startup_dir_s ) {
-		Trace trace("_refresh",STR(rescue),STR(refresh_),startup_dir_s) ;
-		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
+	static void _refresh( ::string&/*out*/ msg , ReqOptions const* options , bool rescue , bool refresh_ , ::umap_ss const& user_env , ::string const& startup_dir_s ) {
+		Trace trace("_refresh",STR(bool(options)),STR(rescue),STR(refresh_),startup_dir_s) ;
 		//
-		const char* dynamically = first_time ? "" : "dynamically " ;
+		const char* dynamically = options ? "dynamically " : "" ;
 		if (!refresh_) {
-			SWEAR(first_time) ;
+			SWEAR(!options) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Persistent::new_config( Config() , rescue ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -321,7 +321,7 @@ namespace Engine::Makefiles {
 		Config             config      ;
 		WithGil<Ptr<Dict>> py_info     ;
 		//
-		if (first_time) {
+		if (!options) {
 			{	First first ;
 				_g_user_env_str << "{ " ;
 				for( auto const& [k,v] : user_env )
@@ -346,14 +346,28 @@ namespace Engine::Makefiles {
 				invalidate         =            old.sub_repos_s   !=new_.sub_repos_s             ; // this changes matching exceptions, which means it changes matching
 				changed_extra_srcs =            old.extra_manifest!=new_.extra_manifest          ;
 			}
-			if (!first_time) {               // fast path : on first time, we do not know if we are ever going to launch jobs, dont spend time configuring
-				static bool s_done = false ;
+			if (options) {                                             // fast path : on first time, we do not know if we are ever going to launch jobs, dont spend time configuring
+				static bool                  s_done_cache    = false ;
+				static BitMap<Backends::Tag> s_done_backends = {}    ;
 				Config const& cfg =  +new_ ? new_ : old ;
+				Trace trace("diff_config",STR(s_done_cache),s_done_backends,STR(+new_),STR(+old),options->flags) ;
 				doing_ancillaries = true ;
-				if ( !s_done || (+new_&&old.backends!=new_.backends) ) Backends::Backend        ::s_config(cfg.backends) ; // no new_ means keep old config
-				if ( !s_done || (+new_&&old.caches  !=new_.caches  ) ) Cache   ::CacheServerSide::s_config(cfg.caches  ) ; // .
+				::string const& cm_str = options->flag_args[+ReqFlag::CacheMethod] ;
+				CacheMethod     cm     = CacheMethod::Dflt                         ;
+				if (+cm_str) {
+					throw_unless( can_mk_enum<CacheMethod>(cm_str) , "unexpected cache method ",cm_str ) ;
+					cm = mk_enum<CacheMethod>(cm_str) ;
+				}
+				if (+cm) {
+					if ( !s_done_cache || (+new_&&old.caches!=new_.caches) ) Cache::CacheServerSide::s_config(cfg.caches) ;                              // no new_ means keep old config
+					s_done_cache = true ;
+				}
+				for( Backends::Tag t : iota(1,All<Backends::Tag>) )
+					if ( t==Backends::Tag::Local || !options->flags[ReqFlag::Local] ) {
+						if ( !s_done_backends[t] || (+new_&&old.backends[+t]!=new_.backends[+t]) ) Backends::Backend::s_config( t , cfg.backends[+t] ) ; // no new_ means keep old config
+						s_done_backends |= t ;
+					}
 				doing_ancillaries = false ;
-				s_done            = true  ;
 			}
 		} ; //!                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		try                           { Persistent::new_config( ::move(config) , rescue , diff_config ) ;                                                      }
@@ -407,7 +421,7 @@ namespace Engine::Makefiles {
 
 	// msg may be updated even if throwing
 	// startup_dir_s is for diagnostic purpose only
-	void refresh( ::string&/*out*/ msg , ::umap_ss const& env , bool rescue , bool refresh_ , ::string const& startup_dir_s ) {
+	void refresh( ::string&/*out*/ msg , ReqOptions const* options , ::umap_ss const& env , bool rescue , bool refresh_ , ::string const& startup_dir_s ) {
 		Trace trace("refresh",STR(rescue),STR(refresh_)) ;
 		static bool     s_first_time   = true                                  ; bool first_time = s_first_time ; s_first_time = false ;
 		static ::string reg_exprs_file = cat(PrivateAdminDirS,"regexpr_cache") ;
@@ -422,7 +436,7 @@ namespace Engine::Makefiles {
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
 		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;                // dir_s is \1, module is \2, matches both python 2 & 3
 		//
-		_refresh( /*out*/msg , rescue , refresh_ , env , startup_dir_s ) ;
+		_refresh( /*out*/msg , options , rescue , refresh_ , env , startup_dir_s ) ;
 		//
 		if ( first_time && g_writable && !RegExpr::s_cache.steady() )
 			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( serialize(RegExpr::s_cache) ) ;       }      // update persistent cache

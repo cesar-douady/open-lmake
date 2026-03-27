@@ -48,14 +48,14 @@ else :
 
 	import os.path as osp
 
+	import ut
+
 	if 'slurm' not in lmake.backends :
 		print('slurm not compiled in',file=open('skipped','w'))
 		exit()
-	if not osp.exists('/etc/slurm/slurm.conf') :
+	if not ut.has_slurm() :
 		print('slurm not available',file=open('skipped','w'))
 		exit()
-
-	import ut
 
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))

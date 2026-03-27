@@ -4,6 +4,7 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 import os.path as osp
+
 def chk_numba() :
 	from numba import vectorize , uint32
 	@vectorize( [uint32(uint32)] , target='parallel' )
@@ -15,10 +16,12 @@ if __name__!='__main__' :
 
 	import socket
 
+	from has_slurm import has_slurm
+
 	import lmake
 	from lmake.rules import Rule
 
-	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
+	if 'slurm' in lmake.backends and ut.has_slurm() :
 		lmake.config.backends.slurm = {}
 		backend = 'slurm'
 	else :
@@ -29,6 +32,7 @@ if __name__!='__main__' :
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'step.py'
+    ,   'has_slurm.py'
 	)
 
 	class TestNumba(Rule):
@@ -51,6 +55,8 @@ else :
 	import sys
 
 	import ut
+
+	print(f'has_slurm = {ut.has_slurm()}',file=open('has_slurm.py','w'))
 
 	if 'VIRTUAL_ENV' in os.environ :                                                                                              # manage case where numba is installed in an activated virtual env
 		sys.path.append(f'{os.environ["VIRTUAL_ENV"]}/lib/python{sys.version_info.major}.{sys.version_info.minor}/site-packages')

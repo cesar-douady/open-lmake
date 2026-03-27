@@ -116,7 +116,6 @@ namespace Backends::Slurm {
 
 		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ ) override {
 			Trace trace(BeChnl,"Slurm::config",dct) ;
-			static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 			//
 			repo_key = no_slash(base_name(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
 			for( auto const& [k,v] : dct ) {
@@ -132,9 +131,10 @@ namespace Backends::Slurm {
 				} catch (::string const& e) { trace("bad_val",k,v) ; throw cat("wrong value for entry "    ,k+": ",v) ; }
 				/**/                        { trace("bad_key",k  ) ; throw cat("unexpected config entry : ",k       ) ; }
 			}
-			if (first_time) {
+			if ( static bool s_first_time=true ; s_first_time ) {
 				daemon = slurm_sense_daemon( config_file , lib_slurm , init_timeout ) ;
 				_s_slurm_cancel_thread.open('K',SlurmApi::cancel_func) ; s_record_thread('K',_s_slurm_cancel_thread.thread) ;
+				s_first_time = false ;
 			}
 			//
 			_slurm_env.reset(new const char*[env_.size()+1]) ;

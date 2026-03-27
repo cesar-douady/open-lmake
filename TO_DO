@@ -23,6 +23,8 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* manage -l as a resource
+* -r does not rerun when timeout
 * allow using strace with autodep=ptrace
 ! manage 32 bits executables with ptrace
 	- mode -mx32 seems easy
@@ -357,6 +359,8 @@ X manage HUGE pages in store
 ****************************************************************************************************
 
 * consider using codeclip, -ffunction-sections -fdata-sections -Wl,--gc-sections
+* consider using this apparently wonderful assert     package : https://github.com/jeremy-rifkin/libassert
+* consider using thie apparently wonderful stacktrace package : https://github.com/jeremy-rifkin/cpptrace
 ! develop lmake under lmake
 	- autodep must support to be audited by autodep for unit tests
 	- provide a bootstrap script

@@ -10,7 +10,6 @@
 #include "re.hh"
 #include "serialize.hh"
 #include "time.hh"
-#include "trace.hh"
 #include "zfd.hh"
 
 #include "autodep/env.hh"

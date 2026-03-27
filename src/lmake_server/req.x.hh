@@ -91,7 +91,7 @@ namespace Engine {
 		void close  (                       ) ;
 		void chk_end(                       ) ;
 		void alloc  (                       ) ;
-		void dealloc(                       ) ;
+		void dealloc(bool allocated=true    ) ;
 		void new_eta(                       ) ;
 		//
 	private :
@@ -406,9 +406,9 @@ namespace Engine {
 		grow(s_store,+self) ;
 	}
 
-	inline void Req::dealloc() {
+	inline void Req::dealloc(bool allocated) {
 		s_small_ids.release(+self) ;
-		self->clear() ;
+		if (allocated) self->clear() ;
 	}
 
 	inline void Req::chk_end() {

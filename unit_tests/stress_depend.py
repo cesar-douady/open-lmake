@@ -7,12 +7,11 @@ import os.path as osp
 
 import lmake
 
-has_slurm = 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf')
-host_len = 20 if has_slurm else 0
-
 if __name__!='__main__' :
 
 	import socket
+
+	from host_len import host_len
 
 	from lmake.rules import Rule,PyRule
 
@@ -21,13 +20,16 @@ if __name__!='__main__' :
 	lmake.config.trace.n_jobs       = 10000    # ensure we keep all traces for analysis
 	lmake.config.console.host_len   = host_len
 
-	if has_slurm :
+	if host_len :
 		lmake.config.backends.slurm = {
 			'use_nice'          : True
 		,	'n_max_queued_jobs' : 10
 		}
 
-	lmake.manifest = ('Lmakefile.py',)
+	lmake.manifest = (
+		'Lmakefile.py'
+	,	'host_len.py'
+	)
 
 	for backend in ('local','slurm') :
 
@@ -68,6 +70,11 @@ else :
 	import os.path as osp
 
 	import ut
+
+	host_len = 20 if ut.has_slurm() else 0
+
+	print(f'host_len = {host_len}',file=open('host_len.py','w'))
+
 	ut.Ut.host_len = host_len
 
 	n = 100  # use a higher value, e.g. 10000, for a really stressing test

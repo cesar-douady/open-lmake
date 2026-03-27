@@ -133,9 +133,9 @@ namespace Backends {
 		static bool            s_ready     (Tag) ;
 		static ::string const& s_config_err(Tag) ;
 		//
-		static void s_config       ( ::array<Config::Backend,N<Tag>> const& cfgs ) ;                         // send warnings on first time only
-		static void s_record_thread( char thread_key , ::jthread&                ) ;
-		static void s_finalize     (                                             ) ;
+		static void s_config       ( Tag , Config::Backend const& ) ;                                        // send warnings on first time only
+		static void s_record_thread( char thread_key , ::jthread& ) ;
+		static void s_finalize     (                              ) ;
 		// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 		// then it is top-backend that mangages it until end, at which point it is transfered back to engine
 		// called from engine thread

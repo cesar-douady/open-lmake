@@ -44,6 +44,7 @@ if __name__!='__main__' :
 	import socket
 
 	import gxx
+	from has_slurm import has_slurm
 
 	import lmake
 	from lmake.rules import Rule,PyRule
@@ -51,12 +52,13 @@ if __name__!='__main__' :
 	lmake.config.link_support        = 'none'
 	lmake.config.backends.local.cpu *= 2
 	lmake.config.console.host_len    = 0
-	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
-		lmake.config.backends.slurm      = {}
+	if has_slurm and 'slurm' in lmake.backends :
+		lmake.config.backends.slurm = {}
 
 	lmake.manifest = (
 		'Lmakefile.py'
 	,	'gxx.py'
+	,	'has_slurm.py'
 	,	*( f'src/exe_{e}.c'     for e in range(n)                   )
 	,	*( f'src/obj_{e}_{o}.h' for e in range(n) for o in range(l) )
 	,	*( f'src/obj_{e}_{o}.c' for e in range(n) for o in range(l) )
@@ -94,6 +96,7 @@ else :
 	import ut
 
 	ut.mk_gxx_module('gxx')
+	print(f'has_slurm = {ut.has_slurm()}',file=open('has_slurm.py','w'))
 
 	import gxx
 

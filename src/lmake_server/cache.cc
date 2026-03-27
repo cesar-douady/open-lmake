@@ -41,7 +41,7 @@ namespace Cache {
 				trace("bad_val",key,val) ;
 				throw cat("wrong value for entry ",key," : ",val) ;
 			}
-			trace("bad_repo_key",key) ;
+			trace("bad_key",key) ;
 			throw cat("wrong key (",key,") in lmake.config.caches") ;
 		}
 		throw_unless(       +dir_s  , "dir must be specified for cache" ) ;

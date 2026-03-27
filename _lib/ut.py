@@ -121,3 +121,7 @@ def mk_gxx_module(module) :
 		gxx_dir = osp.dirname(shutil.which(gxx))
 		print(f"gxx     = {gxx!r}"    ,file=fp)
 		print(f"gxx_dir = {gxx_dir!r}",file=fp)
+
+def has_slurm() :
+	try    : return sp.check_output(('scontrol','ping'),universal_newlines=True).endswith('UP')
+	except : return False

@@ -21,6 +21,7 @@ __pycache__
 
 # libs
 /_lib/fmt_rule.py
+/_lib/fmt_config.py
 /_lib/read_makefiles.py
 
 # doc

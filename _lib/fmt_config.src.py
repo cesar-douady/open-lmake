@@ -4,6 +4,7 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 import os
+import subprocess as sp
 import sys
 
 import lmake
@@ -18,7 +19,7 @@ def fmt_callable( func , res='' ) :
 	expr = serialize.get_expr(
 		func
 	,	ctx            = sys.modules[func.__module__].__dict__
-	,	no_imports     = fmt_rule.lcl_mod_file                  # cannot afford local imports, so serialize in place all of them
+	,	no_imports     = fmt_rule.lcl_mod_file                 # cannot afford local imports, so serialize in place all of them
 	,	call_callables = True
 	)
 	if res : res_eq = res+' = '
@@ -67,21 +68,17 @@ StdAttrs = {
 }
 
 def fmt_config( config , is_top ) :
-	if 'system_tag_proc' not in config and 'system_tag' in config :     # XXX> : suppress when compatibility with 26.02 is no more necessary
-		print(f'lmake.config.system_tag is deprecated',file=sys.stderr)
-		print(f'use lmake.config.system_tag_proc'     ,file=sys.stderr)
-		config.system_tag_proc = config.system_tag
 	for k,v in config.items() :
 		if k not in StdAttrs : raise KeyError("unexpected key ",k)
 		config[k] = StdAttrs[k](v)
 	if is_top :
-		git = '$GIT'                                                                                                          # substitued at build time
+		git = '$GIT'                                                                                                               # substitued at build time
 		if 'caches' in config :
 			for cache in config.caches.values() :
 				if 'repo_key' in cache : continue
-				key = cwd
-				try    : key += ' '+sp.check_output((git,'rev-parse','--verify','-q','HEAD'),universal_newlines=True).strip()
-				except : pass                                                                                                 # if not under git, ignore
-				cache['repo_key'] = key
+				repo_key = cwd
+				try    : repo_key += ' '+sp.check_output((git,'rev-parse','--verify','-q','HEAD'),universal_newlines=True).strip()
+				except : pass                                                                                                      # if not under git, ignore
+				cache['repo_key'] = repo_key
 	config.extra_manifest = lmake.extra_manifest
 	return config

@@ -21,7 +21,9 @@ gxx     = lmake.user_environ.get('CXX'    ,'g++'  )
 from lmake       import config , pdict , repo_root , run_cc
 from lmake.rules import Rule , PyRule , AntiRule , TraceRule , DirRule
 
-if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
+try    : has_slurm = sp.check_output(('scontrol','ping'),universal_newlines=True).endswith('UP')
+except : has_slurm = False
+if 'slurm' in lmake.backends and has_slurm :
 	backend = 'slurm'
 	config.backends.slurm = {
 		'use_nice'          : True

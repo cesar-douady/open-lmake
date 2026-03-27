@@ -172,9 +172,9 @@ namespace Engine {
 			bool operator==(Console const&) const = default ;
 			// /!\ default values must stay in sync with _lib/lmake/config.src.py
 			// START_OF_VERSIONING REPO
-			uint8_t  date_prec    = 0     ; // -1 means no date at all in console output
-			uint8_t  host_len     = 10    ; //  0 means no host at all in console output
-			uint32_t history_days = 7     ; // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
+			uint8_t  date_prec    = 0     ;                                                                   // -1 means no date at all in console output
+			uint8_t  host_len     = 10    ;                                                                   //  0 means no host at all in console output
+			uint32_t history_days = 7     ;                                                                   // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
 			bool     has_exe_time = true  ;
 			bool     show_eta     = false ;
 			bool     show_ete     = true  ;
@@ -188,16 +188,16 @@ namespace Engine {
 		size_t n_errs       (size_t n) const { if (errs_overflow(n)) return max_err_lines-1 ; else return n ; }
 		// data
 		// START_OF_VERSIONING REPO
-		FileSync                                                                file_sync           = {}  ; // method to ensure file sync when over an unreliable filesystem such as NFS
-		size_t                                                                  max_err_lines       = 0   ; // unlimited
-		uint8_t                                                                 nice                = 0   ; // nice value applied to jobs
-		FileSync                                                                server_file_sync    = {}  ; // method to use on server side
+		FileSync                                                                file_sync           = {}    ; // method to ensure file sync when over an unreliable filesystem such as NFS
+		size_t                                                                  max_err_lines       = 0     ; // unlimited
+		uint8_t                                                                 nice                = 0     ; // nice value applied to jobs
+		FileSync                                                                server_file_sync    = {}    ; // method to use on server side
 		Collect                                                                 collect             ;
 		Console                                                                 console             ;
 		bool                                                                    has_remote_backends = false ;
-		::array<Backend,N<BackendTag>>                                          backends            ;       // backend may refuse dynamic modification
-		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors              = {}  ;
-		::map_ss                                                                dbg_tab             = {}  ; // maps debug keys to modules to import, ordered to be serializable
+		::array<Backend,N<BackendTag>>                                          backends            ;         // backend may refuse dynamic modification
+		::array<::array<::array<uint8_t,3/*RGB*/>,2/*reverse_video*/>,N<Color>> colors              = {}    ;
+		::map_ss                                                                dbg_tab             = {}    ; // maps debug keys to modules to import, ordered to be serializable
 		// END_OF_VERSIONING
 	} ;
 

@@ -823,10 +823,14 @@ namespace Backends {
 		trace("done") ;
 	}
 
-	void Backend::s_config(::array<Config::Backend,N<Tag>> const& cfgs) {
-		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
+	void Backend::s_config( Tag t , Config::Backend const& cfg ) {
+		static bool        s_first_time = true ;
+		static BitMap<Tag> s_seen       ;
 		//
-		if (first_time) {
+		Trace trace(BeChnl,"s_config",t,STR(s_first_time),s_seen) ;
+		//
+		if (s_first_time) {
+			s_first_time = false ;
 			// threads must be stopped while store is still mapped, i.e. before main() returns
 			_s_heartbeat_thread = ::jthread(_s_heartbeat_thread_func) ;                          s_record_thread('H',_s_heartbeat_thread             ) ;
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ; s_record_thread('S',_s_job_start_thread      .thread) ;
@@ -835,33 +839,32 @@ namespace Backends {
 			_s_deferred_report_thread.open( 'R' , _s_handle_deferred_report                  ) ; s_record_thread('R',_s_deferred_report_thread.thread) ;
 			_s_deferred_wakeup_thread.open( 'W' , _s_handle_deferred_wakeup                  ) ; s_record_thread('W',_s_deferred_wakeup_thread.thread) ;
 			//
+			_s_job_start_thread.wait_started() ;
+			_s_job_mngt_thread .wait_started() ;
+			_s_job_end_thread  .wait_started() ;
+			//
 			_s_job_exec = *g_lmake_root_s+"_bin/job_exec" ;
 		}
-		Trace trace(BeChnl,"s_config") ;
-		//
 		TraceLock lock { _s_mutex , BeChnl , "s_config" } ;
-		for( Tag t : iota(1,All<Tag>) ) {                                                                               // local backend is always available
-			auto&                  be        = s_tab [+t] ; if (!be) { trace("not_implemented",t) ; continue ; }
-			bool                   was_ready = s_ready(t) ;
-			Config::Backend const& cfg       = cfgs[+t]   ;
+		auto&     be   = s_tab[+t]                        ;
+		if (+be) {
+			bool was_ready = s_ready(t) ;
 			if (!cfg.configured) {
-				throw_if( !first_time && was_ready , "cannot dynamically suppress backend ",t ) ;
-				be->config_err = "not configured" ;                                                                     // empty config_err means ready
+				throw_if( s_seen[t] && was_ready , "cannot dynamically suppress backend ",t ) ;
+				be->config_err = "not configured" ;                                               // empty config_err means ready
 				trace("not_configured" ,t) ;
-				continue ;
+			} else {
+				be->domain_name = cfg.domain_name ;
+				be->config(cfg.dct,cfg.env) ;
+				if ( s_seen[t] && !was_ready ) {
+					SWEAR(+be->config_err) ;                                                      // empty config_err means ready
+					throw cat("cannot dynamically add backend ",t) ;
+				}
+				be->config_err = {} ;                                                             // empty config_err means ready
 			}
-			be->domain_name = cfg.domain_name ;
-			be->config(cfg.dct,cfg.env) ;
-			if ( !first_time && !was_ready ) {
-				SWEAR(+be->config_err) ;                                                                                // empty config_err means ready
-				throw cat("cannot dynamically add backend ",t) ;
-			}
-			be->config_err = {} ;                                                                                       // empty config_err means ready
+			s_seen |= t ;
 		}
-		trace(_s_job_exec) ;
-		_s_job_start_thread.wait_started() ;
-		_s_job_mngt_thread .wait_started() ;
-		_s_job_end_thread  .wait_started() ;
+		trace("done",_s_job_exec) ;
 	}
 
 	void Backend::s_record_thread( char thread_key , ::jthread& t ) {

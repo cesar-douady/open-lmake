@@ -115,7 +115,7 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	switch (dv_str[0]) {
 		case 'd' : case 'D' : dv = Yes   ;                                                                                       break ; // dark mode
 		case 'l' : case 'L' : dv = No    ;                                                                                       break ; // light mode
-		case 'n' : case 'N' : dv = No    ; Fd::Stderr.write(cat("video mode ",dv_str," is deprecated, use l(ight) instead\n")) ; break ; // XXX> : suppress in 26.03+2
+		case 'n' : case 'N' : dv = No    ; Fd::Stderr.write(cat("video mode ",dv_str," is deprecated, use l(ight) instead\n")) ; break ; // XXX> : suppress when no more compatibility with 26.03
 		case 'r' : case 'R' : dv = Yes   ; Fd::Stderr.write(cat("video mode ",dv_str," is deprecated, use d(ark) instead\n" )) ; break ; // .
 		case 'f' : case 'F' : dv = Maybe ;                                                                                       break ; // f(ile) : force no color
 		default  :            dv = is_dark_video(Fd::Stdin,Fd::Stdout) ;

@@ -515,7 +515,7 @@ DEP_SRCS   := $(CC_SRCS) $(SLURM_SRCS)
 include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
 
 # XXX/ : for a mysterious reason, clangd does not support -Werror and -Wno-misleading-indentation
-$(COMPILE_COMMANDS) : % : $(CC_SRCS)
+$(COMPILE_COMMANDS) : % : Manifest
 	@echo generate $@
 	@{ \
 		echo -n '[' ;                                          \

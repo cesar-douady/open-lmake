@@ -8,10 +8,12 @@ if __name__!='__main__' :
 	import os.path as osp
 	import socket
 
+	from has_slurm import has_slurm
+
 	import lmake
 	from lmake.rules import PyRule
 
-	if 'slurm' in lmake.backends and osp.exists('/etc/slurm/slurm.conf') :
+	if 'slurm' in lmake.backends and has_slurm :
 		lmake.config.backends.slurm = {
 			'use_nice'          : True
 		,	'n_max_queued_jobs' : 10
@@ -22,7 +24,10 @@ if __name__!='__main__' :
 
 	lmake.config.console.host_len = 0
 
-	lmake.manifest = ('Lmakefile.py',)
+	lmake.manifest = (
+		'Lmakefile.py'
+	,	'has_slurm.py'
+	)
 
 	lmake.config.backends.local.cpu = 10
 	lmake.config.trace.n_jobs       = 10000
@@ -44,6 +49,8 @@ if __name__!='__main__' :
 else :
 
 	import ut
+
+	print(f'has_slurm = {ut.has_slurm()}',file=open('has_slurm.py','w'))
 
 	n = 20
 	p = 40

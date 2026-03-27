@@ -3,13 +3,13 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "time.hh"
-
 #pragma once
+
+#include "rpc_client.hh"
 
 namespace Engine::Makefiles {
 	::umap_ss clean_env(bool under_lmake_ok) ; // ensure env is clean for dynamic execution and return original env
 	// msg may be updated even if throwing
 	// startup_dir_s is for diagnostic purpose only
-	void refresh( ::string&/*out*/ msg , ::umap_ss const& env , bool chk, bool refresh , ::string const& startup_dir_s ) ;
+	void refresh( ::string&/*out*/ msg , ReqOptions const* , ::umap_ss const& env , bool chk, bool refresh , ::string const& startup_dir_s ) ;
 }

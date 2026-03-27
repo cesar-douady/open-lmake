@@ -157,8 +157,13 @@ int main( int argc , char* /*argv*/[] ) {
 	//
 	// make a fresh local admin dir
 	{	::string msg ;
-		try                       { Makefiles::refresh(/*out*/msg,user_env,false/*rescue*/,true/*refresh*/,*g_startup_dir_s) ; if (+msg) Fd::Stderr.write(with_nl(msg)) ;                        }
-		catch (::string const& e) {                                                                                            if (+msg) Fd::Stderr.write(with_nl(msg)) ; exit(Rc::BadState,e) ; }
+		try {
+			Makefiles::refresh(/*out*/msg,nullptr/*options*/,user_env,false/*rescue*/,true/*refresh*/,*g_startup_dir_s) ;
+			if (+msg) Fd::Stderr.write(with_nl(msg)) ;
+		} catch (::string const& e) {
+			if (+msg) Fd::Stderr.write(with_nl(msg)) ;
+			exit(Rc::BadState,e) ;
+		}
 	}
 	//
 	mk_lad() ;

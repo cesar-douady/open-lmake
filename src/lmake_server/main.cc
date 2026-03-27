@@ -239,7 +239,7 @@ static bool/*interrupted*/ _engine_loop() {
 						}
 						try {
 							try {
-								Makefiles::refresh( /*out*/msg , ecr.options.user_env , false/*rescue*/  , true/*refresh*/ , startup_dir_s ) ;
+								Makefiles::refresh( /*out*/msg , &ecr.options , ecr.options.user_env , false/*rescue*/  , true/*refresh*/ , startup_dir_s ) ;
 								if (+msg) audit_err( ecr.fd , ecr.options , msg ) ;
 								trace("new_req",req) ;
 								req.alloc() ; allocated = true ;
@@ -250,7 +250,7 @@ static bool/*interrupted*/ _engine_loop() {
 								_g_seen_make = true ;
 							} catch(::string const& e) { throw ::pair(e,Rc::BadState) ; }
 						} catch(::pair_s<Rc> const& e) {
-							if (allocated) req.dealloc() ;
+							req.dealloc(allocated) ;
 							if (+msg) audit_err   ( ecr.fd , ecr.options , msg                  ) ;
 							/**/      audit_err   ( ecr.fd , ecr.options , Color::Err , e.first ) ;
 							/**/      audit_status( ecr.fd , ecr.options , e.second             ) ;
@@ -365,16 +365,16 @@ int main( int argc , char** argv ) {
 		if (+e.first) exit( e.second , "cannot start ",*g_exe_name," : ",e.first ) ;
 		else          exit( e.second                                             ) ;
 	}
-	//
+	//                             vvvvvvvvvvvvvvvvv
 	static ::jthread reqs_thread { _reqs_thread_func } ;
 	//                             ^^^^^^^^^^^^^^^^^
 	::string     msg ;
 	::pair_s<Rc> rc  { {} , Rc::Ok } ;
-	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                          { Makefiles::refresh( /*out*/msg , user_env , _g_server.rescue , refresh_ , startup_dir_s ) ; }
-	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                                 }
-	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                                 }
+	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                          { Makefiles::refresh( /*out*/msg , nullptr/*options*/ , user_env , _g_server.rescue , refresh_ , startup_dir_s ) ; }
+	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                                                      }
+	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                                                      }
 	//
 	if (+msg      ) Fd::Stderr.write(with_nl(msg)) ;
 	if (+rc.second) exit( rc.second , rc.first )   ;
