@@ -101,7 +101,7 @@ namespace Store {
 		void chk_thread  () const { if (ThreadKey) SWEAR( t_thread_key==ThreadKey , ThreadKey,t_thread_key,name ) ; }
 		void chk_writable() const { throw_unless( writable , name," is read-only" ) ;                               }
 	private :
-		void _chk_rc( int rc, const char* msg ) {
+		void _chk_rc( off_t rc , const char* msg ) {
 			if (rc<0) exit( Rc::System , "cannot ",msg," (",StrErr(),") ",name ) ;
 		}
 		void _dealloc() {
