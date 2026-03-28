@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "trace.hh"
+
 #include "ptrace_seccomp.hh"
 #include "record.hh"
 
@@ -27,7 +29,7 @@ void Gather::AccessInfo::operator>>(::string& os) const { // START_OF_NO_COV
 	/**/                       os << flags             ;
 	if (_seen!=Pdate::Future ) os << ",seen"           ;
 	/**/                       os << ')'               ;
-}                                                                     // END_OF_NO_COV
+}                                                         // END_OF_NO_COV
 
 Pdate Gather::AccessInfo::_max_read(bool phys) const {
 	if (_washed) {
@@ -106,7 +108,7 @@ void Gather::ServerSlaveEntry::operator>>(::string& os) const { // START_OF_NO_C
 	if (+buf) os << first("",",")<<buf.size() ;
 	if (+key) os << first("",",")<<key        ;
 	/**/      os << ')'                       ;
-}                                                                            // END_OF_NO_COV
+}                                                               // END_OF_NO_COV
 
 void Gather::JobSlaveEntry::operator>>(::string& os) const { // START_OF_NO_COV
 	First first ;
@@ -114,11 +116,11 @@ void Gather::JobSlaveEntry::operator>>(::string& os) const { // START_OF_NO_COV
 	if (+buf) os << first("",",")<<buf.size() ;
 	if (+key) os << first("",",")<<key        ;
 	/**/      os << ')'                       ;
-}                                                                         // END_OF_NO_COV
+}                                                            // END_OF_NO_COV
 
 void Gather::operator>>(::string& os) const { // START_OF_NO_COV
 	os << "Gather("<<accesses<<')' ;
-}                                                         // END_OF_NO_COV
+}                                             // END_OF_NO_COV
 
 void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Bool3 late , Comment c , CommentExts ces ) {
 	SWEAR( +file , c,ces      ) ;
@@ -221,7 +223,7 @@ Gather::Digest Gather::analyze(Status status) {
 			if      ( dd.is_crc                         )   {}                                                     // already a crc => nothing to do
 			else if ( !accesses                         )   {}                                                     // no access     => nothing to do
 			else if ( !info.seen()                      ) { dd.may_set_crc(Crc::None ) ; dd.hot   = false ; }      // job has been executed without seeing the file (before possibly writing to it)
-			else if ( !dd.sig()                         ) { dd.del_crc    (          ) ; unstable = true  ; }      // file was absent initially but was seen, it is incoherent even if absent finally
+			else if ( !dd.sig().exists()                ) { dd.del_crc    (          ) ; unstable = true  ; }      // file was absent initially but was seen, it is incoherent even if absent finally
 			else if ( was_written                       )   {}                                                     // cannot check stability, clash will be detected in server if any
 			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.del_crc    (          ) ; unstable = true  ; }      // file dates are incoherent from first access to end of job, no stable content
 			else if ( sig.tag()==FileTag::Empty         )   dd.may_set_crc(Crc::Empty) ;                           // crc is easy to compute (empty file), record it
@@ -251,9 +253,9 @@ Gather::Digest Gather::analyze(Status status) {
 				st.st_mode = 0 ;
 			}
 			//
-			FileSig      sig   { st }                                                      ;
+			FileInfo     fi    { st }                                                      ;
 			TargetDigest td    { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags } ;
-			bool         unlnk = !sig                                                      ;
+			bool         unlnk = !fi.exists()                                              ;
 			//
 			if (is_dep) td.tflags    |= Tflag::Incremental                            ;                            // if is_dep, previous target state is guaranteed by being a dep, use it
 			/**/        td.pre_exist  = info.seen() && !td.tflags[Tflag::Incremental] ;
@@ -295,15 +297,16 @@ Gather::Digest Gather::analyze(Status status) {
 			}
 			if (unlnk) {
 				td.crc = Crc::None ;
-			} else if ( was_written || (+sig&&st.st_nlink>1) ) {                                                            // file may change through another link if any
-				if ( status<=Status::Garbage || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
+			} else if ( was_written || (fi.exists()&&st.st_nlink>1) ) {                                                     // file may change through another link if any
+				if ( status<=Status::Garbage || !td.tflags[Tflag::Target] ) { td.sig = fi.sig() ; td.crc = fi.tag() ;     } // no crc if meaningless
 				else                                                          res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
 			}
 			if ( is_static_tgt && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                 // target is expected, not produced and no more important reason
 				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                 // warn specifically
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			res.targets.emplace_back(file,td) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			res.targets   .emplace_back(file,td) ;
+			res.target_fis.push_back   (fi     ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("target ",td,STR(unlnk),STR(was_written),st.st_nlink,file) ;
 		}
 	}
@@ -541,7 +544,7 @@ Status Gather::_exec_child() {
 				if (_wait[Kind::Stdout]) msg_ << first(         )<<"stdout "                                                                              ;
 				if (_wait[Kind::Stderr]) msg_ << first("","and ")<<"stderr "                                                                              ;
 				/**/                     msg_ << "still open after job has terminated "<<dead<<" ago (networkd_delay is "<<network_delay.short_str()<<')' ;
-				set_status(Status::Err,msg_) ;
+				set_status(Status::TerminationErr,msg_) ;
 			}
 			::string kill_msg = "still alive after having " ;
 			if      (timeout_fired              ) kill_msg << "timed out and "                                                            ;
@@ -550,7 +553,7 @@ Status Gather::_exec_child() {
 			else if (+kill_sigs.size()          ) kill_msg << "been killed "<<kill_sigs.size()<<" times followed by SIGKILL"              ;
 			else                                  kill_msg << "been killed with SIGKILL"                                                  ;
 			kill_msg << '\n' ;
-			set_status( Status::Err , kill_msg ) ;
+			set_status( Status::Timeout , kill_msg ) ;
 			break ;                                              // exit loop
 		}
 		if (now>=end_kill) {
@@ -558,7 +561,7 @@ Status Gather::_exec_child() {
 		}
 		if ( now>=end_timeout && !timeout_fired ) {
 			_user_trace( now , Comment::Timeout ) ;
-			set_status(Status::Err,"timeout after "+timeout.short_str()) ;
+			set_status(Status::Timeout,"timeout after "+timeout.short_str()) ;
 			kill() ;
 			timeout_fired = true          ;
 			end_timeout   = Pdate::Future ;
@@ -684,14 +687,14 @@ Status Gather::_exec_child() {
 					end_child  = end_date + network_delay + Delay(1) ;                 // wait at most network_delay (+ 1s for our own processing) for reporting & stdout & stderr to settle down
 					_user_trace( end_date , Comment::EndJob , to_hex(uint16_t(ws)) ) ;
 					//
-					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::Err : Status::Ok       ) ;
-					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::Err : Status::LateLost ) ; // synchronous signals are actually errors
-					else                      FAIL_PROD("unexpected wstatus : ",ws) ;                                         // NO_COV defensive programming
+					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::JobErr : Status::Ok       ) ;
+					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::JobErr : Status::LateLost ) ; // synchronous signals are actually errors
+					else                      FAIL_PROD("unexpected wstatus : ",ws) ;                                            // NO_COV defensive programming
 					if (kind==Kind::ChildEnd) epoll.del_pid(_child.pid       ) ;
 					else                      epoll.del    (false/*write*/,fd) ;
-					_child.waited() ;                                                                                         // _child has been waited without calling _child.wait()
-					/**/                   epoll.dec() ;                                                                      // dont wait for new connections from job (but process those that come)
-					if (+server_master_fd) epoll.dec() ;                                                                      // idem for connections from server
+					_child.waited() ;                                                                                            // _child has been waited without calling _child.wait()
+					/**/                   epoll.dec() ;                                                                         // dont wait for new connections from job (but process those that come)
+					if (+server_master_fd) epoll.dec() ;                                                                         // idem for connections from server
 					trace(kind,fd,"close",status,"wait",_wait,+epoll) ;
 				} break ;
 				case Kind::JobMaster : {
@@ -705,7 +708,7 @@ Status Gather::_exec_child() {
 					SWEAR( fd==server_master_fd , fd,server_master_fd ) ;
 					Fd sfd = server_master_fd.accept().detach() ;
 					epoll.add_read(sfd,Kind::ServerSlave) ;
-					server_slaves[sfd] = {.key=server_master_fd.key} ;                                                        // allocate entry
+					server_slaves[sfd] = {.key=server_master_fd.key} ;                                                           // allocate entry
 					trace(kind,fd,"server_slave",sfd,"wait",_wait,+epoll) ;
 				} break ;
 				case Kind::ServerSlave : {
@@ -863,7 +866,7 @@ Status Gather::_exec_child() {
 									trace(kind,fd,proc) ;
 									if (no_tmp) {
 										_user_trace( jerr.date , Comment::Tmp , CommentExt::Err ) ;
-										set_status(Status::Err,"tmp access with no tmp dir") ;
+										set_status(Status::Forbidden,"tmp access with no tmp dir") ;
 										kill() ;
 									} else {
 										_user_trace( jerr.date , Comment::Tmp ) ;
@@ -893,7 +896,7 @@ Status Gather::_exec_child() {
 									msg << "  consider, if you are ready to manage deps by hand :"                       <<'\n' ;
 									msg << "  - "<<rule<<".autodep = 'none'"                                             <<'\n' ;
 								}
-								set_status(Status::Err,msg) ;
+								set_status(Status::Forbidden,msg) ;
 								if (!seen_mount_chroot) {
 									seen_mount_chroot = true ;
 									kill() ;
@@ -904,7 +907,7 @@ Status Gather::_exec_child() {
 								trace(kind,fd,proc) ;
 								if (has_server) { _send_to_server( fd , ::move(jerr) , jse ) ; sync_ = false ; }                                       // if sent to server, reply is delayed
 							break ;
-							case Proc::Guard      :
+							case Proc::Guard :
 								trace(kind,fd,proc,jerr.files.size()) ;
 								for( auto& [f,_] : jerr.files ) guards.insert(::move(f)) ;
 							break ;
@@ -912,7 +915,7 @@ Status Gather::_exec_child() {
 								if (!seen_panic) {                                                                                                     // report only first panic
 									trace(kind,fd,proc,jerr.txt()) ;
 									_user_trace( jerr.date , Comment::Panic , jerr.txt() ) ;
-									set_status(Status::Err,jerr.txt()) ;
+									set_status(Status::Panic,jerr.txt()) ;
 									kill() ;
 									seen_panic = true ;
 								}

@@ -567,7 +567,7 @@ namespace Engine {
 	inline Manual NodeData::manual( FileSig sig_ , Accesses a ) const {
 		if (    sig_       ==         sig.sig          )                                                  return Manual::Ok      ;   // None and Dir are deemed identical
 		if (Crc(sig_.tag()).match(Crc(sig.sig.tag()),a))                                                  return Manual::Ok      ;   // if tags are enough, do as if no modif
-		if (!sig_                                      ) { Trace("manual","unlnked",idx(),sig_,crc,sig) ; return Manual::Unlnked ; }
+		if (!sig_.exists()                             ) { Trace("manual","unlnked",idx(),sig_,crc,sig) ; return Manual::Unlnked ; }
 		if (sig_.tag()==FileTag::Empty                 ) { Trace("manual","empty"  ,idx(),sig_,crc,sig) ; return Manual::Empty   ; }
 		/**/                                             { Trace("manual","modif"  ,idx(),sig_,crc,sig) ; return Manual::Modif   ; }
 	}

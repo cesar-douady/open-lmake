@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 34      ; // 586fef97e49c2684ad40fb62e31ac5f7
+	uint64_t    constexpr Cache = 35      ; // 57dbdb2dadaa6ebe5c6850de575f2b87
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 33      ; // 15ae0120652a861b661a88e019a5b020
-	uint64_t    constexpr Job   = 18      ; // 0a9f347b6d065b5733fc658ea804dcea
+	uint64_t    constexpr Repo  = 34      ; // c3685cb46e09e38e508ee9c6ea1d6020
+	uint64_t    constexpr Job   = 19      ; // 2461431c75bafc07b14dbcdc068d789f
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 586fef97e49c2684ad40fb62e31ac5f7 *
+// * Cache : 57dbdb2dadaa6ebe5c6850de575f2b87 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -52,19 +52,18 @@ namespace Version {
 //		// START_OF_VERSIONING CACHE REPO
 //		FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
 //			switch (fi.tag()) {
-//				case FileTag::None    :
-//				case FileTag::Unknown :
-//				case FileTag::Dir     :                                                                break ;
-//				case FileTag::Empty   : _val |= fi.date.val() & msb_msk<Ddate::Tick>(NBits<FileTag>) ; break ; // improve traceability when size is predictible, 8ns granularity is more than enough
-//				case FileTag::Lnk     :
-//				case FileTag::Reg     :
-//				case FileTag::Exe     : {
+//				case FileTag::None  :
+//				case FileTag::Dir   :                                                                break ;
+//				case FileTag::Empty : _val |= fi.date.val() & msb_msk<Ddate::Tick>(NBits<FileTag>) ; break ; // improve traceability when size is predictible, 8ns granularity is more than enough
+//				case FileTag::Lnk   :
+//				case FileTag::Reg   :
+//				case FileTag::Exe   : {
 //					Xxh h ;
 //					h    += fi.date                       ;
 //					h    += fi.sz                         ;
 //					_val |= +h.digest() << NBits<FileTag> ;
 //				} break ;
-//			DF}                                                                                                // NO_COV
+//			DF}                                                                                              // NO_COV
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
@@ -552,12 +551,17 @@ namespace Version {
 //	,	Ok                        // job execution ended successfully
 //	,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 //	,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
-//	,	Err                       // job execution ended in error
+//	,	JobErr                    // job execution ended in error
+//	,	Forbidden                 // job did a forbidden syscall
+//	,	Panic                     // job access panic'ed
+//	,	TerminationErr            // job termination was problematic
+//	,	Timeout                   // job execution timed out
 //	//
 //	// aliases
 //	,	Early   = EarlyLostErr    // <=Early means output has not been modified
 //	,	Async   = Killed          // <=Async means job was interrupted asynchronously
 //	,	Garbage = BadTarget       // <=Garbage means job has not run reliably
+//	,	Err     = JobErr          // >= Err means job execution is in error
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
@@ -886,7 +890,6 @@ namespace Version {
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
 //		None
-//	,	Unknown
 //	,	Dir
 //	,	Lnk
 //	,	Reg                        // >=Reg means file is a regular file
@@ -1071,7 +1074,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 15ae0120652a861b661a88e019a5b020 *
+// * Repo : c3685cb46e09e38e508ee9c6ea1d6020 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1104,19 +1107,18 @@ namespace Version {
 //		// START_OF_VERSIONING CACHE REPO
 //		FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
 //			switch (fi.tag()) {
-//				case FileTag::None    :
-//				case FileTag::Unknown :
-//				case FileTag::Dir     :                                                                break ;
-//				case FileTag::Empty   : _val |= fi.date.val() & msb_msk<Ddate::Tick>(NBits<FileTag>) ; break ; // improve traceability when size is predictible, 8ns granularity is more than enough
-//				case FileTag::Lnk     :
-//				case FileTag::Reg     :
-//				case FileTag::Exe     : {
+//				case FileTag::None  :
+//				case FileTag::Dir   :                                                                break ;
+//				case FileTag::Empty : _val |= fi.date.val() & msb_msk<Ddate::Tick>(NBits<FileTag>) ; break ; // improve traceability when size is predictible, 8ns granularity is more than enough
+//				case FileTag::Lnk   :
+//				case FileTag::Reg   :
+//				case FileTag::Exe   : {
 //					Xxh h ;
 //					h    += fi.date                       ;
 //					h    += fi.sz                         ;
 //					_val |= +h.digest() << NBits<FileTag> ;
 //				} break ;
-//			DF}                                                                                                // NO_COV
+//			DF}                                                                                              // NO_COV
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
@@ -1437,34 +1439,34 @@ namespace Version {
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			struct IfPlain {
-//				Node        asking   ;                                    //     32 bits,        last target needing this job
-//				Targets     targets  ;                                    //     32 bits, owned, for plain jobs
-//				CoarseDelay exe_time ;                                    //     16 bits,        for plain jobs
-//				CoarseDelay cost     ;                                    //     16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
+//				Node        asking   ;                                    //       32 bits,        last target needing this job
+//				Targets     targets  ;                                    //       32 bits, owned, for plain jobs
+//				CoarseDelay exe_time ;                                    //       16 bits,        for plain jobs
+//				CoarseDelay cost     ;                                    //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
+//				Tokens1     tokens1  = 0 ;                                //        8 bits,        number of tokens - 1 for eta estimation
 //			} ;
 //			struct IfDep {
-//				SeqId seq_id     = 0 ;                                    //     64 bits
-//				Fd    fd         ;                                        //     32 bits
-//				Job   asking_job ;                                        //     32 bits
+//				SeqId seq_id     = 0 ;                                    //       64 bits
+//				Fd    fd         ;                                        //       32 bits
+//				Job   asking_job ;                                        //       32 bits
 //			} ;
 //		public :
-//		//	JobName          name                               ;         //     32 bits, inherited
-//			Deps             deps                               ;         // 31<=32 bits, owned
-//			RuleCrc          rule_crc                           ;         //     32 bits
-//			Tokens1          tokens1                            = 0     ; //      8 bits,           for plain jobs, number of tokens - 1 for eta estimation
-//			mutable MatchGen match_gen                          = 0     ; //      8 bits,           if <Rule::s_match_gen => deemed !sure
-//			RunStatus        run_status    :NBits<RunStatus   > = {}    ; //      3 bits
-//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //      2 bits            backend asked for last execution
-//			CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //      3 bits
-//			Status           status        :NBits<Status      > = {}    ; //      4 bits
-//			bool             incremental   :1                   = false ; //      1 bit ,           job was last run with existing incremental targets
+//		//	JobName          name                               ;         //       32 bits, inherited
+//			Deps             deps                               ;         //  31<= 32 bits, owned
+//			RuleCrc          rule_crc                           ;         //       32 bits
+//			mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
+//			RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
+//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits            backend asked for last execution
+//			CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        3 bits
+//			Status           status        :NBits<Status      > = {}    ; //        5 bits
+//			bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
 //		private :
-//			mutable bool _sure          :1 = false ;                      //      1 bit
-//			Bool3        _reliable_stats:2 = No    ;                      //      2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+//			mutable bool _sure          :1 = false ;                      //        1 bit
+//			Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 //		public :
 //			union {
-//				IfPlain  _if_plain = {} ;                                 //     96 bits
-//				IfDep    _if_dep   ;                                      //    128 bits
+//				IfPlain _if_plain = {} ;                                  // 104<=128 bits
+//				IfDep   _if_dep   ;                                       //      128 bits
 //			} ;
 //			// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO
@@ -2027,12 +2029,17 @@ namespace Version {
 //	,	Ok                        // job execution ended successfully
 //	,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 //	,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
-//	,	Err                       // job execution ended in error
+//	,	JobErr                    // job execution ended in error
+//	,	Forbidden                 // job did a forbidden syscall
+//	,	Panic                     // job access panic'ed
+//	,	TerminationErr            // job termination was problematic
+//	,	Timeout                   // job execution timed out
 //	//
 //	// aliases
 //	,	Early   = EarlyLostErr    // <=Early means output has not been modified
 //	,	Async   = Killed          // <=Async means job was interrupted asynchronously
 //	,	Garbage = BadTarget       // <=Garbage means job has not run reliably
+//	,	Err     = JobErr          // >= Err means job execution is in error
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
@@ -2361,7 +2368,6 @@ namespace Version {
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
 //		None
-//	,	Unknown
 //	,	Dir
 //	,	Lnk
 //	,	Reg                        // >=Reg means file is a regular file
@@ -2399,7 +2405,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 0a9f347b6d065b5733fc658ea804dcea *
+// * Job : 2461431c75bafc07b14dbcdc068d789f *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2794,7 +2800,6 @@ namespace Version {
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
 //		None
-//	,	Unknown
 //	,	Dir
 //	,	Lnk
 //	,	Reg                        // >=Reg means file is a regular file

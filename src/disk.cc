@@ -396,13 +396,14 @@ namespace Disk {
 	//
 
 	void FileInfo::operator>>(::string& os) const { // START_OF_NO_COV
-		/**/       os << "FileInfo("     ;
-		if (+self) os << sz <<','<< date ;
-		/**/       os << ')'             ;
+		/**/          os << "FileInfo("     ;
+		if (exists()) os << sz <<','<< date ;
+		else          os << tag()           ;
+		/**/          os << ')'             ;
 	}                                               // END_OF_NO_COV
 
 	FileInfo::FileInfo(FileStat const& st) {
-		FileTag tag = FileTag::None/*garbage*/ ;
+		FileTag tag = {} ;
 		if (S_ISREG(st.st_mode)) {
 			if      ( st.st_mode&S_IXUSR) tag = FileTag::Exe   ;
 			else if (!st.st_size        ) tag = FileTag::Empty ;
@@ -438,19 +439,18 @@ namespace Disk {
 	// START_OF_VERSIONING CACHE REPO
 	FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
 		switch (fi.tag()) {
-			case FileTag::None    :
-			case FileTag::Unknown :
-			case FileTag::Dir     :                                                                break ;
-			case FileTag::Empty   : _val |= fi.date.val() & msb_msk<Ddate::Tick>(NBits<FileTag>) ; break ; // improve traceability when size is predictible, 8ns granularity is more than enough
-			case FileTag::Lnk     :
-			case FileTag::Reg     :
-			case FileTag::Exe     : {
+			case FileTag::None  :
+			case FileTag::Dir   :                                                                break ;
+			case FileTag::Empty : _val |= fi.date.val() & msb_msk<Ddate::Tick>(NBits<FileTag>) ; break ; // improve traceability when size is predictible, 8ns granularity is more than enough
+			case FileTag::Lnk   :
+			case FileTag::Reg   :
+			case FileTag::Exe   : {
 				Xxh h ;
 				h    += fi.date                       ;
 				h    += fi.sz                         ;
 				_val |= +h.digest() << NBits<FileTag> ;
 			} break ;
-		DF}                                                                                                // NO_COV
+		DF}                                                                                              // NO_COV
 	}
 	// END_OF_VERSIONING
 

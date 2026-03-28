@@ -353,21 +353,25 @@ namespace Engine {
 
 	static JobReason _mk_pre_reason( Status s , JobReason prev_reason ) {
 		static constexpr ::amap<Status,JobReasonTag,N<Status>> ReasonTab {{
-			{ Status::New          , JobReasonTag::New             }
-		,	{ Status::EarlyChkDeps , JobReasonTag::ChkDeps         }
-		,	{ Status::EarlyErr     , JobReasonTag::Retry           }
-		,	{ Status::EarlyLost    , JobReasonTag::Lost            }                                 // becomes WasLost if end
-		,	{ Status::EarlyLostErr , JobReasonTag::LostRetry       }
-		,	{ Status::LateLost     , JobReasonTag::Lost            }                                 // becomes WasLost if end
-		,	{ Status::LateLostErr  , JobReasonTag::LostRetry       }
-		,	{ Status::Killed       , JobReasonTag::Killed          }
-		,	{ Status::ChkDeps      , JobReasonTag::ChkDeps         }
-		,	{ Status::CacheMatch   , JobReasonTag::None            }                                 // unused
-		,	{ Status::BadTarget    , JobReasonTag::PollutedTargets }
-		,	{ Status::Ok           , JobReasonTag::None            }
-		,	{ Status::RunLoop      , JobReasonTag::None            }
-		,	{ Status::SubmitLoop   , JobReasonTag::None            }
-		,	{ Status::Err          , JobReasonTag::Retry           }
+			{ Status::New            , JobReasonTag::New             }
+		,	{ Status::EarlyChkDeps   , JobReasonTag::ChkDeps         }
+		,	{ Status::EarlyErr       , JobReasonTag::Retry           }
+		,	{ Status::EarlyLost      , JobReasonTag::Lost            }                               // becomes WasLost if end
+		,	{ Status::EarlyLostErr   , JobReasonTag::LostRetry       }
+		,	{ Status::LateLost       , JobReasonTag::Lost            }                               // becomes WasLost if end
+		,	{ Status::LateLostErr    , JobReasonTag::LostRetry       }
+		,	{ Status::Killed         , JobReasonTag::Killed          }
+		,	{ Status::ChkDeps        , JobReasonTag::ChkDeps         }
+		,	{ Status::CacheMatch     , JobReasonTag::None            }                               // unused
+		,	{ Status::BadTarget      , JobReasonTag::PollutedTargets }
+		,	{ Status::Ok             , JobReasonTag::None            }
+		,	{ Status::RunLoop        , JobReasonTag::None            }
+		,	{ Status::SubmitLoop     , JobReasonTag::None            }
+		,	{ Status::JobErr         , JobReasonTag::Retry           }
+		,	{ Status::Forbidden      , JobReasonTag::Retry           }
+		,	{ Status::Panic          , JobReasonTag::Retry           }
+		,	{ Status::TerminationErr , JobReasonTag::Retry           }
+		,	{ Status::Timeout        , JobReasonTag::Retry           }
 		}} ;
 		static_assert( chk_enum_tab(ReasonTab)                                                                                                ) ;
 		static_assert( std::ranges::none_of( ReasonTab , [](::pair<Status,JobReasonTag> s_t) { return s_t.second>=JobReasonTag::HasNode ; } ) ) ;
@@ -887,7 +891,7 @@ namespace Engine {
 		if (!( file->is_src() && file->crc.is_reg() )) {
 			req->audit_job ( Color::Err  , New , "failed" , rule() , filename                             ) ;
 			req->audit_info( Color::Note , "must be a regular source to be used as codec file" , 1/*lvl*/ ) ;
-			status = Status::Err ;
+			status = Status::Forbidden ;
 			return ;
 		}
 		//
@@ -1016,7 +1020,7 @@ namespace Engine {
 			}
 			if (rp.file_loc>FileLoc::Dep) {
 				req->audit_info( Color::Err , cat("target outside repo and all source dirs : ",mk_file(rp.real)) ) ;
-				status = Status::Err ;
+				status = Status::Forbidden ;
 				continue ;
 			}
 			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real,{.nfs_guard=&nfs_guard}) , DflagsDflt|Dflag::Essential|Dflag::Required , first(false,true)/*parallel*/ } ;
@@ -1039,11 +1043,11 @@ namespace Engine {
 		if (frozen_) req->frozen_jobs.push(idx()) ;                       // record to repeat in summary
 		//
 		switch (special) {
-			case Special::Dep          : status = Status::Ok ;                                                                 break ;
-			case Special::Req          : _submit_req(req) ; maybe_new_deps = true ;                                            break ;
+			case Special::Dep          : status = Status::Ok ;                                                                       break ;
+			case Special::Req          : _submit_req(req) ; maybe_new_deps = true ;                                                  break ;
 			case Special::InfiniteDep  :
-			case Special::InfinitePath : status = Status::Err ; audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ; break ;
-			case Special::Codec        : _submit_codec(req) ;                                                                  break ;
+			case Special::InfinitePath : status = Status::Forbidden ; audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ; break ;
+			case Special::Codec        : _submit_codec(req) ;                                                                        break ;
 			case Special::Plain : {
 				SWEAR(frozen_) ;                                          // only case where we are here without special rule
 				SpecialStep special_step = SpecialStep::Steady          ;
@@ -1067,7 +1071,7 @@ namespace Engine {
 					}
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
 				}
-				status = special_step==SpecialStep::Err ? Status::Err : Status::Ok ;
+				status = special_step==SpecialStep::Err ? Status::Forbidden : Status::Ok ;
 				audit_end_special( req , special_step , modified , worst_target ) ;
 			} break ;
 		DF}                                                                                                               // NO_COV
@@ -1185,28 +1189,28 @@ namespace Engine {
 			msg_stderr = me ;
 			trace("no_rsrcs",ri) ;
 		}
-		if (+early_deps) {                             // fast path : no need to parse early_deps
+		if (+early_deps) {                                   // fast path : no need to parse early_deps
 			::uset<Node> new_early_deps ;
 			for( auto& [dn,dd] : early_deps ) {
 				Node d { New , dn } ; d->set_buildable() ;
 				dd.dflags &= ~Dflag::Full ;
 				new_early_deps.insert(d) ;
 			}
-			if (+new_early_deps) {                     // fast path : no need to parse deps
+			if (+new_early_deps) {                           // fast path : no need to parse deps
 				for( Dep const& d : deps ) {
 					if (!new_early_deps) break ;
 					new_early_deps.erase(d) ;
 				}
 				if (+new_early_deps) {
 					::vector<Dep>        new_deps  ;
-					::umap<Node,NodeIdx> seen_deps ;   // map node to index in new_deps
+					::umap<Node,NodeIdx> seen_deps ;         // map node to index in new_deps
 					trace("new_rsrcs_deps",new_early_deps) ;
 					for( auto& [dn,dd] : early_deps ) {
 						Node d { New , dn } ; d->set_buildable() ;
 						dd.dflags &= ~Dflag::Full ;
 						if (seen_deps.try_emplace(d,new_deps.size()).second) new_deps.emplace_back( d , dd ) ;
 					}
-					for( Dep const& d  : deps )        // changing resources does not change job execution : keep old Full deps, as these are the ones that impact targets
+					for( Dep const& d  : deps )              // changing resources does not change job execution : keep old Full deps, as these are the ones that impact targets
 						if ( d.dflags[Dflag::Full] ) {
 							auto it_inserted = seen_deps.try_emplace(d,new_deps.size()) ;
 							if ( it_inserted.second ) new_deps.push_back(d) ;
@@ -1225,12 +1229,12 @@ namespace Engine {
 			return false/*mabe_new_deps*/ ;
 		}
 		//
-		ri.inc_wait() ;                                // set before calling submit call back as in case of flash execution, we must be clean
+		ri.inc_wait() ;                                      // set before calling submit call back as in case of flash execution, we must be clean
 		ri.set_step(Step::Queued,job) ;
 		backend = submit_rsrcs_attrs.backend ;
 		if (!has_upload(req->cache_method)) cache_idx1 = 0 ;
 		try {
-			Tokens1 tokens1 = submit_rsrcs_attrs.tokens1() ;
+			Tokens1 tokens1_ = submit_rsrcs_attrs.tokens1() ;
 			SubmitInfo si {
 				.cache_idx1 =        cache_idx1
 			,	.deps       = ::move(early_deps )
@@ -1238,15 +1242,15 @@ namespace Engine {
 			,	.nice       =        req->nice
 			,	.pressure   =        pressure
 			,	.reason     =        ri.reason
-			,	.tokens1    =        tokens1
+			,	.tokens1    =        tokens1_
 			} ;
-			estimate_stats(tokens1) ;                  // refine estimate with best available info just before submitting
+			estimate_stats(tokens1_) ;                       // refine estimate with best available info just before submitting
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Backend::s_submit( backend , +job , +req , ::move(si) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			for( Node t : targets() ) t->busy = true ; // make targets busy once we are sure job is submitted
+			for( Node t : targets() ) t->busy = true ;       // make targets busy once we are sure job is submitted
 		} catch (::string const& e) {
-			ri.dec_wait() ;                            // restore n_wait as we prepared to wait
+			ri.dec_wait() ;                                  // restore n_wait as we prepared to wait
 			ri.set_step(Step::None,job) ;
 			status  = Status::EarlyErr ;
 			req->audit_job ( Color::Err  , "failed" , job ) ;

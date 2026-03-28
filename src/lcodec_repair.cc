@@ -107,10 +107,10 @@ static DryRunDigest _dry_run(bool from_decode) {
 			bool inserted = store.try_emplace( crc , StoreEntry({.exists=true}) ).second ; SWEAR( inserted , crc ) ;
 			seen = true ;
 		}
-		if (!seen) res.to_rmdir_s.insert(dir_s) ;                                                                                                      // nothing kept
+		if (!seen) res.to_rmdir_s.insert(dir_s) ;                                                                                               // nothing kept
 	}
-	::string           here_s    = cwd_s()                         ;
-	::vmap_s<FileTag>  files     = walk("tab/"s,~FileTags(),"tab") ; ::sort(files) ;
+	::string          here_s = cwd_s()                         ;
+	::vmap_s<FileTag> files  = walk("tab/"s,~FileTags(),"tab") ; ::sort(files) ;
 	//
 	// dirs
 	//
@@ -185,12 +185,12 @@ static DryRunDigest _dry_run(bool from_decode) {
 	auto use_node = [&]( ::string const& ctx , ::string const& code , CodecEntry const& entry ) {
 		::string ctx_s = cat("tab/",ctx,'/') ;
 		if (entry.is_reg) res.to_lnk.emplace_back( cat(ctx_s,code,DecodeSfx) , mk_rel(_store_file(entry.crc),ctx_s) ) ; // node is moved to store or unlinked, so we must recreate it ...
-		store[entry.crc].used = true ;                                                                                           // ... as a link to store
+		store[entry.crc].used = true ;                                                                                  // ... as a link to store
 		for( ::string d = ctx_s ; +d ; d=dir_name_s(d) )
 			if (!res.to_rmdir_s.erase(d)) break ;
 	} ;
 	for( auto const& [ctx,ctx_tab] : decode_tab ) {
-		::umap<CodecCrc,::pair_s<bool/*encoded*/>> encode_tab ;                                                                  // val crc -> (code,encoded)
+		::umap<CodecCrc,::pair_s<bool/*encoded*/>> encode_tab ;                                                         // val crc -> (code,encoded)
 		for( auto const& [code,entry] : ctx_tab ) {
 			if (!entry.encoded) continue ;
 			use_node( ctx , code , entry ) ;
@@ -216,7 +216,7 @@ static DryRunDigest _dry_run(bool from_decode) {
 				::tuple(crc_str.starts_with(code           ),true             ,code           .size(),code           )
 			<	::tuple(crc_str.starts_with(prev_code.first),!prev_code.second,prev_code.first.size(),prev_code.first)
 			;
-			res.n_decode_only++ ;                                                                                                // finally no new code
+			res.n_decode_only++ ;                                                                                       // finally no new code
 			if (better_code) {
 				if (prev_code.second) res.to_rm.emplace_back( cat(ctx,'/',entry.crc.base64(),EncodeSfx) , "conflict with "+code ) ;
 				/**/                  res.to_rm.emplace_back( cat(ctx,'/',prev_code.first   ,DecodeSfx) , "conflict with "+code ) ;

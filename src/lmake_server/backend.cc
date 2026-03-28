@@ -78,7 +78,7 @@ namespace Backends {
 		for( auto it=_eta_set.begin() ; it!=_eta_set.end() && it->first<=now ;) {               // eta is passed, job is no more reasonable
 			auto   cur_it        = it++                          ;                              // increment it before entry is erase, but use value before increment
 			auto   [eta,job]     = *cur_it                       ;
-			Tokens tokens        = job->tokens1+1                ;
+			Tokens tokens        = job->tokens1()+1              ;
 			Val    left_workload = tokens*(eta-_ref_date).msec() ;
 			SWEAR( _reasonable_tokens  >=tokens        , _reasonable_tokens  ,tokens        ) ;
 			SWEAR( _reasonable_workload>=left_workload , _reasonable_workload,left_workload ) ;
@@ -101,13 +101,13 @@ namespace Backends {
 	Backend::Workload::Val Backend::Workload::start( ::vector<ReqIdx> const& reqs , Job j ) {
 		Lock        lock { _mutex }               ;
 		Delay::Tick dly  = Delay(j->cost()).val() ;
-		Trace trace(BeChnl,"Workload::start",self,reqs,j,j->tokens1,j->cost(),j->exe_time(),dly) ;
+		Trace trace(BeChnl,"Workload::start",self,reqs,j,j->tokens1(),j->cost(),j->exe_time(),dly) ;
 		for( ReqIdx ri : reqs ) {
 			SWEAR( _queued_cost[ri]>=dly , _queued_cost[ri] , Req(ri) , dly , j ) ;
 			_queued_cost[ri] -= dly ;
 		}
 		_refresh() ;
-		Tokens tokens = j->tokens1+1 ;
+		Tokens tokens = j->tokens1()+1 ;
 		if ( Delay jet=Delay(j->exe_time()).round_msec() ; +jet ) { // schedule job based on best estimate
 			Pdate jed = _ref_date + jet ;
 			_eta_tab.try_emplace(j  ,jed) ;
@@ -122,9 +122,9 @@ namespace Backends {
 
 	Backend::Workload::Val Backend::Workload::end( ::vector<ReqIdx> const& , Job j ) {
 		Lock lock { _mutex } ;
-		Trace trace(BeChnl,"Workload::end",self,j,j->tokens1) ;
+		Trace trace(BeChnl,"Workload::end",self,j,j->tokens1()) ;
 		_refresh() ;
-		Tokens tokens = j->tokens1+1 ;
+		Tokens tokens = j->tokens1()+1 ;
 		if ( auto it=_eta_tab.find(j) ; it!=_eta_tab.end() ) {        // cancel scheduled time left to run
 			SWEAR( it->second>=_ref_date , it->second , _ref_date ) ;
 			Val left_workload = tokens*((it->second-_ref_date).msec()) ;
@@ -148,7 +148,7 @@ namespace Backends {
 		SWEAR( _ref_date>=start_date , _ref_date , start_date ) ;
 		uint64_t dly_ms   = (_ref_date-start_date).msec()                  ;
 		Val      workload = ::max( _ref_workload-start_workload , Val(1) ) ;
-		Tokens  tokens    = job->tokens1+1                                 ;
+		Tokens  tokens    = job->tokens1()+1                               ;
 		return Delay((dly_ms/1000.)*dly_ms*tokens/workload) ;                // divide by 1000. to convert to s
 	}
 

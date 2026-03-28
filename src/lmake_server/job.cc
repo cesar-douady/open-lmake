@@ -509,7 +509,7 @@ namespace Engine {
 								case Buildable::SubSrc      : res.severe_msg << " sub-source"     ; break ;
 							DF}                                                                             // NO_COV
 							res.severe_msg <<" : "<< mk_file(target->name()) <<'\n' ;
-							if (ok==Yes) status = Status::Err ;
+							if (ok==Yes) status = Status::Forbidden ;
 						SourceOk : ;
 						}
 					}

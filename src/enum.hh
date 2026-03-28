@@ -131,10 +131,10 @@ template<Enum E> ::string      snake_str(E e) { return ::string(EnumHelper::Enum
 
 template<UEnum E> static constexpr size_t NBits<E> = n_bits(N<E>) ;
 
-template<Enum E> ::string  operator+ ( ::string     && s , E               e  ) { return ::move(s)+snake(e)                             ; }
-template<Enum E> ::string  operator+ ( ::string const& s , E               e  ) { return        s +snake(e)                             ; }
-template<Enum E> ::string  operator+ ( E               e , ::string const& s  ) { return snake (e)+      s                              ; }
-template<Enum E> void      operator>>( E               e , ::string      & os ) { if (e<All<E>) os<<snake(e) ; else os<<"N+"<<(+e-N<E>) ; }
+template<Enum E> ::string operator+ ( ::string     && s , E               e  ) { return ::move(s)+snake(e)                             ; }
+template<Enum E> ::string operator+ ( ::string const& s , E               e  ) { return        s +snake(e)                             ; }
+template<Enum E> ::string operator+ ( E               e , ::string const& s  ) { return snake (e)+      s                              ; }
+template<Enum E> void     operator>>( E               e , ::string      & os ) { if (e<All<E>) os<<snake(e) ; else os<<"N+"<<(+e-N<E>) ; }
 
 template<UEnum E> bool can_mk_enum(::string const& x) {
 	return +EnumHelper::mk_enum<E>(x) ;

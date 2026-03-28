@@ -267,9 +267,9 @@ void FileAction::operator>>(::string& os) const {               // START_OF_NO_C
 	} ;
 	//
 	Trace trace("do_file_actions") ;
-	unlnks.reserve(unlnks.size()+pre_actions.size()) ;                                                                                         // most actions are unlinks
-	for( auto const& [f,a] : pre_actions ) {                                                                                                   // pre_actions are adequately sorted
-		SWEAR(+f) ;                                                                                                                            // acting on root dir is non-sense
+	unlnks.reserve(unlnks.size()+pre_actions.size()) ;                                                                                                 // most actions are unlinks
+	for( auto const& [f,a] : pre_actions ) {                                                                                                           // pre_actions are adequately sorted
+		SWEAR(+f) ;                                                                                                                                    // acting on root dir is non-sense
 		switch (a.tag) {
 			case FileActionTag::None           :
 			case FileActionTag::Unlink         :
@@ -277,13 +277,13 @@ void FileAction::operator>>(::string& os) const {               // START_OF_NO_C
 			case FileActionTag::UnlinkPolluted :
 			case FileActionTag::Uniquify       :
 				if (nfs_guard                )   nfs_guard->access(f) ;
-				if (::lstat(f.c_str(),&fs)!=0) { trace(a.tag,"no_file",f) ; continue ; }                                                       // file does not exist, nothing to do
-				dir_exists(f) ;                                                                                                                // if a file exists, its dir necessarily exists
+				if (::lstat(f.c_str(),&fs)!=0) { trace(a.tag,"no_file",f) ; continue ; }                                                               // file does not exist, nothing to do
+				dir_exists(f) ;                                                                                                                        // if a file exists, its dir necessarily exists
 				if (a.tag!=FileActionTag::Uniquify) {
-					FileSig sig         { fs }                                                                                               ;
-					bool    empty       = sig.tag()==FileTag::Empty                                                                          ;
-					bool    quarantine_ = +sig && ( sig!=a.sig && !empty && ( a.crc==Crc::None || !a.crc.valid() || !a.crc.match(Crc(f)) ) ) ; // only compute crc if file has been modified
-					if (!sig) trace(a.tag,"awkward",f,sig.tag()) ;
+					FileSig sig         { fs }                                                                                                       ;
+					bool    empty       = sig.tag()==FileTag::Empty                                                                                  ;
+					bool    quarantine_ = sig.exists() && ( sig!=a.sig && !empty && ( a.crc==Crc::None || !a.crc.valid() || !a.crc.match(Crc(f)) ) ) ; // only compute crc if file has been modified
+					if (!sig.exists()) trace(a.tag,"awkward",f,sig.tag()) ;
 					if (quarantine_) {
 						quarantine( f , nfs_guard ) ;
 						msg << "quarantined "<<mk_file(f)<<'\n' ;
@@ -293,12 +293,12 @@ void FileAction::operator>>(::string& os) const {               // START_OF_NO_C
 							/**/                              msg << "unlinked "      ;
 							if      (empty                  ) msg << "(empty) "       ;
 							else if (sig.tag()==FileTag::Dir) msg << "(dir) "         ;
-							else if (!sig                   ) msg << "(awkward) "     ;
+							else if (!sig.exists()          ) msg << "(awkward) "     ;
 							/**/                              msg << mk_file(f)<<'\n' ;
 						}
 					}
 					trace(a.tag,STR(quarantine_),f) ;
-					if (+sig) unlnks.push_back(f) ;
+					if (sig.exists()) unlnks.push_back(f) ;
 				} else {
 					if (a.tflags[Tflag::Target]                    ) { trace(a.tag,"incremental",f) ; incremental = true ; }
 					if (   fs.st_nlink<=1                          ) { trace(a.tag,"single"     ,f) ; continue ;           } // file is already unique (or unlinked in parallel), nothing to do
@@ -983,7 +983,7 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 	catch (::string const& e) { throw cat("cannot upload to cache : ",e,"\n  consider setting file_sync in config file") ; }
 	//
 	DiskSz targets_sz  = 0 ;
-	::vector<DiskSz> target_szs ; target_szs.reserve(target_fis.size()) ;
+	::vector<DiskSz> target_szs ; target_szs.reserve(targets.size()) ;
 	for( FileInfo fi : target_fis ) {
 		targets_sz += fi.sz ;
 		target_szs.push_back(fi.sz) ;
@@ -1018,8 +1018,8 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 			switch (tag) {
 				case FileTag::Lnk : {
 					trace("lnk_from",tn,sz) ;
-					::string l = read_lnk(tn) ; throw_unless( l.size()==sz                      , "cannot readlink ",tn ) ;
-					data_fd.write(l) ;          throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable "       ,tn ) ;            // ensure cache entry is reliable by checking file *after* copy
+					::string l = read_lnk(tn) ; throw_unless( l.size()==sz                 , "cannot readlink ",tn ) ;
+					data_fd.write(l) ;          throw_unless( FileInfo(tn)==target_fis[ti] , "unstable "       ,tn ) ;                 // ensure cache entry is reliable by checking file *after* copy
 				}
 				break ;
 				case FileTag::Reg :
@@ -1027,7 +1027,7 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 					if (sz) {                                                                                                          // empty executable is not tagged as Empty
 						trace("read_from",tn,sz) ;
 						data_fd.send_from( AcFd(tn,{.flags=O_RDONLY|O_NOFOLLOW}) , sz ) ;
-						throw_unless( FileSig(tn)==target_fis[ti].sig() , "unstable ",tn ) ;                                           // ensure cache entry is reliable by checking file *after* copy
+						throw_unless( FileInfo(tn)==target_fis[ti] , "unstable ",tn ) ;                                                // ensure cache entry is reliable by checking file *after* copy
 					}
 				break ;
 				case FileTag::Empty : trace("empty_from",tn) ; break ;
@@ -1051,9 +1051,9 @@ void CacheRemoteSide::dismiss( CacheUploadKey upload_key , uint32_t conn_id ) co
 // JobStartRpcReq
 //
 
-void JobStartRpcReq::operator>>(::string& os) const {                             // START_OF_NO_COV
+void JobStartRpcReq::operator>>(::string& os) const {                        // START_OF_NO_COV
 	os << "JobStartRpcReq("<<seq_id<<','<<job<<','<<service<<','<<msg<<')' ;
-}                                                                                 // END_OF_NO_COV
+}                                                                            // END_OF_NO_COV
 
 void JobStartRpcReq::cache_cleanup() {
 	JobRpcReq::cache_cleanup() ;
@@ -1096,7 +1096,7 @@ void TargetDigest::operator>>(::string& os) const {        // START_OF_NO_COV
 	if (+tflags      ) os << first("",",")<<tflags       ;
 	if (+extra_tflags) os << first("",",")<<extra_tflags ;
 	if (+crc         ) os << first("",",")<<crc          ;
-	if (+sig         ) os << first("",",")<<sig          ;
+	if ( sig.exists()) os << first("",",")<<sig          ;
 	/**/               os << ')'                         ;
 }                                                          // END_OF_NO_COV
 
@@ -1186,10 +1186,10 @@ void JobStartRpcReply::mk_lmake_version() {
 				case 's' : if (key=="std_path"           ) lmake_version.std_path            = val.substr(1,val.size()-2) ; break ; // .
 			DN}
 		}
-		throw_unless( v_job                   , "expected job-version "  ,Version::Job," not found" ) ;
-		throw_unless( v_job==Version::Job     , "job-version ",v_job,"!=",Version::Job              ) ;
-		throw_unless( +lmake_version.python   , "python path not found"                             ) ;
-		throw_unless( +lmake_version.std_path , "standard PATH not found"                           ) ;
+		throw_unless( v_job                   , "expected job-version "  ,Version::Job," not found"     ) ;
+		throw_unless( v_job==Version::Job     , "found job-version ",v_job," != expected ",Version::Job ) ;
+		throw_unless( +lmake_version.python   , "python path not found"                                 ) ;
+		throw_unless( +lmake_version.std_path , "standard PATH not found"                               ) ;
 		#if HAS_LD_AUDIT
 			if (method==AutodepMethod::LdAudit) throw_unless( has_ld_audit , "ld_audit is not supported as autodep method" ) ;
 		#endif

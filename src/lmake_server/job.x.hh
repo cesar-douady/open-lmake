@@ -447,6 +447,8 @@ namespace Engine {
 		CoarseDelay      & cost      ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                     ; }
 		CoarseDelay const& cost      () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                     ; }
 		CoarseDelay        c_cost    () const {                                          ; return has_targets() ? _if_plain.cost     : CoarseDelay() ; }
+		Tokens1          & tokens1   ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.tokens1                  ; }
+		Tokens1     const& tokens1   () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.tokens1                  ; }
 		Fd               & fd        ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                       ; }
 		Fd          const& fd        () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                       ; }
 		SeqId            & seq_id    ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .seq_id                   ; }
@@ -547,34 +549,34 @@ namespace Engine {
 		// data
 		// START_OF_VERSIONING REPO
 		struct IfPlain {
-			Node        asking   ;                                    //     32 bits,        last target needing this job
-			Targets     targets  ;                                    //     32 bits, owned, for plain jobs
-			CoarseDelay exe_time ;                                    //     16 bits,        for plain jobs
-			CoarseDelay cost     ;                                    //     16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
+			Node        asking   ;                                    //       32 bits,        last target needing this job
+			Targets     targets  ;                                    //       32 bits, owned, for plain jobs
+			CoarseDelay exe_time ;                                    //       16 bits,        for plain jobs
+			CoarseDelay cost     ;                                    //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
+			Tokens1     tokens1  = 0 ;                                //        8 bits,        number of tokens - 1 for eta estimation
 		} ;
 		struct IfDep {
-			SeqId seq_id     = 0 ;                                    //     64 bits
-			Fd    fd         ;                                        //     32 bits
-			Job   asking_job ;                                        //     32 bits
+			SeqId seq_id     = 0 ;                                    //       64 bits
+			Fd    fd         ;                                        //       32 bits
+			Job   asking_job ;                                        //       32 bits
 		} ;
 	public :
-	//	JobName          name                               ;         //     32 bits, inherited
-		Deps             deps                               ;         // 31<=32 bits, owned
-		RuleCrc          rule_crc                           ;         //     32 bits
-		Tokens1          tokens1                            = 0     ; //      8 bits,           for plain jobs, number of tokens - 1 for eta estimation
-		mutable MatchGen match_gen                          = 0     ; //      8 bits,           if <Rule::s_match_gen => deemed !sure
-		RunStatus        run_status    :NBits<RunStatus   > = {}    ; //      3 bits
-		BackendTag       backend       :NBits<BackendTag  > = {}    ; //      2 bits            backend asked for last execution
-		CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //      3 bits
-		Status           status        :NBits<Status      > = {}    ; //      4 bits
-		bool             incremental   :1                   = false ; //      1 bit ,           job was last run with existing incremental targets
+	//	JobName          name                               ;         //       32 bits, inherited
+		Deps             deps                               ;         //  31<= 32 bits, owned
+		RuleCrc          rule_crc                           ;         //       32 bits
+		mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
+		RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
+		BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits            backend asked for last execution
+		CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        3 bits
+		Status           status        :NBits<Status      > = {}    ; //        5 bits
+		bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
 	private :
-		mutable bool _sure          :1 = false ;                      //      1 bit
-		Bool3        _reliable_stats:2 = No    ;                      //      2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+		mutable bool _sure          :1 = false ;                      //        1 bit
+		Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 	public :
 		union {
-			IfPlain  _if_plain = {} ;                                 //     96 bits
-			IfDep    _if_dep   ;                                      //    128 bits
+			IfPlain _if_plain = {} ;                                  // 104<=128 bits
+			IfDep   _if_dep   ;                                       //      128 bits
 		} ;
 		// END_OF_VERSIONING
 	} ;
@@ -665,18 +667,18 @@ namespace Engine {
 		cost    ()      = r->cost()   ;
 		_reliable_stats = Maybe       ;
 	}
-	inline void JobData::estimate_stats( Tokens1 tokens1 ) {                                      // only called before submit, so cost stays stable during job execution
+	inline void JobData::estimate_stats( Tokens1 tokens1_ ) {                                      // only called before submit, so cost stays stable during job execution
 		if (_reliable_stats==Yes) return ;
 		if (!has_targets()      ) return ;
 		Rule r = rule() ;
-		exe_time()      = r->exe_time                     ;
-		cost    ()      = r->cost_per_token * (tokens1+1) ;
-		_reliable_stats = Maybe                           ;
+		exe_time()      = r->exe_time                      ;
+		cost    ()      = r->cost_per_token * (tokens1_+1) ;
+		_reliable_stats = Maybe                            ;
 	}
 	inline void JobData::record_stats( Delay exe_time_ , CoarseDelay cost_ , Tokens1 tokens1_ ) { // only called in end, so cost stays stable during job execution
 		exe_time()      = exe_time_ ;
 		cost    ()      = cost_     ;
-		tokens1         = tokens1_  ;
+		tokens1 ()      = tokens1_  ;
 		_reliable_stats = Yes       ;
 		rule()->new_job_report( exe_time_ , cost_ , tokens1_ ) ;
 	}

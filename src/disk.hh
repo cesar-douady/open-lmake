@@ -164,15 +164,16 @@ namespace Disk {
 	struct FileInfo {
 		using Action = _FileInfoAction ;
 		// cxtors & casts
-		FileInfo( FileTag tag=FileTag::Unknown ) : date{tag} {}
-		FileInfo( FileRef path , Action ={}    ) ;
-		FileInfo( FileStat const&              ) ;
+		FileInfo() = default ;
+		FileInfo( FileTag tag               ) : date{tag} {}
+		FileInfo( FileRef path , Action ={} ) ;
+		FileInfo( FileStat const&           ) ;
 		// accesses
 		void    operator>>(::string&      ) const ;
 		bool    operator==(FileInfo const&) const = default ;
-		bool    operator+ (               ) const { return tag()!=FileTag::Unknown ; }
-		bool    exists    (               ) const { return tag()>=FileTag::Target  ; }
-		FileTag tag       (               ) const { return date.tag()              ; }
+		bool    operator+ (               ) const { return +tag()                 ; }
+		bool    exists    (               ) const { return tag()>=FileTag::Target ; }
+		FileTag tag       (               ) const { return date.tag()             ; }
 		FileSig sig       (               ) const ;
 		// services
 		template<IsStream S> void serdes(S& s) {
@@ -195,16 +196,16 @@ namespace Disk {
 		// accesses
 		void operator>>(::string&        ) const ;
 		bool operator==(FileSig const& fs) const {
-			if( !self && !fs ) return true          ; // consider Dir and None as identical
-			else               return _val==fs._val ;
+			if( !exists() && !fs.exists() ) return true          ; // consider Dir and None as identical
+			else                            return _val==fs._val ;
 		}
 		//
-		bool    operator+() const { return tag()>=FileTag::Target                ; }
-		FileTag tag      () const { return FileTag(_val&lsb_msk(NBits<FileTag>)) ; }
+		bool    operator+() const { return +tag()                                ; }
 		bool    exists   () const { return tag()>=FileTag::Target                ; }
+		FileTag tag      () const { return FileTag(_val&lsb_msk(NBits<FileTag>)) ; }
 		// data
 	private :
-		uint64_t _val = 0 ;                           // by default, no file
+		uint64_t _val = 0 ;                                        // by default, no file
 	} ;
 
 	inline FileSig FileInfo::sig() const { return FileSig(self) ; }
@@ -216,7 +217,7 @@ namespace Disk {
 		// accesses
 		void operator>>(::string&     ) const ;
 		bool operator==(SigDate const&) const = default ;
-		bool operator+ (              ) const { return +date || +sig ; }
+		bool operator+ (              ) const { return +date || sig.exists() ; }
 		// data
 		FileSig     sig  ;
 		Time::Pdate date ;

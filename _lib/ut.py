@@ -123,5 +123,5 @@ def mk_gxx_module(module) :
 		print(f"gxx_dir = {gxx_dir!r}",file=fp)
 
 def has_slurm() :
-	try    : return sp.check_output(('scontrol','ping'),universal_newlines=True).endswith('UP')
+	try    : return sp.check_output(('scontrol','ping'),universal_newlines=True).strip().endswith('UP')
 	except : return False

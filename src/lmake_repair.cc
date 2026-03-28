@@ -43,7 +43,7 @@ RepairDigest repair(::string const& from_dir) {
 			for( auto const& [tn,td] : job_info.end.digest.targets ) {
 				if ( td.crc==Crc::None && !static_phony(td.tflags) )   continue ;                                          // not a target
 				FileSig sig { tn } ;
-				if ( (td.crc==Crc::None) != !sig                 ) { trace("disk_mismatch_none" ,jd,tn) ; goto NextJob ; } // do not agree on file existence
+				if ( (td.crc!=Crc::None) != sig.exists()         ) { trace("disk_mismatch_none" ,jd,tn) ; goto NextJob ; } // do not agree on file existence
 				if ( td.sig              !=  sig                 ) { trace("disk_mismatch"      ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
 				if ( !td.crc.valid() && td.tflags[Tflag::Target] ) { trace("no_vadid_target_crc",jd,tn) ; goto NextJob ; }
 				if ( !td.crc                                     ) { trace("no_crc"             ,jd,tn) ; goto NextJob ; }

@@ -57,7 +57,7 @@ static DryRunDigest _dry_run() {
 	}
 	//
 	:: string reserved_s = cat(PrivateAdminDirS,"reserved/") ;
-	if (+FileInfo(reserved_s)) res.to_rm.emplace_back(reserved_s,"reserved dir") ;
+	if (FileInfo(reserved_s).exists()) res.to_rm.emplace_back(reserved_s,"reserved dir") ;
 	//
 	::string          admin_dir = cat("./",AdminDirS,rm_slash)                                                                              ;
 	::vmap_s<FileTag> files     = walk( Fd::Cwd , FileTag::Reg , {}/*pfx*/ , [&](::string const& f) { return f.starts_with(admin_dir) ; } ) ; ::sort(files) ;

@@ -549,8 +549,8 @@ namespace Engine {
 		::string gen_py_line(       Rule::RuleMatch const& m       , VarCmd vc , VarIdx i , ::string const& key , ::string const& val ) const { // cannot lazy evaluate w/o a job
 			return gen_py_line( {} , const_cast<Rule::RuleMatch&>(m) , vc , i , key , val ) ;
 		}
-		void        new_job_report( Delay exe_time , CoarseDelay cost , Tokens1 tokens1 ) const ;
-		CoarseDelay cost          (                                                     ) const ;
+		void        new_job_report( Delay exe_time , CoarseDelay cost , Tokens1 ) const ;
+		CoarseDelay cost          (                                             ) const ;
 	private :
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx       ) const ;
 		void          _set_crcs  ( RulesBase        const&           ) ;

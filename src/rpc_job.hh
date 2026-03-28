@@ -282,31 +282,40 @@ enum class Status : uint8_t { // result of job execution
 ,	Ok                        // job execution ended successfully
 ,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 ,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
-,	Err                       // job execution ended in error
+,	JobErr                    // job execution ended in error
+,	Forbidden                 // job did a forbidden syscall
+,	Panic                     // job access panic'ed
+,	TerminationErr            // job termination was problematic
+,	Timeout                   // job execution timed out
 //
 // aliases
 ,	Early   = EarlyLostErr    // <=Early means output has not been modified
 ,	Async   = Killed          // <=Async means job was interrupted asynchronously
 ,	Garbage = BadTarget       // <=Garbage means job has not run reliably
+,	Err     = JobErr          // >= Err means job execution is in error
 } ;
 // END_OF_VERSIONING
 static constexpr ::amap<Status,::pair<Bool3/*ok*/,bool/*lost*/>,N<Status>> StatusAttrs = {{
-	//                        ok    lost
-	{ Status::New          , {Maybe,false} }
-,	{ Status::EarlyChkDeps , {Maybe,false} }
-,	{ Status::EarlyErr     , {No   ,false} }
-,	{ Status::EarlyLost    , {Maybe,true } }
-,	{ Status::EarlyLostErr , {No   ,true } }
-,	{ Status::LateLost     , {Maybe,true } }
-,	{ Status::LateLostErr  , {No   ,true } }
-,	{ Status::Killed       , {Maybe,false} }
-,	{ Status::ChkDeps      , {Maybe,false} }
-,	{ Status::CacheMatch   , {Maybe,false} }
-,	{ Status::BadTarget    , {Maybe,false} }
-,	{ Status::Ok           , {Yes  ,false} }
-,	{ Status::RunLoop      , {No   ,false} }
-,	{ Status::SubmitLoop   , {No   ,false} }
-,	{ Status::Err          , {No   ,false} }
+	//                          ok    lost
+	{ Status::New            , {Maybe,false} }
+,	{ Status::EarlyChkDeps   , {Maybe,false} }
+,	{ Status::EarlyErr       , {No   ,false} }
+,	{ Status::EarlyLost      , {Maybe,true } }
+,	{ Status::EarlyLostErr   , {No   ,true } }
+,	{ Status::LateLost       , {Maybe,true } }
+,	{ Status::LateLostErr    , {No   ,true } }
+,	{ Status::Killed         , {Maybe,false} }
+,	{ Status::ChkDeps        , {Maybe,false} }
+,	{ Status::CacheMatch     , {Maybe,false} }
+,	{ Status::BadTarget      , {Maybe,false} }
+,	{ Status::Ok             , {Yes  ,false} }
+,	{ Status::RunLoop        , {No   ,false} }
+,	{ Status::SubmitLoop     , {No   ,false} }
+,	{ Status::JobErr         , {No   ,false} }
+,	{ Status::Forbidden      , {No   ,false} }
+,	{ Status::Panic          , {No   ,false} }
+,	{ Status::TerminationErr , {No   ,false} }
+,	{ Status::Timeout        , {No   ,false} }
 }} ;
 static_assert(chk_enum_tab(StatusAttrs)) ;
 inline Bool3 is_ok  (Status s) { return StatusAttrs[+s].second.first  ; }
@@ -485,7 +494,7 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	Bool3 exists() const {
 		switch (kind()) {
 			case Kind::Crc  : return +crc() ? No|(crc()!=Crc::None) : Maybe ;
-			case Kind::Sig  : return          No|+sig()                     ;
+			case Kind::Sig  : return          No|sig().exists()             ;
 			case Kind::Info : return          No|info().exists()            ;
 		DF}                                                                                                                         // NO_COV
 	}
