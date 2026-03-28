@@ -77,7 +77,7 @@ JobStartRpcReply get_start_info() {
 	}
 }
 
-void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , ::vector<FileInfo>* target_fis , size_t* sz ) {
+void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , size_t* sz ) {
 	static Atomic<NodeIdx> crc_idx         = 0     ;
 	static Atomic<bool   > abs_path_warned = false ;
 	t_thread_key = '0'+id ;
@@ -112,7 +112,6 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 			*msg <<add_nl<< "cannot compute checksum ("<<e<<") for "<<tn ;
 		}                                                                                     // END_OF_NO_COV
 		td.sig             = fi.sig() ;
-		(*target_fis)[ti]  = fi       ;
 		*sz               += fi.sz    ;
 		trace("crc_date",ci,before,Pdate(New)-before,td.crc,fi,tn) ;
 		if (!td.crc.valid()) {
@@ -123,7 +122,7 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 	trace("done",cnt) ;
 }
 
-::string/*msg*/ compute_crcs( Gather::Digest& digest , ::vector<FileInfo>&/*out*/ target_fis , size_t&/*out*/ total_sz ) {
+::string/*msg*/ compute_crcs( Gather::Digest& digest , size_t&/*out*/ total_sz ) {
 	size_t                            n_threads = thread::hardware_concurrency() ;
 	if (n_threads<1                 ) n_threads = 1                              ;
 	if (n_threads>8                 ) n_threads = 8                              ;
@@ -133,9 +132,8 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 	::string                 msg       ;
 	Mutex<MutexLvl::JobExec> msg_mutex ;
 	::vector<size_t>         szs       ( n_threads ) ;
-	target_fis.resize(digest.targets.size()) ;
 	{	::vector<::jthread> crc_threads ; crc_threads.reserve(n_threads) ;
-		for( size_t i  : iota(n_threads) ) crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex , &target_fis , &szs[i] ) ;
+		for( size_t i  : iota(n_threads) ) crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex , &szs[i] ) ;
 	}
 	total_sz = 0 ;
 	for( size_t s : szs ) total_sz += s ;
@@ -356,16 +354,15 @@ int main( int argc , char* argv[] ) {
 		Gather::Digest digest = g_gather.analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
-		::vector<FileInfo> target_fis ;
 		Delay              exe_time   = g_gather.end_date - g_gather.start_date                                 ;
-		::string           crc_msg    = compute_crcs( digest , /*out*/target_fis , /*out*/end_report.total_sz ) ;
+		::string           crc_msg    = compute_crcs( digest , /*out*/end_report.total_sz ) ;
 		if ( status==Status::Ok && +crc_msg ) status = Status::Err ;
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
 		if (+g_start_info.cache) {
 			if (!g_start_info.cache.service.addr) g_start_info.cache.service.addr = g_service_start.addr ;                            // if no host info, cache is running on same host as server
 			try {
-				CacheRemoteSide::UploadDigest ud = g_start_info.cache.upload( g_start_info.cache.conn_id , exe_time , digest.targets , target_fis , g_start_info.zlvl ) ;
+				CacheRemoteSide::UploadDigest ud = g_start_info.cache.upload( g_start_info.cache.conn_id , exe_time , digest.targets , digest.target_fis , g_start_info.zlvl ) ;
 				upload_key            = ud.upload_key ;
 				end_report.total_z_sz = ud.z_sz       ;
 				trace("cache",upload_key) ;

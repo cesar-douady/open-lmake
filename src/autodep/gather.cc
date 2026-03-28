@@ -27,7 +27,7 @@ void Gather::AccessInfo::operator>>(::string& os) const { // START_OF_NO_COV
 	/**/                       os << flags             ;
 	if (_seen!=Pdate::Future ) os << ",seen"           ;
 	/**/                       os << ')'               ;
-}                                                                     // END_OF_NO_COV
+}                                                         // END_OF_NO_COV
 
 Pdate Gather::AccessInfo::_max_read(bool phys) const {
 	if (_washed) {
@@ -106,7 +106,7 @@ void Gather::ServerSlaveEntry::operator>>(::string& os) const { // START_OF_NO_C
 	if (+buf) os << first("",",")<<buf.size() ;
 	if (+key) os << first("",",")<<key        ;
 	/**/      os << ')'                       ;
-}                                                                            // END_OF_NO_COV
+}                                                               // END_OF_NO_COV
 
 void Gather::JobSlaveEntry::operator>>(::string& os) const { // START_OF_NO_COV
 	First first ;
@@ -114,11 +114,11 @@ void Gather::JobSlaveEntry::operator>>(::string& os) const { // START_OF_NO_COV
 	if (+buf) os << first("",",")<<buf.size() ;
 	if (+key) os << first("",",")<<key        ;
 	/**/      os << ')'                       ;
-}                                                                         // END_OF_NO_COV
+}                                                            // END_OF_NO_COV
 
 void Gather::operator>>(::string& os) const { // START_OF_NO_COV
 	os << "Gather("<<accesses<<')' ;
-}                                                         // END_OF_NO_COV
+}                                             // END_OF_NO_COV
 
 void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI const& di , Bool3 late , Comment c , CommentExts ces ) {
 	SWEAR( +file , c,ces      ) ;
@@ -251,9 +251,9 @@ Gather::Digest Gather::analyze(Status status) {
 				st.st_mode = 0 ;
 			}
 			//
-			FileSig      sig   { st }                                                      ;
+			FileInfo     fi    { st }                                                      ;
 			TargetDigest td    { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags } ;
-			bool         unlnk = !sig                                                      ;
+			bool         unlnk = !fi.exists()                                              ;
 			//
 			if (is_dep) td.tflags    |= Tflag::Incremental                            ;                            // if is_dep, previous target state is guaranteed by being a dep, use it
 			/**/        td.pre_exist  = info.seen() && !td.tflags[Tflag::Incremental] ;
@@ -285,7 +285,7 @@ Gather::Digest Gather::analyze(Status status) {
 						/**/          res.msg << "unexpected "<<write_msg<<" file after it has been "<<read<<" : "<<mk_file(file)<<'\n'  ;
 						if (read_lnk) res.msg << "  note : readlink is implicit when writing to a file while following symbolic links\n" ;
 					}
-					if (!seen_unexpected_write) {                                                                           // only give a single advice to avoid pullution
+					if (!seen_unexpected_write) {                                                                            // only give a single advice to avoid pullution
 						res.msg << "  consider calling before file is accessed :\n"                ;
 						res.msg << "       lmake.target("<<mk_file(file,FileDisplay::Py   )<<")\n" ;
 						res.msg << "    or ltarget "     <<mk_file(file,FileDisplay::Shell)<<'\n'  ;
@@ -295,15 +295,16 @@ Gather::Digest Gather::analyze(Status status) {
 			}
 			if (unlnk) {
 				td.crc = Crc::None ;
-			} else if ( was_written || (+sig&&st.st_nlink>1) ) {                                                            // file may change through another link if any
-				if ( status<=Status::Garbage || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
-				else                                                          res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
+			} else if ( was_written || (fi.exists()&&st.st_nlink>1) ) {                                                      // file may change through another link if any
+				if ( status<=Status::Garbage || !td.tflags[Tflag::Target] ) { td.sig = fi.sig() ; td.crc = fi.tag() ;      } // no crc if meaningless
+				else                                                          res.crcs.emplace_back(res.targets.size()) ;    // record index in res.targets for deferred (parallel) crc computation
 			}
-			if ( is_static_tgt && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                 // target is expected, not produced and no more important reason
-				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                 // warn specifically
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			res.targets.emplace_back(file,td) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if ( is_static_tgt && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                  // target is expected, not produced and no more important reason
+				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                  // warn specifically
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			res.targets   .emplace_back(file,td) ;
+			res.target_fis.push_back   (fi     ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("target ",td,STR(unlnk),STR(was_written),st.st_nlink,file) ;
 		}
 	}
