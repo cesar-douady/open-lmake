@@ -237,9 +237,9 @@ Gather::Digest Gather::analyze(Status status) {
 		// handle targets
 		if (is_tgt) {
 			FileStat     st        ;                                                                                                  if (::lstat(file.c_str(),/*out*/&st)!=0) st.st_mode = 0 ;
-			FileSig      sig       { st }                                                                                           ;
+			FileInfo     fi        { st }                                                                                           ;
 			TargetDigest td        { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags }                                      ;
-			bool         unlnk     = !sig                                                                                           ;
+			bool         unlnk     = !fi.exists()                                                                                   ;
 			bool         mandatory = td.tflags[Tflag::Target] && td.tflags[Tflag::Static] && !td.extra_tflags[ExtraTflag::Optional] ;
 			//
 			if (is_dep) td.tflags    |= Tflag::Incremental                            ;                            // if is_dep, previous target state is guaranteed by being a dep, use it
@@ -282,15 +282,16 @@ Gather::Digest Gather::analyze(Status status) {
 			}
 			if (unlnk) {
 				td.crc = Crc::None ;
-			} else if ( was_written || (+sig&&st.st_nlink>1) ) {                                                            // file may change through another link if any
-				if ( status<=Status::Garbage || !td.tflags[Tflag::Target] ) { td.sig = sig ; td.crc = td.sig.tag() ;      } // no crc if meaningless
+			} else if ( was_written || (fi.exists()&&st.st_nlink>1) ) {                                                            // file may change through another link if any
+				if ( status<=Status::Garbage || !td.tflags[Tflag::Target] ) { td.sig = fi.sig() ; td.crc = fi.tag() ;     } // no crc if meaningless
 				else                                                          res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
 			}
 			if ( mandatory && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                     // target is expected, not produced and no more important reason
 				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                 // warn specifically
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			res.targets.emplace_back(file,td) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			res.targets   .emplace_back(file,td) ;
+			res.target_fis.push_back   (fi     ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("target ",td,STR(unlnk),STR(was_written),st.st_nlink,file) ;
 		}
 	}

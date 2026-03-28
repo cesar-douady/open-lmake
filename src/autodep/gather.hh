@@ -108,11 +108,12 @@ struct Gather {                                                       // NOLINT(
 		bool                  _washed       = false                             ;
 	} ;
 	struct Digest {
-		::vmap_s<TargetDigest> targets        ;
-		::vmap_s<DepDigest   > deps           ;
-		::vector<NodeIdx     > crcs           ;                                        // index in targets of entry for which we need to compute a crc
-		::set_s                refresh_codecs ;
-		::string               msg            ;
+		::vmap_s<TargetDigest  > targets        ;
+		::vector<Disk::FileInfo> target_fis     ;                                      // INVARIANT : target_fis.size()==targets.size()
+		::vmap_s<DepDigest     > deps           ;
+		::vector<NodeIdx       > crcs           ;                                        // index in targets of entry for which we need to compute a crc
+		::set_s                  refresh_codecs ;
+		::string                 msg            ;
 	} ;
 	struct ServerSlaveEntry {
 		friend ::string& operator+=( ::string& , ServerSlaveEntry const& ) ;
