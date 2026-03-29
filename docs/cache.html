@@ -163,6 +163,7 @@ It is also possible to run it manually with the <code>lcache_server</code> comma
 <p>It must be initialized with a file <code>LMAKE/config.py</code> defining some variables:</p>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Possible values</th><th>Comment</th></tr></thead><tbody>
 <tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'auto'</code>, <code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
+<tr><td><code>domain_name</code></td><td>''</td><td>any <code>str</code></td><td>the domain name to use to determine the fqdn of the cache</td></tr>
 <tr><td><code>max_rate</code></td><td>'1G'</td><td>any positive <code>int</code> or <code>str</code> composed of a number followed by a unit suffix</td><td>the maximum rate in B/s above which entries are not recorded in the cache</td></tr>
 <tr><td><code>max_runs_per_job</code></td><td>100</td><td>any positive <code>int</code></td><td>the maximum number of runs kept for a given job</td></tr>
 <tr><td><code>size</code></td><td>&lt;required&gt;</td><td>any <code>int</code> or a <code>str</code> composed of a number followed by a unit suffix</td><td>the overall size the cache is allowed to occupy</td></tr>
@@ -193,7 +194,7 @@ Runs are uploaded when executed in a repo and the rule mentions it in its <code>
 Hence, there must be a cache replacement policy.</p>
 <h3 id="cache-replacement-policy"><a class="header" href="#cache-replacement-policy">cache replacement policy</a></h3>
 <p>There are several factors that are taken into account when deciding which run to victimize from the cache to make room.</p>
-<h4 id="1-at-most-2-runs-are-kept-from-a-given-repo-a-given-commit-eg-the-git-commit-hash"><a class="header" href="#1-at-most-2-runs-are-kept-from-a-given-repo-a-given-commit-eg-the-git-commit-hash">1/ At most 2 runs are kept from a given repo a given commit (e.g. the git commit hash).</a></h4>
+<h4 id="1-at-most-2-runs-are-kept-for-a-given-job-from-a-given-repo-and-a-given-commit-eg-the-git-commit-hash"><a class="header" href="#1-at-most-2-runs-are-kept-for-a-given-job-from-a-given-repo-and-a-given-commit-eg-the-git-commit-hash">1/ At most 2 runs are kept for a given job from a given repo and a given commit (e.g. the git commit hash).</a></h4>
 <p>To avoid cache pollution in case a repo evolves rapidly (which is typical during active development), the number of stored runs from this repo must be limited
 as the cache is typically useless locally.
 However, when a repo is pushed (using e.g. <code>git push</code>), best is that the cache retains the runs corresponding to what is pushed so that other users can download the results.
@@ -205,7 +206,7 @@ Such runs may have been executed before or after the commit (using e.g. <code>gi
 <p>By keeping both, we get a reasonable compromize between pollution avoidance and anticipation of use by other users.</p>
 <h4 id="2-at-most-max_runs_per_job-runs-are-kept-for-a-given-job"><a class="header" href="#2-at-most-max_runs_per_job-runs-are-kept-for-a-given-job">2/ At most <code>max_runs_per_job</code> runs are kept for a given job.</a></h4>
 <p>The reason is two-fold.</p>
-<p>First, if there are, say, 50 users using the cache, there is not real reason to keep more than 100 runs for a given job.
+<p>First, if there are, say, 50 users using the cache, there is no real reasons to keep more than 100 runs for a given job.
 If more than this many runs have been uploaded, Probably that the older ones are now useless.</p>
 <p>Second, the cache must frequently walk through all the runs of a given job (a direct key look-up cannot be used as deps are not always known when the cache is consulted for download).
 Limiting the maximum number of runs for a given job guarantees that the cache will keep a high performance level.</p>

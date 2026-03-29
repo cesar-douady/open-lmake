@@ -270,7 +270,7 @@ enum class MountAction : uint8_t {
 enum class Status : uint8_t { // result of job execution
 	New                       // job was never run
 ,	EarlyChkDeps              // dep check failed before job actually started
-,	EarlyErr                  // job was not started because of error
+,	EarlyError                // job was not started because of error
 ,	EarlyLost                 // job was lost before starting     , retry
 ,	EarlyLostErr              // job was lost before starting     , do not retry
 ,	LateLost                  // job was lost after having started, retry
@@ -282,40 +282,43 @@ enum class Status : uint8_t { // result of job execution
 ,	Ok                        // job execution ended successfully
 ,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 ,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
-,	JobErr                    // job execution ended in error
+,	JobError                  // job execution ended in error
 ,	Forbidden                 // job did a forbidden syscall
 ,	Panic                     // job access panic'ed
-,	TerminationErr            // job termination was problematic
+,	TerminationError          // job termination was problematic
 ,	Timeout                   // job execution timed out
 //
 // aliases
-,	Early   = EarlyLostErr    // <=Early means output has not been modified
-,	Async   = Killed          // <=Async means job was interrupted asynchronously
+,	Early   = EarlyLostErr    // <=Early   means output has not been modified
+,	Async   = Killed          // <=Async   means job was interrupted asynchronously
 ,	Garbage = BadTarget       // <=Garbage means job has not run reliably
-,	Err     = JobErr          // >= Err means job execution is in error
+,	Err     = JobError        // >=Err     means job execution is in error
 } ;
+// /!\ DfltRetriedErrs must staty in sync with Rule.retried_errors in _lib/lmake/rules.src.py
+static constexpr BitMap<Status> DfltRetriedErrs {                      Status::JobError ,                                     Status::TerminationError , Status::Timeout } ;
+static constexpr BitMap<Status> MaxRetriedErrs  { Status::EarlyError , Status::JobError , Status::Forbidden , Status::Panic , Status::TerminationError , Status::Timeout } ;
 // END_OF_VERSIONING
 static constexpr ::amap<Status,::pair<Bool3/*ok*/,bool/*lost*/>,N<Status>> StatusAttrs = {{
-	//                          ok    lost
-	{ Status::New            , {Maybe,false} }
-,	{ Status::EarlyChkDeps   , {Maybe,false} }
-,	{ Status::EarlyErr       , {No   ,false} }
-,	{ Status::EarlyLost      , {Maybe,true } }
-,	{ Status::EarlyLostErr   , {No   ,true } }
-,	{ Status::LateLost       , {Maybe,true } }
-,	{ Status::LateLostErr    , {No   ,true } }
-,	{ Status::Killed         , {Maybe,false} }
-,	{ Status::ChkDeps        , {Maybe,false} }
-,	{ Status::CacheMatch     , {Maybe,false} }
-,	{ Status::BadTarget      , {Maybe,false} }
-,	{ Status::Ok             , {Yes  ,false} }
-,	{ Status::RunLoop        , {No   ,false} }
-,	{ Status::SubmitLoop     , {No   ,false} }
-,	{ Status::JobErr         , {No   ,false} }
-,	{ Status::Forbidden      , {No   ,false} }
-,	{ Status::Panic          , {No   ,false} }
-,	{ Status::TerminationErr , {No   ,false} }
-,	{ Status::Timeout        , {No   ,false} }
+	//                            ok    lost
+	{ Status::New              , {Maybe,false} }
+,	{ Status::EarlyChkDeps     , {Maybe,false} }
+,	{ Status::EarlyError       , {No   ,false} }
+,	{ Status::EarlyLost        , {Maybe,true } }
+,	{ Status::EarlyLostErr     , {No   ,true } }
+,	{ Status::LateLost         , {Maybe,true } }
+,	{ Status::LateLostErr      , {No   ,true } }
+,	{ Status::Killed           , {Maybe,false} }
+,	{ Status::ChkDeps          , {Maybe,false} }
+,	{ Status::CacheMatch       , {Maybe,false} }
+,	{ Status::BadTarget        , {Maybe,false} }
+,	{ Status::Ok               , {Yes  ,false} }
+,	{ Status::RunLoop          , {No   ,false} }
+,	{ Status::SubmitLoop       , {No   ,false} }
+,	{ Status::JobError         , {No   ,false} }
+,	{ Status::Forbidden        , {No   ,false} }
+,	{ Status::Panic            , {No   ,false} }
+,	{ Status::TerminationError , {No   ,false} }
+,	{ Status::Timeout          , {No   ,false} }
 }} ;
 static_assert(chk_enum_tab(StatusAttrs)) ;
 inline Bool3 is_ok  (Status s) { return StatusAttrs[+s].second.first  ; }

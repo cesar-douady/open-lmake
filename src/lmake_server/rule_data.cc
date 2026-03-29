@@ -354,13 +354,14 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exe_time  , &dct[field] ) ;
-			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force     , &dct[field] ) ;
-			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python , &dct[field] ) ; else throw "not found"s ;
-			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts   , &dct[field] ) ;
-			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( n_runs    , &dct[field] ) ;
-			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits , &dct[field] ) ;
-			if ( n_runs && n_submits ) n_submits = ::max( n_submits , n_runs ) ;                                 // n_submits<n_runs is meaningless
+			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exe_time     , &dct[field]                                    ) ;
+			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force        , &dct[field]                                    ) ;
+			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python    , &dct[field]                                    ) ; else throw "not found"s ;
+			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts      , &dct[field]                                    ) ;
+			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( n_runs       , &dct[field]                                    ) ;
+			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits    , &dct[field]                                    ) ;
+			field = "retried_errors"      ; if (dct.contains(field)) Attrs::acquire( retried_errs , &dct[field] , DfltRetriedErrs , MaxRetriedErrs ) ;
+			if ( n_runs && n_submits ) n_submits = ::max( n_submits , n_runs ) ;                                                                       // n_submits<n_runs is meaningless
 			//
 			var_idxs["targets"] = { VarCmd::Targets , 0 } ;
 			for( bool star : {false,true} )
@@ -397,7 +398,7 @@ namespace Engine {
 			}
 			if (!deps_attrs.spec.dyn_deps)
 				for( VarIdx di : iota<VarIdx>(deps_attrs.spec.deps.size()) ) {
-					if (deps_attrs.spec.deps[di].first!="dep") continue ;                                        // dep is a reserved key that means stdin
+					if (deps_attrs.spec.deps[di].first!="dep") continue ;                                                                              // dep is a reserved key that means stdin
 					stdin_idx = di ;
 					break ;
 				}
@@ -743,6 +744,7 @@ namespace Engine {
 			if ( n_losts                                               ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                            ) ) ;
 			if ( start_ancillary_attrs .spec.max_stderr_len            ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_ancillary_attrs .spec.max_stderr_len         ) ) ;
 			if ( n_runs                                                ) entries.emplace_back( "max_runs"            , ::to_string(n_runs                                             ) ) ;
+			if ( retried_errs!=DfltRetriedErrs                         ) entries.emplace_back( "retried_errors"      , cat        (retried_errs                                       ) ) ;
 			if ( n_submits                                             ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                          ) ) ;
 			if ( start_cmd_attrs       .spec.mount_chroot_ok           ) entries.emplace_back( "mount_chroot_ok"     , cat        (start_cmd_attrs       .spec.mount_chroot_ok        ) ) ;
 			if ( start_rsrcs_attrs     .spec.readdir_ok                ) entries.emplace_back( "readdir_ok"          , cat        (start_rsrcs_attrs     .spec.readdir_ok             ) ) ;

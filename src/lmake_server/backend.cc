@@ -540,7 +540,7 @@ namespace Backends {
 				jis.pre_start.msg << add_nl<<s_start(tag,+job) ;
 				//                           ^^^^^^^^^^^^^^^^^
 				if ( +~steps || !deps_done ) {
-					Status status = Status::EarlyErr ;
+					Status status = Status::EarlyError ;
 					if (!deps_done) {
 						status        = Status::EarlyChkDeps ;
 						start_msg_err = {}                   ;

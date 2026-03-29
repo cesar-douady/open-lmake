@@ -24,7 +24,6 @@ items (also used in XXX comments) :
 ****************************************************************************************************
 
 * manage -l as a resource
-* -r does not rerun when timeout
 * allow using strace with autodep=ptrace
 ! manage 32 bits executables with ptrace
 	- mode -mx32 seems easy

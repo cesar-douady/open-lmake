@@ -168,7 +168,8 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1">#   compression         = None                     # compression to use when caching :</span>
     <span class="c1">#                                              # - if None  : no compression</span>
     <span class="c1">#                                              # - if a str : the compression method : zlib or zstd, level defaults to 1</span>
-    <span class="c1">#                                              # - if a int : the compression level : a int between 0 (no compression) and 9 (best and slowest), method defaults zstd if supported, else zlib</span>
+    <span class="c1">#                                              # - if a int : the compression level : between 0 (no compression) and 9 (best and slowest), method defaults to zstd if supported,</span>
+    <span class="c1">#                                              #              else zlib</span>
     <span class="c1">#                                              # - if a tuple : (method,level), as described above</span>
 <span class="c1">#   cwd                 = &#39;&#39;                       # cwd in which to run cmd. targets/deps are relative to it unless they start with /, in which case it means top root dir</span>
     <span class="c1">#                                              #   defaults to the nearest root dir of the module in which the rule is defined</span>
@@ -192,12 +193,14 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">max_retries_on_lost</span> <span class="o">=</span>   <span class="mi">1</span>                      <span class="c1"># max number of retries in case of job lost. 1 is a reasonable value</span>
 <span class="c1">#   max_runs            =   0                      # maximum number a job can be run in a single lmake command, unlimited if None or 0</span>
     <span class="n">max_stderr_len</span>      <span class="o">=</span> <span class="mi">100</span>                      <span class="c1"># maximum number of stderr lines shown in output (full content is accessible with lshow -e), 100 is a reasonable compromise</span>
-    <span class="n">max_submits</span>         <span class="o">=</span>  <span class="mi">10</span>                      <span class="c1"># maximum number a job can be submitted in a single lmake command, unlimited if None or 0</span>
+    <span class="n">max_submits</span>         <span class="o">=</span>  <span class="mi">10</span>                      <span class="c1"># maximum number a job can be submitted in a single lmake command, unlimited if None or 0, above 10, the flow can probably be</span>
+    <span class="c1">#                                              # easily optimized</span>
 <span class="c1">#   mount_chroot_ok     = False                    # if set, mount and chroot is not an error</span>
 <span class="c1">#   prio                = 0                        # in case of ambiguity, rules are selected with highest prio first</span>
     <span class="n">python</span>              <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;$PYTHON&#39;</span><span class="p">,)</span>             <span class="c1"># python used for callable cmd</span>
 <span class="c1">#   readdir_ok          = False                    # if set, listing a local non-ignored dir is not an error</span>
 <span class="c1">#   repo_view           = &#39;/repo&#39;                  # absolute path under which the root dir of the repo is seen (if None, empty, or absent, no bind mount is done)</span>
+<span class="c1">#   retried_errors      = (&#39;-timeout&#39;,)            # kind of errors that are retried when --retry_on_error=&lt;cnt&gt; option is passed to lmake</span>
     <span class="n">shell</span>               <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;$SHELL&#39;</span><span class="p">,)</span>              <span class="c1"># shell  used for str      cmd (_sh is usually /bin/sh which may test for dir existence before chdir, which defeats auto_mkdir)</span>
     <span class="n">start_delay</span>         <span class="o">=</span> <span class="mi">3</span>                        <span class="c1"># delay before sending a start message if job is not done by then, 3 is a reasonable compromise</span>
 <span class="c1">#   stderr_ok           = False                    # if set, writing to stderr is not an error but a warning</span>
@@ -225,8 +228,8 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="p">}</span>                                              <span class="c1"># follow the same syntax as deps</span>
 
 <span class="k">class</span> <span class="nc">AntiRule</span><span class="p">(</span><span class="n">_RuleBase</span><span class="p">)</span> <span class="p">:</span>
-    <span class="n">__special__</span> <span class="o">=</span> <span class="s1">&#39;anti&#39;</span>       <span class="c1"># AntiRule&#39;s are not executed, but defined at high enough prio, prevent other rules from being selected</span>
-    <span class="n">prio</span>        <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span> <span class="c1"># default to high prio as the goal of AntiRule&#39;s is to hide other rules</span>
+    <span class="n">__special__</span> <span class="o">=</span> <span class="s1">&#39;anti&#39;</span>       <span class="c1"># AntiRule&#39;s are not executed, but     defined at high enough prio, prevent other rules from being selected</span>
+    <span class="n">prio</span>        <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s1">&#39;inf&#39;</span><span class="p">)</span> <span class="c1"># default to high prio as the goal     of AntiRule&#39;s is to hide other rules</span>
 
 <span class="k">class</span> <span class="nc">SourceRule</span><span class="p">(</span><span class="n">_RuleBase</span><span class="p">)</span> <span class="p">:</span>
     <span class="n">__special__</span> <span class="o">=</span> <span class="s1">&#39;generic_src&#39;</span>

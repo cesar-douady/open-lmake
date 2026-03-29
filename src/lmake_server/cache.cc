@@ -65,12 +65,12 @@ namespace Cache {
 
 	::vmap_ss CacheServerSide::descr() const {
 		return {
-			{ "dir_s"     , dir_s                          }
-		,	{ "file_sync" , snake_str(file_sync)           }
-		,	{ "max_rate"  , to_string_with_unit(max_rate ) }
-		,	{ "umask"     , mod_to_str(umask)              }
-		,	{ "repo_key"  , repo_key                       }
-		,	{ "service"   , service.str()                  }
+			{ "dir_s"       , dir_s                         }
+		,	{ "file_sync"   , snake_str(file_sync)          }
+		,	{ "max_rate"    , to_string_with_unit(max_rate) }
+		,	{ "umask"       , mod_to_str(umask)             }
+		,	{ "repo_key"    , repo_key                      }
+		,	{ "service"     , service.str()                 }
 		} ;
 	}
 

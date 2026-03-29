@@ -76,7 +76,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::MaxSubmits      , { .short_name='M' , .has_arg=true  , .doc="max submits on top of rule prescription"       } }
 	,	{ ReqFlag::Nice            , { .short_name='N' , .has_arg=true  , .doc="nice value to apply to jobs"                   } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"             } }
-	,	{ ReqFlag::RetryOnError    , { .short_name='r' , .has_arg=true  , .doc="retry jobs in error"                           } }
+	,	{ ReqFlag::RetryOnError    , { .short_name='r' , .has_arg=true  , .doc="number of times to retry jobs in error"        } }
 	,	{ ReqFlag::SourceOk        , { .short_name='s' , .has_arg=false , .doc="allow overwrite of source files"               } }
 	,	{ ReqFlag::KeepTmp         , { .short_name='t' , .has_arg=false , .doc="keep tmp dir after job execution"              } }
 	}} ;

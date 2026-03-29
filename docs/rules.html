@@ -678,6 +678,24 @@ These may be cpu availability, memory, commercial tool licenses, access to dedic
 <p>Values must <code>f-str</code>.</p>
 <p>The syntax is the same as for <code>deps</code>.</p>
 <p>After interpretation, the <code>dict</code> is passed to the <code>backend</code> to be used in its scheduling (cf. <a href="config.html">local backend</a> for the local backend).</p>
+<h3 id="retried_errors"><a class="header" href="#retried_errors"><code>retried_errors</code></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>Python</td><td><code>tuple</code></td><td><code>()</code> (see below)</td><td>No</td><td></td></tr>
+</tbody></table>
+</div>
+<p>This attribute provides the error kinds that are considered retryable when <code>--retry=-on-error=&lt;cnt&gt;</code> option is passed to <code>lmake</code>.
+It is a <code>list</code> or <code>tuple</code> composed of <code>str</code> whose values describe what is not the default.
+Values must be preceded with a <code>-</code> to negate an error kind present by default.</p>
+<p>Error kinds are:</p>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Alternate value</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>'early_error'</code></td><td><code>'EarlyError'</code></td><td></td><td>the job encountered an error before starting (e.g. while computing dynamic attributes)</td></tr>
+<tr><td><code>'job_error'</code></td><td><code>'JobError'</code></td><td>X</td><td>the job command exited with a non-0 status, was killed by a signal or python raised an exception</td></tr>
+<tr><td><code>'forbidden'</code></td><td><code>'Forbidden'</code></td><td></td><td>the job did a forbidden action (such a writing to an undeclared target)</td></tr>
+<tr><td><code>'panic'</code></td><td><code>'Panic'</code></td><td></td><td>some adverse event occurred during job execution</td></tr>
+<tr><td><code>'termination_error'</code></td><td><code>'TerminationError'</code></td><td>X</td><td>some adverse event occurred while job was terminated (e.g. a child is still alive)</td></tr>
+<tr><td><code>'timeout'</code></td><td><code>'Timeout'</code></td><td>X</td><td>timeout fired</td></tr>
+</tbody></table>
+</div>
 <h3 id="shell"><a class="header" href="#shell"><a href="unit_tests/misc19.html#:~:text=shell%20%3D%20Rule%2Eshell%20%2B%20%28%27%2De%27%2C%29"><code>shell</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>list</code> or <code>tuple</code></td><td><code>/bin/bash</code></td><td>Full</td><td><code>('/bin/bash','-e')</code></td></tr>

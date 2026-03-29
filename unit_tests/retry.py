@@ -27,6 +27,15 @@ if __name__!='__main__' :
 		target = 'dut2'
 		cmd    = 'cat dep ; exit 1'
 
+	class Bad3(Rule) :
+		retried_errors = ('-timeout',)
+		target = 'dut3'
+		cmd    = 'exit 1'
+
+	class Bad4(Bad3) :
+		retried_errors = ('-job_error',)
+		target = 'dut4'
+
 	class Rerun(Rule) :
 		target = 'rerun'
 		cmd    = 'cat dep'
@@ -41,6 +50,8 @@ else :
 	print('step=1',file=open('step.py','w'))
 
 	ut.lmake( '-r2' , 'dut1' , retry=2 , failed=3 , rc=1 ) # check retry works as expected
+	ut.lmake( '-r2' , 'dut3' , retry=2 , failed=3 , rc=1 ) # .
+	ut.lmake( '-r2' , 'dut4' ,           failed=1 , rc=1 ) # .
 
 	ut.lmake('dep' , done=1 )
 	print('step=2',file=open('step.py','w'))

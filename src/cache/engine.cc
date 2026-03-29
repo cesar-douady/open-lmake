@@ -146,6 +146,7 @@ void cache_init( bool rescue , bool read_only ) {
 				else      { if (k[0]=='_'        ) continue ; }                               // .
 				CacheConfig& ccfg = g_cache_config ;
 				switch (k[0]) {
+					case 'd' : if (k=="domain_name"     ) { ccfg.domain_name      = ::move               (v) ;                                                                continue ; } break ;
 					case 'f' : if (k=="file_sync"       ) { ccfg.file_sync        = mk_enum<FileSync>    (v) ;                                                                continue ; } break ;
 					case 'm' : if (k=="max_rate"        ) { ccfg.max_rate         = from_string_with_unit(v) ; throw_unless( ccfg.max_rate        >0 , "must be positive" ) ; continue ; }
 					/**/       if (k=="max_runs_per_job") { ccfg.max_runs_per_job = from_string<uint16_t>(v) ; throw_unless( ccfg.max_runs_per_job>0 , "must be positive" ) ; continue ; } break ;

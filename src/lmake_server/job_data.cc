@@ -351,32 +351,34 @@ namespace Engine {
 		DN} //!                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
-	static JobReason _mk_pre_reason( Status s , JobReason prev_reason ) {
+	static JobReason _mk_pre_reason( Status s , JobReason prev_reason , BitMap<Status> retried_errs ) {
 		static constexpr ::amap<Status,JobReasonTag,N<Status>> ReasonTab {{
-			{ Status::New            , JobReasonTag::New             }
-		,	{ Status::EarlyChkDeps   , JobReasonTag::ChkDeps         }
-		,	{ Status::EarlyErr       , JobReasonTag::Retry           }
-		,	{ Status::EarlyLost      , JobReasonTag::Lost            }                               // becomes WasLost if end
-		,	{ Status::EarlyLostErr   , JobReasonTag::LostRetry       }
-		,	{ Status::LateLost       , JobReasonTag::Lost            }                               // becomes WasLost if end
-		,	{ Status::LateLostErr    , JobReasonTag::LostRetry       }
-		,	{ Status::Killed         , JobReasonTag::Killed          }
-		,	{ Status::ChkDeps        , JobReasonTag::ChkDeps         }
-		,	{ Status::CacheMatch     , JobReasonTag::None            }                               // unused
-		,	{ Status::BadTarget      , JobReasonTag::PollutedTargets }
-		,	{ Status::Ok             , JobReasonTag::None            }
-		,	{ Status::RunLoop        , JobReasonTag::None            }
-		,	{ Status::SubmitLoop     , JobReasonTag::None            }
-		,	{ Status::JobErr         , JobReasonTag::Retry           }
-		,	{ Status::Forbidden      , JobReasonTag::Retry           }
-		,	{ Status::Panic          , JobReasonTag::Retry           }
-		,	{ Status::TerminationErr , JobReasonTag::Retry           }
-		,	{ Status::Timeout        , JobReasonTag::Retry           }
+			{ Status::New              , JobReasonTag::New             }
+		,	{ Status::EarlyChkDeps     , JobReasonTag::ChkDeps         }
+		,	{ Status::EarlyError       , JobReasonTag::Retry           }
+		,	{ Status::EarlyLost        , JobReasonTag::Lost            }                               // becomes WasLost if end
+		,	{ Status::EarlyLostErr     , JobReasonTag::LostRetry       }
+		,	{ Status::LateLost         , JobReasonTag::Lost            }                               // becomes WasLost if end
+		,	{ Status::LateLostErr      , JobReasonTag::LostRetry       }
+		,	{ Status::Killed           , JobReasonTag::Killed          }
+		,	{ Status::ChkDeps          , JobReasonTag::ChkDeps         }
+		,	{ Status::CacheMatch       , JobReasonTag::None            }                               // unused
+		,	{ Status::BadTarget        , JobReasonTag::PollutedTargets }
+		,	{ Status::Ok               , JobReasonTag::None            }
+		,	{ Status::RunLoop          , JobReasonTag::None            }
+		,	{ Status::SubmitLoop       , JobReasonTag::None            }
+		,	{ Status::JobError         , JobReasonTag::Retry           }
+		,	{ Status::Forbidden        , JobReasonTag::Retry           }
+		,	{ Status::Panic            , JobReasonTag::Retry           }
+		,	{ Status::TerminationError , JobReasonTag::Retry           }
+		,	{ Status::Timeout          , JobReasonTag::Retry           }
 		}} ;
-		static_assert( chk_enum_tab(ReasonTab)                                                                                                ) ;
-		static_assert( std::ranges::none_of( ReasonTab , [](::pair<Status,JobReasonTag> s_t) { return s_t.second>=JobReasonTag::HasNode ; } ) ) ;
-		if (s==Status::CacheMatch) return prev_reason | JobReasonTag::CacheMatch ;
-		else                       return ReasonTab[+s].second                   ;
+		static_assert( chk_enum_tab(ReasonTab)                                                                                                                           ) ;
+		static_assert( std::ranges::none_of( ReasonTab , [](::pair<Status,JobReasonTag> s_t) { return s_t.second>=JobReasonTag::HasNode                            ; } ) ) ;
+		static_assert( std::ranges::all_of ( ReasonTab , [](::pair<Status,JobReasonTag> s_t) { return (s_t.second==JobReasonTag::Retry)==MaxRetriedErrs[s_t.first] ; } ) ) ;
+		/**/                                      if ( s==Status::CacheMatch                        ) return prev_reason | JobReasonTag::CacheMatch ;
+		JobReasonTag res = ReasonTab[+s].second ; if ( res==JobReasonTag::Retry && !retried_errs[s] ) res = JobReasonTag::None ;
+		return res ;
 	}
 	JobReason JobData::make( ReqInfo& ri , MakeAction make_action , JobReason asked_reason , Bool3 speculate , bool wakeup_watchers ) {
 		using Step = JobStep ;
@@ -400,8 +402,7 @@ namespace Engine {
 		ReqOptions const&  ro                   = req->options                                        ;
 		Special            special              = r->special                                          ;
 		bool               dep_live_out         = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
-		CoarseDelay        dep_pressure         = ri.pressure + c_exe_time()                          ;
-		bool               archive              = ro.flags[ReqFlag::Archive]                          ;
+		CoarseDelay        dep_pressure         = ri.pressure + c_exe_time()                          ; bool               archive              = ro.flags[ReqFlag::Archive]                          ;
 		bool               report_loop          = false                                               ;
 		MissingRerunReport missing_rerun_report = {}                                                  ;
 		//
@@ -494,9 +495,9 @@ namespace Engine {
 			//
 			ri.speculative_wait = false ;                                                             // initially, we are not waiting at all
 			report_reason       = {}    ;
-			if ( incremental && ro.flags[ReqFlag::NoIncremental] ) pre_reason  = JobReasonTag::WasIncremental     ;
-			/**/                                                   pre_reason |= _mk_pre_reason(status,ri.reason) ;
-			if ( pre_reason.tag==JobReasonTag::Lost && !at_end   ) pre_reason  = JobReasonTag::WasLost            ;
+			if ( incremental && ro.flags[ReqFlag::NoIncremental] ) pre_reason  = JobReasonTag::WasIncremental                           ;
+			/**/                                                   pre_reason |= _mk_pre_reason( status , ri.reason , r->retried_errs ) ;
+			if ( pre_reason.tag==JobReasonTag::Lost && !at_end   ) pre_reason  = JobReasonTag::WasLost                                  ;
 			trace("pre_reason",pre_reason) ;
 			for( DepsIter iter {deps,ri.iter} ;; iter++ ) {
 				bool       seen_all = iter==deps.end()            ;
@@ -1010,7 +1011,7 @@ namespace Engine {
 		NfsGuard      nfs_guard  { g_config->server_file_sync }          ;
 		First         first      ;
 		//
-		status = Status::EarlyErr ;                                        // defensive programming : only set status=Ok when deps are checked
+		status = Status::EarlyError ;                                        // defensive programming : only set status=Ok when deps are checked
 		for( ::string const& file : req->files ) {
 			RealPath::SolveReport rp  = Job::s_real_path->solve(file,true/*no_follow*/) ;
 			for( ::string& l : rp.lnks ) {
@@ -1029,7 +1030,7 @@ namespace Engine {
 		}
 		append_move( lnk_vector , ::move(dep_vector) ) ;
 		deps.assign(lnk_vector)                        ;
-		if (status==Status::EarlyErr) status = Status::Ok ;
+		if (status==Status::EarlyError) status = Status::Ok ;
 		trace("done") ;
 	}
 
@@ -1225,7 +1226,7 @@ namespace Engine {
 		if (+msg_stderr) {
 			req->audit_job   ( Color::Err , "failed" , job                                                                                                          ) ;
 			req->audit_stderr(                         job , { with_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_stderr.msg , msg_stderr.stderr } ) ;
-			status = Status::EarlyErr ;
+			status = Status::EarlyError ;
 			return false/*mabe_new_deps*/ ;
 		}
 		//
@@ -1252,7 +1253,7 @@ namespace Engine {
 		} catch (::string const& e) {
 			ri.dec_wait() ;                                  // restore n_wait as we prepared to wait
 			ri.set_step(Step::None,job) ;
-			status  = Status::EarlyErr ;
+			status  = Status::EarlyError ;
 			req->audit_job ( Color::Err  , "failed" , job ) ;
 			req->audit_info( Color::Note , e , 1/*lvl*/   ) ;
 			trace("submit_err",ri) ;

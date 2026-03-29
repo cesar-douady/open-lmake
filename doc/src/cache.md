@@ -14,6 +14,7 @@ It must be initialized with a file `LMAKE/config.py` defining some variables:
 | Variable           | Default      | Possible values                                                            | Comment                                                                             |
 |--------------------|--------------|----------------------------------------------------------------------------|-------------------------------------------------------------------------------------|
 | `file_sync`        | 'dir'        | `'auto'`, `'none'`, `'dir'`, `'sync'`                                      | the method used to ensure consistent access to the file system containing the cache |
+| `domain_name`      | ''           | any `str`                                                                  | the domain name to use to determine the fqdn of the cache                           |
 | `max_rate`         | '1G'         | any positive `int` or `str` composed of a number followed by a unit suffix | the maximum rate in B/s above which entries are not recorded in the cache           |
 | `max_runs_per_job` | 100          | any positive `int`                                                         | the maximum number of runs kept for a given job                                     |
 | `size`             | \<required\> | any `int` or a `str` composed of a number followed by a unit suffix        | the overall size the cache is allowed to occupy                                     |
@@ -30,10 +31,10 @@ size     = '1.5T'
 
 In `Lmakefile.py`, `lmake.config.caches.<this_cache>` may be set to access a cache with the following attributes:
 
-| Attribute   |           | Possible values                     | Description                            |
-|-------------|-----------|-------------------------------------|----------------------------------------|
-| `dir`       | required  | a `str` containing an absolute path | the root dir of the cache              |
-| `repo_key`  | see below | a `str`                             | an identifier to avoid cache pollution |
+| Attribute  |           | Possible values                     | Description                            |
+|------------|-----------|-------------------------------------|----------------------------------------|
+| `dir`      | required  | a `str` containing an absolute path | the root dir of the cache              |
+| `repo_key` | see below | a `str`                             | an identifier to avoid cache pollution |
 
 By default, the `repo_key` is made after the absolute root of the repo and the current git sha1 if repo is controlled by git.
 No more than 2 entries can be stored for any job with a given `repo_key`, the first time and the last time the `repo_key` is used.

@@ -148,13 +148,13 @@ namespace Engine {
 
 	namespace Attrs {
 		// statics
-		/**/                   bool/*updated*/ acquire( bool               & dst , Py::Object const* py_src                                                      ) ;
-		/**/                   bool/*updated*/ acquire( Delay              & dst , Py::Object const* py_src , Delay min=Delay::Lowest , Delay max=Delay::Highest ) ;
-		/**/                   bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Py::Object const* py_src                                                      ) ;
-		/**/                   bool/*updated*/ acquire( Zlvl               & dst , Py::Object const* py_src                                                      ) ;
-		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>         ) ;
-		template<UEnum      E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src                                                      ) ;
-		template<UEnum      E> bool/*updated*/ acquire( BitMap<E>          & dst , Py::Object const* py_src                                                      ) ;
+		/**/                   bool/*updated*/ acquire( bool               & dst , Py::Object const* py_src                                                       ) ;
+		/**/                   bool/*updated*/ acquire( Delay              & dst , Py::Object const* py_src , Delay min=Delay::Lowest , Delay max=Delay::Highest  ) ;
+		/**/                   bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Py::Object const* py_src                                                       ) ;
+		/**/                   bool/*updated*/ acquire( Zlvl               & dst , Py::Object const* py_src                                                       ) ;
+		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>          ) ;
+		template<UEnum      E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src ,                     BitMap<E> accepted=~BitMap<E>() ) ;
+		template<UEnum      E> bool/*updated*/ acquire( BitMap<E>          & dst , Py::Object const* py_src , BitMap<E> dflt={} , BitMap<E> accepted=~BitMap<E>() ) ;
 		//
 		template<        bool Env=false>                                         bool/*updated*/ acquire( ::string     & dst , Py::Object const* py_src ) ;
 		template<class T,bool Env=false> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vector<T  >& dst , Py::Object const* py_src ) ;
@@ -490,9 +490,9 @@ namespace Engine {
 		::string           txt    ;                                                                   // human readable pattern
 	} ;
 
-	struct RuleData {                                                // NOLINT(clang-analyzer-optin.performance.Padding) prefer logical order
+	struct RuleData {                                   // NOLINT(clang-analyzer-optin.performance.Padding) prefer logical order
 		friend Rule ;
-		static constexpr char   JobMrkr =  0          ;              // ensure no ambiguity between job names and node names
+		static constexpr char   JobMrkr =  0          ; // ensure no ambiguity between job names and node names
 		static constexpr VarIdx NoVar   = Rule::NoVar ;
 		// START_OF_VERSIONING REPO
 		using Prio = double ;
@@ -505,7 +505,7 @@ namespace Engine {
 			// START_OF_VERSIONING REPO
 			::string       pattern  = {} ;
 			MatchFlags     flags    = {} ;
-			::vector<bool> captures = {} ;                           // indexed by stem, true if stem is referenced
+			::vector<bool> captures = {} ;              // indexed by stem, true if stem is referenced
 			// END_OF_VERSIONING
 		} ;
 		// cxtors & casts
@@ -584,11 +584,12 @@ namespace Engine {
 		Dyn<StartRsrcsAttrs     > start_rsrcs_attrs      ;                         // in rsrcs crc, evaluated before execution
 		Dyn<StartAncillaryAttrs > start_ancillary_attrs  ;                         // in no    crc, evaluated before execution
 		DynCmd                    cmd                    ;                         // in cmd   crc, evaluated before execution
-		bool                      is_python              = false ;
-		bool                      force                  = false ;
-		uint8_t                   n_losts                = 0     ;                 // max number of times a job can be lost
-		uint16_t                  n_runs                 = 0     ;                 // max number of times a job can be run                               , 0 = infinity
-		uint16_t                  n_submits              = 0     ;                 // max number of times a job can be submitted (except losts & retries), 0 = infinity
+		bool                      is_python              = false           ;
+		bool                      force                  = false           ;
+		uint8_t                   n_losts                = 0               ;       // max number of times a job can be lost
+		uint16_t                  n_runs                 = 0               ;       // max number of times a job can be run                               , 0 = infinity
+		uint16_t                  n_submits              = 0               ;       // max number of times a job can be submitted (except losts & retries), 0 = infinity
+		BitMap<Status>            retried_errs           = DfltRetriedErrs ;       // retried errors when RetryOnError option is passed to lmake
 		// derived data
 		::vector<uint32_t> stem_n_marks                           ;                // number of capturing groups within each stem
 		RuleCrc            crc                                    ;
@@ -728,11 +729,13 @@ namespace Engine {
 		}
 
 
-		template<UEnum E> E _acquire_enum_val(::string const& src) {
-			throw_unless( can_mk_enum<E>(src) , "unexpected value ",src," not in ",~BitMap<E>() ) ;
-			return mk_enum<E>(src) ;
+		template<UEnum E> ::pair<E,bool/*neg*/> _acquire_enum_val( ::string&& src , BitMap<E> accepted=~BitMap<E>() ) {
+			bool neg = src[0]=='-'     ; if (neg) src = src.substr(1) ;
+			/**/                         throw_unless( can_mk_enum<E>(src) , "unexpected value ",src," not in ",accepted ) ;
+			E    val = mk_enum<E>(src) ; throw_unless( accepted[val]       , "unexpected value ",src," not in ",accepted ) ;
+			/**/                         return { val , neg }                                                              ;
 		}
-		template<UEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src ) {
+		template<UEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src , BitMap<E> accepted ) {
 			if (!py_src          ) return false/*updated*/ ;
 			if (*py_src==Py::None) {
 				if constexpr (requires(){E::Dflt;}) dst = E::Dflt ;
@@ -740,16 +743,23 @@ namespace Engine {
 				return true /*updated*/ ;
 			}
 			//
-			dst = _acquire_enum_val<E>(py_src->as_a<Py::Str>()) ;
+			bool neg ;
+			tie(dst,neg) = _acquire_enum_val<E>( py_src->as_a<Py::Str>() , accepted ) ;
+			throw_if( neg , "value ",dst,"cannot be negative" ) ;
 			return true ;
 		}
-		template<UEnum E> bool/*updated*/ acquire( BitMap<E>& dst , Py::Object const* py_src ) {
-			if (!py_src          )              return false/*updated*/ ;
-			if (*py_src==Py::None) { dst = {} ; return true /*.      */ ; }
+		template<UEnum E> bool/*updated*/ acquire( BitMap<E>& dst , Py::Object const* py_src , BitMap<E> dflt , BitMap<E> accepted ) {
+			/**/         if (!py_src          ) return false/*updated*/ ;
+			dst = dflt ; if (*py_src==Py::None) return true /*.      */ ;
 			//
+			auto acquire1 = [&](Py::Object const& py_v) {
+				::pair<E,bool/*neg*/> e_n = _acquire_enum_val<E>( py_v.as_a<Py::Str>() , accepted ) ;
+				if (e_n.second) dst &= ~e_n.first ;
+				else            dst |=  e_n.first ;
+			} ;
 			//
-			if (py_src->is_a<Py::Str>()          )                                                                             dst  = _acquire_enum_val<E>(py_src->as_a<Py::Str>()) ;
-			else if (py_src->is_a<Py::Sequence>()) { dst = {} ; for( Py::Object const& py_val : py_src->as_a<Py::Sequence>() ) dst |= _acquire_enum_val<E>(py_val. as_a<Py::Str>()) ; }
+			if (py_src->is_a<Py::Str>()          )                                                                  acquire1(*py_src) ;
+			else if (py_src->is_a<Py::Sequence>()) { for( Py::Object const& py_val : py_src->as_a<Py::Sequence>() ) acquire1( py_val) ; }
 			else                                     throw cat("type error : ",py_src->type_name()," is not a str nor a list/tuple") ;
 			return true ;
 		}
@@ -958,22 +968,23 @@ namespace Engine {
 
 	// START_OF_VERSIONING REPO
 	template<IsStream S> void RuleData::serdes(S& s) {
-		::serdes(s,special   ) ;
-		::serdes(s,user_prio ) ;
-		::serdes(s,prio      ) ;
-		::serdes(s,name      ) ;
-		::serdes(s,stems     ) ;
-		::serdes(s,sub_repo_s) ;
-		::serdes(s,job_name  ) ;
-		::serdes(s,matches   ) ;
-		::serdes(s,stdout_idx) ;
-		::serdes(s,stdin_idx ) ;
-		::serdes(s,allow_ext ) ;
-		::serdes(s,deps_attrs) ;
-		::serdes(s,force     ) ;
-		::serdes(s,n_losts   ) ;
-		::serdes(s,n_runs    ) ;
-		::serdes(s,n_submits ) ;
+		::serdes(s,special     ) ;
+		::serdes(s,user_prio   ) ;
+		::serdes(s,prio        ) ;
+		::serdes(s,name        ) ;
+		::serdes(s,stems       ) ;
+		::serdes(s,sub_repo_s  ) ;
+		::serdes(s,job_name    ) ;
+		::serdes(s,matches     ) ;
+		::serdes(s,stdout_idx  ) ;
+		::serdes(s,stdin_idx   ) ;
+		::serdes(s,allow_ext   ) ;
+		::serdes(s,deps_attrs  ) ;
+		::serdes(s,force       ) ;
+		::serdes(s,n_losts     ) ;
+		::serdes(s,n_runs      ) ;
+		::serdes(s,n_submits   ) ;
+		::serdes(s,retried_errs) ;
 		if (special==Special::Plain) {
 			::serdes(s,submit_rsrcs_attrs    ) ;
 			::serdes(s,submit_ancillary_attrs) ;

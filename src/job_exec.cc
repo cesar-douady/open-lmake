@@ -159,10 +159,10 @@ int main( int argc , char* argv[] ) {
 	g_trace_file = new ::string{cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
-	end_report.digest   = { .status=Status::EarlyErr } ;                     // prepare to return an error, so we can goto End anytime
-	end_report.wstatus  = 255<<8                       ;                     // .
-	end_report.end_date = start_overhead               ;
-	g_user_trace        = &end_report.user_trace       ;
+	end_report.digest   = { .status=Status::EarlyError } ;                     // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                         ;                     // .
+	end_report.end_date = start_overhead                 ;
+	g_user_trace        = &end_report.user_trace         ;
 	g_user_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
 	//
 	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                                                                // START_OF_NO_COV defensive programming

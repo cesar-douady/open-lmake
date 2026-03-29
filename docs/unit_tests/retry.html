@@ -125,6 +125,15 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut2&#39;</span>
         <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;cat dep ; exit 1&#39;</span>
 
+    <span class="k">class</span> <span class="nc">Bad3</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">retried_errors</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;-timeout&#39;</span><span class="p">,)</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut3&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;exit 1&#39;</span>
+
+    <span class="k">class</span> <span class="nc">Bad4</span><span class="p">(</span><span class="n">Bad3</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">retried_errors</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;-job_error&#39;</span><span class="p">,)</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut4&#39;</span>
+
     <span class="k">class</span> <span class="nc">Rerun</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;rerun&#39;</span>
         <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;cat dep&#39;</span>
@@ -139,6 +148,8 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=1&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
 
     <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;-r2&#39;</span> <span class="p">,</span> <span class="s1">&#39;dut1&#39;</span> <span class="p">,</span> <span class="n">retry</span><span class="o">=</span><span class="mi">2</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">3</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># check retry works as expected</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;-r2&#39;</span> <span class="p">,</span> <span class="s1">&#39;dut3&#39;</span> <span class="p">,</span> <span class="n">retry</span><span class="o">=</span><span class="mi">2</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">3</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># .</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;-r2&#39;</span> <span class="p">,</span> <span class="s1">&#39;dut4&#39;</span> <span class="p">,</span>           <span class="n">failed</span><span class="o">=</span><span class="mi">3</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># .</span>
 
     <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span><span class="s1">&#39;dep&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=2&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>

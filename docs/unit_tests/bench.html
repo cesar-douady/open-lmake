@@ -138,22 +138,25 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
+    <span class="kn">import</span> <span class="nn">os.path</span> <span class="k">as</span> <span class="nn">osp</span>
     <span class="kn">import</span> <span class="nn">socket</span>
 
     <span class="kn">import</span> <span class="nn">gxx</span>
+    <span class="kn">from</span> <span class="nn">has_slurm</span> <span class="kn">import</span> <span class="n">has_slurm</span>
 
     <span class="kn">import</span> <span class="nn">lmake</span>
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">link_support</span> <span class="o">=</span> <span class="s1">&#39;none&#39;</span>
-
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">link_support</span>        <span class="o">=</span> <span class="s1">&#39;none&#39;</span>
     <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">local</span><span class="o">.</span><span class="n">cpu</span> <span class="o">*=</span> <span class="mi">2</span>
-
-    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">slurm</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">console</span><span class="o">.</span><span class="n">host_len</span>    <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">if</span> <span class="n">has_slurm</span> <span class="ow">and</span> <span class="s1">&#39;slurm&#39;</span> <span class="ow">in</span> <span class="n">lmake</span><span class="o">.</span><span class="n">backends</span> <span class="p">:</span>
+        <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">backends</span><span class="o">.</span><span class="n">slurm</span> <span class="o">=</span> <span class="p">{}</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
     <span class="p">,</span>   <span class="s1">&#39;gxx.py&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;has_slurm.py&#39;</span>
     <span class="p">,</span>   <span class="o">*</span><span class="p">(</span> <span class="sa">f</span><span class="s1">&#39;src/exe_</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">.c&#39;</span>     <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>                   <span class="p">)</span>
     <span class="p">,</span>   <span class="o">*</span><span class="p">(</span> <span class="sa">f</span><span class="s1">&#39;src/obj_</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">o</span><span class="si">}</span><span class="s1">.h&#39;</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">l</span><span class="p">)</span> <span class="p">)</span>
     <span class="p">,</span>   <span class="o">*</span><span class="p">(</span> <span class="sa">f</span><span class="s1">&#39;src/obj_</span><span class="si">{</span><span class="n">e</span><span class="si">}</span><span class="s1">_</span><span class="si">{</span><span class="n">o</span><span class="si">}</span><span class="s1">.c&#39;</span> <span class="k">for</span> <span class="n">e</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">o</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">l</span><span class="p">)</span> <span class="p">)</span>
@@ -191,6 +194,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="kn">import</span> <span class="nn">ut</span>
 
     <span class="n">ut</span><span class="o">.</span><span class="n">mk_gxx_module</span><span class="p">(</span><span class="s1">&#39;gxx&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;has_slurm = </span><span class="si">{</span><span class="n">ut</span><span class="o">.</span><span class="n">has_slurm</span><span class="p">()</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;has_slurm.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
 
     <span class="kn">import</span> <span class="nn">gxx</span>
 

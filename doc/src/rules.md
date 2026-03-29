@@ -651,6 +651,27 @@ The syntax is the same as for `deps`.
 
 After interpretation, the `dict` is passed to the `backend` to be used in its scheduling (cf. [local backend](config.html) for the local backend).
 
+### `retried_errors`
+
+| Inheritance | Type    | Default          | Dynamic | Example |
+|-------------|---------|------------------|---------|---------|
+| Python      | `tuple` | `()` (see below) | No      |         |
+
+This attribute provides the error kinds that are considered retryable when `--retry=-on-error=<cnt>` option is passed to `lmake`.
+It is a `list` or `tuple` composed of `str` whose values describe what is not the default.
+Values must be preceded with a `-` to negate an error kind present by default.
+
+Error kinds are:
+
+| Value                 | Alternate value      | Default | Description                                                                                      |
+|-----------------------|----------------------|---------|--------------------------------------------------------------------------------------------------|
+| `'early_error'`       | `'EarlyError'`       |         | the job encountered an error before starting (e.g. while computing dynamic attributes)           |
+| `'job_error'`         | `'JobError'`         | X       | the job command exited with a non-0 status, was killed by a signal or python raised an exception |
+| `'forbidden'`         | `'Forbidden'`        |         | the job did a forbidden action (such a writing to an undeclared target)                          |
+| `'panic'`             | `'Panic'`            |         | some adverse event occurred during job execution                                                 |
+| `'termination_error'` | `'TerminationError'` | X       | some adverse event occurred while job was terminated (e.g. a child is still alive)               |
+| `'timeout'`           | `'Timeout'`          | X       | timeout fired                                                                                    |
+
 ### [`shell`](unit_tests/misc19.html#:~:text=shell%20%3D%20Rule%2Eshell%20%2B%20%28%27%2De%27%2C%29)
 
 | Inheritance | Type              | Default     | Dynamic | Example              |

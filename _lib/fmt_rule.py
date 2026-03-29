@@ -59,6 +59,7 @@ StdAttrs = { #!               type   dynamic
 ,	'readdir_ok'          : ( bool  , True  )
 ,	'repo_view'           : ( str   , True  )
 ,	'resources'           : ( dict  , True  )
+,	'retried_errors'      : ( tuple , False )
 ,	'shell'               : ( tuple , False )
 ,	'side_deps'           : ( dict  , True  )
 ,	'side_targets'        : ( dict  , True  )
@@ -463,7 +464,7 @@ class Handle :
 		,	*( k for k in self.rule_rep.matches.keys() if k.isidentifier() )
 		}
 		#
-		for attr in ('ete','force','max_runs','max_submits','max_retries_on_lost') :
+		for attr in ('ete','force','max_runs','max_submits','max_retries_on_lost','retried_errors') :
 			if attr in self.attrs : self.rule_rep[attr] = self.attrs[attr]
 		seen_keys = set()
 		for e in ('environ','environ_resources','environ_ancillary') :

@@ -96,6 +96,7 @@ namespace Cache {
 		void operator>>(::string&) const ;
 		// data
 		// START_OF_VERSIONING CACHE
+		::string     domain_name      = {}    ;
 		Disk::DiskSz max_sz           = 0     ;
 		Disk::DiskSz max_rate         = 1<<30 ; // in B/s, maximum rate (total_sz/exe_time) above which run is not cached
 		uint16_t     max_runs_per_job = 100   ;

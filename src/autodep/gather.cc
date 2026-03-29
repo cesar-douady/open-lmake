@@ -544,7 +544,7 @@ Status Gather::_exec_child() {
 				if (_wait[Kind::Stdout]) msg_ << first(         )<<"stdout "                                                                              ;
 				if (_wait[Kind::Stderr]) msg_ << first("","and ")<<"stderr "                                                                              ;
 				/**/                     msg_ << "still open after job has terminated "<<dead<<" ago (networkd_delay is "<<network_delay.short_str()<<')' ;
-				set_status(Status::TerminationErr,msg_) ;
+				set_status(Status::TerminationError,msg_) ;
 			}
 			::string kill_msg = "still alive after having " ;
 			if      (timeout_fired              ) kill_msg << "timed out and "                                                            ;
@@ -619,7 +619,7 @@ Status Gather::_exec_child() {
 					trace("spawn_failed",e) ;
 					if (child_stderr==Child::PipeFd) stderr = with_nl(e) ;
 					else                             child_stderr.write(with_nl(e)) ;
-					status = Status::EarlyErr ;
+					status = Status::EarlyError ;
 					break ;                                      // cannot start, exit loop
 				}
 				if (+timeout) end_timeout = start_date + timeout ;
@@ -687,14 +687,14 @@ Status Gather::_exec_child() {
 					end_child  = end_date + network_delay + Delay(1) ;                 // wait at most network_delay (+ 1s for our own processing) for reporting & stdout & stderr to settle down
 					_user_trace( end_date , Comment::EndJob , to_hex(uint16_t(ws)) ) ;
 					//
-					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::JobErr : Status::Ok       ) ;
-					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::JobErr : Status::LateLost ) ; // synchronous signals are actually errors
-					else                      FAIL_PROD("unexpected wstatus : ",ws) ;                                            // NO_COV defensive programming
+					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::JobError : Status::Ok       ) ;
+					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::JobError : Status::LateLost ) ; // synchronous signals are actually errors
+					else                      FAIL_PROD("unexpected wstatus : ",ws) ;                                              // NO_COV defensive programming
 					if (kind==Kind::ChildEnd) epoll.del_pid(_child.pid       ) ;
 					else                      epoll.del    (false/*write*/,fd) ;
-					_child.waited() ;                                                                                            // _child has been waited without calling _child.wait()
-					/**/                   epoll.dec() ;                                                                         // dont wait for new connections from job (but process those that come)
-					if (+server_master_fd) epoll.dec() ;                                                                         // idem for connections from server
+					_child.waited() ;                                            // _child has been waited without calling _child.wait()
+					/**/                   epoll.dec() ;                         // dont wait for new connections from job (but process those that come)
+					if (+server_master_fd) epoll.dec() ;                         // idem for connections from server
 					trace(kind,fd,"close",status,"wait",_wait,+epoll) ;
 				} break ;
 				case Kind::JobMaster : {
@@ -708,7 +708,7 @@ Status Gather::_exec_child() {
 					SWEAR( fd==server_master_fd , fd,server_master_fd ) ;
 					Fd sfd = server_master_fd.accept().detach() ;
 					epoll.add_read(sfd,Kind::ServerSlave) ;
-					server_slaves[sfd] = {.key=server_master_fd.key} ;                                                           // allocate entry
+					server_slaves[sfd] = {.key=server_master_fd.key} ;           // allocate entry
 					trace(kind,fd,"server_slave",sfd,"wait",_wait,+epoll) ;
 				} break ;
 				case Kind::ServerSlave : {

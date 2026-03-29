@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 36      ; // 217a57707b9eb742f7fa7e4b01906368
+	uint64_t    constexpr Cache = 37      ; // 6a5d0533feb86b312797372ec9da4e14
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 35      ; // cc5c033a43677575cc1ebef2391e60e8
+	uint64_t    constexpr Repo  = 36      ; // 4179f79ee40ac116b0621d7b4196df0d
 	uint64_t    constexpr Job   = 19      ; // 2461431c75bafc07b14dbcdc068d789f
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 217a57707b9eb742f7fa7e4b01906368 *
+// * Cache : 6a5d0533feb86b312797372ec9da4e14 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -260,6 +260,7 @@ namespace Version {
 //
 //		// END_OF_VERSIONING
 //			// START_OF_VERSIONING CACHE
+//			::string     domain_name      = {}    ;
 //			Disk::DiskSz max_sz           = 0     ;
 //			Disk::DiskSz max_rate         = 1<<30 ; // in B/s, maximum rate (total_sz/exe_time) above which run is not cached
 //			uint16_t     max_runs_per_job = 100   ;
@@ -540,7 +541,7 @@ namespace Version {
 //	enum class Status : uint8_t { // result of job execution
 //		New                       // job was never run
 //	,	EarlyChkDeps              // dep check failed before job actually started
-//	,	EarlyErr                  // job was not started because of error
+//	,	EarlyError                // job was not started because of error
 //	,	EarlyLost                 // job was lost before starting     , retry
 //	,	EarlyLostErr              // job was lost before starting     , do not retry
 //	,	LateLost                  // job was lost after having started, retry
@@ -552,18 +553,21 @@ namespace Version {
 //	,	Ok                        // job execution ended successfully
 //	,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 //	,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
-//	,	JobErr                    // job execution ended in error
+//	,	JobError                  // job execution ended in error
 //	,	Forbidden                 // job did a forbidden syscall
 //	,	Panic                     // job access panic'ed
-//	,	TerminationErr            // job termination was problematic
+//	,	TerminationError          // job termination was problematic
 //	,	Timeout                   // job execution timed out
 //	//
 //	// aliases
-//	,	Early   = EarlyLostErr    // <=Early means output has not been modified
-//	,	Async   = Killed          // <=Async means job was interrupted asynchronously
+//	,	Early   = EarlyLostErr    // <=Early   means output has not been modified
+//	,	Async   = Killed          // <=Async   means job was interrupted asynchronously
 //	,	Garbage = BadTarget       // <=Garbage means job has not run reliably
-//	,	Err     = JobErr          // >= Err means job execution is in error
+//	,	Err     = JobError        // >=Err     means job execution is in error
 //	} ;
+//	// /!\ DfltRetriedErrs must staty in sync with Rule.retried_errors in _lib/lmake/rules.src.py
+//	static constexpr BitMap<Status> DfltRetriedErrs {                      Status::JobError ,                                     Status::TerminationError , Status::Timeout } ;
+//	static constexpr BitMap<Status> MaxRetriedErrs  { Status::EarlyError , Status::JobError , Status::Forbidden , Status::Panic , Status::TerminationError , Status::Timeout } ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
 //		FileActionTag tag    = {} ;
@@ -1076,7 +1080,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : cc5c033a43677575cc1ebef2391e60e8 *
+// * Repo : 4179f79ee40ac116b0621d7b4196df0d *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1639,7 +1643,7 @@ namespace Version {
 //				// START_OF_VERSIONING REPO
 //				::string       pattern  = {} ;
 //				MatchFlags     flags    = {} ;
-//				::vector<bool> captures = {} ;                           // indexed by stem, true if stem is referenced
+//				::vector<bool> captures = {} ;              // indexed by stem, true if stem is referenced
 //				// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			// user data
@@ -1663,11 +1667,12 @@ namespace Version {
 //			Dyn<StartRsrcsAttrs     > start_rsrcs_attrs      ;                         // in rsrcs crc, evaluated before execution
 //			Dyn<StartAncillaryAttrs > start_ancillary_attrs  ;                         // in no    crc, evaluated before execution
 //			DynCmd                    cmd                    ;                         // in cmd   crc, evaluated before execution
-//			bool                      is_python              = false ;
-//			bool                      force                  = false ;
-//			uint8_t                   n_losts                = 0     ;                 // max number of times a job can be lost
-//			uint16_t                  n_runs                 = 0     ;                 // max number of times a job can be run                               , 0 = infinity
-//			uint16_t                  n_submits              = 0     ;                 // max number of times a job can be submitted (except losts & retries), 0 = infinity
+//			bool                      is_python              = false           ;
+//			bool                      force                  = false           ;
+//			uint8_t                   n_losts                = 0               ;       // max number of times a job can be lost
+//			uint16_t                  n_runs                 = 0               ;       // max number of times a job can be run                               , 0 = infinity
+//			uint16_t                  n_submits              = 0               ;       // max number of times a job can be submitted (except losts & retries), 0 = infinity
+//			BitMap<Status>            retried_errs           = DfltRetriedErrs ;       // retried errors when RetryOnError option is passed to lmake
 //			// derived data
 //			::vector<uint32_t> stem_n_marks                           ;                // number of capturing groups within each stem
 //			RuleCrc            crc                                    ;
@@ -1719,22 +1724,23 @@ namespace Version {
 //			// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO
 //		template<IsStream S> void RuleData::serdes(S& s) {
-//			::serdes(s,special   ) ;
-//			::serdes(s,user_prio ) ;
-//			::serdes(s,prio      ) ;
-//			::serdes(s,name      ) ;
-//			::serdes(s,stems     ) ;
-//			::serdes(s,sub_repo_s) ;
-//			::serdes(s,job_name  ) ;
-//			::serdes(s,matches   ) ;
-//			::serdes(s,stdout_idx) ;
-//			::serdes(s,stdin_idx ) ;
-//			::serdes(s,allow_ext ) ;
-//			::serdes(s,deps_attrs) ;
-//			::serdes(s,force     ) ;
-//			::serdes(s,n_losts   ) ;
-//			::serdes(s,n_runs    ) ;
-//			::serdes(s,n_submits ) ;
+//			::serdes(s,special     ) ;
+//			::serdes(s,user_prio   ) ;
+//			::serdes(s,prio        ) ;
+//			::serdes(s,name        ) ;
+//			::serdes(s,stems       ) ;
+//			::serdes(s,sub_repo_s  ) ;
+//			::serdes(s,job_name    ) ;
+//			::serdes(s,matches     ) ;
+//			::serdes(s,stdout_idx  ) ;
+//			::serdes(s,stdin_idx   ) ;
+//			::serdes(s,allow_ext   ) ;
+//			::serdes(s,deps_attrs  ) ;
+//			::serdes(s,force       ) ;
+//			::serdes(s,n_losts     ) ;
+//			::serdes(s,n_runs      ) ;
+//			::serdes(s,n_submits   ) ;
+//			::serdes(s,retried_errs) ;
 //			if (special==Special::Plain) {
 //				::serdes(s,submit_rsrcs_attrs    ) ;
 //				::serdes(s,submit_ancillary_attrs) ;
@@ -2019,7 +2025,7 @@ namespace Version {
 //	enum class Status : uint8_t { // result of job execution
 //		New                       // job was never run
 //	,	EarlyChkDeps              // dep check failed before job actually started
-//	,	EarlyErr                  // job was not started because of error
+//	,	EarlyError                // job was not started because of error
 //	,	EarlyLost                 // job was lost before starting     , retry
 //	,	EarlyLostErr              // job was lost before starting     , do not retry
 //	,	LateLost                  // job was lost after having started, retry
@@ -2031,18 +2037,21 @@ namespace Version {
 //	,	Ok                        // job execution ended successfully
 //	,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 //	,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
-//	,	JobErr                    // job execution ended in error
+//	,	JobError                  // job execution ended in error
 //	,	Forbidden                 // job did a forbidden syscall
 //	,	Panic                     // job access panic'ed
-//	,	TerminationErr            // job termination was problematic
+//	,	TerminationError          // job termination was problematic
 //	,	Timeout                   // job execution timed out
 //	//
 //	// aliases
-//	,	Early   = EarlyLostErr    // <=Early means output has not been modified
-//	,	Async   = Killed          // <=Async means job was interrupted asynchronously
+//	,	Early   = EarlyLostErr    // <=Early   means output has not been modified
+//	,	Async   = Killed          // <=Async   means job was interrupted asynchronously
 //	,	Garbage = BadTarget       // <=Garbage means job has not run reliably
-//	,	Err     = JobErr          // >= Err means job execution is in error
+//	,	Err     = JobError        // >=Err     means job execution is in error
 //	} ;
+//	// /!\ DfltRetriedErrs must staty in sync with Rule.retried_errors in _lib/lmake/rules.src.py
+//	static constexpr BitMap<Status> DfltRetriedErrs {                      Status::JobError ,                                     Status::TerminationError , Status::Timeout } ;
+//	static constexpr BitMap<Status> MaxRetriedErrs  { Status::EarlyError , Status::JobError , Status::Forbidden , Status::Panic , Status::TerminationError , Status::Timeout } ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
 //		FileActionTag tag    = {} ;
