@@ -250,6 +250,7 @@ void mk_room( DiskSz sz , Cjob keep_job ) {
 	trace("done",sz,hdr.total_sz) ;
 }
 
+// START_OF_NO_COV
 void Ckey     ::operator>>(::string& os) const { os << "Ckey("      ; if (+self ) os << +self        ;                                  os << ')' ; }
 void CjobName ::operator>>(::string& os) const { os << "CjobName("  ; if (+self ) os << +self        ;                                  os << ')' ; }
 void CnodeName::operator>>(::string& os) const { os << "CnodeName(" ; if (+self ) os << +self        ;                                  os << ')' ; }
@@ -257,6 +258,7 @@ void Cjob     ::operator>>(::string& os) const { os << "CJ("        ; if (+self 
 void Crun     ::operator>>(::string& os) const { os << "CR("        ; if (+self ) os << +self        ;                                  os << ')' ; }
 void Cnode    ::operator>>(::string& os) const { os << "CN("        ; if (+self ) os << +self        ;                                  os << ')' ; }
 void LruEntry ::operator>>(::string& os) const { os << "LruEntry("  ; if (+newer) os <<"N:"<< +newer ; if (+older) os <<"O:"<< +older ; os << ')' ; }
+// END_OF_NO_COV
 
 //
 // Ckey
@@ -349,11 +351,11 @@ void LruEntry::chk( LruEntry const& hdr , Crun run , LruEntry CrunData::* lru ) 
 // CkeyData
 //
 
-void CkeyData::operator>>(::string& os) const {
+void CkeyData::operator>>(::string& os) const { // START_OF_NO_COV
 	/**/         os << "CkeyData(" ;
 	if (ref_cnt) os << ref_cnt     ;
 	/**/         os << ')'         ;
-}
+}                                               // END_OF_NO_COV
 
 //
 // CjobData
@@ -382,11 +384,11 @@ void CjobData::s_rescue() {
 	}
 }
 
-void CjobData::operator>>(::string& os) const {
+void CjobData::operator>>(::string& os) const { // START_OF_NO_COV
 	/**/      os << "CjobData(" ;
 	if (+lru) os << +lru        ;
 	/**/      os << ')'         ;
-}
+}                                               // END_OF_NO_COV
 
 ::pair<Crun,CacheHitInfo> CjobData::match( ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) {
 	Trace trace("match",idx(),deps.size(),dep_crcs.size()) ;
@@ -407,7 +409,7 @@ bool/*done*/ CjobData::insert(
 ,	::string const& reserved_file , NfsGuard* nfs_guard
 ) {
 	Trace trace("insert",idx(),key,key_is_last,last_access,sz,rate,deps.size(),dep_crcs.size()) ;
-	::array<Crun,2> found_runs ;                                                                   // first and last with same key
+	::array<Crun,2> found_runs ;                                                                                 // first and last with same key
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
 		CrunData& rd = *r ;
 		if (rd.key==key) {
@@ -506,12 +508,12 @@ CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r 
 	for( Cnode d : ds ) d->inc() ;
 }
 
-void CrunData::operator>>(::string& os) const {
+void CrunData::operator>>(::string& os) const { // START_OF_NO_COV
 	/**/              os << "CrunData("<<key ;
 	if (+key_is_last) os << ",last"          ;
 	else              os << ",first"         ;
 	/**/              os << ')'              ;
-}
+}                                               // END_OF_NO_COV
 
 void CrunData::access() {
 	Trace trace("access",idx(),rate) ;
@@ -528,15 +530,15 @@ bool/*job_victimized*/ CrunData::victimize( bool victimize_job , NfsGuard* nfs_g
 	CrunHdr& hdr            = s_hdr() ;
 	bool     job_victimized = false   ;
 	Trace trace("victimize",idx(),STR(victimize_job),hdr.total_sz,sz) ;
-	RateCmp::s_tab.erase(rate) ;                                                      // erase from tab before pruning glb_lru chain as lru is necessary for comparison
-	bool last = job_lru.erase( job->lru              , &CrunData::job_lru ) ;         // manage job-local LRU
-	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , &CrunData::glb_lru ) ;         // manage global    LRU
+	RateCmp::s_tab.erase(rate) ;                                              // erase from tab before pruning glb_lru chain as lru is necessary for comparison
+	bool last = job_lru.erase( job->lru              , &CrunData::job_lru ) ; // manage job-local LRU
+	/**/        glb_lru.erase( RateCmp::s_lrus[rate] , &CrunData::glb_lru ) ; // manage global    LRU
 	//
 	if (!RateCmp::s_lrus[rate].newer/*oldest*/) {
 		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[0]  ]) RateCmp::s_iota.bounds[0]++ ;
 		while ( RateCmp::s_iota.bounds[0]<RateCmp::s_iota.bounds[1] && !RateCmp::s_lrus[RateCmp::s_iota.bounds[1]-1]) RateCmp::s_iota.bounds[1]-- ;
 	} else {
-		RateCmp::s_insert(rate) ;                                                     // erase and re-insert is necessary when glb_lru chain is modified
+		RateCmp::s_insert(rate) ;                                             // erase and re-insert is necessary when glb_lru chain is modified
 	}
 	//
 	/**/                           key.dec()     ;
@@ -646,8 +648,8 @@ void CnodeData::s_rescue() {
 	}
 }
 
-void CnodeData::operator>>(::string& os) const {
+void CnodeData::operator>>(::string& os) const { // START_OF_NO_COV
 	/**/         os << "CnodeData(" ;
 	if (ref_cnt) os << ref_cnt      ;
 	/**/         os << ')'          ;
-}
+}                                                // END_OF_NO_COV

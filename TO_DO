@@ -90,6 +90,18 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* improve address resolution
+	- as of today :
+		- it is assumed that lmake_server and lcache_server addresses are the same on all remote hosts
+		- this is not necessarily the case on all network configs
+	- keep a table remote_host->lmake_server address
+		- at a remanent location in remote_host
+		- beware of parallel updates
+		- use it to connect to server
+	- keep a table remote_host->lcache_server address
+		- inside server
+		- reply address at start time, when remote host is known
+		- update at end time if address was not available at start time
 ! fix incompatibilities between sanitize (LMAKE_FLAGS=ST or SA) and autodep in jobs
 ! isolate signal-safe functions in dedicated .o
 	- and check such .o do not call malloc with nm

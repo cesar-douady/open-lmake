@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 35      ; // 57dbdb2dadaa6ebe5c6850de575f2b87
+	uint64_t    constexpr Cache = 36      ; // 217a57707b9eb742f7fa7e4b01906368
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 34      ; // c3685cb46e09e38e508ee9c6ea1d6020
+	uint64_t    constexpr Repo  = 35      ; // cc5c033a43677575cc1ebef2391e60e8
 	uint64_t    constexpr Job   = 19      ; // 2461431c75bafc07b14dbcdc068d789f
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 57dbdb2dadaa6ebe5c6850de575f2b87 *
+// * Cache : 217a57707b9eb742f7fa7e4b01906368 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -25,7 +25,7 @@ namespace Version {
 //			case FileSync::None : res << "sn" ; break ;
 //			case FileSync::Dir  : res << "sd" ; break ;
 //			case FileSync::Sync : res << "ss" ; break ;
-//		DF} //! NO_COV
+//		DF} // NO_COV
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -283,6 +283,7 @@ namespace Version {
 //			CacheRpcProc       proc        = {}    ;
 //			CacheConfig        config      = {}    ;                                                                // if proc = Config
 //			uint32_t           conn_id     = 0     ;                                                                // if proc = Config  , id to be repeated by upload requests
+//			::string           fqdn        = {}    ;                                                                // if proc = Config
 //			CacheHitInfo       hit_info    = {}    ;                                                                // if proc = Download
 //			CkeyIdx            key         = 0     ;                                                                // if proc = Download
 //			bool               key_is_last = false ;                                                                // if proc = Download
@@ -673,8 +674,9 @@ namespace Version {
 //		Zlvl                                    zlvl             {}                    ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
+//		in_addr_t                cache_addr    = 0 ; // report back used address
 //		JobDigest<>              digest        ;
-//		::vmap_ss                dyn_env       ; // env variables computed in job_exec
+//		::vmap_ss                dyn_env       ;     // env variables computed in job_exec
 //		Time::Pdate              end_date      ;
 //		MsgStderr                msg_stderr    ;
 //		::string                 os_info       ;
@@ -1074,7 +1076,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : c3685cb46e09e38e508ee9c6ea1d6020 *
+// * Repo : cc5c033a43677575cc1ebef2391e60e8 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1090,7 +1092,7 @@ namespace Version {
 //			case FileSync::None : res << "sn" ; break ;
 //			case FileSync::Dir  : res << "sd" ; break ;
 //			case FileSync::Sync : res << "ss" ; break ;
-//		DF} //! NO_COV
+//		DF} // NO_COV
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -2151,8 +2153,9 @@ namespace Version {
 //		Zlvl                                    zlvl             {}                    ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
+//		in_addr_t                cache_addr    = 0 ; // report back used address
 //		JobDigest<>              digest        ;
-//		::vmap_ss                dyn_env       ; // env variables computed in job_exec
+//		::vmap_ss                dyn_env       ;     // env variables computed in job_exec
 //		Time::Pdate              end_date      ;
 //		MsgStderr                msg_stderr    ;
 //		::string                 os_info       ;
@@ -2421,7 +2424,7 @@ namespace Version {
 //			case FileSync::None : res << "sn" ; break ;
 //			case FileSync::Dir  : res << "sd" ; break ;
 //			case FileSync::Sync : res << "ss" ; break ;
-//		DF} //! NO_COV
+//		DF} // NO_COV
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;

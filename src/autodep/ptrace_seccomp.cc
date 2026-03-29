@@ -45,7 +45,7 @@ struct PidInfoBase {
 	PidInfoBase() = default ;
 	PidInfoBase( pid_t pid , Bool3 enable ) : record{ New , enable , pid } {}
 	// accesses
-	void operator>>(::string& os) const { os << proc_mem ; }
+	void operator>>(::string& os) const { os << proc_mem ; } // NO_COV
 	// data
 	Record record   ;
 	AcFd   proc_mem ;
@@ -244,7 +244,7 @@ namespace AutodepPtrace {
 		// synthesis    : we keep a fixed number of entries in pid table and we use a LRU to recycle old entries, exceptionnaly needing to reopen a closed entry.
 		struct TidInfoTab {
 			struct Lru {
-				void operator>>(::string& os) const { os << newer<<','<<older ; }
+				void operator>>(::string& os) const { os << newer<<','<<older ; }                  // NO_COV
 				size_t newer = 0/*garbage*/ ;                                                      // circular list : newer of newest is oldest
 				size_t older = 0/*.      */ ;                                                      // circular list : older of oldest is newest
 			} ;
@@ -256,7 +256,7 @@ namespace AutodepPtrace {
 				}
 			}
 			// accesses
-			void operator>>(::string& os) const {
+			void operator>>(::string& os) const {                                                  // START_OF_NO_COV
 				::array<pid_t,NCtxs> tids  = {} ; for( auto [tid,idx] : _idxs ) tids[idx] = tid ;
 				First                first ;
 				bool                 start = true ;
@@ -266,7 +266,7 @@ namespace AutodepPtrace {
 					start = false ;
 				}
 				os << ')' ;
-			}
+			}                                                                                      // END_OF_NO_COV
 			// services
 			TidInfo& emplace(pid_t tid) {
 				auto    it_inserted = _idxs.try_emplace(tid)   ;

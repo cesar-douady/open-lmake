@@ -96,7 +96,7 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 			*msg <<add_nl<< "absolute path of repo ("<<phy_repo_root<<") found in target "<<tn ;
 			bool warned = abs_path_warned.exchange(true) ;
 			if (!warned) {
-				/**/                     *msg <<"\n  consider :"                                                                                  ;
+				/**/                     *msg <<"\n  consider :"                                                                                ;
 				/**/                     *msg <<"\n  - "<<g_start_info.rule<<".cmd             = <script that generates no such absolute path>" ;
 				/**/                     *msg <<"\n  - "<<g_start_info.rule<<".repo_view       = '/repo'"                                       ;
 				if (+g_start_info.cache) *msg <<"\n  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache= None"   ;
@@ -360,9 +360,10 @@ int main( int argc , char* argv[] ) {
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
 		if (+g_start_info.cache) {
-			if (!g_start_info.cache.service.addr) g_start_info.cache.service.addr = g_service_start.addr ;                            // if no host info, cache is running on same host as server
+			if (!g_start_info.cache.service.addr)
+				end_report.cache_addr = g_start_info.cache.service.addr = SockFd::s_addr(g_start_info.cache.fqdn,true/*name_ok*/) ; // if solving cache addr, report to server so next jobs can reuse it
 			try {
-				CacheRemoteSide::UploadDigest ud = g_start_info.cache.upload( g_start_info.cache.conn_id , exe_time , digest.targets , digest.target_fis , g_start_info.zlvl ) ;
+				CacheRemoteSide::UploadDigest ud = g_start_info.cache.upload( exe_time , digest.targets , digest.target_fis , g_start_info.zlvl ) ;
 				upload_key            = ud.upload_key ;
 				end_report.total_z_sz = ud.z_sz       ;
 				trace("cache",upload_key) ;
@@ -397,11 +398,11 @@ int main( int argc , char* argv[] ) {
 		,	.status         = status
 		,	.incremental    = incremental
 		} ;
-		end_report.end_date          =        g_gather.end_date  ;
-		end_report.stats             = ::move(stats            ) ;
-		end_report.msg_stderr.stderr = ::move(g_gather.stderr  ) ;
-		end_report.stdout            = ::move(g_gather.stdout  ) ;
-		end_report.wstatus           =        g_gather.wstatus   ;
+		end_report.end_date          =        g_gather.end_date                ;
+		end_report.stats             = ::move(stats                          ) ;
+		end_report.msg_stderr.stderr = ::move(g_gather.stderr                ) ;
+		end_report.stdout            = ::move(g_gather.stdout                ) ;
+		end_report.wstatus           =        g_gather.wstatus                 ;
 	}
 End :
 	{	Trace trace("end",end_report.digest) ;

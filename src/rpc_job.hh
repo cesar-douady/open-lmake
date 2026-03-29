@@ -802,11 +802,12 @@ struct CacheRemoteSide {
 	void operator>>(::string&) const ;
 	bool operator+ (         ) const { return +dir_s ; }
 	// services
-	UploadDigest upload ( uint32_t conn_id , Time::Delay exe_time , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl ) const ;
-	void         dismiss( CacheUploadKey upload_key , uint32_t conn_id=0                                                                   ) const ;
+	UploadDigest upload ( Time::Delay exe_time , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl ) const ;
+	void         dismiss( CacheUploadKey upload_key , uint32_t conn_id=0                                                ) const ;
 	// data
 	::string     dir_s     ;
-	KeyedService service   ;
+	::string     fqdn      ;
+	KeyedService service   ;        // use fqdn is service.addr is not provided
 	Disk::DiskSz max_rate  = 0  ;
 	uint32_t     conn_id   = 0  ;   // id given by cache to server upon connection
 	FileSync     file_sync = {} ;
@@ -861,35 +862,35 @@ struct JobStartRpcReply {                                      // NOLINT(clang-a
 	bool operator+ (         ) const { return +interpreter ; } // there is always an interpreter for any job, even if no actual execution as is the case when downloaded from cache
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes( s , autodep_env                   ) ;
-		::serdes( s , cache                         ) ;
-		::serdes( s , chk_abs_paths                 ) ;
-		::serdes( s , chroot_info                   ) ;
-		::serdes( s , cmd                           ) ;
-		::serdes( s , ddate_prec                    ) ;
-		::serdes( s , deps                          ) ;
-		::serdes( s , domain_name                   ) ;
-		::serdes( s , env                           ) ;
-		::serdes( s , interpreter                   ) ;
-		::serdes( s , job_space                     ) ;
-		::serdes( s , keep_tmp                      ) ;
-		::serdes( s , key                           ) ;
-		::serdes( s , kill_daemons                  ) ;
-		::serdes( s , kill_sigs                     ) ;
-		::serdes( s , live_out                      ) ;
-		::serdes( s , method                        ) ;
-		::serdes( s , network_delay                 ) ;
-		::serdes( s , nice                          ) ;
-		::serdes( s , phy_lmake_root_s              ) ;
-		::serdes( s , pre_actions                   ) ;
-		::serdes( s , rule                          ) ;
-		::serdes( s , small_id                      ) ;
-		::serdes( s , star_matches , static_matches ) ;
-		::serdes( s , stderr_ok                     ) ;
-		::serdes( s , stdin        , stdout         ) ;
-		::serdes( s , timeout                       ) ;
-		::serdes( s , use_script                    ) ;
-		::serdes( s , zlvl                          ) ;
+		::serdes( s , autodep_env                       ) ;
+		::serdes( s , cache                             ) ;
+		::serdes( s , chk_abs_paths                     ) ;
+		::serdes( s , chroot_info                       ) ;
+		::serdes( s , cmd                               ) ;
+		::serdes( s , ddate_prec                        ) ;
+		::serdes( s , deps                              ) ;
+		::serdes( s , domain_name                       ) ;
+		::serdes( s , env                               ) ;
+		::serdes( s , interpreter                       ) ;
+		::serdes( s , job_space                         ) ;
+		::serdes( s , keep_tmp                          ) ;
+		::serdes( s , key                               ) ;
+		::serdes( s , kill_daemons                      ) ;
+		::serdes( s , kill_sigs                         ) ;
+		::serdes( s , live_out                          ) ;
+		::serdes( s , method                            ) ;
+		::serdes( s , network_delay                     ) ;
+		::serdes( s , nice                              ) ;
+		::serdes( s , phy_lmake_root_s                  ) ;
+		::serdes( s , pre_actions                       ) ;
+		::serdes( s , rule                              ) ;
+		::serdes( s , small_id                          ) ;
+		::serdes( s , star_matches     , static_matches ) ;
+		::serdes( s , stderr_ok                         ) ;
+		::serdes( s , stdin            , stdout         ) ;
+		::serdes( s , timeout                           ) ;
+		::serdes( s , use_script                        ) ;
+		::serdes( s , zlvl                              ) ;
 	}
 	void mk_canon( ::string const& phy_repo_root_s ) ;
 	void enter   (
@@ -955,6 +956,7 @@ struct JobEndRpcReq : JobRpcReq {
 	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
+		::serdes( s , cache_addr                    ) ;
 		::serdes( s , digest                        ) ;
 		::serdes( s , dyn_env                       ) ;
 		::serdes( s , end_date                      ) ;
@@ -968,12 +970,13 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes( s , user_trace                    ) ;
 		::serdes( s , wstatus                       ) ;
 	}
-	void cache_cleanup() ;                   // clean up info before uploading to cache
+	void cache_cleanup() ;                       // clean up info before uploading to cache
 	void chk(bool for_cache=false) const ;
 	// data
 	// START_OF_VERSIONING REPO CACHE
+	in_addr_t                cache_addr    = 0 ; // report back used address
 	JobDigest<>              digest        ;
-	::vmap_ss                dyn_env       ; // env variables computed in job_exec
+	::vmap_ss                dyn_env       ;     // env variables computed in job_exec
 	Time::Pdate              end_date      ;
 	MsgStderr                msg_stderr    ;
 	::string                 os_info       ;

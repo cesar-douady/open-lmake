@@ -696,7 +696,7 @@ namespace Engine {
 				case Special::Anti       : title << " AntiRule"   ; break ;
 				case Special::GenericSrc : title << " SourceRule" ; break ;
 				case Special::Plain      :                          break ;
-			DF}
+			DF}                                                             // NO_COV
 			for( bool star : {false,true} )
 				for( VarIdx mi : matches_iotas[star][+MatchKind::Target] )
 					if (job_name_==matches[mi].second.pattern) { job_name_ = "<targets."+matches[mi].first+'>' ; break ; }

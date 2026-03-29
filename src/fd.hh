@@ -27,7 +27,7 @@ struct Service {
 	//
 	operator ::string() const { return str() ; }
 	// access
-	void     operator>>(::string&       os  ) const { os << str() ;                                         }
+	void     operator>>(::string&       os  ) const { os << str() ;                                         } // NO_COV
 	bool     operator+ (                    ) const { return addr || port ;                                 }
 	::string str       (::string const& host) const { ::string res = host ; res <<':'<< port ; return res ; }
 	::string str       (                    ) const ;
@@ -48,7 +48,7 @@ struct KeyedService : Service {
 	//
 	operator ::string() const { return str() ; }
 	// access
-	void     operator>>(::string&       os  ) const { os << str() ;                                                               }
+	void     operator>>(::string&       os  ) const { os << str() ;                                                               } // NO_COV
 	::string str       (::string const& host) const { ::string res = Service::str(host) ; if (key) res <<'/'<< key ; return res ; }
 	::string user_str  (::string const& host) const { ::string res = Service::str(host) ;                            return res ; }
 	::string str       (                    ) const ;
@@ -102,7 +102,7 @@ protected :
 	SockFd( int fd , Key k                                                            ) : AcFd{fd} , key{k} {} // for Slave
 	// accesses
 public :
-	void operator>>(::string& os) const { append_to_str(os,"SockFd",cat(key)) ; }
+	void operator>>(::string& os) const { append_to_str(os,"SockFd",cat(key)) ; } // NO_COV
 	// services
 	// if timeout is 0, it means infinity (no timeout)
 	void set_receive_timeout(Time::Delay to={}) { Time::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
@@ -127,7 +127,7 @@ struct SlaveSockFd : SockFd {
 	SlaveSockFd() = default ;
 	SlaveSockFd( int fd , Key k={} ) : SockFd{fd,k} {}
 	// accesses
-	void operator>>(::string& os) const { append_to_str(os,"SlaveSockFd",cat(key)) ; }
+	void operator>>(::string& os) const { append_to_str(os,"SlaveSockFd",cat(key)) ; } // NO_COV
 } ;
 
 struct ServerSockFd : SockFd {
@@ -135,7 +135,7 @@ struct ServerSockFd : SockFd {
 	ServerSockFd() = default ;
 	ServerSockFd( int backlog , bool reuse_addr=true , in_addr_t local_addr=0 ) ;
 	// accesses
-	void operator>>(::string& os) const { append_to_str(os,"ServerSockFd",cat(key)) ; }
+	void operator>>(::string& os) const { append_to_str(os,"ServerSockFd",cat(key)) ; } // NO_COV
 	// services                                                                        peer
 	KeyedService service    (in_addr_t       a   ) const { return SockFd::service    ( false , a    ) ; }
 	KeyedService service    (                    ) const { return SockFd::service    ( false        ) ; }
@@ -149,7 +149,7 @@ struct ClientSockFd : SockFd {
 	ClientSockFd() = default ;
 	ClientSockFd( KeyedService , bool reuse_addr=true , Time::Delay timeout={} ) ;
 	// accesses
-	void operator>>(::string& os) const { append_to_str(os,"ClientSockFd",cat(key)) ; }
+	void operator>>(::string& os) const { append_to_str(os,"ClientSockFd",cat(key)) ; } // NO_COV
 	// services                                                                        peer
 	KeyedService service    (in_addr_t       a   ) const { return SockFd::service    ( true , a    ) ; }
 	KeyedService service    (                    ) const { return SockFd::service    ( true        ) ; }
@@ -219,7 +219,7 @@ struct EventFd : AcFd {
 	EventFd(NewType) : AcFd{::eventfd(0/*initval*/,O_CLOEXEC),true/*no_std*/} {}
 	EventFd(Fd fd_ ) : AcFd{fd_                                             } {}
 	// accesses
-	void operator>>(::string& os) const { append_to_str(os,"EventFd") ; }
+	void operator>>(::string& os) const { append_to_str(os,"EventFd") ; } // NO_COV
 	// services
 	void wakeup() const {
 		static constexpr uint64_t One = 1 ;
@@ -249,7 +249,7 @@ private :
 	}
 	// accesses
 public :
-	void operator>>(::string& os) const { append_to_str(os,"SignalFd") ; }
+	void operator>>(::string& os) const { append_to_str(os,"SignalFd") ; } // NO_COV
 	// services
 	int/*sig*/ read() const {
 		struct ::signalfd_siginfo si ;
@@ -283,7 +283,7 @@ template<Enum E=NewType/*when_unused*/> struct Epoll {
 		for( auto [fd,sig_pid] : _fd_infos ) _s_epoll_sigs->erase(sig_pid.first) ;
 	}
 	// accesses
-	void operator>>(::string& os) const { os<<"Epoll("<<_fd.fd<<','<<_n_waits<<')' ; }
+	void operator>>(::string& os) const { os<<"Epoll("<<_fd.fd<<','<<_n_waits<<')' ; } // NO_COV
 	uint operator+ (            ) const { return _n_waits ;                          }
 	void dec       (            )       { SWEAR(_n_waits>0) ; _n_waits-- ;           }
 	// services

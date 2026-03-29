@@ -134,7 +134,7 @@ template<UEnum E> static constexpr size_t NBits<E> = n_bits(N<E>) ;
 template<Enum E> ::string operator+ ( ::string     && s , E               e  ) { return ::move(s)+snake(e)                             ; }
 template<Enum E> ::string operator+ ( ::string const& s , E               e  ) { return        s +snake(e)                             ; }
 template<Enum E> ::string operator+ ( E               e , ::string const& s  ) { return snake (e)+      s                              ; }
-template<Enum E> void     operator>>( E               e , ::string      & os ) { if (e<All<E>) os<<snake(e) ; else os<<"N+"<<(+e-N<E>) ; }
+template<Enum E> void     operator>>( E               e , ::string      & os ) { if (e<All<E>) os<<snake(e) ; else os<<"N+"<<(+e-N<E>) ; } // NO_COV
 
 template<UEnum E> bool can_mk_enum(::string const& x) {
 	return +EnumHelper::mk_enum<E>(x) ;
@@ -177,7 +177,7 @@ template<UEnum E> struct BitMap {
 		( (_val|=(Val(1)<<+e)) , ... ) ;
 	}
 	// accesses
-	void operator>>(::string& os) const {
+	void operator>>(::string& os) const {                                                                            // START_OF_NO_COV
 		bool first = true ;
 		os << '(' ;
 		for( E e : iota(All<E>) )
@@ -186,7 +186,7 @@ template<UEnum E> struct BitMap {
 				else         os << '|'<<e ;
 			}
 		os << ')' ;
-	}
+	}                                                                                                                // END_OF_NO_COV
 	constexpr Val operator+() const { return _val ; }
 	// services
 	constexpr bool    operator==( BitMap const&     ) const = default ;

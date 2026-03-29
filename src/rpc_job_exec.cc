@@ -63,7 +63,7 @@ JobExecRpcReply JobExecRpcReq::mimic_server() && {
 // JobExecRpcReply
 //
 
-void JobExecRpcReply::operator>>(::string& os) const { // START_OF_NO_COV
+void JobExecRpcReply::operator>>(::string& os) const {                    // START_OF_NO_COV
 	os << "JobExecRpcReply("<<proc ;
 	switch (proc) {
 		case JobExecProc::None       :                          ; break ;
@@ -71,9 +71,9 @@ void JobExecRpcReply::operator>>(::string& os) const { // START_OF_NO_COV
 		case JobExecProc::DepDirect  : os << ','<<ok            ; break ;
 		case JobExecProc::DepVerbose : os << ','<<verbose_infos ; break ;
 		case JobExecProc::List       : os << ','<<files         ; break ;
-	DF}
+	DF}                                                                   // NO_COV
 	os << ')' ;
-}                                                      // END_OF_NO_COV
+}                                                                         // END_OF_NO_COV
 
 //
 // codec

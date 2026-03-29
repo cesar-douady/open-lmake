@@ -963,19 +963,20 @@ void JobSpace::mk_canon( ::string const& phy_repo_root_s , ::string const& sub_r
 // CacheRemoteSide
 //
 
-void CacheRemoteSide::operator>>(::string& os) const {
+void CacheRemoteSide::operator>>(::string& os) const {               // START_OF_NO_COV
 	First first ;
 	/**/                    os << "CacheRemoteSide("               ;
 	if (+dir_s            ) os << first("",",")<<dir_s             ;
+	if (+fqdn             ) os << first("",",")<<fqdn              ;
 	if (+service          ) os << first("",",")<<service           ;
 	if (+max_rate         ) os << first("",",")<<max_rate          ;
 	if (+file_sync        ) os << first("",",")<<file_sync         ;
 	if ( umask!=mode_t(-1)) os << first("",",")<<mod_to_str(umask) ;
 	/**/                    os << ')'                              ;
-}
+}                                                                    // END_OF_NO_COV
 
-CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay exe_time , ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) const {
-	Trace trace(CacheChnl,"upload",conn_id,targets.size(),zlvl) ;
+CacheRemoteSide::UploadDigest CacheRemoteSide::upload( Delay exe_time , ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) const {
+	Trace trace(CacheChnl,"upload",targets.size(),zlvl) ;
 	SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 	//
 	FileSync file_sync_ ;
@@ -1043,8 +1044,8 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( uint32_t conn_id , Delay 
 	}
 }
 
-void CacheRemoteSide::dismiss( CacheUploadKey upload_key , uint32_t conn_id ) const {
-	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Dismiss , .conn_id=conn_id , .upload_key=upload_key } ).send( ClientSockFd(service) , {}/*key*/ ) ;
+void CacheRemoteSide::dismiss( CacheUploadKey upload_key , uint32_t conn_id_ ) const {
+	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Dismiss , .conn_id=conn_id_ , .upload_key=upload_key } ).send( ClientSockFd(service) , {}/*key*/ ) ;
 }
 
 //
@@ -1106,8 +1107,9 @@ void JobEndRpcReq::operator>>(::string& os) const {                             
 
 void JobEndRpcReq::cache_cleanup() {
 	JobRpcReq::cache_cleanup() ;
-	digest.cache_cleanup() ;
-	phy_tmp_dir_s = {} ;     // execution dependent
+	cache_addr    = 0              ; // no recursive info
+	digest        .cache_cleanup() ;
+	phy_tmp_dir_s = {}             ; // execution dependent
 }
 
 void JobEndRpcReq::chk(bool for_cache) const {

@@ -40,7 +40,7 @@ static CacheRpcReply _config( Fd fd , ::string const& repo_key ) {
 	if (!key->ref_cnt) AcFd(cat(PrivateAdminDirS,"repo_keys"),{O_WRONLY|O_APPEND|O_CREAT}).write(cat(+key,' ',repo_key,'\n')) ;
 	//
 	key.inc() ;
-	return { .proc=CacheRpcProc::Config , .config=g_cache_config , .conn_id=uint32_t(fd.fd+1) } ; // conn_id=0 is reserved to mean no id
+	return { .proc=CacheRpcProc::Config , .config=g_cache_config , .conn_id=uint32_t(fd.fd+1) , .fqdn=fqdn() } ; // conn_id=0 is reserved to mean no id
 }
 
 static CacheRpcReply _download(CacheRpcReq const& crr) {

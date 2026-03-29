@@ -20,7 +20,7 @@ namespace Codec {
 			case 'N' : file_sync = FileSync::None ; break ;
 			case 'D' : file_sync = FileSync::Dir  ; break ;
 			case 'S' : file_sync = FileSync::Sync ; break ;
-		DF}
+		DF}                                                  // NO_COV
 		umask = mod_from_str(descr.substr(descr.size()-4)) ;
 	}
 
@@ -52,12 +52,12 @@ namespace Codec {
 			case FileSync::None : res << 'N' ; break ;
 			case FileSync::Dir  : res << 'D' ; break ;
 			case FileSync::Sync : res << 'S' ; break ;
-		DF}
+		DF}                                                  // NO_COV
 		res << mod_to_str(umask) ;
 		return res ;
 	}
 
-	void CodecRemoteSide::operator>>(::string& os) const {           // START_OF_NO_COV
+	void CodecRemoteSide::operator>>(::string& os) const {     // START_OF_NO_COV
 		/**/                    os << "Codec("<<tab          ;
 		if (+file_sync        ) os << ','<<file_sync         ;
 		if ( umask!=mode_t(-1)) os << ','<<mod_to_str(umask) ;
@@ -66,7 +66,7 @@ namespace Codec {
 
 }
 
-void AutodepEnv::operator>>(::string& os) const {                             // START_OF_NO_COV
+void AutodepEnv::operator>>(::string& os) const {                                       // START_OF_NO_COV
 	/**/                   os << "AutodepEnv("<<static_cast<RealPathEnv const&>(self) ;
 	if (+fast_mail       ) os << ','<<fast_mail                                       ;
 	if (+fast_report_pipe) os << ','<<fast_report_pipe                                ;
@@ -80,7 +80,7 @@ void AutodepEnv::operator>>(::string& os) const {                             //
 	if (+codecs          ) os << ','<<codecs                                          ;
 	if (+views_s         ) os << ','<<views_s                                         ;
 	/**/                   os << ')'                                                  ;
-}                                                                                          // END_OF_NO_COV
+}                                                                                       // END_OF_NO_COV
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
@@ -164,7 +164,7 @@ AutodepEnv::operator ::string() const {
 		case FileSync::None : res << "sn" ; break ;
 		case FileSync::Dir  : res << "sd" ; break ;
 		case FileSync::Sync : res << "ss" ; break ;
-	DF} //! NO_COV
+	DF} // NO_COV
 	switch (lnk_support) {
 		case LnkSupport::None : res << "ln" ; break ;
 		case LnkSupport::File : res << "lf" ; break ;

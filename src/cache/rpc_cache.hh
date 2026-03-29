@@ -75,11 +75,11 @@ namespace Cache {
 		StrId(::string const& n) : name{n} {}
 		StrId(I               i) : id  {i} {}
 		// accesses
-		void operator>>(::string& os) const {
+		void operator>>(::string& os) const {            // START_OF_NO_COV
 			if      (is_name()) os << name ;
 			else if (id       ) os << id   ;
 			else                os << "()" ;
-		}
+		}                                                // END_OF_NO_COV
 		bool operator+() const { return +name || +id ; }
 		bool is_name  () const { return +name        ; }
 		// services
@@ -145,7 +145,7 @@ namespace Cache {
 			::serdes( s , proc ) ;
 			switch (proc) {
 				case CacheRpcProc::None     :                                                           break ;
-				case CacheRpcProc::Config   : ::serdes( s , config,conn_id                          ) ; break ;
+				case CacheRpcProc::Config   : ::serdes( s , config,conn_id,fqdn                     ) ; break ;
 				case CacheRpcProc::Download : ::serdes( s , hit_info,key,key_is_last,job_id,dep_ids ) ; break ;
 				case CacheRpcProc::Upload   : ::serdes( s , upload_key,msg                          ) ; break ;
 			DF}                                                                                                 // NO_COV
@@ -155,6 +155,7 @@ namespace Cache {
 		CacheRpcProc       proc        = {}    ;
 		CacheConfig        config      = {}    ;                                                                // if proc = Config
 		uint32_t           conn_id     = 0     ;                                                                // if proc = Config  , id to be repeated by upload requests
+		::string           fqdn        = {}    ;                                                                // if proc = Config
 		CacheHitInfo       hit_info    = {}    ;                                                                // if proc = Download
 		CkeyIdx            key         = 0     ;                                                                // if proc = Download
 		bool               key_is_last = false ;                                                                // if proc = Download

@@ -115,7 +115,7 @@ enum class Rc : uint8_t {
 
 struct Fd ;
 
-template<class... As> void dbg( Fd fd , ::string const& title , As const&... args ) ;
+template<class... As> void dbg( Fd fd                          , ::string const& title , As const&... args ) ;
 template<class... As> void dbg( NewType , ::string const& file , ::string const& title , As const&... args ) ;
 template<class... As> void dbg(                                  ::string const& title , As const&... args ) ;
 template<class... As> void dbg(                                  const char*     title , As const&... args ) ; // disambiguate
@@ -126,7 +126,7 @@ template<class... As> void dbg(                                  const char*    
 struct StrErr {
 	StrErr(int e=errno) : err{e} {}
 	/**/ operator ::string(            ) const { return ::strerror(err) ; }
-	void operator>>       (::string& os) const { os << ::string(self) ;   }
+	void operator>>       (::string& os) const { os << ::string(self) ;   } // NO_COV
 	int err ;
 } ;
 
@@ -568,7 +568,7 @@ struct Fd {
 	static const Fd Stdin  ;
 	static const Fd Stdout ;
 	static const Fd Stderr ;
-	static const Fd Std    ;                                                                 // the highest standard fd
+	static const Fd Std    ;                                                                            // the highest standard fd
 	//
 	using Action = _FdAction ;
 	// cxtors & casts
@@ -583,17 +583,17 @@ public :
 	Fd( const char* file , Action action={} ) ;
 	//
 	constexpr operator int  () const { return fd                    ; }
-	constexpr bool operator+() const { return fd>=0 || fd==AT_FDCWD ; }                      // other negative values are used to spawn processes
+	constexpr bool operator+() const { return fd>=0 || fd==AT_FDCWD ; }                                 // other negative values are used to spawn processes
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
 	// accesses
-	void operator>>(::string& os) const { append_to_str( os , "Fd" ) ; }                     // NO_COV
+	void operator>>(::string& os) const { append_to_str( os , "Fd" ) ; }                                // NO_COV
 	// services
 	constexpr bool              operator== (Fd const&                    ) const = default ;
 	constexpr ::strong_ordering operator<=>(Fd const&                    ) const = default ;
-	/**/      void              write      (::string_view data           ) const ;           // writing does not modify the Fd object
-	/**/      ::string          read       (size_t        sz        =Npos) const ;           // read sz bytes or to eof
-	/**/      ::vector_s        read_lines (bool          partial_ok=true) const ;           // if partial_ok => ok if last line does not end with \n
+	/**/      void              write      (::string_view data           ) const ;                      // writing does not modify the Fd object
+	/**/      ::string          read       (size_t        sz        =Npos) const ;                      // read sz bytes or to eof
+	/**/      ::vector_s        read_lines (bool          partial_ok=true) const ;                      // if partial_ok => ok if last line does not end with \n
 	/**/      size_t            read_to    (::span<char>  dst            ) const ;
 	/**/      Fd                dup        (                             ) const { return ::dup(fd) ;                     }
 	constexpr Fd                detach     (                             )       { Fd res = self ; fd = -1 ; return res ; }
@@ -603,13 +603,13 @@ public :
 	/**/      void              cloexec    (bool          set       =true) const { ::fcntl(fd,F_SETFD,set?FD_CLOEXEC:0) ; }
 	constexpr size_t            hash       (                             ) const { return fd ;                            }
 protected :
-	::string& append_to_str( ::string& os , const char* class_name , ::string const& extra={} ) const {
+	::string& append_to_str( ::string& os , const char* class_name , ::string const& extra={} ) const { // START_OF_NO_COV : only for operator>>
 		os <<class_name<<"(" ;
 		if (self==Cwd) os << "Cwd"      ;
 		else           os << fd         ;
 		if (+extra   ) os << ','<<extra ;
 		return os <<')' ;
-	}
+	}                                                                                                   // END_OF_NO_COV
 public :
 	// data
 	int fd = -1 ;
@@ -823,7 +823,7 @@ template<class T,MutexLvl A> struct StaticUniqPtr {
 	StaticUniqPtr           (StaticUniqPtr const&) = delete ;
 	StaticUniqPtr& operator=(StaticUniqPtr const&) = delete ;
 	// accesses
-	void     operator>>(::string& os) const { os << _ptr ;     } // NO_COV
+	void     operator>>(::string& os) const { os << _ptr ;     }                                                              // NO_COV
 	bool     operator+ (            ) const { return _ptr    ; }
 	T      & operator* (            )       { return *_ptr   ; }
 	T const& operator* (            ) const { return *_ptr   ; }

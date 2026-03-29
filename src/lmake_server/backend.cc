@@ -658,19 +658,25 @@ namespace Backends {
 	}
 
 	void Backend::_s_handle_job_end( JobEndRpcReq&& jerr , Fd ) {
-		if (!jerr) return ;                                                 // if connection is lost, ignore it
+		if (!jerr) return ;                                               // if connection is lost, ignore it
 		JobDigest<>& digest = jerr.digest ;
 		Job          job    { jerr.job }  ;
 		JobExec      je     ;
 		Trace trace(BeChnl,"_s_handle_job_end",jerr) ;
 		//
-		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ;   // ensure _s_handled_job_start is done for this job
+		if (jerr.job==_s_starting_job) Lock lock{_s_starting_job_mutex} ; // ensure _s_handled_job_start is done for this job
 		//
-		{	TraceLock lock { _s_mutex , BeChnl,"_s_handle_job_end" } ;      // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
+		{	TraceLock lock { _s_mutex , BeChnl,"_s_handle_job_end" } ;    // prevent sub-backend from manipulating _s_start_tab from main thread, lock for minimal time
 			//
 			auto        it    = _s_start_tab.find(+job) ; if (it==_s_start_tab.end()        ) { trace("not_in_tab",job                              ) ; return ; }
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; return ; }
 			_s_small_ids.release(entry.conn.small_id) ;
+			//
+			if ( entry.submit_info.cache_idx1 && jerr.cache_addr ) {                                          // record solved cache server address so next jobs will not  have to do it again
+				Cache::CacheServerSide& css = Cache::CacheServerSide::s_tab[entry.submit_info.cache_idx1-1] ;
+				css.service.addr = jerr.cache_addr ;
+				css.fqdn         = {}              ;
+			}
 			//
 			je                = { job , entry.conn.service.addr , entry.start_date , New/*end_date*/ }   ;
 			/**/                _s_workload.end ( entry.reqs , job                                     ) ;
@@ -694,10 +700,10 @@ namespace Backends {
 		trace("digest",digest) ;
 		job->end_exec() ;
 		// record to file before queueing to main thread as main thread appends to file and may otherwise access info
-		{	JobDigest<Node> jd = digest ;                                   // before jerr is moved
-			Job::s_record_thread.emplace( job , ::move(jerr) ) ;            // /!\ _s_starting_job ensures Start has been queued before we enqueue End
+		{	JobDigest<Node> jd = digest ;                                                                     // before jerr is moved
+			Job::s_record_thread.emplace( job , ::move(jerr) ) ;                                              // /!\ _s_starting_job ensures Start has been queued before we enqueue End
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jd) ) ; // .
+			g_engine_queue.emplace( Proc::End , ::move(je) , ::move(jd) ) ;                                   // .
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 	}
@@ -851,16 +857,16 @@ namespace Backends {
 			bool was_ready = s_ready(t) ;
 			if (!cfg.configured) {
 				throw_if( s_seen[t] && was_ready , "cannot dynamically suppress backend ",t ) ;
-				be->config_err = "not configured" ;                                               // empty config_err means ready
+				be->config_err = "not configured" ;                                             // empty config_err means ready
 				trace("not_configured" ,t) ;
 			} else {
 				be->domain_name = cfg.domain_name ;
 				be->config(cfg.dct,cfg.env) ;
 				if ( s_seen[t] && !was_ready ) {
-					SWEAR(+be->config_err) ;                                                      // empty config_err means ready
+					SWEAR(+be->config_err) ;                                                    // empty config_err means ready
 					throw cat("cannot dynamically add backend ",t) ;
 				}
-				be->config_err = {} ;                                                             // empty config_err means ready
+				be->config_err = {} ;                                                           // empty config_err means ready
 			}
 			s_seen |= t ;
 		}

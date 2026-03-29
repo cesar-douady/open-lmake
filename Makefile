@@ -518,8 +518,8 @@ include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS)
 $(COMPILE_COMMANDS) : % : Manifest
 	@echo generate $@
 	@{ \
-		echo -n '[' ;                                          \
-		for f in $(filter $(filter-out ./,$(dir $@))%,$^) ; do \
+		echo -n '[' ;                                                  \
+		for f in $(filter $(filter-out ./,$(dir $@))%,$(CC_SRCS)) ; do \
 			echo "$$p"'$(TAB){$(TAB)"directory"  : "$(abspath .)"'                                                                              ; \
 			echo      '$(TAB),$(TAB)"file"       : "'"$$f"'"'                                                                                   ; \
 			echo      '$(TAB),$(TAB)"command"    : "$(filter-out PATH=%,$(COMPILE)) -Wno-error $(CLANG_WARNING_FLAGS) -c -frtti -fPIC '"$$f"'"' ; \

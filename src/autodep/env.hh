@@ -9,7 +9,6 @@
 #include "fd.hh"
 #include "real_path.hh"
 #include "serialize.hh"
-#include "time.hh"
 
 namespace Codec {
 	struct CodecRemoteSide {

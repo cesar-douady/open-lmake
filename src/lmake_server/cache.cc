@@ -49,17 +49,18 @@ namespace Cache {
 		::vector_s cmd_line = { *g_lmake_root_s+"bin/lcache_server" , "-d"/*no_daemon*/ } ;
 		try                           { _fd = connect_to_server( true/*try_old*/ , CacheMagic , ::move(cmd_line) , ServerMrkr , dir_s , CacheChnl ).first ; }
 		catch (::pair_s<Rc> const& e) { throw e.first ;                                                                                                     }
-		service = _fd.service()                                 ;
+		service = _fd.service()                                 ; service.addr = 0 ;                    // service.addr will be filled in from job replies after they have connected to cache
 		_dir_fd = AcFd( dir_s , {.flags=O_RDONLY|O_DIRECTORY} ) ;
 		//
 		OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Config , .repo_key=repo_key } ).send(_fd) ;
 		auto reply = _imsg.receive<CacheRpcReply>( _fd , Maybe/*once*/ , {}/*key*/ ) ; throw_unless( reply.proc==CacheRpcProc::Config , "cache did not start" ) ;
-		max_rate          = reply.config.max_rate               ;
-		conn_id           = reply.conn_id                       ;
-		file_sync         = reply.config.file_sync              ;
-		umask             = reply.config.umask                  ;
+		max_rate          =        reply.config.max_rate        ;
+		conn_id           =        reply.conn_id                ;
+		fqdn              = ::move(reply.fqdn            )      ;
+		file_sync         =        reply.config.file_sync       ;
+		umask             =        reply.config.umask           ;
 		_server_file_sync = auto_file_sync( file_sync , dir_s ) ;
-		trace("done",max_rate,conn_id,file_sync,umask,_server_file_sync) ;
+		trace("done",max_rate,conn_id,fqdn,file_sync,umask,_server_file_sync) ;
 	}
 
 	::vmap_ss CacheServerSide::descr() const {
@@ -172,13 +173,13 @@ namespace Cache {
 		Trace trace(CacheChnl,"Cache::commit",upload_key,job) ;
 		//
 		JobInfo job_info = job.job_info() ;
-		if (!( +job_info.start && +job_info.end )) {  // we need a full report to cache job
+		if (!( +job_info.start && +job_info.end )) {                     // we need a full report to cache job
 			trace("no_ancillary_file") ;
 			dismiss(upload_key) ;
 			throw "no ancillary file"s ;
 		}
 		//
-		job_info.update_digest() ;                    // ensure cache has latest crc available
+		job_info.update_digest() ;                                       // ensure cache has latest crc available
 		// check deps
 		::vmap<StrId<CnodeIdx>,DepDigest> repo_deps ;
 		for( auto const& [dn,dd] : job_info.end.digest.deps ) {
@@ -193,7 +194,7 @@ namespace Cache {
 				throw cat("dep has no valid crc : ",dn) ;
 			}
 		}
-		job_info.cache_cleanup() ;                    // defensive programming : remove useless/meaningless info
+		job_info.cache_cleanup() ;                                       // defensive programming : remove useless/meaningless info
 		::string job_info_str = serialize(job_info) ;
 		{	NfsGuard nfs_guard { _server_file_sync                                                                                                            } ;
 			AcFd     ifd       { {_dir_fd,reserved_file(upload_key)+"-info"} , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.umask=umask} } ;
@@ -207,7 +208,7 @@ namespace Cache {
 			.proc           = CacheRpcProc::Commit
 		,	.job            = job_str_id
 		,	.repo_deps      = ::move(repo_deps)
-		,	.override_first = was_missing_audit       // if previous run was missing audit, it was may_rerun and this run replaces previous commit
+		,	.override_first = was_missing_audit                          // if previous run was missing audit, it was may_rerun and this run replaces previous commit
 		,	.total_z_sz     = job_info.end.total_z_sz
 		,	.job_info_sz    = job_info_str.size()
 		,	.exe_time       = job_info.end.digest.exe_time

@@ -22,7 +22,7 @@ void ReqRpcReq::operator>>(::string& os) const {                 // START_OF_NO_
 	/**/                        os << ')'                      ;
 }                                                                // END_OF_NO_COV
 
-void ReqRpcReply::operator>>(::string& os) const { // START_OF_NO_COV
+void ReqRpcReply::operator>>(::string& os) const {     // START_OF_NO_COV
 	using Proc = ReqRpcReplyProc ;
 	os << "ReqRpcReply("<<proc ;
 	switch (proc) {
@@ -31,6 +31,6 @@ void ReqRpcReply::operator>>(::string& os) const { // START_OF_NO_COV
 		case Proc::File   :
 		case Proc::Stderr :
 		case Proc::Stdout : os << ",T:"<<txt ; break ;
-	DF}
+	DF}                                                // NO_COV
 	os << ')' ;
-}                                                  // END_OF_NO_COV
+}                                                      // END_OF_NO_COV

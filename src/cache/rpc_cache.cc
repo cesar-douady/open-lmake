@@ -7,7 +7,7 @@
 
 namespace Cache {
 
-	void CacheRpcReq::operator>>(::string& os) const {
+	void CacheRpcReq::operator>>(::string& os) const {    // START_OF_NO_COV
 		/**/              os << "CacheRpcReq("<<proc    ;
 		if (+repo_key   ) os << ",K:"<<repo_key         ;
 		if (+job        ) os << ','  <<job              ;
@@ -19,11 +19,12 @@ namespace Cache {
 		if (+exe_time   ) os << ','  <<exe_time         ;
 		if (+upload_key ) os << ",U:"<<upload_key       ;
 		/**/              os << ')'                     ;
-	}
+	}                                                     // END_OF_NO_COV
 
-	void CacheRpcReply::operator>>(::string& os) const {
+	void CacheRpcReply::operator>>(::string& os) const {             // START_OF_NO_COV
 		/**/              os << "CacheRpcReply("<<proc             ;
 		if (+conn_id    ) os << ",C:"<<conn_id                     ;
+		if (+fqdn       ) os << ','  <<fqdn                        ;
 		if (+hit_info   ) os << ','  <<hit_info                    ;
 		if (+key        ) os << ",K:"<<key<<'-'<<"FL"[key_is_last] ;
 		if (+dep_ids    ) os << ",D:"<<dep_ids.size()              ;
@@ -31,6 +32,6 @@ namespace Cache {
 		if (+upload_key ) os << ','  <<upload_key                  ;
 		if (+msg        ) os << ','  <<msg                         ;
 		/**/              os << ')'                                ;
-	}
+	}                                                                // END_OF_NO_COV
 
 }

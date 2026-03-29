@@ -358,16 +358,16 @@ void Gather::_trace_child( Fd report_fd , ::latch* ready ) {
 	switch (method) {
 		/**/                    case AutodepMethod::Ptrace  : _child.pre_exec = AutodepPtrace ::prepare_child ; break ;
 		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : _child.pre_exec = AutodepSeccomp::prepare_child ; break ; )
-	DF}
+	DF}                                                                                                                   // NO_COV
 	//vvvvvvvvvvvv
-	_child.spawn() ;                                                            // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
+	_child.spawn() ;      // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
 	//^^^^^^^^^^^^
-	ready->count_down() ;                                                       // signal main thread that _child.pid is available
+	ready->count_down() ; // signal main thread that _child.pid is available
 	switch (method) {
 		/**/                    case AutodepMethod::Ptrace  : wstatus = AutodepPtrace ::process(_child.pid) ; break ;
 		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : wstatus = AutodepSeccomp::process(_child.pid) ; break ; )
-	DF}
-	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ; // report child end
+	DF}                                                                                                                 // NO_COV
+	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ;                                         // report child end
 	Record::s_close_reports() ;
 }
 
