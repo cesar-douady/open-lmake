@@ -608,6 +608,7 @@ namespace Engine {
 		if ( !lost && +res.target_reason && status>Status::Garbage ) status = Status::BadTarget ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		jd.incremental = digest.incremental ;
+		jd.local       = digest.local       ;
 		jd.status      = status             ;
 		//^^^^^^^^^^^^^^^^^^^^^
 		//
@@ -773,16 +774,16 @@ namespace Engine {
 	// JobInfo
 	//
 
-	void SubmitInfo::operator>>(::string& os) const {          // START_OF_NO_COV
+	void SubmitInfo::operator>>(::string& os) const {    // START_OF_NO_COV
 		First first ;
-		/**/               os << "SubmitInfo("               ;
-		if (+used_backend) os << first("",",")<<used_backend ;
-		if ( live_out    ) os << first("",",")<<"live_out"   ;
-		if (+pressure    ) os << first("",",")<<pressure     ;
-		if (+deps        ) os << first("",",")<<deps         ;
-		if (+reason      ) os << first("",",")<<reason       ;
-		/**/               os << ')'                         ;
-	}                                                          // END_OF_NO_COV
+		/**/           os << "SubmitInfo("             ;
+		if ( live_out) os << first("",",")<<"live_out" ;
+		if ( local   ) os << first("",",")<<"local"    ;
+		if (+pressure) os << first("",",")<<pressure   ;
+		if (+deps    ) os << first("",",")<<deps       ;
+		if (+reason  ) os << first("",",")<<reason     ;
+		/**/           os << ')'                       ;
+	}                                                    // END_OF_NO_COV
 
 	void SubmitInfo::cache_cleanup() {
 		reason   = {}    ;             // execution dependent
@@ -792,12 +793,11 @@ namespace Engine {
 	}
 
 	void SubmitInfo::chk(bool for_cache) const {
-		throw_unless(  used_backend<All<BackendTag> , "bad backend tag" ) ;
 		if (for_cache) {
-			throw_unless( !reason            , "bad reason"     ) ;
-			throw_unless( !pressure          , "bad pressure"   ) ;
-			throw_unless( !live_out          , "bad live_out"   ) ;
-			throw_unless(  nice==uint8_t(-1) , "bad nice"       ) ;
+			throw_unless( !reason            , "bad reason"   ) ;
+			throw_unless( !pressure          , "bad pressure" ) ;
+			throw_unless( !live_out          , "bad live_out" ) ;
+			throw_unless(  nice==uint8_t(-1) , "bad nice"     ) ;
 		} else {
 			reason.chk() ;
 		}

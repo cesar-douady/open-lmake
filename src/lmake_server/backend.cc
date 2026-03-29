@@ -201,7 +201,8 @@ namespace Backends {
 		TraceLock lock{ _s_mutex , BeChnl , "s_submit" } ;
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_info,rsrcs) ;
 		//
-		if ( tag!=Tag::Local && _localize(tag,r) ) {
+		submit_info.local = tag!=Tag::Local && _localize(tag,r) ;
+		if (submit_info.local) {
 			SWEAR(+tag<N<Tag>) ;                                                               // prevent compiler array bound warning in next statement
 			throw_unless( +s_tab[+tag] , "open-lmake was compiled without ",tag," support" ) ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() , +j ) ;
@@ -209,9 +210,8 @@ namespace Backends {
 			trace("local",rsrcs) ;
 		}
 		throw_unless( s_ready(tag) , "local backend is not available" ) ;
-		submit_info.used_backend = tag ;
 		_s_workload.submit(r,j) ;
-		s_tab[+tag]->submit(j,r,submit_info,::move(rsrcs)) ;
+		s_tab[+tag]->submit(j,r,::move(submit_info),::move(rsrcs)) ;
 	}
 
 	bool/*miss_live_out*/ Backend::s_add_pressure( Tag tag , Job j , Req r , SubmitInfo const& si ) {
@@ -695,6 +695,7 @@ namespace Backends {
 				digest.status = digest.status==Status::EarlyLost ? Status::EarlyLostErr : Status::LateLostErr ;
 			if      (+msg                           ) { jerr.msg_stderr.msg <<add_nl<< msg                      ; digest.has_msg_stderr = true ; }
 			else if (digest.status==Status::LateLost) { jerr.msg_stderr.msg <<add_nl<< "vanished after start\n" ; digest.has_msg_stderr = true ; }
+			digest.local = entry.submit_info.local ;
 			_s_start_tab_erase(it) ;
 		}
 		trace("digest",digest) ;
@@ -818,9 +819,10 @@ namespace Backends {
 				/**/      const char* last_dyn_msg   = Rule::s_last_dyn_msg  ;
 				/**/      Rule        last_dyn_rule  = Rule::s_last_dyn_rule ;
 				fence() ; Pdate       last_dyn_date2 = Rule::s_last_dyn_date ;                                           // resample atomic value after associated info
-				if ( last_dyn_date2==last_dyn_date ) {                                                                   // when both dates are equal, we are sure job and msg are associated to it
-					if (+last_dyn_job) Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_job ->name     (),'\n')) ;
-					else               Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_rule->user_name(),'\n')) ;
+				if ( last_dyn_date2==last_dyn_date )  {                                                                  // when both dates are equal, we are sure job and msg are associated to it
+					Lock lock { g_py_stderr_mutex } ;                                                                    // ensure we actually write to stderr and not a diverted fd
+					if (+last_dyn_job) Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_job ->name     (),")\n")) ;
+					else               Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_rule->user_name(),")\n")) ;
 				}
 			}
 			//

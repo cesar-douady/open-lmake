@@ -325,7 +325,7 @@ namespace Backends {
 			auto      wit = waiting_jobs.find(job) ;
 			if (wit==waiting_jobs.end()) {                                                                      // job is not waiting anymore, mostly ignore
 				auto sit = spawned_jobs.find(job) ;
-				if (sit==spawned_jobs.end())   trace("ended" ) ;                                                // job is already ended
+				if (sit==spawned_jobs.end())   trace("ended" ) ;                                                // job is already ended or is executed in another backend (possible with lmake -l)
 				else                         { trace("queued") ; if (re.verbose) sit->second.verbose = true ; } // if not waiting, it must be spawned if add_pressure is called, mark it verbose though
 				return ;
 			}

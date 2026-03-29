@@ -474,7 +474,7 @@ namespace Engine {
 			if      ( r->force                                                                         ) jrt = JobReasonTag::Force  ;
 			else if ( !cmd_ok()                                                                        ) jrt = JobReasonTag::Cmd    ;
 			else if ( (ro.flags[ReqFlag::ForgetOldErrors]&&err()) || (is_lost(status)&&!is_ok(status)) ) jrt = JobReasonTag::OldErr ; // probably a transient error
-			else if ( !rsrcs_ok()                                                                      ) jrt = JobReasonTag::Rsrcs  ; // probably a resource  error
+			else if ( !rsrcs_ok(ro.flags[ReqFlag::Local])                                              ) jrt = JobReasonTag::Rsrcs  ; // probably a resource  error (maybe due to a local run)
 			else                                                                                         goto NoReason ;
 			ri.reason              = jrt  ;
 			ri.force               = true ;

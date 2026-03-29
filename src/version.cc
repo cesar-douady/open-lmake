@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 37      ; // 6a5d0533feb86b312797372ec9da4e14
+	uint64_t    constexpr Cache = 38      ; // 0061d4c50bb5cc254eb18c0ead96d527
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 36      ; // 4179f79ee40ac116b0621d7b4196df0d
+	uint64_t    constexpr Repo  = 37      ; // 790cf06ed12f42e5fabddab389b20f2b
 	uint64_t    constexpr Job   = 19      ; // 2461431c75bafc07b14dbcdc068d789f
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 6a5d0533feb86b312797372ec9da4e14 *
+// * Cache : 0061d4c50bb5cc254eb18c0ead96d527 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -313,14 +313,14 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
-//			CacheIdx            cache_idx1   = 0     ; // 0 means no cache
-//			::vmap_s<DepDigest> deps         = {}    ;
-//			bool                live_out     = false ;
-//			uint8_t             nice         = -1    ; // -1 means not specified
-//			Time::CoarseDelay   pressure     = {}    ;
-//			JobReason           reason       = {}    ;
-//			Tokens1             tokens1      = 0     ;
-//			BackendTag          used_backend = {}    ; // tag actually used (possibly made local because asked tag is not available)
+//			CacheIdx            cache_idx1 = 0     ; // 0 means no cache
+//			::vmap_s<DepDigest> deps       = {}    ;
+//			bool                live_out   = false ;
+//			bool                local      = false ; // job run locally
+//			uint8_t             nice       = -1    ; // -1 means not specified
+//			Time::CoarseDelay   pressure   = {}    ;
+//			JobReason           reason     = {}    ;
+//			Tokens1             tokens1    = 0     ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			Hash::Crc        rule_crc_cmd = {} ;
@@ -623,8 +623,9 @@ namespace Version {
 //		::string                 chroot_tag     = {}          ;
 //		Time::CoarseDelay        exe_time       = {}          ;
 //		Status                   status         = Status::New ;
-//		bool                     has_msg_stderr = false       ;                         // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
-//		bool                     incremental    = false       ;                         // if true <= job was run with existing incremental targets
+//		bool                     has_msg_stderr = false       ;                         // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
+//		bool                     incremental    = false       ;                         // if true <=  job was run with existing incremental targets
+//		bool                     local          = false       ;                         // if true <=> job was forced to run locally
 //		// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			::vector_s phys_s  = {} ;                                                                        // (upper,lower...)
@@ -1080,7 +1081,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 4179f79ee40ac116b0621d7b4196df0d *
+// * Repo : 790cf06ed12f42e5fabddab389b20f2b *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1420,14 +1421,14 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
-//			CacheIdx            cache_idx1   = 0     ; // 0 means no cache
-//			::vmap_s<DepDigest> deps         = {}    ;
-//			bool                live_out     = false ;
-//			uint8_t             nice         = -1    ; // -1 means not specified
-//			Time::CoarseDelay   pressure     = {}    ;
-//			JobReason           reason       = {}    ;
-//			Tokens1             tokens1      = 0     ;
-//			BackendTag          used_backend = {}    ; // tag actually used (possibly made local because asked tag is not available)
+//			CacheIdx            cache_idx1 = 0     ; // 0 means no cache
+//			::vmap_s<DepDigest> deps       = {}    ;
+//			bool                live_out   = false ;
+//			bool                local      = false ; // job run locally
+//			uint8_t             nice       = -1    ; // -1 means not specified
+//			Time::CoarseDelay   pressure   = {}    ;
+//			JobReason           reason     = {}    ;
+//			Tokens1             tokens1    = 0     ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			Hash::Crc        rule_crc_cmd = {} ;
@@ -1462,10 +1463,11 @@ namespace Version {
 //			RuleCrc          rule_crc                           ;         //       32 bits
 //			mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
 //			RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
-//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits            backend asked for last execution
+//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
 //			CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        3 bits
 //			Status           status        :NBits<Status      > = {}    ; //        5 bits
 //			bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
+//			bool             local         :1                   = false ; //        1 bit ,           job was last forced to run locally
 //		private :
 //			mutable bool _sure          :1 = false ;                      //        1 bit
 //			Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
@@ -2107,8 +2109,9 @@ namespace Version {
 //		::string                 chroot_tag     = {}          ;
 //		Time::CoarseDelay        exe_time       = {}          ;
 //		Status                   status         = Status::New ;
-//		bool                     has_msg_stderr = false       ;                         // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
-//		bool                     incremental    = false       ;                         // if true <= job was run with existing incremental targets
+//		bool                     has_msg_stderr = false       ;                         // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
+//		bool                     incremental    = false       ;                         // if true <=  job was run with existing incremental targets
+//		bool                     local          = false       ;                         // if true <=> job was forced to run locally
 //		// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			::vector_s phys_s  = {} ;                                                                        // (upper,lower...)

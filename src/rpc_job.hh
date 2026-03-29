@@ -664,6 +664,7 @@ template<class Key=::string> struct JobDigest {                                 
 		,	.status         = status
 		,	.has_msg_stderr = has_msg_stderr
 		,	.incremental    = incremental
+		,	.local          = local
 		} ;
 		static constexpr bool NeedNew = requires(Key k) { KeyTo(New,k) ; } ;
 		if constexpr (NeedNew) {
@@ -698,8 +699,9 @@ template<class Key=::string> struct JobDigest {                                 
 	::string                 chroot_tag     = {}          ;
 	Time::CoarseDelay        exe_time       = {}          ;
 	Status                   status         = Status::New ;
-	bool                     has_msg_stderr = false       ;                         // if true <= msg or stderr are non-empty in englobing JobEndRpcReq
-	bool                     incremental    = false       ;                         // if true <= job was run with existing incremental targets
+	bool                     has_msg_stderr = false       ;                         // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
+	bool                     incremental    = false       ;                         // if true <=  job was run with existing incremental targets
+	bool                     local          = false       ;                         // if true <=> job was forced to run locally
 	// END_OF_VERSIONING
 } ;
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {

@@ -259,8 +259,9 @@ Retry :
 void Fd::write(::string_view data) const {
 	for( size_t cnt=0 ; cnt<data.size() ;) {
 		ssize_t c = ::write( fd , data.data()+cnt , data.size()-cnt ) ;
-		if (c<=0)
-			switch (errno) {
+		if (c<=0) {
+			int e = c==0 ? 0 : errno ;
+			switch (e) {
 				case ENOSPC :
 				case EDQUOT : exit( Rc::System , "cannot write (",StrErr(),") to ",read_lnk(cat("/proc/self/fd/",fd)) ) ; break ;
 				#if EWOULDBLOCK!=EAGAIN
@@ -270,6 +271,7 @@ void Fd::write(::string_view data) const {
 				case EINTR  : c = 0 ; break                                               ;
 				default     :         throw cat("cannot write (",StrErr(),") to fd ",fd ) ;
 			}
+		}
 		cnt += c ;
 	}
 }

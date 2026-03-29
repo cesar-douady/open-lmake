@@ -313,8 +313,10 @@ def avoid_ctx(name,*ctxs) :                         # find a non-conflicting nam
 
 def lcl_mod_file(mod) :
 	m = importlib.import_module(mod)
-	try    : return m.__file__ and lmake._maybe_lcl(m.__file__)
-	except : return False                                       # if __file__ attribute cannot be found, this is a system module
+	try    :
+		if m.__file__ and lmake._maybe_lcl(m.__file__) : return m.__file__
+	except : pass
+	return False  # if __file__ attribute cannot be found, this is a system module
 
 class Handle :
 	ThisPython = osp.realpath(sys.executable)
@@ -408,8 +410,8 @@ class Handle :
 			m = ''
 			for c in mod_name.split('.') :                   # check all packages along the path as they are all imported by python
 				if m : m += '.'
-				m   += c
-				f = lcl_mod_file(m)
+				m += c
+				f  = lcl_mod_file(m)
 				if not f : continue
 				e = ImportError(f'cannot import module {m} from local file {f}')
 				e.consider = textwrap.dedent('''
@@ -651,14 +653,12 @@ def fmt_rule(rule) :
 	try :
 		return do_fmt_rule(rule)
 	except Exception as e :
-		if hasattr(rule,'name') : name = f'({rule.name})'
-		else                    : name = ''
 		if lmake.repo_root==lmake.top_repo_root :
 			tab = ''
 		else :
 			print(f'in sub-repo {lmake.repo_root[len(lmake.top_repo_root)+1:]} :',file=sys.stderr)
 			tab = '\t'
-		print(f'{tab}while processing {rule.__name__}{name} :',file=sys.stderr)
+		print(f'{tab}while processing {rule.name} :',file=sys.stderr)
 		if hasattr(e,'field')                  : print(f'{tab}\tfor field {e.field}'                                  ,file=sys.stderr       )
 		if hasattr(e,'base' ) and e.base!=rule : print(f'{tab}\tin base {e.base.__name__}'                            ,file=sys.stderr       )
 		if True                                : print(f"{tab}\t{e.__class__.__name__} : {' '.join(e.args)}"          ,file=sys.stderr       )

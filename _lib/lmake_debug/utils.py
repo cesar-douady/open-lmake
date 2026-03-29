@@ -214,10 +214,6 @@ class Job :
 		if self.simple_cmd_line : return self.simple_cmd_line
 		else                    : return ( *self.interpreter , self.cmd_file() )
 
-	def gen_start_line(self,**kwds) :
-		preamble,line = self.starter( *(mk_shell_str(c) for c in self.cmd_line()) , **kwds )
-		return preamble+line+'\n'                                                            # do not use exec to launch lautodep so as to keep stdin & stdout open
-
 	def gen_preamble(self) :
 		res  = self.gen_init       ()
 		res += self.gen_pre_actions()
@@ -232,6 +228,7 @@ class Job :
 
 	def gen_script(self,**kwds) :
 		if not self.simple_cmd_line : self.write_cmd(**kwds)
-		res  = self.gen_preamble  (      )
-		res += self.gen_start_line(**kwds)
+		res            = self.gen_preamble()
+		preamble,line  = self.starter( *(mk_shell_str(c) for c in self.cmd_line()) , **kwds )
+		res           += preamble + line + '\n'                                               # do not use exec to launch lautodep so as to keep stdin & stdout open
 		return res

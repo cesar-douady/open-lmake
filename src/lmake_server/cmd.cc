@@ -995,10 +995,13 @@ namespace Engine {
 								if (+start.timeout                    ) push_entry( "timeout"         , start.timeout.short_str()              ) ;
 								if ( start.use_script                 ) push_entry( "use_script"      , "true"                                 ) ;
 								//
-								if      (job->backend==BackendTag::Local  ) SWEAR(si.used_backend==BackendTag::Local) ;
-								else if (job->backend==BackendTag::Unknown) push_entry( "backend" , snake_str(si.used_backend)                                         ) ;
-								else if (si.used_backend==job->backend    ) push_entry( "backend" , snake_str(job->backend   )                                         ) ;
-								else                                        push_entry( "backend" , snake_str(job->backend   )+" -> "+si.used_backend , Color::Warning ) ;
+								switch (job->backend) {
+									case BackendTag::Unknown :
+									case BackendTag::Local   : break ;
+									default :
+										if (si.local) push_entry( "backend" , snake_str(job->backend)+" -> "+BackendTag::Local , Color::Warning ) ;
+										else          push_entry( "backend" , snake_str(job->backend)                                           ) ;
+								}
 							}
 							//
 							::map_ss allocated_rsrcs = mk_map(job_info.start.rsrcs) ;

@@ -82,11 +82,10 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 ,	Node                        // must follow NodeCrcDate and ReqInfo
 // level 6
 ,	Autodep                     // must follow Gil
-// level 7
-,	Record                      // must follow Autodep
 // inner (locks that take no other locks except very special locks below)
 ,	Inner
 // very inner
+,	Record                      // allow monitored accesses everywhere
 ,	Trace                       // allow tracing anywhere (but tracing may call some syscall)
 ,	SyscallTab                  // any syscall may need this mutex, which may occur during tracing
 ,	PdateNew                    // may need time anywhere, even during syscall processing

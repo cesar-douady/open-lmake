@@ -70,6 +70,7 @@ else :
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
 
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , host_len=host_len , done=2 , new=2 ) # check targets are out-of-date
-	ut.lmake( 'hello+world_sh' , 'hello+world_py' , host_len=host_len , done=0 , new=0 ) # check targets are up-to-date
-	ut.lmake( 'hello+hello_sh' , 'world+world_py' , host_len=host_len , done=2         ) # check reconvergence
+	ut.lmake( '-l' , 'hello+world_sh' , 'hello+world_py' ,                     done  =1 , failed=1 , new=2 , rc=1 ) # check targets are out-of-date
+	ut.lmake(        'hello+world_sh' , 'hello+world_py' , host_len=host_len , steady=1                           ) # check targets in error are rerun without the -l flag
+	ut.lmake(        'hello+world_sh' , 'hello+world_py' , host_len=host_len , done  =0                           ) # check targets are up-to-date
+	ut.lmake(        'hello+hello_sh' , 'world+world_py' , host_len=host_len , done  =2                           ) # check reconvergence

@@ -221,7 +221,7 @@ namespace Engine {
 
 namespace Engine {
 
-	struct JobReqInfo : ReqInfo {                                      // watchers of Job's are Node's
+	struct JobReqInfo : ReqInfo {                              // watchers of Job's are Node's
 		using Step       = JobStep       ;
 		using MakeAction = JobMakeAction ;
 		// cxtors & casts
@@ -244,8 +244,8 @@ namespace Engine {
 		// services
 		void reset( Job j , bool has_run=false , bool mk_done=false ) {
 			if (has_run) {
-				force  = false ;                                       // cmd has been executed, it is not new any more
-				reason = {}    ;                                       // reasons were to trigger the ending job, there are none now
+				force  = false ;                               // cmd has been executed, it is not new any more
+				reason = {}    ;                               // reasons were to trigger the ending job, there are none now
 			}
 			if      (mk_done         ) set_step(Step::Done,j) ;
 			else if (step()>Step::Dep) set_step(Step::Dep ,j) ;
@@ -257,13 +257,13 @@ namespace Engine {
 		}
 		void chk() const {
 			switch (step()) {
-				case Step::None   : SWEAR(n_wait==0) ; break ;         // not started yet, cannot wait anything
-				case Step::Dep    : SWEAR(n_wait> 0) ; break ;         // we must be waiting something if analysing Dep
-				case Step::Queued :                                    // if running, we are waiting for job execution
-				case Step::Exec   : SWEAR(n_wait==1) ; break ;         // .
-				case Step::Done   :                                    // done, cannot wait anything anymore
+				case Step::None   : SWEAR(n_wait==0) ; break ; // not started yet, cannot wait anything
+				case Step::Dep    : SWEAR(n_wait> 0) ; break ; // we must be waiting something if analysing Dep
+				case Step::Queued :                            // if running, we are waiting for job execution
+				case Step::Exec   : SWEAR(n_wait==1) ; break ; // .
+				case Step::Done   :                            // done, cannot wait anything anymore
 				case Step::Hit    : SWEAR(n_wait==0) ; break ;
-			DF}                                                        // NO_COV
+			DF}                                                // NO_COV
 		}
 		// data
 		struct State {
@@ -276,29 +276,29 @@ namespace Engine {
 			// accesses
 			void operator>>(::string&) const ;
 			// data
-			JobReason reason      = {}    ;                            //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
-			bool      missing_dsk = false ;                            //   1  <=  8 bits, if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
-			Bits      proto       = {}    ;                            //   3  <=  8 bits, seen including last parallel chunk
-			Bits      stamped     = {}    ;                            //   3  <=  8 bits, seen before    last parallel chunk
+			JobReason reason      = {}    ;                    //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
+			bool      missing_dsk = false ;                    //   1  <=  8 bits, if true <=>, a dep has been checked but not on disk and analysis must be redone if job has to run
+			Bits      proto       = {}    ;                    //   3  <=  8 bits, seen including last parallel chunk
+			Bits      stamped     = {}    ;                    //   3  <=  8 bits, seen before    last parallel chunk
 		} ;
-//		ReqInfo                                                        //        128 bits, inherits
-		State            state                ;                        //  43  <= 96 bits, dep analysis state
-		DepsIter::Digest iter                 ;                        // ~20+6<= 64 bits, deps up to this one statisfy required action
-		JobReason        reason               ;                        //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
-		uint16_t         n_runs               = 0     ;                //         16 bits, number of times job has been rerun
-		uint16_t         n_submits            = 0     ;                //         16 bits, number of times job has been rerun
-		uint8_t          n_losts              = 0     ;                //          8 bits, number of times job has been lost
-		uint8_t          n_retries            = 0     ;                //          8 bits, number of times job has been seen in error
-		bool             force             :1 = false ;                //          1 bit , if true <=> job must run because reason
-		bool             start_reported    :1 = false ;                //          1 bit , if true <=> start message has been reported to user
-		bool             speculative_wait  :1 = false ;                //          1 bit , if true <=> job is waiting for speculative deps only
-		Bool3            speculate         :2 = Yes   ;                //          2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
-		bool             reported          :1 = false ;                //          1 bit , used for delayed report when speculating
-		bool             modified          :1 = false ;                //          1 bit , modified when last run
-		bool             modified_speculate:1 = false ;                //          1 bit , modified when marked speculative
-		bool             miss_live_out     :1 = false ;                //          1 bit , live_out info has not been sent to user
+//		ReqInfo                                                //        128 bits, inherits
+		State            state                ;                //  43  <= 96 bits, dep analysis state
+		DepsIter::Digest iter                 ;                // ~20+6<= 64 bits, deps up to this one statisfy required action
+		JobReason        reason               ;                //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
+		uint16_t         n_runs               = 0     ;        //         16 bits, number of times job has been rerun
+		uint16_t         n_submits            = 0     ;        //         16 bits, number of times job has been rerun
+		uint8_t          n_losts              = 0     ;        //          8 bits, number of times job has been lost
+		uint8_t          n_retries            = 0     ;        //          8 bits, number of times job has been seen in error
+		bool             force             :1 = false ;        //          1 bit , if true <=> job must run because reason
+		bool             start_reported    :1 = false ;        //          1 bit , if true <=> start message has been reported to user
+		bool             speculative_wait  :1 = false ;        //          1 bit , if true <=> job is waiting for speculative deps only
+		Bool3            speculate         :2 = Yes   ;        //          2 bits, Yes : prev dep not ready, Maybe : prev dep in error (percolated)
+		bool             reported          :1 = false ;        //          1 bit , used for delayed report when speculating
+		bool             modified          :1 = false ;        //          1 bit , modified when last run
+		bool             modified_speculate:1 = false ;        //          1 bit , modified when marked speculative
+		bool             miss_live_out     :1 = false ;        //          1 bit , live_out info has not been sent to user
 	private :
-		Step _step:NBits<Step> = {} ;                                  //          3 bits
+		Step _step:NBits<Step> = {} ;                          //          3 bits
 	} ;
 
 	//
@@ -309,14 +309,14 @@ namespace Engine {
 		// services
 		SubmitInfo& operator|=(SubmitInfo const& si) {
 			// cache, deps and tag are independent of req but may not always be present
-			if (!cache_idx1  ) cache_idx1    =                si.cache_idx1   ; else if (+si.cache_idx1  ) SWEAR( cache_idx1  ==si.cache_idx1   , cache_idx1  ,si.cache_idx1   ) ;
-			if (!deps        ) deps          =                si.deps         ; else if (+si.deps        ) SWEAR( deps        ==si.deps         , deps        ,si.deps         ) ;
-			/**/               live_out     |=                si.live_out     ;
-			/**/               nice          = ::min(nice    ,si.nice     )   ;
-			/**/               pressure      = ::max(pressure,si.pressure )   ;
-			/**/               reason       |=                si.reason       ;
-			/**/               tokens1       = ::max(tokens1 ,si.tokens1  )   ;
-			if (!used_backend) used_backend  =                si.used_backend ; else if (+si.used_backend) SWEAR( used_backend==si.used_backend , used_backend,si.used_backend ) ;
+			if (!cache_idx1) cache_idx1  =                si.cache_idx1 ; else if (+si.cache_idx1) SWEAR( cache_idx1==si.cache_idx1 , cache_idx1,si.cache_idx1 ) ;
+			if (!deps      ) deps        =                si.deps       ; else if (+si.deps      ) SWEAR( deps      ==si.deps       , deps      ,si.deps       ) ;
+			/**/             nice        = ::min(nice    ,si.nice    )  ;
+			/**/             pressure    = ::max(pressure,si.pressure)  ;
+			/**/             tokens1     = ::max(tokens1 ,si.tokens1 )  ;
+			/**/             live_out   |=                si.live_out   ;
+			/**/             local      |=                si.local      ;
+			/**/             reason     |=                si.reason     ;
 			return self ;
 		}
 		SubmitInfo operator|(SubmitInfo const& si) const {
@@ -331,14 +331,14 @@ namespace Engine {
 		void chk(bool for_cache=false) const ;
 		// data
 		// START_OF_VERSIONING REPO CACHE
-		CacheIdx            cache_idx1   = 0     ; // 0 means no cache
-		::vmap_s<DepDigest> deps         = {}    ;
-		bool                live_out     = false ;
-		uint8_t             nice         = -1    ; // -1 means not specified
-		Time::CoarseDelay   pressure     = {}    ;
-		JobReason           reason       = {}    ;
-		Tokens1             tokens1      = 0     ;
-		BackendTag          used_backend = {}    ; // tag actually used (possibly made local because asked tag is not available)
+		CacheIdx            cache_idx1 = 0     ; // 0 means no cache
+		::vmap_s<DepDigest> deps       = {}    ;
+		bool                live_out   = false ;
+		bool                local      = false ; // job run locally
+		uint8_t             nice       = -1    ; // -1 means not specified
+		Time::CoarseDelay   pressure   = {}    ;
+		JobReason           reason     = {}    ;
+		Tokens1             tokens1    = 0     ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -476,9 +476,14 @@ namespace Engine {
 		bool           running     ( bool with_zombies=true , bool hit_ok=false ) const ;                                         // fast implementation of +running_reqs(...)
 		//
 		bool cmd_ok  (                    ) const { return                      rule_crc->state<=RuleCrcState::CmdOk ; }
-		bool rsrcs_ok(                    ) const { return is_ok(status)!=No || rule_crc->state==RuleCrcState::Ok    ; }          // dont care about rsrcs if job went ok
 		bool is_plain(bool frozen_ok=false) const { return rule()->is_plain() && (frozen_ok||!idx().frozen())        ; }
 		bool has_req (Req                 ) const ;
+		bool rsrcs_ok(bool local_flag     ) const {
+			if ( is_ok(status)  !=No                                   ) return true  ;                                           // dont care about rsrcs if job went ok
+			if ( rule_crc->state!=RuleCrcState::Ok                     ) return false ;
+			if ( local && !local_flag && g_config->has_remote_backends ) return false ;                                           // if job ran locally, resources may have been lacking
+			/**/                                                         return true  ;
+		}
 		//
 		void set_exec_ok() {                                                                                                      // set official rule_crc (i.e. with the right cmd and rsrcs crc's)
 			Rule r = rule() ; SWEAR( r->is_plain() , r->special ) ;
@@ -566,10 +571,11 @@ namespace Engine {
 		RuleCrc          rule_crc                           ;         //       32 bits
 		mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
 		RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
-		BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits            backend asked for last execution
+		BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
 		CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        3 bits
 		Status           status        :NBits<Status      > = {}    ; //        5 bits
 		bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
+		bool             local         :1                   = false ; //        1 bit ,           job was last forced to run locally
 	private :
 		mutable bool _sure          :1 = false ;                      //        1 bit
 		Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
@@ -667,7 +673,7 @@ namespace Engine {
 		cost    ()      = r->cost()   ;
 		_reliable_stats = Maybe       ;
 	}
-	inline void JobData::estimate_stats( Tokens1 tokens1_ ) {                                      // only called before submit, so cost stays stable during job execution
+	inline void JobData::estimate_stats( Tokens1 tokens1_ ) {                                     // only called before submit, so cost stays stable during job execution
 		if (_reliable_stats==Yes) return ;
 		if (!has_targets()      ) return ;
 		Rule r = rule() ;

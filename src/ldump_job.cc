@@ -27,10 +27,10 @@ void _print_views(::vmap_s<JobSpace::ViewDescr> const& m) {
 void print_submit_info(SubmitInfo const& si) {
 	g_out << "--submit info--\n" ;
 	//
-	g_out << "used_backend : "  << si.used_backend         <<'\n' ;
-	g_out << "pressure     : "  << si.pressure.short_str() <<'\n' ;
-	g_out << "live_out     : "  << si.live_out             <<'\n' ;
-	g_out << "reason       : "  << si.reason               <<'\n' ;
+	g_out << "pressure : " << si.pressure.short_str() <<'\n' ;
+	g_out << "live_out : " << si.live_out             <<'\n' ;
+	g_out << "local    : " << si.local                <<'\n' ;
+	g_out << "reason   : " << si.reason               <<'\n' ;
 }
 
 void print_pre_start(JobStartRpcReq const& jsrr) {

@@ -376,9 +376,9 @@ int main( int argc , char** argv ) {
 	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                                                      }
 	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                                                      }
 	//
-	if (+msg      ) Fd::Stderr.write(with_nl(msg)) ;
-	if (+rc.second) exit( rc.second , rc.first )   ;
-	if (!is_daemon) ::setpgid(0/*pid*/,0/*pgid*/)  ;                             // once we have reported we have started, lmake will send us a message to kill us
+	if (+msg      ) Fd::Stderr.write(with_nl(msg))    ;
+	if (+rc.second) exit( rc.second , rc.first )      ;
+	if (!is_daemon) ::setpgid( 0/*pid*/ , 0/*pgid*/ ) ;                          // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
