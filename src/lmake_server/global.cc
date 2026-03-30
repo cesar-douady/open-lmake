@@ -12,9 +12,10 @@ using namespace Time ;
 
 namespace Engine {
 
-	ThreadQueue<EngineClosure,true/*Flush*/,true/*Urgent*/> g_engine_queue ;
-	bool                                                    g_writable     = false ;
 	Kpi                                                     g_kpi          ;
+	bool                                                    g_writable     = false ;
+	::umap_ss                                               g_user_env     ;
+	ThreadQueue<EngineClosure,true/*Flush*/,true/*Urgent*/> g_engine_queue ;
 
 	static Mutex<> _g_audit_mutex ;
 

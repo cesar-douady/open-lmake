@@ -47,11 +47,11 @@ class Job :
 	tmp_view        = None
 
 	def __init__(self,attrs) :
-		self.env          = {}
-		self.expanded_env = {}
-		self.keep_env     = ()
+		self.environ          = {}
+		self.expanded_environ = {}
+		self.keep_environ     = ()
 		for k,v in attrs.items() : setattr(self,k,v)
-		self.keep_env = (*self.keep_env,'DISPLAY','XAUTHORITY','XDG_RUNTIME_DIR')
+		self.keep_environ = (*self.keep_environ,'DISPLAY','XAUTHORITY','XDG_RUNTIME_DIR')
 		#
 		assert not ( self.is_python and self.simple_cmd_line ) , "cannot handle simple cmd with python interpreter"
 
@@ -122,16 +122,16 @@ class Job :
 		preamble += f'export LMAKE_DEBUG_KEY={mk_shell_str(self.key)}\n'
 		preamble +=  'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
 		#
-		keep_env = list(self.keep_env)
-		if self.env : preamble += '#\n'
-		for k,v in self.env.items() :
-			if   k=='UID'               : preamble += f'export  {k}={mk_shell_str(v)} 2>/dev/null || :\n' # UID is read-only on some systems
-			elif k in self.expanded_env : preamble += f'#export {k}={mk_shell_str(v)}\n'
-			else                        : preamble += f'export  {k}={mk_shell_str(v)}\n'
+		keep_env = list(self.keep_environ)
+		if self.environ : preamble += '#\n'
+		for k,v in self.environ.items() :
+			if   k=='UID'                   : preamble += f'export  {k}={mk_shell_str(v)} 2>/dev/null || :\n' # UID is read-only on some systems
+			elif k in self.expanded_environ : preamble += f'#export {k}={mk_shell_str(v)}\n'
+			else                            : preamble += f'export  {k}={mk_shell_str(v)}\n'
 			keep_env.append(k)
-		if self.expanded_env :
+		if self.expanded_environ :
 			preamble += '# passing -E to lautodep can be used to use previous (commented out) definitions\n'
-			for k,v in self.expanded_env.items() :
+			for k,v in self.expanded_environ.items() :
 				preamble += f'export {k}={mk_shell_str(v)}\n'
 		#
 		simple = True

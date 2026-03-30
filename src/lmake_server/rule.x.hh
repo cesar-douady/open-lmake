@@ -736,46 +736,52 @@ namespace Engine {
 			/**/                         return { val , neg }                                                              ;
 		}
 		template<UEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src , BitMap<E> accepted ) {
-			if (!py_src          ) return false/*updated*/ ;
+			if (!py_src) return false/*updated*/ ;
+			E sav_dst = dst ;
 			if (*py_src==Py::None) {
 				if constexpr (requires(){E::Dflt;}) dst = E::Dflt ;
 				else                                dst = {}      ;
-				return true /*updated*/ ;
+			} else {
+				bool neg ;
+				tie(dst,neg) = _acquire_enum_val<E>( py_src->as_a<Py::Str>() , accepted ) ;
+				throw_if( neg , "value ",dst,"cannot be negative" ) ;
 			}
-			//
-			bool neg ;
-			tie(dst,neg) = _acquire_enum_val<E>( py_src->as_a<Py::Str>() , accepted ) ;
-			throw_if( neg , "value ",dst,"cannot be negative" ) ;
-			return true ;
+			return dst!=sav_dst ;
 		}
 		template<UEnum E> bool/*updated*/ acquire( BitMap<E>& dst , Py::Object const* py_src , BitMap<E> dflt , BitMap<E> accepted ) {
-			/**/         if (!py_src          ) return false/*updated*/ ;
-			dst = dflt ; if (*py_src==Py::None) return true /*.      */ ;
-			//
-			auto acquire1 = [&](Py::Object const& py_v) {
-				::pair<E,bool/*neg*/> e_n = _acquire_enum_val<E>( py_v.as_a<Py::Str>() , accepted ) ;
-				if (e_n.second) dst &= ~e_n.first ;
-				else            dst |=  e_n.first ;
-			} ;
-			//
-			if (py_src->is_a<Py::Str>()          )                                                                  acquire1(*py_src) ;
-			else if (py_src->is_a<Py::Sequence>()) { for( Py::Object const& py_val : py_src->as_a<Py::Sequence>() ) acquire1( py_val) ; }
-			else                                     throw cat("type error : ",py_src->type_name()," is not a str nor a list/tuple") ;
-			return true ;
+			if (!py_src) return false/*updated*/ ;
+			BitMap<E> sav_dst = dst ;
+			dst = dflt ;
+			if (*py_src!=Py::None) {
+				auto acquire1 = [&](Py::Object const& py_v) {
+					::pair<E,bool/*neg*/> e_n = _acquire_enum_val<E>( py_v.as_a<Py::Str>() , accepted ) ;
+					if (e_n.second) dst &= ~e_n.first ;
+					else            dst |=  e_n.first ;
+				} ;
+				//
+				if      (py_src->is_a<Py::Str     >())                                                                  acquire1(*py_src) ;
+				else if (py_src->is_a<Py::Sequence>()) { for( Py::Object const& py_val : py_src->as_a<Py::Sequence>() ) acquire1( py_val) ; }
+				else                                     throw cat("type error : ",py_src->type_name()," is not a str nor a list/tuple") ;
+			}
+			return dst!=sav_dst ;
 		}
 
 		template<bool Env> bool/*updated*/ acquire( ::string& dst , Py::Object const* py_src ) {
-			if      (!py_src              ) return false/*updated*/ ;
-			else if (*py_src==Py::None    ) dst = DynMrkr                 ;
+			if (!py_src) return false/*updated*/ ;
+			bool sav_dst = +dst ;
+			if      (*py_src==Py::None    ) dst = {}                      ;
 			else if (*py_src==Py::Ellipsis) dst = Env ? PassMrkr : "..."s ;
 			else                            dst = *py_src->str()          ;
-			return true ;
+			return +dst || sav_dst ;                                        // do not detect value update if none are empty, just a little bit pessimistic
 		}
 
 		template<class T,bool Env> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) {
-			if (!py_src          )             return false/*updated*/ ;
-			if (*py_src==Py::None) { if (!dst) return false/*updated*/ ; dst = {} ; return true/*update*/ ; }
-			//
+			if (!py_src) return false/*updated*/ ;
+			if (*py_src==Py::None) {
+				bool sav_dst = +dst ;
+				dst = {} ;
+				return sav_dst ;
+			}
 			bool   updated = false      ;
 			size_t n       = dst.size() ;
 			size_t i       = 0          ;
@@ -803,8 +809,12 @@ namespace Engine {
 		}
 
 		template<class T,bool Env> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , Py::Object const* py_src ) {
-			if (!py_src          )             return false/*updated*/ ;
-			if (*py_src==Py::None) { if (!dst) return false/*updated*/ ; dst = {} ; return true/*updated*/ ; }
+			if (!py_src) return false/*updated*/ ;
+			if (*py_src==Py::None) {
+				bool sav_dst = +dst ;
+				dst = {} ;
+				return sav_dst ;
+			}
 			//
 			bool            updated = false                    ;
 			::map_s<T>      dst_map = mk_map(dst)              ;

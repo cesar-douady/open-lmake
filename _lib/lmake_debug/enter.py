@@ -27,9 +27,9 @@ def gen_script(**kwds) :
 	job.stdin  = None
 	job.stdout = None
 	# prepare a comfortable interactive environment
-	job.env.pop('HOME' ,None)
-	job.env.pop('SHLVL',None)
-	job.keep_env += ('HOME','SHLVL')
+	job.environ.pop('HOME' ,None)
+	job.environ.pop('SHLVL',None)
+	job.keep_environ += ('HOME','SHLVL')
 	#
 	try          : passwd = pwd.getpwuid(os.getuid())
 	except       : passwd = None

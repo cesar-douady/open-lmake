@@ -325,7 +325,6 @@ inline Bool3 is_ok  (Status s) { return StatusAttrs[+s].second.first  ; }
 inline bool  is_lost(Status s) { return StatusAttrs[+s].second.second ; }
 
 static const ::string PassMrkr = {'\0','p'} ; // special illegal value to ask for value from environment
-static const ::string DynMrkr  = {'\0','d'} ; // special illegal value to mark dynamically computed variable
 
 using CacheUploadKey = uint64_t ; // used to identify temporary data to upload
 

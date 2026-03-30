@@ -16,6 +16,7 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* dynamic Rule.cache seems broken
 ? seen once : server blocked
 	- seems to be while taking GIL
 
@@ -58,6 +59,7 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* restore dynamic entries in LMAKE/rules
 * improve lmake -h
 	- add tag
 	- simplify text
@@ -89,6 +91,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ****************************************************************************************************
 
 * improve address resolution
+	* maintain in server :
+		- a tab backend->cache_addr
+		- a tab remote_host->remote_host_addr
+		- fill when a job run
+		- provide info in JobRpcReply when available
 	- as of today :
 		- it is assumed that lmake_server and lcache_server addresses are the same on all remote hosts
 		- this is not necessarily the case on all network configs

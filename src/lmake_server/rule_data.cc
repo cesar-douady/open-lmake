@@ -492,12 +492,10 @@ namespace Engine {
 		size_t   wk   = ::max<size_t>( m , [](auto const& k_v) { return k_v.first.size() ; } ) ;
 		::uset_s keys ;
 		//
-		res << title <<'\n' ;
+		res << title<<'\n' ;
 		for( auto const& [k,v] : m ) if ( !uniq || keys.insert(k).second ) {
-			res <<'\t'<< widen(k,wk) ;
-			if      (v==DynMrkr) res <<" <dynamic>" ;
-			else if (+v        ) res <<" : "<< v    ;
-			else            res <<" :"         ;
+			res <<'\t'<<widen(k,wk)<<" :" ;
+			if (+v) res << ' '<<v ;
 			res <<'\n' ;
 		}
 		return res ;
@@ -516,7 +514,6 @@ namespace Engine {
 			for( auto const& [k,v] : m_d.first ) {
 				/**/                  res <<'\t'<< widen(k,wk) ;
 				if      (v==PassMrkr) res << "   ..."          ;
-				else if (v==DynMrkr ) res << "   <dynamic>"    ;
 				else if (+v         ) res << " : "<< v         ;
 				else                  res << " :"              ;
 				/**/                  res <<'\n'               ;

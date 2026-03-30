@@ -519,22 +519,31 @@ namespace Engine {
 		::vmap_ss expanded_env = _mk_env(job_info).first ;
 		//
 		if (+env.first) {
-			res << ",\tenv = {" ;
-			First first ;
-			for( auto const& [k,v] : env.first ) res << first("\n\t\t",",\t") << mk_py_str(k) <<" : "<< mk_py_str(v) <<"\n\t" ;
+			res << ",\tenviron = {" ;
+			size_t w     = ::max<size_t>( env.first , [](::pair_ss const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
+			First  first ;
+			for( auto const& [k,v] : env.first ) res << first("\n\t\t",",\t")<<widen(mk_py_str(k),w)<<" : "<<mk_py_str(v)<<"\n\t" ;
 			res << "}\n" ;
 		}
 		if (+expanded_env) {
-			res << ",\texpanded_env = {" ;
-			First first ;
+			res << ",\texpanded_environ = {" ;
+			size_t w     = ::max<size_t>( iota(env.first.size()) , [&](size_t i) { return env.first[i].second!=expanded_env[i].second ? mk_py_str(expanded_env[i].first).size() : 0 ; } ) ;
+			First  first ;
 			for( size_t i : iota(env.first.size()) ) {
 				SWEAR( env.first[i].first==expanded_env[i].first , env.first[i].first,expanded_env[i].first ) ;
-				if (env.first[i].second!=expanded_env[i].second) res << first("\n\t\t",",\t") << mk_py_str(expanded_env[i].first) <<" : "<< mk_py_str(expanded_env[i].second) <<"\n\t" ;
+				if (env.first[i].second!=expanded_env[i].second) res << first("\n\t\t",",\t")<<widen(mk_py_str(expanded_env[i].first),w)<<" : "<<mk_py_str(expanded_env[i].second)<<"\n\t" ;
 			}
 			res << "}\n" ;
 		}
+		if (+g_user_env) {
+			res << ",\tuser_environ = {" ;
+			size_t w     = ::max<size_t>( g_user_env , [](::pair_ss const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
+			First  first ;
+			for( auto const& [k,v] : g_user_env ) res << first("\n\t\t",",\t")<<widen(mk_py_str(k),w)<<" : "<<mk_py_str(v)<<"\n\t" ;
+			res << "}\n" ;
+		}
 		if (+env.second) {
-			res << ",\tkeep_env = (" ;
+			res << ",\tkeep_environ = (" ;
 			First first ;
 			for( ::string const& k : env.second ) res << first("",",") << mk_py_str(k) ;
 			res << first("",",","") << ")\n" ;
@@ -643,8 +652,8 @@ namespace Engine {
 		}                                                                                                                          // ensure gen_script is closed before launching it
 		{	SavPyLdLibraryPath spllp ;
 			Child              child ;
-			child.stdin    = {}                ;                                                                                   // no input
-			child.cmd_line = {gen_script_file} ;
+			child.stdin    = {}                     ;                                                                              // no input
+			child.cmd_line = {gen_script_file,"-B"} ;                                                                              // be as neutral as possible : -B prevents .pyc generation
 			child.spawn() ;
 			if (!child.wait_ok()) throw "cannot generate debug script "+script_file ;
 		}

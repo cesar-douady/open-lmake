@@ -20,9 +20,11 @@ if __name__!='__main__' :
 
 	lmake.config.caches.my_cache = { 'dir':lmake.repo_root+'/CACHE' }
 
+	def mk_cache() : return E and 'my_cache'
+
 	class Auto(Rule) :
-		target = r'auto{:\d}'
-		cache  = 'my_cache'
+		target = r'auto{E:\d}'
+		cache  = mk_cache
 		cmd    = "echo '#auto'"
 
 	class Hide(Rule) :
