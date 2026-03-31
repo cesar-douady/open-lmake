@@ -30,7 +30,8 @@ class Job(Job) :
 		call_line += ( '--args' , *(mk_shell_str(c) for c in self.cmd_line()) )
 		#
 		self.autodep_method = 'none'
-		return self.gen_preamble() + self.gen_start_line(*call_line)
+		preamble,line       = self.starter(*call_line)
+		return self.gen_preamble() + preamble + line + '\n'
 
 def gen_script(**kwds) :
 	return Job(kwds).gen_script()
