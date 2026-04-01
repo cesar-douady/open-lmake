@@ -335,7 +335,7 @@ int main( int argc , char** argv ) {
 	Trace::s_backup_trace = true                                               ;
 	g_writable            = !app_init({ .cd_root=false  ,.chk_version=Maybe }) ; // server is always launched at root
 	_chk_os() ;
-	::umap_ss user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ;         // before Py::init() as it records the environment to make it available in os.environ
+	g_user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ;                 // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
 	Record::s_static_report = true ;
 	Record::s_autodep_env(New) ;
@@ -370,9 +370,9 @@ int main( int argc , char** argv ) {
 	//                             ^^^^^^^^^^^^^^^^^
 	::string     msg ;
 	::pair_s<Rc> rc  { {} , Rc::Ok } ;
-	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	try                          { Makefiles::refresh( /*out*/msg , user_env , _g_server.rescue , refresh_ , startup_dir_s ) ; }
-	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//                             vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	try                          { Makefiles::refresh( /*out*/msg , g_user_env , _g_server.rescue , refresh_ , startup_dir_s ) ; }
+	//                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	catch(::string     const& e) { rc = { e , Rc::BadState } ;                                                                 }
 	catch(::pair_s<Rc> const& e) { rc = e                    ;                                                                 }
 	//

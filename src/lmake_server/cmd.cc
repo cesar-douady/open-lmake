@@ -539,6 +539,13 @@ namespace Engine {
 			for( ::string const& k : env.second ) res << first("",",") << mk_py_str(k) ;
 			res << first("",",","") << ")\n" ;
 		}
+		if (+g_user_env) {
+			res << ",\tuser_environ = {" ;
+			size_t w     = ::max<size_t>( g_user_env , [](::pair_ss const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
+			First  first ;
+			for( auto const& [k,v] : g_user_env ) res << first("\n\t\t",",\t")<<widen(mk_py_str(k),w)<<" : "<<mk_py_str(v)<<"\n\t" ;
+			res << "}\n" ;
+		}
 		{	res << ",\tinterpreter = (" ;
 			First first ;
 			for( ::string const& c : jsrr.interpreter ) res << first("",",") << mk_py_str(c) ;
@@ -631,7 +638,7 @@ namespace Engine {
 		::string script_file     = dbg_dir_s+"script"     ;
 		::string gen_script_file = dbg_dir_s+"gen_script" ;
 		{	::string gen_script ;
-			gen_script << "#!" PYTHON "\n"                                                                                       ;
+			gen_script << "#!" PYTHON " -B\n"                                                                                       ;
 			gen_script << "import sys\n"                                                                                         ;
 			gen_script << "import os\n"                                                                                          ;
 			gen_script << "sys.path[0:0] = ("<<mk_py_str(*g_lmake_root_s+"lib")<<','<<mk_py_str(no_slash(*g_repo_root_s))<<")\n" ; // repo_root is not in path as script is in LMAKE/debug/<job>

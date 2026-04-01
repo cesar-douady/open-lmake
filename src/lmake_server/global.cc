@@ -15,6 +15,7 @@ namespace Engine {
 	ThreadQueue<EngineClosure,true/*Flush*/,true/*Urgent*/> g_engine_queue ;
 	bool                                                    g_writable     = false ;
 	Kpi                                                     g_kpi          ;
+	::umap_ss                                               g_user_env     ;
 
 	static Mutex<> _g_audit_mutex ;
 
