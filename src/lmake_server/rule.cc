@@ -416,24 +416,20 @@ namespace Engine {
 		}
 
 		bool/*updated*/ acquire( Zlvl& dst , Object const* py_src ) {
-			//                                     updated
-			if (!py_src       )              return false ;
-			if ( py_src==&None) { dst = {} ; return true  ; }
-			if (py_src->is_a<Int>()) {
-				dst.tag = ZlvlTag::Dflt ;
-				acquire( dst.lvl , py_src ) ;
-			} else if (py_src->is_a<Str>()) {
-				acquire( dst.tag , py_src ) ;
-				dst.lvl = 1 ;
-			} else if (py_src->is_a<Sequence>()) {
+			if (!py_src                  )              return false/*updated*/ ;
+			if ( py_src==&None           ) { dst = {} ; return true /*.      */ ; }
+			if ( py_src->is_a<Sequence>()) {
 				Sequence const& py_seq = py_src->as_a<Sequence>() ;
-				throw_unless( py_seq.size()==2 , "cannot understand compression which is a sequence of len !=2" ) ;
-				acquire( dst.tag , &py_seq[0] ) ;
-				acquire( dst.lvl , &py_seq[1] ) ;
-			} else {
-				throw "cannot understand compression"s ;
+				switch (py_seq.size()) {
+					case 1 :
+						if      ( py_seq[0].is_a<Str>()                          ) { acquire( dst.tag , &py_seq[0] ) ; dst.lvl = 0                     ; return true/*updated*/ ; }
+						else if (                          py_seq[0].is_a<Int>() ) { dst.tag = ZlvlTag::Dflt         ; acquire( dst.lvl , &py_seq[0] ) ; return true/*updated*/ ; }
+					break ;
+					case 2 :
+						if      ( py_seq[0].is_a<Str>() && py_seq[1].is_a<Int>() ) { acquire( dst.tag , &py_seq[0] ) ; acquire( dst.lvl , &py_seq[1] ) ; return true/*updated*/ ; }
+				DN}
 			}
-			return true/*updated*/ ;
+			throw "cannot understand compression which is neither a int, a str or a sequence of len 2"s ;
 		}
 
 	}
