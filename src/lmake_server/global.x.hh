@@ -121,7 +121,8 @@ namespace Engine {
 	using SubstTargetFuncStem  = ::function<::string( Disk::FileNameIdx pos , VarIdx stem                                 )> ;
 	using SubstTargetFuncFixed = ::function<::string( ::string const&                                                     )> ;
 
-	extern Kpi g_kpi ;
+	extern Kpi       g_kpi      ;
+	extern ::umap_ss g_user_env ;
 
 	::string _audit_indent( ::string&& t , DepDepth l , char sep=0 ) ;
 
