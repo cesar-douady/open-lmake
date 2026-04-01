@@ -412,12 +412,13 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 	#else
 		#define SC_NUM(sc)                                    MACRO_VAL(SYS_##sc,-1L)
 	#endif
-	#define FILL_ENTRY( sc , ... ) {                                        \
-		constexpr long I = SC_NUM(sc) ;                                     \
-		if constexpr (I>=0) {                                               \
-			static_assert(I<SyscallDescr::NSyscalls,"increase NSyscalls") ; \
-			tab[I] = SyscallDescr __VA_ARGS__ ;                             \
-		}                                                                   \
+	#define FILL_ENTRY( sc , ... ) {                                                         \
+		constexpr long I = SC_NUM(sc) ;                                                      \
+		if constexpr (I>=0) {                                                                \
+			static_assert( I<SyscallDescr::NSyscalls   , "increase NSyscalls"            ) ; \
+			static_assert( +(SyscallDescr __VA_ARGS__) , "entry appears as non-existent" ) ; \
+			tab[I] = SyscallDescr __VA_ARGS__ ;                                              \
+		}                                                                                    \
 	}
 	// entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a filename known to require no processing
 	//                                entry                   <At   ,FlagArg   > , exit           filter return_fd  comment

@@ -34,14 +34,12 @@ namespace Engine {
 		//
 		data._open_log() ;
 		//
-		if (ecr.options.flags[ReqFlag::Ete]) data.et1 = data.start_pdate ;
-		else                                 data.et1 = data.start_pdate ;
-		//
-		data.idx_by_start = s_n_reqs()  ;
-		data.idx_by_eta   = s_n_reqs()  ;         // initially, eta is far future
-		data.options      = ecr.options ;
-		data.audit_fd     = ecr.fd      ;
-		data.files        = ecr.files   ;
+		data.eta          = data.start_pdate ;
+		data.idx_by_start = s_n_reqs()       ;
+		data.idx_by_eta   = s_n_reqs()       ;    // initially, eta is far future
+		data.options      = ecr.options      ;
+		data.audit_fd     = ecr.fd           ;
+		data.files        = ecr.files        ;
 		data.jobs .set_dflt(self) ;
 		data.nodes.set_dflt(self) ;
 		//
@@ -122,12 +120,12 @@ namespace Engine {
 
 	void Req::new_eta() {
 		if (self->options.flags[ReqFlag::Ete]) {
-			self->et2 = ::min( Delay() , self->et1-Pdate(New) ) ;
+			self->ete = ::min( Delay() , self->eta.load()-Pdate(New) ) ;
 			return ;
 		}
 		Pdate now       = New                                                       ;
 		Pdate new_eta   = Backend::s_submitted_eta(self) + self->stats.waiting_cost ;
-		Pdate old_eta   = self->et1                                                 ;
+		Pdate old_eta   = self->eta                                                 ;
 		Delay old_ete   = old_eta-now                                               ;
 		Delay delta_ete = new_eta>old_eta ? new_eta-old_eta : old_eta-new_eta       ; // cant use ::abs(new_eta-old_eta) because of signedness
 		//
@@ -135,26 +133,26 @@ namespace Engine {
 			_adjust_eta(new_eta) ;
 			Backend::s_new_req_etas() ;                                               // tell backends that etas changed significatively
 		}
-		self->et2 = new_eta-now ;
+		self->ete = new_eta-now ;
 	}
 
 	void Req::_adjust_eta( Pdate eta , bool push_self ) {
-			Trace trace("R_adjust_eta",self->et1,eta) ;
+			Trace trace("R_adjust_eta",self->eta,eta) ;
 			// reorder _s_reqs_by_eta and adjust idx_by_eta to reflect new order
 			bool changed    = false              ;
 			Lock lock       { s_req_idxs_mutex } ;
 			Idx  idx_by_eta = self->idx_by_eta   ;
 			//
-			if (+eta     ) self->et1 = eta ;                                                                 // eta must be upated while lock is held as it is read in other threads
+			if (+eta     ) self->eta = eta ;                                                                 // eta must be upated while lock is held as it is read in other threads
 			if (push_self) _s_reqs_by_eta.push_back(self) ;
 			//
-			while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->et1>self->et1 ) {                          // if eta is decreased
+			while ( idx_by_eta>0 && _s_reqs_by_eta[idx_by_eta-1]->eta>self->eta.load() ) {                   // if eta is decreased
 				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta-1] )->idx_by_eta = idx_by_eta   ; // swap w/ prev entry
 				( _s_reqs_by_eta[idx_by_eta-1] = self                         )->idx_by_eta = idx_by_eta-1 ; // .
 				changed = true ;
 			}
 			if (changed) return ;
-			while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->et1<self->et1 ) {               // if eta is increased
+			while ( idx_by_eta+1<s_n_reqs() && _s_reqs_by_eta[idx_by_eta+1]->eta<self->eta.load() ) {        // if eta is increased
 				( _s_reqs_by_eta[idx_by_eta  ] = _s_reqs_by_eta[idx_by_eta+1] )->idx_by_eta = idx_by_eta   ; // swap w/ next entry
 				( _s_reqs_by_eta[idx_by_eta+1] = self                         )->idx_by_eta = idx_by_eta+1 ; // .
 			}
@@ -250,7 +248,7 @@ namespace Engine {
 			break ;
 			case NodeStatus::None :
 				if      (dep->manual({dep->name()})>=Manual::Changed) err = "dangling" ;
-				else if (dep.dflags[Dflag::Required]                    ) err = "missing"  ;
+				else if (dep.dflags[Dflag::Required]                ) err = "missing"  ;
 			break ;
 		DF}                                                                                          // NO_COV
 		if (err) return self->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
@@ -571,8 +569,8 @@ namespace Engine {
 				,	                                                    cat( " running:" ,  stats.cur(JobStep::Exec  )                               )
 				,	stats.cur(JobStep::Queued)                        ? cat( " queued:"  ,  stats.cur(JobStep::Queued)                               ) : ""s
 				,	stats.cur(JobStep::Dep   )>1                      ? cat( " waiting:" , (stats.cur(JobStep::Dep   )-!options.flags[ReqFlag::Job]) ) : ""s // suppress job representing Req itself
-				,	g_config->console.show_ete                        ? cat( " - ETE:"   ,  et2.short_str()                                          ) : ""s
-				,	g_config->console.show_eta                        ? cat( " - ETA:"   ,  et1.str(0/*prec*/,true/*in_day*/)                        ) : ""s
+				,	g_config->console.show_ete                        ? cat( " - ETE:"   ,  ete.short_str()                                          ) : ""s
+				,	g_config->console.show_eta                        ? cat( " - ETA:"   ,  eta.load().str(0/*prec*/,true/*in_day*/)                 ) : ""s
 				))
 			} ;
 			OMsgBuf(rrr).send( audit_fd , {}/*key*/ ) ;
@@ -652,7 +650,7 @@ namespace Engine {
 			//
 			for( bool search_non_buildable : {true,false} )                                    // first search a non-buildable, if not found, search for non makable as deps have been made
 				for( auto const& [k,ds] : static_deps ) {
-					if (!is_canon(ds.txt,true/*ext_ok*/)) {
+					if (!is_canon(ds.txt)) {
 						if (search_non_buildable) continue ;                                   // non-canonic deps are detected after non-buidlable ones
 						const char* tl = +options.startup_dir_s ? " (top-level)" : "" ;
 						if (+ds.txt) reason = "non-canonic static dep "+k+tl+" : "+ds.txt ;

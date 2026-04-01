@@ -78,8 +78,8 @@ JobStartRpcReply get_start_info() {
 }
 
 void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , size_t* sz ) {
-	static Atomic<NodeIdx> crc_idx         = 0     ;
-	static Atomic<bool   > abs_path_warned = false ;
+	static Atomic<NodeIdx> crc_idx         ;
+	static Atomic<bool   > abs_path_warned ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc_thread_func",tgts->size(),crcs->size()) ;
 	NodeIdx  cnt           = 0                                                              ; // cnt is for trace only
@@ -347,15 +347,15 @@ int main( int argc , char* argv[] ) {
 			end_report.msg_stderr.msg << "open-lmake error : " << e ;
 			goto End ;
 		}                                                                                                                             // END_OF_NO_COV
-		struct rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
+		struct ::rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
 		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                          // XXX/ : suppress when CentOS7 bug is fixed
 		//
 		Gather::Digest digest = g_gather.analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
-		Delay              exe_time   = g_gather.end_date - g_gather.start_date             ;
-		::string           crc_msg    = compute_crcs( digest , /*out*/end_report.total_sz ) ;
+		Delay    exe_time = g_gather.end_date - g_gather.start_date             ;
+		::string crc_msg  = compute_crcs( digest , /*out*/end_report.total_sz ) ;
 		if ( status==Status::Ok && +crc_msg ) status = Status::Forbidden ;
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
@@ -380,8 +380,7 @@ int main( int argc , char* argv[] ) {
 			for( auto const&  f    : g_gather.guards ) nfs_guard.change(f) ;
 		}
 		//
-		if ( status==Status::Ok && ( +digest.msg || (+g_gather.stderr&&!g_start_info.stderr_ok) ) )
-			status = Status::Forbidden ;
+		if ( status==Status::Ok && ( +digest.msg || (+g_gather.stderr&&!g_start_info.stderr_ok) ) ) status = Status::Forbidden ;
 		//
 		/**/                        end_report.msg_stderr.msg += g_gather.msg ;
 		if (status!=Status::Killed) end_report.msg_stderr.msg += digest  .msg ;
@@ -391,18 +390,18 @@ int main( int argc , char* argv[] ) {
 		,	.job = exe_time
 		} ;
 		end_report.digest = {
-			.upload_key     = upload_key
+			.upload_key     =           upload_key
 		,	.targets        = ::move   (digest.targets       )
 		,	.deps           = ::move   (digest.deps          )
 		,	.refresh_codecs = mk_vector(digest.refresh_codecs)
-		,	.status         = status
-		,	.incremental    = incremental
+		,	.status         =           status
+		,	.incremental    =           incremental
 		} ;
-		end_report.end_date          =        g_gather.end_date                ;
-		end_report.stats             = ::move(stats                          ) ;
-		end_report.msg_stderr.stderr = ::move(g_gather.stderr                ) ;
-		end_report.stdout            = ::move(g_gather.stdout                ) ;
-		end_report.wstatus           =        g_gather.wstatus                 ;
+		end_report.end_date          =        g_gather.end_date  ;
+		end_report.stats             = ::move(stats            ) ;
+		end_report.msg_stderr.stderr = ::move(g_gather.stderr  ) ;
+		end_report.stdout            = ::move(g_gather.stdout  ) ;
+		end_report.wstatus           =        g_gather.wstatus   ;
 	}
 End :
 	{	Trace trace("end",end_report.digest) ;
@@ -410,7 +409,7 @@ End :
 		end_report.digest.has_msg_stderr = +end_report.msg_stderr ;
 		try {
 			ClientSockFd fd           { g_service_end } ;
-			Pdate        end_overhead = New             ;
+			Pdate        end_overhead { New           } ;
 			g_user_trace->emplace_back( end_overhead , Comment::EndOverhead , CommentExts() , snake_str(end_report.digest.status) ) ;
 			end_report.digest.exe_time = end_overhead - start_overhead ;                                                              // measure overhead as late as possible
 			//vvvvvvvvvvvvvvvvvvvvvvvvvv

@@ -382,9 +382,13 @@ template<class M=Mutex<>> struct SharedLock {
 
 template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
 	using Base = ::atomic<T> ;
-	using Base::load ;
+	using Base::load  ;
+	using Base::store ;
 	// cxtors & casts
-	using Base::Base      ;
+	Atomic(               ) : Base{T()     } {}
+	Atomic(Atomic const& a) : Base{a.load()} {}
+	using Base::Base ;
+	Atomic& operator=(Atomic const& a) { store(a.load()) ; return self ; }  // yes, the whole operation is not atomic, but the load part and the store part are, and this is useful
 	using Base::operator= ;
 	// accesses
 	void  operator>>(::string& os) const { os << "Atomic("<<load()<<')' ; } // NO_COV

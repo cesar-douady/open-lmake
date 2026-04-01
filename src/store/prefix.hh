@@ -30,9 +30,9 @@ namespace Store {
 
 	namespace Prefix {
 
-		template<       class Char> using Vec      = ::vector           <       Char      >    ;
-		template<       class Char> using VecView  = ::span             <       Char const>    ;
-		template<       class Char> using Str      = ::basic_string     <AsChar<Char>>         ;
+		template<       class Char> using Vec      = ::vector      <          Char      >      ;
+		template<       class Char> using VecView  = ::span        <          Char const>      ;
+		template<       class Char> using Str      = ::basic_string<AsChar<   Char>     >      ;
 		template<bool S,class Char> using VecStr   = ::conditional_t<S,Str   <Char>,Vec<Char>> ;
 		template<bool S,class Char> using ItemChar = ::conditional_t<S,AsChar<Char>,    Char > ;
 		//
@@ -1129,10 +1129,10 @@ namespace Store {
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz if the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		template<bool S> ::pair<Prefix::VecStr<S,Char>,Prefix::VecStr<S,Char>> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key_psfx( Idx idx , size_t psfx_sz ) const {
-			static Atomic<size_t> s_psfx_max_sz      = 0 ;
-			static Atomic<size_t> s_name_max_sz      = 0 ;
-			static Atomic<size_t> s_psfx_path_max_sz = 0 ;
-			static Atomic<size_t> s_name_path_max_sz = 0 ;
+			static Atomic<size_t> s_psfx_max_sz      ;
+			static Atomic<size_t> s_name_max_sz      ;
+			static Atomic<size_t> s_psfx_path_max_sz ;
+			static Atomic<size_t> s_name_path_max_sz ;
 			//
 			VecStr<S>                        psfx      ; psfx     .reserve(s_psfx_max_sz     ) ;
 			VecStr<S>                        name      ; name     .reserve(s_name_max_sz     ) ;
@@ -1176,8 +1176,8 @@ namespace Store {
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to suppress
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_key( Idx idx , size_t psfx_sz ) const {
-			static Atomic<size_t> s_res_max_sz  = 0 ;
-			static Atomic<size_t> s_path_max_sz = 0 ;
+			static Atomic<size_t> s_res_max_sz  ;
+			static Atomic<size_t> s_path_max_sz ;
 			//
 			VecStr<S>                        res  ; res .reserve(s_res_max_sz ) ;
 			::vmap<Idx,ChunkIdx/*chunk_sz*/> path ; path.reserve(s_path_max_sz) ;                    // when !Reverse, we must walk from root to idx but we gather path from idx back to root
@@ -1219,8 +1219,8 @@ namespace Store {
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		// psfx_sz is the size of the prefix (Reverse) / suffix (!Reverse) to get
 		template<bool S> Prefix::VecStr<S,Char> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_psfx( Idx idx , size_t psfx_sz ) const {
-			static Atomic<size_t> s_res_max_sz  = 0 ;
-			static Atomic<size_t> s_path_max_sz = 0 ;
+			static Atomic<size_t> s_res_max_sz  ;
+			static Atomic<size_t> s_path_max_sz ;
 			//
 			VecStr<S>                        res  ; res .reserve(s_res_max_sz ) ;
 			::vmap<Idx,ChunkIdx/*chunk_sz*/> path ; path.reserve(s_path_max_sz) ;             // when !Reverse, we must walk from root to idx but we gather path from idx back to root
@@ -1246,7 +1246,7 @@ namespace Store {
 
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		::vector<Idx> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::path(Idx idx) const {
-			static Atomic<size_t> s_res_max_sz = 0 ;
+			static Atomic<size_t> s_res_max_sz ;
 			//
 			::vector<Idx> res ; res.reserve(s_res_max_sz ) ;
 			while (idx) {

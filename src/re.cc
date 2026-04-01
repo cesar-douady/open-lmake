@@ -53,7 +53,7 @@ namespace Re {
 				break ;
 			}
 			if (true) {                                                                               // fast path : check infixes first to avoid matching in case of negative result
-				::string_view core { &subject[re._pfx.size()] , subject.size()-psfx_sz } ;
+				::string_view core { subject.data()+re._pfx.size() , subject.size()-psfx_sz } ;
 				size_t pos = 0 ;
 				for( ::string const& infx : re._infxs ) {
 					pos = core.find(infx,pos) ;

@@ -34,7 +34,7 @@ StdAttrs = { #!               type   dynamic
 ,	'chroot_dir'          : ( str   , True  )
 ,	'chroot_actions'      : ( tuple , True  )
 ,	'cmd'                 : ( str   , True  ) # when it is a str, such str may be dynamic, i.e. it may be a full f-string
-,	'compression'         : ( int   , True  ) # compression level
+,	'compression'         : ( tuple , True  ) # compression (method,level)
 ,	'deps'                : ( dict  , True  )
 ,	'environ_ancillary'   : ( dict  , True  )
 ,	'environ'             : ( dict  , True  )

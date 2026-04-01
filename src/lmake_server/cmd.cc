@@ -640,7 +640,7 @@ namespace Engine {
 		::string script_file     = dbg_dir_s+"script"     ;
 		::string gen_script_file = dbg_dir_s+"gen_script" ;
 		{	::string gen_script ;
-			gen_script << "#!" PYTHON "\n"                                                                                       ;
+			gen_script << "#!" PYTHON " -B\n"                                                                                     ;
 			gen_script << "import sys\n"                                                                                         ;
 			gen_script << "import os\n"                                                                                          ;
 			gen_script << "sys.path[0:0] = ("<<mk_py_str(*g_lmake_root_s+"lib")<<','<<mk_py_str(no_slash(*g_repo_root_s))<<")\n" ; // repo_root is not in path as script is in LMAKE/debug/<job>
@@ -652,8 +652,8 @@ namespace Engine {
 		}                                                                                                                          // ensure gen_script is closed before launching it
 		{	SavPyLdLibraryPath spllp ;
 			Child              child ;
-			child.stdin    = {}                     ;                                                                              // no input
-			child.cmd_line = {gen_script_file,"-B"} ;                                                                              // be as neutral as possible : -B prevents .pyc generation
+			child.stdin    = {}                ;                                                                                   // no input
+			child.cmd_line = {gen_script_file} ;                                                                                   // be as neutral as possible : -B prevents .pyc generation
 			child.spawn() ;
 			if (!child.wait_ok()) throw "cannot generate debug script "+script_file ;
 		}

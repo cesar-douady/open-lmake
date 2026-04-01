@@ -704,9 +704,9 @@ template<class Key=::string> struct JobDigest {                                 
 	// END_OF_VERSIONING
 } ;
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
-	if constexpr (::is_same_v<Key,::string>) { //!                                                 ext_ok
-		for( auto const& [t,_] : targets ) throw_unless( +t && !Disk::is_abs(t) && Disk::is_canon(t,false) , "bad target" ) ;
-		for( auto const& [d,_] : deps    ) throw_unless( +d &&                     Disk::is_canon(d,true ) , "bad dep"    ) ;
+	if constexpr (::is_same_v<Key,::string>) {
+		for( auto const& [t,_] : targets ) throw_unless( +t && !Disk::is_abs(t) && Disk::is_canon(t,{.extern_ok=false,.dot_ok=true}) , "bad target" ) ;
+		for( auto const& [d,_] : deps    ) throw_unless( +d &&                     Disk::is_canon(d                                ) , "bad dep"    ) ;
 	}
 	throw_unless( status<All<Status> , "bad status" ) ;
 	if (for_cache)

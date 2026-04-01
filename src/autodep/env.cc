@@ -183,11 +183,11 @@ AutodepEnv::operator ::string() const {
 
 void AutodepEnv::chk(bool for_cache) const {
 	RealPathEnv::chk(for_cache) ;
-	throw_unless( !sub_repo_s || sub_repo_s.back()=='/'                , "bad sub_repo" ) ;
-	throw_unless( is_canon(sub_repo_s,false/*ext_ok*/,true/*empy_ok*/) , "bad sub_repo" ) ;
+	throw_unless( !sub_repo_s || sub_repo_s.back()=='/'                  , "bad sub_repo" ) ;
+	throw_unless( is_canon(sub_repo_s,{.extern_ok=false,.empty_ok=true}) , "bad sub_repo" ) ;
 	for( auto const& [view_s,phys_s] : views_s ) {
-		/**/                                throw_unless( is_dir_name(view_s) && is_canon(view_s) , "bad view"      ) ;
-		for( ::string const& p_s : phys_s ) throw_unless( is_dir_name(p_s   ) && is_canon(p_s   ) , "bad view phys" ) ;
+		/**/                                throw_unless( is_dir_name(view_s) && is_canon(view_s                 ) , "bad view"      ) ;
+		for( ::string const& p_s : phys_s ) throw_unless( is_dir_name(p_s   ) && is_canon(p_s   ,{.empty_ok=true}) , "bad view phys" ) ;
 	}
 	if (for_cache) {
 		throw_unless( !fast_report_pipe , "bad report info" ) ;

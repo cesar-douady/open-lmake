@@ -18,34 +18,34 @@ namespace Disk {
 	//
 
 	// /!\ this code is derived from mk_canon
-	bool is_canon( ::string const& path , bool ext_ok , bool empty_ok , bool has_pfx , bool has_sfx ) {
-		if (!path) return empty_ok ;
+	bool is_canon( ::string const& path , CanonAction action ) {
+		if (!path) return action.empty_ok ;
 		const char* p = path.data() ;
 		//
 		auto handle_slash = [&]() {
-			size_t sz = p - path.data() ;                         // if test ok, else, [path:p) is (x is single wildcard, u is not ., y is not /, z is not / nor .) :
-			if (sz==0     ) return true              ;            //                *x
-			if (p[-1]=='/') return false             ;            //      */        *y
-			if (p[-1]!='.') return true              ;            //      *z        *.
-			if (sz==1     ) return has_pfx           ;            //       .       *x.
-			if (p[-2]=='/') return false             ;            //     */.       *y.
-			if (p[-2]!='.') return true              ;            //     *z.       *..
-			if (sz==2     ) return            ext_ok ;            //      ..      *x..
-			if (p[-3]!='/') return true              ;            //    *y..      */..
-			if (sz==3     ) return has_pfx && ext_ok ;            //     /..     *x/.. absolute .. is not canon
-			if (p[-4]!='.') return false             ;            //   *y/..     *./..
-			if (sz==4     ) return has_pfx && ext_ok ;            //    ./..    *x./..
-			if (p[-5]!='.') return false             ;            //  *u./..    *../..
-			if (sz==5     ) return            ext_ok ;            //   ../..   *x../.. .. after .. is canon
-			if (p[-6]=='/') return            ext_ok ;            // */../..   *y../.. .. after .. is canon
-			/**/            return false             ;
+			size_t sz = p - path.data() ;                               // if test ok, else, [path:p) is (x is single wildcard, u is not ., y is not /, z is not / nor .) :
+			if (sz==0     ) return true                               ; //                *x
+			if (p[-1]=='/') return false                              ; //      */        *y
+			if (p[-1]!='.') return true                               ; //      *z        *.
+			if (sz==1     ) return action.dot_ok || action.has_pfx    ; //       .       *x.
+			if (p[-2]=='/') return false                              ; //     */.       *y.
+			if (p[-2]!='.') return true                               ; //     *z.       *..
+			if (sz==2     ) return                   action.extern_ok ; //      ..      *x..
+			if (p[-3]!='/') return true                               ; //    *y..      */..
+			if (sz==3     ) return action.has_pfx && action.extern_ok ; //     /..     *x/.. absolute .. is not canon
+			if (p[-4]!='.') return false                              ; //   *y/..     *./..
+			if (sz==4     ) return action.has_pfx && action.extern_ok ; //    ./..    *x./..
+			if (p[-5]!='.') return false                              ; //  *u./..    *../..
+			if (sz==5     ) return                   action.extern_ok ; //   ../..   *x../.. .. after .. is canon
+			if (p[-6]=='/') return                   action.extern_ok ; // */../..   *y../.. .. after .. is canon
+			/**/            return false                              ;
 		} ;
 		for(; p!=path.data()+path.size() ; p++ ) {
 			char c = *p ;
-			throw_if( c==0 , "file contains nul char : ",path ) ; // filenames are not supposed to contain any nul char, cannot canonicalize
+			throw_if( c==0 , "file contains nul char : ",path ) ;       // filenames are not supposed to contain any nul char, cannot canonicalize
 			if ( c=='/' && !handle_slash() ) return false ;
 		}
-		return path.back()=='/' || has_sfx || handle_slash() ;
+		return path.back()=='/' || action.has_sfx || handle_slash() ;
 	}
 
 	// /!\ is_canon is derived from this code

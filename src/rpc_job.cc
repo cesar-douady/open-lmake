@@ -539,9 +539,9 @@ void JobSpace::chk() const {
 	if (+repo_view_s ) throw_unless( repo_view_s .front()=='/' && repo_view_s .back()=='/' && is_canon(repo_view_s) , "bad repo_view"  ) ;
 	if (+tmp_view_s  ) throw_unless( tmp_view_s  .front()=='/' && tmp_view_s  .back()=='/' && is_canon(tmp_view_s ) , "bad tmp_view"   ) ;
 	for( auto const& [view_s,descr] : views ) {
-		/**/                                       throw_unless( is_canon(view_s) , "bad views"        ) ;
-		for( ::string const& p_s : descr.phys_s  ) throw_unless( is_canon(p_s   ) , "bad view phys"    ) ;
-		for( ::string const& cu  : descr.copy_up ) throw_unless( is_canon(cu    ) , "bad view copy_up" ) ;
+		/**/                                       throw_unless( is_canon(view_s                   ) , "bad view ",view_s                 ) ;
+		for( ::string const& p_s : descr.phys_s  ) throw_unless( is_canon(p_s   ,{.empty_ok =true }) , "bad view ",view_s," -> "     ,p_s ) ;
+		for( ::string const& cu  : descr.copy_up ) throw_unless( is_canon(cu    ,{.extern_ok=false}) , "bad view ",view_s," copy-up ",cu  ) ;
 	}
 }
 
@@ -1142,7 +1142,6 @@ void JobStartRpcReply::operator>>(::string& os) const {        // START_OF_NO_CO
 	if (+pre_actions     ) os << ','<<pre_actions            ;
 	/**/                   os << ','<<small_id               ;
 	if (+star_matches    ) os << ','<<star_matches           ;
-	if (+deps            ) os << '<'<<deps                   ;
 	if (+static_matches  ) os << '>'<<static_matches         ;
 	if (+stdin           ) os << '<'<<stdin                  ;
 	if (+stdout          ) os << '>'<<stdout                 ;
@@ -1176,16 +1175,16 @@ void JobStartRpcReply::mk_lmake_version() {
 			::string key = strip(line.substr(0    ,pos)) ;
 			::string val = strip(line.substr(pos+1    )) ;
 			switch (key[0]) {
-				case 'h' : if (key=="has_ld_audit"       ) has_ld_audit                      = (val=="True")              ;
-				else       if (key=="has_seccomp"        ) has_seccomp                       = (val=="True")              ;
+				case 'h' : if      (key=="has_ld_audit"       ) has_ld_audit                      = (val=="True")              ;
+				/**/       else if (key=="has_seccomp"        ) has_seccomp                       = (val=="True")              ;
 				break ;
-				case 'j' : if (key=="job"                ) v_job                             = from_string<uint64_t>(val) ; break ;
-				case 'p' : if (key=="py_ld_library_path" ) lmake_version.py_ld_library_path  = val.substr(1,val.size()-2) ;         // suppress quotes
-				else       if (key=="py2_ld_library_path") lmake_version.py2_ld_library_path = val.substr(1,val.size()-2) ;         // .
-				else       if (key=="python"             ) lmake_version.python              = val.substr(1,val.size()-2) ;         // .
-				else       if (key=="python2"            ) lmake_version.python2             = val.substr(1,val.size()-2) ;         // .
+				case 'j' : if      (key=="job"                ) v_job                             = from_string<uint64_t>(val) ; break ;
+				case 'p' : if      (key=="py_ld_library_path" ) lmake_version.py_ld_library_path  = val.substr(1,val.size()-2) ;         // suppress quotes
+				/**/       else if (key=="py2_ld_library_path") lmake_version.py2_ld_library_path = val.substr(1,val.size()-2) ;         // .
+				/**/       else if (key=="python"             ) lmake_version.python              = val.substr(1,val.size()-2) ;         // .
+				/**/       else if (key=="python2"            ) lmake_version.python2             = val.substr(1,val.size()-2) ;         // .
 				break ;
-				case 's' : if (key=="std_path"           ) lmake_version.std_path            = val.substr(1,val.size()-2) ; break ; // .
+				case 's' : if      (key=="std_path"           ) lmake_version.std_path            = val.substr(1,val.size()-2) ; break ; // .
 			DN}
 		}
 		throw_unless( v_job                   , "expected job-version "  ,Version::Job," not found"     ) ;
@@ -1330,14 +1329,14 @@ void JobStartRpcReply::cache_cleanup() {
 void JobStartRpcReply::chk(bool for_cache) const {
 	autodep_env.chk(for_cache) ;
 	job_space  .chk(         ) ;
-	if (+phy_lmake_root_s)                    throw_unless( phy_lmake_root_s.front()=='/' && phy_lmake_root_s.back()=='/' , "bad lmake_root"     ) ;
-	/**/                                      throw_unless( method<All<AutodepMethod>                                     , "bad autoded_method" ) ;
-	/**/                                      throw_unless( network_delay>=Delay()                                        , "bad networkd_delay" ) ;
-	for( auto const& [f,_] : pre_actions    ) throw_unless( is_canon(f)                                                   , "bad file_action"    ) ;
-	for( auto const& [t,_] : static_matches ) throw_unless( is_canon(t)                                                   , "bad target"         ) ;
-	/**/                                      throw_unless( is_canon(stdin ,true /*ext_ok*/,true/*empty_ok*/)             , "bad stdin"          ) ;
-	/**/                                      throw_unless( is_canon(stdout,false/*.     */,true/*.       */)             , "bad stdout"         ) ;
-	/**/                                      throw_unless( timeout>=Delay()                                              , "bad timeout"        ) ;
+	if (+phy_lmake_root_s)                    throw_unless( phy_lmake_root_s.front()=='/' && phy_lmake_root_s.back()=='/' , "bad lmake_root "       ,phy_lmake_root_s,rm_slash ) ;
+	/**/                                      throw_unless( method<All<AutodepMethod>                                     , "bad autoded_method"                               ) ;
+	/**/                                      throw_unless( network_delay>=Delay()                                        , "bad network_delay "    ,network_delay.short_str() ) ;
+	for( auto const& [f,_] : pre_actions    ) throw_unless( is_canon(f                                       )            , "bad file for action : ",f                         ) ;
+	for( auto const& [t,_] : static_matches ) throw_unless( is_canon(t     ,{.extern_ok=false,.dot_ok  =true})            , "bad target "           ,t                         ) ;
+	/**/                                      throw_unless( is_canon(stdin ,{                 .empty_ok=true})            , "bad stdin"             ,stdin                     ) ;
+	/**/                                      throw_unless( is_canon(stdout,{.extern_ok=false,.empty_ok=true})            , "bad stdout"            ,stdout                    ) ;
+	/**/                                      throw_unless( timeout>=Delay()                                              , "bad timeout"           ,timeout.short_str()       ) ;
 	if (for_cache) {
 		throw_unless( !cache             , "bad cache"       ) ;
 		throw_unless( !key               , "bad key"         ) ;

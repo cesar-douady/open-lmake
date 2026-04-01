@@ -356,8 +356,8 @@ namespace Engine {
 		ReqOptions           options        ;
 		Pdate                start_pdate    ;
 		Ddate                start_ddate    ;
-		Pdate                et1            ;                       // Estimated Time of Arrival
-		Delay                et2            ;                       // Estimated Time Enroute
+		Atomic<Pdate>        eta            {} ;                       // Estimated Time of Arrival
+		Delay                ete            ;                       // Estimated Time Enroute
 		::umap<Rule,JobIdx>  ete_n_rules    ;                       // number of jobs participating to stats.ete with exec_time from rule
 		::set_s              refresh_codecs ;                       // codec files that must be refreshed at end of execution
 		JobIdx               n_running      = 0                 ;   // number of currently queued and running jobs
@@ -393,7 +393,7 @@ namespace Engine {
 	inline ::vmap<Req,Pdate> Req::s_etas() {
 		Lock              lock { s_req_idxs_mutex } ;
 		::vmap<Req,Pdate> res  ;
-		for ( Req r : _s_reqs_by_eta ) res.emplace_back(r,r->et1) ;
+		for ( Req r : _s_reqs_by_eta ) res.emplace_back(r,r->eta) ;
 		return res ;
 	}
 

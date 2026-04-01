@@ -214,7 +214,7 @@ public :
 	::string                                  stdout           ;                       // contains child stdout if child_stdout==Pipe
 	Time::Delay                               timeout          ;
 	::vector<UserTraceEntry>*                 user_trace       = nullptr             ;
-	Atomic<int>                               wstatus          = 0                   ;
+	Atomic<int>                               wstatus          ;
 private :
 	::map_ss     _add_env              ;
 	Child        _child                ;

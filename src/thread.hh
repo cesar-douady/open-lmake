@@ -213,8 +213,8 @@ private :
 		wakeup() ;
 	}
 	// data
-	Atomic<bool ,MutexLvl::Inner> _run            = false ;
-	Atomic<Bool3,MutexLvl::Inner> _stop_requested = No    ;        // Maybe means call func once and exit
+	Atomic<bool ,MutexLvl::Inner> _run            ;
+	Atomic<Bool3,MutexLvl::Inner> _stop_requested ;                // Maybe means call func once and exit
 public :
 	::jthread thread ;                                             // ensure thread is last so other fields are constructed when it starts
 } ;

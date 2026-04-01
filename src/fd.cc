@@ -3,8 +3,9 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include <ifaddrs.h>    // struct ifaddrs, getifaddrs, freeifaddrs
-#include <netdb.h>      // NI_NOFQDN, struct addrinfo, getnameinfo, getaddrinfo, freeaddrinfo
+#include <ifaddrs.h>     // struct ifaddrs, getifaddrs, freeifaddrs
+#include <netdb.h>       // NI_NOFQDN, struct addrinfo, getnameinfo, getaddrinfo, freeaddrinfo
+#include <netinet/tcp.h> // TCP_NODELAY
 #include <sys/socket.h>
 
 #include "fd.hh"
@@ -170,17 +171,17 @@ SockFd::SockFd( Key k , bool reuse_addr , in_addr_t local_addr , bool for_server
 	//
 	fd = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ ) ; no_std() ; if (!self) fail_prod("cannot create socket : ",StrErr()) ;
 	if (!(ReuseAddr&&reuse_addr)) return ;                                                                                                      // dont reuse addr
+	::setsockopt( fd , SOL_SOCKET , SO_REUSEADDR , &::ref<int>(1) , sizeof(int) ) ;
 	// if we want to set SO_REUSEADDR, we cannot auto-bind to an ephemeral port as SO_REUSEADDR is not taken into account in that case
 	// so we try random port numbers in the ephemeral range until we find a free one
 	//
 	static in_port_t s_port_hint = 0 ;                        // only used for client
 	//
-	Ports const& ports = _ports()     ;
-	SockAddr     sa    { local_addr } ;
-	throw_unless( ::setsockopt( fd , SOL_SOCKET , SO_REUSEADDR , &::ref<int>(1) , sizeof(int) )==0 , "cannot set socket option SO_REUSEADR on ",self ) ;
-	in_port_t random   = Pdate(New).hash()              ;
-	uint64_t  n_trials = ::bit_ceil<uint64_t>(ports.sz) ;
-	in_port_t mask     = n_trials - 1                   ;
+	Ports const& ports    = _ports()                       ;
+	SockAddr     sa       { local_addr }                   ;
+	in_port_t    random   = Pdate(New).hash()              ;
+	uint64_t     n_trials = ::bit_ceil<uint64_t>(ports.sz) ;
+	in_port_t    mask     = n_trials - 1                   ;
 	for( uint64_t i : iota(n_trials+1) ) {                    // try s_port_hint first, then all ports in random order (need bit_ceil(ports.sz) to ensure all ports are covered with the method below)
 		in_port_t trial_port = for_server ? 0 : s_port_hint ;
 		if      ( i!=0       ) trial_port = ports.first + (((i*PortInc)&mask)^random)%ports.sz ;
@@ -225,8 +226,9 @@ ServerSockFd::ServerSockFd( int backlog , bool reuse_addr , in_addr_t local_addr
 }
 
 SlaveSockFd ServerSockFd::accept() {
-	SlaveSockFd slave_fd { ::accept(fd,nullptr/*addr*/,nullptr/*addrlen*/) , key } ;
-	swear_prod( +slave_fd , "cannot accept (",StrErr(),"from",self ) ;
+	SlaveSockFd slave_fd { ::accept(fd,nullptr/*addr*/,nullptr/*addrlen*/) , key } ; swear_prod( +slave_fd , "cannot accept (",StrErr(),"from",self ) ;
+	::setsockopt( slave_fd , IPPROTO_TCP , TCP_NODELAY  , &::ref<int>(1) , sizeof(int) ) ;                                                              // avoid waiting for data packet aggregation
+	::setsockopt( slave_fd , IPPROTO_TCP , TCP_QUICKACK , &::ref<int>(1) , sizeof(int) ) ;                                                              // avoid waiting for ack  packet aggregation
 	return slave_fd ;
 }
 
@@ -243,6 +245,8 @@ ClientSockFd::ClientSockFd( KeyedService service , bool reuse_addr , Delay timeo
 	Pdate    end          = Pdate(New) + timeout ;
 	uint32_t i_reuse_addr = 1                    ;
 	uint32_t i_connect    = 1                    ;
+	::setsockopt( fd , IPPROTO_TCP , TCP_NODELAY  , &::ref<int>(1) , sizeof(int) ) ;                                      // avoid waiting for data packet aggregation
+	::setsockopt( fd , IPPROTO_TCP , TCP_QUICKACK , &::ref<int>(1) , sizeof(int) ) ;                                      // avoid waiting for ack  packet aggregation
 	for (;;) {
 		if (has_timeout) {
 			TimeVal to ( ::max( Delay(0.001) , end-Pdate(New) ) ) ;                                                       // ensure to is positive

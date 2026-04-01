@@ -33,7 +33,7 @@ struct SyscallDescr {
 	/**/                    static BpfProg const& s_bpf_prog_ptrace  ;
 	IF_CAN_AUTODEP_SECCOMP( static BpfProg const& s_bpf_prog_seccomp ; )
 	// accesses
-	constexpr bool operator+() const { return entry || exit ; }
+	constexpr bool operator+() const { return +comment ; } // entry or exit seem to be non-constexpr when compiling with sanitizer
 	// data
 	// /!\ there must be no memory allocation nor cxtor/dxtor as this must be statically allocated when malloc is not available
 	::pair<void*  /*ctx*/,bool/*refresh_mem*/> (*entry)(      Record&,Fd proc_mem,uint64_t args[6],bool emulate,Comment) = nullptr       ; // emulate in exit if emulate=true

@@ -8,7 +8,6 @@
 #include <dirent.h>
 #include <sys/xattr.h>
 
-#include "fd.hh"
 #include "serialize.hh"
 #include "time.hh"
 
@@ -68,13 +67,20 @@ namespace Disk {
 	//
 	// path name library
 	//
+	struct CanonAction {
+		bool extern_ok = true  ;
+		bool empty_ok  = false ;
+		bool dot_ok    = false ;
+		bool has_pfx   = false ; // is has_pfx or has_sfx, canon if canon for some pfx/sfx
+		bool has_sfx   = false ;
+	} ;
 
-	bool     is_canon( ::string const& , bool ext_ok=true , bool empty_ok=false , bool has_pfx=false , bool has_sfx=false ) ; // is has_pfx or has_sfx, return false if cannot be canon for any pfx/sfx
-	::string mk_canon( ::string const&                                                                                    ) ;
+	bool     is_canon( ::string const& , CanonAction={} ) ;
+	::string mk_canon( ::string const&                  ) ;
 	//
 	inline bool has_dir(::string const& file) {
-		if (file.size()<3) return false                          ;                                                            // we must have at least 2 components and a / to have a dir component
-		else               return file.find('/',1)<file.size()-2 ;                                                            // search a / at neither ends of file
+		if (file.size()<3) return false                          ;                                                  // we must have at least 2 components and a / to have a dir component
+		else               return file.find('/',1)<file.size()-2 ;                                                  // search a / at neither ends of file
 	}
 	//
 	inline bool is_dir_name(::string const& file) { return !file || file.back()=='/' ; }
@@ -103,8 +109,8 @@ namespace Disk {
 		if (n==1) throw cat("cannot walk uphill from "           ,file) ;
 		else      throw cat("cannot walk uphill ",n," dirs from ",file) ;
 	}
-	inline ::string dir_name_s( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<false>(file,n) ; }           // INVARIANT : dir_name_s(file,n)+base_name(file,n)==file
-	inline ::string base_name ( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<true >(file,n) ; }           // .
+	inline ::string dir_name_s( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<false>(file,n) ; } // INVARIANT : dir_name_s(file,n)+base_name(file,n)==file
+	inline ::string base_name ( ::string const& file , FileNameIdx n=1 ) { return _dir_base_name<true >(file,n) ; } // .
 
 	inline bool is_abs(::string const& file) { return          file[0]=='/' ; }
 	inline bool is_abs(::string_view   file) { return +file && file[0]=='/' ; } // string_view's have no guaranteed terminating null

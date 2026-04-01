@@ -26,6 +26,7 @@
 #endif
 
 #include "disk.hh"
+#include "fd.hh"
 #include "hash.hh"
 #include "time.hh"
 
@@ -39,9 +40,9 @@ using namespace Time ;
 
 #pragma GCC visibility push(default) // force visibility of functions defined hereinafter, until the corresponding pop
 extern "C" {
-	const char* __asan_default_options () { return "verify_asan_link_order=0,detect_leaks=0" ; }
-	const char* __ubsan_default_options() { return "halt_on_error=1"                         ; }
-	const char* __tsan_default_options () { return "report_signal_unsafe=0"                  ; }
+	const char* __asan_default_options () { return "abort_on_error=1,verify_asan_link_order=0,detect_leaks=0" ; }
+	const char* __ubsan_default_options() { return "halt_on_error=1,print_stacktrace=1"                       ; }
+	const char* __tsan_default_options () { return "abort_on_err=1,report_signal_unsafe=0"                    ; }
 }
 #pragma GCC visibility pop
 

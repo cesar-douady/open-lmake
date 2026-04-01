@@ -58,15 +58,15 @@ config = pdict(
 	#,	sge = pdict(
 	#		domain_name       = socket.getfqdn().split('.',1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server
 	#	,	bin               = '/opt/sge/bin/ls-amd64'           # directory where sge binaries are located
-	#	,	cell              = 'default'                         # cell     used for SGE job submission, by default, SGE automatically determines it
+	#	,	cell              = 'default'                         # cell    used for SGE job submission, by default, SGE automatically determines it
 	#	,	cluster           = 'p6444'                           # cluster used for SGE job submission, by default, SGE automatically determines it
 	#	,	default_prio      = 0                                 # default priority to use if none is specified on the lmake command line (this is the default)
 	#	,	n_max_queued_jobs = 10                                # max number of queued jobs for a given set of asked resources
 	#	,	repo_key          = _osp.basename(_os.getcwd())       # prefix used before job name to name slurm jobs (this is the default if not specified)
 	#	,	root              = '/opt/sge'                        # root directory of the SGE installation
-	#	,	cpu_resource      = 'cpu'                             # resource used to require cpus                 (e.g. qsub -l cpu=1   to require 1 cpu ), not managed if not specified
-	#	,	mem_resource      = 'mem'                             # resource used to require memory         in MB (e.g. qsub -l mem=10  to require 10 MB ), not managed if not specified
-	#	,	tmp_resource      = 'tmp'                             # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB ), not managed if not specified
+	#	,	cpu_resource      = 'cpu'                             # resource used to require cpus                 (e.g. qsub -l cpu=1   to require 1 cpu), not managed if not specified
+	#	,	mem_resource      = 'mem'                             # resource used to require memory         in MB (e.g. qsub -l mem=10  to require 10 MB), not managed if not specified
+	#	,	tmp_resource      = 'tmp'                             # resource used to require tmp disk space in MB (e.g. qsub -l tmp=100 to require 100MB), not managed if not specified
 	#	)
 	#,	slurm = pdict(
 	#		domain_name       = socket.getfqdn().split('.',1)[-1] # the domain name to host name to form the fqdn under which jobs must contact server

@@ -45,7 +45,7 @@ if __name__!='__main__' :
 		,	'SECOND' : '{File2}'
 		}
 		cache       = 'my_cache'
-		compression = z_lvl
+		compression = ( 'zlib' , z_lvl )     # zlib always exists
 		cmd         = 'cat {FIRST} {SECOND}'
 
 	class MkDir(Rule):

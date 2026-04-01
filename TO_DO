@@ -24,6 +24,7 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* check that deps are available with ldebug if ^C
 * allow using strace with autodep=ptrace
 ! manage 32 bits executables with ptrace
 	- mode -mx32 seems easy

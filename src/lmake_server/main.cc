@@ -95,7 +95,7 @@ struct LmakeServer : AutoServer<LmakeServer> {
 } ;
 
 static LmakeServer  _g_server    { ServerMrkr } ;
-static Atomic<bool> _g_done      = false        ;
+static Atomic<bool> _g_done      ;
 static bool         _g_seen_make = false        ;
 
 static ::string _os_compat(::string const& os_id) {

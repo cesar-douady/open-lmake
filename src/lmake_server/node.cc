@@ -1024,7 +1024,7 @@ namespace Engine {
 			shorten_by(tail_sz-ds.size()) ;                                         // and shorten
 		} else {
 			for( GenericDep const& d : ::span(ds.data(),tail_sz) ) *cur_dep++ = d ; // copy what can be fitted
-			append(::span( &ds[tail_sz] , ds.size()-tail_sz ) ) ;                   // and append for the remaining
+			append(::span( ds.data()+tail_sz , ds.size()-tail_sz ) ) ;              // and append for the remaining
 		}
 	}
 

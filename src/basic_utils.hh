@@ -113,10 +113,6 @@ namespace std {
 }
 
 template<class T> T& grow( ::vector<T>& v , size_t i ) {
-	if (i>=v.capacity()) {
-		size_t n = v.capacity() + ((v.capacity()+3)>>2) ; // ensure exponential growth while keeping memory overhead low
-		if (i<n) v.reserve(n) ;
-	}
 	if (i>=v.size()) v.resize(i+1) ;
 	return v[i] ;
 }

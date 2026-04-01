@@ -148,10 +148,10 @@ namespace Backends {
 		Rsrcs                               rsrcs         ;
 		Rsrcs                               rounded_rsrcs ;
 		Atomic<SpawnId,MutexLvl::BackendId> id            = NoId  ;
-		Atomic<bool                       > started       = false ; // if true <=> start() has been called for this job, for assert only
-		Atomic<bool                       > verbose       = false ;
-		Atomic<bool                       > zombie        = false ; // if true <=> entry waiting for suppression
-		Atomic<bool                       > hold          = false ; // when held, entry cannot be destroyed
+		Atomic<bool                       > started       ;         // if true <=> start() has been called for this job, for assert only
+		Atomic<bool                       > verbose       ;
+		Atomic<bool                       > zombie        ;         // if true <=> entry waiting for suppression
+		Atomic<bool                       > hold          ;         // when held, entry cannot be destroyed
 	} ;
 
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_etas to reorder them upon need

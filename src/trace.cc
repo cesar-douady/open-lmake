@@ -12,7 +12,7 @@ using namespace Time ;
 
 StaticUniqPtr<::string> g_trace_file ;
 
-Atomic<bool    > Trace::s_backup_trace = false        ;
+Atomic<bool    > Trace::s_backup_trace ;
 Atomic<size_t  > Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden
 Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace default channel
 
@@ -21,7 +21,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 	size_t                 Trace::_s_pos       =  0      ;
 	bool                   Trace::_s_ping      = false   ;
 	Fd                     Trace::_s_fd        ;
-	Atomic<bool>           Trace::_s_has_trace = false   ;
+	Atomic<bool>           Trace::_s_has_trace ;
 	uint8_t*               Trace::_s_data      = nullptr ;
 	size_t                 Trace::_s_cur_sz    = 0       ;
 	Mutex<MutexLvl::Trace> Trace::_s_mutex     ;

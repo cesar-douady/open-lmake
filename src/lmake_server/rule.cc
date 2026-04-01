@@ -13,7 +13,7 @@ namespace Engine {
 	::string _subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx&/*inout*/ n_unnamed , bool* /*out*/ keep_for_deps=nullptr ) {
 		::string res ;
 		//
-		if (keep_for_deps) *keep_for_deps = true ;                                                  // unless found to be external
+		if (keep_for_deps) *keep_for_deps = true ;                                                                       // unless found to be external
 		parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
 			[&]( ::string const& k , bool star , bool unnamed , ::string const* def ) {
 				SWEAR(var_idxs.contains(k)) ;
@@ -31,8 +31,8 @@ namespace Engine {
 		,	[&]( ::string const& fixed , bool has_pfx , bool has_sfx ) {
 				SWEAR(+fixed) ;
 				res.append(fixed) ;
-				if (!keep_for_deps) return ;                                                        // not a dep, no check
-				if ( !is_canon( fixed , true/*ext_ok*/ , true/*empty_ok*/ , has_pfx , has_sfx ) ) {
+				if (!keep_for_deps) return ;                                                                             // not a dep, no check
+				if ( !is_canon( fixed , {.empty_ok=true,.has_pfx=has_pfx,.has_sfx=has_sfx} ) ) {
 					if ( ::string c=mk_canon(fstr) ; c!=fstr ) throw cat("is not canonical, consider using : ",c) ;
 					else                                       throw cat("is not canonical"                     ) ;
 				}
@@ -257,7 +257,7 @@ namespace Engine {
 			if (mk!=MatchKind::SideDep) return "is top-level" ;
 		} else if ( !has_pfx && !has_sfx && !file ) {
 			return "is empty" ;
-		} else if ( !is_canon( file , mk==MatchKind::SideDep/*ext_ok*/ , true/*empty_ok*/ , has_pfx , has_sfx ) ) {
+		} else if ( !is_canon( file , {.extern_ok=mk==MatchKind::SideDep,.empty_ok=true,.has_pfx=has_pfx,.has_sfx=has_sfx} ) ) {
 			if ( ::string c=mk_canon(file) ; c!=file ) return cat(file," is not canonical, consider using : ",c) ;
 			else                                       return cat(file," is not canonical"                     ) ;
 		} else if ( !has_sfx && file.back()=='/' ) {
@@ -274,10 +274,10 @@ namespace Engine {
 			if ( +consider && consider!=dep ) e <<", consider : "<< consider ;
 			throw e ;
 		} ;
-		if (!dep                         ) bad( "is empty"                         ) ;                        // ... in which case actual interpreter is unpredictable, dont make it static
-		if (!is_canon(dep,true/*ext_ok*/)) bad( "is not canonical" , mk_canon(dep) ) ;
-		if (dep.back()=='/'              ) bad( "ends with /"      , no_slash(dep) ) ;
-		if (is_lcl(dep)                  ) return true/*keep*/ ;
+		if (!dep           ) bad( "is empty"                         ) ;
+		if (!is_canon(dep) ) bad( "is not canonical" , mk_canon(dep) ) ;
+		if (dep.back()=='/') bad( "ends with /"      , no_slash(dep) ) ;
+		if (is_lcl(dep)    ) return true/*keep*/ ;
 		// dep is non-local, substitute relative/absolute if it lies within a source dirs
 		::string rel_dep = mk_rel( dep , *g_repo_root_s ) ;
 		::string abs_dep = mk_glb( dep , *g_repo_root_s ) ;
@@ -416,24 +416,20 @@ namespace Engine {
 		}
 
 		bool/*updated*/ acquire( Zlvl& dst , Object const* py_src ) {
-			//                                     updated
-			if (!py_src       )              return false ;
-			if ( py_src==&None) { dst = {} ; return true  ; }
-			if (py_src->is_a<Int>()) {
-				dst.tag = ZlvlTag::Dflt ;
-				acquire( dst.lvl , py_src ) ;
-			} else if (py_src->is_a<Str>()) {
-				acquire( dst.tag , py_src ) ;
-				dst.lvl = 1 ;
-			} else if (py_src->is_a<Sequence>()) {
+			if (!py_src                  )              return false/*updated*/ ;
+			if ( py_src==&None           ) { dst = {} ; return true /*.      */ ; }
+			if ( py_src->is_a<Sequence>()) {
 				Sequence const& py_seq = py_src->as_a<Sequence>() ;
-				throw_unless( py_seq.size()==2 , "cannot understand compression which is a sequence of len !=2" ) ;
-				acquire( dst.tag , &py_seq[0] ) ;
-				acquire( dst.lvl , &py_seq[1] ) ;
-			} else {
-				throw "cannot understand compression"s ;
+				switch (py_seq.size()) {
+					case 1 :
+						if      ( py_seq[0].is_a<Str>()                          ) { acquire( dst.tag , &py_seq[0] ) ; dst.lvl = 0                     ; return true/*updated*/ ; }
+						else if (                          py_seq[0].is_a<Int>() ) { dst.tag = ZlvlTag::Dflt         ; acquire( dst.lvl , &py_seq[0] ) ; return true/*updated*/ ; }
+					break ;
+					case 2 :
+						if      ( py_seq[0].is_a<Str>() && py_seq[1].is_a<Int>() ) { acquire( dst.tag , &py_seq[0] ) ; acquire( dst.lvl , &py_seq[1] ) ; return true/*updated*/ ; }
+				DN}
 			}
-			return true/*updated*/ ;
+			throw "cannot understand compression which is neither a int, a str or a sequence of len 2"s ;
 		}
 
 	}
@@ -615,7 +611,7 @@ namespace Engine {
 		//
 		rule->validate(name_) ;
 		//
-		char* p = &name_[name_.size()-rule->job_sfx_len()+1] ;          // start of suffix, after JobMrkr
+		char* p = name_.data()+name_.size()-rule->job_sfx_len()+1 ;          // start of suffix, after JobMrkr
 		for( [[maybe_unused]] VarIdx _ : iota(rule->n_static_stems) ) {
 			FileNameIdx pos = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;

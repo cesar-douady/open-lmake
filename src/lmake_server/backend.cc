@@ -158,7 +158,7 @@ namespace Backends {
 		Lock  lock     { Req::s_reqs_mutex } ; // taking Req::s_reqs_mutex is compulsory to derefence req
 		for( Req r : reqs ) {
 			keep_tmp |= r->options.flags[ReqFlag::KeepTmp] ;
-			eta       = ::min(eta,r->et1)                  ;
+			eta       = ::min(eta,r->eta.load())           ;
 		}
 		return {eta,keep_tmp} ;
 	}
@@ -375,7 +375,7 @@ namespace Backends {
 			start_msg_err.msg    << add_nl<<e.msg<<add_nl<<rd.start_ancillary_attrs.s_exc_msg(false/*using_static*/) ;
 			start_msg_err.stderr << add_nl<<e.stderr                                                                 ;
 		}
-		for( auto& [_,dd] : ::span( &deps[n_chked_deps] , deps.size()-n_chked_deps ) ) { dd.accesses_=0 ; dd.dflags={} ; }          // no impact on job status nor target content
+		for( auto& [_,dd] : ::span( deps.data()+n_chked_deps , deps.size()-n_chked_deps ) ) { dd.accesses_=0 ; dd.dflags={} ; }     // no impact on job status nor target content
 		n_chked_deps = deps.size() ;
 		try {
 			try                       { start_rsrcs_attrs = rd.start_rsrcs_attrs.eval(match,rsrcs,&deps) ; steps |= StartStep::RsrcsAttrs ; }
@@ -384,7 +384,7 @@ namespace Backends {
 			start_msg_err.msg    << add_nl<<e.msg<<add_nl<<rd.start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ;
 			start_msg_err.stderr << add_nl<<e.stderr                                                             ;
 		}
-		for( auto& [_,dd] : ::span( &deps[n_chked_deps] , deps.size()-n_chked_deps ) ) dd.dflags &=~Dflag::Full ;                   // impact on job status but not on target content
+		for( auto& [_,dd] : ::span( deps.data()+n_chked_deps , deps.size()-n_chked_deps ) ) dd.dflags &=~Dflag::Full ;              // impact on job status but not on target content
 		try {
 			try                       { start_cmd_attrs = rd.start_cmd_attrs.eval(match,rsrcs,&deps) ; steps |= StartStep::CmdAttrs ; }
 			catch (::string const& e) { throw MsgStderr{.stderr=e} ;                                                                  }
@@ -511,7 +511,7 @@ namespace Backends {
 					return
 						!r.zombie()
 					&&	::all_of(
-							::span( &deps[n_chked_deps] , deps.size()-n_chked_deps )
+							::span( deps.data()+n_chked_deps , deps.size()-n_chked_deps )
 						,	[&](auto const& dn_dd) {
 								if (!dn_dd.second.accesses_) return true ;
 								Node d { dn_dd.first } ;
@@ -558,6 +558,8 @@ namespace Backends {
 					for( auto& [d,dd_edf] : reply.deps ) jerr.digest.deps.emplace_back( ::move(d) , dd_edf.first ) ;
 					JobDigest<Node> jd = jerr.digest ;                                                               // before jerr is moved
 					//
+					reply.deps = {} ;                                                                                // deps official info is in JobDigest
+					deps       = {} ;                                                                                // .
 					Job::s_record_thread.emplace( job , ::move(jis ) ) ;
 					Job::s_record_thread.emplace( job , ::move(jerr) ) ;
 					//
@@ -592,6 +594,8 @@ namespace Backends {
 				||	Delay(job->exe_time())>=start_ancillary_attrs.start_delay                                        // if job is probably long, emit start message immediately
 			;
 			if (+start_msg_err) msg_stderr = { cat(jis.pre_start.msg,add_nl,start_msg_err.msg) , ::move(start_msg_err.stderr) } ;                      // get msg befor jis is moved
+			reply.deps = {} ;                                                                                                                          // deps official info is in JobDigest
+			deps       = {} ;                                                                                                                          // .
 			Job::s_record_thread.emplace( job , ::move(jis) ) ;
 			trace("started",job_exec,reply) ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

@@ -102,9 +102,9 @@ public :
 
 struct AutoServerBase {
 	struct SlaveEntry {
-		Bool3       out_active = Maybe ;  // Maybe means both input and output are active, Yes means output is active, No means input is active
-		SockFd::Key key        = {}    ;
-		IMsgBuf     buf        = {}    ;
+		Atomic<Bool3> out_active = Maybe ;  // Maybe means both input and output are active, Yes means output is active, No means input is active
+		SockFd::Key   key        = {}    ;
+		IMsgBuf       buf        = {}    ;
 	} ;
 	// cxtors & casts
 	AutoServerBase() = default ;

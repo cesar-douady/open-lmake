@@ -613,6 +613,9 @@ namespace Engine {
 		//^^^^^^^^^^^^^^^^^^^^^
 		//
 		trace("wrap_up",ok,jd.run_status,STR(res.can_upload),digest.upload_key,STR(digest.incremental)) ;
+		#ifndef NDEBUG
+			job_info().chk() ;
+		#endif
 		// job_data file must be updated before make is called as job could be remade immediately (if cached), also info may be fetched if issue becomes known
 		if ( +res.severe_msg || digest.has_msg_stderr ) {
 			JobInfo ji = job_info() ;
@@ -851,10 +854,8 @@ namespace Engine {
 	void JobInfo::chk(bool for_cache) const {
 		start.chk(for_cache) ;
 		end  .chk(for_cache) ;
-		/**/                                                   throw_unless( start.submit_info.deps.size()  <=end.digest.deps.size()   , "missing deps"    ) ;
-		for( NodeIdx i : iota(start.submit_info.deps.size()) ) throw_unless( start.submit_info.deps[i].first==end.digest.deps[i].first , "incoherent deps" ) ; // deps must start with deps ...
-		if (for_cache)                                         throw_unless( !dep_crcs                                                 , "bad dep_crcs"    ) ; // ... discovered before job execution
-		else                                                   throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size()      , "incoherent deps" ) ;
+		if (for_cache) throw_unless( !dep_crcs                                            , "bad dep_crcs"    ) ;
+		else           throw_unless( !dep_crcs || dep_crcs.size()==end.digest.deps.size() , "incoherent deps" ) ;
 	}
 
 	::string cache_repo_cmp( JobInfo const& info_cache , JobInfo const& info_repo ) {

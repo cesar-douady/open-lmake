@@ -264,7 +264,7 @@ namespace Engine {
 									found_stem = true ;
 								}
 							,	[&]( ::string const& fixed , bool has_pfx , bool has_sfx ) {
-									if ( !is_canon( fixed , false/*ext_ok*/ , true/*empty_ok*/ , has_pfx , has_sfx ) ) {
+									if ( !is_canon( fixed , {.extern_ok=false,.empty_ok=true,.has_pfx=has_pfx,.has_sfx=has_sfx} ) ) {
 										if ( ::string c=mk_canon(item) ; c!=item ) throw cat("is not canonical, consider using : ",c) ;
 										else                                       throw cat("is not canonical"                     ) ;
 									}

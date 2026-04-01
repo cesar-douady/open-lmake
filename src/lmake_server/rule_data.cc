@@ -538,9 +538,9 @@ namespace Engine {
 			} else {
 				::vector_s phys ; for( ::string const& p_s : v.phys_s ) phys.push_back(no_slash(p_s)) ;
 				size_t w = +v.copy_up ? 7 : 5 ;
-				/**/            res <<"\n\t\t" << widen("upper"  ,w) <<" : "<<         phys[0]                ;
-				/**/            res <<"\n\t\t" << widen("lower"  ,w) <<" : "<< ::span(&phys[1],phys.size()-1) ;
-				if (+v.copy_up) res <<"\n\t\t" << widen("copy_up",w) <<" : "<< v.copy_up                      ;
+				/**/            res <<"\n\t\t" << widen("upper"  ,w) <<" : "<<         phys[0]                     ;
+				/**/            res <<"\n\t\t" << widen("lower"  ,w) <<" : "<< ::span(phys.data()+1,phys.size()-1) ;
+				if (+v.copy_up) res <<"\n\t\t" << widen("copy_up",w) <<" : "<< v.copy_up                           ;
 			}
 			res <<'\n' ;
 		}

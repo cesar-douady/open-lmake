@@ -42,7 +42,7 @@ static void* get_orig(const char* libcall) {
 		::sort( libcall_names.begin() , libcall_names.end() , _get_orig_cmp_cstr ) ;
 		return libcall_names ;
 	}() ;
-	static Atomic<::array<void*,NLibcalls>*> s_libcall_tab = nullptr ;                        // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
+	static Atomic<::array<void*,NLibcalls>*> s_libcall_tab ;                                  // use a pointer to avoid uncontrolled destruction at end of execution and finely controlled construction
 	// /!\ we must manage the guard explicitly as compiler generated guard makes syscalls, which can induce loops
 	if (!s_libcall_tab) {
 		::array<void*,NLibcalls>& libcall_tab = *new ::array<void*,NLibcalls> ;

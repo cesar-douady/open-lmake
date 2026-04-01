@@ -133,7 +133,7 @@ namespace Store {
 	public :
 		::string       name     ;
 		char*          base     = nullptr ;                                            // address of mapped file
-		Atomic<size_t> size     = 0       ;                                            // underlying file size (fake if no file)
+		Atomic<size_t> size     ;                                                      // underlying file size (fake if no file)
 		bool           writable = false   ;
 	private :
 		AcFd _fd ;

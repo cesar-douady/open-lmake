@@ -114,7 +114,7 @@ HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibili
 # syntax for LMAKE_FLAGS : (O[01234])?g?d?T?l?(S[at])?P?C?
 # - O[0123] : compiler optimization level (4 means -O3 -flto), defaults to 1 if profiling else 3
 # - g       : dont ease debugging
-# - d       : -DNDEBUG
+# - D       : dont define -DNDEBUG
 # - T       : -DTRACE
 # - l       : -static-libstdc++
 # - Sa      : -fsanitize address
@@ -147,8 +147,8 @@ HIDDEN_CC_FLAGS  += $(if $(findstring g, $(LMAKE_FLAGS) ) ,              , -fno-
 HIDDEN_CC_FLAGS  += $(if $(findstring P, $(LMAKE_FLAGS) ) , -DPROFILING                            )
 HIDDEN_CC_FLAGS  += $(if $(findstring O0,$(LMAKE_FLAGS) ) , -fno-inline                            )
 #
-SAN_FLAGS := $(if $(findstring Sa,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined)
-SAN_FLAGS += $(if $(findstring St,$(LMAKE_FLAGS)),-fsanitize=thread                      )
+SAN_FLAGS := $(if $(findstring Sa,$(LMAKE_FLAGS)),-fsanitize=address -fsanitize=undefined -fsanitize-undefined-trap-on-error)
+SAN_FLAGS += $(if $(findstring St,$(LMAKE_FLAGS)),-fsanitize=thread                                                         )
 # some user codes may have specific (and older) libs, in that case, unless flag l is used, link libstdc++ statically
 LIB_STDCPP := $(if $(findstring l,$(LMAKE_FLAGS)),,-static-libstdc++)
 #
