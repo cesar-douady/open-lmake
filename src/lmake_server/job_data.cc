@@ -356,13 +356,13 @@ namespace Engine {
 			{ Status::New              , JobReasonTag::New             }
 		,	{ Status::EarlyChkDeps     , JobReasonTag::ChkDeps         }
 		,	{ Status::EarlyError       , JobReasonTag::Retry           }
-		,	{ Status::EarlyLost        , JobReasonTag::Lost            }                               // becomes WasLost if end
+		,	{ Status::EarlyLost        , JobReasonTag::Lost            }                             // becomes WasLost if end
 		,	{ Status::EarlyLostErr     , JobReasonTag::LostRetry       }
-		,	{ Status::LateLost         , JobReasonTag::Lost            }                               // becomes WasLost if end
+		,	{ Status::LateLost         , JobReasonTag::Lost            }                             // becomes WasLost if end
 		,	{ Status::LateLostErr      , JobReasonTag::LostRetry       }
 		,	{ Status::Killed           , JobReasonTag::Killed          }
 		,	{ Status::ChkDeps          , JobReasonTag::ChkDeps         }
-		,	{ Status::CacheMatch       , JobReasonTag::None            }                               // unused
+		,	{ Status::CacheMatch       , JobReasonTag::None            }                             // unused
 		,	{ Status::BadTarget        , JobReasonTag::PollutedTargets }
 		,	{ Status::Ok               , JobReasonTag::None            }
 		,	{ Status::RunLoop          , JobReasonTag::None            }
@@ -1011,7 +1011,7 @@ namespace Engine {
 		NfsGuard      nfs_guard  { g_config->server_file_sync }          ;
 		First         first      ;
 		//
-		status = Status::EarlyError ;                                        // defensive programming : only set status=Ok when deps are checked
+		status = Status::EarlyError ;                                      // defensive programming : only set status=Ok when deps are checked
 		for( ::string const& file : req->files ) {
 			RealPath::SolveReport rp  = Job::s_real_path->solve(file,true/*no_follow*/) ;
 			for( ::string& l : rp.lnks ) {
@@ -1143,9 +1143,8 @@ namespace Engine {
 			cache_hit_info = cache_digest.hit_info ;
 			trace("hit",cache_hit_info) ;
 			if (cache_hit_info<CacheHitInfo::Miss) {
-				bool          hit = cache_hit_info==CacheHitInfo::Hit ; if (!hit) SWEAR( cache_hit_info==CacheHitInfo::Match , cache_hit_info ) ;
 				::vector<Dep> ds ;
-				if (hit) {
+				if (cache_hit_info<=CacheHitInfo::Hit) {
 					if (+cache_digest.file_actions_msg) {
 						req->audit_info( Color::Note , cache_digest.file_actions_msg , 0/*lvl*/ ) ;
 						trace("hit_msg",cache_digest.file_actions_msg,ri) ;
@@ -1175,7 +1174,7 @@ namespace Engine {
 					for( auto& [dn,dd] : job_info.end.digest.deps ) ds.emplace_back( Node(New,dn) , dd ) ;
 				}
 				deps.assign(ds) ;
-				return !hit/*maybe_new_deps*/ ;                                                                         // hit cannot have new deps as they must have been checked by cache
+				return cache_hit_info!=CacheHitInfo::HitExhaustive/*maybe_new_deps*/ ;
 			}
 		}
 	CacheDone :

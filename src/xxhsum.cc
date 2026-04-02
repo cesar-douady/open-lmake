@@ -12,11 +12,14 @@ int main( int argc , char* argv[] ) {
 	app_init({.chk_version=No}) ;
 	//
 	::string out ;
-	for( int i : iota(1,argc) ) {
-		/**/        out << ::string(Crc(argv[i])) ;
-		if (argc>2) out <<' '<< argv[i]           ;
-		/**/        out <<'\n'                    ;
-	}
+	if (argc>1)
+		for( int i : iota(1,argc) ) {
+			/**/        out << ::string(Crc(argv[i])) ;
+			if (argc>2) out << ' '<<argv[i]           ;
+			/**/        out << '\n'                   ;
+		}
+	else
+		out << Crc( New , Fd::Stdin.read() ).hex()<<'\n' ;
 	Fd::Stdout.write(out) ;
 	exit(Rc::Ok) ;
 }

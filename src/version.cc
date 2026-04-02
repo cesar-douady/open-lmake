@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 38      ; // 0061d4c50bb5cc254eb18c0ead96d527
+	uint64_t    constexpr Cache = 39      ; // 66ef577d5d30dbffab5d116ed79745bd
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 37      ; // 790cf06ed12f42e5fabddab389b20f2b
+	uint64_t    constexpr Repo  = 38      ; // 7258984648c9af6f65bad5a05556a3ba
 	uint64_t    constexpr Job   = 19      ; // 2461431c75bafc07b14dbcdc068d789f
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 0061d4c50bb5cc254eb18c0ead96d527 *
+// * Cache : 66ef577d5d30dbffab5d116ed79745bd *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -214,16 +214,17 @@ namespace Version {
 //		Disk::DiskSz total_sz     = 0  ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE
-//		Time::Pdate  last_access ;
-//		Disk::DiskSz sz          = 0                ;                                                   // size occupied by run
-//		LruEntry     glb_lru     ;                                                                      // global LRU within rate
-//		LruEntry     job_lru     ;                                                                      // job LRU
-//		Cjob         job         ;
-//		Cnodes       deps        ;                                                                      // owned sorted by (is_static,existing,idx)
-//		Ccrcs        dep_crcs    ;                                                                      // owned crcs for static and existing deps
-//		Ckey         key         ;                                                                      // identifies origin (repo+git_sha1)
-//		Rate         rate        = 0    /*garbage*/ ;
-//		bool         key_is_last = false/*.      */ ;                                                   // 2 runs may be stored for each key : the first and the last
+//		Time::Pdate  last_access ;                                                                      //    64 bits
+//		Disk::DiskSz sz          = 0                ;                                                   //    64 bits, size occupied by run
+//		LruEntry     glb_lru     ;                                                                      //    64 bits, global LRU within rate
+//		LruEntry     job_lru     ;                                                                      //    64 bits, job LRU
+//		Cjob         job         ;                                                                      //    32 bits
+//		Cnodes       deps        ;                                                                      //    32 bits, owned sorted by (is_static,existing,idx)
+//		Ccrcs        dep_crcs    ;                                                                      //    32 bits, owned crcs for static and existing deps
+//		Ckey         key         ;                                                                      //    32 bits, identifies origin (repo+git_sha1)
+//		Rate         rate        = 0    /*garbage*/ ;                                                   //     8 bits
+//		bool         key_is_last = false/*.      */ ;                                                   // 1<= 8 bit , 2 runs may be stored for each key : the first and the last
+//		bool         has_hidden  = false            ;                                                   // 1<= 8 bit , some hidden deps exist (i.e. that need not match)
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE
 //		CrunIdx ref_cnt = 0 ;
@@ -433,7 +434,8 @@ namespace Version {
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
 //	enum class CacheHitInfo : uint8_t {
-//		Hit                             // cache hit
+//		HitExhaustive                   // cache hit, all deps are visible
+//	,	HitHidden                       // cache hit, some deps are hidden
 //	,	Match                           // cache matches, but not hit (some deps are missing, hence dont know if hit or miss)
 //	,	BadDeps
 //	,	NoJob
@@ -443,6 +445,7 @@ namespace Version {
 //	,	BadCache
 //	,	NoCache
 //	// aliases
+//	,	Hit  = HitHidden                // <=Hit  means cache hit
 //	,	Miss = BadDeps                  // >=Miss means cache miss
 //	} ;
 //	// END_OF_VERSIONING
@@ -1081,7 +1084,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 790cf06ed12f42e5fabddab389b20f2b *
+// * Repo : 7258984648c9af6f65bad5a05556a3ba *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1463,9 +1466,9 @@ namespace Version {
 //			RuleCrc          rule_crc                           ;         //       32 bits
 //			mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
 //			RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
-//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
-//			CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        3 bits
 //			Status           status        :NBits<Status      > = {}    ; //        5 bits
+//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
+//			CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
 //			bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
 //			bool             local         :1                   = false ; //        1 bit ,           job was last forced to run locally
 //		private :
@@ -1919,7 +1922,8 @@ namespace Version {
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
 //	enum class CacheHitInfo : uint8_t {
-//		Hit                             // cache hit
+//		HitExhaustive                   // cache hit, all deps are visible
+//	,	HitHidden                       // cache hit, some deps are hidden
 //	,	Match                           // cache matches, but not hit (some deps are missing, hence dont know if hit or miss)
 //	,	BadDeps
 //	,	NoJob
@@ -1929,6 +1933,7 @@ namespace Version {
 //	,	BadCache
 //	,	NoCache
 //	// aliases
+//	,	Hit  = HitHidden                // <=Hit  means cache hit
 //	,	Miss = BadDeps                  // >=Miss means cache miss
 //	} ;
 //	// END_OF_VERSIONING

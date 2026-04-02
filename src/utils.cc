@@ -284,10 +284,11 @@ void Fd::write(::string_view data) const {
 		size_t cnt = read_to(::span(res.data(),sz)) ;
 		res.resize(cnt) ;
 	} else {
-		size_t goal_sz = 4096 ;
-		for( size_t cnt=0 ;;) {
-			res.resize(goal_sz) ;
-			ssize_t c = ::read( fd , &res[cnt] , goal_sz-cnt ) ;
+		size_t chunk_sz = 4096 ;                                                                // we read a lot of small files, avoid over-allocating
+		size_t res_sz   = 0    ;
+		for(;;) {
+			res.resize(res_sz+chunk_sz) ;
+			ssize_t c = ::read( fd , &res[res_sz] , chunk_sz ) ;
 			if (c<=0) {
 				if (c<0) {
 					switch (errno) {
@@ -300,18 +301,17 @@ void Fd::write(::string_view data) const {
 						default         : throw cat("cannot read (",StrErr(),") from fd ",fd) ; // consider ECONNRESET as eof as this appears with sockets when peer dies abruptly
 					}
 				}
-				res.resize(cnt) ;                                                               // eof
+				res.resize(res_sz) ;                                                            // eof
 				break ;
 			}
-			cnt += c ;
-			if (cnt==goal_sz) goal_sz += goal_sz ;                                              // increase buf size as long as it is filled up
-			else              goal_sz += c       ;                                              // we reach system limit, no interest to read more
+			/**/                    res_sz   += c        ;
+			if (chunk_sz<DiskBufSz) chunk_sz += chunk_sz ;
 		}
 	}
 	return res ;
 }
 
-size_t Fd::read_to(::span<char> dst) const {
+size_t/*cnt*/ Fd::read_to(::span<char> dst) const {
 	for( size_t pos=0 ; pos<dst.size() ;) {
 		ssize_t cnt = ::read( fd , &dst[pos] , dst.size()-pos ) ;
 		if (cnt<=0) {

@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sun Mar 29 19:32:31 2026 -->
+<!-- CreationDate: Thu Apr  2 22:23:25 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -54,9 +54,8 @@ a fast *non crypto-robust* message digest</p>
 
 <p style="margin-left:9%; margin-top: 1em">XXH is a very
 high performance, high quality checksum generation algorithm
-internally used by <i>open-lmake</i> to find out whether
-file was actually modified or not when its date is
-changed.</p>
+internally used by open-lmake to find out whether file was
+actually modified or not when its date is changed.</p>
 
 <p style="margin-left:9%; margin-top: 1em">XXH is
 <b>not</b> crypto-robust. This means that you can defeat it
@@ -64,30 +63,29 @@ if you write a code specially aimed at this purpose, but not
 otherwise, by chance.</p>
 
 <p style="margin-left:9%; margin-top: 1em">The version used
-in <i>open-lmake</i> is 56/64 bits : Checksums are computed
-on 64 bits but when comparing 2 checksums, if they match on
-56 (lsb) bits but not on the full 64 bits, <i>open-lmake</i>
-will consider we enter into a <i>danger zone</i> and will
-stop and report the problem. Theoretical computation gives
-that you can generate thousands of files per second for
-thousands of year before entering the <i>danger
-zone</i>.</p>
+in open-lmake is 56/64 bits: Checksums are computed on 64
+bits but when comparing 2 checksums, if they match on 56
+(lsb) bits but not on the full 64 bits, open-lmake will
+consider we enter into a <i>danger zone</i> and will stop
+and report the problem. Theoretical computation gives that
+you can generate thousands of files per second for thousands
+of year before entering the <i>danger zone</i>.</p>
 
 <p style="margin-left:9%; margin-top: 1em"><b>xxhsum</b>
-allow you to generate the checksum of a file, as
-distinguished by <i>open-lmake</i>.</p>
+allows you to generate the checksum of a file, as
+distinguished by open-lmake.</p>
 
 <p style="margin-left:9%; margin-top: 1em">Because
-<i>open-lmake</i> handles symbolic links as themselves and
-not as the file they point to (i.e. <i>open-lmake</i> works
-in the physical world), <b>xxhsum</b> does not follow
-symbolic links. The generated checksums are put in different
-spaces whether they are regular files or symbolic links.</p>
+open-lmake handles symbolic links as themselves and not as
+the file they point to (i.e. open-lmake works in the
+physical world), <b>xxhsum</b> does not follow symbolic
+links. The generated checksums are put in different spaces
+whether they are regular files or symbolic links.</p>
 
 <p style="margin-left:9%; margin-top: 1em">Also, the
 execute permission bit is used to compute the checksum of
-regular files. <i>open-lmake</i> does not handle permission
-bits (read and write permissions), but the execute bit is a
+regular files. open-lmake does not handle permission bits
+(read and write permissions), but the execute bit is a
 semantic bit (possibly in addition to security) and thus is
 managed as file content.</p>
 
@@ -98,7 +96,7 @@ link) are handled as if they did not exist.</p>
 <p style="margin-left:9%; margin-top: 1em">A checksum is a
 16-hex digit number followed by <b>-R</b> for regular files
 or <b>-L</b> for symbolic links (e.g. 1234567890123456-R).
-The following special cases produce dedicated outputs :</p>
+The following special cases produce dedicated outputs:</p>
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
@@ -193,6 +191,15 @@ access</p> </td>
 <p style="margin-left:9%; margin-top: 1em">The checksum on
 a single line.</p>
 
+<p style="margin-left:9%; margin-top: 1em">If several files
+are passed as argument, there is a checksum for each file
+followed by the file name on each line.</p>
+
+<p style="margin-left:9%; margin-top: 1em">If no arguments
+are passed, the checksum is computed on stdin (which does
+not provide the same value as for a regular file nor a
+link).</p>
+
 <h2>SEE ALSO
 <a name="SEE ALSO"></a>
 </h2>
@@ -244,7 +251,7 @@ this program. If not, see
 <i>http://www.gnu.org/licenses/</i>.</p>
 
 <p style="margin-left:9%; margin-top: 1em">For the xxh
-library :</p>
+library:</p>
 
 <p style="margin-left:9%; margin-top: 1em">Copyright &copy;
 2012-2023 Yann Collet</p>

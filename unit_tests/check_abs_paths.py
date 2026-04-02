@@ -12,19 +12,21 @@ if __name__!='__main__' :
 
 	class Good1(Rule) :
 		check_abs_paths = True
-		target          = 'good1'
-		cmd             = 'echo .'
+		targets         = { 'REG' : 'good1' , 'LNK' : 'lnk1' }
+		cmd             = 'echo . >{REG} ; ln -s no_target {LNK}'
 
 	class Good2(Rule) :
 		check_abs_paths = True
-		target          = 'good2'
+		targets         = { 'REG' : 'good2' , 'LNK' : 'lnk2' }
 		repo_view       = '/repo'
 		cmd             = 'pwd'
+		cmd             = 'pwd >{REG} ; ln -s no_target {LNK}'
 
 	class Bad(Rule) :
 		check_abs_paths = True
 		target          = 'bad'
-		cmd             = 'pwd'
+		targets         = { 'REG' : 'bad' , 'LNK' : 'lnk3' }
+		cmd             = 'pwd >{REG} ; ln -s no_target {LNK}'
 
 else :
 

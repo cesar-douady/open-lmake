@@ -108,29 +108,39 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,)</span>
 
-    <span class="k">class</span> <span class="nc">Good1</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">check_abs_paths</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">targets</span>         <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;REG&#39;</span> <span class="p">:</span> <span class="s1">&#39;good1&#39;</span> <span class="p">,</span> <span class="s1">&#39;LNK&#39;</span> <span class="p">:</span> <span class="s1">&#39;lnk1&#39;</span> <span class="p">}</span>
-        <span class="n">cmd</span>             <span class="o">=</span> <span class="s1">&#39;echo . &gt;</span><span class="si">{REG}</span><span class="s1"> ; ln -s no_target </span><span class="si">{LNK}</span><span class="s1">&#39;</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">caches</span><span class="o">.</span><span class="n">my_cache</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;dir&#39;</span><span class="p">:</span><span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="o">+</span><span class="s1">&#39;/CACHE&#39;</span> <span class="p">}</span>
 
-    <span class="k">class</span> <span class="nc">Good2</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">check_abs_paths</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">targets</span>         <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;REG&#39;</span> <span class="p">:</span> <span class="s1">&#39;good2&#39;</span> <span class="p">,</span> <span class="s1">&#39;LNK&#39;</span> <span class="p">:</span> <span class="s1">&#39;lnk2&#39;</span> <span class="p">}</span>
-        <span class="n">repo_view</span>       <span class="o">=</span> <span class="s1">&#39;/repo&#39;</span>
-        <span class="n">cmd</span>             <span class="o">=</span> <span class="s1">&#39;pwd&#39;</span>
-        <span class="n">cmd</span>             <span class="o">=</span> <span class="s1">&#39;pwd &gt;</span><span class="si">{REG}</span><span class="s1"> ; ln -s no_target </span><span class="si">{LNK}</span><span class="s1">&#39;</span>
+    <span class="k">class</span> <span class="nc">Dyn</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;dyn{D:\d}&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;echo D&#39;</span>
 
-    <span class="k">class</span> <span class="nc">Bad</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">check_abs_paths</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="n">target</span>          <span class="o">=</span> <span class="s1">&#39;bad&#39;</span>
-        <span class="n">targets</span>         <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;REG&#39;</span> <span class="p">:</span> <span class="s1">&#39;bad&#39;</span> <span class="p">,</span> <span class="s1">&#39;LNK&#39;</span> <span class="p">:</span> <span class="s1">&#39;lnk3&#39;</span> <span class="p">}</span>
-        <span class="n">cmd</span>             <span class="o">=</span> <span class="s1">&#39;pwd &gt;</span><span class="si">{REG}</span><span class="s1"> ; ln -s no_target </span><span class="si">{LNK}</span><span class="s1">&#39;</span>
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span>            <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;dut{D:\d}&#39;</span>
+        <span class="n">cache</span>             <span class="o">=</span> <span class="s1">&#39;my_cache&#39;</span>
+        <span class="n">environ</span>           <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DYN&#39;</span>           <span class="p">:</span> <span class="s2">&quot;{open(&#39;dyn&#39;+D).read().strip() if int(D)==1 else &#39;&#39;}&quot;</span> <span class="p">}</span>
+        <span class="n">environ_resources</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DYN_RSRCS&#39;</span>     <span class="p">:</span> <span class="s2">&quot;{open(&#39;dyn&#39;+D).read().strip() if int(D)==2 else &#39;&#39;}&quot;</span> <span class="p">}</span>
+        <span class="n">environ_ancillary</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DYN_ANCILLARY&#39;</span> <span class="p">:</span> <span class="s2">&quot;{open(&#39;dyn&#39;+D).read().strip() if int(D)==3 else &#39;&#39;}&quot;</span> <span class="p">}</span>
+        <span class="n">cmd</span>               <span class="o">=</span> <span class="s1">&#39;echo $DYN&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
+    <span class="kn">import</span> <span class="nn">os</span>
+    <span class="kn">import</span> <span class="nn">stat</span>
+    <span class="kn">import</span> <span class="nn">textwrap</span>
+
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;good1&#39;</span> <span class="p">,</span> <span class="s1">&#39;good2&#39;</span> <span class="p">,</span> <span class="s1">&#39;bad&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">2</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span> <span class="s1">&#39;CACHE/LMAKE&#39;</span> <span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="n">stat</span><span class="o">.</span><span class="n">S_ISGID</span><span class="o">|</span><span class="n">stat</span><span class="o">.</span><span class="n">S_IRWXU</span><span class="o">|</span><span class="n">stat</span><span class="o">.</span><span class="n">S_IRWXG</span> <span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">textwrap</span><span class="o">.</span><span class="n">dedent</span><span class="p">(</span><span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">        size = 1&lt;&lt;20</span>
+<span class="s1">    &#39;&#39;&#39;</span><span class="p">)[</span><span class="mi">1</span><span class="p">:],</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;CACHE/LMAKE/config.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut1&#39;</span><span class="p">,</span><span class="s1">&#39;dut2&#39;</span><span class="p">,</span><span class="s1">&#39;dut3&#39;</span> <span class="p">,</span> <span class="n">early_rerun</span><span class="o">=</span><span class="mi">2</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">5</span> <span class="p">)</span>
+
+    <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s1">&#39;find CACHE -type f -ls&#39;</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;mkdir bck ; mv LMAKE dut* dyn* bck&#39;</span><span class="p">)</span>
+
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut1&#39;</span><span class="p">,</span><span class="s1">&#39;dut2&#39;</span><span class="p">,</span><span class="s1">&#39;dut3&#39;</span> <span class="p">,</span> <span class="n">hit_rerun</span><span class="o">=</span><span class="mi">2</span> <span class="p">,</span> <span class="n">hit_done</span><span class="o">=</span><span class="mi">3</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">2</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>

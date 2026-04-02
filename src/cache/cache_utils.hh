@@ -10,19 +10,7 @@
 #include "time.hh"
 
 #include "engine.hh"
-
-struct CompileDigest {
-	// cxtors & casts
-	CompileDigest() = default ;
-	CompileDigest( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool for_download , ::vector<CnodeIdx>* dep_ids=nullptr ) ; // dep_ids are filled for each named dep in repo_deps
-	~CompileDigest() ;
-	// accesses
-	void operator>>(::string&) const ;
-	// data
-	VarIdx              n_statics = 0 ;
-	::vector<Cnode>     deps      ;
-	::vector<Hash::Crc> dep_crcs  ;
-} ;
+#include "rpc_cache.hh"
 
 inline ::string cache_clean_msg() {
 	::string cwd_s_ = Disk::cwd_s() ;

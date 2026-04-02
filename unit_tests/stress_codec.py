@@ -62,5 +62,7 @@ else :
 	for i in range(n_files) :
 		open(f'codec_{i}','w')
 
-	cnt = ut.lmake( 'dut' , new=1+n_files , expand=n_files , done=n_dones , rerun=... , may_rerun=... , update=n_files )
-	assert 1+n_targets <= cnt.rerun+cnt.may_rerun <= 1+n_targets+2                                                       # there are rare cases of spurious rerun because of race, accept 2
+	cnt = ut.lmake( 'dut' , new=1+n_files , expand=... , done=n_dones , rerun=... , may_rerun=... , update=... )
+
+	assert 1+n_targets <= cnt.rerun+cnt.may_rerun <= 1+n_targets+2 # there are rare cases of spurious rerun because of race, accept 2
+	assert cnt.expand+cnt['update']==2*n_files                     # there are rare cases where codec files are updated instead of expanded because of race

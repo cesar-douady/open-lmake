@@ -48,7 +48,7 @@ static CacheRpcReply _download(CacheRpcReq const& crr) {
 	CacheRpcReply              res    { .proc=CacheRpcProc::Download , .hit_info=CacheHitInfo::NoJob } ;
 	Cjob                       job    = crr.job.is_name() ? Cjob(crr.job.name) : Cjob(crr.job.id)      ; if (!job) { trace("no_job") ; return res ; }
 	CompileDigest              deps   { crr.repo_deps , true/*for_download*/ , &res.dep_ids }          ; SWEAR_PROD( deps.n_statics==job->n_statics , crr.job,deps.n_statics,job,job->n_statics ) ;
-	::pair<Crun,CacheHitInfo > digest = job->match( deps.deps , deps.dep_crcs )                        ;
+	::pair<Crun,CacheHitInfo > digest = job->match(deps)                                               ;
 	if (crr.job.is_name()) res.job_id = +job ;
 	//
 	res.hit_info = digest.second ;
@@ -83,15 +83,15 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	_g_upload_keys.release(crr.upload_key)         ;
 	_g_reserved_szs[crr.upload_key] = 0 ;
 	//
-	CompileDigest deps       { crr.repo_deps , false/*for_download*/ }                                      ;
-	Cjob          job        = crr.job.is_name() ? Cjob(New,crr.job.name,deps.n_statics) : Cjob(crr.job.id) ; SWEAR_PROD( job->n_statics==deps.n_statics , job,job->n_statics,deps.n_statics ) ;
-	DiskSz        sz         = run_sz( crr.total_z_sz , crr.job_info_sz , deps )                            ;
-	ConnEntry&    conn_entry = _g_conn_tab.at(fd)                                                           ;
+	CompileDigest cd         { crr.repo_deps , false/*for_download*/ }                                    ;
+	Cjob          job        = crr.job.is_name() ? Cjob(New,crr.job.name,cd.n_statics) : Cjob(crr.job.id) ; SWEAR_PROD( job->n_statics==cd.n_statics , job,job->n_statics,cd.n_statics ) ;
+	DiskSz        sz         = run_sz( crr.total_z_sz , crr.job_info_sz , cd )                            ;
+	ConnEntry&    conn_entry = _g_conn_tab.at(fd)                                                         ;
 	::string      run_name   ;
 	//
 	conn_entry.upload_keys.erase(crr.upload_key) ;
 	bool inserted = job->insert(
-		deps.deps , deps.dep_crcs                                                                                                                         // to search entry
+		cd                                                                                                                                              // to search entry
 	,	conn_entry.key , crr.override_first?KeyIsLast::OverrideFirst:KeyIsLast::Plain , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
 	,	reserved_file(crr.upload_key) , &::ref(NfsGuard(g_file_sync))
 	) ;

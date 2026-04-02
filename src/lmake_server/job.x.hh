@@ -456,7 +456,7 @@ namespace Engine {
 		Job              & asking_job()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
 		Job         const& asking_job() const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
 		//
-		CoarseDelay phy_exe_time() const { return cache_hit_info==CacheHitInfo::Hit ? CoarseDelay() : exe_time() ; }
+		CoarseDelay phy_exe_time() const { return cache_hit_info<=CacheHitInfo::Hit ? CoarseDelay() : exe_time() ; }
 		//
 		Job      idx () const { return Job::s_idx(self) ; }
 		Rule     rule() const { return rule_crc->rule   ; }                                                                       // thread-safe
@@ -571,9 +571,9 @@ namespace Engine {
 		RuleCrc          rule_crc                           ;         //       32 bits
 		mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
 		RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
-		BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
-		CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        3 bits
 		Status           status        :NBits<Status      > = {}    ; //        5 bits
+		BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
+		CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
 		bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
 		bool             local         :1                   = false ; //        1 bit ,           job was last forced to run locally
 	private :

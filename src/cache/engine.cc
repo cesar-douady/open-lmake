@@ -310,6 +310,79 @@ Cnode::Cnode( NewType , ::string const& name_ ) {
 }
 
 //
+// CompileDigest
+//
+
+void CompileDigest::operator>>(::string& os) const {              // START_OF_NO_COV
+	First first ;
+	/**/            os << "CompileDigest("                      ;
+	if ( n_statics) os << first("",",")<<"NS:"<<n_statics       ;
+	if (+deps     ) os << first("",",")<<"D:" <<deps    .size() ;
+	if (+dep_crcs ) os << first("",",")<<"DC:"<<dep_crcs.size() ;
+	/**/            os << ')'                                   ;
+}                                                                 // END_OF_NO_COV
+
+CompileDigest::~CompileDigest() {
+	for( Cnode& d : deps ) d->dec() ;
+}
+
+CompileDigest::CompileDigest( ::vmap<StrId<CnodeIdx>,DepDigest> const& repo_deps , bool for_download , ::vector<CnodeIdx>* dep_ids ) {
+	struct Dep {
+		// services
+		bool operator<(Dep const& other) const { return ::pair(bucket,+node) < ::pair(other.bucket,+other.node) ; }
+		// data
+		int   bucket = 0/*garbage*/ ;                                                                     // deps are sorted statics first, then existing, then non-existing
+		Cnode node   ;
+		Crc   crc    ;
+	} ;
+	::vector<Dep> deps_ ;
+	Trace trace("compile",repo_deps.size(),STR(for_download),STR(bool(dep_ids))) ;
+	for( auto& [n,dd] : repo_deps ) {
+		bool      is_name = n.is_name()                                              ;
+		CnodeIdx* dep_id  = is_name && dep_ids ? &dep_ids->emplace_back(0) : nullptr ;
+		Accesses  a       = dd.accesses()                                            ;
+		if      (!dd.dflags[Dflag::Full] )   a = {} ;                                                     // dep is used for resources only, no real accesses
+		else if (!for_download           )   SWEAR_PROD( !dd.never_match()     , n,dd ) ;                 // meaningless, should not have reached here
+		if      (dd.dflags[Dflag::Static]) { SWEAR_PROD( n_statics<Max<VarIdx>        ) ; n_statics++ ; } // n_statics must be data independent
+		else if (!a                      ) { has_hidden = true ; continue ;                             } // dep was not accessed, ignore but keep static deps as they must not depend on run
+		//
+		Cnode node ;
+		if (is_name) {
+			if ( for_download          ) node    = {       n.name } ;
+			else                         node    = { New , n.name } ;
+			if ( dep_id                ) *dep_id = +node            ;
+			if ( for_download && !node ) continue ;                                                       // if it is not known in cache, it has no impact on matching
+		} else {
+			node = {n.id} ;
+		}
+		//
+		Crc crc = dd.crc() ;
+		if (!for_download)                                                                                // Crc::Unknown means any existing file
+			switch (+(a&Accesses(Access::Lnk,Access::Reg,Access::Stat))) {
+				case +Accesses(                        ) :                      crc = +Crc::Unknown|CrcOrNone ; break ;
+				case +Accesses(Access::Lnk             ) : if (!crc.is_lnk()  ) crc = +Crc::Reg    |CrcOrNone ; break ;
+				case +Accesses(Access::Reg             ) : if (!crc.is_reg()  ) crc = +Crc::Lnk    |CrcOrNone ; break ;
+				case +Accesses(            Access::Stat) : if ( crc!=Crc::None) crc =  Crc::Unknown           ; break ;
+				case +Accesses(Access::Lnk,Access::Stat) : if ( crc.is_reg()  ) crc =  Crc::Reg               ; break ;
+				case +Accesses(Access::Reg,Access::Stat) : if ( crc.is_lnk()  ) crc =  Crc::Lnk               ; break ;
+			DN}
+		// we lose 1 bit of crc but we must manage errors and it does not desserv an additional field
+		if ( dd.err && a[Access::Err] ) crc = +crc |  CrcErr ;                                            // if not sensed, ignore error status (lmake would stop if not ignored anyway)
+		else                            crc = +crc & ~CrcErr ;
+		//
+		deps_.push_back({
+			.bucket = dd.dflags[Dflag::Static] ? 0 : crc!=Crc::None ? 1 : 2
+		,	.node   = node
+		,	.crc    = crc
+		}) ;
+	}
+	::sort(deps_) ;
+	for( Dep      & dep : deps_ ) { dep.node->inc() ;          deps    .push_back(dep.node) ; }
+	for( Dep const& dep : deps_ ) { if (dep.bucket==2) break ; dep_crcs.push_back(dep.crc ) ; }
+	trace("done",dep_ids?dep_ids->size():size_t(0)) ;
+}
+
+//
 // LruEntry
 //
 
@@ -391,25 +464,25 @@ void CjobData::operator>>(::string& os) const { // START_OF_NO_COV
 	/**/      os << ')'         ;
 }                                               // END_OF_NO_COV
 
-::pair<Crun,CacheHitInfo> CjobData::match( ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) {
-	Trace trace("match",idx(),deps.size(),dep_crcs.size()) ;
+::pair<Crun,CacheHitInfo> CjobData::match( CompileDigest const& compile_digest ) {
+	Trace trace("match",idx(),compile_digest) ;
+	CacheHitInfo hit_info = CacheHitInfo::NoJob ;                                           // as long as we have seen no job
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
-		CacheHitInfo hit_info = r->match( deps , dep_crcs ) ;
-		switch (hit_info) {
-			case CacheHitInfo::Hit   : RateCmp::s_refresh() ; r->access() ; [[fallthrough]]         ;
-			case CacheHitInfo::Match : trace(r,hit_info) ;                  return { r , hit_info } ;
-		DN}
+		hit_info = r->match(compile_digest) ;
+		if (hit_info<=CacheHitInfo::Hit ) { RateCmp::s_refresh() ; r->access()          ; }
+		if (hit_info< CacheHitInfo::Miss) { trace(r,hit_info) ; return { r , hit_info } ; }
+		hit_info = CacheHitInfo::BadDeps ;                                                  // we have seen a job, but it does not match
 	}
 	trace("miss") ;
-	return { {} , CacheHitInfo::Miss } ;
+	return { {} , hit_info } ;
 }
 
 bool/*done*/ CjobData::insert(
-	::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs
+	CompileDigest const& compile_digest
 ,	Ckey key , KeyIsLast key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate
 ,	::string const& reserved_file , NfsGuard* nfs_guard
 ) {
-	Trace trace("insert",idx(),key,key_is_last,last_access,sz,rate,deps.size(),dep_crcs.size()) ;
+	Trace trace("insert",idx(),key,key_is_last,last_access,sz,rate,compile_digest) ;
 	::array<Crun,2> found_runs ;                                                                                 // first and last with same key
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
 		CrunData& rd = *r ;
@@ -417,13 +490,12 @@ bool/*done*/ CjobData::insert(
 			SWEAR( !found_runs[rd.key_is_last] , r,found_runs[rd.key_is_last] ) ;
 			found_runs[rd.key_is_last] = r ;
 		}
-		CacheHitInfo hit_info = rd.match( deps , dep_crcs ) ;
-		switch (hit_info) {
-			case CacheHitInfo::Hit   :
-			case CacheHitInfo::Match : trace(r,hit_info) ;
-				if (+reserved_file) unlnk_run( reserved_file , nfs_guard ) ;
-				return false/*done*/ ;
-		DN}
+		CacheHitInfo hit_info = rd.match( compile_digest ) ;
+		if (hit_info<CacheHitInfo::Miss) {
+			trace(r,hit_info) ;
+			if (+reserved_file) unlnk_run( reserved_file , nfs_guard ) ;
+			return false/*done*/ ;
+		}
 	}
 	bool last     = false ;
 	bool mk_first = false ;
@@ -443,7 +515,7 @@ bool/*done*/ CjobData::insert(
 	}
 	while (n_runs>=g_cache_config.max_runs_per_job) lru.newer->victimize( false/*victimize_job*/ , nfs_guard ) ; // maybe several pass in case.max_runs_per_job has been reduced
 	mk_room( sz , idx() ) ;
-	Crun run { New , key , last , idx() , last_access , sz , rate , deps, dep_crcs } ;
+	Crun run { New , key , last , idx() , last_access , sz , rate , compile_digest } ;
 	trace("miss",run,found_runs,STR(last)) ;
 	if (+reserved_file) rename_run( reserved_file , run->name() , nfs_guard ) ;
 	return true/*done*/ ;
@@ -478,18 +550,19 @@ void CrunData::s_chk() {
 	for( Ckey k : lst<Ckey>() ) throw_unless( k->ref_cnt>=key_tab[k] , "bad ref cnt for ",k," : ",k->ref_cnt,"<",key_tab[k]) ;     // there might be other temporary sources for ref_cnt
 }
 
-CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r , ::vector<Cnode> const& ds , ::vector<Hash::Crc> const& dcs ) :
-	last_access { la  }
-,	sz          { sz_ }
-,	job         { j   }
-,	deps        { ds  }
-,	dep_crcs    { dcs }
-,	key         { k   }
-,	rate        { r   }
-,	key_is_last { kil }
+CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r , CompileDigest const& compile_digest ) :
+	last_access { la                        }
+,	sz          { sz_                       }
+,	job         { j                         }
+,	deps        { compile_digest.deps       }
+,	dep_crcs    { compile_digest.dep_crcs   }
+,	key         { k                         }
+,	rate        { r                         }
+,	key_is_last { kil                       }
+,	has_hidden  { compile_digest.has_hidden }
 {
 	CrunHdr& hdr = s_hdr() ;
-	Trace trace("CrunData",key,STR(key_is_last),job,sz,rate,hdr.total_sz,ds.size(),dcs.size()) ;
+	Trace trace("CrunData",key,STR(key_is_last),job,sz,rate,hdr.total_sz,compile_digest) ;
 	bool first = !RateCmp::s_lrus[rate] ;
 	hdr.total_sz += sz ;
 	//
@@ -506,7 +579,7 @@ CrunData::CrunData( Ckey k , bool kil , Cjob j , Pdate la , DiskSz sz_ , Rate r 
 	//
 	/**/                                                         key.inc()     ;
 	SWEAR( job->n_runs<g_cache_config.max_runs_per_job , job ) ; job->n_runs++ ;
-	for( Cnode d : ds ) d->inc() ;
+	for( Cnode d : compile_digest.deps ) d->inc() ;
 }
 
 void CrunData::operator>>(::string& os) const { // START_OF_NO_COV
@@ -558,44 +631,46 @@ bool/*job_victimized*/ CrunData::victimize( bool victimize_job , NfsGuard* nfs_g
 	return job_victimized ;
 }
 
-CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc> const& dep_crcs_ ) const {
-	VarIdx              n_statics     = job->n_statics    ;
-	CacheHitInfo        res           = CacheHitInfo::Hit ;
-	::span<Cnode const> deps_view     = deps    .view()   ;
-	::span<Crc   const> dep_crcs_view = dep_crcs.view()   ;
+CacheHitInfo CrunData::match(CompileDigest const& compile_digest) const {
+	VarIdx              n_statics        = job->n_statics                                                     ;
+	CacheHitInfo        res              = has_hidden ? CacheHitInfo::HitHidden : CacheHitInfo::HitExhaustive ;
+	::span<Cnode const> deps_view        = deps    .view()                                                    ;
+	::span<Crc   const> dep_crcs_view    = dep_crcs.view()                                                    ;
+	::vector<Cnode>     const& deps_     = compile_digest.deps                                                ;
+	::vector<Hash::Crc> const& dep_crcs_ = compile_digest.dep_crcs                                            ;
 	//
-	Trace trace("match",idx(),n_statics,deps_.size(),"in",deps_view.size(),"and",dep_crcs_.size(),"in",dep_crcs_view.size()) ;
+	Trace trace("match",idx(),compile_digest,n_statics,deps_.size(),dep_crcs_.size()) ;
 	//
 	SWEAR( n_statics<=dep_crcs_    .size() && dep_crcs_    .size()<=deps_    .size() , n_statics,deps_    ,dep_crcs_     ) ;
 	SWEAR( n_statics<=dep_crcs_view.size() && dep_crcs_view.size()<=deps_view.size() , n_statics,deps_view,dep_crcs_view ) ;
 	// first check static deps
 	for( NodeIdx i : iota(n_statics) ) {
-		SWEAR( deps_view[i]==deps_[i] , i,deps_,deps_view ) ;                                                                                              // static deps only depend on job
-		if (!crc_ok(dep_crcs_view[i],dep_crcs_[i])) { trace("miss1",i,deps_view[i],dep_crcs_view[i],dep_crcs_[i]) ; return CacheHitInfo::Miss ; }          // found with a different crc
+		SWEAR( deps_view[i]==deps_[i] , i,deps_,deps_view ) ;                                                                                                 // static deps only depend on job
+		if (!crc_ok(dep_crcs_view[i],dep_crcs_[i])) { trace("miss1",i,deps_view[i],dep_crcs_view[i],dep_crcs_[i]) ; return CacheHitInfo::BadDeps ; }          // found with a different crc
 	}
-	NodeIdx j1 = n_statics        ;                                                                                                                        // index into provided deps, with    crc
-	NodeIdx j2 = dep_crcs_.size() ;                                                                                                                        // index into provided deps, without crc
+	NodeIdx j1 = n_statics        ;                                                                                                                           // index into provided deps, with    crc
+	NodeIdx j2 = dep_crcs_.size() ;                                                                                                                           // index into provided deps, without crc
 	// then search for exising deps
 	for( NodeIdx i : iota(n_statics,dep_crcs_view.size()) ) {
 		while ( j1<dep_crcs_.size() && +deps_[j1]< +deps_view[i] ) j1++ ;
 		if    ( j1<dep_crcs_.size() &&  deps_[j1]== deps_view[i] ) {
-			if (!crc_ok(dep_crcs_view[i],dep_crcs_[j1])) { trace("miss2",i,j1,deps_view[i],dep_crcs_view[i],dep_crcs_[j1]) ; return CacheHitInfo::Miss ; } // found with a different crc
-			j1++ ;                                                                                                                                         // fast path : j1 is consumed
+			if (!crc_ok(dep_crcs_view[i],dep_crcs_[j1])) { trace("miss2",i,j1,deps_view[i],dep_crcs_view[i],dep_crcs_[j1]) ; return CacheHitInfo::BadDeps ; } // found with a different crc
+			j1++ ;                                                                                                                                            // fast path : j1 is consumed
 		} else {
 			while ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
 			if    ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) {
-				if (!crc_ok(dep_crcs_view[i],Crc::None)) { trace("miss3",i,j2,deps_view[i],dep_crcs_view[i]) ; return CacheHitInfo::Miss ; }               // found without crc while expecting one
-				j2++ ;                                                                                                                                     // fast path : j1 is consumed
-			} else if (res==CacheHitInfo::Hit) { trace("match1",i,deps_view[i],j1,j2) ; res = CacheHitInfo::Match ; }                                      // not found
+				if (!crc_ok(dep_crcs_view[i],Crc::None)) { trace("miss3",i,j2,deps_view[i],dep_crcs_view[i]) ; return CacheHitInfo::BadDeps ; }               // found without crc while expecting one
+				j2++ ;                                                                                                                                        // fast path : j1 is consumed
+			} else if (res<=CacheHitInfo::Hit) { trace("match1",i,deps_view[i],j1,j2) ; res = CacheHitInfo::Match ; }                                         // not found
 		}
 	}
 	// then search for non-existing deps
-	if ( res==CacheHitInfo::Hit && dep_crcs_.size()==dep_crcs_view.size() ) {                                                                              // fast path : all existing deps are consumed
-		SWEAR( j2==dep_crcs_.size() , j2,dep_crcs_.size() )  ;                                                                                             // all existing deps were found existing
+	if ( res<=CacheHitInfo::Hit && dep_crcs_.size()==dep_crcs_view.size() ) {                                                               // fast path : all existing deps are consumed
+		SWEAR( j2==dep_crcs_.size() , j2,dep_crcs_.size() )  ;                                                                              // all existing deps were found existing
 		for( NodeIdx i : iota(dep_crcs_view.size(),deps_view.size()) ) {
 			while   ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
-			if      ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                                                // fast path : j2 is consumed
-			else if ( res==CacheHitInfo::Hit                       ) { trace("match2",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; }                // not found
+			if      ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                                 // fast path : j2 is consumed
+			else if ( res<=CacheHitInfo::Hit                       ) { trace("match2",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; } // not found
 		}
 	} else {
 		j1 = n_statics        ;                                          // reset search as deps are ordered separately existing/non-existing
@@ -603,12 +678,12 @@ CacheHitInfo CrunData::match( ::vector<Cnode> const& deps_ , ::vector<Hash::Crc>
 		for( NodeIdx i : iota(dep_crcs_view.size(),deps_view.size()) ) {
 			while ( j1<dep_crcs_.size() && +deps_[j1]< +deps_view[i] ) j1++ ;
 			if    ( j1<dep_crcs_.size() &&  deps_[j1]== deps_view[i] ) {
-				if (!crc_ok(Crc::None,dep_crcs_[j1])) { trace("miss4",i,j1,deps_view[i],dep_crcs_[j1]) ; return CacheHitInfo::Miss ; }          // found with crc while expecting none
+				if (!crc_ok(Crc::None,dep_crcs_[j1])) { trace("miss4",i,j1,deps_view[i],dep_crcs_[j1]) ; return CacheHitInfo::BadDeps ; }       // found with crc while expecting none
 				j1++ ;                                                                                                                          // fast path : j1 is consumed
 			} else {
 				while   ( j2<deps_.size() && +deps_[j2]< +deps_view[i] ) j2++ ;
 				if      ( j2<deps_.size() &&  deps_[j2]== deps_view[i] ) j2++ ;                                                                 // fast path : j2 is consumed
-				else if ( res==CacheHitInfo::Hit                       ) { trace("match3",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; } // not found
+				else if ( res<=CacheHitInfo::Hit                       ) { trace("match3",i,j1,j2,deps_view[i]) ; res = CacheHitInfo::Match ; } // not found
 			}
 		}
 	}

@@ -119,7 +119,7 @@ static void _repair(DryRunDigest const& dry_run) {
 		FileStat      data_stat    ;                                                                                          ::lstat( (run+"-data").c_str() , &data_stat ) ;
 		//
 		bool done = job->insert(
-			deps.deps , deps.dep_crcs                                                                                                                  // to search entry
+			deps                                                                                                                                       // to search entry
 		,	key , entry.is_last?KeyIsLast::Yes:KeyIsLast::No , Pdate(data_stat.st_atim) , sz , to_rate(g_cache_config,sz,job_info.end.digest.exe_time) // to create entry
 		) ;
 		throw_unless( done , "conflict ",job->name() ) ;

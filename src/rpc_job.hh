@@ -57,7 +57,8 @@ enum class BackendTag : uint8_t { // PER_BACKEND : add a tag for each backend
 
 // START_OF_VERSIONING REPO CACHE
 enum class CacheHitInfo : uint8_t {
-	Hit                             // cache hit
+	HitExhaustive                   // cache hit, all deps are visible
+,	HitHidden                       // cache hit, some deps are hidden
 ,	Match                           // cache matches, but not hit (some deps are missing, hence dont know if hit or miss)
 ,	BadDeps
 ,	NoJob
@@ -67,19 +68,21 @@ enum class CacheHitInfo : uint8_t {
 ,	BadCache
 ,	NoCache
 // aliases
+,	Hit  = HitHidden                // <=Hit  means cache hit
 ,	Miss = BadDeps                  // >=Miss means cache miss
 } ;
 // END_OF_VERSIONING
 static constexpr ::amap<CacheHitInfo,const char*,N<CacheHitInfo>> CacheHitInfoStrs = {{
-	{ CacheHitInfo::Hit         , "hit"                                      }
-,	{ CacheHitInfo::Match       , "deps are uncertain"                       }
-,	{ CacheHitInfo::BadDeps     , "deps do not match"                        }
-,	{ CacheHitInfo::NoJob       , "job (rule+stems) not found"               }
-,	{ CacheHitInfo::NoRule      , "rule not found or with different command" }
-,	{ CacheHitInfo::BadDownload , "download failed"                          }
-,	{ CacheHitInfo::NoDownload  , "no download asked by user"                }
-,	{ CacheHitInfo::BadCache    , "cache not found"                          }
-,	{ CacheHitInfo::NoCache     , "no cache asked by user"                   }
+	{ CacheHitInfo::HitExhaustive , "hit"                                      }
+,	{ CacheHitInfo::HitHidden     , "hit"                                      }
+,	{ CacheHitInfo::Match         , "deps are uncertain"                       }
+,	{ CacheHitInfo::BadDeps       , "deps do not match"                        }
+,	{ CacheHitInfo::NoJob         , "job (rule+stems) not found"               }
+,	{ CacheHitInfo::NoRule        , "rule not found or with different command" }
+,	{ CacheHitInfo::BadDownload   , "download failed"                          }
+,	{ CacheHitInfo::NoDownload    , "no download asked by user"                }
+,	{ CacheHitInfo::BadCache      , "cache not found"                          }
+,	{ CacheHitInfo::NoCache       , "no cache asked by user"                   }
 }} ;
 static_assert(chk_enum_tab(CacheHitInfoStrs)) ;
 

@@ -113,7 +113,7 @@ namespace Cache {
 		AcFd           info_fd         { {_dir_fd,rf+"-info"} , {.nfs_guard=&cache_nfs_guard} }                                              ; // .
 		DownloadDigest res             { .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }                         ;
 		//
-		if (res.hit_info==CacheHitInfo::Hit) {                                                                // actually download targets
+		if (res.hit_info<=CacheHitInfo::Hit) {                                                                // actually download targets
 			Zlvl zlvl = res.job_info.start.start.zlvl ;
 			#if !HAS_ZLIB
 				throw_if( zlvl.tag==ZlvlTag::Zlib , "cannot uncompress without zlib" ) ;

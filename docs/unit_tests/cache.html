@@ -118,9 +118,11 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">caches</span><span class="o">.</span><span class="n">my_cache</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;dir&#39;</span><span class="p">:</span><span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="o">+</span><span class="s1">&#39;/CACHE&#39;</span> <span class="p">}</span>
 
+    <span class="k">def</span> <span class="nf">mk_cache</span><span class="p">()</span> <span class="p">:</span> <span class="k">return</span> <span class="n">E</span> <span class="ow">and</span> <span class="s1">&#39;my_cache&#39;</span>
+
     <span class="k">class</span> <span class="nc">Auto</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;auto{:\d}&#39;</span>
-        <span class="n">cache</span>  <span class="o">=</span> <span class="s1">&#39;my_cache&#39;</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;auto{E:\d}&#39;</span>
+        <span class="n">cache</span>  <span class="o">=</span> <span class="n">mk_cache</span>
         <span class="n">cmd</span>    <span class="o">=</span> <span class="s2">&quot;echo &#39;#auto&#39;&quot;</span>
 
     <span class="k">class</span> <span class="nc">Hide</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
@@ -141,7 +143,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="p">,</span>   <span class="s1">&#39;SECOND&#39;</span> <span class="p">:</span> <span class="s1">&#39;</span><span class="si">{File2}</span><span class="s1">&#39;</span>
         <span class="p">}</span>
         <span class="n">cache</span>       <span class="o">=</span> <span class="s1">&#39;my_cache&#39;</span>
-        <span class="n">compression</span> <span class="o">=</span> <span class="n">z_lvl</span>
+        <span class="n">compression</span> <span class="o">=</span> <span class="p">(</span> <span class="s1">&#39;zlib&#39;</span> <span class="p">,</span> <span class="n">z_lvl</span> <span class="p">)</span>     <span class="c1"># zlib always exists</span>
         <span class="n">cmd</span>         <span class="o">=</span> <span class="s1">&#39;cat </span><span class="si">{FIRST}</span><span class="s1"> </span><span class="si">{SECOND}</span><span class="s1">&#39;</span>
 
     <span class="k">class</span> <span class="nc">MkDir</span><span class="p">(</span><span class="n">Rule</span><span class="p">):</span>

@@ -597,7 +597,7 @@ public :
 	/**/      void              write      (::string_view data           ) const ;                      // writing does not modify the Fd object
 	/**/      ::string          read       (size_t        sz        =Npos) const ;                      // read sz bytes or to eof
 	/**/      ::vector_s        read_lines (bool          partial_ok=true) const ;                      // if partial_ok => ok if last line does not end with \n
-	/**/      size_t            read_to    (::span<char>  dst            ) const ;
+	/**/      size_t/*cnt*/     read_to    (::span<char>  dst            ) const ;
 	/**/      Fd                dup        (                             ) const { return ::dup(fd) ;                     }
 	constexpr Fd                detach     (                             )       { Fd res = self ; fd = -1 ; return res ; }
 	constexpr void              close      (                             )       ;

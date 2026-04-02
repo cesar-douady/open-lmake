@@ -16,7 +16,7 @@
 #include "store/prefix.hh"
 #include "store/vector.hh"
 
-#include "cache/rpc_cache.hh"
+#include "rpc_cache.hh"
 
 using namespace Cache ;
 
@@ -27,14 +27,18 @@ enum class KeyIsLast : uint8_t {
 ,	Yes
 } ;
 
-struct Ckey      ;
-struct Cjob      ;
-struct Crun      ;
-struct Cnode     ;
-struct CkeyData  ;
-struct CjobData  ;
-struct CrunData  ;
-struct CnodeData ;
+static constexpr Hash::Crc::Val CrcOrNone = 1<< NBits<CrcSpecial>    ;
+static constexpr Hash::Crc::Val CrcErr    = 1<<(NBits<CrcSpecial>+1) ;
+
+struct Ckey          ;
+struct Cjob          ;
+struct Crun          ;
+struct Cnode         ;
+struct CompileDigest ;
+struct CkeyData      ;
+struct CjobData      ;
+struct CrunData      ;
+struct CnodeData     ;
 
 //
 // globals
@@ -139,6 +143,20 @@ struct Cnode : Idxed<CnodeIdx> {
 	CnodeData      * operator->(         )       { return &*self ; }
 } ;
 
+struct CompileDigest {
+	// cxtors & casts
+	CompileDigest() = default ;
+	CompileDigest( ::vmap<Cache::StrId<Cache::CnodeIdx>,DepDigest> const& repo_deps , bool for_download , ::vector<Cache::CnodeIdx>* dep_ids=nullptr ) ; // dep_ids are filled for each named dep ...
+	~CompileDigest() ;                                                                                                                                   // ... in repo_deps
+	// accesses
+	void operator>>(::string&) const ;
+	// data
+	VarIdx              n_statics  = 0     ;
+	bool                has_hidden = false ;
+	::vector<Cnode>     deps       ;
+	::vector<Hash::Crc> dep_crcs   ;
+} ;
+
 struct DaemonCacheMrkr {} ;
 using Cnodes = Vector::Simple<CnodesIdx,Cnode    ,DaemonCacheMrkr> ;
 using Ccrcs  = Vector::Simple<CcrcsIdx ,Hash::Crc,DaemonCacheMrkr> ;
@@ -188,9 +206,9 @@ struct CjobData {
 	bool     operator+ (         ) const { return +n_runs     ; }
 	::string name      (         ) const { return _name.str() ; }
 	// services
-	::pair<Crun,CacheHitInfo> match( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) ;     // updates lru related info when hit
+	::pair<Crun,CacheHitInfo> match( CompileDigest const& ) ;                                    // updates lru related info when hit
 	bool/*done*/ insert(                                                                         // like match, but create when miss
-		::vector<Cnode> const& , ::vector<Hash::Crc> const&                                      // to search entry
+		CompileDigest const&                                                                     // to search entry
 	,	Ckey key , KeyIsLast key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate // to create entry
 	,	::string const& reserved_file={} , NfsGuard* =nullptr                                    // to manage files
 	) ;
@@ -221,7 +239,7 @@ struct CrunData {
 	static void           s_chk  () ;
 	// cxtors & casts
 	CrunData() = default ;
-	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , ::vector<Cnode> const& deps , ::vector<Hash::Crc> const& dep_crcs ) ;
+	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , CompileDigest const& ) ;
 	// accesses
 	void     operator>>(::string&) const ;
 	bool     operator+ (         ) const { return +job                                         ; }
@@ -230,20 +248,21 @@ struct CrunData {
 	// services
 	void                   access   (                                                     )       ; // move to top in LRU (both job and glb)
 	bool/*job_victimzied*/ victimize( bool victimize_job=true , NfsGuard* =nullptr        )       ; // if victimize_job, victimize job if last run
-	CacheHitInfo           match    ( ::vector<Cnode> const& , ::vector<Hash::Crc> const& ) const ;
+	CacheHitInfo           match    ( CompileDigest const&                                ) const ;
 	void                   chk      (                                                     ) const ;
 	// data
 	// START_OF_VERSIONING CACHE
-	Time::Pdate  last_access ;
-	Disk::DiskSz sz          = 0                ;                                                   // size occupied by run
-	LruEntry     glb_lru     ;                                                                      // global LRU within rate
-	LruEntry     job_lru     ;                                                                      // job LRU
-	Cjob         job         ;
-	Cnodes       deps        ;                                                                      // owned sorted by (is_static,existing,idx)
-	Ccrcs        dep_crcs    ;                                                                      // owned crcs for static and existing deps
-	Ckey         key         ;                                                                      // identifies origin (repo+git_sha1)
-	Rate         rate        = 0    /*garbage*/ ;
-	bool         key_is_last = false/*.      */ ;                                                   // 2 runs may be stored for each key : the first and the last
+	Time::Pdate  last_access ;                                                                      //    64 bits
+	Disk::DiskSz sz          = 0                ;                                                   //    64 bits, size occupied by run
+	LruEntry     glb_lru     ;                                                                      //    64 bits, global LRU within rate
+	LruEntry     job_lru     ;                                                                      //    64 bits, job LRU
+	Cjob         job         ;                                                                      //    32 bits
+	Cnodes       deps        ;                                                                      //    32 bits, owned sorted by (is_static,existing,idx)
+	Ccrcs        dep_crcs    ;                                                                      //    32 bits, owned crcs for static and existing deps
+	Ckey         key         ;                                                                      //    32 bits, identifies origin (repo+git_sha1)
+	Rate         rate        = 0    /*garbage*/ ;                                                   //     8 bits
+	bool         key_is_last = false/*.      */ ;                                                   // 1<= 8 bit , 2 runs may be stored for each key : the first and the last
+	bool         has_hidden  = false            ;                                                   // 1<= 8 bit , some hidden deps exist (i.e. that need not match)
 	// END_OF_VERSIONING
 } ;
 static_assert( sizeof(CrunData)==56 ) ;

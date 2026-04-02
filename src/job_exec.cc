@@ -47,8 +47,8 @@ JobStartRpcReply get_start_info() {
 		found_server = Yes   ; res = IMsgBuf(                                          ).receive<JobStartRpcReply>( fd , No/*once*/ , {}/*key*/ ) ; // read without limit as there is a single message
 	} catch (::string const& e) { //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		trace("no_start_info",STR(found_server),e) ;
-		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ;    // this may be a server config problem, better to report if verbose
-		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ;    // .
+		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ; // this may be a server config problem, better to report if verbose
+		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ; // .
 	}
 	g_user_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
@@ -77,46 +77,67 @@ JobStartRpcReply get_start_info() {
 	}
 }
 
-void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeIdx> const* crcs , ::string* msg , Mutex<MutexLvl::JobExec>* msg_mutex , size_t* sz ) {
-	static Atomic<NodeIdx> crc_idx         ;
-	static Atomic<bool   > abs_path_warned ;
+void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeIdx> const* crcs , ::string* msg , size_t* sz ) {
+	static Atomic<NodeIdx>          s_crc_idx         ;
+	static Mutex<MutexLvl::JobExec> s_msg_mutex       ;
+	static bool                     s_abs_path_warned = false ;
 	t_thread_key = '0'+id ;
 	Trace trace("crc_thread_func",tgts->size(),crcs->size()) ;
-	NodeIdx  cnt           = 0                                                              ; // cnt is for trace only
+	NodeIdx  cnt           = 0                                                              ;             // cnt is for trace only
 	::string phy_repo_root = g_start_info.chk_abs_paths ? no_slash(g_phy_repo_root_s) : ""s ;
 	*sz = 0 ;
-	for( NodeIdx ci=0 ; (ci=crc_idx++)<crcs->size() ; cnt++ ) {
+	for( NodeIdx ci=0 ; (ci=s_crc_idx++)<crcs->size() ; cnt++ ) {
 		NodeIdx         ti     = (*crcs)[ci]        ;
 		::string const& tn     = (*tgts)[ti].first  ;
 		TargetDigest  & td     = (*tgts)[ti].second ;
 		Pdate           before = New                ;
 		FileInfo        fi     ;
-		if ( g_start_info.chk_abs_paths && AcFd(tn).read().find(phy_repo_root)!=Npos ) {
-			Lock lock{*msg_mutex} ;
-			*msg <<add_nl<< "absolute path of repo ("<<phy_repo_root<<") found in target "<<tn ;
-			bool warned = abs_path_warned.exchange(true) ;
-			if (!warned) {
-				/**/                     *msg <<"\n  consider :"                                                                                ;
-				/**/                     *msg <<"\n  - "<<g_start_info.rule<<".cmd             = <script that generates no such absolute path>" ;
-				/**/                     *msg <<"\n  - "<<g_start_info.rule<<".repo_view       = '/repo'"                                       ;
-				if (+g_start_info.cache) *msg <<"\n  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache= None"   ;
-				else                     *msg <<"\n  - "<<g_start_info.rule<<".check_abs_paths = False"                                         ;
-			}
-		}
 		try {
 			//       vvvvvvvvvvvvvvvvvvvvv
 			td.crc = Crc( tn , /*out*/fi ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^
-		} catch (::string const& e) {                                                         // START_OF_NO_COV defensive programming
-			Lock lock{*msg_mutex} ;
+			if (g_start_info.chk_abs_paths) {
+				bool found = false ;
+				switch (fi.tag()) {
+					case FileTag::Lnk : found = read_lnk(tn).find(phy_repo_root)!=Npos ; break ;
+					case FileTag::Reg :
+					case FileTag::Exe : {
+						size_t   rr_sz = phy_repo_root.size() ; SWEAR( rr_sz<PATH_MAX , phy_repo_root ) ; // ensure no overlap during memcpy
+						AcFd     fd    { tn }                 ;
+						::string buf   = fd.read(DiskBufSz)   ;
+						for (;;) {
+							if (buf.find(phy_repo_root)!=Npos) { found = true ; break ; }                 // found
+							if (buf.size()<DiskBufSz         )                  break ;                   // not found
+							static_assert( DiskBufSz>2*PATH_MAX ) ;                                       // ensure no overlap during memcpy
+							::memcpy( buf.data() , buf.data()+DiskBufSz-rr_sz , rr_sz ) ;                 // ensure buf boundaries are properly managed
+							size_t cnt = fd.read_to( ::span( buf.data()+rr_sz , DiskBufSz-rr_sz ) ) ;
+							buf.resize(rr_sz+cnt) ;
+						}
+					}
+				DN}
+				if (found) {
+					Lock lock { s_msg_mutex } ;
+					*msg << add_nl<< "absolute path of repo ("<<phy_repo_root<<") found in target "<<tn ;
+					if (!s_abs_path_warned) {
+						s_abs_path_warned = true ;
+						/**/                     *msg << "\n  consider :"                                                                                ;
+						/**/                     *msg << "\n  - "<<g_start_info.rule<<".cmd             = <script that generates no such absolute path>" ;
+						/**/                     *msg << "\n  - "<<g_start_info.rule<<".repo_view       = '/repo'"                                       ;
+						if (+g_start_info.cache) *msg << "\n  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache= None"   ;
+						else                     *msg << "\n  - "<<g_start_info.rule<<".check_abs_paths = False"                                         ;
+					}
+				}
+			}
+		} catch (::string const& e) {                                                                     // START_OF_NO_COV defensive programming
+			Lock lock { s_msg_mutex } ;
 			*msg <<add_nl<< "cannot compute checksum ("<<e<<") for "<<tn ;
-		}                                                                                     // END_OF_NO_COV
+		}                                                                                                 // END_OF_NO_COV
 		td.sig  = fi.sig() ;
 		*sz    += fi.sz    ;
 		trace("crc_date",ci,before,Pdate(New)-before,td.crc,fi,tn) ;
 		if (!td.crc.valid()) {
-			Lock lock{*msg_mutex} ;
-			*msg <<add_nl<< "cannot compute checksum for "<<tn ;
+			Lock lock { s_msg_mutex } ;
+			*msg << add_nl<<"cannot compute checksum for "<<tn ;
 		}
 	}
 	trace("done",cnt) ;
@@ -129,11 +150,10 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 	if (n_threads>digest.crcs.size()) n_threads = digest.crcs.size()             ;
 	//
 	Trace trace("compute_crcs",digest.crcs.size(),n_threads) ;
-	::string                 msg       ;
-	Mutex<MutexLvl::JobExec> msg_mutex ;
-	::vector<size_t>         szs       ( n_threads ) ;
+	::string         msg ;
+	::vector<size_t> szs ( n_threads ) ;
 	{	::vector<::jthread> crc_threads ; crc_threads.reserve(n_threads) ;
-		for( size_t i  : iota(n_threads) ) crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &msg_mutex , &szs[i] ) ;
+		for( size_t i  : iota(n_threads) ) crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &szs[i] ) ;
 	}
 	total_sz = 0 ;
 	for( size_t s : szs ) total_sz += s ;
@@ -159,8 +179,8 @@ int main( int argc , char* argv[] ) {
 	g_trace_file = new ::string{cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
-	end_report.digest   = { .status=Status::EarlyError } ;                     // prepare to return an error, so we can goto End anytime
-	end_report.wstatus  = 255<<8                         ;                     // .
+	end_report.digest   = { .status=Status::EarlyError } ;                   // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                         ;                   // .
 	end_report.end_date = start_overhead                 ;
 	g_user_trace        = &end_report.user_trace         ;
 	g_user_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
@@ -334,7 +354,7 @@ int main( int argc , char* argv[] ) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
 			g_gather.child_stdout = Fd( g_start_info.stdout , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ;
-			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ;  // writing to stdout last for the whole job
+			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ; // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}
 		g_gather.cmd_line = cmd_line(repo_root_s) ;
@@ -342,14 +362,14 @@ int main( int argc , char* argv[] ) {
 		try { //!    vvvvvvvvvvvvvvvvvvvvv
 			status = g_gather.exec_child() ;
 			//       ^^^^^^^^^^^^^^^^^^^^^
-		} catch (::string const& e) {                                                                                                 // START_OF_NO_COV defensive programming
-			end_report.digest.status = g_gather.started ? Status::LateLost : Status::EarlyLost ;                                      // not early as soon as job is started
+		} catch (::string const& e) {                                                                                               // START_OF_NO_COV defensive programming
+			end_report.digest.status = g_gather.started ? Status::LateLost : Status::EarlyLost ;                                    // not early as soon as job is started
 			end_report.msg_stderr.msg << "open-lmake error : " << e ;
 			goto End ;
-		}                                                                                                                             // END_OF_NO_COV
+		}                                                                                                                           // END_OF_NO_COV
 		struct ::rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
-		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                          // XXX/ : suppress when CentOS7 bug is fixed
+		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                        // XXX/ : suppress when CentOS7 bug is fixed
 		//
 		Gather::Digest digest = g_gather.analyze(status) ;
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
@@ -375,7 +395,7 @@ int main( int argc , char* argv[] ) {
 			g_user_trace->emplace_back( New/*date*/ , Comment::UploadedToCache , ces , cat(g_start_info.zlvl) ) ;
 		}
 		//
-		if (+g_start_info.autodep_env.file_sync) {                                                                                    // fast path : avoid listing targets & guards if !file_sync
+		if (+g_start_info.autodep_env.file_sync) {                                                                                  // fast path : avoid listing targets & guards if !file_sync
 			for( auto const& [t,_] : digest.targets  ) nfs_guard.change(t) ;
 			for( auto const&  f    : g_gather.guards ) nfs_guard.change(f) ;
 		}
