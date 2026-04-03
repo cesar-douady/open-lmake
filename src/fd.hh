@@ -170,7 +170,7 @@ inline sigset_t _mk_sigset(::vector<int> const& sigs) {
 inline bool is_blocked_sig(int sig) {
 	sigset_t old_mask ;
 	swear( ::pthread_sigmask(0/*how*/,nullptr/*set*/,&old_mask)==0 , "cannot get sig ",sig ) ;
-	return sigismember(&old_mask,sig) ;                                                        // sigismember can be a macro
+	return sigismember(&old_mask,sig) ;                                                        // sigismember can be a macro, hence no ::
 }
 inline void block_sigs  (::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_BLOCK   , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot block sigs "  ,sigs) ; }
 inline void unblock_sigs(::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_UNBLOCK , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot unblock sigs ",sigs) ; }

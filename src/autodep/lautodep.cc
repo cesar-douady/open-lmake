@@ -197,19 +197,19 @@ int main( int argc , char* argv[] ) {
 	autodep_env.file_sync = FileSync::None         ;                                                               // no parallel processing with lautodep
 	autodep_env.fqdn      = fqdn(jsrr.domain_name) ;                                                               // call fqdn() before potential chroot in g_start_info.enter()
 	//
-	Status   status  ;
-	::map_ss cmd_env = mk_map(jsrr.env) ;
-	try {
-		BlockedSig blocked{{SIGINT}} ;
-		gather.autodep_env  = ::move(autodep_env)                            ;
-		gather.cmd_line     = jsrr.interpreter                               ;
-		gather.env          = &cmd_env                                       ;
-		gather.lmake_root_s = job_space.lmake_view_s | jsrr.phy_lmake_root_s ;
-		gather.method       = jsrr.method                                    ;
-		//       vvvvvvvvvvvvvvvvvvv
-		status = gather.exec_child() ;
-		//       ^^^^^^^^^^^^^^^^^^^
-	} catch (::string const& e) { exit(Rc::System,e) ; }
+	Status     status  ;
+	::map_ss   cmd_env = mk_map(jsrr.env) ;
+	BlockedSig blocked { {SIGINT} }       ;
+	gather.autodep_env  = ::move(autodep_env)                            ;
+	gather.cmd_line     = jsrr.interpreter                               ;
+	gather.env          = &cmd_env                                       ;
+	gather.lmake_root_s = job_space.lmake_view_s | jsrr.phy_lmake_root_s ;
+	gather.method       = jsrr.method                                    ;
+dbg("XXX1");
+	//       vvvvvvvvvvvvvvvvvvv
+	status = gather.exec_child() ;
+	//       ^^^^^^^^^^^^^^^^^^^
+dbg("XXX2");
 	//
 	try                       { jsrr.exit() ;        }
 	catch (::string const& e) { exit(Rc::System,e) ; }
