@@ -2,7 +2,7 @@
 namespace Version {
 	uint64_t    constexpr Cache = 39      ; // 66ef577d5d30dbffab5d116ed79745bd
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 38      ; // 7258984648c9af6f65bad5a05556a3ba
+	uint64_t    constexpr Repo  = 39      ; // cd517691731aba3c3f180aac28e3b51e
 	uint64_t    constexpr Job   = 19      ; // 2461431c75bafc07b14dbcdc068d789f
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
@@ -1084,7 +1084,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 7258984648c9af6f65bad5a05556a3ba *
+// * Repo : cd517691731aba3c3f180aac28e3b51e *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1593,49 +1593,46 @@ namespace Version {
 //
 //	// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			bool dyn_deps = false ;
-//			::vmap_s<DepSpec> deps ;
+//			::vmap_s<DepSpec> deps ; IsDynMap dyn_deps = {} ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			bool       dyn_rsrcs = false             ;
-//			BackendTag backend   = BackendTag::Local ;                                                                                  // backend to use to launch jobs
-//			::vmap_ss  rsrcs     ;
+//			BackendTag backend = BackendTag::Local ; bool     dyn_backend = false ;                                                     // backend to use to launch jobs
+//			::vmap_ss  rsrcs   ;                     IsDynMap dyn_rsrcs   = {}    ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			::string cache_name ;
+//			::string cache_name ; bool dyn_cache_name = false ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			::string   chroot_dir_s    ;
-//			bool       dyn_env         = false ;
-//			bool       dyn_views       = false ;
-//			bool       auto_mkdir      = false ;
-//			::vmap_ss  env             ;
-//			bool       ignore_stat     = false ;
-//			::vector_s interpreter     ;
-//			bool       mount_chroot_ok = false ;
-//			bool       stderr_ok       = false ;
-//			JobSpace   job_space       ;
+//			::string   chroot_dir_s    ;         bool        dyn_chroot_dir_s    = false ;
+//			bool       auto_mkdir      = false ; bool        dyn_auto_mkdir      = false ;
+//			::vmap_ss  env             ;         IsDynMap    dyn_env             = {}    ;
+//			bool       ignore_stat     = false ; bool        dyn_ignore_stat     = false ;
+//			::vector_s interpreter     ;         IsDynVector dyn_interpreter     = {}    ;
+//			bool       mount_chroot_ok = false ; bool        dyn_mount_chroot_ok = false ;
+//			JobSpace   job_space       ;         bool        dyn_lmake_view_s    = false ;
+//			/**/                                 bool        dyn_repo_view_s     = false ;
+//			/**/                                 bool        dyn_tmp_view_s      = false ;
+//			/**/                                 IsDynMap    dyn_views           = {}    ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			bool          dyn_env        = false               ;
-//			bool          chk_abs_paths  = false               ;
-//			ChrootActions chroot_actions ;
-//			::vmap_ss     env            ;
-//			::string      lmake_root_s   ;
-//			AutodepMethod method         = AutodepMethod::Dflt ;
-//			bool          readdir_ok     = false               ;
-//			Time::Delay   timeout        ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
-//			bool          use_script     = false               ;
+//			bool          chk_abs_paths  = false               ; bool     dyn_chk_abs_paths  = false ;
+//			ChrootActions chroot_actions ;                       bool     dyn_chroot_actions = false ;
+//			::vmap_ss     env            ;                       IsDynMap dyn_env            = {}    ;
+//			::string      lmake_root_s   ;                       bool     dyn_lmake_root_s   = false ;
+//			AutodepMethod method         = AutodepMethod::Dflt ; bool     dyn_method         = false ;
+//			bool          readdir_ok     = false               ; bool     dyn_readdir_ok     = false ;
+//			bool          stderr_ok      = false               ; bool     dyn_stderr_ok      = false ;
+//			Time::Delay   timeout        ;                       bool     dyn_timeout        = false ; // if 0 <=> no timeout, maximum time allocated to job execution in s
+//			bool          use_script     = false               ; bool     dyn_use_script     = false ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			bool              dyn_env        = false ;
-//			::vmap_ss         env            ;
-//			bool              keep_tmp       = false ;
-//			bool              kill_daemons   = false ;
-//			::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
-//			uint16_t          max_stderr_len = 0     ;                                                         // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
-//			Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
-//			Zlvl              zlvl           = {}    ;
+//			::vmap_ss         env            ;         IsDynMap    dyn_env            = {}    ;
+//			bool              keep_tmp       = false ; bool        dyn_keep_tmp       = false ;
+//			bool              kill_daemons   = false ; bool        dyn_kill_daemons   = false ;
+//			::vector<uint8_t> kill_sigs      ;         IsDynVector dyn_kill_sigs      = {}    ; // signals to use to kill job (tried in sequence, 1s apart from each other)
+//			uint16_t          max_stderr_len = 0     ; bool        dyn_max_stderr_len = false ; // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
+//			Time::Delay       start_delay    ;         bool        dyn_start_delay    = false ; // job duration above which a start message is generated
+//			Zlvl              zlvl           = {}    ; bool        dyn_zlvl           = false ;
 //			// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO
 //				/**/             h += spec        ;

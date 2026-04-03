@@ -13,7 +13,7 @@ namespace Engine {
 	::string _subst_fstr( ::string const& fstr , ::umap_s<CmdIdx> const& var_idxs , VarIdx&/*inout*/ n_unnamed , bool* /*out*/ keep_for_deps=nullptr ) {
 		::string res ;
 		//
-		if (keep_for_deps) *keep_for_deps = true ;                                                                       // unless found to be external
+		if (keep_for_deps) *keep_for_deps = true ;                                               // unless found to be external
 		parse_py( fstr , nullptr/*unnamed_star_idx*/ ,
 			[&]( ::string const& k , bool star , bool unnamed , ::string const* def ) {
 				SWEAR(var_idxs.contains(k)) ;
@@ -31,7 +31,7 @@ namespace Engine {
 		,	[&]( ::string const& fixed , bool has_pfx , bool has_sfx ) {
 				SWEAR(+fixed) ;
 				res.append(fixed) ;
-				if (!keep_for_deps) return ;                                                                             // not a dep, no check
+				if (!keep_for_deps) return ;                                                     // not a dep, no check
 				if ( !is_canon( fixed , {.empty_ok=true,.has_pfx=has_pfx,.has_sfx=has_sfx} ) ) {
 					if ( ::string c=mk_canon(fstr) ; c!=fstr ) throw cat("is not canonical, consider using : ",c) ;
 					else                                       throw cat("is not canonical"                     ) ;
@@ -98,11 +98,13 @@ namespace Engine {
 			break ;
 			case No :
 				if (py_src.contains("static")) {
-					kind = Kind::ShellCmd ;
-					VarIdx n_unnamed = 0 ;
-					code_str = _subst_fstr( ::string(py_src["static"].as_a<Dict>()["cmd"].as_a<Str>()) , var_idxs , /*inout*/n_unnamed ) ;
-					SWEAR( !n_unnamed , n_unnamed ) ;
-					break ;
+					if (Object const& py_static = py_src["static"] ; &py_static!=&None ) {
+						kind = Kind::ShellCmd ;
+						VarIdx n_unnamed = 0 ;
+						code_str = _subst_fstr( ::string(py_static.as_a<Str>()) , var_idxs , /*inout*/n_unnamed ) ;
+						SWEAR( !n_unnamed , n_unnamed ) ;
+						break ;
+					}
 				}
 			[[fallthrough]] ;           // dynamic shell cmd, process as dynamic attributes
 			case Maybe :
@@ -144,43 +146,6 @@ namespace Engine {
 		code      = {} ;
 		glbs_code = {} ;
 		glbs      = {} ;
-	}
-
-	DynBase::DynBase( Ptr<>* py_update , RulesBase& rules , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , Bool3 is_python ) {
-		Ptr<> cmd_update ;
-		if (is_python!=Maybe) {
-			SWEAR( !py_update , is_python ) ;                                                             // no report for Cmd as static info is stored in DynEntry
-			py_update = &cmd_update ;
-		}
-		DynEntry de { rules , is_python , py_src , var_idxs , false/*compile*/ } ;
-		if ( de.kind==DynKind::Dyn && py_update && !de.ctx ) {                                            // dynamic value depends on nothing, we can make it static
-			SWEAR(is_python!=Yes) ;                                                                       // python cmd cannot be dynamic
-			de.compile(rules) ;
-			::vmap_s<DepDigest> deps ;
-			{	AutodepLock lock { &deps } ;
-				try                       { *py_update = de.code->eval( de.glbs , rules.py_sys_path ) ; } // tell caller what to do in py_update
-				catch (::string const& e) { if (!deps) throw ;                                          } // if we do disk accesses, dont care about errors, we are going to decompile anyway
-			}
-			if (+deps) {
-				de.decompile() ;                                                                          // if doing disk accesses, we must record deps and we cannot precompile
-			} else {
-				de = {} ;                                                                                 // synthetize a static entry
-				if (is_python!=Maybe) {                                                                   // unless for ShellCmd, there is no dynamic entry at all
-					de.kind     = DynKind::ShellCmd                   ;
-					de.code_str = ::string((*py_update)->as_a<Str>()) ;                                   // note that f-string is not interpolated as this is already done during dynamic eval
-				}
-			}
-		}
-		if (!de) {                                                                                        // value is static
-			return ;
-		}
-		auto it_inserted = rules.dyn_idx_tab.try_emplace(de,0) ;
-		if (it_inserted.second) {
-			de.compile(rules) ;
-			rules.dyn_vec.emplace_back(::move(de)) ;
-			it_inserted.first->second = rules.dyn_vec.size() ;                                            // dyn_idx 0 is used to mean non-dynamic
-		}
-		dyn_idx = it_inserted.first->second ;
 	}
 
 	void DynBase::s_eval( Job j , Rule::RuleMatch& m/*lazy*/ , ::vmap_ss const& rsrcs_ , ::vector<CmdIdx> const& ctx , EvalCtxFuncStr const& cb_str , EvalCtxFuncDct const& cb_dct ) {
@@ -235,6 +200,43 @@ namespace Engine {
 		auto cb_dct = [&]( VarCmd ,          ::string const& /*key*/ , ::vmap_ss const& /*val*/ ) { FAIL()                ; } ; // NO_COV
 		DynBase::s_eval(job,match,rsrcs,ctx_,cb_str,cb_dct) ;
 		return res ;
+	}
+
+	DynBase::DynBase( Ptr<>* py_update , RulesBase& rules , Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , Bool3 is_python ) {
+		Ptr<> cmd_update ;
+		if (is_python!=Maybe) {
+			SWEAR( !py_update , is_python ) ;                                                             // no report for Cmd as static info is stored in DynEntry
+			py_update = &cmd_update ;
+		}
+		DynEntry de { rules , is_python , py_src , var_idxs , false/*compile*/ } ;
+		if ( de.kind==DynKind::Dyn && py_update && !de.ctx ) {                                            // dynamic value depends on nothing, we can make it static
+			SWEAR(is_python!=Yes) ;                                                                       // python cmd cannot be dynamic
+			de.compile(rules) ;
+			::vmap_s<DepDigest> deps ;
+			{	AutodepLock lock { &deps } ;
+				try                       { *py_update = de.code->eval( de.glbs , rules.py_sys_path ) ; } // tell caller what to do in py_update
+				catch (::string const& e) { if (!deps) throw ;                                          } // if we do disk accesses, dont care about errors, we are going to decompile anyway
+			}
+			if (+deps) {
+				de.decompile() ;                                                                          // if doing disk accesses, we must record deps and we cannot precompile
+			} else {
+				de = {} ;                                                                                 // synthetize a static entry
+				if (is_python!=Maybe) {                                                                   // unless for ShellCmd, there is no dynamic entry at all
+					de.kind     = DynKind::ShellCmd                   ;
+					de.code_str = ::string((*py_update)->as_a<Str>()) ;                                   // note that f-string is not interpolated as this is already done during dynamic eval
+				}
+			}
+		}
+		if (!de) {                                                                                        // value is static
+			return ;
+		}
+		auto it_inserted = rules.dyn_idx_tab.try_emplace(de,0) ;
+		if (it_inserted.second) {
+			de.compile(rules) ;
+			rules.dyn_vec.emplace_back(::move(de)) ;
+			it_inserted.first->second = rules.dyn_vec.size() ;                                            // dyn_idx 0 is used to mean non-dynamic
+		}
+		dyn_idx = it_inserted.first->second ;
 	}
 
 	//
@@ -364,19 +366,15 @@ namespace Engine {
 
 	namespace Attrs {
 
-		bool/*updated*/ acquire( bool& dst , Object const* py_src ) {
-			//                                    updated
-			if (!py_src       )             return false ;
-			if ( py_src==&None) { if (!dst) return false ; dst = false ; return true/*updated*/ ; }
-			//
+		void acquire( bool&/*out*/ dst , bool&/*out*/ is_dyn , Object const* py_src ) {
+			if (!py_src       )                   return ;
+			if ( py_src==&None) { is_dyn = true ; return ; }
 			dst = +*py_src ;
-			return true/*updated*/ ;
 		}
 
-		bool/*updated*/ acquire( Delay& dst , Object const* py_src , Delay min , Delay max ) {
-			//                                    updated
-			if (!py_src       )             return false ;
-			if ( py_src==&None) { if (!dst) return false ; dst = {} ; return true/*updated*/ ; }
+		void acquire( Delay&/*out*/ dst , bool&/*out*/ is_dyn , Object const* py_src , Delay min , Delay max ) {
+			if (!py_src       )                   return ;
+			if ( py_src==&None) { is_dyn = true ; return ; }
 			//
 			double d = 0 ;
 			if      (py_src->is_a<Float>()) d =             py_src->as_a<Float>()  ;
@@ -385,23 +383,22 @@ namespace Engine {
 			dst = Delay(d) ;
 			throw_unless( dst>=min , "underflow" ) ;
 			throw_unless( dst<=max , "overflow"  ) ;
-			return true/*updated*/ ;
 		}
 
-		bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Object const* py_src ) {
-			//                                                 updated
-			if (!py_src       )                          return false ;
-			if ( py_src==&None) { dst = {.is_dyn=true} ; return true  ; }
+		void acquire( JobSpace::ViewDescr&/*out*/ dst , bool&/*out*/ is_dyn , Object const* py_src ) {
+			if (!py_src       )                   return ;
+			if ( py_src==&None) { is_dyn = true ; return ; }
+			//
 			::string   upper   ;
 			::vector_s lower   ;
 			::vector_s copy_up ;
 			if (py_src->is_a<Str>()) {
-				if (!acquire(upper,py_src)) throw "nothing to bind to"s ;
+				acquire( /*out*/upper , /*out*/::ref(bool()) , py_src ) ; throw_unless( +upper , "nothing to bind to" ) ;
 			} else if (py_src->is_a<Dict>()) {
 				Dict const& py_dct = py_src->as_a<Dict>() ;
-				acquire_from_dct(upper  ,py_dct,"upper"  ) ;
-				acquire_from_dct(lower  ,py_dct,"lower"  ) ;
-				acquire_from_dct(copy_up,py_dct,"copy_up") ;
+				acquire_from_dct( /*out*/upper   , /*out*/::ref(bool       ())/*is_dyn*/ , py_dct , "upper"   ) ;
+				acquire_from_dct( /*.  */lower   , /*.  */::ref(IsDynVector())/*.     */ , py_dct , "lower"   ) ;
+				acquire_from_dct( /*.  */copy_up , /*.  */::ref(IsDynVector())/*.     */ , py_dct , "copy_up" ) ;
 				throw_unless( +upper             , "no upper"                    ) ;
 				throw_unless( !copy_up || +lower , "cannot copy up from nowhere" ) ;
 				for( ::string const& cu : copy_up ) {
@@ -412,21 +409,32 @@ namespace Engine {
 			/**/                       dst.phys_s.push_back(with_slash(::move(upper))) ;
 			for( ::string& l : lower ) dst.phys_s.push_back(with_slash(::move(l    ))) ;
 			/**/                       dst.copy_up = ::move(copy_up) ;
-			return true/*updated*/ ;
 		}
 
-		bool/*updated*/ acquire( Zlvl& dst , Object const* py_src ) {
-			if (!py_src                  )              return false/*updated*/ ;
-			if ( py_src==&None           ) { dst = {} ; return true /*.      */ ; }
+		void acquire( Zlvl&/*out*/ dst , bool&/*out*/ is_dyn , Object const* py_src ) {
+			if (!py_src       )                   return ;
+			if ( py_src==&None) { is_dyn = true ; return ; }
 			if ( py_src->is_a<Sequence>()) {
 				Sequence const& py_seq = py_src->as_a<Sequence>() ;
 				switch (py_seq.size()) {
 					case 1 :
-						if      ( py_seq[0].is_a<Str>()                          ) { acquire( dst.tag , &py_seq[0] ) ; dst.lvl = 0                     ; return true/*updated*/ ; }
-						else if (                          py_seq[0].is_a<Int>() ) { dst.tag = ZlvlTag::Dflt         ; acquire( dst.lvl , &py_seq[0] ) ; return true/*updated*/ ; }
+						if (py_seq[0].is_a<Str>()) {
+							acquire( /*out*/dst.tag , /*out*/::ref(bool())/*is_dyn*/ , &py_seq[0] ) ;
+							dst.lvl = 0 ;
+							return ;
+						}
+						else if (py_seq[0].is_a<Int>()) {
+							dst.tag = ZlvlTag::Dflt ;
+							acquire( /*out*/dst.lvl , /*out*/::ref(bool())/*is_dyn*/ , &py_seq[0] ) ;
+							return ;
+						}
 					break ;
 					case 2 :
-						if      ( py_seq[0].is_a<Str>() && py_seq[1].is_a<Int>() ) { acquire( dst.tag , &py_seq[0] ) ; acquire( dst.lvl , &py_seq[1] ) ; return true/*updated*/ ; }
+						if ( py_seq[0].is_a<Str>() && py_seq[1].is_a<Int>() ) {
+							acquire( /*out*/dst.tag , /*out*/::ref(bool())/*is_dyn*/ , &py_seq[0] ) ;
+							acquire( /*out*/dst.lvl , /*out*/::ref(bool())/*is_dyn*/ , &py_seq[1] ) ;
+							return ;
+						}
 				DN}
 			}
 			throw "cannot understand compression which is neither a int, a str or a sequence of len 2"s ;
@@ -438,25 +446,27 @@ namespace Engine {
 	// DepsAttrs
 	//
 
-	void DepsAttrs::init( Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
-		SWEAR(!dyn_deps) ;                                                                               // init should not be called in that case
+	void DepsAttrs::init( Object const& py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
+		SWEAR(!dyn_deps.first) ;                                                                           // init should not be called in that case
+		//
+		if (&py_src==&None) { dyn_deps.first = true ; return ; }
 		//
 		for( auto const& [py_key,py_val] : py_src.as_a<Dict>() ) {
 			::string key = py_key.template as_a<Str>() ;
-			if (py_val==None) {
+			if (&py_val==&None) {
 				deps.emplace_back(key,DepSpec()) ;
+				dyn_deps.second.insert(key)      ;
 				continue ;
 			}
 			VarIdx     n_unnamed = 0                                                                                        ;
 			MatchFlags mfs       = { .dflags=DflagsDfltStatic , .extra_dflags=ExtraDflagsDfltStatic }                       ;
-			::string   dep       = Rule::s_split_flags( "dep "+key , py_val , 1/*n_skip*/ , /*out*/mfs , true/*dep_only*/ ) ;
-			dep  = rd.add_cwd( ::move(dep) , mfs.extra_dflags[ExtraDflag::Top] ) ;
+			::string   dep       = Rule::s_split_flags( "dep "+key , py_val , 1/*n_skip*/ , /*out*/mfs , true/*dep_only*/ ) ; dep = rd.add_cwd( ::move(dep) , mfs.extra_dflags[ExtraDflag::Top] ) ;
 			try {
 				bool     keep       = false/*garbage*/                                                                   ;
 				::string parsed_dep = _subst_fstr( dep , var_idxs , /*inout*/n_unnamed , /*out*/&keep/*keep_for_deps*/ ) ;
 				if (!keep) {
 					throw_unless( key=="python" || key=="shell" , "is external" ) ;
-					continue ;                                                                           // accept external dep for interpreter (but ignore it)
+					continue ;                                                                             // accept external dep for interpreter (but ignore it)
 				}
 				//
 				if (n_unnamed) {
@@ -468,7 +478,7 @@ namespace Engine {
 				throw cat("dep ",key," (",dep,") ",e) ;
 			}
 		}
-		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ;              // -1 to leave some room to the interpreter, if any
+		throw_unless( deps.size()<Rule::NoVar-1 , "too many static deps : ",deps.size() ) ;                // -1 to leave some room to the interpreter, if any
 	}
 
 	::pair_s</*msg*/::vmap_s<DepSpec>> DynDepsAttrs::eval(Rule::RuleMatch const& match) const {
@@ -490,11 +500,11 @@ namespace Engine {
 				Ptr<> py_obj = _eval_code(match) ;
 				//
 				::map_s<VarIdx> dep_idxs ;
-				if (!spec.dyn_deps)
+				if (!spec.dyn_deps.first)
 					for( VarIdx di : iota<VarIdx>(spec.deps.size()) ) dep_idxs[spec.deps[di].first] = di ;
-				if (*py_obj!=None)
+				if (&*py_obj!=&None)
 					for( auto const& [py_key,py_val] : py_obj->as_a<Dict>() ) {
-						if (py_val==None) continue ;
+						if (&py_val==&None) continue ;
 						::string key = py_key.as_a<Str>() ;
 						try {
 							MatchFlags mfs = { .dflags=DflagsDfltStatic , .extra_dflags=ExtraDflagsDfltStatic }                       ;
@@ -503,7 +513,7 @@ namespace Engine {
 							DepSpec ds { dep , mfs.dflags , mfs.extra_dflags } ;
 							try {
 								if (!Rule::s_qualify_dep(key,ds.txt)) continue ;
-								if (spec.dyn_deps) {
+								if (spec.dyn_deps.first) {
 									dep_specs.emplace_back( key , ::move(ds) ) ;
 								} else {
 									DepSpec& ds2 = dep_specs[dep_idxs.at(key)].second ;
@@ -556,7 +566,7 @@ namespace Engine {
 				Gil   gil    ;
 				Ptr<> py_obj = _eval_code( match , rsrcs , deps ) ;
 				throw_unless( +py_obj->is_a<Str>() , "type error : ",py_obj->type_name()," is not a str" ) ;
-				Attrs::acquire( res , &py_obj->as_a<Str>() ) ;
+				Attrs::acquire( /*out*/res , /*out*/::ref(bool())/*is_dyn*/ , &py_obj->as_a<Str>() ) ;
 			}
 			if (res.size()>1<<16) sra.use_script = true ;
 		} else {
@@ -611,7 +621,7 @@ namespace Engine {
 		//
 		rule->validate(name_) ;
 		//
-		char* p = name_.data()+name_.size()-rule->job_sfx_len()+1 ;          // start of suffix, after JobMrkr
+		char* p = name_.data()+name_.size()-rule->job_sfx_len()+1 ;     // start of suffix, after JobMrkr
 		for( [[maybe_unused]] VarIdx _ : iota(rule->n_static_stems) ) {
 			FileNameIdx pos = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;
 			FileNameIdx sz  = decode_int<FileNameIdx>(p) ; p += sizeof(FileNameIdx) ;

@@ -301,7 +301,7 @@ namespace Engine {
 				//   vvvvvvvvvvvvvvvvvvvv
 				jt = job_tgts[n_job_tgts] ;                                                                     // gather from reservoir
 				//   ^^^^^^^^^^^^^^^^^^^^
-				size_t n_sdeps = rd.deps_attrs.spec.dyn_deps ? Npos : rd.deps_attrs.spec.deps.size() ;          // number of static deps, if known
+				size_t n_sdeps = rd.deps_attrs.spec.dyn_deps.first ? Npos : rd.deps_attrs.spec.deps.size() ;    // number of static deps, if known
 				if (n_sdeps) {
 					NodeIdx n_seen_sdeps = 0 ;
 					for ( Dep const& d : jt->deps ) {                                                           // check static deps : if one is not buildable, rule does not apply ...

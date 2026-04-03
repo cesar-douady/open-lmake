@@ -1116,7 +1116,6 @@ void JobEndRpcReq::chk(bool for_cache) const {
 	JobRpcReq::chk(for_cache) ;
 	digest.    chk(for_cache) ;
 	/**/             throw_unless( !phy_tmp_dir_s || (phy_tmp_dir_s.front()=='/'&&phy_tmp_dir_s.back()=='/'&&is_canon(phy_tmp_dir_s)) , "bad phy_tmp_dir"       ) ;
-	/**/             throw_unless( end_date<=New                                                                                      , "bad end_date"          ) ;
 	if (+msg_stderr) throw_unless( digest.has_msg_stderr                                                                              , "incoherent msg/stderr" ) ;
 }
 

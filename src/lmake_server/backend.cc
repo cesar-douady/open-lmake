@@ -435,6 +435,7 @@ namespace Backends {
 			reply.chroot_info.actions    =        start_rsrcs_attrs.chroot_actions  ;
 			reply.phy_lmake_root_s       = ::move(start_rsrcs_attrs.lmake_root_s  ) ;
 			reply.method                 =        start_rsrcs_attrs.method          ;
+			reply.stderr_ok              =        start_rsrcs_attrs.stderr_ok       ;
 			reply.timeout                =        start_rsrcs_attrs.timeout         ;
 			reply.use_script             =        start_rsrcs_attrs.use_script      ;
 			reply.autodep_env.readdir_ok =        start_rsrcs_attrs.readdir_ok      ;
@@ -453,7 +454,6 @@ namespace Backends {
 		if (steps[StartStep::CmdAttrs]) {
 			reply.chroot_info.dir_s           = ::move(start_cmd_attrs.chroot_dir_s   ) ;
 			reply.interpreter                 = ::move(start_cmd_attrs.interpreter    ) ;
-			reply.stderr_ok                   =        start_cmd_attrs.stderr_ok        ;
 			reply.autodep_env.auto_mkdir      =        start_cmd_attrs.auto_mkdir       ;
 			reply.autodep_env.ignore_stat     =        start_cmd_attrs.ignore_stat      ;
 			reply.autodep_env.mount_chroot_ok =        start_cmd_attrs.mount_chroot_ok  ;
@@ -702,6 +702,20 @@ namespace Backends {
 			digest.local = entry.submit_info.local ;
 			_s_start_tab_erase(it) ;
 		}
+		//
+		Pdate jerr_start_date = jerr.end_date - jerr.stats.job                                     ;
+		Delay d               = ::max( jerr.end_date-je.end_date , je.start_date-jerr_start_date ) ;
+		if (d>g_config->network_delay) {
+			static ::uset<in_addr_t> s_warned ;
+			if (s_warned.insert(je.host).second) {
+				Delay nd   = g_config->network_delay ;
+				Lock  lock { g_py_stderr_mutex }     ;                                                        // ensure we actually write to stderr and not a diverted fd
+				Fd::Stderr.write(cat(
+					"detected (harmless) date discrepancy (>",d.short_str(),") between ",SockFd::s_host(je.host)," and ",host()," larger than network delay (",nd.short_str(),")\n"
+				)) ;
+			}
+		}
+		//
 		trace("digest",digest) ;
 		job->end_exec() ;
 		// record to file before queueing to main thread as main thread appends to file and may otherwise access info

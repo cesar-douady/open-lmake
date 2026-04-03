@@ -146,39 +146,36 @@ namespace Engine {
 
 namespace Engine {
 
+	using IsDynVector = ::pair<bool,::vector<uint8_t>> ; // cannot use stupid std::vector<bool>
+	using IsDynMap    = ::pair<bool,::uset_s         > ;
 	namespace Attrs {
-		// statics
-		/**/                   bool/*updated*/ acquire( bool               & dst , Py::Object const* py_src                                                       ) ;
-		/**/                   bool/*updated*/ acquire( Delay              & dst , Py::Object const* py_src , Delay min=Delay::Lowest , Delay max=Delay::Highest  ) ;
-		/**/                   bool/*updated*/ acquire( JobSpace::ViewDescr& dst , Py::Object const* py_src                                                       ) ;
-		/**/                   bool/*updated*/ acquire( Zlvl               & dst , Py::Object const* py_src                                                       ) ;
-		template<::integral I> bool/*updated*/ acquire( I                  & dst , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>          ) ;
-		template<UEnum      E> bool/*updated*/ acquire( E                  & dst , Py::Object const* py_src ,                     BitMap<E> accepted=~BitMap<E>() ) ;
-		template<UEnum      E> bool/*updated*/ acquire( BitMap<E>          & dst , Py::Object const* py_src , BitMap<E> dflt={} , BitMap<E> accepted=~BitMap<E>() ) ;
+		/**/                   void acquire( bool               &/*out*/ dst , bool&/*out*/ is_dyn , Py::Object const* py_src                                                       ) ;
+		/**/                   void acquire( Delay              &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src , Delay min=Delay::Lowest , Delay max=Delay::Highest  ) ;
+		/**/                   void acquire( JobSpace::ViewDescr&/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src                                                       ) ;
+		/**/                   void acquire( Zlvl               &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src                                                       ) ;
+		template<::integral I> void acquire( I                  &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>          ) ;
+		template<UEnum      E> void acquire( E                  &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src ,                     BitMap<E> accepted=~BitMap<E>() ) ;
+		template<UEnum      E> void acquire( BitMap<E>          &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src , BitMap<E> dflt={} , BitMap<E> accepted=~BitMap<E>() ) ;
 		//
-		template<        bool Env=false>                                         bool/*updated*/ acquire( ::string     & dst , Py::Object const* py_src ) ;
-		template<class T,bool Env=false> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vector<T  >& dst , Py::Object const* py_src ) ;
-		template<class T,bool Env=false> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vmap_s<T  >& dst , Py::Object const* py_src ) ;
+		template<        bool Env=false> void acquire( ::string   &/*out*/ dst , bool       &/*out*/ is_dyn , Py::Object const* py_src ) ;
+		template<class T               > void acquire( ::vector<T>&/*.  */ dst , IsDynVector&/*.  */ is_dyn , Py::Object const* py_src ) ;
+		template<class T,bool Env=false> void acquire( ::vmap_s<T>&/*.  */ dst , IsDynMap   &/*.  */ is_dyn , Py::Object const* py_src ) ;
 		//
-		template<class T,bool Env=false> requires(!Env||IsOneOf<T,::string,::vector_s,::vmap_ss>) bool/*update*/ acquire_from_dct( T& dst , Py::Dict const& py_dct , ::string const& key ) {
-			try {
-				if      constexpr (IsOneOf<T,::string            >) {                       if (py_dct.contains(key)) return acquire<         Env>( dst , &py_dct[key] ) ; else return false ; }
-				else if constexpr (IsOneOf<T,::vector_s,::vmap_ss>) {                       if (py_dct.contains(key)) return acquire<::string,Env>( dst , &py_dct[key] ) ; else return false ; }
-				else                                                { static_assert(!Env) ; if (py_dct.contains(key)) return acquire              ( dst , &py_dct[key] ) ; else return false ; }
-			} catch (::string const& e) {
-				throw cat("while processing ",key," : ",e) ;
-			}
+		template<class T,class D,class... A> void acquire_from_dct( T&/*out*/ dst , D&/*out*/ is_dyn , Py::Dict const& py_dct , ::string const& key , A const&... args ) {
+			if (py_dct.contains(key))
+				try                       { acquire( /*out*/dst , /*out*/is_dyn , &py_dct[key] , args... ) ; }
+				catch (::string const& e) { throw cat("while processing ",key," : ",e) ;                     }
 		}
-		template<class T> bool/*update*/ acquire_from_dct( T& dst , Py::Dict const& py_dct , ::string const& key , T min ) {
-				if (py_dct.contains(key)) return acquire( dst , &py_dct[key] , min ) ;
-				else                      return false                               ;
+		template<class T,bool Env=false> void acquire_from_dct( ::vmap_s<T>&/*out*/ dst , IsDynMap&/*out*/ is_dyn , Py::Dict const& py_dct , ::string const& key ) {
+			static_assert(!Env||::is_same_v<T,::string>) ;
+			if (py_dct.contains(key))
+				try                       { acquire<T,Env>( /*out*/dst , /*out*/is_dyn , &py_dct[key] ) ; }
+				catch (::string const& e) { throw cat("while processing ",key," : ",e) ;                  }
 		}
-		template<class T> bool/*update*/ acquire_from_dct( T& dst , Py::Dict const& py_dct , ::string const& key , T min , T max ) {
-				if (py_dct.contains(key)) return acquire( dst , &py_dct[key] , min , max ) ;
-				else                      return false                                    ;
+		inline void acquire_env( ::vmap_ss&/*out*/ dst , IsDynMap&/*out*/ is_dyn , Py::Dict const& py_dct , ::string const& key ) {
+			acquire_from_dct<::string,true/*Env*/>( /*out*/dst , /*out*/is_dyn , py_dct , key ) ;
 		}
-		inline void acquire_env( ::vmap_ss& dst , Py::Dict const& py_dct , ::string const& key ) { acquire_from_dct<::vmap_ss,true/*Env*/>(dst,py_dct,key) ; }
-	} ;
+	}
 
 	struct DepSpec {
 		// accesses
@@ -193,13 +190,14 @@ namespace Engine {
 	struct DepsAttrs {
 		static constexpr const char* Msg = "deps" ;
 		// cxtors & casts
-		void init( Py::Dict const& , ::umap_s<CmdIdx> const& , RuleData const& ) ;
-		// accesses
-		void mk_full_dyn() { dyn_deps = true ; }
+		void init( Py::Object const& , ::umap_s<CmdIdx> const& , RuleData const& ) ;
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , deps,dyn_deps.first ) ; // dyn_deps.first is used algorithmically, not for pretty print only
+		}
 		// data
 		// START_OF_VERSIONING REPO
-		bool dyn_deps = false ;
-		::vmap_s<DepSpec> deps ;
+		::vmap_s<DepSpec> deps ; IsDynMap dyn_deps = {} ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -207,13 +205,13 @@ namespace Engine {
 	struct SubmitRsrcsAttrs {
 		static constexpr const char* Msg = "submit resources attributes" ;
 		// services
-		void update(Py::Dict const& py_dct) {
-			dyn_rsrcs = false ;                                                                                                     // update solves dynamic val
-			/**/ Attrs::acquire_from_dct( backend , py_dct , "backend" ) ;
-			if ( Attrs::acquire_from_dct( rsrcs   , py_dct , "rsrcs"   ) ) ::sort(rsrcs) ;                                          // stabilize rsrcs crc
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , backend ) ;
+			::serdes( s , rsrcs   ) ;
 		}
-		void mk_dyn(::uset_s const& dyn_keys) {
-			if (dyn_keys.contains("rsrcs")) dyn_rsrcs = true ;
+		void update(Py::Dict const& py_dct) {
+			Attrs::acquire_from_dct( backend , dyn_backend , py_dct , "backend" ) ;
+			Attrs::acquire_from_dct( rsrcs   , dyn_rsrcs   , py_dct , "rsrcs"   ) ;
 		}
 		Tokens1 tokens1() const {
 			for( auto const& [k,v] : rsrcs ) if (k=="cpu")
@@ -223,9 +221,8 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		bool       dyn_rsrcs = false             ;
-		BackendTag backend   = BackendTag::Local ;                                                                                  // backend to use to launch jobs
-		::vmap_ss  rsrcs     ;
+		BackendTag backend = BackendTag::Local ; bool     dyn_backend = false ;                                                     // backend to use to launch jobs
+		::vmap_ss  rsrcs   ;                     IsDynMap dyn_rsrcs   = {}    ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -233,13 +230,16 @@ namespace Engine {
 	struct SubmitAncillaryAttrs {
 		static constexpr const char* Msg = "cache key" ;
 		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , cache_name ) ;
+		}
 		void update( Py::Dict const& py_dct ) {
-			Attrs::acquire_from_dct( cache_name , py_dct , "cache" ) ;
+			Attrs::acquire_from_dct( cache_name , dyn_cache_name , py_dct , "cache" ) ;
 			throw_unless( !cache_name || g_config->cache_idxes.contains(cache_name) , "unexpected cache ",cache_name," not found in config" ) ;
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		::string cache_name ;
+		::string cache_name ; bool dyn_cache_name = false ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -247,72 +247,80 @@ namespace Engine {
 	struct StartCmdAttrs {
 		static constexpr const char* Msg = "execution command attributes" ;
 		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , chroot_dir_s    ) ;
+			::serdes( s , auto_mkdir      ) ;
+			::serdes( s , env             ) ;
+			::serdes( s , ignore_stat     ) ;
+			::serdes( s , interpreter     ) ;
+			::serdes( s , mount_chroot_ok ) ;
+			::serdes( s , job_space       ) ;
+		}
 		void update( Py::Dict const& py_dct ) {
 			using namespace Attrs ;
-			dyn_env = false ;                                                                                                                                 // update solves dynamic val
-			Attrs::acquire_from_dct( auto_mkdir             , py_dct , "auto_mkdir"      ) ;
-			Attrs::acquire_from_dct( chroot_dir_s           , py_dct , "chroot_dir"      ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
-			Attrs::acquire_env     ( env                    , py_dct , "env"             ) ;
-			Attrs::acquire_from_dct( ignore_stat            , py_dct , "ignore_stat"     ) ;
-			Attrs::acquire_from_dct( interpreter            , py_dct , "interpreter"     ) ;
-			Attrs::acquire_from_dct( mount_chroot_ok        , py_dct , "mount_chroot_ok" ) ;
-			Attrs::acquire_from_dct( stderr_ok              , py_dct , "stderr_ok"       ) ;
-			Attrs::acquire_from_dct( job_space.lmake_view_s , py_dct , "lmake_view"      ) ; if (+job_space.lmake_view_s)              add_slash(job_space.lmake_view_s) ;
-			Attrs::acquire_from_dct( job_space.repo_view_s  , py_dct , "repo_view"       ) ; if (+job_space.repo_view_s )              add_slash(job_space.repo_view_s ) ;
-			Attrs::acquire_from_dct( job_space.tmp_view_s   , py_dct , "tmp_view"        ) ; if (+job_space.tmp_view_s  )              add_slash(job_space.tmp_view_s  ) ;
-			Attrs::acquire_from_dct( job_space.views        , py_dct , "views"           ) ; for( auto& [view_s,_] : job_space.views ) add_slash(view_s                ) ;
-			//
-			::sort( env                                                                                                                                   ) ; // stabilize cmd crc
-			::sort( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& a,::pair_s<JobSpace::ViewDescr> const&b)->bool { return a.first<b.first ; } ) ; // .
-		}
-		void mk_dyn(::uset_s const& dyn_keys) {
-			if (dyn_keys.contains("env"  )) dyn_env   = true ;
-			if (dyn_keys.contains("views")) dyn_views = true ;
+			Attrs::acquire_from_dct( auto_mkdir             , dyn_auto_mkdir      , py_dct , "auto_mkdir"      ) ;
+			Attrs::acquire_from_dct( chroot_dir_s           , dyn_chroot_dir_s    , py_dct , "chroot_dir"      ) ; if (+chroot_dir_s) add_slash(chroot_dir_s) ;
+			Attrs::acquire_env     ( env                    , dyn_env             , py_dct , "env"             ) ;
+			Attrs::acquire_from_dct( ignore_stat            , dyn_ignore_stat     , py_dct , "ignore_stat"     ) ;
+			Attrs::acquire_from_dct( interpreter            , dyn_interpreter     , py_dct , "interpreter"     ) ;
+			Attrs::acquire_from_dct( mount_chroot_ok        , dyn_mount_chroot_ok , py_dct , "mount_chroot_ok" ) ;
+			Attrs::acquire_from_dct( job_space.lmake_view_s , dyn_lmake_view_s    , py_dct , "lmake_view"      ) ; if (+job_space.lmake_view_s) add_slash(job_space.lmake_view_s) ;
+			Attrs::acquire_from_dct( job_space.repo_view_s  , dyn_repo_view_s     , py_dct , "repo_view"       ) ; if (+job_space.repo_view_s ) add_slash(job_space.repo_view_s ) ;
+			Attrs::acquire_from_dct( job_space.tmp_view_s   , dyn_tmp_view_s      , py_dct , "tmp_view"        ) ; if (+job_space.tmp_view_s  ) add_slash(job_space.tmp_view_s  ) ;
+			Attrs::acquire_from_dct( job_space.views        , dyn_views           , py_dct , "views"           ) ; for( auto& [v_s,_] : job_space.views ) add_slash(v_s) ;
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		::string   chroot_dir_s    ;
-		bool       dyn_env         = false ;
-		bool       dyn_views       = false ;
-		bool       auto_mkdir      = false ;
-		::vmap_ss  env             ;
-		bool       ignore_stat     = false ;
-		::vector_s interpreter     ;
-		bool       mount_chroot_ok = false ;
-		bool       stderr_ok       = false ;
-		JobSpace   job_space       ;
+		::string   chroot_dir_s    ;         bool        dyn_chroot_dir_s    = false ;
+		bool       auto_mkdir      = false ; bool        dyn_auto_mkdir      = false ;
+		::vmap_ss  env             ;         IsDynMap    dyn_env             = {}    ;
+		bool       ignore_stat     = false ; bool        dyn_ignore_stat     = false ;
+		::vector_s interpreter     ;         IsDynVector dyn_interpreter     = {}    ;
+		bool       mount_chroot_ok = false ; bool        dyn_mount_chroot_ok = false ;
+		JobSpace   job_space       ;         bool        dyn_lmake_view_s    = false ;
+		/**/                                 bool        dyn_repo_view_s     = false ;
+		/**/                                 bool        dyn_tmp_view_s      = false ;
+		/**/                                 IsDynMap    dyn_views           = {}    ;
 		// END_OF_VERSIONING
 	} ;
 
 	// used at start time, participate in resources
 	struct StartRsrcsAttrs {
 		static constexpr const char* Msg = "execution resources attributes" ;
-		void update( Py::Dict const& py_dct ) {
-			dyn_env = false ;                                                                             // update solves dynamic val
-			Attrs::acquire_from_dct( chk_abs_paths  , py_dct , "check_abs_paths"                      ) ;
-			Attrs::acquire_from_dct( chroot_actions , py_dct , "chroot_actions"                       ) ;
-			Attrs::acquire_env     ( env            , py_dct , "env"                                  ) ;
-			Attrs::acquire_from_dct( lmake_root_s   , py_dct , "lmake_root"                           ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
-			Attrs::acquire_from_dct( method         , py_dct , "autodep"                              ) ;
-			Attrs::acquire_from_dct( readdir_ok     , py_dct , "readdir_ok"                           ) ;
-			Attrs::acquire_from_dct( timeout        , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( use_script     , py_dct , "use_script"                           ) ;
-			::sort(env) ;                                                                                 // stabilize rsrcs crc
+		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , chk_abs_paths  ) ;
+			::serdes( s , chroot_actions ) ;
+			::serdes( s , env            ) ;
+			::serdes( s , lmake_root_s   ) ;
+			::serdes( s , method         ) ;
+			::serdes( s , readdir_ok     ) ;
+			::serdes( s , stderr_ok      ) ;
+			::serdes( s , timeout        ) ;
+			::serdes( s , use_script     ) ;
 		}
-		void mk_dyn(::uset_s const& dyn_keys) {
-			if (dyn_keys.contains("env")) dyn_env = true ;
+		void update( Py::Dict const& py_dct ) {
+			Attrs::acquire_from_dct( chk_abs_paths  , dyn_chk_abs_paths  , py_dct , "check_abs_paths"                      ) ;
+			Attrs::acquire_from_dct( chroot_actions , dyn_chroot_actions , py_dct , "chroot_actions"                       ) ;
+			Attrs::acquire_env     ( env            , dyn_env            , py_dct , "env"                                  ) ;
+			Attrs::acquire_from_dct( lmake_root_s   , dyn_lmake_root_s   , py_dct , "lmake_root"                           ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
+			Attrs::acquire_from_dct( method         , dyn_method         , py_dct , "autodep"                              ) ;
+			Attrs::acquire_from_dct( readdir_ok     , dyn_readdir_ok     , py_dct , "readdir_ok"                           ) ;
+			Attrs::acquire_from_dct( stderr_ok      , dyn_stderr_ok      , py_dct , "stderr_ok"                            ) ;
+			Attrs::acquire_from_dct( timeout        , dyn_timeout        , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( use_script     , dyn_use_script     , py_dct , "use_script"                           ) ;
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		bool          dyn_env        = false               ;
-		bool          chk_abs_paths  = false               ;
-		ChrootActions chroot_actions ;
-		::vmap_ss     env            ;
-		::string      lmake_root_s   ;
-		AutodepMethod method         = AutodepMethod::Dflt ;
-		bool          readdir_ok     = false               ;
-		Time::Delay   timeout        ;                                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
-		bool          use_script     = false               ;
+		bool          chk_abs_paths  = false               ; bool     dyn_chk_abs_paths  = false ;
+		ChrootActions chroot_actions ;                       bool     dyn_chroot_actions = false ;
+		::vmap_ss     env            ;                       IsDynMap dyn_env            = {}    ;
+		::string      lmake_root_s   ;                       bool     dyn_lmake_root_s   = false ;
+		AutodepMethod method         = AutodepMethod::Dflt ; bool     dyn_method         = false ;
+		bool          readdir_ok     = false               ; bool     dyn_readdir_ok     = false ;
+		bool          stderr_ok      = false               ; bool     dyn_stderr_ok      = false ;
+		Time::Delay   timeout        ;                       bool     dyn_timeout        = false ; // if 0 <=> no timeout, maximum time allocated to job execution in s
+		bool          use_script     = false               ; bool     dyn_use_script     = false ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -320,31 +328,34 @@ namespace Engine {
 	struct StartAncillaryAttrs {
 		static constexpr const char* Msg = "execution ancillary attributes" ;
 		// services
+		template<IsStream S> void serdes(S& s) {
+			::serdes( s , env            ) ;
+			::serdes( s , keep_tmp       ) ;
+			::serdes( s , kill_daemons   ) ;
+			::serdes( s , kill_sigs      ) ;
+			::serdes( s , max_stderr_len ) ;
+			::serdes( s , start_delay    ) ;
+			::serdes( s , zlvl           ) ;
+		}
 		void update( Py::Dict const& py_dct ) {
 			using namespace Attrs ;
-			dyn_env = false ;                                                                              // update solves dynamic val
-			Attrs::acquire_env     ( env            , py_dct , "env"                                   ) ;
-			Attrs::acquire_from_dct( keep_tmp       , py_dct , "keep_tmp"                              ) ;
-			Attrs::acquire_from_dct( kill_daemons   , py_dct , "kill_daemons"                          ) ;
-			Attrs::acquire_from_dct( kill_sigs      , py_dct , "kill_sigs"                             ) ;
-			Attrs::acquire_from_dct( max_stderr_len , py_dct , "max_stderr_len"                        ) ;
-			Attrs::acquire_from_dct( start_delay    , py_dct , "start_delay"    , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( zlvl           , py_dct , "compression"                           ) ;
-			::sort(env) ;                                                                                  // by symmetry with env entries in StartCmdAttrs and StartRsrcsAttrs
-		}
-		void mk_dyn(::uset_s const& dyn_keys) {
-			if (dyn_keys.contains("env")) dyn_env = true ;
+			Attrs::acquire_env     ( env            , dyn_env            , py_dct , "env"                                   ) ;
+			Attrs::acquire_from_dct( keep_tmp       , dyn_keep_tmp       , py_dct , "keep_tmp"                              ) ;
+			Attrs::acquire_from_dct( kill_daemons   , dyn_kill_daemons   , py_dct , "kill_daemons"                          ) ;
+			Attrs::acquire_from_dct( kill_sigs      , dyn_kill_sigs      , py_dct , "kill_sigs"                             ) ;
+			Attrs::acquire_from_dct( max_stderr_len , dyn_max_stderr_len , py_dct , "max_stderr_len"                        ) ;
+			Attrs::acquire_from_dct( start_delay    , dyn_start_delay    , py_dct , "start_delay"    , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( zlvl           , dyn_zlvl           , py_dct , "compression"                           ) ;
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		bool              dyn_env        = false ;
-		::vmap_ss         env            ;
-		bool              keep_tmp       = false ;
-		bool              kill_daemons   = false ;
-		::vector<uint8_t> kill_sigs      ;                                                                 // signals to use to kill job (tried in sequence, 1s apart from each other)
-		uint16_t          max_stderr_len = 0     ;                                                         // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
-		Time::Delay       start_delay    ;                                                                 // job duration above which a start message is generated
-		Zlvl              zlvl           = {}    ;
+		::vmap_ss         env            ;         IsDynMap    dyn_env            = {}    ;
+		bool              keep_tmp       = false ; bool        dyn_keep_tmp       = false ;
+		bool              kill_daemons   = false ; bool        dyn_kill_daemons   = false ;
+		::vector<uint8_t> kill_sigs      ;         IsDynVector dyn_kill_sigs      = {}    ; // signals to use to kill job (tried in sequence, 1s apart from each other)
+		uint16_t          max_stderr_len = 0     ; bool        dyn_max_stderr_len = false ; // max lines when displaying stderr, 0 means no limit (full content is shown with lshow -e)
+		Time::Delay       start_delay    ;         bool        dyn_start_delay    = false ; // job duration above which a start message is generated
+		Zlvl              zlvl           = {}    ; bool        dyn_zlvl           = false ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -561,6 +572,7 @@ namespace Engine {
 		/**/              ::string _pretty_matches(                    ) const ;
 		/**/              ::string _pretty_deps   (                    ) const ;
 		/**/              ::string _pretty_env    (                    ) const ;
+		/**/              ::string _pretty_rsrcs  (                    ) const ;
 		/**/              ::string _pretty_views  (                    ) const ;
 		// START_OF_VERSIONING REPO
 		// user data
@@ -717,15 +729,14 @@ namespace Engine {
 
 	namespace Attrs {
 
-		template<::integral I> bool/*updated*/ acquire( I& dst , Py::Object const* py_src , I min , I max ) {
-			if (!py_src          ) {           return false/*updated*/ ; }
-			if (*py_src==Py::None) { dst = 0 ; return true /*updated*/ ; }
+		template<::integral I> void acquire( I&/*out*/ dst , bool&/*out*/ is_dyn , Py::Object const* py_src , I min , I max ) {
+			if (!py_src           )                   return ;
+			if ( py_src==&Py::None) { is_dyn = true ; return ; }
 			//
 			long v = py_src->as_a<Py::Int>() ;
 			throw_if( ::cmp_less   (v,min) , "underflow" ) ;
 			throw_if( ::cmp_greater(v,max) , "overflow"  ) ;
 			dst = I(v) ;
-			return true ;
 		}
 
 
@@ -735,64 +746,44 @@ namespace Engine {
 			E    val = mk_enum<E>(src) ; throw_unless( accepted[val]       , "unexpected value ",src," not in ",accepted ) ;
 			/**/                         return { val , neg }                                                              ;
 		}
-		template<UEnum E> bool/*updated*/ acquire( E& dst , Py::Object const* py_src , BitMap<E> accepted ) {
-			if (!py_src) return false/*updated*/ ;
-			E sav_dst = dst ;
-			if (*py_src==Py::None) {
-				if constexpr (requires(){E::Dflt;}) dst = E::Dflt ;
-				else                                dst = {}      ;
-			} else {
-				bool neg ;
-				tie(dst,neg) = _acquire_enum_val<E>( py_src->as_a<Py::Str>() , accepted ) ;
-				throw_if( neg , "value ",dst,"cannot be negative" ) ;
-			}
-			return dst!=sav_dst ;
+		template<UEnum E> void acquire( E&/*out*/ dst , bool&/*out*/ is_dyn , Py::Object const* py_src , BitMap<E> accepted ) {
+			if (!py_src           )                   return ;
+			if ( py_src==&Py::None) { is_dyn = true ; return ; }
+			bool neg ;
+			tie(dst,neg) = _acquire_enum_val<E>( py_src->as_a<Py::Str>() , accepted ) ;
+			throw_if( neg , "value ",dst,"cannot be negative" ) ;
 		}
-		template<UEnum E> bool/*updated*/ acquire( BitMap<E>& dst , Py::Object const* py_src , BitMap<E> dflt , BitMap<E> accepted ) {
-			if (!py_src) return false/*updated*/ ;
-			BitMap<E> sav_dst = dst ;
+		template<UEnum E> void acquire( BitMap<E>&/*out*/ dst , bool&/*out*/ is_dyn , Py::Object const* py_src , BitMap<E> dflt , BitMap<E> accepted ) {
+			if (!py_src           )                   return ;
+			if ( py_src==&Py::None) { is_dyn = true ; return ; }
+			//
+			auto acquire1 = [&](Py::Object const& py_v) {
+				::pair<E,bool/*neg*/> e_n = _acquire_enum_val<E>( py_v.as_a<Py::Str>() , accepted ) ;
+				if (e_n.second) dst &= ~e_n.first ;
+				else            dst |=  e_n.first ;
+			} ;
 			dst = dflt ;
-			if (*py_src!=Py::None) {
-				auto acquire1 = [&](Py::Object const& py_v) {
-					::pair<E,bool/*neg*/> e_n = _acquire_enum_val<E>( py_v.as_a<Py::Str>() , accepted ) ;
-					if (e_n.second) dst &= ~e_n.first ;
-					else            dst |=  e_n.first ;
-				} ;
-				//
-				if      (py_src->is_a<Py::Str     >())                                                                  acquire1(*py_src) ;
-				else if (py_src->is_a<Py::Sequence>()) { for( Py::Object const& py_val : py_src->as_a<Py::Sequence>() ) acquire1( py_val) ; }
-				else                                     throw cat("type error : ",py_src->type_name()," is not a str nor a list/tuple") ;
-			}
-			return dst!=sav_dst ;
+			if      (py_src->is_a<Py::Str     >())                                                                  acquire1(*py_src) ;
+			else if (py_src->is_a<Py::Sequence>()) { for( Py::Object const& py_val : py_src->as_a<Py::Sequence>() ) acquire1( py_val) ; }
+			else                                     throw cat("type error : ",py_src->type_name()," is not a str nor a list/tuple") ;
 		}
 
-		template<bool Env> bool/*updated*/ acquire( ::string& dst , Py::Object const* py_src ) {
-			if (!py_src) return false/*updated*/ ;
-			bool sav_dst = +dst ;
-			if      (*py_src==Py::None    ) dst = {}                      ;
-			else if (*py_src==Py::Ellipsis) dst = Env ? PassMrkr : "..."s ;
-			else                            dst = *py_src->str()          ;
-			return +dst || sav_dst ;                                        // do not detect value update if none are empty, just a little bit pessimistic
+		template<bool Env> void acquire( ::string&/*out*/ dst , bool&/*out*/ is_dyn , Py::Object const* py_src ) {
+			if (!py_src           )                   return ;
+			if ( py_src==&Py::None) { is_dyn = true ; return ; }
+			//
+			if (*py_src==Py::Ellipsis) dst = Env ? PassMrkr : "..."s ;
+			else                       dst = *py_src->str()          ;
 		}
 
-		template<class T,bool Env> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vector<T>& dst , Py::Object const* py_src ) {
-			if (!py_src) return false/*updated*/ ;
-			if (*py_src==Py::None) {
-				bool sav_dst = +dst ;
-				dst = {} ;
-				return sav_dst ;
-			}
-			bool   updated = false      ;
-			size_t n       = dst.size() ;
-			size_t i       = 0          ;
+		template<class T> void acquire( ::vector<T>&/*out*/ dst , IsDynVector&/*out*/ is_dyn , Py::Object const* py_src ) {
+			if (!py_src           )                         return ;
+			if ( py_src==&Py::None) { is_dyn.first = true ; return ; }
+			size_t n = dst.size() ;
+			size_t i = 0          ;
 			auto handle_entry = [&](Py::Object const& py_item) {
-				if (py_item==Py::None) return ;
-				try {
-					if constexpr (Env) updated |= acquire<Env>(grow(dst,i++),&py_item) ; // special case for environment where we replace occurrences of lmake & repo roots by markers ...
-					else               updated |= acquire     (grow(dst,i++),&py_item) ; // ... to make repo robust to moves of lmake or itself
-				} catch (::string const& e) {
-					throw cat("for item ",i," : ",e) ;
-				}
+				try                       { bool id=false ; acquire( /*out*/grow(dst,i) , /*out*/id , &py_item ) ; grow(is_dyn.second,i)=id ; i++ ; }
+				catch (::string const& e) { throw cat("for item ",i," : ",e) ;                                                                      }
 			} ;
 			if (py_src->is_a<Py::Sequence>()) {
 				Py::Sequence const& py_seq = py_src->as_a<Py::Sequence>() ;
@@ -801,37 +792,29 @@ namespace Engine {
 			} else {
 				handle_entry(*py_src) ;
 			}
-			if (i!=n) {
-				updated = true ;
-				dst.resize(i) ;
-			}
-			return updated ;
+			if (i!=n) dst.resize(i) ;
 		}
 
-		template<class T,bool Env> requires(!Env||::is_same_v<T,::string>) bool/*updated*/ acquire( ::vmap_s<T>& dst , Py::Object const* py_src ) {
-			if (!py_src) return false/*updated*/ ;
-			if (*py_src==Py::None) {
-				bool sav_dst = +dst ;
-				dst = {} ;
-				return sav_dst ;
-			}
+		template<class T,bool Env> void acquire( ::vmap_s<T>&/*out*/ dst , IsDynMap&/*out*/ is_dyn , Py::Object const* py_src ) {
+			static_assert(!Env||::is_same_v<T,::string>) ;
+			if (!py_src           )                         return ;
+			if ( py_src==&Py::None) { is_dyn.first = true ; return ; }
 			//
-			bool            updated = false                    ;
-			::map_s<T>      dst_map = mk_map(dst)              ;
+			::map_s<T>      dst_map = mk_map(dst)              ;                                 // keep sorted to ensure crc stability
 			Py::Dict const& py_map  = py_src->as_a<Py::Dict>() ;
 			for( auto const& [py_key,py_val] : py_map ) {
 				::string key = py_key.template as_a<Py::Str>() ;
+				auto     it  = dst_map.emplace(key,T()).first  ;
+				bool     id  = false                           ;
 				try {
-					auto [it,inserted] = dst_map.emplace(key,T()) ;
-					/**/               updated |= inserted                         ;
-					if constexpr (Env) updated |= acquire<Env>(it->second,&py_val) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
-					else               updated |= acquire     (it->second,&py_val) ; // ... to make repo robust to moves of lmake or itself
+					if constexpr (Env) acquire<Env>( /*out*/it->second , /*out*/id , &py_val ) ; // special case for environment where we replace occurrences of lmake & root dirs by markers ...
+					else               acquire     ( /*out*/it->second , /*out*/id , &py_val ) ; // ... to make repo robust to moves of lmake or itself
 				} catch (::string const& e) {
 					throw cat("for item ",key," : ",e) ;
 				}
+				if (id) is_dyn.second.insert(key) ;
 			}
 			dst = mk_vmap(dst_map) ;
-			return updated ;
 		}
 
 	}
@@ -883,30 +866,16 @@ namespace Engine {
 		trace("done",kind,kind_) ;
 	}
 
-	template<class Spec> concept SpecHasInit      = requires( Spec spec , Py::Dict dct ) { spec.init       (dct,::umap_s<CmdIdx>(),RuleData()) ; } ;
-	template<class Spec> concept SpecHasUpdate    = requires( Spec spec , Py::Dict dct ) { spec.update     (dct                              ) ; } ;
-	template<class Spec> concept SpecHasMkDyn     = requires( Spec spec                ) { spec.mk_dyn     (::uset_s()                       ) ; } ;
-	template<class Spec> concept SpecHasMkFullDyn = requires( Spec spec                ) { spec.mk_full_dyn(                                 ) ; } ;
+	template<class Spec> concept SpecHasInit   = requires( Spec spec , Py::Object dct ) { spec.init  (dct,::umap_s<CmdIdx>(),RuleData()) ; } ;
+	template<class Spec> concept SpecHasUpdate = requires( Spec spec , Py::Dict   dct ) { spec.update(dct                              ) ; } ;
 	template<class T> Dyn<T>::Dyn( RulesBase& rules , Py::Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , RuleData const& rd ) {
 		Py::Ptr<>  py_update ;
 		Py::Ptr<>* pu        = SpecHasUpdate<T> ? &py_update : nullptr ;
 		//
 		static_cast<DynBase&>(self) = DynBase( /*out*/pu , rules , py_src , var_idxs , ::is_same_v<T,Cmd>?No|rd.is_python:Maybe ) ;
 		if (py_src.contains("static") ) {
-			if      constexpr (SpecHasInit  <T>) spec.init  ( py_src["static"].as_a<Py::Dict>() , var_idxs , rd ) ;
-			else if constexpr (SpecHasUpdate<T>) spec.update( py_src["static"].as_a<Py::Dict>()                 ) ;
-		}
-		if (py_src.contains("dyn_vals") ) {
-			Py::Object const& py_dyn_vals = py_src["dyn_vals"] ;
-			if constexpr (SpecHasMkFullDyn<T>) {
-				if (&py_dyn_vals==&Py::True) spec.mk_full_dyn() ;
-			}
-			if constexpr (SpecHasMkDyn<T>) {
-				if (py_dyn_vals.is_a<Py::Sequence>()) {
-					::uset_s dyn_vals ; for( Py::Object const& py_dyn_val : py_dyn_vals.as_a<Py::Sequence>() ) dyn_vals.insert(*py_dyn_val.str()) ;
-					spec.mk_dyn(dyn_vals) ;
-				}
-			}
+			if      constexpr (SpecHasInit  <T>) spec.init  ( py_src["static"] , var_idxs , rd  ) ;
+			else if constexpr (SpecHasUpdate<T>) spec.update( py_src["static"].as_a<Py::Dict>() ) ;
 		}
 		if constexpr (SpecHasUpdate<T>) { if   (+py_update) spec.update(py_update->as_a<Py::Dict>()) ; }
 		else                              SWEAR(!py_update) ;                                            // if we have no update, we'd better have nothing to update

@@ -749,16 +749,11 @@ struct JobSpace {
 		// accesses
 		void operator>>(::string&) const ;
 		bool operator+ (         ) const { return +phys_s ; }
-		// services
-		template<IsStream S> void serdes(S& s) {
-			::serdes( s , phys_s,copy_up ) ;
-		}
 		// data
 		// START_OF_VERSIONING REPO CACHE
 		::vector_s phys_s  = {} ;                                                                        // (upper,lower...)
 		::vector_s copy_up = {} ;                                                                        // dirs & files or dirs to create in upper (mkdir or cp <file> from lower...)
 		// END_OF_VERSIONING
-		bool is_dyn = false ;                                                                            // only used in rule attributes
 	} ;
 	// accesses
 	void operator>>(::string&) const ;

@@ -58,7 +58,6 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* restore dynamic entries in LMAKE/rules
 * improve lmake -h
 	- add tag
 	- simplify text

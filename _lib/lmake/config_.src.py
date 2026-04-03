@@ -40,7 +40,9 @@ config = pdict(
 #	                                                        # open-lmake ensures unicity between repos, so a hard-coded value is ok
 ,	max_dep_depth       = 100                               # used to detect infinite recursions and loops
 ,	max_error_lines     = 100                               # used to limit the number of error lines when not reasonably limited otherwise
-,	network_delay       = 1                                 # delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.
+,	network_delay       = 1                                 # delay between job completed and server aware of it
+	#                                                       # too low, there may be spurious lost jobs and there may be crashes if date discrepancy between hosts are larger than this
+	#                                                       # too high, tool reactivity may rarely suffer
 #,	nice                = 0                                 # nice value to apply to all jobs
 ,	path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)
 ,	sub_repos           = []                                # list of sub_repos

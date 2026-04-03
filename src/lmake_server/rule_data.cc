@@ -354,13 +354,13 @@ namespace Engine {
 			//
 			// acquire fields linked to job execution
 			//
-			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exe_time     , &dct[field]                                    ) ;
-			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force        , &dct[field]                                    ) ;
-			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python    , &dct[field]                                    ) ; else throw "not found"s ;
-			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts      , &dct[field]                                    ) ;
-			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( n_runs       , &dct[field]                                    ) ;
-			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits    , &dct[field]                                    ) ;
-			field = "retried_errors"      ; if (dct.contains(field)) Attrs::acquire( retried_errs , &dct[field] , DfltRetriedErrs , MaxRetriedErrs ) ;
+			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( /*out*/exe_time     , /*out*/::ref(bool()) , &dct[field]                                    ) ;
+			field = "force"               ; if (dct.contains(field)) Attrs::acquire( /*out*/force        , /*out*/::ref(bool()) , &dct[field]                                    ) ;
+			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( /*out*/is_python    , /*out*/::ref(bool()) , &dct[field]                                    ) ;
+			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( /*out*/n_losts      , /*out*/::ref(bool()) , &dct[field]                                    ) ;
+			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( /*out*/n_runs       , /*out*/::ref(bool()) , &dct[field]                                    ) ;
+			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( /*out*/n_submits    , /*out*/::ref(bool()) , &dct[field]                                    ) ;
+			field = "retried_errors"      ; if (dct.contains(field)) Attrs::acquire( /*out*/retried_errs , /*out*/::ref(bool()) , &dct[field] , DfltRetriedErrs , MaxRetriedErrs ) ;
 			if ( n_runs && n_submits ) n_submits = ::max( n_submits , n_runs ) ;                                                                       // n_submits<n_runs is meaningless
 			//
 			var_idxs["targets"] = { VarCmd::Targets , 0 } ;
@@ -374,8 +374,8 @@ namespace Engine {
 			field = "deps" ;
 			if (dct.contains("deps_attrs")) deps_attrs = { rules , dct["deps_attrs"].as_a<Dict>() , var_idxs , self } ;
 			//
-			/**/                                                                                       var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
-			if (!deps_attrs.spec.dyn_deps) for( VarIdx d : iota<VarIdx>(deps_attrs.spec.deps.size()) ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
+			/**/                                                                                             var_idxs["deps"                       ] = { VarCmd::Deps , 0 } ;
+			if (!deps_attrs.spec.dyn_deps.first) for( VarIdx d : iota<VarIdx>(deps_attrs.spec.deps.size()) ) var_idxs[deps_attrs.spec.deps[d].first] = { VarCmd::Dep  , d } ;
 			//
 			field = "submit_rsrcs_attrs"     ; if (dct.contains(field)) submit_rsrcs_attrs     = { rules , dct[field].as_a<Dict>() , var_idxs , self } ;
 			field = "submit_ancillary_attrs" ; if (dct.contains(field)) submit_ancillary_attrs = { rules , dct[field].as_a<Dict>() , var_idxs , self } ;
@@ -396,7 +396,7 @@ namespace Engine {
 					break ;
 				}
 			}
-			if (!deps_attrs.spec.dyn_deps)
+			if (!deps_attrs.spec.dyn_deps.first)
 				for( VarIdx di : iota<VarIdx>(deps_attrs.spec.deps.size()) ) {
 					if (deps_attrs.spec.deps[di].first!="dep") continue ;                                                                              // dep is a reserved key that means stdin
 					stdin_idx = di ;
@@ -493,54 +493,88 @@ namespace Engine {
 		::uset_s keys ;
 		//
 		res << title<<'\n' ;
-		for( auto const& [k,v] : m ) if ( !uniq || keys.insert(k).second ) {
-			res <<'\t'<<widen(k,wk)<<" :" ;
-			if (+v) res << ' '<<v ;
-			res <<'\n' ;
-		}
+		for( auto const& [k,v] : m )
+			if ( !uniq || keys.insert(k).second ) {
+				res << '\t'<<widen(k,wk)<<' ' ;
+				if constexpr (::is_same_v<T,::string>) {
+					if (!v) res << ':'     ;
+					else    res << ": "<<v ;
+				} else if constexpr (::is_same_v<T,::optional_s>) {
+					if      (!v ) res << "<dynamic>" ;
+					else if (!*v) res << ':'         ;
+					else          res << ": "<<*v    ;
+				} else static_assert(IsOneOf<T,::string,::optional_s>) ; // XXX/ : cannot simply put false with gcc-11
+				res <<'\n' ;
+			}
 		return res ;
 	}
 
 	::string RuleData::_pretty_env() const {
+		static const IsDynMap s_empty ;
 		::string res ;
-		for( auto const& [h,m_d] : ::vmap_s<::pair<::vmap_ss,bool>>({
-			{ "environ"           , {start_cmd_attrs      .spec.env,start_cmd_attrs      .spec.dyn_env} }
-		,	{ "environ_resources" , {start_rsrcs_attrs    .spec.env,start_rsrcs_attrs    .spec.dyn_env} }
-		,	{ "environ_ancillary" , {start_ancillary_attrs.spec.env,start_ancillary_attrs.spec.dyn_env} }
+		for( auto const& [h,m_d] : ::vmap_s<::pair<::vmap_ss const&,IsDynMap const&>>({
+			{ "environ"           , { start_cmd_attrs      .spec.env , start_cmd_attrs      .is_dyn()?start_cmd_attrs      .spec.dyn_env:s_empty } }
+		,	{ "environ_resources" , { start_rsrcs_attrs    .spec.env , start_rsrcs_attrs    .is_dyn()?start_rsrcs_attrs    .spec.dyn_env:s_empty } }
+		,	{ "environ_ancillary" , { start_ancillary_attrs.spec.env , start_ancillary_attrs.is_dyn()?start_ancillary_attrs.spec.dyn_env:s_empty } }
 		}) ) {
-			if (!m_d.first) continue ;
+			if ( m_d.second.first) { res << h<<" <dynamic>\n" ; continue ; }
+			if (!m_d.first       )                              continue ;
 			size_t wk = ::max<size_t>( m_d.first , [](auto const& k_v) { return k_v.first.size() ; } ) ;
-			res << h <<" :\n" ;
+			res << h<<" :\n" ;
 			for( auto const& [k,v] : m_d.first ) {
-				/**/                  res <<'\t'<< widen(k,wk) ;
-				if      (v==PassMrkr) res << "   ..."          ;
-				else if (+v         ) res << " : "<< v         ;
-				else                  res << " :"              ;
-				/**/                  res <<'\n'               ;
+				/**/                                    res << '\t'<<widen(k,wk)<<' ' ;
+				if      (m_d.second.second.contains(k)) res << "<dynamic>"            ;
+				else if (v==PassMrkr                  ) res << "..."                  ;
+				else if (!v                           ) res << ':'                    ;
+				else                                    res << ": "<<v                ;
+				/**/                                    res <<'\n'                    ;
 			}
 		}
 		return res ;
 	}
 
+	::string RuleData::_pretty_rsrcs() const {
+		static const IsDynMap s_empty ;
+		IsDynMap const& dyn_rsrcs = submit_rsrcs_attrs.is_dyn() ? submit_rsrcs_attrs.spec.dyn_rsrcs : s_empty ;
+		if (dyn_rsrcs.first               ) return "resources <dynamic>\n" ;
+		if (!submit_rsrcs_attrs.spec.rsrcs) return {}                      ;
+		::string res  ;
+		size_t   wk   = ::max<size_t>( submit_rsrcs_attrs.spec.rsrcs , [&](auto const& k_v) { return k_v.first.size() ; } ) ;
+		//
+		res << "resources :\n" ;
+		for( auto const& [k,v] : submit_rsrcs_attrs.spec.rsrcs ) {
+			/***/                                  res << '\t'<<widen(k,wk)<<' ' ;
+			if      (dyn_rsrcs.second.contains(k)) res << "<dynamic>"            ;
+			else if (!v                          ) res << ':'                    ;
+			else                                   res << ": "<<v                ;
+			/***/                                  res <<'\n'                    ;
+		}
+		return res ;
+	}
+
 	::string RuleData::_pretty_views() const {
-		::vmap_s<JobSpace::ViewDescr> const& m = start_cmd_attrs.spec.job_space.views ;
-		if (start_cmd_attrs.spec.dyn_views) return "views <dynamic>\n" ;
-		if (!m                            ) return {}                  ;
+		static const IsDynMap s_empty ;
+		IsDynMap const& dyn_views = start_cmd_attrs.is_dyn() ? start_cmd_attrs.spec.dyn_views : s_empty ;
+		if (dyn_views.first                      ) return "views <dynamic>\n" ;
+		if (!start_cmd_attrs.spec.job_space.views) return {}                  ;
 		::string res = "views :\n" ;
-		for( auto const& [k,v] : m ) {
-			res <<'\t'<< k ;
-			if (v.is_dyn) { res << " <dynamic>\n" ; continue ; }
-			res << " :" ;
-			SWEAR(+v.phys_s) ;
-			if (v.phys_s.size()==1) {
-				SWEAR(!v.copy_up) ;
-				res <<' '<< no_slash(v.phys_s[0]) ;
+		for( auto const& [k,v] : start_cmd_attrs.spec.job_space.views ) {
+			res << '\t'<<k<<' ' ;
+			if (dyn_views.second.contains(k)) {
+				res << "<dynamic>" ;
 			} else {
-				::vector_s phys ; for( ::string const& p_s : v.phys_s ) phys.push_back(no_slash(p_s)) ;
-				size_t w = +v.copy_up ? 7 : 5 ;
-				/**/            res <<"\n\t\t" << widen("upper"  ,w) <<" : "<<         phys[0]                     ;
-				/**/            res <<"\n\t\t" << widen("lower"  ,w) <<" : "<< ::span(phys.data()+1,phys.size()-1) ;
-				if (+v.copy_up) res <<"\n\t\t" << widen("copy_up",w) <<" : "<< v.copy_up                           ;
+				res << ':' ;
+				SWEAR(+v.phys_s) ;
+				if (v.phys_s.size()==1) {
+					SWEAR(!v.copy_up) ;
+					res <<' '<< no_slash(v.phys_s[0]) ;
+				} else {
+					::vector_s phys ; for( ::string const& p_s : v.phys_s ) phys.push_back(no_slash(p_s)) ;
+					size_t w = +v.copy_up ? 7/*copy_up*/ : 5/*upper*/ ;
+					/**/            res <<"\n\t\t" << widen("upper"  ,w) <<" : "<<         phys[0]                     ;
+					/**/            res <<"\n\t\t" << widen("lower"  ,w) <<" : "<< ::span(phys.data()+1,phys.size()-1) ;
+					if (+v.copy_up) res <<"\n\t\t" << widen("copy_up",w) <<" : "<< v.copy_up                           ;
+				}
 			}
 			res <<'\n' ;
 		}
@@ -600,14 +634,14 @@ namespace Engine {
 					MatchFlags mf        = matches[mi].second.flags ;
 					::string   flags_str ;
 					First      first     ;
-					if (mk!=MatchKind::SideDep) for( Tflag      tf  : iota(Tflag     ::NRule) ) if (mf.tflags      [tf ]) flags_str << first(" : "," , ") << tf  ;
-					if (mk!=MatchKind::SideDep) for( ExtraTflag etf : iota(ExtraTflag::NRule) ) if (mf.extra_tflags[etf]) flags_str << first(" : "," , ") << etf ;
-					/**/                        for( Dflag      df  : iota(Dflag     ::NRule) ) if (mf.dflags      [df ]) flags_str << first(" : "," , ") << df  ;
-					/**/                        for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (mf.extra_dflags[edf]) flags_str << first(" : "," , ") << edf ;
-					/**/            matches_str <<'\t'<< widen(matches[mi].first,wk2)<<" : " ;
-					if (+flags_str) matches_str << widen(patterns_[i],wp) << flags_str       ;
+					if (mk!=MatchKind::SideDep) for( Tflag      tf  : iota(Tflag     ::NRule) ) if (mf.tflags      [tf ]) flags_str << ' '<<first(':',',')<<' '<<tf  ;
+					if (mk!=MatchKind::SideDep) for( ExtraTflag etf : iota(ExtraTflag::NRule) ) if (mf.extra_tflags[etf]) flags_str << ' '<<first(':',',')<<' '<<etf ;
+					/**/                        for( Dflag      df  : iota(Dflag     ::NRule) ) if (mf.dflags      [df ]) flags_str << ' '<<first(':',',')<<' '<<df  ;
+					/**/                        for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (mf.extra_dflags[edf]) flags_str << ' '<<first(':',',')<<' '<<edf ;
+					/**/            matches_str << '\t'<<widen(matches[mi].first,wk2)<<" : " ;
+					if (+flags_str) matches_str << widen(patterns_[i],wp)<<flags_str         ;
 					else            matches_str <<       patterns_[i]                        ;
-					/**/            matches_str <<'\n'                                       ;
+					/**/            matches_str << '\n'                                      ;
 					i++ ;
 				}
 			if (+matches_str) res << mk<<'s'<<" :\n"<<matches_str ;
@@ -643,51 +677,68 @@ namespace Engine {
 	}
 
 	::string RuleData::_pretty_deps() const {
+		static const IsDynMap s_empty ;
+		IsDynMap const& dyn_deps = deps_attrs.is_dyn() ? deps_attrs.spec.dyn_deps : s_empty ;
+		if (dyn_deps.first) return "deps <dynamic>\n" ;
+		//
 		size_t    wk       = 0 ;
 		size_t    wd       = 0 ;
 		::umap_ss patterns ;
 		//
 		for( auto const& [k,ds] : deps_attrs.spec.deps ) {
-			if (!ds.txt) continue ;
-			::string p = _pretty_fstr(ds.txt) ;
-			wk          = ::max(wk,k.size()) ;
-			wd          = ::max(wd,p.size()) ;
-			patterns[k] = ::move(p)          ;
+			bool is_dyn_dep = dyn_deps.second.contains(k) ;
+			if ( !is_dyn_dep && !ds.txt ) continue ;
+			wk = ::max(wk,k.size()) ;
+			if (!is_dyn_dep) {
+				::string p = _pretty_fstr(ds.txt) ;
+				wd          = ::max(wd,p.size()) ;
+				patterns[k] = ::move(p)          ;
+			}
 		}
-		if (!patterns) return {} ;
+		if (!wk) return {} ;
 		//
 		::string res = "deps :\n" ;
 		for( auto const& [k,ds] : deps_attrs.spec.deps ) {
-			if (!ds.txt) continue ;
-			::string flags ;
-			bool     first = true ;
-			for( Dflag      df  : iota(Dflag     ::NRule) ) if (ds.dflags      [df ]) { flags << (first?" : ":" , ") ; first = false ; flags << df  ; }
-			for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (ds.extra_dflags[edf]) { flags << (first?" : ":" , ") ; first = false ; flags << edf ; }
-			/**/        res << '\t'<< widen(k,wk)<<" : "    ;
-			if (+flags) res << widen(patterns[k],wd)<<flags ;
-			else        res <<       patterns[k]            ;
-			/**/        res << '\n'                         ;
+			bool is_dyn_dep = dyn_deps.second.contains(k) ;
+			if ( !is_dyn_dep && !ds.txt ) continue ;
+			res << '\t'<<widen(k,wk)<<' ' ;
+			if (is_dyn_dep) {
+				res << "<dynamic>" ;
+			} else {
+				::string flags ;
+				First    first ;
+				for( Dflag      df  : iota(Dflag     ::NRule) ) if (ds.dflags      [df ]) flags << ' '<<first(':',',')<<' '<<df  ;
+				for( ExtraDflag edf : iota(ExtraDflag::NRule) ) if (ds.extra_dflags[edf]) flags << ' '<<first(':',',')<<' '<<edf ;
+				/**/        res << ": "                         ;
+				if (+flags) res << widen(patterns[k],wd)<<flags ;
+				else        res <<       patterns[k]            ;
+			}
+			res << '\n' ;
 		}
 		return res ;
 	}
 
 	template<class T> ::string RuleData::_pretty_dyn(Dyn<T> const& d) const {
 		if (!d.is_dyn()) return {} ;
-		::string res ;
-		/**/                         res <<"dynamic "<< T::Msg <<" :\n" ;
-		if (+d.entry().ctx       ) { res << "\t<context>  :" ; for( ::string const& k : _list_ctx(d.entry().ctx)    ) res <<' '<<k ; res <<'\n' ; }
-		if (+d.entry().may_import) { res << "\t<sys.path> :" ; for( Object   const& d : *Rule::s_rules->py_sys_path ) res <<' '<< ::string(d.as_a<Str>()) ; res <<'\n' ; }
-		if (+d.entry().glbs_str  )   res << "\t<globals> :\n" << indent(with_nl(d.entry().glbs_str)+d.entry().dbg_info,2) <<add_nl ;
-		if (+d.entry().code_str  )   res << "\t<code> :\n"    << indent(        d.entry().code_str                    ,2) <<add_nl ;
+		//
+		::string res = cat("dynamic ",T::Msg," :\n") ;
+		bool     mi  = +d.entry().may_import         ;
+		//
+		if (+d.entry().ctx     ) { res << "\t<context>"<<(mi?" ":"")<<" :" ; for( ::string const& k : _list_ctx(d.entry().ctx)    ) res << ' '<<k                       ; res << '\n' ; }
+		if (mi                 ) { res << "\t<sys.path> :"                 ; for( Object   const& d : *Rule::s_rules->py_sys_path ) res << ' '<<::string(d.as_a<Str>()) ; res << '\n' ; }
+		//
+		if (+d.entry().glbs_str) res << "\t<globals> :\n"<<indent(with_nl(d.entry().glbs_str)+d.entry().dbg_info,2) <<add_nl ;
+		if (+d.entry().code_str) res << "\t<code> :\n"   <<indent(        d.entry().code_str                    ,2) <<add_nl ;
+		//
 		return res ;
 	}
 
 	::string RuleData::pretty_str() const {
-		::string  title       ;
-		::vmap_ss entries     ;
-		::string  job_name_   = job_name ;
-		::string  interpreter ;
-		::string  kill_sigs   ;
+		::string               title       ;
+		::vmap_s<::optional_s> entries     ;
+		::string               job_name_   = job_name ;
+		::string               interpreter ;
+		::string               kill_sigs   ;
 		//
 		{	title = user_name() + " :" ;
 			switch (special) {
@@ -718,39 +769,48 @@ namespace Engine {
 			}
 		}
 		// first simple static attrs
-		{	if ( user_prio!=0                                          ) entries.emplace_back( "prio"                , cat        (user_prio                                          ) ) ;
-			/**/                                                         entries.emplace_back( "job_name"            ,             job_name_                                            ) ;
-			if (+sub_repo_s                                            ) entries.emplace_back( "sub_repo"            , no_slash   (sub_repo_s                                         ) ) ;
+		{	if ( user_prio!=0) entries.emplace_back( "prio"     , cat     (user_prio ) ) ;
+			/**/               entries.emplace_back( "job_name" ,          job_name_   ) ;
+			if (+sub_repo_s  ) entries.emplace_back( "sub_repo" , no_slash(sub_repo_s) ) ;
 		}
 		if (is_plain()) {
-			if ( start_cmd_attrs       .spec.auto_mkdir                ) entries.emplace_back( "auto_mkdir"          , cat        (start_cmd_attrs       .spec.auto_mkdir             ) ) ;
-			/**/                                                         entries.emplace_back( "autodep"             , snake      (start_rsrcs_attrs     .spec.method                 ) ) ;
-			if ( submit_rsrcs_attrs    .spec.backend!=BackendTag::Local) entries.emplace_back( "backend"             , snake      (submit_rsrcs_attrs    .spec.backend                ) ) ;
-			if (+submit_ancillary_attrs.spec.cache_name                ) entries.emplace_back( "cache"               ,             submit_ancillary_attrs.spec.cache_name               ) ;
-			if ( start_rsrcs_attrs     .spec.chk_abs_paths             ) entries.emplace_back( "check_abs_paths"     , cat        (start_rsrcs_attrs     .spec.chk_abs_paths          ) ) ;
-			if (+start_cmd_attrs       .spec.chroot_dir_s              ) entries.emplace_back( "chroot_dir"          , no_slash   (start_cmd_attrs       .spec.chroot_dir_s           ) ) ;
-			if (+start_rsrcs_attrs     .spec.chroot_actions            ) entries.emplace_back( "chroot_actions"      , cat        (start_rsrcs_attrs     .spec.chroot_actions         ) ) ;
-			if (+start_ancillary_attrs .spec.zlvl                      ) entries.emplace_back( "compression"         , cat        (start_ancillary_attrs .spec.zlvl                   ) ) ;
-			if ( force                                                 ) entries.emplace_back( "force"               , cat        (force                                              ) ) ;
-			if (+interpreter                                           ) entries.emplace_back( "interpreter"         ,             interpreter                                          ) ;
-			if ( start_ancillary_attrs .spec.keep_tmp                  ) entries.emplace_back( "keep_tmp"            , cat        (start_ancillary_attrs .spec.keep_tmp               ) ) ;
-			if (+start_ancillary_attrs .spec.kill_daemons              ) entries.emplace_back( "kill_daemons"        , cat        (start_ancillary_attrs .spec.kill_daemons           ) ) ;
-			if (+start_ancillary_attrs .spec.kill_sigs                 ) entries.emplace_back( "kill_sigs"           ,             kill_sigs                                            ) ;
-			if (+start_rsrcs_attrs     .spec.lmake_root_s              ) entries.emplace_back( "lmake_root"          , no_slash   (start_rsrcs_attrs     .spec.lmake_root_s           ) ) ;
-			if (+start_cmd_attrs       .spec.job_space.lmake_view_s    ) entries.emplace_back( "lmake_view"          , no_slash   (start_cmd_attrs       .spec.job_space.lmake_view_s ) ) ;
-			if ( n_losts                                               ) entries.emplace_back( "max_retries_on_lost" , ::to_string(n_losts                                            ) ) ;
-			if ( start_ancillary_attrs .spec.max_stderr_len            ) entries.emplace_back( "max_stderr_len"      , ::to_string(start_ancillary_attrs .spec.max_stderr_len         ) ) ;
-			if ( n_runs                                                ) entries.emplace_back( "max_runs"            , ::to_string(n_runs                                             ) ) ;
-			if ( retried_errs!=DfltRetriedErrs                         ) entries.emplace_back( "retried_errors"      , cat        (retried_errs                                       ) ) ;
-			if ( n_submits                                             ) entries.emplace_back( "max_submits"         , ::to_string(n_submits                                          ) ) ;
-			if ( start_cmd_attrs       .spec.mount_chroot_ok           ) entries.emplace_back( "mount_chroot_ok"     , cat        (start_cmd_attrs       .spec.mount_chroot_ok        ) ) ;
-			if ( start_rsrcs_attrs     .spec.readdir_ok                ) entries.emplace_back( "readdir_ok"          , cat        (start_rsrcs_attrs     .spec.readdir_ok             ) ) ;
-			if (+start_cmd_attrs       .spec.job_space.repo_view_s     ) entries.emplace_back( "repo_view"           , no_slash   (start_cmd_attrs       .spec.job_space.repo_view_s  ) ) ;
-			if (+start_ancillary_attrs .spec.start_delay               ) entries.emplace_back( "start_delay"         ,             start_ancillary_attrs .spec.start_delay.short_str()  ) ;
-			if ( start_cmd_attrs       .spec.stderr_ok                 ) entries.emplace_back( "stderr_ok"           , cat        (start_cmd_attrs       .spec.stderr_ok              ) ) ;
-			if (+start_rsrcs_attrs     .spec.timeout                   ) entries.emplace_back( "timeout"             ,             start_rsrcs_attrs     .spec.timeout.short_str()      ) ;
-			if (+start_cmd_attrs       .spec.job_space.tmp_view_s      ) entries.emplace_back( "tmp_view"            , no_slash   (start_cmd_attrs       .spec.job_space.tmp_view_s   ) ) ;
-			if ( start_rsrcs_attrs     .spec.use_script                ) entries.emplace_back( "use_script"          , cat        (start_rsrcs_attrs     .spec.use_script             ) ) ;
+			auto const&  ura = submit_rsrcs_attrs    .spec ; bool urad = submit_rsrcs_attrs    .is_dyn() ;
+			auto const&  uaa = submit_ancillary_attrs.spec ; bool uaad = submit_ancillary_attrs.is_dyn() ;
+			auto const&  sca = start_cmd_attrs       .spec ; bool scad = start_cmd_attrs       .is_dyn() ;
+			auto const&  sra = start_rsrcs_attrs     .spec ; bool srad = start_rsrcs_attrs     .is_dyn() ;
+			auto const&  saa = start_ancillary_attrs .spec ; bool saad = start_ancillary_attrs .is_dyn() ;
+			::optional_s n   ;
+			const char*  k   ;
+			#define EB(...) entries.emplace_back(__VA_ARGS__)
+			k="auto_mkdir"          ; if (scad&&sca.dyn_auto_mkdir       ) EB(k,n) ; else if ( sca.auto_mkdir                ) EB(k,cat        (sca.auto_mkdir             )) ;
+			k="autodep"             ; if (srad&&sra.dyn_method           ) EB(k,n) ; else                                      EB(k,snake      (sra.method                 )) ;
+			k="backend"             ; if (urad&&ura.dyn_backend          ) EB(k,n) ; else if ( ura.backend!=BackendTag::Local) EB(k,snake      (ura.backend                )) ;
+			k="cache"               ; if (uaad&&uaa.dyn_cache_name       ) EB(k,n) ; else if (+uaa.cache_name                ) EB(k,            uaa.cache_name              ) ;
+			k="check_abs_paths"     ; if (srad&&sra.dyn_chk_abs_paths    ) EB(k,n) ; else if ( sra.chk_abs_paths             ) EB(k,cat        (sra.chk_abs_paths          )) ;
+			k="chroot_dir"          ; if (scad&&sca.dyn_chroot_dir_s     ) EB(k,n) ; else if (+sca.chroot_dir_s              ) EB(k,no_slash   (sca.chroot_dir_s           )) ;
+			k="chroot_actions"      ; if (srad&&sra.dyn_chroot_actions   ) EB(k,n) ; else if (+sra.chroot_actions            ) EB(k,cat        (sra.chroot_actions         )) ;
+			k="compression"         ; if (saad&&saa.dyn_zlvl             ) EB(k,n) ; else if (+saa.zlvl                      ) EB(k,cat        (saa.zlvl                   )) ;
+			k="force"               ;                                                     if ( force                         ) EB(k,cat        (force                      )) ;
+			k="interpreter"         ; if (scad&&sca.dyn_interpreter.first) EB(k,n) ; else if (+interpreter                   ) EB(k,            interpreter                 ) ;
+			k="keep_tmp"            ; if (saad&&saa.dyn_keep_tmp         ) EB(k,n) ; else if ( saa.keep_tmp                  ) EB(k,cat        (saa.keep_tmp               )) ;
+			k="kill_daemons"        ; if (saad&&saa.dyn_kill_daemons     ) EB(k,n) ; else if (+saa.kill_daemons              ) EB(k,cat        (saa.kill_daemons           )) ;
+			k="kill_sigs"           ; if (saad&&saa.dyn_kill_sigs.first  ) EB(k,n) ; else if (+saa.kill_sigs                 ) EB(k,            kill_sigs                   ) ;
+			k="lmake_root"          ; if (srad&&sra.dyn_lmake_root_s     ) EB(k,n) ; else if (+sra.lmake_root_s              ) EB(k,no_slash   (sra.lmake_root_s           )) ;
+			k="lmake_view"          ; if (scad&&sca.dyn_lmake_view_s     ) EB(k,n) ; else if (+sca.job_space.lmake_view_s    ) EB(k,no_slash   (sca.job_space.lmake_view_s )) ;
+			k="max_retries_on_lost" ;                                                     if ( n_losts                       ) EB(k,::to_string(n_losts                    )) ;
+			k="max_stderr_len"      ; if (saad&&saa.dyn_max_stderr_len   ) EB(k,n) ; else if ( saa.max_stderr_len            ) EB(k,::to_string(saa.max_stderr_len         )) ;
+			k="max_runs"            ;                                                     if ( n_runs                        ) EB(k,::to_string(n_runs                     )) ;
+			k="retried_errors"      ;                                                     if ( retried_errs!=DfltRetriedErrs ) EB(k,cat        (retried_errs               )) ;
+			k="max_submits"         ;                                                     if ( n_submits                     ) EB(k,::to_string(n_submits                  )) ;
+			k="mount_chroot_ok"     ; if (scad&&sca.dyn_mount_chroot_ok  ) EB(k,n) ; else if ( sca.mount_chroot_ok           ) EB(k,cat        (sca.mount_chroot_ok        )) ;
+			k="readdir_ok"          ; if (srad&&sra.dyn_readdir_ok       ) EB(k,n) ; else if ( sra.readdir_ok                ) EB(k,cat        (sra.readdir_ok             )) ;
+			k="repo_view"           ; if (scad&&sca.dyn_repo_view_s      ) EB(k,n) ; else if (+sca.job_space.repo_view_s     ) EB(k,no_slash   (sca.job_space.repo_view_s  )) ;
+			k="start_delay"         ; if (saad&&saa.dyn_start_delay      ) EB(k,n) ; else if (+saa.start_delay               ) EB(k,            saa.start_delay.short_str() ) ;
+			k="stderr_ok"           ; if (srad&&sra.dyn_stderr_ok        ) EB(k,n) ; else if ( sra.stderr_ok                 ) EB(k,cat        (sra.stderr_ok              )) ;
+			k="timeout"             ; if (srad&&sra.dyn_timeout          ) EB(k,n) ; else if (+sra.timeout                   ) EB(k,            sra.timeout.short_str()     ) ;
+			k="tmp_view"            ; if (scad&&sca.dyn_tmp_view_s       ) EB(k,n) ; else if (+sca.job_space.tmp_view_s      ) EB(k,no_slash   (sca.job_space.tmp_view_s   )) ;
+			k="use_script"          ; if (srad&&sra.dyn_use_script       ) EB(k,n) ; else if ( sra.use_script                ) EB(k,cat        (sra.use_script             )) ;
+			#undef EB
 		}
 		::string res = _pretty_vmap( title , entries ) ;
 		// checksums
@@ -762,10 +822,10 @@ namespace Engine {
 			res << indent(_pretty_matches(                            )) ;
 		}
 		if (is_plain()) {
-			res << indent(_pretty_deps (                                           )) ;
-			res << indent(_pretty_vmap ("resources :",submit_rsrcs_attrs.spec.rsrcs)) ;
-			res << indent(_pretty_views(                                           )) ;
-			res << indent(_pretty_env  (                                           )) ;
+			res << indent(_pretty_deps ()) ;
+			res << indent(_pretty_rsrcs()) ;
+			res << indent(_pretty_views()) ;
+			res << indent(_pretty_env  ()) ;
 		}
 		// then dynamic part
 		if (is_plain()) {

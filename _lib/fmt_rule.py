@@ -372,21 +372,26 @@ class Handle :
 		val = self.attrs[rep_key]
 		if rep_key in DictAttrs :
 			if callable(val) :
-				self.dyn_val[key] = val
+				self.static_val[key] = None
+				self.dyn_val   [key] = val
 				return
 			sv = {}
 			dv = {}
 			for k,v in val.items() :
 				is_dyn_k,k = self._fstring(k,False                  )
 				is_dyn_v,v = self._fstring(v      ,for_deps=for_deps)
-				if is_dyn_k or is_dyn_v : dv[k],sv[k] = self._fstring(v)[1],None # static_val must have an entry for each dynamic one, simple dep stems are only interpreted by engine if static
-				else                    : sv[k]       =               v
+				if   is_dyn_k : dv[k]       = self._fstring(v)[1]
+				elif is_dyn_v : dv[k],sv[k] = self._fstring(v)[1],None
+				else          : sv[k]       =               v
 			if sv : self.static_val[key] = sv
 			if dv : self.dyn_val   [key] = dv
 		else :
 			is_dyn,v = self._fstring(val,for_deps=for_deps)
-			if is_dyn : self.dyn_val   [key] = v
-			else      : self.static_val[key] = v
+			if is_dyn :
+				self.static_val[key] = None
+				self.dyn_val   [key] = v
+			else :
+				self.static_val[key] = v
 
 	def _finalize(self) :
 		static_val = self.static_val
@@ -394,7 +399,7 @@ class Handle :
 		del self.static_val
 		del self.dyn_val
 		if not dyn_val :
-			if not static_val : return None                  # entry is suppressed later in this case
+			if static_val=={} : return None                  # entry is suppressed later in this case
 			else              : return {'static':static_val}
 		serialize_ctx = ( self.per_job , self.aggregate_per_job , *self.glbs )
 		dyn_expr = serialize.get_expr(
@@ -403,8 +408,7 @@ class Handle :
 		,	no_imports     = lcl_mod_file                    # dynamic attributes cannot afford local imports, so serialize in place all of them
 		,	call_callables = True
 		)
-		if static_val : dyn_expr.static   = static_val
-		if dyn_val    : dyn_expr.dyn_vals = tuple(dyn_val.keys()) if isinstance(dyn_val,dict) else True
+		dyn_expr.static = static_val
 		finalize_dyn_expr( dyn_expr , for_cmd=False )
 		for mod_name in dyn_expr.modules :                   # check for local modules
 			m = ''
@@ -494,9 +498,6 @@ class Handle :
 		self._handle_val('deps',for_deps=True)
 		if 'deps' in self.dyn_val    : self.dyn_val    = self.dyn_val   ['deps']
 		if 'deps' in self.static_val : self.static_val = self.static_val['deps']
-		if callable(self.dyn_val) :
-			assert not self.static_val                                               # there must be no static val when deps are full dynamic
-			self.static_val  = None                                                  # tell engine deps are full dynamic (i.e. static val does not have the dep keys)
 		self.rule_rep.deps_attrs = self._finalize()
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
@@ -529,7 +530,6 @@ class Handle :
 		self._handle_val( 'lmake_view'                            )
 		self._handle_val( 'mount_chroot_ok'                       )
 		self._handle_val( 'repo_view'                             )
-		self._handle_val( 'stderr_ok'                             )
 		self._handle_val( 'tmp_view'                              )
 		self._handle_val( 'views'                                 )
 		self.rule_rep.start_cmd_attrs = self._finalize()
@@ -542,6 +542,7 @@ class Handle :
 		self._handle_val( 'env'             , rep_key='environ_resources' )
 		self._handle_val( 'lmake_root'                                    )
 		self._handle_val( 'readdir_ok'                                    )
+		self._handle_val( 'stderr_ok'                                     )
 		self._handle_val( 'timeout'                                       )
 		self._handle_val( 'use_script'                                    )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
@@ -598,10 +599,10 @@ class Handle :
 						a1 = x_var if b1 else ''
 						if b1 : cmd += f'\t{a1} = { c.__name__}({a})\n'
 						else  : cmd += f'\t{        c.__name__}({a})\n'
-			for_this_python = False                                               # by default, be conservative
+			for_this_python = False                                                # by default, be conservative
 			try :
-				interpreter = self.rule_rep.start_cmd_attrs.static.interpreter[0] # code can be made simpler if we know we run the same python
-				if not lmake._maybe_lcl(interpreter) :                            # avoid creating a dep inside the repo if no interpreter (e.g. it may be dynamic)
+				interpreter = self.rule_rep.start_cmd_attrs.static.interpreter[0]  # code can be made simpler if we know we run the same python
+				if not lmake._maybe_lcl(interpreter) :                             # avoid creating a dep inside the repo if no interpreter (e.g. it may be dynamic)
 					for_this_python = osp.realpath(interpreter)==self.ThisPython
 			except : pass
 			dyn_src.glbs = cmd
@@ -611,8 +612,9 @@ class Handle :
 		else :
 			self.attrs.cmd = '\n'.join(self.attrs.cmd)
 			self._init()
-			self._handle_val( 'cmd' , for_deps=True )                             # shell commands are f-strings, like deps
-			if 'cmd' in self.dyn_val : self.dyn_val = self.dyn_val['cmd']
+			self._handle_val( 'cmd' , for_deps=True )                              # shell commands are f-strings, like deps
+			if 'cmd' in self.dyn_val    : self.dyn_val    = self.dyn_val   ['cmd']
+			if 'cmd' in self.static_val : self.static_val = self.static_val['cmd']
 			self.rule_rep.cmd = self._finalize()
 
 def do_fmt_rule(rule) :
