@@ -124,15 +124,10 @@ class Job :
 		#
 		keep_env = list(self.keep_environ)
 		if self.environ : preamble += '#\n'
-		for k,v in self.environ.items() :
-			if   k=='UID'                   : preamble += f'export  {k}={mk_shell_str(v)} 2>/dev/null || :\n' # UID is read-only on some systems
-			elif k in self.expanded_environ : preamble += f'#export {k}={mk_shell_str(v)}\n'
-			else                            : preamble += f'export  {k}={mk_shell_str(v)}\n'
+		for k,v in self.expanded_environ.items() :
+			if   k=='UID' : preamble += f'export {k}={mk_shell_str(v)} 2>/dev/null || :\n' # UID is read-only on some systems
+			else          : preamble += f'export {k}={mk_shell_str(v)}\n'
 			keep_env.append(k)
-		if self.expanded_environ :
-			preamble += '# passing -E to lautodep can be used to use previous (commented out) definitions\n'
-			for k,v in self.expanded_environ.items() :
-				preamble += f'export {k}={mk_shell_str(v)}\n'
 		#
 		simple = True
 		res    = ''

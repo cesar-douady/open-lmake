@@ -488,28 +488,29 @@ namespace Engine {
 		//
 		::string res = "script = gen_script(\n" ;
 		//
-		/**/                           res <<  "\tautodep_method  = " << mk_py_str(snake   (jsrr.method             )) << '\n' ;
-		if (ade.auto_mkdir           ) res << ",\tauto_mkdir      = " << mk_py_str(         ade.auto_mkdir           ) << '\n' ;
-		if (+jsrr.chroot_info.dir_s  ) res << ",\tchroot_dir      = " << mk_py_str(no_slash(jsrr.chroot_info.dir_s  )) << '\n' ;
-		if (+jsrr.chroot_info.actions) res << ",\tchroot_actions  = " << mk_py_str(cat     (jsrr.chroot_info.actions)) << '\n' ;
-		/**/                           res << ",\tdebug_dir       = " << mk_py_str(no_slash(dbg_dir_s               )) << '\n' ;
-		/**/                           res << ",\tdomain_name     = " << mk_py_str(         jsrr.domain_name         ) << '\n' ;
-		/**/                           res << ",\tis_python       = " << mk_py_str(         job->rule()->is_python   ) << '\n' ;
-		/**/                           res << ",\tkey             = " << mk_py_str(         key                      ) << '\n' ;
-		/**/                           res << ",\tjob             = " <<                    +job                       << '\n' ;
-		/**/                           res << ",\tlink_support    = " << mk_py_str(snake   (ade.lnk_support         )) << '\n' ;
-		if (+jsrr.phy_lmake_root_s   ) res << ",\tlmake_root      = " << mk_py_str(no_slash(jsrr.phy_lmake_root_s   )) << '\n' ;
-		if (+job_space.lmake_view_s  ) res << ",\tlmake_view      = " << mk_py_str(no_slash(job_space.lmake_view_s  )) << '\n' ;
-		/**/                           res << ",\tname            = " << mk_py_str(         job->name()              ) << '\n' ;
-		if (ade.mount_chroot_ok      ) res << ",\tmount_chroot_ok = " << mk_py_str(         ade.mount_chroot_ok      ) << '\n' ;
-		if (ade.readdir_ok           ) res << ",\treaddir_ok      = " << mk_py_str(         ade.readdir_ok           ) << '\n' ;
-		/**/                           res << ",\trepo_root       = " << mk_py_str(no_slash(*g_repo_root_s          )) << '\n' ;
-		if (+job_space.repo_view_s   ) res << ",\trepo_view       = " << mk_py_str(no_slash(job_space.repo_view_s   )) << '\n' ;
-		if (+jsrr.stdout             ) res << ",\tstdin           = " << mk_py_str(         jsrr.stdin               ) << '\n' ;
-		if (+jsrr.stdin              ) res << ",\tstdout          = " << mk_py_str(         jsrr.stdout              ) << '\n' ;
-		if (+ade.sub_repo_s          ) res << ",\tsub_repo        = " << mk_py_str(no_slash(ade.sub_repo_s          )) << '\n' ;
-		/**/                           res << ",\ttmp_dir         = " << mk_py_str(no_slash(tmp_dir_s               )) << '\n' ;
-		if (+job_space.tmp_view_s    ) res << ",\ttmp_view        = " << mk_py_str(no_slash(job_space.tmp_view_s    )) << '\n' ;
+		/**/                                        res <<  "\tautodep_method     = " << mk_py_str(snake   (jsrr.method             )) << '\n' ;
+		if (ade.auto_mkdir                        ) res << ",\tauto_mkdir         = " << mk_py_str(         ade.auto_mkdir           ) << '\n' ;
+		if (+jsrr.chroot_info.dir_s               ) res << ",\tchroot_dir         = " << mk_py_str(no_slash(jsrr.chroot_info.dir_s  )) << '\n' ;
+		if (+jsrr.chroot_info.actions             ) res << ",\tchroot_actions     = " << mk_py_str(cat     (jsrr.chroot_info.actions)) << '\n' ;
+		/**/                                        res << ",\tdebug_dir          = " << mk_py_str(no_slash(dbg_dir_s               )) << '\n' ;
+		/**/                                        res << ",\tdomain_name        = " << mk_py_str(         jsrr.domain_name         ) << '\n' ;
+		/**/                                        res << ",\tis_python          = " << mk_py_str(         job->rule()->is_python   ) << '\n' ;
+		/**/                                        res << ",\tkey                = " << mk_py_str(         key                      ) << '\n' ;
+		/**/                                        res << ",\tjob                = " <<                    +job                       << '\n' ;
+		/**/                                        res << ",\tlink_support       = " << mk_py_str(snake   (ade.lnk_support         )) << '\n' ;
+		/**/                                        res << ",\tdefault_lmake_root = " << mk_py_str(no_slash(*g_lmake_root_s         )) << '\n' ;
+		if (jsrr.phy_lmake_root_s!=*g_lmake_root_s) res << ",\tlmake_root         = " << mk_py_str(no_slash(jsrr.phy_lmake_root_s   )) << '\n' ;
+		if (+job_space.lmake_view_s               ) res << ",\tlmake_view         = " << mk_py_str(no_slash(job_space.lmake_view_s  )) << '\n' ;
+		/**/                                        res << ",\tname               = " << mk_py_str(         job->name()              ) << '\n' ;
+		if (ade.mount_chroot_ok                   ) res << ",\tmount_chroot_ok    = " << mk_py_str(         ade.mount_chroot_ok      ) << '\n' ;
+		if (ade.readdir_ok                        ) res << ",\treaddir_ok         = " << mk_py_str(         ade.readdir_ok           ) << '\n' ;
+		/**/                                        res << ",\trepo_root          = " << mk_py_str(no_slash(*g_repo_root_s          )) << '\n' ;
+		if (+job_space.repo_view_s                ) res << ",\trepo_view          = " << mk_py_str(no_slash(job_space.repo_view_s   )) << '\n' ;
+		if (+jsrr.stdout                          ) res << ",\tstdin              = " << mk_py_str(         jsrr.stdin               ) << '\n' ;
+		if (+jsrr.stdin                           ) res << ",\tstdout             = " << mk_py_str(         jsrr.stdout              ) << '\n' ;
+		if (+ade.sub_repo_s                       ) res << ",\tsub_repo           = " << mk_py_str(no_slash(ade.sub_repo_s          )) << '\n' ;
+		/**/                                        res << ",\ttmp_dir            = " << mk_py_str(no_slash(tmp_dir_s               )) << '\n' ;
+		if (+job_space.tmp_view_s                 ) res << ",\ttmp_view           = " << mk_py_str(no_slash(job_space.tmp_view_s    )) << '\n' ;
 		//
 		res << ",\tcmd =\n" << mk_py_str(jsrr.cmd) <<'\n' ;
 		//
@@ -522,17 +523,14 @@ namespace Engine {
 			res << ",\tenviron = {" ;
 			size_t w     = ::max<size_t>( env.first , [](::pair_ss const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
 			First  first ;
-			for( auto const& [k,v] : env.first ) res << first("\n\t\t",",\t")<<widen(mk_py_str(k),w)<<" : "<<mk_py_str(v)<<"\n\t" ;
+			for( auto const& [k,v] : env.first ) res << first("\n\t\t",",\t")<<widen(mk_py_str(k),w)<<" : "<<(v==PassMrkr?"..."s:mk_py_str(v))<<"\n\t" ;
 			res << "}\n" ;
 		}
 		if (+expanded_env) {
 			res << ",\texpanded_environ = {" ;
-			size_t w     = ::max<size_t>( iota(env.first.size()) , [&](size_t i) { return env.first[i].second!=expanded_env[i].second ? mk_py_str(expanded_env[i].first).size() : 0 ; } ) ;
+			size_t w     = ::max<size_t>( expanded_env , [](::pair_ss const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
 			First  first ;
-			for( size_t i : iota(env.first.size()) ) {
-				SWEAR( env.first[i].first==expanded_env[i].first , env.first[i].first,expanded_env[i].first ) ;
-				if (env.first[i].second!=expanded_env[i].second) res << first("\n\t\t",",\t")<<widen(mk_py_str(expanded_env[i].first),w)<<" : "<<mk_py_str(expanded_env[i].second)<<"\n\t" ;
-			}
+			for( auto const& [k,v] : expanded_env ) res << first("\n\t\t",",\t")<<widen(mk_py_str(k),w)<<" : "<<mk_py_str(v)<<"\n\t" ;
 			res << "}\n" ;
 		}
 		if (+g_user_env) {
