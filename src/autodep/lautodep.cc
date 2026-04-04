@@ -158,7 +158,6 @@ int main( int argc , char* argv[] ) {
 		/**/                                        jsrr.key                    =                        "debug"                                      ;
 		if (cmd_line.flags[CmdFlag::AutodepMethod]) jsrr.method                 = mk_enum<AutodepMethod>(cmd_line.flag_args[+CmdFlag::AutodepMethod]) ;
 		if (cmd_line.flags[CmdFlag::ChrootDir    ]) jsrr.chroot_info.dir_s      = with_slash            (cmd_line.flag_args[+CmdFlag::ChrootDir    ]) ;
-		if (cmd_line.flags[CmdFlag::LinkSupport  ]) jsrr.domain_name            =                        cmd_line.flag_args[+CmdFlag::DomainName   ]  ;
 		if (cmd_line.flags[CmdFlag::LmakeRoot    ]) jsrr.phy_lmake_root_s       = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeRoot    ]) ;
 		else                                        jsrr.phy_lmake_root_s       =                        *g_lmake_root_s                              ;
 		if (cmd_line.flags[CmdFlag::LmakeView    ]) job_space.lmake_view_s      = with_slash            (cmd_line.flag_args[+CmdFlag::LmakeView    ]) ;
@@ -194,8 +193,8 @@ int main( int argc , char* argv[] ) {
 		if (cmd_line.flags[CmdFlag::ExpandEnv]) jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
-	autodep_env.file_sync = FileSync::None         ;                                                               // no parallel processing with lautodep
-	autodep_env.fqdn      = fqdn(jsrr.domain_name) ;                                                               // call fqdn() before potential chroot in g_start_info.enter()
+	autodep_env.file_sync = FileSync::None                                 ;                                       // no parallel processing with lautodep
+	autodep_env.fqdn      = fqdn(cmd_line.flag_args[+CmdFlag::DomainName]) ;                                       // call fqdn() before potential chroot in g_start_info.enter()
 	//
 	Status     status  ;
 	::map_ss   cmd_env = mk_map(jsrr.env) ;
@@ -205,11 +204,9 @@ int main( int argc , char* argv[] ) {
 	gather.env          = &cmd_env                                       ;
 	gather.lmake_root_s = job_space.lmake_view_s | jsrr.phy_lmake_root_s ;
 	gather.method       = jsrr.method                                    ;
-dbg("XXX1");
 	//       vvvvvvvvvvvvvvvvvvv
 	status = gather.exec_child() ;
 	//       ^^^^^^^^^^^^^^^^^^^
-dbg("XXX2");
 	//
 	try                       { jsrr.exit() ;        }
 	catch (::string const& e) { exit(Rc::System,e) ; }

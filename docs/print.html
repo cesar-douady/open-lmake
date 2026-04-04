@@ -1260,7 +1260,7 @@ The purpose is to ease reading.</p>
 <h3 id="network_delay--static-1"><a class="header" href="#network_delay--static-1"><a href="unit_tests/stress_depend.html#:~:text=lmake%2Econfig%2Enetwork%5Fdelay%20%3D%2010%20%23%20under%20heavy%20load%2C%20delays%20can%20grow%20up"><code>network_delay</code></a> : Static (<code>1</code>)</a></h3>
 <p>This attribute provides an approximate upper bound of the time it takes for an event to travel from a host to another.</p>
 <ul>
-<li>If too low, there may be spurious lost jobs.</li>
+<li>If too low, there may be spurious lost jobs and messages about date discrepancies between hosts.</li>
 <li>If too high, there may be a loss of reactivity.</li>
 </ul>
 <p>The default value should fit most cases.</p>

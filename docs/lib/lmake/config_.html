@@ -138,7 +138,9 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1">#                                                           # open-lmake ensures unicity between repos, so a hard-coded value is ok</span>
 <span class="p">,</span>   <span class="n">max_dep_depth</span>       <span class="o">=</span> <span class="mi">100</span>                               <span class="c1"># used to detect infinite recursions and loops</span>
 <span class="p">,</span>   <span class="n">max_error_lines</span>     <span class="o">=</span> <span class="mi">100</span>                               <span class="c1"># used to limit the number of error lines when not reasonably limited otherwise</span>
-<span class="p">,</span>   <span class="n">network_delay</span>       <span class="o">=</span> <span class="mi">1</span>                                 <span class="c1"># delay between job completed and server aware of it. Too low, there may be spurious lost jobs. Too high, tool reactivity may rarely suffer.</span>
+<span class="p">,</span>   <span class="n">network_delay</span>       <span class="o">=</span> <span class="mi">1</span>                                 <span class="c1"># delay between job completed and server aware of it</span>
+    <span class="c1">#                                                       # too low, there may be spurious lost jobs and there may be messages about date discrepancies between hosts</span>
+    <span class="c1">#                                                       # too high, tool reactivity may rarely suffer</span>
 <span class="c1">#,  nice                = 0                                 # nice value to apply to all jobs</span>
 <span class="p">,</span>   <span class="n">path_max</span>            <span class="o">=</span> <span class="mi">200</span>                               <span class="c1"># max path length, smaller values make debugging easier (if None, not activated)</span>
 <span class="p">,</span>   <span class="n">sub_repos</span>           <span class="o">=</span> <span class="p">[]</span>                                <span class="c1"># list of sub_repos</span>

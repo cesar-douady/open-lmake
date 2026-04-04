@@ -168,7 +168,7 @@ namespace AutodepPtrace {
 		}
 	NextSyscall :
 		long rc = ::ptrace( ctx?PTRACE_SYSCALL:PTRACE_CONT , pid , 0/*addr*/ , sig ) ;
-		throw_unless( rc==0 , "cannot continue (",StrErr(),") process ",pid ) ;
+		throw_unless( rc==0||errno==ESRCH , "cannot continue (",StrErr(),") process ",pid ) ;
 	}
 
 	int/*wstatus*/ process(pid_t child_pid) {

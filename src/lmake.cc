@@ -63,7 +63,7 @@ int main( int argc , char* argv[] ) {
 	Trace::s_backup_trace = true ;
 	ReqSyntax syntax {{
 		{ ReqFlag::Archive         , { .short_name='a' , .has_arg=false , .doc="ensure all intermediate files are generated"    } }
-	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send arguments to backend"                      } }
+	,	{ ReqFlag::Backend         , { .short_name='b' , .has_arg=true  , .doc="send argument to backend"                       } }
 	,	{ ReqFlag::CacheMethod     , { .short_name='c' , .has_arg=true  , .doc="cache method (none, download, upload or plain)" } }
 	,	{ ReqFlag::EssentialDeps   , { .short_name='d' , .has_arg=false , .doc="only check essential deps"                      } }
 	,	{ ReqFlag::NoDeps          , { .short_name='D' , .has_arg=false , .doc="dont check deps"                                } }

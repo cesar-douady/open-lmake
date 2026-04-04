@@ -20,36 +20,43 @@ using namespace Hash ;
 using namespace Re   ;
 using namespace Time ;
 
-::vector<UserTraceEntry>* g_user_trace      = nullptr      ;
+::string                  g_domain_name     ;
 Gather                    g_gather          ;
 JobIdx                    g_job             = 0/*garbage*/ ;
 ::string                  g_phy_repo_root_s ;
 SeqId                     g_seq_id          = 0/*garbage*/ ;
 ServerSockFd              g_server_fd       ;
-KeyedService              g_service_start   ;
-KeyedService              g_service_mngt    ;
 KeyedService              g_service_end     ;
+KeyedService              g_service_mngt    ;
+KeyedService              g_service_start   ;
 JobStartRpcReply          g_start_info      ;
+::vector<UserTraceEntry>* g_user_trace      = nullptr      ;
 
 JobStartRpcReply get_start_info() {
 	g_server_fd = { 0/*backlog*/ } ;                                       // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
-	Bool3        found_server = No                    ;                    // for trace only
-	KeyedService service      = g_server_fd.service() ;
+	Bool3            found_server = No                    ;                // for trace only
+	KeyedService     service      = g_server_fd.service() ;
 	JobStartRpcReply res          ;
+	::string         fqdn_        ;
 	Trace trace("get_start_info",g_service_start,service) ;
 	try {
 		ClientSockFd fd { g_service_start } ;
 		g_service_mngt.addr = g_service_end.addr = fd.addr(true/*peer*/) ; // server address is only passed to g_service_start
 		fd.set_timeout(Delay(100)) ;                                       // ensure we dont stay stuck in case server is in the coma : 100s = 1000 simultaneous connections @ 10 jobs/s
-		throw_unless(+fd) ; //!      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		found_server = Maybe ; /**/  OMsgBuf( JobStartRpcReq({g_seq_id,g_job},service) ).send                     ( fd                          ) ;
-		found_server = Yes   ; res = IMsgBuf(                                          ).receive<JobStartRpcReply>( fd , No/*once*/ , {}/*key*/ ) ; // read without limit as there is a single message
-	} catch (::string const& e) { //!^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		throw_unless(+fd) ; //!      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		found_server = Maybe ; /**/  OMsgBuf( JobStartRpcReq({g_seq_id,g_job},service) ).send(fd) ;
+		//                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		fqdn_ = fqdn(g_domain_name) ;                                      // call fqdn() in parallel to server connection
+		//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		found_server = Yes ; res = IMsgBuf().receive<JobStartRpcReply>( fd , No/*once*/ , {}/*key*/ ) ; // read without limit as there is a single message
+		//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	} catch (::string const& e) {
 		trace("no_start_info",STR(found_server),e) ;
-		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ; // this may be a server config problem, better to report if verbose
-		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ; // .
+		if (+e) exit(Rc::Fail,"while connecting to server : ",e             ) ;                         // this may be a server config problem, better to report if verbose
+		else    exit(Rc::Fail,"cannot connect to server at ",g_service_start) ;                         // .
 	}
+	res.autodep_env.fqdn = ::move(fqdn_) ;                                                              // call fqdn() before potential chroot in g_start_info.enter()
 	g_user_trace->emplace_back( New/*date*/ , Comment::StartInfo , CommentExt::Reply ) ;
 	trace(res) ;
 	return res ;
@@ -163,24 +170,26 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 
 int main( int argc , char* argv[] ) {
 	Pdate    start_overhead  { New }        ;
-	uint64_t upload_key      = 0            ;                                // key used to identify temporary data uploaded to the cache
+	uint64_t upload_key      = 0            ; // key used to identify temporary data uploaded to the cache
 	SeqId    trace_id        = 0/*garbage*/ ;
 	::string chroot_tag      ;
 	//
-	swear_prod(argc==8,argc) ;                                               // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ seq_id job_idx repo_root trace_file
+	swear_prod(argc==9,argc) ;                // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ domain_name repo_root seq_id job_idx trace_file
+	//
 	try { g_service_start   = {                   argv[1],true/*name_ok*/} ; } catch (::string const& e) { exit(Rc::Fail,"cannot connect to server : ",e) ; }
-	/**/  g_service_mngt    = {                   argv[2]}                 ;
-	/**/  g_service_end     = {                   argv[3]}                 ;
-	/**/  g_seq_id          = from_string<SeqId >(argv[4])                 ;
-	/**/  g_job             = from_string<JobIdx>(argv[5])                 ;
-	/**/  g_phy_repo_root_s =                     argv[6]                  ; // passed early so we can chdir and trace early
-	/**/  trace_id          = from_string<SeqId >(argv[7])                 ;
+	/**/  g_service_mngt    = {                   argv[2]                } ;
+	/**/  g_service_end     = {                   argv[3]                } ;
+	/**/  g_domain_name     =                     argv[4]                  ;                                                    // passed early so we can chdir and trace early
+	/**/  g_phy_repo_root_s =                     argv[5]                  ;                                                    // .
+	/**/  g_seq_id          = from_string<SeqId >(argv[6])                 ;
+	/**/  g_job             = from_string<JobIdx>(argv[7])                 ;
+	/**/  trace_id          = from_string<SeqId >(argv[8])                 ;
 	//
 	g_trace_file = new ::string{cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
-	end_report.digest   = { .status=Status::EarlyError } ;                   // prepare to return an error, so we can goto End anytime
-	end_report.wstatus  = 255<<8                         ;                   // .
+	end_report.digest   = { .status=Status::EarlyError } ;                                                                      // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                         ;                                                                      // .
 	end_report.end_date = start_overhead                 ;
 	g_user_trace        = &end_report.user_trace         ;
 	g_user_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
@@ -205,7 +214,6 @@ int main( int argc , char* argv[] ) {
 		try                       { g_start_info.autodep_env.file_sync = auto_file_sync(g_start_info.autodep_env.file_sync) ; }
 		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                                               } // NO_COV defensive programming
 		//
-		g_start_info.autodep_env.fqdn = fqdn(g_start_info.domain_name) ;                                                        // call fqdn() before potential chroot in g_start_info.enter()
 		g_user_trace->emplace_back( New/*date*/ , Comment::Fqdn , CommentExts() , g_start_info.autodep_env.fqdn ) ;
 		//
 		NfsGuard   nfs_guard    { g_start_info.autodep_env.file_sync } ;

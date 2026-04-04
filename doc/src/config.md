@@ -223,7 +223,7 @@ The purpose is to ease reading.
 
 This attribute provides an approximate upper bound of the time it takes for an event to travel from a host to another.
 
-- If too low, there may be spurious lost jobs.
+- If too low, there may be spurious lost jobs and messages about date discrepancies between hosts.
 - If too high, there may be a loss of reactivity.
 
 The default value should fit most cases.

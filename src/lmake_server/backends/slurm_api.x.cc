@@ -40,7 +40,7 @@ namespace Backends::Slurm::SlurmApi {
 	static ::string _cmd_to_string(::vector_s const& cmd_line) {
 		::string res   = "#!/bin/sh" ;
 		First    first ;
-		for ( ::string const& s : cmd_line ) res <<first("\n"," ")<< s ;
+		for( ::string const& s : cmd_line ) res << first("\n"," ")<<mk_shell_str(s) ;
 		res += '\n' ;
 		return res ;
 	}

@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 39      ; // 66ef577d5d30dbffab5d116ed79745bd
+	uint64_t    constexpr Cache = 40      ; // ce274e205f86e979d8c86b69f76f4f72
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 39      ; // cd517691731aba3c3f180aac28e3b51e
+	uint64_t    constexpr Repo  = 40      ; // 38b8d2fa3c34488acf190b8f16560925
 	uint64_t    constexpr Job   = 19      ; // 2461431c75bafc07b14dbcdc068d789f
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 66ef577d5d30dbffab5d116ed79745bd *
+// * Cache : ce274e205f86e979d8c86b69f76f4f72 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -656,7 +656,6 @@ namespace Version {
 //		::string                                cmd              ;
 //		Time::Delay                             ddate_prec       ;
 //		::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ; // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
-//		::string                                domain_name      ;
 //		::vmap_ss                               env              ;
 //		::vector_s                              interpreter      ; // actual interpreter used to execute cmd
 //		JobSpace                                job_space        ;
@@ -1084,7 +1083,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : cd517691731aba3c3f180aac28e3b51e *
+// * Repo : 38b8d2fa3c34488acf190b8f16560925 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2141,7 +2140,6 @@ namespace Version {
 //		::string                                cmd              ;
 //		Time::Delay                             ddate_prec       ;
 //		::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ; // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
-//		::string                                domain_name      ;
 //		::vmap_ss                               env              ;
 //		::vector_s                              interpreter      ; // actual interpreter used to execute cmd
 //		JobSpace                                job_space        ;

@@ -59,7 +59,7 @@ A special implementation has been devised to handle this case, but is too fragil
 
 The principle is to use [`ptrace`](https://man7.org/linux/man-pages/man2/ptrace.2.html) (the system call used by the `strace` utility) to spy user code activity.
 
-This is almost non-intrusive.
+This is almost non-intrusive except that job cannot use strace for its own use.
 In one case, we have seen a commercial tool reading `/proc/self/status` to detect such a `ptrace`ing process, and it stopped, thinking it was being reverse engineered.
 Curiously, it did not detect `$LD_PRELOAD`...
 

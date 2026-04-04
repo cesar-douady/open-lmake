@@ -483,7 +483,6 @@ namespace Backends {
 		/**/                            reply.autodep_env.codecs         = ade.codecs                                                        ;
 		if (submit_info.cache_idx1    ) reply.cache                      = Cache::CacheServerSide::s_tab[submit_info.cache_idx1-1]           ;
 		/**/                            reply.ddate_prec                 = g_config->ddate_prec                                              ;
-		/**/                            reply.domain_name                = s_tab[+tag]->domain_name                                          ;
 		/**/                            reply.key                        = g_config->key                                                     ;
 		/**/                            reply.kill_sigs                  = ::move(start_ancillary_attrs.kill_sigs)                           ;
 		/**/                            reply.live_out                   = submit_info.live_out                                              ;
@@ -703,16 +702,18 @@ namespace Backends {
 			_s_start_tab_erase(it) ;
 		}
 		//
-		Pdate jerr_start_date = jerr.end_date - jerr.stats.job                                     ;
-		Delay d               = ::max( jerr.end_date-je.end_date , je.start_date-jerr_start_date ) ;
-		if (d>g_config->network_delay) {
-			static ::uset<in_addr_t> s_warned ;
-			if (s_warned.insert(je.host).second) {
-				Delay nd   = g_config->network_delay ;
-				Lock  lock { g_py_stderr_mutex }     ;                                                        // ensure we actually write to stderr and not a diverted fd
-				Fd::Stderr.write(cat(
-					"detected (harmless) date discrepancy (>",d.short_str(),") between ",SockFd::s_host(je.host)," and ",host()," larger than network delay (",nd.short_str(),")\n"
-				)) ;
+		if (+jerr.end_date) {
+			Pdate jerr_start_date = jerr.end_date - jerr.stats.job                                     ;
+			Delay d               = ::max( jerr.end_date-je.end_date , je.start_date-jerr_start_date ) ;
+			if (d>g_config->network_delay) {
+				static ::uset<in_addr_t> s_warned ;
+				if (s_warned.insert(je.host).second) {
+					Delay nd   = g_config->network_delay ;
+					Lock  lock { g_py_stderr_mutex }     ;                                                    // ensure we actually write to stderr and not a diverted fd
+					Fd::Stderr.write(cat(
+						"detected (harmless) date discrepancy (>",d.short_str(),") between ",SockFd::s_host(je.host)," and ",host()," larger than network delay (",nd.short_str(),")\n"
+					)) ;
+				}
 			}
 		}
 		//
@@ -925,9 +926,10 @@ namespace Backends {
 		,	_s_job_start_thread.fd.service_str(server_host)                                         // server address is only passed as start service as others use the same
 		,	_s_job_mngt_thread .fd.service_str({}         )                                         // .
 		,	_s_job_end_thread  .fd.service_str({}         )                                         // .
+		,	domain_name                                                                             // passed early so that job init can start early
+		,	*g_repo_root_s                                                                          // .
 		,	::to_string(seq_id)
 		,	::to_string(+job  )
-		,	*g_repo_root_s
 		,	::to_string(seq_id%g_config->trace.n_jobs)
 		} ;
 		trace("cmd_line",cmd_line) ;

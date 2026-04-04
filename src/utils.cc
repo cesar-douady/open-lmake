@@ -400,6 +400,7 @@ void NfsGuardDir::flush() {
 }
 
 ::string mk_shell_str(::string_view s) {
+	if (!s) return "''" ;
 	for( char c : s ) switch (c) {
 		case '+' : continue ;
 		case ',' : continue ;

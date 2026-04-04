@@ -23,15 +23,6 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
-* allow using strace with autodep=ptrace
-! manage 32 bits executables with ptrace
-	- mode -mx32 seems easy
-		- mask out bit 30 of syscall number
-		- check if we access structs : in that case, care must be taken to handle 32-bits struct
-	- mode -m32 is a little more complex
-		- make a 2nd table done by including asm/unistd_32.h and leveraging the same list in syscall_tab.cc
-		- make a double BPF with a test on arch
-		- beware of pointer sizes when analyzing syscalls
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
 	- how to distinguish dead-lock from waiting resources that are occupied externally ?
@@ -41,7 +32,7 @@ items (also used in XXX comments) :
 ? add quarantined files in summary
 ? provide a protection mechanism to ensure jobs are not cached if they used absolute paths
 	- record usage of getcwd() and accesses to /proc/xxx/cwd
-	- emit a "dont cache" message
+	- emit a "dont cache" message (unless there is a repo_view)
 	- unless repo_view is used
 	- provide a warning to user if the case arises
 ? before erasing a dir, check for phony targets, not only files on disk
@@ -58,26 +49,25 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* improve lmake -h
-	- add tag
-	- simplify text
-	- consider to accept abbreviation for enum option args
-* improve dirty crash message
-	? ascii art congratulating user for discovering bug
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly
 	- better to be told upfront that we have redimension id's
 	- should not occur as id's are comfortably sized (but never knows...)
+? improve dirty crash message
+	? ascii art congratulating user for discovering bug
+? consider using YAML for LMAKE/{config,rules}
+	- close to current report
+	- no ambiguities
+? improve lmake -h
+	- add tag
+	- simplify text
+	? consider to accept abbreviation for enum option args
 ? add a target attribute to mean that content may vary from one execution to another
 	- in that case, ommit from detailed report when cache is updated while job runs and contents differ
-? generate an error when calling depend on a target
-	- either known at that time
-	- or when it becomes a target if later
 ? consider a package for option passing
 	? gnu argp
 	? http://nongnu.askapache.com/argpbook/step-by-step-into-argp.pdf
-? if actual_job!=conform_job, show both with warning in lshow
 ? report resources even when job spawn process groups
 	- dont know how to do that
 X gather stdout/stderr from running job_exec when lshow -o/-e
@@ -115,6 +105,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- while suspended, consider resources to be freed
 	- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 	- then resume participates to allocation competition
+? generate an error when calling depend on a target
+	- either known at that time
+	- or when it becomes a target if later
 ? check files are conformant to config.link_support
 	- can only reasonably be done for none, is it worth ?
 	- each time it is mostly free (objective of this config is improved perf)

@@ -871,7 +871,6 @@ struct JobStartRpcReply {                                      // NOLINT(clang-a
 		::serdes( s , cmd                               ) ;
 		::serdes( s , ddate_prec                        ) ;
 		::serdes( s , deps                              ) ;
-		::serdes( s , domain_name                       ) ;
 		::serdes( s , env                               ) ;
 		::serdes( s , interpreter                       ) ;
 		::serdes( s , job_space                         ) ;
@@ -918,7 +917,6 @@ struct JobStartRpcReply {                                      // NOLINT(clang-a
 	::string                                cmd              ;
 	Time::Delay                             ddate_prec       ;
 	::vmap_s<::pair<DepDigest,ExtraDflags>> deps             ; // deps already accessed (always includes static deps), DepDigest does not include extra_dflags, so add them
-	::string                                domain_name      ;
 	::vmap_ss                               env              ;
 	::vector_s                              interpreter      ; // actual interpreter used to execute cmd
 	JobSpace                                job_space        ;

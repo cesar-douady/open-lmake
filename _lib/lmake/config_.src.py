@@ -41,7 +41,7 @@ config = pdict(
 ,	max_dep_depth       = 100                               # used to detect infinite recursions and loops
 ,	max_error_lines     = 100                               # used to limit the number of error lines when not reasonably limited otherwise
 ,	network_delay       = 1                                 # delay between job completed and server aware of it
-	#                                                       # too low, there may be spurious lost jobs and there may be crashes if date discrepancy between hosts are larger than this
+	#                                                       # too low, there may be spurious lost jobs and there may be messages about date discrepancies between hosts
 	#                                                       # too high, tool reactivity may rarely suffer
 #,	nice                = 0                                 # nice value to apply to all jobs
 ,	path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)

@@ -131,12 +131,12 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks                                      , ReqFlags with_flags=~ReqFlags() ) : ReqSyntax{ks,{},with_flags} {}
 	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks , ::umap<ReqFlag,FlagSpec> const& fs , ReqFlags with_flags=~ReqFlags() ) : Syntax   {ks,fs           } {
 		// add standard options
-		if (with_flags[ReqFlag::Quiet  ]) flags[+ReqFlag::Quiet  ] = { .short_name='q' , .has_arg=false , .doc="generate fewer user oriented messages"               } ;
-		if (with_flags[ReqFlag::Verbose]) flags[+ReqFlag::Verbose] = { .short_name='v' , .has_arg=false , .doc="generate more user oriented messages"                } ;
-		if (with_flags[ReqFlag::Job    ]) flags[+ReqFlag::Job    ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name"                } ;
-		if (with_flags[ReqFlag::Job    ]) flags[+ReqFlag::Rule   ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job"             } ;
-		if (with_flags[ReqFlag::Sync   ]) flags[+ReqFlag::Sync   ] = { .short_name='S' , .has_arg=false , .doc="synchronous : start server and wait for its end"     } ;
-		if (with_flags[ReqFlag::Video  ]) flags[+ReqFlag::Video  ] = { .short_name='V' , .has_arg=true  , .doc="assume output video : n(ormal), r(everse) or f(ile)" } ;
+		if (with_flags[ReqFlag::Quiet  ]) flags[+ReqFlag::Quiet  ] = { .short_name='q' , .has_arg=false , .doc="generate fewer user oriented messages"                      } ;
+		if (with_flags[ReqFlag::Verbose]) flags[+ReqFlag::Verbose] = { .short_name='v' , .has_arg=false , .doc="generate more user oriented messages"                       } ;
+		if (with_flags[ReqFlag::Job    ]) flags[+ReqFlag::Job    ] = { .short_name='J' , .has_arg=false , .doc="interpret (unique) arg as a job name rather than file name" } ;
+		if (with_flags[ReqFlag::Job    ]) flags[+ReqFlag::Rule   ] = { .short_name='R' , .has_arg=true  , .doc="force rule when interpreting arg as job"                    } ;
+		if (with_flags[ReqFlag::Sync   ]) flags[+ReqFlag::Sync   ] = { .short_name='S' , .has_arg=false , .doc="synchronous : start server and wait for its end"            } ;
+		if (with_flags[ReqFlag::Video  ]) flags[+ReqFlag::Video  ] = { .short_name='V' , .has_arg=true  , .doc="assume output color theme : d(ark), l(ight) or f(ile)"      } ;
 	}
 
 } ;
