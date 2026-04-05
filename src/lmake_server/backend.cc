@@ -708,8 +708,7 @@ namespace Backends {
 			if (d>g_config->network_delay) {
 				static ::uset<in_addr_t> s_warned ;
 				if (s_warned.insert(je.host).second) {
-					Delay nd   = g_config->network_delay ;
-					Lock  lock { g_py_stderr_mutex }     ;                                                    // ensure we actually write to stderr and not a diverted fd
+					Delay nd = g_config->network_delay ;
 					Fd::Stderr.write(cat(
 						"detected (harmless) date discrepancy (>",d.short_str(),") between ",SockFd::s_host(je.host)," and ",host()," larger than network delay (",nd.short_str(),")\n"
 					)) ;
@@ -839,7 +838,6 @@ namespace Backends {
 				/**/      Rule        last_dyn_rule  = Rule::s_last_dyn_rule ;
 				fence() ; Pdate       last_dyn_date2 = Rule::s_last_dyn_date ;                                           // resample atomic value after associated info
 				if ( last_dyn_date2==last_dyn_date )  {                                                                  // when both dates are equal, we are sure job and msg are associated to it
-					Lock lock { g_py_stderr_mutex } ;                                                                    // ensure we actually write to stderr and not a diverted fd
 					if (+last_dyn_job) Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_job ->name     (),")\n")) ;
 					else               Fd::Stderr.write(cat("surprisingly long time (",(now-last_dyn_date).short_str()," to compute ",last_dyn_msg," for ",last_dyn_rule->user_name(),")\n")) ;
 				}

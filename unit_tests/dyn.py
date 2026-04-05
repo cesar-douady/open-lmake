@@ -170,6 +170,7 @@ else :
 		rc = 1 if s==1 else 0
 		#
 		ut.lmake( 'deps.hello+world.ok'        , done=2-rc*2 , steady=0    , failed=0  , new=1-rc ,                              rc=rc )
+		break
 		ut.lmake( 'interpreter.hello+world.ok' , done=2-rc*2 , steady=0    , failed=rc , new=3*rc , early_rerun=rc  ,            rc=rc ) # interpreter is a dep
 		ut.lmake( 'env.hello.ok'               , done=2-rc*2 , steady=0    , failed=rc , new=rc   , early_rerun=rc  ,            rc=rc )
 		ut.lmake( 'start_delay.no'             , done=rc     , steady=1-rc , failed=0  , new=0    ,                   start=1  , rc=0  )

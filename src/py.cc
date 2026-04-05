@@ -5,11 +5,6 @@
 
 #include "py.hh" // /!\ must be included first as Python.h must be included first
 
-#if !HAS_MEMFD
-	#include "disk.hh"
-	using namespace Disk ;
-#endif
-
 static const ::amap<PyException,PyObject*,N<PyException>> PyExceptionTab {{
 	{ PyException::OsErr      , PyExc_OSError      }
 ,	{ PyException::RuntimeErr , PyExc_RuntimeError }
@@ -22,8 +17,6 @@ static const ::amap<PyException,PyObject*,N<PyException>> PyExceptionTab {{
 
 namespace Py {
 
-	Mutex<> g_py_stderr_mutex ;
-	//
 	Mutex<MutexLvl::Gil>   NoGil::_s_mutex          ;
 	::atomic<::thread::id> NoGil::_s_holding_thread ;
 
@@ -99,43 +92,26 @@ namespace Py {
 		return nullptr ;
 	}
 
-	// divert stderr to a memfd (if available, else to an internal pipe), call PyErr_Print and restore stderr
+	// divert stderr call PyErr_Print and restore stderr
 	::string py_err_str_clear() {
-		static bool s_busy = false ;                               // avoid recursion loop : fall back to printing error string if we cannot gather it
+		static bool s_busy = false ; // avoid recursion loop : fall back to printing error string if we cannot gather it
 		if (s_busy) {
 			PyErr_Print() ;
-			return {} ;
+			return "exception while printing exception" ;
 		}
-		Save          sav_busy     { s_busy , true }             ;
-		::string      res          ;
-		Object&       py_stderr    = py_get_sys("stderr")        ;
-		Ptr<Callable> py_flush     ;
-		AcFd          stderr_save  = Fd::Stderr.dup()            ; // save stderr
-		int           stderr_flags = ::fcntl(Fd::Stderr,F_GETFD) ; // .
-		{	SaveExc sav_exc { New } ;                              // flush cannot be called if exception is set
-			py_flush = py_stderr.get_attr<Callable>("flush") ;
-			try { py_flush->call() ; } catch (::string const&) {}  // flush stderr buffer before manipulation (does not justify the burden of error in error if we cant)
+		Save sav_busy { s_busy , true } ;
+		//
+		Ptr<Object> sav_stderr ;
+		Ptr<Object> buf        ;
+		{	SaveExc sav_exc { New } ;
+			sav_stderr = &py_get_sys("stderr")                                  ;
+			buf        = (*Ptr<Module>("io")->get_attr<Callable>("StringIO"))() ;
+			py_set_sys( "stderr" , *buf ) ;
 		}
-		Lock lock { g_py_stderr_mutex } ;                          // protect from other threads writing to stderr (if they collaborate)
-		{
-			#if HAS_MEMFD
-				AcFd fd { ::memfd_create("back_trace",MFD_CLOEXEC) } ;                                // name is for debug purpose only
-			#else
-				::string tmp_file = cat(get_env("TMPDIR","/tmp"),add_slash,"py_stderr-",::getpid()) ;
-				AcFd     fd       { tmp_file , {O_RDWR|O_CREAT|O_TRUNC,0666} }                      ;
-				unlnk( tmp_file , {.abs_ok=true} ) ;                                                                     // file disappears from dir, but stays usable by existing fd
-			#endif
-			::dup2( fd , Fd::Stderr ) ;                                                               // now, fd can be closed
-		}
-		PyErr_Print() ;                                                                  // clears exception
-		try { py_flush->call() ; } catch (::string const&) {}                            // flush stderr buffer after manipulation (does not justify the burden of error in error if we cant)
-		::lseek( Fd::Stderr , 0/*offset*/ , SEEK_SET ) ;                                 // rewind to read error message
-		char    buf[256] ;
-		ssize_t c        ;
-		while ( (c=::read(Fd::Stderr,buf,sizeof(buf)))>0 ) res += ::string_view(buf,c) ;
-		::dup2( stderr_save , Fd::Stderr ) ;                                             // restore stderr
-		::fcntl( Fd::Stderr , F_SETFD , stderr_flags ) ;                                 // restore stderr flags
-		return res ;
+		PyErr_Print() ;              // clears exception
+		//
+		py_set_sys( "stderr" , *sav_stderr ) ;
+		return *buf->get_attr<Callable>("getvalue")->call<Str>() ;
 	}
 
 	template<bool Run> static Ptr<::conditional_t<Run,Dict,Object>> _py_eval_run( ::string const& expr , Dict* glbs , Sequence const* sys_path ) {

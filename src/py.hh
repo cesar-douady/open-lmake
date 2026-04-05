@@ -18,8 +18,6 @@
 
 namespace Py {
 
-	extern Mutex<> g_py_stderr_mutex ; // mutex taken when stderr is diverted
-
 	struct Object       ;
 	struct NoneType     ;
 	struct EllipsisType ;

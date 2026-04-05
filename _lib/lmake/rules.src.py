@@ -212,7 +212,7 @@ class DirRule(Rule) :
 	backend = 'local'                 # command is faster than any other backend overhead
 	cmd     = ''
 
-class ConfigRule(Rule) :
+class ConfigRule(PyRule) :
 	'''
 		The purpose of this rule is to manage configurations in such a way that :
 		- the config is described globally in a single file

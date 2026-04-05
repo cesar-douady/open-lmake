@@ -421,18 +421,6 @@ LIBC_MAP_STAT=$(ko grep -q 'U  *stat\>' map_stat.nm)
 MAX_PID=$(cat /proc/sys/kernel/pid_max || echo 0)
 
 #
-# MEMFD (HAS_MEMFD)
-#
-cat <<"EOF" >memfd.c
-	#ifndef _GNU_SOURCE
-		#define _GNU_SOURCE
-	#endif
-	#include <sys/mman.h>
-	int main() { memfd_create("trial",0) ; }
-EOF
-HAS_MEMFD=$(ok cc -o /dev/null -xc memfd.c) # check if memfd_create is available in lib
-
-#
 # OBJCOPY
 #
 case $CXX_FLAVOR in
@@ -717,7 +705,6 @@ cat >$H_FILE <<-EOF
 	#define HAS_ACL                     $HAS_ACL
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
-	#define HAS_MEMFD                   $HAS_MEMFD
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PCRE_ENDANCHORED        $HAS_PCRE_ENDANCHORED
 	#define HAS_PIDFD                   $HAS_PIDFD

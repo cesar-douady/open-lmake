@@ -6,7 +6,7 @@
 if __name__!='__main__' :
 
 	import lmake
-	from lmake.rules import Rule,ConfigRule
+	from lmake.rules import Rule,PyRule,ConfigRule
 
 	lmake.manifest = (
 		'Lmakefile.py'
@@ -20,7 +20,7 @@ if __name__!='__main__' :
 
 	class MyConfigRule(ConfigRule) : pass
 
-	class Dut(Rule) :
+	class Dut(PyRule) :
 		target = 'dut_{File:.*}.val'
 		def cmd() :
 			v = lmake.config_dict('config')
