@@ -46,6 +46,8 @@ define(`ClientGeneralities',`
 		Bullet Gray means information of secondary importance.
 		Bullet Uncolored means general output.  In some occasion, it may be colored by user code (e.g. gcc generates colored error messages).
 		.LP
+		If B_($NO_COLOR) is defined and not empty, output is not colored unless B_(--video) option is used.
+		.LP
 		If B_($LMAKE_VIDEO) is defined, it is processed as if provided to the B_(--video) option.
 	')
 ')

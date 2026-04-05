@@ -69,6 +69,32 @@ This class may be used to ignore all writes that are not an official target.
 By itself, it is a dangerous class and must be used with care.
 It is meant to be a practical way to do trials without having to work out all the details, but in a finalized workflow, it is better to avoid the usage of this class.
 
+### [`class ConfigRule(Rule)`](unit_tests/config_dict.html#:~:text=class%20MyConfigRule%28ConfigRule%29%20%3A%20pass)
+
+The purpose of this class is to manage configurations in such a way that:
+
+- the config is described globally in a single file
+- jobs needing to access such config are rerun only when needed fields are modified
+
+This rule expands a python file `config.py` representing a configuration into a disk hierarchy that can be accessed with `lmake.config_dict('config')`.
+For example, if `config.py` contains:
+
+`config = { 'a':{'b':1} , c:[2,3] }`
+
+then, with `cfg=lmake.config('config')`:
+
+- `cfg.a()   =={'b':1}`
+- `cfg['a']()=={'b':1}`
+- `cfg.a.b() ==1`
+- `cfg.c()   ==[2,3]`
+- `cfg.c[0]()==2`
+
+Notes:
+
+- fields can be accessed as items (`cfg['a']`) or attributes (`cfg.a`)
+- this is a virtual rule, it must be made a concrete rule by deriving from it
+- it can also be used as a model for more specific usages
+
 ### [`class HomelessRule(Rule)`](unit_tests/home.html#:~:text=class%20Homeless1%28HomelessRule%29%20%3A%20target%20%3D%20%27homeless1%27%20cmd%20%3D%20%27%5B%20%24HOME%20%3D%20%24TMPDIR%20%5D%27)
 
 This class sets `$HOME` to `$TMPDIR`.

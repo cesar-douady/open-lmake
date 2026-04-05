@@ -13,7 +13,7 @@ import re      as _re
 import signal  as _signal
 
 import lmake
-from . import autodeps,pdict
+from . import autodeps , pdict , config_dict
 
 _lmake_lib = _osp.dirname(_osp.dirname(__file__))
 
@@ -211,3 +211,30 @@ class DirRule(Rule) :
 	target  = fr'{{Dir:.+}}/{marker}'
 	backend = 'local'                 # command is faster than any other backend overhead
 	cmd     = ''
+
+class ConfigRule(Rule) :
+	'''
+		The purpose of this rule is to manage configurations in such a way that :
+		- the config is described globally in a single file
+		- jobs needing to access such config are rerun only when needed fields are modified
+		This rule expands a python file config.py representing a configuration into a disk hierarchy
+		that can be accessed with lmake.config_dict('config').
+		For example, if config.py contains :
+			config = { 'a':{'b':1} , c:[2,3] }
+		then with cfg=lmake.config('config') :
+			- cfg.a()   =={'b':1}
+			- cfg['a']()=={'b':1}
+			- cfg.a.b() ==1
+			- cfg.c()   ==[2,3]
+			- cfg.c[0]()==2
+		Note that :
+			- fields can be accessed as items (cfg['a']) or attributes (cfg.a)
+	'''
+	virtual = True
+	targets = {
+		'MANIFEST' : f'{{File:.*}}.{config_dict.__val_ext__}'
+	,	'DIR'      : f'{{File}}.{config_dict.__dir_ext__}/{{*:.*}}'
+	}
+	deps = { 'CFG' : '{File}.py' }
+	def cmd() :
+		config_dict( File , create_from=CFG )

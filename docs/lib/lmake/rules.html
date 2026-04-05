@@ -111,7 +111,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="kn">import</span> <span class="nn">signal</span>  <span class="k">as</span> <span class="nn">_signal</span>
 
 <span class="kn">import</span> <span class="nn">lmake</span>
-<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">autodeps</span><span class="p">,</span><span class="n">pdict</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="kn">import</span> <span class="n">autodeps</span> <span class="p">,</span> <span class="n">pdict</span> <span class="p">,</span> <span class="n">config_dict</span>
 
 <span class="n">_lmake_lib</span> <span class="o">=</span> <span class="n">_osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">_osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="vm">__file__</span><span class="p">))</span>
 
@@ -309,6 +309,33 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="n">target</span>  <span class="o">=</span> <span class="sa">fr</span><span class="s1">&#39;</span><span class="se">{{</span><span class="s1">Dir:.+</span><span class="se">}}</span><span class="s1">/</span><span class="si">{</span><span class="n">marker</span><span class="si">}</span><span class="s1">&#39;</span>
     <span class="n">backend</span> <span class="o">=</span> <span class="s1">&#39;local&#39;</span>                 <span class="c1"># command is faster than any other backend overhead</span>
     <span class="n">cmd</span>     <span class="o">=</span> <span class="s1">&#39;&#39;</span>
+
+<span class="k">class</span> <span class="nc">ConfigRule</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+<span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        The purpose of this rule is to manage configurations in such a way that :</span>
+<span class="sd">        - the config is described globally in a single file</span>
+<span class="sd">        - jobs needing to access such config are rerun only when needed fields are modified</span>
+<span class="sd">        This rule expands a python file config.py representing a configuration into a disk hierarchy</span>
+<span class="sd">        that can be accessed with lmake.config_dict(&#39;config&#39;).</span>
+<span class="sd">        For example, if config.py contains :</span>
+<span class="sd">            config = { &#39;a&#39;:{&#39;b&#39;:1} , c:[2,3] }</span>
+<span class="sd">        then with cfg=lmake.config(&#39;config&#39;) :</span>
+<span class="sd">            - cfg.a()   =={&#39;b&#39;:1}</span>
+<span class="sd">            - cfg[&#39;a&#39;]()=={&#39;b&#39;:1}</span>
+<span class="sd">            - cfg.a.b() ==1</span>
+<span class="sd">            - cfg.c()   ==[2,3]</span>
+<span class="sd">            - cfg.c[0]()==2</span>
+<span class="sd">        Note that :</span>
+<span class="sd">            - fields can be accessed as items (cfg[&#39;a&#39;]) or attributes (cfg.a)</span>
+<span class="sd">    &#39;&#39;&#39;</span>
+    <span class="n">virtual</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s1">&#39;MANIFEST&#39;</span> <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="se">{{</span><span class="s1">File:.*</span><span class="se">}}</span><span class="s1">.</span><span class="si">{</span><span class="n">config_dict</span><span class="o">.</span><span class="n">__val_ext__</span><span class="si">}</span><span class="s1">&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;DIR&#39;</span>      <span class="p">:</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="se">{{</span><span class="s1">File</span><span class="se">}}</span><span class="s1">.</span><span class="si">{</span><span class="n">config_dict</span><span class="o">.</span><span class="n">__dir_ext__</span><span class="si">}</span><span class="s1">/</span><span class="se">{{</span><span class="s1">*:.*</span><span class="se">}}</span><span class="s1">&#39;</span>
+    <span class="p">}</span>
+    <span class="n">deps</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;CFG&#39;</span> <span class="p">:</span> <span class="s1">&#39;</span><span class="si">{File}</span><span class="s1">.py&#39;</span> <span class="p">}</span>
+    <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
+        <span class="n">config_dict</span><span class="p">(</span> <span class="n">File</span> <span class="p">,</span> <span class="n">create_from</span><span class="o">=</span><span class="n">CFG</span> <span class="p">)</span>
 </pre></div>
 </body>
 </html>

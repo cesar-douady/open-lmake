@@ -78,7 +78,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* improve address resolution
+! improve address resolution
+	- as of today, each host is supposed to have a single address
 	* maintain in server :
 		- a tab backend->cache_addr
 		- a tab remote_host->remote_host_addr
@@ -266,6 +267,8 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* avoid computing deps on disk for cached jobs
+	- make status is enough as downloading does not require deps on disk
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case

@@ -191,7 +191,7 @@ A special implementation has been devised to handle this case, but is too fragil
 <h2 id="spying-methods-based-on-system-calls"><a class="header" href="#spying-methods-based-on-system-calls">Spying methods based on system calls</a></h2>
 <h3 id="ptrace"><a class="header" href="#ptrace">ptrace</a></h3>
 <p>The principle is to use <a href="https://man7.org/linux/man-pages/man2/ptrace.2.html"><code>ptrace</code></a> (the system call used by the <code>strace</code> utility) to spy user code activity.</p>
-<p>This is almost non-intrusive.
+<p>This is almost non-intrusive except that job cannot use strace for its own use.
 In one case, we have seen a commercial tool reading <code>/proc/self/status</code> to detect such a <code>ptrace</code>ing process, and it stopped, thinking it was being reverse engineered.
 Curiously, it did not detect <code>$LD_PRELOAD</code>...</p>
 <p>The major drawback is performance wise: the impact is more significant as there is a context switch at each system call.

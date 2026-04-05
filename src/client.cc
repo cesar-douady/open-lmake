@@ -22,6 +22,7 @@ ClientSockFd g_server_fd ;
 static Bool3 is_dark_video( Fd in_fd , Fd out_fd ) {
 	using Event = Epoll<NewType>::Event ;
 	Trace trace("is_dark_video",in_fd,out_fd) ;
+	//
 	struct ::stat in_stat  ;
 	struct ::stat out_stat ;
 	::fstat(in_fd ,&in_stat ) ;
