@@ -30,8 +30,8 @@ int main( int argc , char* argv[] ) {
 	bool read_only = app_init() ;
 	Trace trace("main") ;
 	//
-	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"    ) ;
-	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key==ReqKey::InvTargets ) syntax.usage("producing jobs cannot be shown for jobs") ;
+	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key1==ReqKey::InvDeps    ) syntax.usage("dependents cannot be shown for jobs"    ) ;
+	if ( cmd_line.flags[ReqFlag::Job] && cmd_line.key1==ReqKey::InvTargets ) syntax.usage("producing jobs cannot be shown for jobs") ;
 	//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Rc rc = out_proc( ReqProc::Show , read_only , false/*refresh_makefiles*/ , syntax , cmd_line ) ;
 	//      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

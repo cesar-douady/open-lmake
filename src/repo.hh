@@ -5,10 +5,7 @@
 
 #pragma once
 
-#include "app.hh"
 #include "disk.hh"
-
-#include "version.hh"
 
 // must not be touched to fit needs
 static constexpr uint8_t NJobGuardBits  = 2 ; // one to define JobTgt, the other to put it in a Crunch vector

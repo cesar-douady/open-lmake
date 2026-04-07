@@ -17,17 +17,15 @@ using namespace Disk  ;
 SmallIds<CacheUploadKey> _g_upload_keys  ;
 ::vector<DiskSz>         _g_reserved_szs ; // indexed by upload_key
 
-enum class Key : uint8_t { None } ;
-
 enum class Flag : uint8_t {
 	Verbose
 } ;
 
 int main( int argc , char* argv[]) {
-	Syntax<Key,Flag> syntax {{
+	Syntax<Flag> syntax {{
 		{ Flag::Verbose , { .short_name='v' , .doc="more verbose output" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
+	CmdLine<Flag> cmd_line { syntax , argc , argv } ;
 	//
 	if (  cmd_line.args.size()>1                                ) syntax.usage("cannot chdir to more than a single dir") ;
 	if ( +cmd_line.args && ::chdir(cmd_line.args[0].c_str())!=0 ) syntax.usage(cat("cannot chdir to ",cmd_line.args[0])) ;

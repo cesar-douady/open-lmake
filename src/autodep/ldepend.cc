@@ -11,8 +11,6 @@
 using namespace Disk ;
 using namespace Hash ;
 
-enum class Key : uint8_t { None } ;
-
 enum class Flag : uint8_t {
 	Dir
 ,	FollowSymlinks
@@ -32,7 +30,7 @@ enum class Flag : uint8_t {
 } ;
 
 int main( int argc , char* argv[]) {
-	Syntax<Key,Flag> syntax {{
+	Syntax<Flag> syntax {{
 		{ Flag::Dir            , { .short_name='z' , .has_arg=true , .doc="dir in which to list deps"             } }
 	,	{ Flag::FollowSymlinks , { .short_name='L' ,                 .doc="Logical view, follow symolic links"    } }
 	,	{ Flag::List           , { .short_name='l' ,                 .doc="list deps"                             } }
@@ -49,7 +47,7 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::NoRequired    , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .doc="ignore if deps cannot be built"          } }
 	,	{ Flag::ReaddirOk     , { .short_name=ExtraDflagChars[+ExtraDflag::ReaddirOk  ].second , .doc="allow readdir"                           } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
+	CmdLine<Flag> cmd_line { syntax , argc , argv } ;
 	Rc                rc       = Rc::Ok                 ;
 	::string          out      ;
 	BitMap<Flag>      flags    = cmd_line.flags         ;

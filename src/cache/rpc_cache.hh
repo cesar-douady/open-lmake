@@ -5,10 +5,9 @@
 
 #pragma once
 
-#include "msg.hh"
 #include "time.hh"
+#include "trace.hh"
 
-#include "repo.hh"
 #include "rpc_job.hh"
 
 enum class CacheRpcProc : uint8_t {

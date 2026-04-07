@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "py.hh"   // /!\ must be included first as Python.h must be included first
+#include "app.hh"
 #include "disk.hh"
 
 #include "cache_utils.hh"

@@ -3,6 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "app.hh"
 #include "disk.hh"
 #include "fd.hh"
 #include "hash.hh"
@@ -387,9 +388,12 @@ int main( int argc , char* argv[] ) {
 		if ( status==Status::Ok && +crc_msg ) status = Status::Forbidden ;
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
-		if (+g_start_info.cache) {
-			if (!g_start_info.cache.service.addr)
+		if ( status==Status::Ok && +g_start_info.cache ) {                                                                          // jobs in error are not cached
+			trace("cache_addr",g_start_info.cache.service.addr) ;
+			if (!g_start_info.cache.service.addr) {
 				end_report.cache_addr = g_start_info.cache.service.addr = SockFd::s_addr(g_start_info.cache.fqdn,true/*name_ok*/) ; // if solving cache addr, report to server so next jobs can reuse it
+				trace("cache_fqdn",g_start_info.cache.fqdn,g_start_info.cache.service.addr) ;
+			}
 			try {
 				CacheRemoteSide::UploadDigest ud = g_start_info.cache.upload( exe_time , digest.targets , digest.target_fis , g_start_info.zlvl ) ;
 				upload_key            = ud.upload_key ;

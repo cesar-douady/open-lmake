@@ -675,8 +675,9 @@ namespace Backends {
 			StartEntry& entry = it->second              ; if (entry.conn.seq_id!=jerr.seq_id) { trace("bad seq_id",job,entry.conn.seq_id,jerr.seq_id) ; return ; }
 			_s_small_ids.release(entry.conn.small_id) ;
 			//
-			if ( entry.submit_info.cache_idx1 && jerr.cache_addr ) {                                          // record solved cache server address so next jobs will not  have to do it again
+			if ( entry.submit_info.cache_idx1 && jerr.cache_addr ) {                                          // record solved cache server address so next jobs will not have to do it again
 				Cache::CacheServerSide& css = Cache::CacheServerSide::s_tab[entry.submit_info.cache_idx1-1] ;
+				trace("cache",css.fqdn,"->",jerr.cache_addr) ;
 				css.service.addr = jerr.cache_addr ;
 				css.fqdn         = {}              ;
 			}

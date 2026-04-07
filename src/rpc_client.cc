@@ -12,6 +12,7 @@ void ReqOptions::operator>>(::string& os) const {                    // START_OF
 	if      ( dark_video==Yes) os << first("",",")<<"dark_video"   ;
 	else if ( dark_video==No ) os << first("",",")<<"light_video"  ;
 	if      (+key            ) os << first("",",")<<key            ;
+	if      (+mark           ) os << first("",",")<<mark           ;
 	if      (+flags          ) os << first("",",")<<flags          ;
 	/**/                       os << ')'                           ;
 }                                                                    // END_OF_NO_COV

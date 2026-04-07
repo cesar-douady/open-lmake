@@ -7,8 +7,6 @@
 
 #include "job_support.hh"
 
-enum class Key : uint8_t { None } ;
-
 enum class Flag : uint8_t {
 	Table
 ,	Context
@@ -16,12 +14,12 @@ enum class Flag : uint8_t {
 } ;
 
 int main( int argc , char* argv[]) {
-	Syntax<Key,Flag> syntax {{
+	Syntax<Flag> syntax {{
 		{ Flag::Table   , { .short_name='t' , .has_arg=true , .doc="table storing code-value associations"                    } }
 	,	{ Flag::Context , { .short_name='x' , .has_arg=true , .doc="context used within file to store code-value association" } }
 	,	{ Flag::MinLen  , { .short_name='l' , .has_arg=true , .doc="min length of generated code from value"                  } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
+	CmdLine<Flag> cmd_line { syntax , argc , argv } ;
 	//
 	app_init({ .chk_version=No , .trace=No }) ;
 	//

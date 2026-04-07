@@ -77,6 +77,12 @@ inline bool is_mark_glb(ReqKey key) {
 	DF}                                      // NO_COV
 }
 
+enum class ReqMark : uint8_t { // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
+	Freeze                     // if proc==Mark    , prevent job rebuild
+,	NoTrigger                  // if proc==Mark    , prevent lmake from rebuilding dependent jobs
+} ;
+using ReqMarks = BitMap<ReqMark> ;
+
 enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
 	Archive                    // if proc==Make    , all intermediate files are generated
 ,	Backend                    // if proc==Make    , send argument to backends
@@ -87,7 +93,6 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	Ete                        // if proc==Make    , estimated time of execution for scheduling purpose
 ,	Force                      // if proc==Mark    , act if doable, even if awkward
 ,	ForgetOldErrors            // if proc==Make    , assume old errors are transient
-,	Freeze                     // if proc==Mark    , prevent job rebuild
 ,	Job                        //                    interpret (unique) arg as job name
 ,	Jobs                       // if proc==Make    , max number of jobs
 ,	KeepTmp                    // if proc==Make    , keep tmp dir after job execution
@@ -100,7 +105,6 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	NoDeps                     // if proc==Make    , dont check deps
 ,	NoExec                     // if proc==Debug   , dont execute, just generate files
 ,	NoIncremental              // if proc==Make    , ignore incremental flag for targets
-,	NoTrigger                  // if proc==Mark    , prevent lmake from rebuilding dependent jobs
 ,	Porcelaine                 //                    generate easy to parse output
 ,	Quiet                      //                    do not generate user oriented messages
 ,	RetryOnError               // if proc==Make    , retry jobs in error
@@ -125,11 +129,11 @@ enum class ReqRpcReplyProc : uint8_t {
 ,	Stderr
 } ;
 
-struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
+struct ReqSyntax : Syntax<ReqFlag,ReqKey,ReqMark> {
 	ReqSyntax() = default ;
-	ReqSyntax(                                    ::umap<ReqFlag,FlagSpec> const& fs , ReqFlags with_flags=~ReqFlags() ) : ReqSyntax{{},fs,with_flags} {}
-	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks                                      , ReqFlags with_flags=~ReqFlags() ) : ReqSyntax{ks,{},with_flags} {}
-	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks , ::umap<ReqFlag,FlagSpec> const& fs , ReqFlags with_flags=~ReqFlags() ) : Syntax   {ks,fs           } {
+	ReqSyntax(                                                                        ::umap<ReqFlag,FlagSpec> const& fs , ReqFlags with_flags=~ReqFlags() ) : ReqSyntax{{},{},fs,with_flags} {}
+	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks ,                                     ::umap<ReqFlag,FlagSpec> const& fs , ReqFlags with_flags=~ReqFlags() ) : ReqSyntax{ks,{},fs,with_flags} {}
+	ReqSyntax( ::umap<ReqKey,KeySpec> const& ks , ::umap<ReqMark,KeySpec> const& ms , ::umap<ReqFlag,FlagSpec> const& fs , ReqFlags with_flags=~ReqFlags() ) : Syntax   {ks,ms,fs           } {
 		// add standard options
 		if (with_flags[ReqFlag::Quiet  ]) flags[+ReqFlag::Quiet  ] = { .short_name='q' , .has_arg=false , .doc="generate fewer user oriented messages"                      } ;
 		if (with_flags[ReqFlag::Verbose]) flags[+ReqFlag::Verbose] = { .short_name='v' , .has_arg=false , .doc="generate more user oriented messages"                       } ;
@@ -141,49 +145,52 @@ struct ReqSyntax : Syntax<ReqKey,ReqFlag> {
 
 } ;
 
-using ReqCmdLine = CmdLine<ReqKey,ReqFlag> ;
+using ReqCmdLine = CmdLine<ReqFlag,ReqKey,ReqMark> ;
 
 struct ReqOptions {
 	using FlagArgs = ::array_s<N<ReqFlag>> ;
 	// cxtors & casts
 	ReqOptions(                    ) : flag_args{*new FlagArgs} {             }
 	ReqOptions(ReqOptions const& ro) : ReqOptions{}             { self = ro ; }
-	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ::umap_ss const& ue , ReqFlags f={} , FlagArgs const& fa={} ) :
+	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ReqMark m , ::umap_ss const& ue , ReqFlags f={} , FlagArgs const& fa={} ) :
 		startup_dir_s { sds               }
-	,	dark_video { rv                }
-	,	key        { k                 }
-	,	flags      { f                 }
-	,	flag_args  { *new FlagArgs{fa} }
-	,	user_env   { ue                }
+	,	dark_video    { rv                }
+	,	key           { k                 }
+	,	mark          { m                 }
+	,	flags         { f                 }
+	,	flag_args     { *new FlagArgs{fa} }
+	,	user_env      { ue                }
 	{}
 	ReqOptions( Bool3 rv , ReqCmdLine cl ) :
 		startup_dir_s { *g_startup_dir_s            }
-	,	dark_video { rv                          }
-	,	key        { cl.key                      }
-	,	flags      { cl.flags                    }
-	,	flag_args  { *new FlagArgs{cl.flag_args} }
-	,	user_env   { mk_environ()                }
+	,	dark_video    { rv                          }
+	,	key           { cl.key1                     }
+	,	mark          { cl.key2                     }
+	,	flags         { cl.flags                    }
+	,	flag_args     { *new FlagArgs{cl.flag_args} }
+	,	user_env      { mk_environ()                }
 	{}
 	~ReqOptions() {
 		delete &flag_args ;
 	}
 	ReqOptions& operator=(ReqOptions const& ro) {
 		startup_dir_s = ro.startup_dir_s ;
-		dark_video = ro.dark_video ;
-		key        = ro.key        ;
-		flags      = ro.flags      ;
-		flag_args  = ro.flag_args  ;
-		user_env   = ro.user_env   ;
+		dark_video    = ro.dark_video    ;
+		key           = ro.key           ;
+		mark          = ro.mark          ;
+		flags         = ro.flags         ;
+		flag_args     = ro.flag_args     ;
+		user_env      = ro.user_env      ;
 		return self ;
 	}
 	// accesses
 	void operator>>(::string&) const ;
 	// services
 	template<IsStream S> void serdes(S& s) {
-		::serdes( s , startup_dir_s   ) ;
-		::serdes( s , dark_video      ) ;
-		::serdes( s , key             ) ;
-		::serdes( s , flags,flag_args ) ;
+		/**/                        ::serdes( s , startup_dir_s    ) ;
+		/**/                        ::serdes( s , dark_video       ) ;
+		/**/                        ::serdes( s , key,mark         ) ;
+		/**/                        ::serdes( s , flags,flag_args  ) ;
 		if constexpr (IsIStream<S>) ::serdes( s , user_env         ) ;
 		else                        ::serdes( s , mk_map(user_env) ) ;
 	}
@@ -191,6 +198,7 @@ struct ReqOptions {
 	::string               startup_dir_s ;
 	Bool3                  dark_video    = Maybe        ; // if Maybe <=> not a terminal, do not colorize
 	ReqKey                 key           = ReqKey::None ;
+	ReqMark                mark          = {}           ;
 	ReqFlags               flags         ;
 	::array_s<N<ReqFlag>>& flag_args     ;                // owned, avoid putting enormous array in place as it appears in g_engine_queue and that would make *all* items enormous
 	::umap_ss              user_env      ;                // environment as captured by client

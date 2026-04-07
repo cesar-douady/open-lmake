@@ -7,8 +7,6 @@
 
 #include "job_support.hh"
 
-enum class Key : uint8_t { None } ;
-
 enum class Flag : uint8_t {
 	Dir
 ,	FollowSymlinks
@@ -31,7 +29,7 @@ enum class Flag : uint8_t {
 } ;
 
 int main( int argc , char* argv[]) {
-	Syntax<Key,Flag> syntax {{
+	Syntax<Flag> syntax {{
 		{ Flag::Dir            , { .short_name='z' , .has_arg=true , .doc="dir in which to list targets"         } }
 	,	{ Flag::FollowSymlinks , { .short_name='L' ,                 .doc="Logical view, follow symolic links" } }
 	,	{ Flag::List           , { .short_name='l' ,                 .doc="list targets"                         } }
@@ -51,7 +49,7 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::ReaddirOk     , { .short_name=ExtraDflagChars[+ExtraDflag::ReaddirOk  ].second , .doc="allow readdir"                                                                             } }
 	,	{ Flag::SourceOk      , { .short_name=ExtraTflagChars[+ExtraTflag::SourceOk   ].second , .doc="accept if targets are actually sources and accept them to also be deps if not incremental" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax , argc , argv } ;
+	CmdLine<Flag> cmd_line { syntax , argc , argv } ;
 	::string          out      ;
 	//
 	app_init({ .chk_version=No , .trace=No }) ;

@@ -9,7 +9,6 @@
 
 using namespace Disk ;
 
-enum class SlurmKey  : uint8_t { None } ;
 enum class SlurmFlag : uint8_t {
 	CpusPerTask
 ,	Mem
@@ -473,7 +472,7 @@ namespace Backends::Slurm {
 	}
 
 	RsrcsData parse_args(::string const& args) {
-		Syntax<SlurmKey,SlurmFlag> syntax {{
+		Syntax<SlurmFlag> syntax {{
 			{ SlurmFlag::CpusPerTask    , { .short_name='c' , .has_arg=true , .doc="cpus per task" } }
 		,	{ SlurmFlag::Mem            , {                   .has_arg=true , .doc="mem"           } }
 		,	{ SlurmFlag::Tmp            , {                   .has_arg=true , .doc="tmp disk space"} }
@@ -504,7 +503,7 @@ namespace Backends::Slurm {
 			}
 			RsrcsDataSingle res1 ;
 			try {
-				CmdLine<SlurmKey,SlurmFlag> opts { syntax , int(argv.size()) , argv.data() } ;
+				CmdLine<SlurmFlag> opts { syntax , int(argv.size()) , argv.data() } ;
 				//                                                                                         RndUp
 				if (opts.flags[SlurmFlag::CpusPerTask]) res1.cpu       = from_string          <    uint16_t     >(opts.flag_args[+SlurmFlag::CpusPerTask]) ;
 				if (opts.flags[SlurmFlag::Mem        ]) res1.mem       = from_string_with_unit<'M',uint32_t,true>(opts.flag_args[+SlurmFlag::Mem        ]) ;

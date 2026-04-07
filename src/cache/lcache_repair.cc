@@ -20,7 +20,6 @@ using namespace Engine ;
 using namespace Hash   ;
 using namespace Time   ;
 
-enum class Key  : uint8_t { None } ;
 enum class Flag : uint8_t {
 	DryRun
 ,	Force
@@ -129,11 +128,11 @@ static void _repair(DryRunDigest const& dry_run) {
 }
 
 int main( int argc , char* argv[] ) {
-	Syntax<Key,Flag> syntax {{
+	Syntax<Flag> syntax {{
 		{ Flag::DryRun , { .short_name='n' , .doc="report actions but dont execute them" } }
 	,	{ Flag::Force  , { .short_name='f' , .doc="execute actions without confirmation" } }
 	}} ;
-	CmdLine<Key,Flag> cmd_line { syntax,argc,argv } ;
+	CmdLine<Flag> cmd_line { syntax,argc,argv } ;
 	if (cmd_line.args.size()<1) syntax.usage("must provide a cache dir to repair") ;
 	if (cmd_line.args.size()>1) syntax.usage("cannot repair several cache dirs"  ) ;
 	//

@@ -19,7 +19,7 @@ int main( int argc , char* argv[] ) {
 	app_init({.read_only_ok=false}) ;
 	Trace trace("main") ;
 	//
-	bool refresh = cmd_line.key==ReqKey::Resources ;
+	bool refresh = cmd_line.key1==ReqKey::Resources ;
 	if ( refresh && +cmd_line.args ) syntax.usage("must not have targets when forgetting resources" ) ;
 	//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Rc rc = out_proc( ReqProc::Forget , false/*read_only*/ , refresh , syntax , cmd_line ) ;

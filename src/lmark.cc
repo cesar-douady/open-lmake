@@ -14,17 +14,17 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::Clear  , { .short_name='c' , .doc="clear all marks"        } }
 	,	{ ReqKey::List   , { .short_name='l' , .doc="list marked jobs/files" } }
 	},{
-		{ ReqFlag::Force     , { .short_name='F' , .doc="force action if possible"                          } }
-	,	{ ReqFlag::Freeze    , { .short_name='f' , .doc="freeze job : prevent rebuild and behave as source" } }
-	,	{ ReqFlag::NoTrigger , { .short_name='t' , .doc="do not trigger rebuild of dependent jobs"          } }
+		{ ReqMark::Freeze    , { .short_name='f' , .doc="freeze job : prevent rebuild and behave as source" } }
+	,	{ ReqMark::NoTrigger , { .short_name='t' , .doc="do not trigger rebuild of dependent jobs"          } }
+	},{
+		{ ReqFlag::Force , { .short_name='F' , .doc="force action if possible" } }
 	}} ;
 	ReqCmdLine cmd_line{syntax,argc,argv} ;
 	//
 	app_init({.read_only_ok=false}) ;
 	Trace trace("main") ;
 	//
-	if ( is_mark_glb(cmd_line.key) && +cmd_line.args                              ) syntax.usage("cannot have files when listing or deleting all") ;
-	if ( cmd_line.flags[ReqFlag::Freeze] + cmd_line.flags[ReqFlag::NoTrigger] !=1 ) syntax.usage("need exactly one mark : freeze or no-trigger"  ) ;
+	if ( is_mark_glb(cmd_line.key1) && +cmd_line.args ) syntax.usage("cannot have files when listing or deleting all") ;
 	//
 	//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Rc rc = out_proc( ReqProc::Mark , false/*read_only*/ , false/*refresh_makefiles*/ , syntax , cmd_line ) ;

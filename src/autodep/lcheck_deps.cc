@@ -10,22 +10,20 @@
 
 using namespace Time ;
 
-enum class Key : uint8_t { None } ;
-
 enum class Flag : uint8_t {
 	Delay
 ,	Sync
 } ;
 
 int main( int argc , char* argv[]) {
-	Syntax<Key,Flag> syntax {{
+	Syntax<Flag> syntax {{
 		{ Flag::Delay , { .short_name='d' , .has_arg=true , .doc="delay after which to check for out-of-date/error deps"                 } }
 	,	{ Flag::Sync  , { .short_name='s' ,                 .doc="wait for server reply that previous deps are up-to-date with no error" } }
 	}} ;
 	//
 	app_init({ .chk_version=No , .trace=No }) ;
 	//
-	CmdLine<Key,Flag> cmd_line { syntax , argc , argv }     ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
+	CmdLine<Flag> cmd_line { syntax , argc , argv }     ; if (cmd_line.args.size()!=0 ) syntax.usage("must have no argument") ;
 	bool              sync     = cmd_line.flags[Flag::Sync] ;
 	Delay             delay    ;
 	try                       { delay = Delay( from_string<double>( cmd_line.flag_args[+Flag::Delay] , true/*empty_ok*/ ) ) ; }

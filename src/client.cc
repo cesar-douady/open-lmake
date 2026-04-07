@@ -110,16 +110,16 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	::vector_s cmd_line_files ;                                 try { cmd_line_files = cmd_line.files() ; } catch (::string const& e) { syntax.usage(e) ; }
 	//
 	Bool3    dv     = Maybe/*garbage*/ ;
-	::string dv_str ;
-	if (!dv_str) { dv_str = cmd_line.flag_args[+ReqFlag::Video] ; trace("cmd_line",dv_str) ; }
-	if (!dv_str) { dv_str = get_env("LMAKE_VIDEO")              ; trace("env"     ,dv_str) ; }
+	::string dv_str = cmd_line.flag_args[+ReqFlag::Video] ; if (!dv_str) dv_str = get_env("LMAKE_VIDEO") ;
+	trace("dv",dv_str) ;
 	switch (dv_str[0]) {
 		case 'd' : case 'D' : dv = Yes   ;                                                                                       break ; // dark mode
 		case 'l' : case 'L' : dv = No    ;                                                                                       break ; // light mode
 		case 'n' : case 'N' : dv = No    ; Fd::Stderr.write(cat("video mode ",dv_str," is deprecated, use l(ight) instead\n")) ; break ; // XXX> : suppress when no more compatibility with 26.03
 		case 'r' : case 'R' : dv = Yes   ; Fd::Stderr.write(cat("video mode ",dv_str," is deprecated, use d(ark) instead\n" )) ; break ; // .
 		case 'f' : case 'F' : dv = Maybe ;                                                                                       break ; // f(ile) : force no color
-		default  :            dv = is_dark_video(Fd::Stdin,Fd::Stdout) ;
+		default  :
+			if (!get_env("NO_COLOR")) dv = is_dark_video(Fd::Stdin,Fd::Stdout) ;
 	}
 	trace("dark_video",dv) ;
 	//

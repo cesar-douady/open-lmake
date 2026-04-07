@@ -8,6 +8,7 @@
 #include <pwd.h>
 #include <grp.h>
 
+#include "app.hh"
 #include "disk.hh"
 #include "fd.hh"
 #include "time.hh"
@@ -18,7 +19,6 @@ using namespace Disk ;
 using namespace Py   ;
 using namespace Time ;
 
-enum class CmdKey  : uint8_t { None } ;
 enum class CmdFlag : uint8_t {
 	AutoMkdir
 ,	AutodepMethod
@@ -107,7 +107,7 @@ int main( int argc , char* argv[] ) {
 	#if CAN_AUTODEP_SECCOMP
 		autodep_method_doc << ", seccomp" ;
 	#endif
-	Syntax<CmdKey,CmdFlag> syntax {{
+	Syntax<CmdFlag> syntax {{
 		// PER_AUTODEP_METHOD : complete doc on line below
 		{ CmdFlag::AutoMkdir     , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                         } }
 	,	{ CmdFlag::ChrootDir     , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                     } }
@@ -130,7 +130,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::TmpView       , { .short_name='T' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                            } }
 	,	{ CmdFlag::Views         , { .short_name='V' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}"   } }
 	}} ;
-	CmdLine<CmdKey,CmdFlag> cmd_line { syntax , argc , argv } ;
+	CmdLine<CmdFlag> cmd_line { syntax , argc , argv } ;
 	//
 	app_init({.cd_root=false}) ;
 	Py::init(*g_lmake_root_s) ;

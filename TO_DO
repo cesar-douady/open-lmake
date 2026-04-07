@@ -16,9 +16,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-? seen once : server blocked
-	- seems to be while taking GIL
-
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
@@ -269,6 +266,12 @@ M port to Darwin
 
 * avoid computing deps on disk for cached jobs
 	- make status is enough as downloading does not require deps on disk
+	- split a cache.download() into :
+		- cache.download_status() : copy in info only
+		- cache.download_disk  () : copy in info + data (same as today's cache.download())
+	- balance between parallism and pessimism :
+		- anticipate each actual run generates a new content
+		- anticipate that a cache hit (of a dep) leads to a cache hit (of the depending job)
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case

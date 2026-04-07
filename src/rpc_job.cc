@@ -993,8 +993,8 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( Delay exe_time , ::vmap_s
 	//
 	float        rate      = targets_sz/float(exe_time)           ; throw_unless( rate<=max_rate , "too fast : ",rate,'>',max_rate ) ; // job is too easy to reproduce, no interest to cache
 	ClientSockFd fd        { service }                            ;
-	::string     magic_str = fd.read(sizeof(CacheMagic))          ; throw_unless( magic_str.size()==sizeof(CacheMagic) , "bad_answer_sz" ) ;
-	uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0])  ; throw_unless( magic_          ==CacheMagic         , "bad_answer"    ) ;
+	::string     magic_str = fd.read(sizeof(CacheMagic))          ; throw_unless( magic_str.size()==sizeof(CacheMagic) , "cache closed connection" ) ;
+	uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0])  ; throw_unless( magic_          ==CacheMagic         , "not talking to a cache"  ) ;
 	DiskSz       z_max_sz  = DeflateFd::s_max_sz(targets_sz,zlvl) ;
 	//
 	trace("z_max_size",z_max_sz) ;

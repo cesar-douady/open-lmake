@@ -91,8 +91,7 @@ in_addr_t SockFd::s_random_loopback() {
 }
 
 ::string SockFd::s_addr_str(in_addr_t addr) {
-	if (!addr              ) return {} ;      // no address available
-	if (s_is_loopback(addr)) return {} ;
+	if (!addr) return {} ;                    // no address available
 	//
 	::string res ; res.reserve(15) ;          // 3 digits per level + 5 digits for the port
 	res <<      ((addr>>24)&0xff) ;           // dot notation is big endian
@@ -104,25 +103,25 @@ in_addr_t SockFd::s_random_loopback() {
 
 in_addr_t SockFd::s_addr( ::string const& host , bool name_ok ) {
 	if (!host) return 0 ;
+	in_addr_t addr = 0/*garbage*/ ;
 	// by standard dot notation
-	{	in_addr_t addr   = 0     ;             // address being decoded
-		int       byte   = 0     ;             // ensure component is less than 256
-		int       n      = 0     ;             // ensure there are 4 components
-		bool      first  = true  ;             // prevent empty components
-		bool      first0 = false ;             // prevent leading 0's (unless component is 0)
+	{	int       byte   = 0     ;         // ensure component is less than 256
+		int       n      = 0     ;         // ensure there are 4 components
+		bool      first  = true  ;         // prevent empty components
+		bool      first0 = false ;         // prevent leading 0's (unless component is 0)
 		for( char c : host ) {
 			if (c=='.') {
 				if (first) goto ByName ;
-				addr  = (addr<<8) | byte ;     // dot notation is big endian
+				addr  = (addr<<8) | byte ; // dot notation is big endian
 				byte  = 0                ;
 				first = true             ;
 				continue ;
 			}
 			if ( c>='0' && c<='9' ) {
 				byte = byte*10 + (c-'0') ;
-				if      (first    ) { n++ ; first0 = c=='0' ; first  = false ; }
-				else if (first0   )   goto ByName ;
-				if      (byte>=256)   goto ByName ;
+				if      (first    ) { n++ ; first0 = c=='0' ; first = false ; }
+				else if (first0   ) goto ByName ;
+				if      (byte>=256) goto ByName ;
 				continue ;
 			}
 			goto ByName ;
@@ -130,18 +129,19 @@ in_addr_t SockFd::s_addr( ::string const& host , bool name_ok ) {
 		if (first) goto ByName ;
 		if (n!=4 ) goto ByName ;
 		//
-		addr = (addr<<8) | byte ;              // dot notation is big endian
-		if (s_is_loopback(addr)) return 0    ;
-		else                     return addr ;
+		addr = (addr<<8) | byte ;          // dot notation is big endian
+		goto Return ;
 	}
-ByName :
-	if (!name_ok) throw cat("cannot get addr of ",host) ;
-	struct addrinfo  hint = {}                                                    ; hint.ai_family = AF_INET ; hint.ai_socktype = SOCK_STREAM ;
-	struct addrinfo* ai   ;
-	int              rc   = ::getaddrinfo( host.c_str() , nullptr , &hint , &ai ) ; if (rc!=0) throw cat("cannot get addr of ",host," (",::gai_strerror(rc),')') ;
-	in_addr_t        addr = reinterpret_cast<SockAddr*>(ai->ai_addr)->addr()      ;
-	freeaddrinfo(ai) ;
-	return addr ;
+	ByName :
+	{	if (!name_ok) throw cat("cannot get addr of ",host) ;
+		struct addrinfo  hint = {}                                                    ; hint.ai_family = AF_INET ; hint.ai_socktype = SOCK_STREAM ;
+		struct addrinfo* ai   ;
+		int              rc   = ::getaddrinfo( host.c_str() , nullptr , &hint , &ai ) ; if (rc!=0) throw cat("cannot get addr of ",host," (",::gai_strerror(rc),')') ;
+		addr = reinterpret_cast<SockAddr*>(ai->ai_addr)->addr() ;
+		freeaddrinfo(ai) ;
+	}
+Return :
+	return s_is_loopback(addr) ? 0 : addr ;
 }
 
 ::string const& SockFd::s_host(in_addr_t a) {

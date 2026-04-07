@@ -686,9 +686,10 @@ namespace Engine {
 	}
 
 	static bool/*ok*/ _mark(EngineClosureReq const& ecr) {
-		if (ecr.options.flags[ReqFlag::Freeze   ]) return _freeze    (ecr) ;
-		if (ecr.options.flags[ReqFlag::NoTrigger]) return _no_trigger(ecr) ;
-		throw "no mark specified"s ;
+		switch (ecr.options.mark) {
+			case ReqMark::Freeze    : return _freeze    (ecr) ;
+			case ReqMark::NoTrigger : return _no_trigger(ecr) ;
+		DF}                                                     // NO_COV
 	}
 
 	struct Show {

@@ -248,9 +248,9 @@ static int/*rc*/ _pre_exec(void* arg) {
 	Child    server           { .as_session=true , .cmd_line=::move(cmd_line) , .cwd_s=dir_s } ;
 	//
 	auto mk_client = [&](KeyedService service) {
-		ClientSockFd res       { service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; res.set_receive_timeout(Delay(10)) ;                                // if server is too long to answer, ...
-		::string     magic_str = res.read(sizeof(magic))                               ; throw_unless( magic_str.size()==sizeof(magic) , "bad_answer_sz" ) ; // ... it is probably not working properly
-		uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0])                   ; throw_unless( magic_          ==magic         , "bad_answer"    ) ;
+		ClientSockFd res       { service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; res.set_receive_timeout(Delay(10)) ; // if server is too long to answer, it is probably not working properly
+		::string     magic_str = res.read(sizeof(magic))                               ; throw_unless( magic_str.size()==sizeof(magic) , "server closed connection"       ) ;
+		uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0])                   ; throw_unless( magic_          ==magic         , "not talking to expected server" ) ;
 		res.set_receive_timeout() ;                                                                                                                          // restore
 		return res ;
 	} ;
