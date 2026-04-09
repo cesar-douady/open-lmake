@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 40      ; // ce274e205f86e979d8c86b69f76f4f72
+	uint64_t    constexpr Cache = 41      ; // 81432d0a280ab8683c23e9eed8e3108b
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 40      ; // 38b8d2fa3c34488acf190b8f16560925
+	uint64_t    constexpr Repo  = 41      ; // 99a724f5a5afae8577555830c164c1b0
 	uint64_t    constexpr Job   = 19      ; // 2461431c75bafc07b14dbcdc068d789f
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : ce274e205f86e979d8c86b69f76f4f72 *
+// * Cache : 81432d0a280ab8683c23e9eed8e3108b *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -314,14 +314,14 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
-//			CacheIdx            cache_idx1 = 0     ; // 0 means no cache
-//			::vmap_s<DepDigest> deps       = {}    ;
-//			bool                live_out   = false ;
-//			bool                local      = false ; // job run locally
-//			uint8_t             nice       = -1    ; // -1 means not specified
-//			Time::CoarseDelay   pressure   = {}    ;
-//			JobReason           reason     = {}    ;
-//			Tokens1             tokens1    = 0     ;
+//			CacheIdx            cache_idx1   = 0     ; // 0 means no cache
+//			::vmap_s<DepDigest> deps         = {}    ;
+//			bool                live_out     = false ;
+//			LocalReason         local_reason = {}    ; // job ran locally
+//			uint8_t             nice         = -1    ; // -1 means not specified
+//			Time::CoarseDelay   pressure     = {}    ;
+//			JobReason           reason       = {}    ;
+//			Tokens1             tokens1      = 0     ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			Hash::Crc        rule_crc_cmd = {} ;
@@ -540,6 +540,13 @@ namespace Version {
 //	,	Missing = DepMissingStatic                // if >=Missing <=> a dep  is missing
 //	} ;
 //	// END_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE REPO
+//	enum class LocalReason : uint8_t {
+//		None
+//	,	BackendNotAvailable
+//	,	AskedLocal
+//	} ;
+//	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
 //	enum class Status : uint8_t { // result of job execution
 //		New                       // job was never run
@@ -628,7 +635,7 @@ namespace Version {
 //		Status                   status         = Status::New ;
 //		bool                     has_msg_stderr = false       ;                         // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
 //		bool                     incremental    = false       ;                         // if true <=  job was run with existing incremental targets
-//		bool                     local          = false       ;                         // if true <=> job was forced to run locally
+//		LocalReason              local_reason   = {}          ;                         // if true <=> job was forced to run locally
 //		// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			::vector_s phys_s  = {} ;                                                                        // (upper,lower...)
@@ -1083,7 +1090,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 38b8d2fa3c34488acf190b8f16560925 *
+// * Repo : 99a724f5a5afae8577555830c164c1b0 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1423,14 +1430,14 @@ namespace Version {
 //	} ;
 //	// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
-//			CacheIdx            cache_idx1 = 0     ; // 0 means no cache
-//			::vmap_s<DepDigest> deps       = {}    ;
-//			bool                live_out   = false ;
-//			bool                local      = false ; // job run locally
-//			uint8_t             nice       = -1    ; // -1 means not specified
-//			Time::CoarseDelay   pressure   = {}    ;
-//			JobReason           reason     = {}    ;
-//			Tokens1             tokens1    = 0     ;
+//			CacheIdx            cache_idx1   = 0     ; // 0 means no cache
+//			::vmap_s<DepDigest> deps         = {}    ;
+//			bool                live_out     = false ;
+//			LocalReason         local_reason = {}    ; // job ran locally
+//			uint8_t             nice         = -1    ; // -1 means not specified
+//			Time::CoarseDelay   pressure     = {}    ;
+//			JobReason           reason       = {}    ;
+//			Tokens1             tokens1      = 0     ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			Hash::Crc        rule_crc_cmd = {} ;
@@ -1469,7 +1476,7 @@ namespace Version {
 //			BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
 //			CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
 //			bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
-//			bool             local         :1                   = false ; //        1 bit ,           job was last forced to run locally
+//			LocalReason      local_reason  :2                   = {}    ; //        2 bits,           job was last forced to run locally
 //		private :
 //			mutable bool _sure          :1 = false ;                      //        1 bit
 //			Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
@@ -2024,6 +2031,13 @@ namespace Version {
 //	,	Missing = DepMissingStatic                // if >=Missing <=> a dep  is missing
 //	} ;
 //	// END_OF_VERSIONING
+//	// START_OF_VERSIONING CACHE REPO
+//	enum class LocalReason : uint8_t {
+//		None
+//	,	BackendNotAvailable
+//	,	AskedLocal
+//	} ;
+//	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
 //	enum class Status : uint8_t { // result of job execution
 //		New                       // job was never run
@@ -2112,7 +2126,7 @@ namespace Version {
 //		Status                   status         = Status::New ;
 //		bool                     has_msg_stderr = false       ;                         // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
 //		bool                     incremental    = false       ;                         // if true <=  job was run with existing incremental targets
-//		bool                     local          = false       ;                         // if true <=> job was forced to run locally
+//		LocalReason              local_reason   = {}          ;                         // if true <=> job was forced to run locally
 //		// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			::vector_s phys_s  = {} ;                                                                        // (upper,lower...)

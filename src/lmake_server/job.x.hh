@@ -309,14 +309,14 @@ namespace Engine {
 		// services
 		SubmitInfo& operator|=(SubmitInfo const& si) {
 			// cache, deps and tag are independent of req but may not always be present
-			if (!cache_idx1) cache_idx1  =                si.cache_idx1 ; else if (+si.cache_idx1) SWEAR( cache_idx1==si.cache_idx1 , cache_idx1,si.cache_idx1 ) ;
-			if (!deps      ) deps        =                si.deps       ; else if (+si.deps      ) SWEAR( deps      ==si.deps       , deps      ,si.deps       ) ;
-			/**/             nice        = ::min(nice    ,si.nice    )  ;
-			/**/             pressure    = ::max(pressure,si.pressure)  ;
-			/**/             tokens1     = ::max(tokens1 ,si.tokens1 )  ;
-			/**/             live_out   |=                si.live_out   ;
-			/**/             local      |=                si.local      ;
-			/**/             reason     |=                si.reason     ;
+			if (!cache_idx1) cache_idx1    =                    si.cache_idx1    ; else if (+si.cache_idx1) SWEAR( cache_idx1==si.cache_idx1 , cache_idx1,si.cache_idx1 ) ;
+			if (!deps      ) deps          =                    si.deps          ; else if (+si.deps      ) SWEAR( deps      ==si.deps       , deps      ,si.deps       ) ;
+			/**/             nice          = ::min(nice        ,si.nice        ) ;
+			/**/             pressure      = ::max(pressure    ,si.pressure    ) ;
+			/**/             tokens1       = ::max(tokens1     ,si.tokens1     ) ;
+			/**/             live_out     |=                    si.live_out      ;
+			/**/             local_reason  = ::max(local_reason,si.local_reason) ;
+			/**/             reason       |=                    si.reason        ;
 			return self ;
 		}
 		SubmitInfo operator|(SubmitInfo const& si) const {
@@ -331,14 +331,14 @@ namespace Engine {
 		void chk(bool for_cache=false) const ;
 		// data
 		// START_OF_VERSIONING REPO CACHE
-		CacheIdx            cache_idx1 = 0     ; // 0 means no cache
-		::vmap_s<DepDigest> deps       = {}    ;
-		bool                live_out   = false ;
-		bool                local      = false ; // job run locally
-		uint8_t             nice       = -1    ; // -1 means not specified
-		Time::CoarseDelay   pressure   = {}    ;
-		JobReason           reason     = {}    ;
-		Tokens1             tokens1    = 0     ;
+		CacheIdx            cache_idx1   = 0     ; // 0 means no cache
+		::vmap_s<DepDigest> deps         = {}    ;
+		bool                live_out     = false ;
+		LocalReason         local_reason = {}    ; // job ran locally
+		uint8_t             nice         = -1    ; // -1 means not specified
+		Time::CoarseDelay   pressure     = {}    ;
+		JobReason           reason       = {}    ;
+		Tokens1             tokens1      = 0     ;
 		// END_OF_VERSIONING
 	} ;
 
@@ -479,10 +479,10 @@ namespace Engine {
 		bool is_plain(bool frozen_ok=false) const { return rule()->is_plain() && (frozen_ok||!idx().frozen())        ; }
 		bool has_req (Req                 ) const ;
 		bool rsrcs_ok(bool local_flag     ) const {
-			if ( is_ok(status)  !=No                                   ) return true  ;                                           // dont care about rsrcs if job went ok
-			if ( rule_crc->state!=RuleCrcState::Ok                     ) return false ;
-			if ( local && !local_flag && g_config->has_remote_backends ) return false ;                                           // if job ran locally, resources may have been lacking
-			/**/                                                         return true  ;
+			if ( is_ok(status)  !=No                                           ) return true  ;                                   // dont care about rsrcs if job went ok
+			if ( rule_crc->state!=RuleCrcState::Ok                             ) return false ;
+			if ( +local_reason && !local_flag && g_config->has_remote_backends ) return false ;                                   // if job ran locally, resources may have been lacking
+			/**/                                                                 return true  ;
 		}
 		//
 		void set_exec_ok() {                                                                                                      // set official rule_crc (i.e. with the right cmd and rsrcs crc's)
@@ -575,7 +575,7 @@ namespace Engine {
 		BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
 		CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
 		bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
-		bool             local         :1                   = false ; //        1 bit ,           job was last forced to run locally
+		LocalReason      local_reason  :2                   = {}    ; //        2 bits,           job was last forced to run locally
 	private :
 		mutable bool _sure          :1 = false ;                      //        1 bit
 		Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info

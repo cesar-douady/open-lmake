@@ -263,6 +263,14 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 static_assert(chk_enum_tab(JobReasonTagPrios)) ;
 inline bool is_retry(JobReasonTag jrt) { return jrt==JobReasonTag::Retry || jrt==JobReasonTag::LostRetry ; }
 
+// START_OF_VERSIONING CACHE REPO
+enum class LocalReason : uint8_t {
+	None
+,	BackendNotAvailable
+,	AskedLocal
+} ;
+// END_OF_VERSIONING
+
 enum class MountAction : uint8_t {
 	Access
 ,	Read
@@ -666,7 +674,7 @@ template<class Key=::string> struct JobDigest {                                 
 		,	.status         = status
 		,	.has_msg_stderr = has_msg_stderr
 		,	.incremental    = incremental
-		,	.local          = local
+		,	.local_reason   = local_reason
 		} ;
 		static constexpr bool NeedNew = requires(Key k) { KeyTo(New,k) ; } ;
 		if constexpr (NeedNew) {
@@ -703,7 +711,7 @@ template<class Key=::string> struct JobDigest {                                 
 	Status                   status         = Status::New ;
 	bool                     has_msg_stderr = false       ;                         // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
 	bool                     incremental    = false       ;                         // if true <=  job was run with existing incremental targets
-	bool                     local          = false       ;                         // if true <=> job was forced to run locally
+	LocalReason              local_reason   = {}          ;                         // if true <=> job was forced to run locally
 	// END_OF_VERSIONING
 } ;
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {

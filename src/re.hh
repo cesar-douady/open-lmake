@@ -51,6 +51,13 @@ namespace Re {
 			static constexpr size_t ErrMsgSz = 120 ;                                               // per PCRE doc
 			struct Cache {
 				// cxtors & casts
+				~Cache() {
+					for( auto const& [k,c_u] : _cache ) {
+						SWEAR(c_u.first) ;
+						::pcre2_code_free(const_cast<pcre2_code*>(c_u.first)) ;
+					}
+				}
+				// services
 				template<IsOStream S> void serdes(S& os) const {
 					// START_OF_VERSIONING REPO
 					::vector_s        keys  ;
@@ -104,6 +111,9 @@ namespace Re {
 					//
 					SWEAR_PROD(!_cache) ;
 					for( size_t i : iota(keys.size()) ) {
+						#ifdef PCRE2_CONFIG_JIT
+							::pcre2_jit_compile( codes[i] , PCRE2_JIT_COMPLETE ) ;   // best effort, if there is an error, the code will work anyway
+						#endif
 						bool inserted = _cache.try_emplace(keys[i],codes[i],Use::Unused).second ; SWEAR(inserted,keys[i]) ;
 					}
 					_n_unused = keys.size() ;

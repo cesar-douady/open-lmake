@@ -192,9 +192,11 @@ namespace Backends {
 		return res ;
 	}
 
-	static bool _localize( Tag t , Req r ) {
+	static LocalReason _localize( Tag t , Req r ) {
 		Lock lock{Req::s_reqs_mutex} ;                                    // taking Req::s_reqs_mutex is compulsory to derefence req
-		return r->options.flags[ReqFlag::Local] || !Backend::s_ready(t) ; // if asked backend is not usable, force local execution
+		if (r->options.flags[ReqFlag::Local]) return LocalReason::AskedLocal          ;
+		if (!Backend::s_ready(t)            ) return LocalReason::BackendNotAvailable ; // if asked backend is not usable, force local execution
+		/**/                                  return {}                               ;
 	}
 
 	void Backend::s_submit( Tag tag , Job j , Req r , SubmitInfo&& submit_info , ::vmap_ss&& rsrcs ) {
@@ -202,8 +204,8 @@ namespace Backends {
 		TraceLock lock{ _s_mutex , BeChnl , "s_submit" } ;
 		Trace trace(BeChnl,"s_submit",tag,j,r,submit_info,rsrcs) ;
 		//
-		submit_info.local = tag!=Tag::Local && _localize(tag,r) ;
-		if (submit_info.local) {
+		if (tag!=Tag::Local) submit_info.local_reason = _localize(tag,r) ;
+		if (+submit_info.local_reason) {
 			SWEAR(+tag<N<Tag>) ;                                                               // prevent compiler array bound warning in next statement
 			throw_unless( +s_tab[+tag] , "open-lmake was compiled without ",tag," support" ) ;
 			rsrcs = s_tab[+tag]->mk_lcl( ::move(rsrcs) , s_tab[+Tag::Local]->capacity() , +j ) ;
@@ -217,7 +219,7 @@ namespace Backends {
 
 	bool/*miss_live_out*/ Backend::s_add_pressure( Tag tag , Job j , Req r , SubmitInfo const& si ) {
 		SWEAR(+tag) ;
-		if (_localize(tag,r)) tag = Tag::Local ;
+		if (+_localize(tag,r)) tag = Tag::Local ;
 		Trace trace(BeChnl,"s_add_pressure",tag,j,r,si) ;
 		TraceLock lock    { _s_mutex , BeChnl , "s_add_pressure" } ;
 		auto      it      = _s_start_tab.find(j)                   ;
@@ -238,7 +240,7 @@ namespace Backends {
 
 	void Backend::s_set_pressure( Tag tag , Job j , Req r , SubmitInfo const& si ) {
 		SWEAR(+tag) ;
-		if (_localize(tag,r)) tag = Tag::Local ;
+		if (+_localize(tag,r)) tag = Tag::Local ;
 		TraceLock lock { _s_mutex , BeChnl , "s_set_pressure" } ;
 		Trace trace(BeChnl,"s_set_pressure",tag,j,r,si) ;
 		s_tab[+tag]->set_pressure(j,r,si) ;
@@ -697,7 +699,7 @@ namespace Backends {
 				digest.status = digest.status==Status::EarlyLost ? Status::EarlyLostErr : Status::LateLostErr ;
 			if      (+msg                           ) { jerr.msg_stderr.msg <<add_nl<< msg                      ; digest.has_msg_stderr = true ; }
 			else if (digest.status==Status::LateLost) { jerr.msg_stderr.msg <<add_nl<< "vanished after start\n" ; digest.has_msg_stderr = true ; }
-			digest.local = entry.submit_info.local ;
+			digest.local_reason = entry.submit_info.local_reason ;
 			_s_start_tab_erase(it) ;
 		}
 		//

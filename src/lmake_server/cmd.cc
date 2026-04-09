@@ -1007,8 +1007,8 @@ namespace Engine {
 									case BackendTag::Unknown :
 									case BackendTag::Local   : break ;
 									default :
-										if (si.local) push_entry( "backend" , snake_str(job->backend)+" -> "+BackendTag::Local , Color::Warning ) ;
-										else          push_entry( "backend" , snake_str(job->backend)                                           ) ;
+										if (+si.local_reason) push_entry( "backend" , cat(snake(job->backend)," -> ",BackendTag::Local," (",si.local_reason,')') , Color::Warning ) ;
+										else                  push_entry( "backend" , snake_str(job->backend)                                                                     ) ;
 								}
 							}
 							//

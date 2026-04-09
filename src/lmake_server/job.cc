@@ -606,11 +606,11 @@ namespace Engine {
 		jd.set_exec_ok() ;                                                                                       // effect of old cmd has gone away with job execution
 		fence() ;                                                                                                // only update status once other info is set to anticipate crashes
 		if ( !lost && +res.target_reason && status>Status::Garbage ) status = Status::BadTarget ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		jd.incremental = digest.incremental ;
-		jd.local       = digest.local       ;
-		jd.status      = status             ;
-		//^^^^^^^^^^^^^^^^^^^^^
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		jd.incremental  = digest.incremental  ;
+		jd.local_reason = digest.local_reason ;
+		jd.status       = status              ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		//
 		trace("wrap_up",ok,jd.run_status,STR(res.can_upload),digest.upload_key,STR(digest.incremental)) ;
 		#ifndef NDEBUG
@@ -777,16 +777,16 @@ namespace Engine {
 	// JobInfo
 	//
 
-	void SubmitInfo::operator>>(::string& os) const {    // START_OF_NO_COV
+	void SubmitInfo::operator>>(::string& os) const {          // START_OF_NO_COV
 		First first ;
-		/**/           os << "SubmitInfo("             ;
-		if ( live_out) os << first("",",")<<"live_out" ;
-		if ( local   ) os << first("",",")<<"local"    ;
-		if (+pressure) os << first("",",")<<pressure   ;
-		if (+deps    ) os << first("",",")<<deps       ;
-		if (+reason  ) os << first("",",")<<reason     ;
-		/**/           os << ')'                       ;
-	}                                                    // END_OF_NO_COV
+		/**/               os << "SubmitInfo("               ;
+		if ( live_out    ) os << first("",",")<<"live_out"   ;
+		if (+local_reason) os << first("",",")<<local_reason ;
+		if (+pressure    ) os << first("",",")<<pressure     ;
+		if (+deps        ) os << first("",",")<<deps         ;
+		if (+reason      ) os << first("",",")<<reason       ;
+		/**/               os << ')'                         ;
+	}                                                          // END_OF_NO_COV
 
 	void SubmitInfo::cache_cleanup() {
 		reason   = {}    ;             // execution dependent
