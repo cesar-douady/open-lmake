@@ -175,7 +175,7 @@ namespace Engine::Makefiles {
 		catch (::string const& e) { fail_prod("cannot stamp deps : ",e) ;                                               }
 	}
 
-	static RegExpr const* pyc_re = nullptr ;
+	static RegExpr const* _g_pyc_re = nullptr ;
 
 	// msg may be updated even if throwing
 	static void _read_makefile( ::string&/*out*/ msg , Ptr<Dict>&/*out*/ py_info , Deps&/*out*/ deps , ::string const& action , ::string const& sub_repos ) {
@@ -220,8 +220,8 @@ namespace Engine::Makefiles {
 		catch (::string const& e) { FAIL_PROD(e) ;                }                 // NO_COV
 		for( auto& [d,ai] : gather.accesses ) {
 			/**/             if ( ai.first_write()<Pdate::Future )   continue ;
-			trace("dep",d) ; if ( Match m=pyc_re->match(d) ; +m  ) { d = cat(m.group(d,1/*dir_s*/),m.group(d,2/*module*/),".py") ; trace("dep_py",d) ; }
-			/**/             if ( dep_set.insert(d).second       )   deps.files.push_back(::move(d)) ;
+			trace("dep",d) ; if ( Match m=_g_pyc_re->match(d) ; +m ) { d = cat((*m)[1/*dir_s*/],(*m)[2/*module*/],".py") ; trace("dep_py",d) ; }
+			/**/             if ( dep_set.insert(d).second         )   deps.files.push_back(::move(d)) ;
 		}
 		if (py_info->contains("user_environ")) {
 			for( auto const& [py_key,py_val] : py_info->get_item("user_environ").as_a<Dict>() )
@@ -434,7 +434,7 @@ namespace Engine::Makefiles {
 		}
 		//
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
-		pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;                // dir_s is \1, module is \2, matches both python 2 & 3
+		_g_pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;                // dir_s is \1, module is \2, matches both python 2 & 3
 		//
 		_refresh( /*out*/msg , options , rescue , refresh_ , env , startup_dir_s ) ;
 		//

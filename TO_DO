@@ -256,10 +256,20 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* suppress gather.access_map and gather.accesses
+	- use a single umap
+	- as anyway, it is sorted at analysis time
+	- use extract to transform umap into vector
+		- implement mk_vector with && arg
 * avoid using star_targets in gather.cc
 	- pattern_flags could do the whole job
-* in re.cc, put match_data in regexpr object rather than match object
-	- and reuse it for each match
+* use jit for pcre2 :
+	- call pcre2_jit_compile
+	- check availability :
+		- compile time : #ifdef PCRE2_CONFIG_JIT
+		- run time     : uint32_t jit_available ; pcre2_config(PCRE2_CONFIG_JIT,&jit_available) ;
+* use lazy evaluation of flags in gather
+	- for example, readdir_ok flag is only necessary if readdir flag is present
 * avoid computing deps on disk for cached jobs
 	- make status is enough as downloading does not require deps on disk
 	- split a cache.download() into :

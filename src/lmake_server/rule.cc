@@ -633,7 +633,7 @@ namespace Engine {
 		/**/                                         if (!r) { Trace("RuleMatch","no_rule"   ) ; return ; }
 		Re::Match m = pattern.match(name,chk_psfx) ; if (!m) { Trace("RuleMatch",r,"no_match") ; return ; }
 		rule = r ;
-		for( VarIdx s : iota(r->n_static_stems) ) stems.push_back( ::string(m.group( name , pattern.groups[s] )) ) ;
+		for( VarIdx s : iota(r->n_static_stems) ) stems.push_back( ::string((*m)[pattern.groups[s]] ) ) ;
 		Trace("RuleMatch","stems",r,name,chk_psfx,stems) ;
 	}
 

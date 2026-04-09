@@ -163,21 +163,26 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 // - suppress dir when one of its sub-files appears immediately after (and condition above is satisfied)
 void Gather::reorder(bool at_end) {
 	Trace trace("reorder") ;
-	int i ;
+	NodeIdx i = 0 ;
 	// update accesses to take pattern_flags into account
+_user_trace( Comment::Analyzed , cat("before_flags ",pattern_flags.size()) ) ;
 	if (+pattern_flags) {                                                           // fast path : if no patterns, nothing to do
-		i = 0 ;
+NodeIdx total_cnt = 0 ;
+NodeIdx star_cnt  = 0 ;
+NodeIdx match_cnt = 0 ;
 		for ( auto& [file,ai] : accesses ) {
+total_cnt++ ;
 			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
-if (i==999) { _user_trace(Comment::Analyzed,"flags") ; }
+star_cnt++ ;
 			if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                          // regularly drain heartbeat
 			for ( auto const& [re,date_flags] : pattern_flags )
-				if (+re.match(file)) {
+				if (re.can_match(file)) {
+match_cnt++ ;
 					trace("pattern_flags",file,date_flags) ;
 					ai.update( date_flags.first , {.flags=date_flags.second} , date_flags.first<=start_date ) ;
 				}
 		}
-_user_trace(Comment::Analyzed,"done_flags");
+_user_trace(Comment::Analyzed,cat("after_flags ",total_cnt,' ',star_cnt,' ',match_cnt));
 	}
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
@@ -187,9 +192,7 @@ _user_trace(Comment::Analyzed,"done_flags");
 	// 1st pass (backward) : note dirs immediately preceding sub-files
 	::vector<::vmap_s<AccessInfo>::reverse_iterator> lasts   ;                      // because of parallel deps, there may be several last deps
 	Pdate                                            last_pd = Pdate::Future ;
-	i = 0 ;
 	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
-if (i==999) _user_trace(Comment::Analyzed,"pass1") ;
 		if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
 		{	AccessInfo&     ai       = it->second       ;
 			Pdate           fw       = ai.first_write() ; if (fw<Pdate::Future              )                   goto NextDep ;
@@ -209,14 +212,11 @@ if (i==999) _user_trace(Comment::Analyzed,"pass1") ;
 		}
 	NextDep : ;
 	}
-_user_trace(Comment::Analyzed,"done_pass1");
 	// 2nd pass (forward) : suppress dirs of seen files and previously noted dirs
 	::umap_s<bool/*sub-file exists*/> dirs  ;
 	size_t                            i_dst = 0     ;
 	bool                              cpy   = false ;
-	i = 0 ;
 	for( auto& access : accesses ) {
-if (i==999) _user_trace(Comment::Analyzed,"pass2") ;
 		if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
 		::string   const& file = access.first  ;
 		AccessInfo      & ai   = access.second ;
@@ -245,7 +245,6 @@ if (i==999) _user_trace(Comment::Analyzed,"pass2") ;
 		if (cpy) accesses[i_dst] = ::move(access) ;
 		i_dst++ ;
 	}
-_user_trace(Comment::Analyzed,"done_pass2");
 	accesses.resize(i_dst) ;
 	for( NodeIdx i : iota(accesses.size()) ) access_map.at(accesses[i].first) = i ; // always recompute access_map as accesses has been sorted
 }
@@ -263,11 +262,10 @@ Gather::Digest Gather::analyze(Status status) {
 	int i = 0 ;
 	for( auto& [file,info] : accesses ) {
 		static constexpr MatchFlags TargetFlags { .tflags=Tflag::Target , .extra_tflags=ExtraTflag::Allow } ;
-if (i==999) _user_trace(Comment::Analyzed,"pass") ;
 		if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                                                             // regularly drain heartbeat
-		//                                                                                                     started
-		if (static_targets.contains(file))                                  info.update( {.flags=TargetFlags} , false ) ;
-		else for( RegExpr const& re : star_targets ) if (+re.match(file)) { info.update( {.flags=TargetFlags} , false ) ; break ; }
+		//                                                                                                        started
+		if (static_targets.contains(file))                                     info.update( {.flags=TargetFlags} , false ) ;
+		else for( RegExpr const& re : star_targets ) if (re.can_match(file)) { info.update( {.flags=TargetFlags} , false ) ; break ; }
 		//
 		MatchFlags flags = info.flags ;
 		//

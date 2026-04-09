@@ -277,7 +277,7 @@ namespace Backdoor {
 			::string& user_f = abs_f ;                                          // reuse storage
 			if ( +lcl_cwd_s && !is_abs(f) ) user_f = mk_lcl( f , *lcl_cwd_s ) ; // else keep abs_f as is
 			//
-			if ( +regexpr && !re->match(user_f) ) continue ;
+			if ( +regexpr && !re->can_match(user_f) ) continue ;
 			//
 			res.push_back(::move(user_f)) ;
 		}

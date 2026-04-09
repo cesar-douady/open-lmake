@@ -35,7 +35,7 @@ namespace Engine {
 		} ;
 		auto ignore = [&](::string const& path)->::string const* {
 			auto it = static_ignore.find(path) ;    if (it!=static_ignore.end()) return &it->second ;
-			for( auto const& [re,k] : star_ignore ) if (+re.match(path)        ) return &k          ;
+			for( auto const& [re,k] : star_ignore ) if (re.can_match(path)     ) return &k          ;
 			/**/                                                                 return nullptr     ;
 		} ;
 		auto prune = [&](::string const& dir) {
@@ -357,8 +357,8 @@ namespace Engine {
 			if (porcelaine) w_file = ::max( w_file , mk_py_str(d->name()  ).size() ) ;
 			::string        dn     = d->name()                                       ;
 			::string const* dk     = nullptr                                         ;
-			if (d.dflags[Dflag::Static])                                                       dk = &rev_map.at(dn) ;
-			else                           for ( auto const& [k,e] : res ) if (+e.match(dn)) { dk = &k              ; break ; }
+			if (d.dflags[Dflag::Static])                                                          dk = &rev_map.at(dn) ;
+			else                           for ( auto const& [k,e] : res ) if (e.can_match(dn)) { dk = &k              ; break ; }
 			if (dk) {
 				if (porcelaine) w_key = ::max( w_key , mk_py_str(*dk).size() ) ;
 				else            w_key = ::max( w_key ,            dk->size() ) ;
@@ -388,8 +388,8 @@ namespace Engine {
 			::string const* dep_key     = nullptr                                                  ;
 			::string        dep_str     ;
 			di2++ ;
-			if (dep.dflags[Dflag::Static])                                                           dep_key = &rev_map.at(dep_name) ;
-			else                           for ( auto const& [k,e] : res ) if (+e.match(dep_name)) { dep_key = &k                    ; break ; }
+			if (dep.dflags[Dflag::Static])                                                              dep_key = &rev_map.at(dep_name) ;
+			else                           for ( auto const& [k,e] : res ) if (e.can_match(dep_name)) { dep_key = &k                    ; break ; }
 			if (porcelaine) {
 				/**/         dep_str << "( " <<      mk_py_str(dep.dflags_str  ())         ;
 				/**/         dep_str << " , "<<      mk_py_str(dep.accesses_str())         ;
@@ -1201,8 +1201,8 @@ namespace Engine {
 					::string tn  = t->name()        ;
 					auto     it  = rev_map.find(tn) ;
 					::string key ;
-					if (it!=rev_map.end())                                                     key = it->second ;
-					else                   for ( auto const& [k,e] : res ) if (+e.match(tn)) { key = k          ; break ; }
+					if (it!=rev_map.end())                                                        key = it->second ;
+					else                   for ( auto const& [k,e] : res ) if (e.can_match(tn)) { key = k          ; break ; }
 					keys.push_back(key) ;
 					if (porcelaine) wc = ::max( wc , mk_py_str(_node_crc(t)).size() ) ;
 					else            wc = ::max( wc ,           _node_crc(t) .size() ) ;

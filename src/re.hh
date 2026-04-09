@@ -35,49 +35,17 @@
 
 namespace Re {
 
-	struct Match   ;
 	struct RegExpr ;
 	using Pattern = ::vmap_s<Bool3/*capturing*/> ; // maybe means fixed parts
 
 	::string escape(::string const& s) ;
 
-	#if HAS_PCRE
+	using Match = ::optional<::vector<::string_view>> ;
 
-		inline void swap( Match& a , Match& b ) ;
-		struct Match {
-			friend RegExpr ;
-			friend void swap( Match& a , Match& b ) ;
-		private :
-			// cxtors & casts
-			Match() = default ;
-			//
-			Match( RegExpr const& re , ::string const& s , Bool3 chk_psfx ) ; // chk_psfx=Maybe means check size only
-		public :
-			~Match() {
-				if (_data) ::pcre2_match_data_free(_data) ;
-			}
-			//
-			Match           (Match&& m) { swap(self,m) ;               }
-			Match& operator=(Match&& m) { swap(self,m) ; return self ; }
-			// accesses
-			bool operator+() const { return _data && pcre2_get_ovector_pointer(_data)[0]!=PCRE2_UNSET ; }
-			//
-			::string_view group( ::string const& subject , size_t i ) const {
-				PCRE2_SIZE const* v = ::pcre2_get_ovector_pointer(_data) ;
-				SWEAR( v[2*i+1]<=subject.size() , v[2*i],v[2*i+1],subject ) ;
-				return { subject.data()+v[2*i] , v[2*i+1]-v[2*i] } ;
-			}
-			// data
-		private :
-			::pcre2_match_data* _data = nullptr ;
-		} ;
-		inline void swap( Match& a , Match& b ) {
-			::swap( a._data , b._data ) ;
-		}
+	#if HAS_PCRE
 
 		inline void swap( RegExpr& a , RegExpr& b ) ;
 		struct RegExpr {
-			friend Match ;
 			friend void swap( RegExpr& a , RegExpr& b ) ;
 			using Use = RegExprUse ;
 			static constexpr size_t ErrMsgSz = 120 ;                                               // per PCRE doc
@@ -173,51 +141,40 @@ namespace Re {
 			RegExpr           (RegExpr&& re) { swap(self,re) ;               }
 			RegExpr& operator=(RegExpr&& re) { swap(self,re) ; return self ; }
 			//
-			~RegExpr() { if (_own) ::pcre2_code_free(const_cast<pcre2_code*>(_code)) ; }
-			// services
-			Match match( ::string const& subject , Bool3 chk_psfx=Yes ) const { // chk_psfx=Maybe means check size only
-				return { self , subject , chk_psfx } ;
+			~RegExpr() {
+				if (_own ) { SWEAR(_code) ; ::pcre2_code_free      (const_cast<pcre2_code*>(_code)) ; }
+				if (_data)                  ::pcre2_match_data_free(                        _data ) ;
 			}
+			// services
+			Match match    ( ::string const& subject , Bool3 chk_psfx=Yes ) const ;                                               // chk_psfx=Maybe means check size only
+			bool  can_match( ::string const& subject , Bool3 chk_psfx=Yes ) const { return _n_match1( subject , chk_psfx )>=0 ; } // .
 			size_t n_marks() const {
 				uint32_t cnt ;
-				pcre2_pattern_info( _code , PCRE2_INFO_CAPTURECOUNT , &cnt ) ;
+				::pcre2_pattern_info( _code , PCRE2_INFO_CAPTURECOUNT , &cnt ) ;
 				return cnt ;
 			}
-			// data
 		private :
-			::string          _pfx   ;                                          // fixed prefix
-			::string          _sfx   ;                                          // fixed suffix
-			::vector_s        _infxs ;                                          // internal fixed parts
-			pcre2_code const* _code  = nullptr ;                                // only contains code for infix part, shared and stored in s_store
-			bool              _own   = false   ;                                // if true <=> _code is private and must be freed in dxtor
+			int  _n_match1( ::string const& subject , Bool3 chk_psfx ) const ;
+			// data
+			::string            _pfx   ;                                                                                          // fixed prefix
+			::string            _sfx   ;                                                                                          // fixed suffix
+			::vector_s          _infxs ;                                                                                          // internal fixed parts
+			::pcre2_match_data* _data  = nullptr ;
+			::pcre2_code const* _code  = nullptr ;                                                                                // only contains code for infix part, shared and stored in s_store
+			bool                _own   = false   ;                                                                                // if true <=> _code is private and must be freed in dxtor
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b) {
 			::swap( a._pfx   , b._pfx   ) ;
 			::swap( a._sfx   , b._sfx   ) ;
 			::swap( a._infxs , b._infxs ) ;
+			::swap( a._data  , b._data  ) ;
 			::swap( a._code  , b._code  ) ;
 			::swap( a._own   , b._own   ) ;
 		}
 
 	#else
 
-		struct Match : private ::smatch {
-			friend RegExpr ;
-			// cxtors & casts
-		private :
-			using ::smatch::smatch ;
-			// accesses
-		public :
-			bool operator+() const { return !empty() ; }
-			//
-			::string_view group( ::string const& , size_t i ) const {
-				::sub_match sm = ::smatch::operator[](i) ;
-				return { sm.first , sm.second } ;
-			}
-		} ;
-
 		struct RegExpr : private ::regex {
-			friend Match ;
 			static constexpr flag_type Flags = ECMAScript|optimize ;
 			struct Cache {                                                                                       // there is no serialization facility and cache is not implemented, fake it
 				static constexpr bool steady() { return true ; }
@@ -242,12 +199,24 @@ namespace Re {
 			RegExpr( ::string const& pattern , bool /*cache*/=false ) : ::regex{pattern               ,Flags} {}
 			// services
 			Match match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                              // chk_psfx=Maybe means check size only
-				Match res ;
-				::regex_match(subject,res,self) ;
+				::smatch m ; ::regex_match( subject , m , self ) ;
+				if (m.empty()) return {} ;
+				//
+				size_t n   = mark_count()              ;
+				Match  res = ::vector<::string_view>() ; res->reserve(n+1) ;
+				for( size_t i : iota(n+1) ) {                                                                    // res[0] is the whole subject
+					::sub_match sm = m[i] ;
+					if (sm.matched) res->emplace_back( sm.first , sm.second ) ;
+					else            res->emplace_back(                      ) ;
+				}
 				return res ;
 			}
+			bool can_match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                           // chk_psfx=Maybe means check size only
+				::smatch m ; ::regex_match( subject , m , self ) ;
+				return !m.empty() ;
+			}
 			size_t n_marks() const {
-				return ::regex::mark_count() ;
+				return mark_count() ;
 			}
 		} ;
 
