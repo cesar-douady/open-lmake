@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 26.03
-TAG            := 10
+TAG            := 11
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -113,7 +113,7 @@ HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibili
 # syntax for LMAKE_FLAGS : (O[01234])?g?d?T?l?(S[at])?P?C?
 # - O[0123] : compiler optimization level (4 means -O3 -flto), defaults to 1 if profiling else 3
 # - g       : dont ease debugging
-# - d       : -DNDEBUG
+# - D       : dont define -DNDEBUG
 # - T       : -DTRACE
 # - l       : -static-libstdc++
 # - Sa      : -fsanitize address

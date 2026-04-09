@@ -30,7 +30,9 @@ namespace Engine {
 		if (!n) return ;
 		NodeData& nd = *n ;
 		nd.set_buildable() ;
-		if ( nd.is_src() && !nd.actual_job ) overwritten = FileInfo(nd.name()).date > req->start_ddate ; // if a source has an actual job, it is dynamically created and overwritten is not tracked
+		// if a source has an actual job, it is dynamically created and overwritten is not tracked
+		// remains case where a src is written by a job and sampled before the job is done : there is no way to tell it is the job rather than the user
+		if ( nd.buildable==Buildable::Src && !nd.actual_job ) overwritten = FileInfo(nd.name()).date > req->start_ddate ;
 	}
 
 	//
