@@ -43,14 +43,14 @@ enum class KillStep : uint8_t {
 ,	Kill   // must be last as following values are used
 } ;
 
-struct Gather {                                                       // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
+struct Gather {                                                      // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	using Kind = GatherKind    ;
 	using Proc = JobExecProc   ;
 	using Jerr = JobExecRpcReq ;
 	using Crc  = Hash::Crc     ;
 	using PD   = Time::Pdate   ;
 	using DI   = DepInfo       ;
-	static constexpr Time::Delay HeartbeatTick { 10 } ;               // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 100s seems a good compromize
+	static constexpr Time::Delay HeartbeatTick { 10 } ;              // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 100s seems a good compromize
 	struct AccessInfo {
 		// cxtors & casts
 		AccessInfo() = default ;
@@ -71,8 +71,8 @@ struct Gather {                                                       // NOLINT(
 		bool read_dir() const { return _read_dir<_max_read(true) ; } // if true <=> file has been read as a dir    , we want real info because this is to generate error
 		bool allow   () const ;                                      // if true <=> file has been declared target
 	private :
-		PD _max_write(         ) const { return _write_ignore ; }     // max date for a write to be taken into account, always <Future
-		PD _max_read (bool phys) const ;                              // max date for a read  to be taken into account, always <Future
+		PD _max_write(         ) const { return _write_ignore ; }    // max date for a write to be taken into account, always <Future
+		PD _max_read (bool phys) const ;                             // max date for a read  to be taken into account, always <Future
 		// services
 	public :
 		void update( PD , AccessDigest    , bool late , DI const&   ={} ) ;
@@ -165,11 +165,12 @@ public :
 	//
 	Status exec_child() ;
 	//
-	void   reorder(bool at_end              ) ;                                        // reorder accesses by first read access and suppress superfluous accesses
-	Digest analyze(Status status=Status::New) ;                                        // status==New means job is not done
+	void   reorder        (bool   at_end            ) ;                                // reorder accesses by first read access and suppress superfluous accesses
+	Digest analyze        (Status status=Status::New) ;                                // status==New means job is not done
+	void   drain_heartbeat(                         ) ;
 private :
-	Fd     _spawn_child (                              ) ;
-	Status _exec_child  (                              ) ;
+	Fd     _spawn_child(                               ) ;
+	Status _exec_child (                               ) ;
 	void   _trace_child( Fd report_fd , ::latch* ready ) ;
 	//
 	void _user_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const { if (user_trace) user_trace->emplace_back(pd,c,ces,file) ; }
@@ -180,7 +181,6 @@ private :
 public :
 	::umap_s<NodeIdx   >                      access_map       ;
 	::vmap_s<AccessInfo>                      accesses         ;
-	in_addr_t                                 addr             = 0                   ; // local addr to which we can be contacted by running job
 	bool                                      as_session       = false               ; // if true <=> process is launched in its own group
 	AutodepEnv                                autodep_env      ;
 	Fd                                        child_stdin      = Fd::Stdin           ;

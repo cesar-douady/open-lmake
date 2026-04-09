@@ -54,7 +54,7 @@ namespace Re {
 			Match( RegExpr const& re , ::string const& s , Bool3 chk_psfx ) ; // chk_psfx=Maybe means check size only
 		public :
 			~Match() {
-				if (_data) pcre2_match_data_free(_data) ;
+				if (_data) ::pcre2_match_data_free(_data) ;
 			}
 			//
 			Match           (Match&& m) { swap(self,m) ;               }
@@ -63,13 +63,13 @@ namespace Re {
 			bool operator+() const { return _data && pcre2_get_ovector_pointer(_data)[0]!=PCRE2_UNSET ; }
 			//
 			::string_view group( ::string const& subject , size_t i ) const {
-				PCRE2_SIZE const* v = pcre2_get_ovector_pointer(_data) ;
+				PCRE2_SIZE const* v = ::pcre2_get_ovector_pointer(_data) ;
 				SWEAR( v[2*i+1]<=subject.size() , v[2*i],v[2*i+1],subject ) ;
 				return { subject.data()+v[2*i] , v[2*i+1]-v[2*i] } ;
 			}
 			// data
 		private :
-			pcre2_match_data* _data = nullptr ;
+			::pcre2_match_data* _data = nullptr ;
 		} ;
 		inline void swap( Match& a , Match& b ) {
 			::swap( a._data , b._data ) ;

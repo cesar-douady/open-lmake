@@ -169,7 +169,8 @@ Return :
 SockFd::SockFd( Key k , bool reuse_addr , in_addr_t local_addr , bool for_server ) : key{k} {
 	static constexpr in_port_t PortInc = 199 ;                                                                                                  // a prime number to ensure all ports are tried
 	//
-	fd = ::socket( AF_INET , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ ) ; no_std() ; if (!self) fail_prod("cannot create socket : ",StrErr()) ;
+	int typ = SOCK_STREAM|SOCK_CLOEXEC ; if (for_server) typ |= SOCK_NONBLOCK ;                                                                 // servers always use epoll
+	fd = ::socket( AF_INET , typ , 0/*protocol*/ ) ; no_std() ; if (!self) fail_prod("cannot create socket : ",StrErr()) ;
 	if (!(ReuseAddr&&reuse_addr)) return ;                                                                                                      // dont reuse addr
 	::setsockopt( fd , SOL_SOCKET , SO_REUSEADDR , &::ref<int>(1) , sizeof(int) ) ;
 	// if we want to set SO_REUSEADDR, we cannot auto-bind to an ephemeral port as SO_REUSEADDR is not taken into account in that case
@@ -201,11 +202,13 @@ SockFd::SockFd( Key k , bool reuse_addr , in_addr_t local_addr , bool for_server
 }
 
 SockAddr SockFd::s_sock_addr( Fd fd , bool peer ) {
+	if (!fd) return {} ;
+	//
 	SockAddr  res ;
 	socklen_t sz  = sizeof(res) ;
-	int       rc  ;
-	if (peer) rc = ::getpeername( fd , /*out*/&res.as_sockaddr() , /*inout*/&sz ) ;
-	else      rc = ::getsockname( fd , /*out*/&res.as_sockaddr() , /*inout*/&sz ) ;
+	int       rc  ;               //!  out                 inout
+	if (peer) rc = ::getpeername( fd , &res.as_sockaddr() , &sz ) ;
+	else      rc = ::getsockname( fd , &res.as_sockaddr() , &sz ) ;
 	SWEAR_PROD( rc==0           , rc,fd ) ;
 	SWEAR_PROD( sz==sizeof(res) , sz,fd ) ;
 	return res ;
@@ -226,9 +229,18 @@ ServerSockFd::ServerSockFd( int backlog , bool reuse_addr , in_addr_t local_addr
 }
 
 SlaveSockFd ServerSockFd::accept() {
-	SlaveSockFd slave_fd { ::accept(fd,nullptr/*addr*/,nullptr/*addrlen*/) , key } ; swear_prod( +slave_fd , "cannot accept (",StrErr(),"from",self ) ;
-	::setsockopt( slave_fd , IPPROTO_TCP , TCP_NODELAY  , &::ref<int>(1) , sizeof(int) ) ;                                                              // avoid waiting for data packet aggregation
-	::setsockopt( slave_fd , IPPROTO_TCP , TCP_QUICKACK , &::ref<int>(1) , sizeof(int) ) ;                                                              // avoid waiting for ack  packet aggregation
+	SlaveSockFd slave_fd { ::accept(fd,nullptr/*addr*/,nullptr/*addrlen*/) , key } ;
+	if (+slave_fd) {
+		::setsockopt( slave_fd , IPPROTO_TCP , TCP_NODELAY  , &::ref<int>(1) , sizeof(int) ) ;                                                              // avoid waiting for data packet aggregation
+		::setsockopt( slave_fd , IPPROTO_TCP , TCP_QUICKACK , &::ref<int>(1) , sizeof(int) ) ;                                                              // avoid waiting for ack  packet aggregation
+	} else switch (errno) {
+		case EAGAIN :
+		#if EWOULDBLOCK!=EAGAIN
+			case EWOULDBLOCK :
+		#endif
+		break ;
+		default : fail("cannot accept (",StrErr(),"from",self) ;
+	}
 	return slave_fd ;
 }
 

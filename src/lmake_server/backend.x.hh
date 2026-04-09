@@ -176,6 +176,7 @@ namespace Backends {
 		// static data
 	public :
 		static StaticUniqPtr<Backend> s_tab[N<Tag>] ;
+		static in_addr_t              s_server_addr ;
 	protected :
 		static Mutex<MutexLvl::Backend> _s_mutex ;
 	private :
@@ -226,9 +227,9 @@ namespace Backends {
 		/**/                                                                                               // ... the submit/add_pressure corresponding values for the job
 		// data
 	public :
-		::string domain_name ;
-		::string addr_str    ;
-		::string config_err  ;
+		::string  domain_name ;
+		in_addr_t server_addr = 0 ;
+		::string  config_err  ;
 	} ;
 
 }

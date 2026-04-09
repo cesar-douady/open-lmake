@@ -168,6 +168,7 @@ namespace Backends {
 	//
 
 	StaticUniqPtr<Backend>                Backend::s_tab[N<Tag>]                    ;
+	in_addr_t                             Backend::s_server_addr                    = 0 ;
 	Mutex<MutexLvl::Backend >             Backend::_s_mutex                         ;
 	::string                              Backend::_s_job_exec                      ;
 	::vmap<char/*thread_key*/,::jthread*> Backend::_s_threads                       ;
@@ -344,12 +345,9 @@ namespace Backends {
 			reqs                          =        entry.reqs         ;
 			::tie(jis.eta,reply.keep_tmp) =        entry.req_info()   ;
 		}
-		// set server address for this backend at which it can be contacted by jobs
+		// set server address at which it can be contacted by jobs
 		// first job is given fqdn, then then the address as soon as it is known
-		if ( tag!=Tag::Local && !s_tab[+tag]->addr_str ) {
-			in_addr_t a = SockFd::s_addr(fd,false/*peer*/) ;
-			if (a) s_tab[+tag]->addr_str = SockFd::s_addr_str(a) ;
-		}
+		if ( tag!=Tag::Local && !s_server_addr ) s_server_addr = SockFd::s_addr(fd,false/*peer*/) ;
 		//
 		trace("submit_info",submit_info) ;
 		::vmap<Node,FileAction>    pre_actions           ;
@@ -919,7 +917,11 @@ namespace Backends {
 		entry.reqs        = ::move(reqs       ) ;
 		entry.rsrcs       = ::move(rsrcs      ) ;
 		trace("create_start_tab",entry) ;
-		::string const& server_host = tag==Tag::Local || +addr_str ? addr_str : fqdn(domain_name) ; // local backend always has an empty addr_str field
+		::string const& server_host =
+				tag==Tag::Local ? ""s
+			:	+s_server_addr  ? SockFd::s_addr_str(s_server_addr)
+			:	                  fqdn(domain_name)
+		;
 		::vector_s cmd_line {
 			_s_job_exec
 		,	_s_job_start_thread.fd.service_str(server_host)                                         // server address is only passed as start service as others use the same

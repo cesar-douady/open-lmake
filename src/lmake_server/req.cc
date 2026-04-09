@@ -232,25 +232,26 @@ namespace Engine {
 		const char*        err = nullptr               ;
 		switch (dep->status()) {
 			case NodeStatus::Multi     :                                  err = "multi"                                        ; break ;
-			case NodeStatus::Transient :                                  err = "missing transient sub-file"                   ; break ;
-			case NodeStatus::Uphill    : if (dep.dflags[Dflag::Required]) err = "missing required sub-file"                    ; break ;
 			case NodeStatus::Src       : if (dep->crc==Crc::None        ) err = dep.frozen()?"missing frozen":"missing source" ; break ;
 			case NodeStatus::SrcDir    : if (dep.dflags[Dflag::Required]) err = "missing required"                             ; break ;
+			case NodeStatus::Uphill    : if (dep.dflags[Dflag::Required]) err = "missing required sub-file"                    ; break ;
+			case NodeStatus::Transient :                                  err = "missing transient sub-file"                   ; break ;
+			case NodeStatus::Unknown   :                                  err = "never built"                                  ; break ;
 			case NodeStatus::Plain :
-				if (cri.overwritten)
-					err = "overwritten" ;
-				else if (+dep->conform_job_tgts(cri))
+				if (+dep->conform_job_tgts(cri)) {
 					for( Job job : dep->conform_job_tgts(cri) ) {
 						if (_report_err( job , dep , n_err , seen_stderr , seen_jobs , seen_nodes , lvl )) return true/*overflow*/ ;
 					}
-				else
-					err = "not built" ;                                                              // if no better explanation found
+					return false/*overflow*/ ;
+				}
+				err = "not built" ;                                                              // if no better explanation found
 			break ;
 			case NodeStatus::None :
 				if      (dep->manual({dep->name()})>=Manual::Changed) err = "dangling" ;
 				else if (dep.dflags[Dflag::Required]                ) err = "missing"  ;
 			break ;
 		DF}                                                                                          // NO_COV
+		if ( !err && cri.overwritten ) err = "overwritten" ;
 		if (err) return self->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
 		else     return false/*overflow*/                                                          ;
 	}

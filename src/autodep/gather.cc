@@ -155,16 +155,116 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 		if (!Record::s_is_simple(f)) new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 }
 
+// reorder accesses in chronological order and suppress implied dependencies :
+// - when a file is depended upon, its uphill directories are implicitly depended upon under the following conditions, no need to keep them and this significantly decreases the number of deps
+//   - either file exists
+//   - or dir is only accessed as link
+// - suppress dir when one of its sub-files appears before            (and condition above is satisfied)
+// - suppress dir when one of its sub-files appears immediately after (and condition above is satisfied)
+void Gather::reorder(bool at_end) {
+	Trace trace("reorder") ;
+	int i ;
+	// update accesses to take pattern_flags into account
+	if (+pattern_flags) {                                                           // fast path : if no patterns, nothing to do
+		i = 0 ;
+		for ( auto& [file,ai] : accesses ) {
+			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
+if (i==999) { _user_trace(Comment::Analyzed,"flags") ; }
+			if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                          // regularly drain heartbeat
+			for ( auto const& [re,date_flags] : pattern_flags )
+				if (+re.match(file)) {
+					trace("pattern_flags",file,date_flags) ;
+					ai.update( date_flags.first , {.flags=date_flags.second} , date_flags.first<=start_date ) ;
+				}
+		}
+_user_trace(Comment::Analyzed,"done_flags");
+	}
+	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
+	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
+		accesses
+	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b )->bool { return a.second.sort_key()<b.second.sort_key() ; }
+	) ;
+	// 1st pass (backward) : note dirs immediately preceding sub-files
+	::vector<::vmap_s<AccessInfo>::reverse_iterator> lasts   ;                      // because of parallel deps, there may be several last deps
+	Pdate                                            last_pd = Pdate::Future ;
+	i = 0 ;
+	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
+if (i==999) _user_trace(Comment::Analyzed,"pass1") ;
+		if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
+		{	AccessInfo&     ai       = it->second       ;
+			Pdate           fw       = ai.first_write() ; if (fw<Pdate::Future              )                   goto NextDep ;
+			/**/                                          if (ai.flags.dflags!=DflagsDfltDyn) { lasts.clear() ; goto NextDep ; }
+			Accesses        accesses = ai.accesses()    ; if (!accesses                     )                   goto NextDep ;
+			::string const& file     = it->first        ;
+			for( auto last : lasts ) {
+				if (!lies_within(last->first,file)     )   continue ;
+				if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; ai.clear_accesses() ;                     goto NextDep ; }
+				else                                     { trace("no_lnk_from_next",file) ; ai.clear_lnk     () ; if (!ai.accesses()) goto NextDep ; }
+			}
+			if ( Pdate fr=ai.first_read() ; fr<last_pd ) {
+				lasts.clear() ;                                                     // not a parallel dep => clear old ones that are no more last
+				last_pd = fr ;
+			}
+			lasts.push_back(it) ;
+		}
+	NextDep : ;
+	}
+_user_trace(Comment::Analyzed,"done_pass1");
+	// 2nd pass (forward) : suppress dirs of seen files and previously noted dirs
+	::umap_s<bool/*sub-file exists*/> dirs  ;
+	size_t                            i_dst = 0     ;
+	bool                              cpy   = false ;
+	i = 0 ;
+	for( auto& access : accesses ) {
+if (i==999) _user_trace(Comment::Analyzed,"pass2") ;
+		if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
+		::string   const& file = access.first  ;
+		AccessInfo      & ai   = access.second ;
+		if ( ai.first_write()==Pdate::Future && ai.flags.dflags==DflagsDfltDyn && !ai.flags.tflags ) {
+			auto it = dirs.find(file+'/') ;
+			if (it!=dirs.end()) {
+				if (it->second) { trace("skip_from_prev"  ,file) ; ai.clear_accesses() ; }
+				else            { trace("no_lnk_from_prev",file) ; ai.clear_lnk     () ; }
+			}
+			if (ai.first_read()==PD::Future) {
+				if (!at_end) access_map.erase(file) ;
+				cpy = true ;
+				continue ;
+			}
+		}
+		bool exists = ai.dep_info.exists()==Yes ;
+		try {
+			for( ::string dir_s=dir_name_s(file) ;; dir_s=dir_name_s(dir_s) ) {     // walk all accessible dirs
+				auto [it,inserted] = dirs.try_emplace(dir_s,exists) ;
+				if (!inserted) {
+					if (it->second>=exists) break ;                                 // all uphill dirs are already inserted if a dir has been inserted
+					it->second = exists ;                                           // record existence of a sub-file as soon as one if found
+				}
+			}
+		} catch (::string const&) {}
+		if (cpy) accesses[i_dst] = ::move(access) ;
+		i_dst++ ;
+	}
+_user_trace(Comment::Analyzed,"done_pass2");
+	accesses.resize(i_dst) ;
+	for( NodeIdx i : iota(accesses.size()) ) access_map.at(accesses[i].first) = i ; // always recompute access_map as accesses has been sorted
+}
+
 Gather::Digest Gather::analyze(Status status) {
 	Trace trace("analyze",status,accesses.size()) ;
 	Digest res                   ;                 res.deps.reserve(accesses.size()) ;                             // typically most of accesses are deps
 	Pdate  prev_first_read       = Pdate::Future ;
 	bool   readdir_warned        = false         ;
 	bool   seen_unexpected_write = false         ;
-	//
+	//vvvvvvvvvvvvvvvvvvvvvvvvvv
 	reorder(status!=Status::New) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^
+	_user_trace( Comment::Analyzed , "reordered" ) ;
+	int i = 0 ;
 	for( auto& [file,info] : accesses ) {
 		static constexpr MatchFlags TargetFlags { .tflags=Tflag::Target , .extra_tflags=ExtraTflag::Allow } ;
+if (i==999) _user_trace(Comment::Analyzed,"pass") ;
+		if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                                                             // regularly drain heartbeat
 		//                                                                                                     started
 		if (static_targets.contains(file))                                  info.update( {.flags=TargetFlags} , false ) ;
 		else for( RegExpr const& re : star_targets ) if (+re.match(file)) { info.update( {.flags=TargetFlags} , false ) ; break ; }
@@ -313,6 +413,13 @@ Gather::Digest Gather::analyze(Status status) {
 	_user_trace( Comment::Analyzed ) ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
+}
+
+void Gather::drain_heartbeat() {
+	for(;;) {
+		SlaveSockFd fd = server_master_fd.accept() ;
+		if (!fd) break ;
+	}
 }
 
 void Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {
@@ -501,27 +608,27 @@ Status Gather::_exec_child() {
 		if (+fast_report_fd) {                                                                              // work w/o fast report if it does not work (seen on some instances of Centos7)
 			trace("open_fast_report_fd",autodep_env.fast_report_pipe,fast_report_fd) ;
 			epoll.add_read( fast_report_fd , Kind::JobSlave ) ;
-			epoll.dec() ;                                                           // fast_report_fd is always open and never waited for as we never know when a job may want to report on this fd
-			job_slaves[fast_report_fd] ;                                            // allocate entry
+			epoll.dec() ;                                                               // fast_report_fd is always open and never waited for as we never know when a job may want to report on this fd
+			job_slaves[fast_report_fd] ;                                                // allocate entry
 		} else {
 			trace("open_fast_report_fd",autodep_env.fast_report_pipe,StrErr()) ;
 			autodep_env.fast_report_pipe.clear() ;
 		}
 	} ;
 	//
-	autodep_env.service = job_master_fd.service(addr) ;
+	autodep_env.service = job_master_fd.service(server_master_fd.addr(false/*peer*/)) ; // local addr to which we can be contacted by running job
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	if (+autodep_env.fast_report_pipe) {
 		bool first = true ;
 	Retry :
-		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0600/*mode*/ )!=0 ) { // there is no reason for any other user to read/write this fifo
+		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0600/*mode*/ )!=0 ) {     // there is no reason for any other user to read/write this fifo
 			if ( errno==ENOENT && first ) {
 				dir_guard(autodep_env.fast_report_pipe) ;
-				first = false ;                                                     // ensure at most one retry
+				first = false ;                                                         // ensure at most one retry
 				goto Retry ;
-			} else if (errno!=EEXIST) {                                             // if it already exists, assume it is already a fifo
-				autodep_env.fast_report_pipe.clear() ;                              // we'll live with no fast report
+			} else if (errno!=EEXIST) {                                                 // if it already exists, assume it is already a fifo
+				autodep_env.fast_report_pipe.clear() ;                                  // we'll live with no fast report
 			}
 		}
 		open_fast_report_fd() ;
@@ -944,85 +1051,4 @@ Status Gather::_exec_child() {
 	SWEAR_PROD( !_child , _child.pid ) ;                                                                                                               // _child must have been waited by now
 	trace("done",status) ;
 	return status ;
-}
-
-// reorder accesses in chronological order and suppress implied dependencies :
-// - when a file is depended upon, its uphill directories are implicitly depended upon under the following conditions, no need to keep them and this significantly decreases the number of deps
-//   - either file exists
-//   - or dir is only accessed as link
-// - suppress dir when one of its sub-files appears before            (and condition above is satisfied)
-// - suppress dir when one of its sub-files appears immediately after (and condition above is satisfied)
-void Gather::reorder(bool at_end) {
-	Trace trace("reorder") ;
-	// update accesses to take pattern_flags into account
-	if (+pattern_flags)                                                             // fast path : if no patterns, nothing to do
-		for ( auto& [file,ai] : accesses ) {
-			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
-			for ( auto const& [re,date_flags] : pattern_flags )
-				if (+re.match(file)) {
-					trace("pattern_flags",file,date_flags) ;
-					ai.update( date_flags.first , {.flags=date_flags.second} , date_flags.first<=start_date ) ;
-				}
-		}
-	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
-	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
-		accesses
-	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b )->bool { return a.second.sort_key()<b.second.sort_key() ; }
-	) ;
-	// 1st pass (backward) : note dirs immediately preceding sub-files
-	::vector<::vmap_s<AccessInfo>::reverse_iterator> lasts   ;                      // because of parallel deps, there may be several last deps
-	Pdate                                            last_pd = Pdate::Future ;
-	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
-		{	AccessInfo&     ai       = it->second       ;
-			Pdate           fw       = ai.first_write() ; if (fw<Pdate::Future              )                   goto NextDep ;
-			/**/                                          if (ai.flags.dflags!=DflagsDfltDyn) { lasts.clear() ; goto NextDep ; }
-			Accesses        accesses = ai.accesses()    ; if (!accesses                     )                   goto NextDep ;
-			::string const& file     = it->first        ;
-			for( auto last : lasts ) {
-				if (!lies_within(last->first,file)     )   continue ;
-				if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; ai.clear_accesses() ;                     goto NextDep ; }
-				else                                     { trace("no_lnk_from_next",file) ; ai.clear_lnk     () ; if (!ai.accesses()) goto NextDep ; }
-			}
-			if ( Pdate fr=ai.first_read() ; fr<last_pd ) {
-				lasts.clear() ;                                                     // not a parallel dep => clear old ones that are no more last
-				last_pd = fr ;
-			}
-			lasts.push_back(it) ;
-		}
-	NextDep : ;
-	}
-	// 2nd pass (forward) : suppress dirs of seen files and previously noted dirs
-	::umap_s<bool/*sub-file exists*/> dirs  ;
-	size_t                            i_dst = 0     ;
-	bool                              cpy   = false ;
-	for( auto& access : accesses ) {
-		::string   const& file = access.first  ;
-		AccessInfo      & ai   = access.second ;
-		if ( ai.first_write()==Pdate::Future && ai.flags.dflags==DflagsDfltDyn && !ai.flags.tflags ) {
-			auto it = dirs.find(file+'/') ;
-			if (it!=dirs.end()) {
-				if (it->second) { trace("skip_from_prev"  ,file) ; ai.clear_accesses() ; }
-				else            { trace("no_lnk_from_prev",file) ; ai.clear_lnk     () ; }
-			}
-			if (ai.first_read()==PD::Future) {
-				if (!at_end) access_map.erase(file) ;
-				cpy = true ;
-				continue ;
-			}
-		}
-		bool exists = ai.dep_info.exists()==Yes ;
-		try {
-			for( ::string dir_s=dir_name_s(file) ;; dir_s=dir_name_s(dir_s) ) {     // walk all accessible dirs
-				auto [it,inserted] = dirs.try_emplace(dir_s,exists) ;
-				if (!inserted) {
-					if (it->second>=exists) break ;                                 // all uphill dirs are already inserted if a dir has been inserted
-					it->second = exists ;                                           // record existence of a sub-file as soon as one if found
-				}
-			}
-		} catch (::string const&) {}
-		if (cpy) accesses[i_dst] = ::move(access) ;
-		i_dst++ ;
-	}
-	accesses.resize(i_dst) ;
-	for( NodeIdx i : iota(accesses.size()) ) access_map.at(accesses[i].first) = i ; // always recompute access_map as accesses has been sorted
 }

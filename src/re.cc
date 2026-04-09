@@ -54,7 +54,7 @@ namespace Re {
 			}
 			if (true) {                                                                               // fast path : check infixes first to avoid matching in case of negative result
 				::string_view core { subject.data()+re._pfx.size() , subject.size()-psfx_sz } ;
-				size_t pos = 0 ;
+				size_t        pos  = 0                                                        ;
 				for( ::string const& infx : re._infxs ) {
 					pos = core.find(infx,pos) ;
 					if (pos==Npos) return ;                                                           // if an infix cannot be found, no hope to match on the regexpr
@@ -62,10 +62,12 @@ namespace Re {
 				}
 			}
 			// full match
-			_data = pcre2_match_data_create_from_pattern(re._code,nullptr) ;
-			SWEAR(pcre2_get_ovector_count(_data)>0) ;
-			pcre2_get_ovector_pointer(_data)[0] = PCRE2_UNSET ;
-			pcre2_match(
+			_data = ::pcre2_match_data_create_from_pattern(re._code,nullptr) ;
+			#ifndef NDEBUG
+				SWEAR(::pcre2_get_ovector_count(_data)>0) ;
+			#endif
+			::pcre2_get_ovector_pointer(_data)[0] = PCRE2_UNSET ;
+			::pcre2_match(
 				re._code
 			,	RegExpr::_s_cast_in(subject.c_str()) , subject.size()-re._sfx.size() , re._pfx.size() // use subject (and not core) so group positions are correct
 			,	0/*options*/
@@ -87,7 +89,7 @@ namespace Re {
 			#endif
 			int         err_code = 0 ;
 			PCRE2_SIZE  err_pos  = 0 ;
-			pcre2_code* code     = ::pcre2_compile(
+			::pcre2_code* code     = ::pcre2_compile(
 				_s_cast_in(infix_for_compile.data()) , infix_for_compile.size()
 			,	PCRE2_ANCHORED | PCRE2_DOLLAR_ENDONLY | PCRE2_DOTALL | PCRE2_ENDANCHORED
 			,	&err_code , &err_pos
@@ -97,8 +99,8 @@ namespace Re {
 			return code ;
 		}
 		::pcre2_code const* RegExpr::Cache::insert(::string const& infix) {
-			::pair                         it_inserted = _cache.try_emplace(infix) ;
-			::pair<pcre2_code const*,Use>& entry       = it_inserted.first->second ;
+			::pair                           it_inserted = _cache.try_emplace(infix) ;
+			::pair<::pcre2_code const*,Use>& entry       = it_inserted.first->second ;
 			if      (it_inserted.second       ) { entry        = {_s_compile(infix),Use::New} ; _n_new   ++ ; }
 			else if (entry.second==Use::Unused) { entry.second = Use::Old                     ; _n_unused-- ; }
 			return entry.first ;

@@ -26,7 +26,6 @@ Gather                    g_gather          ;
 JobIdx                    g_job             = 0/*garbage*/ ;
 ::string                  g_phy_repo_root_s ;
 SeqId                     g_seq_id          = 0/*garbage*/ ;
-ServerSockFd              g_server_fd       ;
 KeyedService              g_service_end     ;
 KeyedService              g_service_mngt    ;
 KeyedService              g_service_start   ;
@@ -34,10 +33,8 @@ JobStartRpcReply          g_start_info      ;
 ::vector<UserTraceEntry>* g_user_trace      = nullptr      ;
 
 JobStartRpcReply get_start_info() {
-	g_server_fd = { 0/*backlog*/ } ;                                       // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
-	//
-	Bool3            found_server = No                    ;                // for trace only
-	KeyedService     service      = g_server_fd.service() ;
+	Bool3            found_server = No                                  ;  // for trace only
+	KeyedService     service      = g_gather.server_master_fd.service() ;
 	JobStartRpcReply res          ;
 	::string         fqdn_        ;
 	Trace trace("get_start_info",g_service_start,service) ;
@@ -180,8 +177,8 @@ int main( int argc , char* argv[] ) {
 	try { g_service_start   = {                   argv[1],true/*name_ok*/} ; } catch (::string const& e) { exit(Rc::Fail,"cannot connect to server : ",e) ; }
 	/**/  g_service_mngt    = {                   argv[2]                } ;
 	/**/  g_service_end     = {                   argv[3]                } ;
-	/**/  g_domain_name     =                     argv[4]                  ;                                                    // passed early so we can chdir and trace early
-	/**/  g_phy_repo_root_s =                     argv[5]                  ;                                                    // .
+	/**/  g_domain_name     =                     argv[4]                  ; // passed early so we can chdir and trace early
+	/**/  g_phy_repo_root_s =                     argv[5]                  ; // .
 	/**/  g_seq_id          = from_string<SeqId >(argv[6])                 ;
 	/**/  g_job             = from_string<JobIdx>(argv[7])                 ;
 	/**/  trace_id          = from_string<SeqId >(argv[8])                 ;
@@ -189,11 +186,13 @@ int main( int argc , char* argv[] ) {
 	g_trace_file = new ::string{cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
 	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
-	end_report.digest   = { .status=Status::EarlyError } ;                                                                      // prepare to return an error, so we can goto End anytime
-	end_report.wstatus  = 255<<8                         ;                                                                      // .
+	end_report.digest   = { .status=Status::EarlyError } ;                   // prepare to return an error, so we can goto End anytime
+	end_report.wstatus  = 255<<8                         ;                   // .
 	end_report.end_date = start_overhead                 ;
 	g_user_trace        = &end_report.user_trace         ;
 	g_user_trace->emplace_back( start_overhead , Comment::StartOverhead ) ;
+	//
+	g_gather.server_master_fd = { 0/*backlog*/ } ;                           // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
 	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                                                                // START_OF_NO_COV defensive programming
 		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                         // if !g_start_info, server ask us to give up
@@ -295,25 +294,23 @@ int main( int argc , char* argv[] ) {
 		trace("prepared",g_start_info.autodep_env) ;
 		//
 		::map_ss cmd_env = mk_map(g_start_info.env) ;
-		g_gather.addr             =        g_server_fd.addr(false/*peer*/) ;
-		g_gather.as_session       =        true                            ;
-		g_gather.autodep_env      = ::move(g_start_info.autodep_env      ) ;
-		g_gather.ddate_prec       =        g_start_info.ddate_prec         ;
-		g_gather.env              =        &cmd_env                        ;
-		g_gather.job              =        g_job                           ;
-		g_gather.kill_sigs        = ::move(g_start_info.kill_sigs        ) ;
-		g_gather.live_out         =        g_start_info.live_out           ;
-		g_gather.lmake_root_s     =        g_start_info.phy_lmake_root_s   ;
-		g_gather.method           =        g_start_info.method             ;
-		g_gather.network_delay    =        g_start_info.network_delay      ;
-		g_gather.nice             =        g_start_info.nice               ;
-		g_gather.no_tmp           =       !end_report.phy_tmp_dir_s        ;
-		g_gather.rule             =        g_start_info.rule               ;
-		g_gather.seq_id           =        g_seq_id                        ;
-		g_gather.server_master_fd = ::move(g_server_fd                   ) ;
-		g_gather.service_mngt     =        g_service_mngt                  ;
-		g_gather.timeout          =        g_start_info.timeout            ;
-		g_gather.user_trace       =        g_user_trace                    ;
+		g_gather.as_session    =        true                            ;
+		g_gather.autodep_env   = ::move(g_start_info.autodep_env      ) ;
+		g_gather.ddate_prec    =        g_start_info.ddate_prec         ;
+		g_gather.env           =        &cmd_env                        ;
+		g_gather.job           =        g_job                           ;
+		g_gather.kill_sigs     = ::move(g_start_info.kill_sigs        ) ;
+		g_gather.live_out      =        g_start_info.live_out           ;
+		g_gather.lmake_root_s  =        g_start_info.phy_lmake_root_s   ;
+		g_gather.method        =        g_start_info.method             ;
+		g_gather.network_delay =        g_start_info.network_delay      ;
+		g_gather.nice          =        g_start_info.nice               ;
+		g_gather.no_tmp        =       !end_report.phy_tmp_dir_s        ;
+		g_gather.rule          =        g_start_info.rule               ;
+		g_gather.seq_id        =        g_seq_id                        ;
+		g_gather.service_mngt  =        g_service_mngt                  ;
+		g_gather.timeout       =        g_start_info.timeout            ;
+		g_gather.user_trace    =        g_user_trace                    ;
 		//
 		if (!g_start_info.method)                                                                             // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,dd_edf] : g_start_info.deps ) if (dd_edf.first.dflags[Dflag::Static]) {
@@ -344,7 +341,7 @@ int main( int argc , char* argv[] ) {
 				g_gather.new_access( washed , ::move(dt) , {.flags=mf} , DepInfo() , Comment::StaticMatch ) ; // always insert an entry for static targets, even with no flags
 			}
 		}
-		for( auto& [p ,mf] : g_start_info.star_matches ) {
+		for( auto& [p,mf] : g_start_info.star_matches ) {
 			if (mf.tflags[Tflag::Target]) {
 				g_gather.star_targets.push_back(p) ;                                // XXX : find a way to compile p only once when put in both g_gather.star_targets and g_gather.pattern_flags
 				mf.tflags       &= ~Tflag     ::Target ;
@@ -379,12 +376,16 @@ int main( int argc , char* argv[] ) {
 		struct ::rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
 		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                        // XXX/ : suppress when CentOS7 bug is fixed
-		//
+		//                      vvvvvvvvvvvvvvvvvvvvvvvv
 		Gather::Digest digest = g_gather.analyze(status) ;
+		//                      ^^^^^^^^^^^^^^^^^^^^^^^^
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
-		Delay    exe_time = g_gather.end_date - g_gather.start_date             ;
-		::string crc_msg  = compute_crcs( digest , /*out*/end_report.total_sz ) ;
+		Delay exe_time = g_gather.end_date - g_gather.start_date ;
+		//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		::string crc_msg = compute_crcs( digest , /*out*/end_report.total_sz ) ;
+		//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		g_gather.drain_heartbeat() ;                                                                                                // regularly drain hardbeat
 		if ( status==Status::Ok && +crc_msg ) status = Status::Forbidden ;
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
@@ -394,8 +395,10 @@ int main( int argc , char* argv[] ) {
 				end_report.cache_addr = g_start_info.cache.service.addr = SockFd::s_addr(g_start_info.cache.fqdn,true/*name_ok*/) ; // if solving cache addr, report to server so next jobs can reuse it
 				trace("cache_fqdn",g_start_info.cache.fqdn,g_start_info.cache.service.addr) ;
 			}
-			try {
+			try { //!                              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				CacheRemoteSide::UploadDigest ud = g_start_info.cache.upload( exe_time , digest.targets , digest.target_fis , g_start_info.zlvl ) ;
+				//                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				g_gather.drain_heartbeat() ;                                                                                        // regularly drain hardbeat
 				upload_key            = ud.upload_key ;
 				end_report.total_z_sz = ud.z_sz       ;
 				trace("cache",upload_key) ;

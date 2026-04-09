@@ -74,8 +74,8 @@ namespace Cache {
 		} ;
 	}
 
-	CacheServerSide::DownloadDigest CacheServerSide::download( Job job , Rule::RuleMatch const& match , bool incremental ) {
-		Trace trace(CacheChnl,"download",job,STR(incremental)) ;
+	CacheServerSide::DownloadDigest CacheServerSide::download( Job job , Rule::RuleMatch const& match , bool incremental_ok ) {
+		Trace trace(CacheChnl,"download",job,STR(incremental_ok)) ;
 		// provide node actual crc as this is the hit criteria
 		::vmap<StrId<CnodeIdx>,DepDigest> deps       ;
 		StrId<CjobIdx>                    job_str_id ;
@@ -123,7 +123,7 @@ namespace Cache {
 			#endif
 			//
 			JobEndRpcReq          & end      = res.job_info.end ;
-			JobDigest<>           & digest   = end.digest       ; throw_if( digest.incremental && incremental , "cached job was incremental" ) ;
+			JobDigest<>           & digest   = end.digest       ; throw_if( digest.incremental && !incremental_ok , "cached job was incremental while a non-incremental build was asked" ) ;
 			::vmap_s<TargetDigest>& targets  = digest.targets   ;
 			NodeIdx                 n_copied = 0                ;
 			::vmap_s<FileAction>    actions  ;                    for( auto [t,a] : job->pre_actions(match,true/*no_incremental*/) ) actions.emplace_back( t->name() , a ) ;
