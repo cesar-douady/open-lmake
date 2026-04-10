@@ -329,9 +329,9 @@ public :
 	void close    ( bool write , Fd fd ,             bool wait=true ) { SWEAR(+fd) ; del(write,fd,     wait) ; fd.close() ; } // wait must be coherent with corresponding add
 	//
 	::vector<Event> wait(Time::Pdate timeout) const {
-		if      (                        timeout==Time::Pdate::Future ) return wait(Time::Delay::Forever) ;
-		else if ( Time::Pdate now{New} ; timeout< now                 ) return wait(Time::Delay()       ) ;
-		else                                                            return wait(timeout-now         ) ;
+		if      (                        timeout==Time::Pdate::Never ) return wait(Time::Delay::Forever) ;
+		else if ( Time::Pdate now{New} ; timeout< now                ) return wait(Time::Delay()       ) ;
+		else                                                           return wait(timeout-now         ) ;
 	}
 	::vector<Event> wait(Time::Delay timeout=Time::Delay::Forever) const {
 		if (!_n_events) {

@@ -153,7 +153,7 @@ namespace Backends {
 	}
 
 	::pair<Pdate/*eta*/,bool/*keep_tmp*/> Backend::StartEntry::req_info() const {
-		Pdate eta      = Pdate::Future       ;
+		Pdate eta      = Pdate::Never        ;
 		bool  keep_tmp = false               ;
 		Lock  lock     { Req::s_reqs_mutex } ; // taking Req::s_reqs_mutex is compulsory to derefence req
 		for( Req r : reqs ) {

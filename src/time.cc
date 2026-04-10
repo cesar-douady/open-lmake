@@ -121,9 +121,9 @@ namespace Time {
 
 	::string Date::str( uint8_t prec , bool in_day ) const {
 		switch (_val) {
-			case Tick( 0) : return "None"    ;
-			case Tick(-1) : return "Future"  ;
-			case Tick(-2) : return "Future1" ;
+			case Tick( 0) : return "None"   ;
+			case Tick(-1) : return "Never"  ;
+			case Tick(-2) : return "Future" ;
 		DN}
 		time_t   s   = sec()                 ;
 		::string res ( (in_day?0:11)+8 , 0 ) ;                               // time in seconds : YYYY-MM-DD hh:mm:ss
@@ -136,9 +136,9 @@ namespace Time {
 
 	::string Date::day_str() const {
 		switch (_val) {
-			case Tick( 0) : return "None"    ;
-			case Tick(-1) : return "Future"  ;
-			case Tick(-2) : return "Future1" ;
+			case Tick( 0) : return "None"   ;
+			case Tick(-1) : return "Never"  ;
+			case Tick(-2) : return "Future" ;
 		DN}
 		time_t   s   = sec()    ;
 		::string res ( 10 , 0 ) ;                             // time in seconds : YYYY-MM-DD hh:mm:ss

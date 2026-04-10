@@ -21,14 +21,14 @@ using namespace Time ;
 
 void Gather::AccessInfo::operator>>(::string& os) const { // START_OF_NO_COV
 	Pdate fr = first_read() ;
-	/**/                       os << "AccessInfo("     ;
-	if (fr    !=Pdate::Future) os << "R:"<<fr    <<',' ;
-	if (_allow!=Pdate::Future) os << "A:"<<_allow<<',' ;
-	if (_write!=Pdate::Future) os << "W:"<<_write<<',' ;
-	if (+dep_info            ) os << dep_info    <<',' ;
-	/**/                       os << flags             ;
-	if (_seen!=Pdate::Future ) os << ",seen"           ;
-	/**/                       os << ')'               ;
+	/**/                      os << "AccessInfo("     ;
+	if (fr    !=Pdate::Never) os << "R:"<<fr    <<',' ;
+	if (_allow!=Pdate::Never) os << "A:"<<_allow<<',' ;
+	if (_write!=Pdate::Never) os << "W:"<<_write<<',' ;
+	if (+dep_info           ) os << dep_info    <<',' ;
+	/**/                      os << flags             ;
+	if (_seen!=Pdate::Never ) os << ",seen"           ;
+	/**/                      os << ')'               ;
 }                                                         // END_OF_NO_COV
 
 Pdate Gather::AccessInfo::_max_read(bool phys) const {
@@ -45,30 +45,30 @@ Accesses Gather::AccessInfo::accesses() const {
 }
 
 bool Gather::AccessInfo::allow() const {
-	return _allow<_max_write() && ( _write<_write_ignore || ::min(_read,Pdate::Future)<_read_ignore ) ;
+	return _allow<_max_write() && ( _write<_write_ignore || ::min(_read,Pdate::Never)<_read_ignore ) ;
 }
 
 Pdate Gather::AccessInfo::first_read(bool with_readdir) const {
-	PD    res = PD::Future               ;
+	PD    res = PD::Never                ;
 	Pdate mr  = _max_read(false/*phys*/) ;
 	//
 	for( PD d : _read ) if ( d        <res                 ) res = d         ;
 	/**/                if ( _read_dir<res && with_readdir ) res = _read_dir ;
 	/**/                if ( _required<res                 ) res = _required ;
 	//
-	if (res<=mr) return res           ;
-	else         return Pdate::Future ;
+	if (res<=mr) return res          ;
+	else         return Pdate::Never ;
 }
 
 Pdate Gather::AccessInfo::first_write() const {
-	if (_write<=_max_write()) return _write     ;
-	else                      return PD::Future ;
+	if (_write<=_max_write()) return _write    ;
+	else                      return PD::Never ;
 }
 
 ::pair<Pdate,bool/*write*/> Gather::AccessInfo::sort_key() const {
 	PD fr = first_read() ;
-	if (fr<PD::Future) return { fr            , false } ;
-	else               return { first_write() , true  } ;
+	if (fr<PD::Never) return { fr            , false } ;
+	else              return { first_write() , true  } ;
 }
 
 void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
@@ -79,13 +79,13 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	//
 	if ( +di && ::all_of( _read , [&](PD d) { return pd<d ; } ) ) dep_info = di ;
 	//
-	for( Access a : iota(All<Access>) )   if ( pd<_read[+a] && ad.accesses[a]                           ) _read[+a] = pd   ;
-	/**/                                  if ( pd<_read_dir && ad.read_dir                              ) _read_dir = pd   ;
-	/**/                                { if ( pd<_write    && ad.write==Yes                            ) _write    = pd   ; }
-	/**/                                  if ( pd<_allow    && ad.flags.extra_tflags[ExtraTflag::Allow] ) _allow    = pd   ;
-	/**/                                  if ( pd<_required && ad.flags.dflags[Dflag::Required]         ) _required = pd   ;
-	/**/                                  if ( pd<_seen     && di.seen(ad.accesses)                     ) _seen     = pd   ;
-	/**/                                  if ( pd<_no_hot   && ad.flags.extra_dflags[ExtraDflag::NoHot] ) _no_hot   = pd   ;
+	for( Access a : iota(All<Access>) )   if ( pd<_read[+a] && ad.accesses[a]                           ) _read[+a] = pd ;
+	/**/                                  if ( pd<_read_dir && ad.read_dir                              ) _read_dir = pd ;
+	/**/                                { if ( pd<_write    && ad.write==Yes                            ) _write    = pd ; }
+	/**/                                  if ( pd<_allow    && ad.flags.extra_tflags[ExtraTflag::Allow] ) _allow    = pd ;
+	/**/                                  if ( pd<_required && ad.flags.dflags[Dflag::Required]         ) _required = pd ;
+	/**/                                  if ( pd<_seen     && di.seen(ad.accesses)                     ) _seen     = pd ;
+	/**/                                  if ( pd<_no_hot   && ad.flags.extra_dflags[ExtraDflag::NoHot] ) _no_hot   = pd ;
 	if (+pd) pd-- ;                                                                                                                 // ignore applies to simultaneous accesses
 	/**/                                  if ( pd<_read_ignore  && ad.flags.extra_dflags[ExtraDflag::Ignore] ) _read_ignore  = pd ;
 	/**/                                  if ( pd<_write_ignore && ad.flags.extra_tflags[ExtraTflag::Ignore] ) _write_ignore = pd ;
@@ -119,12 +119,11 @@ void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI 
 	SWEAR( +file , c,ces      ) ;
 	SWEAR( +pd   , c,ces,file ) ;
 	if (late==Maybe) SWEAR( ad.write==No ) ;                                                                          // when writing, we must know if job is started
-	size_t                old_sz    = accesses.size()            ;
-	::pair_s<AccessInfo>& file_info = _access_info(::move(file)) ;
-	bool                  is_new    = accesses.size() > old_sz   ;
-	::string       const& f         = file_info.first            ;
-	AccessInfo&           info      = file_info.second           ;
-	AccessInfo            old_info  = info                       ;                                                    // for tracing only
+	auto            it_inserted = accesses.try_emplace(::move(file)) ;
+	bool            is_new      = it_inserted.second                 ;
+	::string const& f           = it_inserted.first->first           ;
+	AccessInfo&     info        = it_inserted.first->second          ;
+	AccessInfo      old_info    = info                               ;                                                // for tracing only
 	if (ad.write==Maybe) {
 		// wait until file state can be safely inspected as in case of interrupted write, syscall may continue past end of process
 		// this may be long, but is exceptionnal
@@ -148,11 +147,11 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 		if (!Record::s_is_simple(f)) new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 }
 
-void Gather::update_flags() {
-	Trace trace("update_flags") ;
+void Gather::_update_flags(bool drain_heartbeat_) {
+	Trace trace("_update_flags") ;
 	size_t   i   = 0                                        ;
 	::string msg = cat("total accesses : ",accesses.size()) ;
-	if (+star_matches) {                                         // fast path : if no patterns, nothing to do
+	if (+star_matches) {                                                             // fast path : if no patterns, nothing to do
 		NodeIdx n_stars       = 0     ;
 		NodeIdx n_matches     = 0     ;
 		Pdate   heartbeat_chk { New } ;
@@ -160,7 +159,7 @@ void Gather::update_flags() {
 			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
 			n_stars++ ;
 			for ( auto const& [re,date_flags] : star_matches ) {
-				if (++i>=1000) { drain_heartbeat() ; i = 0 ; }   // regularly drain heartbeat
+				if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; } // regularly drain heartbeat
 				if (re.can_match(file)) {
 					n_matches++ ;
 					trace("star_matches",file,date_flags) ;
@@ -179,94 +178,83 @@ void Gather::update_flags() {
 //   - or dir is only accessed as link
 // - suppress dir when one of its sub-files appears before            (and condition above is satisfied)
 // - suppress dir when one of its sub-files appears immediately after (and condition above is satisfied)
-void Gather::reorder(bool at_end) {
-	Trace trace("reorder") ;
+::vector<Gather::AccessEntry*> Gather::_reorder(bool drain_heartbeat_) {
+	Trace trace("_reorder") ;
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
-	size_t i = 0 ;
-	::stable_sort( // reorder by date, keeping parallel entries together (which must have the same date)
-		accesses
-	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b )->bool { return a.second.sort_key()<b.second.sort_key() ; }
+	size_t                 i   = 0 ;
+	::vector<AccessEntry*> res ;     res.reserve(accesses.size()) ; for( auto& e : accesses ) res.push_back(&e) ;
+	::stable_sort(                                                                                                // reorder by date, keeping parallel entries together (which must have the same date)
+		res
+	,	[]( AccessEntry* a , AccessEntry* b )->bool { return a->second.sort_key()<b->second.sort_key() ; }
 	) ;
 	auto can_delete = [](AccessInfo const& ai) { return ai.flags.dflags==DflagsDfltDyn && (!ai.read_dir()||ai.flags.extra_dflags[ExtraDflag::ReaddirOk]) ; } ; // can delete if no flags and no errors
 	// 1st pass (backward) : note dirs immediately preceding sub-files
-	::vector<::vmap_s<AccessInfo>::reverse_iterator> lasts   ;                      // because of parallel deps, there may be several last deps
-	Pdate                                            last_pd = Pdate::Future ;
-	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
-		if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
-		{	AccessInfo& ai = it->second       ;
-			Pdate       fw = ai.first_write() ;
-			//
-			if (fw<Pdate::Future)                   goto NextDep ;
-			if (!can_delete(ai) ) { lasts.clear() ; goto NextDep ; }
-			if (!ai.accesses()  )                   goto NextDep ;
-			//
-			::string const& file = it->first ;
-			for( auto last : lasts ) {
-				if (!lies_within(last->first,file)     )   continue ;
-				if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; ai.clear_accesses() ;                     goto NextDep ; }
-				else                                     { trace("no_lnk_from_next",file) ; ai.clear_lnk     () ; if (!ai.accesses()) goto NextDep ; }
-			}
-			if ( Pdate fr=ai.first_read() ; fr<last_pd ) {
-				lasts.clear() ;                                                     // not a parallel dep => clear old ones that are no more last
-				last_pd = fr ;
-			}
-			lasts.push_back(it) ;
+	::vector<::vector<AccessEntry*>::reverse_iterator> lasts   ;                                                             // because of parallel deps, there may be several last deps
+	Pdate                                              last_pd = Pdate::Never ;
+	for( auto it=res.rbegin() ; it!=res.rend() ; it++ ) {
+		if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                                 // regularly drain heartbeat
+		::string const& file = (*it)->first  ;
+		AccessInfo&     ai   = (*it)->second ; if (!ai.accesses()) goto NextDep ;
+		//
+		for( auto last : lasts ) {
+			if (!lies_within((*last)->first,file)     )   continue ;
+			if ((*last)->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; ai.clear_accesses() ;                     goto NextDep ; }
+			else                                        { trace("no_lnk_from_next",file) ; ai.clear_lnk     () ; if (!ai.accesses()) goto NextDep ; }
 		}
+		if ( Pdate fr=ai.first_read() ; fr<last_pd ) {
+			lasts.clear() ;                                                                                                  // not a parallel dep => clear old ones that are no more last
+			last_pd = fr ;
+		}
+		lasts.push_back(it) ;
 	NextDep : ;
 	}
 	// 2nd pass (forward) : suppress dirs of seen files and previously noted dirs
 	::umap_s<bool/*sub-file exists*/> dirs  ;
-	size_t                            i_dst = 0     ;
-	bool                              cpy   = false ;
-	for( auto& access : accesses ) {
-		if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
-		::string   const& file = access.first  ;
-		AccessInfo      & ai   = access.second ;
-		if ( ai.first_write()==Pdate::Future && !ai.flags.tflags && can_delete(ai) ) {
-			auto it = dirs.find(file+'/') ;
-			if (it!=dirs.end()) {
-				if (it->second) { trace("skip_from_prev"  ,file) ; ai.clear_accesses() ; }
-				else            { trace("no_lnk_from_prev",file) ; ai.clear_lnk     () ; }
-			}
-			if (ai.first_read()==PD::Future) {
-				if (!at_end) access_map.erase(file) ;
-				cpy = true ;
-				continue ;
-			}
+	size_t                            i_dst = 0 ;
+	for( AccessEntry* access : res ) {
+		if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                                 // regularly drain heartbeat
+		::string const& file = access->first       ;
+		AccessInfo    & ai   = access->second      ;
+		auto            it   = dirs.find(file+'/') ;
+		if (it!=dirs.end()) {
+			if (it->second) { trace("skip_from_prev"  ,file) ; ai.clear_accesses() ; }
+			else            { trace("no_lnk_from_prev",file) ; ai.clear_lnk     () ; }
 		}
+		if ( ai.first_read()==PD::Never && ai.first_write()==Pdate::Never && !ai.flags.tflags && can_delete(ai) ) continue ; // dismiss useless access
 		bool exists = ai.dep_info.exists()==Yes ;
 		try {
-			for( ::string dir_s=dir_name_s(file) ;; dir_s=dir_name_s(dir_s) ) {     // walk all accessible dirs
+			for( ::string dir_s=dir_name_s(file) ;; dir_s=dir_name_s(dir_s) ) {                                              // walk all accessible dirs
 				auto [it,inserted] = dirs.try_emplace(dir_s,exists) ;
 				if (!inserted) {
-					if (it->second>=exists) break ;                                 // all uphill dirs are already inserted if a dir has been inserted
-					it->second = exists ;                                           // record existence of a sub-file as soon as one if found
+					if (it->second>=exists) break ;                                                                          // all uphill dirs are already inserted if a dir has been inserted
+					it->second = exists ;                                                                                    // record existence of a sub-file as soon as one if found
 				}
 			}
 		} catch (::string const&) {}
-		if (cpy) accesses[i_dst] = ::move(access) ;
+		res[i_dst] = access ;
 		i_dst++ ;
 	}
-	accesses.resize(i_dst) ;
-	for( NodeIdx i : iota(accesses.size()) ) access_map.at(accesses[i].first) = i ; // always recompute access_map as accesses has been sorted
-	_user_trace(Comment::Analysis,cat("filtered accesses : ",accesses.size()));
+	res.resize(i_dst) ;
+	_user_trace( Comment::Analysis , cat("filtered accesses : ",i_dst) ) ;
+	return res ;
 }
 
 Gather::Digest Gather::analyze(Status status) {
 	Trace trace("analyze",status,accesses.size()) ;
-	Digest res                   ;                 res.deps.reserve(accesses.size()) ;                             // typically most of accesses are deps
-	Pdate  prev_first_read       = Pdate::Future ;
-	bool   readdir_warned        = false         ;
-	bool   seen_unexpected_write = false         ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	update_flags(                   ) ;
-	reorder     (status!=Status::New) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	Digest res                   ;                res.deps.reserve(accesses.size()) ;                              // typically most of accesses are deps
+	Pdate  prev_first_read       = Pdate::Never ;
+	bool   readdir_warned        = false        ;
+	bool   seen_unexpected_write = false        ;
+	//                                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	/**/                                _update_flags(status!=Status::New) ;                                       // regularly drain heartbeat if at end
+	::vector<AccessEntry*> access_seq = _reorder     (status!=Status::New) ;                                       // .
+	//                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	size_t i = 0 ;
-	for( auto& [file,info] : accesses ) {
-		if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                                                             // regularly drain heartbeat
-		//
-		MatchFlags flags = info.flags ;
+	for( AccessEntry* access : access_seq ) {
+		::string const& file  = access->first  ;
+		AccessInfo    & info  = access->second ;
+		MatchFlags      flags = info.flags     ;
+		if (++i>=1000) { i = 0 ; if (status!=Status::New) drain_heartbeat() ; }                                    // regularly drain heartbeat if at end
 		//
 		// handle read_dir
 		if ( info.read_dir() && !(flags.extra_dflags[ExtraDflag::ReaddirOk]||flags.tflags[Tflag::Incremental]) ) { // if incremental, user handle previous values
@@ -289,18 +277,18 @@ Gather::Digest Gather::analyze(Status status) {
 			if (is_lcl(file)) res.refresh_codecs.insert(Codec::CodecFile(New,file).file) ;
 		}
 		//
-		Accesses accesses     = info.accesses()                  ;
-		bool     was_written  = info.first_write()<Pdate::Future ;
-		bool     force_is_dep = info.force_is_dep                ;
+		Accesses as           = info.accesses()                 ;
+		bool     was_written  = info.first_write()<Pdate::Never ;
+		bool     force_is_dep = info.force_is_dep               ;
 		//
 		if (file==".") continue ;                                                                                  // . is only reported when reading dir but otherwise is an external file
 		//
-		Pdate first_read    = info.first_read(false/*with_readdir*/)                                               ;
-		bool  was_read      = first_read<Pdate::Future                                                             ;
-		bool  is_dep        = force_is_dep || +accesses || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
-		bool  allow         = info.allow()                                                                         ;
-		bool  is_static_tgt = flags.tflags[Tflag::Target] && flags.tflags[Tflag::Static]                           ;
-		bool  is_tgt        = was_written || allow || is_static_tgt                                                ;
+		Pdate first_read    = info.first_read(false/*with_readdir*/)                                         ;
+		bool  was_read      = first_read<Pdate::Never                                                        ;
+		bool  is_dep        = force_is_dep || +as || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
+		bool  allow         = info.allow()                                                                   ;
+		bool  is_static_tgt = flags.tflags[Tflag::Target] && flags.tflags[Tflag::Static]                     ;
+		bool  is_tgt        = was_written || allow || is_static_tgt                                          ;
 		//
 		if ( !is_dep && !is_tgt ) {
 			trace("ignore ",file) ;
@@ -308,23 +296,23 @@ Gather::Digest Gather::analyze(Status status) {
 		}
 		// handle deps
 		if (is_dep) {
-			DepDigest dd       { accesses , info.dep_info , false/*err*/ , flags.dflags } ;
-			bool      unstable = false                                                    ;
+			DepDigest dd       { as , info.dep_info , false/*err*/ , flags.dflags } ;
+			bool      unstable = false                                              ;
 			//
 			// if file is not old enough, we make it hot and server will ensure job producing dep was done before this job started
-			dd.hot           = info.is_hot(ddate_prec)                                 ;
-			dd.parallel      = first_read<Pdate::Future && first_read==prev_first_read ;
-			dd.create_encode = flags.extra_dflags[ExtraDflag::CreateEncode]            ;
-			prev_first_read  = first_read                                              ;
+			dd.hot           = info.is_hot(ddate_prec)                                ;
+			dd.parallel      = first_read<Pdate::Never && first_read==prev_first_read ;
+			dd.create_encode = flags.extra_dflags[ExtraDflag::CreateEncode]           ;
+			prev_first_read  = first_read                                             ;
 			// try to transform date into crc as far as possible
 			if      ( dd.is_crc                         )   {}                                                     // already a crc => nothing to do
-			else if ( !accesses                         )   {}                                                     // no access     => nothing to do
+			else if ( !as                               )   {}                                                     // no access     => nothing to do
 			else if ( !info.seen()                      ) { dd.may_set_crc(Crc::None ) ; dd.hot   = false ; }      // job has been executed without seeing the file (before possibly writing to it)
 			else if ( !dd.sig().exists()                ) { dd.del_crc    (          ) ; unstable = true  ; }      // file was absent initially but was seen, it is incoherent even if absent finally
 			else if ( was_written                       )   {}                                                     // cannot check stability, clash will be detected in server if any
 			else if ( FileSig sig{file} ; sig!=dd.sig() ) { dd.del_crc    (          ) ; unstable = true  ; }      // file dates are incoherent from first access to end of job, no stable content
 			else if ( sig.tag()==FileTag::Empty         )   dd.may_set_crc(Crc::Empty) ;                           // crc is easy to compute (empty file), record it
-			else if ( !Crc::s_sense(accesses,sig.tag()) )   dd.may_set_crc(sig.tag() ) ;                           // just record the tag if enough to match (e.g. accesses==Lnk and tag==Reg)
+			else if ( !Crc::s_sense(as,sig.tag())       )   dd.may_set_crc(sig.tag() ) ;                           // just record the tag if enough to match (e.g. as==Lnk and tag==Reg)
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back( file , dd ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -375,9 +363,9 @@ Gather::Digest Gather::analyze(Status status) {
 					} else {
 						bool        read_lnk = false   ;
 						const char* read     = nullptr ;
-						if      (accesses[Access::Reg ]       )   read = "read"        ;
-						else if (accesses[Access::Lnk ]       ) { read = "readlink'ed" ; read_lnk = true ; }
-						else if (accesses[Access::Stat]       )   read = "stat'ed"     ;
+						if      (as[Access::Reg ]             )   read = "read"        ;
+						else if (as[Access::Lnk ]             ) { read = "readlink'ed" ; read_lnk = true ; }
+						else if (as[Access::Stat]             )   read = "stat'ed"     ;
 						else if (flags.dflags[Dflag::Required])   read = "required"    ;
 						else                                      read = "accessed"    ;
 						_user_trace( Comment::DepAndTarget , file ) ;
@@ -570,10 +558,10 @@ Status Gather::_exec_child() {
 	size_t                      live_out_pos      = 0              ;
 	::umap<Fd,ServerSlaveEntry> server_slaves     ;
 	::umap<Fd,JobSlaveEntry   > job_slaves        ;                     // Jerr's waiting for confirmation
-	PD                          end_timeout       = PD::Future     ;
-	PD                          end_child         = PD::Future     ;
-	PD                          end_kill          = PD::Future     ;
-	PD                          end_heartbeat     = PD::Future     ;    // heartbeat to probe server when waiting for it
+	PD                          end_timeout       = PD::Never      ;
+	PD                          end_child         = PD::Never      ;
+	PD                          end_kill          = PD::Never      ;
+	PD                          end_heartbeat     = PD::Never      ;    // heartbeat to probe server when waiting for it
 	bool                        timeout_fired     = false          ;
 	size_t                      kill_step         = 0              ;
 	bool                        seen_mount_chroot = false          ;
@@ -584,7 +572,7 @@ Status Gather::_exec_child() {
 		if (status==Status::New) status = status_ ;                     // only record first status
 		if (+msg_              ) msg << add_nl << msg_ ;
 	} ;
-	auto kill = [&](bool next_step=false) {
+	auto kill = [&]( Status status_=Status::Killed , ::string const& msg={} , bool next_step=false ) {
 		trace("kill",STR(next_step),kill_step,STR(as_session),_child.pid,_wait) ;
 		if      (next_step             ) SWEAR_PROD(kill_step<=kill_sigs.size()) ;
 		else if (kill_step             ) return ;
@@ -595,9 +583,9 @@ Status Gather::_exec_child() {
 		//                         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		if ( sig && _child.pid>1 ) kill_process(_child.pid,sig,as_session/*as_group*/) ;
 		//                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		set_status(Status::Killed) ;
-		if      (kill_step==kill_sigs.size()) { end_kill = Pdate::Future       ; end_child = now + Delay(1) ; }
-		else if (end_kill==Pdate::Future    )   end_kill = now      + Delay(1) ;
+		set_status(status_,msg) ;
+		if      (kill_step==kill_sigs.size()) { end_kill = Pdate::Never        ; end_child = now + Delay(1) ; }
+		else if (end_kill==Pdate::Never     )   end_kill = now      + Delay(1) ;
 		else                                    end_kill = end_kill + Delay(1) ;
 		_user_trace( now , Comment::Kill , cat(sig) ) ;
 		kill_step++ ;
@@ -665,19 +653,18 @@ Status Gather::_exec_child() {
 			break ;                                              // exit loop
 		}
 		if (now>=end_kill) {
-			kill(true/*next*/) ;
+			kill( Status::Killed , {} , true/*next*/ ) ;
 		}
 		if ( now>=end_timeout && !timeout_fired ) {
 			_user_trace( now , Comment::Timeout ) ;
-			set_status(Status::Timeout,"timeout after "+timeout.short_str()) ;
-			kill() ;
-			timeout_fired = true          ;
-			end_timeout   = Pdate::Future ;
+			kill( Status::Timeout , "timeout after "+timeout.short_str() ) ;
+			timeout_fired = true         ;
+			end_timeout   = Pdate::Never ;
 		}
 		if (!kill_step) {
-			if (end_heartbeat==Pdate::Future) { if ( _n_server_req_pending) end_heartbeat = now + HeartbeatTick ; }
-			else                              { if (!_n_server_req_pending) end_heartbeat = Pdate::Future       ; }
-			if (now>end_heartbeat           ) {
+			if (end_heartbeat==Pdate::Never) { if ( _n_server_req_pending) end_heartbeat = now + HeartbeatTick ; }
+			else                             { if (!_n_server_req_pending) end_heartbeat = Pdate::Never        ; }
+			if (now>end_heartbeat          ) {
 				SWEAR( has_server , _n_server_req_pending ) ;
 				trace("server_heartbeat",_n_server_req_pending) ;
 				JobMngtRpcReq jmrr ;
@@ -832,7 +819,6 @@ Status Gather::_exec_child() {
 						case JobMngtProc::Heartbeat : goto ServerNextEvent ;                                                           // just receiving the message is enough, nothing to do
 						case JobMngtProc::Kill      :
 							_user_trace( Comment::Kill , CommentExt::Reply ) ;
-							set_status(Status::Killed)                       ;
 							kill()                                           ;
 						break ;
 						case JobMngtProc::DepDirect  :
@@ -881,8 +867,7 @@ Status Gather::_exec_child() {
 							switch (jmrr.ok) {
 								case Maybe :
 									ces |= CommentExt::Killed ;
-									set_status( Status::ChkDeps , cat(is_target?"pre-existing target":"waiting dep"," : ",jmrr.txt) ) ;
-									kill() ;
+									kill( Status::ChkDeps , cat(is_target?"pre-existing target":"waiting dep"," : ",jmrr.txt) ) ;
 								break ;
 								case No :
 									ces |= CommentExt::Err ;
@@ -974,8 +959,7 @@ Status Gather::_exec_child() {
 									trace(kind,fd,proc) ;
 									if (no_tmp) {
 										_user_trace( jerr.date , Comment::Tmp , CommentExt::Err ) ;
-										set_status(Status::Forbidden,"tmp access with no tmp dir") ;
-										kill() ;
+										kill( Status::Forbidden , "tmp access with no tmp dir" ) ;
 									} else {
 										_user_trace( jerr.date , Comment::Tmp ) ;
 									}
@@ -1003,12 +987,9 @@ Status Gather::_exec_child() {
 									msg << "  - "<<rule<<".mount_chroot_ok = True"                                       <<'\n' ;
 									msg << "  consider, if you are ready to manage deps by hand :"                       <<'\n' ;
 									msg << "  - "<<rule<<".autodep = 'none'"                                             <<'\n' ;
-								}
-								set_status(Status::Forbidden,msg) ;
-								if (!seen_mount_chroot) {
 									seen_mount_chroot = true ;
-									kill() ;
 								}
+								kill(Status::Forbidden,msg) ;
 							} break ;
 							case Proc::DepDirect  :
 							case Proc::DepVerbose :
@@ -1023,8 +1004,7 @@ Status Gather::_exec_child() {
 								if (!seen_panic) {                                                                                                     // report only first panic
 									trace(kind,fd,proc,jerr.txt()) ;
 									_user_trace( jerr.date , Comment::Panic , jerr.txt() ) ;
-									set_status(Status::Panic,jerr.txt()) ;
-									kill() ;
+									kill( Status::Panic , jerr.txt() ) ;
 									seen_panic = true ;
 								}
 							[[fallthrough]] ;                                                                                                          // END_OF_NO_COV

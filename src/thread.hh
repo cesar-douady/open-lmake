@@ -224,7 +224,7 @@ enum class ServerThreadEventKind : uint8_t {
 ,	Slave
 ,	Stop
 } ;
-template<class T,bool Flush=true> struct ServerThread {                                           // if Flush, finish on going connections
+template<class T,bool Flush=true> struct ServerThread {                                          // if Flush, finish on going connections
 	using EventKind = ServerThreadEventKind ;
 private :
 	static void _s_thread_func( ::stop_token stop , char key , ServerThread* this_ , ::function<void(::stop_token,T&&,Fd)> func ) {
@@ -238,7 +238,7 @@ private :
 		EventFd               stop_fd { New } ;
 		Epoll<EventKind>      epoll   { New } ;
 		::umap<Fd,SlaveEntry> slaves  ;
-		::stop_callback       stop_cb {                                                           // transform request_stop into an event Epoll can wait for
+		::stop_callback       stop_cb {                                                          // transform request_stop into an event Epoll can wait for
 			stop
 		,	[&]() {
 				Trace trace("ServerThread::_s_thread_func::stop_cb",stop_fd) ;
@@ -253,8 +253,8 @@ private :
 		epoll.add_read( stop_fd   , EventKind::Stop   ) ;
 		for(;;) {
 			trace("wait") ;
-			::vector<Event> events = epoll.wait( +epoll ? Time::Pdate::Future : Time::Pdate() ) ; // wait for 1 event, no timeout unless stopped
-			if (!events) { SWEAR(Flush) ; return ; }                                              // if !Flush, we should have returned immediately
+			::vector<Event> events = epoll.wait( +epoll ? Time::Pdate::Never : Time::Pdate() ) ; // wait for 1 event, no timeout unless stopped
+			if (!events) { SWEAR(Flush) ; return ; }                                             // if !Flush, we should have returned immediately
 			for( Event event : events ) {
 				EventKind kind = event.data() ;
 				Fd        efd  = event.fd  () ;
@@ -267,15 +267,15 @@ private :
 							trace("new_req",slave_fd) ;
 							epoll.add_read( slave_fd , EventKind::Slave ) ;
 							slaves.try_emplace( slave_fd , this_->fd.key ) ;
-						} catch (::string const& e) { trace("cannot_accept",e) ; }                // ignore error as this may be fd starvation and client will retry
+						} catch (::string const& e) { trace("cannot_accept",e) ; }               // ignore error as this may be fd starvation and client will retry
 					} break ;
 					case EventKind::Stop : {
 						stop_fd.flush() ;
 						trace("stop",mk_key_vector(slaves)) ;
 						for( auto const& [sfd,_] : slaves ) epoll.close(false/*write*/,sfd) ;
 						trace("done") ;
-						if (Flush) epoll.dec() ;                                                  // dont wait for new incoming connections, but finish on going connections and process what comes
-						else       return ;                                                       // stop immediately
+						if (Flush) epoll.dec() ;                                                 // dont wait for new incoming connections, but finish on going connections and process what comes
+						else       return ;                                                      // stop immediately
 					} break ;
 					case EventKind::Slave : {
 						auto          it = slaves.find(efd) ; SWEAR( it!=slaves.end() , this_->fd,efd ) ;

@@ -246,8 +246,8 @@ namespace Time {
 
 	struct Pdate : Date {
 		friend Delay ;
-		static const Pdate Future  ;                        // highest date, used as infinity
-		static const Pdate Future1 ;                        // last date before Future
+		static const Pdate Never  ;                         // highest date, used as infinity
+		static const Pdate Future ;                         // last date before Never
 		// static data
 	private :
 		#if __cplusplus<202600L
@@ -280,15 +280,15 @@ namespace Time {
 		bool/*slept*/ sleep_until( ::stop_token , bool flush=true ) const ;                               // if flush, consider we slept if asked to stop but we do not have to wait
 		void          sleep_until(                                ) const ;
 		//
-		::string str( uint8_t prec=0 , bool in_day=false ) const { if (self<Future) return Date::str(prec,in_day) ; else return "Future" ; }
+		::string str( uint8_t prec=0 , bool in_day=false ) const { if (self<Never) return Date::str(prec,in_day) ; else return "Never" ; }
 	} ;
 
 	// DDate represents the date of a file, together with its tag (as the lsb's of _val)
 	// we lose a few bits of precision, but real disk dates have around ms precision anyway, so we have around 20 bits of margin
 	struct Ddate : Date {
 		friend Delay ;
-		static const Ddate Future  ;                                                                      // highest date, used as infinity
-		static const Ddate Future1 ;                                                                      // last date before Future
+		static const Ddate Never  ;                                                                      // highest date, used as infinity
+		static const Ddate Future ;                                                                      // last date before Never
 	private :
 		static constexpr Tick _TagMsk = (1<<NBits<FileTag>)-1 ;
 		// cxtors & casts
@@ -323,7 +323,7 @@ namespace Time {
 			return d1<=d2 && d2<pd._val ;                                                                 // take care of overflow
 		}
 		//
-		::string str( uint8_t prec=0 , bool in_day=false ) const { if (self<Future) return Date(New,_date()).str(prec,in_day) ; else return "Future" ; }
+		::string str( uint8_t prec=0 , bool in_day=false ) const { if (self<Never) return Date(New,_date()).str(prec,in_day) ; else return "Never" ; }
 	} ;
 
 }
@@ -340,7 +340,7 @@ namespace Time {
 	inline constexpr Date Delay::operator+(Date d) const {
 		return Date(New,_val+d._val) ;
 	}
-	inline bool/*slept*/ Delay::sleep_for( ::stop_token stkn , bool flush ) const {                      // if flush, consider we slept if asked to stop but we do not have to wait
+	inline bool/*slept*/ Delay::sleep_for( ::stop_token stkn , bool flush ) const { // if flush, consider we slept if asked to stop but we do not have to wait
 		return (Pdate(New)+self).sleep_until( stkn , flush ) ;
 	}
 	template<class T> requires(::is_arithmetic_v<T>) constexpr Delay Delay::operator*(T f) const { return Delay(New,int64_t(_val*                   f )) ; }
@@ -351,8 +351,8 @@ namespace Time {
 	// Pdate
 	//
 
-	constexpr Pdate Pdate::Future  { New , Pdate::Tick(-1) } ;
-	constexpr Pdate Pdate::Future1 { New , Pdate::Tick(-2) } ;
+	constexpr Pdate Pdate::Never  { New , Pdate::Tick(-1) } ;
+	constexpr Pdate Pdate::Future { New , Pdate::Tick(-2) } ;
 
 	inline constexpr Delay Pdate::operator-(Pdate other) const { return Delay(New,Delay::Tick(_val   -other._val   )) ; }
 	inline constexpr Delay Ddate::operator-(Ddate other) const { return Delay(New,Delay::Tick(_date()-other._date())) ; }
@@ -363,7 +363,7 @@ namespace Time {
 	// Ddate
 	//
 
-	constexpr Ddate Ddate::Future  { New , Ddate::Tick(-1) } ;
-	constexpr Ddate Ddate::Future1 { New , Ddate::Tick(-2) } ;
+	constexpr Ddate Ddate::Never  { New , Ddate::Tick(-1) } ;
+	constexpr Ddate Ddate::Future { New , Ddate::Tick(-2) } ;
 
 }

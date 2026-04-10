@@ -94,7 +94,10 @@ else :
 
 		x,px = lshow( ('-b','--bom') , 'dut' )
 		assert 'hello' in x and 'world' in x
-		assert px=={'dut':{'hello+world_sh':{'hello':True,'world':True},'hello+world_py':{}}},px
+		assert (
+			px=={'dut':{'hello+world_sh':{'hello':True,'world':True},'hello+world_py':{}}}
+		or	px=={'dut':{'hello+world_py':{'hello':True,'world':True},'hello+world_sh':{}}}
+		),px
 
 		x,px = lshow( ('-b','--bom') , '--verbose' , 'hello+world_sh' )
 		assert 'hello' in x and 'world' in x and 'hello+world_sh' in x

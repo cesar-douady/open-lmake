@@ -63,16 +63,16 @@ struct Gather {                                                      // NOLINT(c
 		::pair<PD,bool/*write*/> sort_key   (                      ) const ;
 		Accesses                 accesses   (                      ) const ;
 		//
-		void clear_accesses() { for( PD& d : _read ) d                   = PD::Future ; }
-		void clear_lnk     () {                      _read[+Access::Lnk] = PD::Future ; }
-		void clear_readdir () {                      _read_dir           = PD::Future ; }
+		void clear_accesses() { for( PD& d : _read ) d                   = PD::Never ; }
+		void clear_lnk     () {                      _read[+Access::Lnk] = PD::Never ; }
+		void clear_readdir () {                      _read_dir           = PD::Never ; }
 		//                                                 phys
 		bool seen    () const { return _seen    <_max_read(true) ; } // if true <=> file has been observed existing, we want real info because this is to trigger rerun
 		bool read_dir() const { return _read_dir<_max_read(true) ; } // if true <=> file has been read as a dir    , we want real info because this is to generate error
 		bool allow   () const ;                                      // if true <=> file has been declared target
 	private :
-		PD _max_write(         ) const { return _write_ignore ; }    // max date for a write to be taken into account, always <Future
-		PD _max_read (bool phys) const ;                             // max date for a read  to be taken into account, always <Future
+		PD _max_write(         ) const { return _write_ignore ; }    // max date for a write to be taken into account, always <Never
+		PD _max_read (bool phys) const ;                             // max date for a read  to be taken into account, always <Never
 		// services
 	public :
 		void update( PD , AccessDigest    , DI const&   ={} ) ;
@@ -94,15 +94,15 @@ struct Gather {                                                      // NOLINT(c
 		bool       force_is_dep = false        ;                                       // if true => access must be a dep even if written to beforehand
 		DI         dep_info     ;                                                      // state when first read
 	private :
-		::array<PD,N<Access>> _read         { mk_array<N<Access>>(PD::Future) } ;      // first access date for each access
-		PD                    _read_dir     = PD::Future                        ;      // first date at which file has been read as a dir
-		PD                    _write        = PD::Future                        ;      // first sure write
-		PD                    _allow        = PD::Future                        ;      // first date at which file was known to be a target
-		PD                    _required     = PD::Future                        ;      // first date at which file was required
-		PD                    _seen         = PD::Future                        ;      // first date at which file has been seen existing
-		PD                    _read_ignore  = PD::Future1                       ;      // first date at which reads  are ignored, always <Future
-		PD                    _write_ignore = PD::Future1                       ;      // first date at which writes are ignored, always <Future
-		PD                    _no_hot       = PD::Future                        ;      // first date at which dep is known sync'ed on disk
+		::array<PD,N<Access>> _read         { mk_array<N<Access>>(PD::Never) } ;       // first access date for each access
+		PD                    _read_dir     = PD::Never                        ;       // first date at which file has been read as a dir
+		PD                    _write        = PD::Never                        ;       // first sure write
+		PD                    _allow        = PD::Never                        ;       // first date at which file was known to be a target
+		PD                    _required     = PD::Never                        ;       // first date at which file was required
+		PD                    _seen         = PD::Never                        ;       // first date at which file has been seen existing
+		PD                    _read_ignore  = PD::Future                       ;       // first date at which reads  are ignored, always <Never
+		PD                    _write_ignore = PD::Future                       ;       // first date at which writes are ignored, always <Never
+		PD                    _no_hot       = PD::Never                        ;       // first date at which dep is known sync'ed on disk
 	} ;
 	struct Digest {
 		::vmap_s<TargetDigest  > targets        ;
@@ -128,6 +128,7 @@ struct Gather {                                                      // NOLINT(c
 		IMsgBuf                         buf        = {} ;
 		SockFd::Key                     key        = {} ;
 	} ;
+	using AccessEntry = ::umap_s<AccessInfo>::value_type ;
 	// statics
 private :
 	static void _s_trace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_trace_child(report_fd,ready) ; }
@@ -141,11 +142,6 @@ private :
 	//
 	void _new_accesses( Fd fd , Jerr&& jerr ) {
 		for( auto& [f,fi] : jerr.files ) new_access( fd , jerr.date , ::move(f) , jerr.digest , fi , Yes/*late*/, jerr.comment , jerr.comment_exts ) ;
-	}
-	::pair_s<AccessInfo>& _access_info(::string&& file) {
-		auto        [it,is_new] = access_map.emplace(file,accesses.size()) ;
-		if (is_new) return accesses.emplace_back(::move(file),AccessInfo()) ;
-		else        return accesses[it->second]                             ;
 	}
 public :
 	// Fd for trace purpose only
@@ -164,14 +160,14 @@ public :
 	//
 	Status exec_child() ;
 	//
-	void   update_flags   (                         ) ;                                // update accesses to take static/star_matches into account
-	void   reorder        (bool   at_end            ) ;                                // reorder accesses by first read access and suppress superfluous accesses
 	Digest analyze        (Status status=Status::New) ;                                // status==New means job is not done
 	void   drain_heartbeat(                         ) ;
 private :
-	Fd     _spawn_child(                               ) ;
-	Status _exec_child (                               ) ;
-	void   _trace_child( Fd report_fd , ::latch* ready ) ;
+	void                   _update_flags( bool drain_heartbeat          ) ;            // update accesses to take static/star_matches into account
+	::vector<AccessEntry*> _reorder     ( bool drain_heartbeat          ) ;            // reorder accesses by first read access and suppress superfluous accesses
+	Fd                     _spawn_child (                               ) ;
+	Status                 _exec_child  (                               ) ;
+	void                   _trace_child ( Fd report_fd , ::latch* ready ) ;
 	//
 	void _user_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const { if (user_trace) user_trace->emplace_back(pd,c,ces,file) ; }
 	void _user_trace(         Comment c , CommentExts ces={} , ::string const& file={} ) const { _user_trace( New , c , ces , file ) ;                     }
@@ -179,8 +175,7 @@ private :
 	void _user_trace(         Comment c ,                      ::string const& file    ) const { _user_trace( New , c , {}  , file ) ;                     }
 	// data
 public :
-	::umap_s<NodeIdx   >                      access_map       ;
-	::vmap_s<AccessInfo>                      accesses         ;
+	::umap_s<AccessInfo>                      accesses         ;
 	bool                                      as_session       = false               ; // if true <=> process is launched in its own group
 	AutodepEnv                                autodep_env      ;
 	Fd                                        child_stdin      = Fd::Stdin           ;

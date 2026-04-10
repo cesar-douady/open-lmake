@@ -193,8 +193,8 @@ int main( int argc , char* argv[] ) {
 		if (cmd_line.flags[CmdFlag::ExpandEnv]) jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
 	//
-	autodep_env.file_sync = FileSync::None                                 ;                                       // no parallel processing with lautodep
-	autodep_env.fqdn      = fqdn(cmd_line.flag_args[+CmdFlag::DomainName]) ;                                       // call fqdn() before potential chroot in g_start_info.enter()
+	autodep_env.file_sync = FileSync::None                                 ;                                      // no parallel processing with lautodep
+	autodep_env.fqdn      = fqdn(cmd_line.flag_args[+CmdFlag::DomainName]) ;                                      // call fqdn() before potential chroot in g_start_info.enter()
 	//
 	Status     status  ;
 	::map_ss   cmd_env = mk_map(jsrr.env) ;
@@ -213,12 +213,12 @@ int main( int argc , char* argv[] ) {
 	//
 	::string files = "targets :\n" ;
 	for( auto const& [target,ai] : gather.accesses )
-		if (ai.first_write()<Pdate::Future) files << target <<'\n' ;
+		if (ai.first_write()<Pdate::Never) files << target <<'\n' ;
 	files << "deps :\n" ;
 	::string prev_dep        ;
 	bool     prev_parallel   = false ;
 	Pdate    prev_first_read ;
-	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                              // process deps with a delay of 1 because we need next entry for ascii art
+	auto send = [&]( ::string const& dep={} , Pdate first_read={} ) {                                             // process deps with a delay of 1 because we need next entry for ascii art
 		bool parallel = +first_read && first_read==prev_first_read ;
 		if (+prev_dep) {
 			if      ( !prev_parallel && !parallel ) files << "  "  ;
@@ -231,8 +231,8 @@ int main( int argc , char* argv[] ) {
 		prev_parallel   = parallel   ;
 		prev_dep        = dep        ;
 	} ;
-	for( auto const& [dep,ai] : gather.accesses ) if (ai.first_write()==Pdate::Future) send(dep,ai.first_read()) ;
-	/**/                                                                               send(                   ) ; // send last
+	for( auto const& [dep,ai] : gather.accesses ) if (ai.first_write()==Pdate::Never) send(dep,ai.first_read()) ;
+	/**/                                                                              send(                   ) ; // send last
 	//
 	if (cmd_line.flags[CmdFlag::Out]) AcFd( cmd_line.flag_args[+CmdFlag::Out] , {O_WRONLY|O_TRUNC|O_CREAT} ).write( files ) ;
 	else                              Fd::Stdout                                                            .write( files ) ;

@@ -218,8 +218,11 @@ namespace Engine::Makefiles {
 		::uset_s   dep_set  ;
 		try                       { py_info = py_eval(deps_str) ; }
 		catch (::string const& e) { FAIL_PROD(e) ;                }                 // NO_COV
-		for( auto& [d,ai] : gather.accesses ) {
-			/**/             if ( ai.first_write()<Pdate::Future )   continue ;
+		while (+gather.accesses) {
+			auto                nh = gather.accesses.extract(gather.accesses.begin()) ;
+			::string&           d  = nh.key   ()                                      ;
+			Gather::AccessInfo& ai = nh.mapped()                                      ;
+			/**/             if ( ai.first_write()<Pdate::Never    )   continue ;
 			trace("dep",d) ; if ( Match m=_g_pyc_re->match(d) ; +m ) { d = cat((*m)[1/*dir_s*/],(*m)[2/*module*/],".py") ; trace("dep_py",d) ; }
 			/**/             if ( dep_set.insert(d).second         )   deps.files.push_back(::move(d)) ;
 		}

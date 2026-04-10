@@ -53,8 +53,8 @@ struct RateCmp {
 		return float(s_now-s_lrus[r].newer/*oldest*/->last_access) * s_rates[r] ;
 	}
 	static Pdate s_stable( Rate a , Rate b ) {                                                                                                 // date until which lru_cmp is stable
-		float delta_score = s_score(a) - s_score(b) ; if (  delta_score==0                    ) return Pdate::Future                         ; // ordered by rates in that case
-		float delta_rate  = s_rates[a] - s_rates[b] ; if ( (delta_score> 0) == (delta_rate>0) ) return Pdate::Future                         ;
+		float delta_score = s_score(a) - s_score(b) ; if (  delta_score==0                    ) return Pdate::Never                          ; // ordered by rates in that case
+		float delta_rate  = s_rates[a] - s_rates[b] ; if ( (delta_score> 0) == (delta_rate>0) ) return Pdate::Never                          ;
 		/**/                                                                                    return s_now - Delay(delta_score/delta_rate) ;
 	}
 	static void s_refresh() {
@@ -63,8 +63,8 @@ struct RateCmp {
 		if (now<=s_now+Delay(1)) return ;        // ensure s_tab is not refreshed more than every second (as it is expensive) (at the expense of less precise bucket selection)
 		//
 		s_tab.clear() ;
-		s_now   = now           ;
-		s_limit = Pdate::Future ;
+		s_now   = now          ;
+		s_limit = Pdate::Never ;
 		//
 		for( Rate r : s_iota ) if (+s_lrus[r]) s_tab.insert(r) ;
 		//
