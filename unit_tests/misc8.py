@@ -19,7 +19,7 @@ if __name__!='__main__' :
 
 	class Dep(Rule) :
 		target = 'dep'
-		cmd = 'echo {step}'
+		cmd    = 'echo {step}'
 
 	class Dut1(Rule) :
 		target = 'dut1'
@@ -27,7 +27,7 @@ if __name__!='__main__' :
 
 	class Dut2(Rule) :
 		target = 'dut2'
-		deps = { 'DUT1' : 'dut1' }
+		deps   = { 'DUT1' : 'dut1' }
 		cmd = '''
 			if   [ $(cat dep) = 1 ]
 			then echo bad ; echo bad > dut1
@@ -38,7 +38,7 @@ if __name__!='__main__' :
 	class Chk(Rule) :
 		target = 'chk'
 		deps   = { 'DUT' : 'dut2' }
-		cmd = '[ $(cat {DUT}) = good ]'
+		cmd    = '[ $(cat {DUT}) = good ]'
 
 else :
 

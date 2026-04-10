@@ -32,10 +32,6 @@ void Gather::AccessInfo::operator>>(::string& os) const { // START_OF_NO_COV
 }                                                         // END_OF_NO_COV
 
 Pdate Gather::AccessInfo::_max_read(bool phys) const {
-	if (_washed) {
-		if (phys                       ) return {} ;                                  // washing has a physical impact
-		if (flags.tflags[Tflag::Target]) return {} ;                                  // if a target, washing is a logical write
-	}
 	PD                                         res = ::min( _read_ignore , _write ) ;
 	if ( !phys && !flags.dep_and_target_ok() ) res = ::min( res          , _allow ) ; // logically, once file is a target, reads are ignored, unless it is also a dep
 	return res ;
@@ -65,9 +61,8 @@ Pdate Gather::AccessInfo::first_read(bool with_readdir) const {
 }
 
 Pdate Gather::AccessInfo::first_write() const {
-	if ( _washed && flags.tflags[Tflag::Target] ) return {}         ;
-	if ( _write<=_max_write()                   ) return _write     ;
-	else                                          return PD::Future ;
+	if (_write<=_max_write()) return _write     ;
+	else                      return PD::Future ;
 }
 
 ::pair<Pdate,bool/*write*/> Gather::AccessInfo::sort_key() const {
@@ -76,10 +71,9 @@ Pdate Gather::AccessInfo::first_write() const {
 	else               return { first_write() , true  } ;
 }
 
-void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const& di ) {
+void Gather::AccessInfo::update( PD pd , AccessDigest ad , DI const& di ) {
 	SWEAR(ad.write!=Maybe) ;                                                                                                        // this must have been solved by caller
 	if ( ad.flags.extra_tflags[ExtraTflag::Ignore] ) ad.flags.extra_dflags |= ExtraDflag::Ignore ;                                  // ignore target implies ignore dep
-	if ( ad.write==Yes && late                     ) ad.flags.extra_tflags |= ExtraTflag::Late   ;
 	flags        |= ad.flags        ;
 	force_is_dep |= ad.force_is_dep ;
 	//
@@ -87,8 +81,7 @@ void Gather::AccessInfo::update( PD pd , AccessDigest ad , bool late , DI const&
 	//
 	for( Access a : iota(All<Access>) )   if ( pd<_read[+a] && ad.accesses[a]                           ) _read[+a] = pd   ;
 	/**/                                  if ( pd<_read_dir && ad.read_dir                              ) _read_dir = pd   ;
-	if (late)                           { if ( pd<_write    && ad.write==Yes                            ) _write    = pd   ; }
-	else                                { if (                 ad.write==Yes                            ) _washed   = true ; }
+	/**/                                { if ( pd<_write    && ad.write==Yes                            ) _write    = pd   ; }
 	/**/                                  if ( pd<_allow    && ad.flags.extra_tflags[ExtraTflag::Allow] ) _allow    = pd   ;
 	/**/                                  if ( pd<_required && ad.flags.dflags[Dflag::Required]         ) _required = pd   ;
 	/**/                                  if ( pd<_seen     && di.seen(ad.accesses)                     ) _seen     = pd   ;
@@ -139,9 +132,9 @@ void Gather::new_access( Fd fd , PD pd , ::string&& file , AccessDigest ad , DI 
 		if (info.dep_info.is_a<DepInfoKind::Crc>()) ad.write = No | (Crc    (f)!=info.dep_info.crc()) ;
 		else                                        ad.write = No | (FileSig(f)!=info.dep_info.sig()) ;
 	}
-	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-	info.update( pd , ad , late==Yes , di ) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	//vvvvvvvvvvvvvvvvvvvvvvvvv
+	info.update( pd , ad , di ) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^
 	if ( is_new || info!=old_info ) {
 		if (+c) _user_trace( pd , c , ces , f ) ;
 		Trace("new_access", fd , STR(is_new) , pd , ad , di , _parallel_id , c , ces , old_info , "->" , info , f ) ; // only trace if something changes
@@ -159,15 +152,7 @@ void Gather::update_flags() {
 	Trace trace("update_flags") ;
 	size_t   i   = 0                                        ;
 	::string msg = cat("total accesses : ",accesses.size()) ;
-	if (+static_matches)
-		for ( auto& [file,ai] : accesses ) {
-			if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                                                                   // regularly drain heartbeat
-			auto                            it         = static_matches.find(file) ; if (it==static_matches.end()) continue ;
-			::pair<Pdate,MatchFlags> const& date_flags = it->second                ;
-			trace("static_match",file,date_flags) ;
-			ai.update( date_flags.first , {.flags=date_flags.second} , date_flags.first<=start_date ) ;
-		}
-	if (+star_matches) {                                                                                                     // fast path : if no patterns, nothing to do
+	if (+star_matches) {                                         // fast path : if no patterns, nothing to do
 		NodeIdx n_stars       = 0     ;
 		NodeIdx n_matches     = 0     ;
 		Pdate   heartbeat_chk { New } ;
@@ -175,11 +160,11 @@ void Gather::update_flags() {
 			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
 			n_stars++ ;
 			for ( auto const& [re,date_flags] : star_matches ) {
-				if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                                                               // regularly drain heartbeat
+				if (++i>=1000) { drain_heartbeat() ; i = 0 ; }   // regularly drain heartbeat
 				if (re.can_match(file)) {
 					n_matches++ ;
 					trace("star_matches",file,date_flags) ;
-					ai.update( date_flags.first , {.flags=date_flags.second} , date_flags.first<=start_date ) ;
+					ai.update( date_flags.first , {.flags=date_flags.second} ) ;
 				}
 			}
 		}
@@ -198,20 +183,24 @@ void Gather::reorder(bool at_end) {
 	Trace trace("reorder") ;
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
 	size_t i = 0 ;
-	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
+	::stable_sort( // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b )->bool { return a.second.sort_key()<b.second.sort_key() ; }
 	) ;
+	auto can_delete = [](AccessInfo const& ai) { return ai.flags.dflags==DflagsDfltDyn && (!ai.read_dir()||ai.flags.extra_dflags[ExtraDflag::ReaddirOk]) ; } ; // can delete if no flags and no errors
 	// 1st pass (backward) : note dirs immediately preceding sub-files
 	::vector<::vmap_s<AccessInfo>::reverse_iterator> lasts   ;                      // because of parallel deps, there may be several last deps
 	Pdate                                            last_pd = Pdate::Future ;
 	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
 		if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
-		{	AccessInfo&     ai       = it->second       ;
-			Pdate           fw       = ai.first_write() ; if (fw<Pdate::Future              )                   goto NextDep ;
-			/**/                                          if (ai.flags.dflags!=DflagsDfltDyn) { lasts.clear() ; goto NextDep ; }
-			Accesses        accesses = ai.accesses()    ; if (!accesses                     )                   goto NextDep ;
-			::string const& file     = it->first        ;
+		{	AccessInfo& ai = it->second       ;
+			Pdate       fw = ai.first_write() ;
+			//
+			if (fw<Pdate::Future)                   goto NextDep ;
+			if (!can_delete(ai) ) { lasts.clear() ; goto NextDep ; }
+			if (!ai.accesses()  )                   goto NextDep ;
+			//
+			::string const& file = it->first ;
 			for( auto last : lasts ) {
 				if (!lies_within(last->first,file)     )   continue ;
 				if (last->second.dep_info.exists()==Yes) { trace("skip_from_next"  ,file) ; ai.clear_accesses() ;                     goto NextDep ; }
@@ -233,7 +222,7 @@ void Gather::reorder(bool at_end) {
 		if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
 		::string   const& file = access.first  ;
 		AccessInfo      & ai   = access.second ;
-		if ( ai.first_write()==Pdate::Future && ai.flags.dflags==DflagsDfltDyn && !ai.flags.tflags ) {
+		if ( ai.first_write()==Pdate::Future && !ai.flags.tflags && can_delete(ai) ) {
 			auto it = dirs.find(file+'/') ;
 			if (it!=dirs.end()) {
 				if (it->second) { trace("skip_from_prev"  ,file) ; ai.clear_accesses() ; }
@@ -275,11 +264,7 @@ Gather::Digest Gather::analyze(Status status) {
 	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	size_t i = 0 ;
 	for( auto& [file,info] : accesses ) {
-		static constexpr MatchFlags TargetFlags { .tflags=Tflag::Target , .extra_tflags=ExtraTflag::Allow } ;
 		if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                                                             // regularly drain heartbeat
-		//                                                                                                        started
-		if (static_targets.contains(file))                                     info.update( {.flags=TargetFlags} , false ) ;
-		else for( RegExpr const& re : star_targets ) if (re.can_match(file)) { info.update( {.flags=TargetFlags} , false ) ; break ; }
 		//
 		MatchFlags flags = info.flags ;
 		//
@@ -1054,7 +1039,7 @@ Status Gather::_exec_child() {
 							break ;
 							case Proc::AccessPattern :
 								trace(kind,fd,proc,jerr.date,jerr.digest,jerr.files) ;
-								for( auto const& [f,_] : jerr.files ) star_matches.emplace_back( f/*pattern*/ , ::pair(jerr.date,jerr.digest.flags) ) ;
+								for( auto const& [f,_] : jerr.files ) star_matches.emplace_back( RegExpr(f/*pattern*/,true/*cache*/) , ::pair(jerr.date,jerr.digest.flags) ) ;
 							break ;
 						DF}                                                                                                                            // NO_COV
 						if (sync_) sync( fd , ::move(jerr).mimic_server() ) ;

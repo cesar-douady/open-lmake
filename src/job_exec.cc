@@ -313,7 +313,7 @@ int main( int argc , char* argv[] ) {
 		g_gather.timeout       =        g_start_info.timeout            ;
 		g_gather.user_trace    =        g_user_trace                    ;
 		//
-		if (!g_start_info.method)                                                                             // if no autodep, consider all static deps are fully accessed as we have no precise report
+		if (!g_start_info.method)                                                                 // if no autodep, consider all static deps are fully accessed as we have no precise report
 			for( auto& [d,dd_edf] : g_start_info.deps ) if (dd_edf.first.dflags[Dflag::Static]) {
 				DepDigest& dd = dd_edf.first ;
 				dd.accesses_ = +FullAccesses ;
@@ -324,34 +324,19 @@ int main( int argc , char* argv[] ) {
 			DepDigest  & dd       = dd_edf.first          ;
 			ExtraDflags& edf      = dd_edf.second         ;
 			bool         is_stdin = d==g_start_info.stdin ;
-			if (is_stdin) {                                                                                   // stdin is read
-				if (!dd.accesses()) dd.set_sig(FileInfo(d)) ;                                                 // record now if not previously accessed
+			if (is_stdin) {                                                                       // stdin is read
+				if (!dd.accesses()) dd.set_sig(FileInfo(d)) ;                                     // record now if not previously accessed
 				dd.accesses_ |= +Accesses(Access::Reg) ;
 			}
 			g_gather.new_access( washed , ::move(d) , {.accesses=dd.accesses(),.flags{.dflags=dd.dflags,.extra_dflags=edf}} , dd , is_stdin?Comment::Stdin:Comment::StaticDep ) ;
 		}
 		for( auto& [dt,mf] : g_start_info.static_matches ) {
-			if (mf.tflags[Tflag::Target]) {
-				g_gather.static_targets.insert(dt) ;
-				mf.tflags       &= ~Tflag     ::Target ;
-				mf.extra_tflags &= ~ExtraTflag::Allow  ;
-			}
-			if (mf.extra_tflags[ExtraTflag::Optional]) {                                                      // consider Optional as a star target with a fixed pattern
-				g_gather.star_matches.emplace_back( Re::escape(dt) , ::pair(washed,mf) ) ;
-			} else {
-				g_gather.new_access( washed , ::move(dt) , {.flags=mf} , DepInfo() , Comment::StaticMatch ) ; // always insert an entry for static targets, even with no flags
-			}
-		}
-		for( auto& [p,mf] : g_start_info.star_matches ) {
-			if (mf.tflags[Tflag::Target]) {
-				g_gather.star_targets.push_back(p) ;                               // XXX : find a way to compile p only once when put in both g_gather.star_targets and g_gather.star_matches
-				mf.tflags       &= ~Tflag     ::Target ;
-				mf.extra_tflags &= ~ExtraTflag::Allow  ;
-			}
-			if (+mf) g_gather.star_matches.emplace_back( p , ::pair(washed,mf) ) ; // fast path : no need to match against a pattern that brings nothing
-		}
-		for( ::string& t : washed_files )
-			g_gather.new_access( washed , ::move(t) , {.write=Yes} , DepInfo() , No/*late*/ , Comment::Wash ) ;
+			// consider Optional as a star target with a fixed pattern
+			if      (!mf.extra_tflags[ExtraTflag::Optional]) g_gather.new_access( washed , ::move(dt) , {.flags=mf} , DepInfo() , Comment::StaticMatch )          ;
+			else if (+mf                                   ) g_gather.star_matches.emplace_back( Re::RegExpr(Re::escape(dt),false/*cache*/) , ::pair(washed,mf) ) ; // fast path : dont match ...
+		}                                                                                                                                                           // ... if no flags
+		for( auto& [p,mf] : g_start_info.star_matches )
+			if (+mf) g_gather.star_matches.emplace_back( Re::RegExpr(p,true/*cache*/) , ::pair(washed,mf) ) ;                        // fast path : dont match if no flags
 		//
 		if (+g_start_info.stdin) g_gather.child_stdin = Fd( g_start_info.stdin , {.err_ok=true} ) ;
 		else                     g_gather.child_stdin = Fd( "/dev/null"                         ) ;

@@ -492,14 +492,11 @@ namespace Engine {
 		::string eval( StartRsrcsAttrs&/*inout*/ , Rule::RuleMatch const& , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& ) const ;
 	} ;
 
-	struct TargetPattern {
-		// services
-		Re::Match match    (::string const& t,Bool3 chk_psfx=Yes) const { return re.match    (t,chk_psfx) ; } //chk_psfx=Maybe means check size only
-		bool      can_match(::string const& t,Bool3 chk_psfx=Yes) const { return re.can_match(t,chk_psfx) ; } //chk_psfx=Maybe means check size only
+	struct TargetPattern : Re::RegExpr {
+		using Re::RegExpr::RegExpr ;
 		// data
-		Re::RegExpr        re     ;
-		::vector<uint32_t> groups ;                                                                   // indexed by stem index, provide the corresponding group number in pattern
-		::string           txt    ;                                                                   // human readable pattern
+		::vector<uint32_t> groups ; // indexed by stem index, provide the corresponding group number in pattern
+		::string           txt    ; // human readable pattern
 	} ;
 
 	struct RuleData {                                   // NOLINT(clang-analyzer-optin.performance.Padding) prefer logical order

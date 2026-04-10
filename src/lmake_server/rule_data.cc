@@ -361,7 +361,7 @@ namespace Engine {
 			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( /*out*/n_runs       , /*out*/::ref(bool()) , &dct[field]                                    ) ;
 			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( /*out*/n_submits    , /*out*/::ref(bool()) , &dct[field]                                    ) ;
 			field = "retried_errors"      ; if (dct.contains(field)) Attrs::acquire( /*out*/retried_errs , /*out*/::ref(bool()) , &dct[field] , DfltRetriedErrs , MaxRetriedErrs ) ;
-			if ( n_runs && n_submits ) n_submits = ::max( n_submits , n_runs ) ;                                                                       // n_submits<n_runs is meaningless
+			if ( n_runs && n_submits ) n_submits = ::max( n_submits , n_runs ) ;                                 // n_submits<n_runs is meaningless
 			//
 			var_idxs["targets"] = { VarCmd::Targets , 0 } ;
 			for( bool star : {false,true} )
@@ -398,7 +398,7 @@ namespace Engine {
 			}
 			if (!deps_attrs.spec.dyn_deps.first)
 				for( VarIdx di : iota<VarIdx>(deps_attrs.spec.deps.size()) ) {
-					if (deps_attrs.spec.deps[di].first!="dep") continue ;                                                                              // dep is a reserved key that means stdin
+					if (deps_attrs.spec.deps[di].first!="dep") continue ;                                        // dep is a reserved key that means stdin
 					stdin_idx = di ;
 					break ;
 				}
@@ -416,11 +416,10 @@ namespace Engine {
 		// - escape specials outside keys
 		// - transform f-string syntax into python regexpr syntax
 		// for example "a{b}c.d" with stems["b"]==".*" becomes "a(.*)c\.d"
-		TargetPattern res       ;
-		VarIdx        cur_group = 1 ;
-		Re::Pattern   pattern   ;
-		res.groups = ::vector<uint32_t>(stems.size()) ;
-		res.txt    = subst_target(
+		Re::Pattern        pattern   ;
+		VarIdx             cur_group = 1              ;
+		::vector<uint32_t> groups    ( stems.size() ) ;
+		::string           txt       = subst_target(
 			me.pattern
 		,	[&](VarIdx s) {
 				if ( s>=n_static_stems && for_name ) {
@@ -430,13 +429,13 @@ namespace Engine {
 					pattern.emplace_back(r,Maybe/*capture*/) ;
 					return Re::escape(r) ;
 				}
-				if (res.groups[s]) {                                // already seen, we must protect against following text potentially containing numbers
-					::string r = cat('\\',res.groups[s]) ;
+				if (groups[s]) {                                    // already seen, we must protect against following text potentially containing numbers
+					::string r = cat('\\',groups[s]) ;
 					pattern.emplace_back( r , No/*capture*/ ) ;
 					return cat("(?:",r,')') ;
 				}
 				bool capture = s<n_static_stems || me.captures[s] ; // star stems are only captured if back referenced
-				if (capture) res.groups[s] = cur_group ;
+				if (capture) groups[s] = cur_group ;
 				cur_group += capture+stem_n_marks[s] ;
 				pattern.emplace_back( stems[s].second , No|capture ) ;
 				return cat(capture?"(":"(?:",stems[s].second,')') ;
@@ -446,7 +445,9 @@ namespace Engine {
 				return Re::escape(s) ;
 			}
 		) ;
-		res.re = {pattern,true/*cache*/} ;                          // stem regexprs have been validated, normally there is no error here
+		TargetPattern res = { pattern , true/*cache*/ } ;           // stem regexprs have been validated, normally there is no error here
+		res.groups = ::move(groups) ;
+		res.txt    = ::move(txt   ) ;
 		return res ;
 	}
 
@@ -672,7 +673,8 @@ namespace Engine {
 		}
 		// report actual reg-exprs to ease debugging
 		res << "patterns :\n" ;
-		for( size_t mi : iota(matches.size()) ) res << '\t'<<widen(matches[mi].first,wk)<<" : "<<patterns[mi].txt<<'\n' ;
+		for( size_t mi : iota(matches.size()) )
+			if (patterns[mi].has_stems()) res << '\t'<<widen(matches[mi].first,wk)<<" : "<<patterns[mi].txt<<'\n' ;
 		return res ;
 	}
 

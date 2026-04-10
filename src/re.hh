@@ -154,8 +154,8 @@ namespace Re {
 			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr( Pattern  const& pattern , bool cache=false ) ;
-			RegExpr( ::string const& pattern , bool cache=false ) : RegExpr{{{pattern,No}},cache} {}
+			RegExpr( Pattern  const& pattern , bool cache ) ;
+			RegExpr( ::string const& pattern , bool cache ) : RegExpr{{{pattern,No}},cache} {}
 			//
 			RegExpr           (RegExpr&& re) { swap(self,re) ;               }
 			RegExpr& operator=(RegExpr&& re) { swap(self,re) ; return self ; }
@@ -164,6 +164,8 @@ namespace Re {
 				if ( _own && _code ) ::pcre2_code_free      (const_cast<pcre2_code*>(_code)) ;
 				if ( _data         ) ::pcre2_match_data_free(                        _data ) ;
 			}
+			// accesses
+			bool has_stems() const { return _special!=Special::Single ; }
 			// services
 			size_t n_marks  (                                              ) const ;
 			Match  match    ( ::string const& subject , Bool3 chk_psfx=Yes ) const ;                                               // chk_psfx=Maybe means check size only
@@ -171,12 +173,12 @@ namespace Re {
 		private :
 			int  _n_match1( ::string const& subject , Bool3 chk_psfx ) const ;
 			// data
-			::string            _pfx     ;                                                                            // fixed prefix
-			::string            _sfx     ;                                                                            // fixed suffix
-			::vector_s          _infxs   ;                                                                            // internal fixed parts
+			::string            _pfx     ;                                                                                         // fixed prefix
+			::string            _sfx     ;                                                                                         // fixed suffix
+			::vector_s          _infxs   ;                                                                                         // internal fixed parts
 			::pcre2_match_data* _data    = nullptr ;
-			::pcre2_code const* _code    = nullptr ;                                                                  // only contains code for infix part, shared and stored in s_store
-			bool                _own     = false   ;                                                                  // if true <=> _code is private and must be freed in dxtor
+			::pcre2_code const* _code    = nullptr ;                                                                               // only contains code for infix part, shared and stored in s_store
+			bool                _own     = false   ;                                                                               // if true <=> _code is private and must be freed in dxtor
 			Special             _special = {}      ;
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b) {
@@ -197,6 +199,10 @@ namespace Re {
 				static constexpr bool steady() { return true ; }
 			} ;
 			// statics
+		private :
+			static bool _s_mk_has_stems(Pattern const& pattern) {
+				return ::any_of( pattern , [](::pair_s<Bool3/*capturing*/> const& s_c) { return s_c.second!=Maybe ; } ) ;
+			}
 			static ::string _s_mk_pattern(Pattern const& pattern) {
 				::string res ;
 				for( auto const& [s,capture] : pattern ) {
@@ -209,11 +215,14 @@ namespace Re {
 				return res ;
 			}
 			// static data
+		public :
 			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr() = default ;
-			RegExpr( Pattern  const& pattern , bool /*cache*/=false ) : ::regex{_s_mk_pattern(pattern),Flags} {} // cache is ignored as no cache is implemented
-			RegExpr( ::string const& pattern , bool /*cache*/=false ) : ::regex{pattern               ,Flags} {}
+			RegExpr( Pattern  const& pattern , bool /*cache*/ ) : ::regex{_s_mk_pattern(pattern),Flags} , _has_stems{_s_mk_has_stems(pattern)} {} // cache is ignored as no cache is implemented
+			RegExpr( ::string const& pattern , bool /*cache*/ ) : ::regex{pattern               ,Flags} {}
+			// accesses
+			bool has_stems() const { return _has_stems ; }
 			// services
 			Match match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                              // chk_psfx=Maybe means check size only
 				::smatch m ; ::regex_match( subject , m , self ) ;
@@ -235,6 +244,8 @@ namespace Re {
 			size_t n_marks() const {
 				return mark_count() ;
 			}
+			// data
+			bool _has_stems = false ;
 		} ;
 
 	#endif

@@ -515,7 +515,7 @@ namespace Engine {
 					}
 					//
 					bool target_modified ;
-					target_modified = target->set_crc_date( crc , { td.sig , td.extra_tflags[ExtraTflag::Late]?end_date:start_date } ) ;
+					target_modified = target->set_crc_date( crc , { td.sig , end_date } ) ;
 					modified |= target_modified && tflags[Tflag::Target] ;
 				}
 				if ( crc==Crc::None && !static_phony ) {

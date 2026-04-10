@@ -224,9 +224,9 @@ namespace Engine {
 						fields[2] = py_key.as_a<Str>() ;
 						::string key = fields[2]          ;
 						::string val = py_val.as_a<Str>() ;
-						stem_idxs           .try_emplace ( key , collect.stems.size() ) ;
-						collect.stems       .emplace_back( key , val                  ) ;
-						collect.stem_n_marks.push_back   ( RegExpr(val).n_marks()     ) ;
+						stem_idxs           .try_emplace ( key , collect.stems.size()            ) ;
+						collect.stems       .emplace_back( key , val                             ) ;
+						collect.stem_n_marks.push_back   ( RegExpr(val,false/*cache*/).n_marks() ) ;
 					}
 					fields.pop_back() ;
 				}
@@ -251,8 +251,8 @@ namespace Engine {
 										throw_unless( !inserted , "found undefined stem ",k," in "   ,item ) ;
 									} else {
 										if (inserted) {
-											collect.stems       .emplace_back( k , *re                ) ;
-											collect.stem_n_marks.push_back   ( RegExpr(*re).n_marks() ) ;
+											collect.stems       .emplace_back( k , *re                              ) ;
+											collect.stem_n_marks.push_back   ( RegExpr(*re,true/*cache*/).n_marks() ) ;
 										} else {
 											throw_unless( *re==collect.stems[it->second].second , "2 different definitions for stem ",k," : ",collect.stems[it->second].second," and ",*re ) ;
 										}

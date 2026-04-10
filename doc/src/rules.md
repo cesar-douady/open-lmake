@@ -284,7 +284,7 @@ Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
 | `IgnoreError` | [ignore_error](unit_tests/ignore_err.html#:~:text=%27IgnoreError) | No      | This dep may be in error, job will be launched anyway.                                                |
 | `ReaddirOk` | [readdir_ok](unit_tests/wine.html#:~:text=%27readdir%5Fok) | No | This dep may be accessed as a dir (e.g. using [readdir](https://man7.org/linux/man-pages/man3/readdir.3.html) without error. |
 | `Required`    | `required`                                                        | No      | This dep is deemed to be read, even if not actually read by the job.                                  |
-| `NoStar`      | `no_star`                                                         | Yes     | Accept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                             |
+| `NoStar`      | `no_star`                                                         | Yes     | Do not ccept regexpr-based flags (e.g. from star `side_deps` or `side_targets`)                       |
 | `Top`         | `top`                                        | No | Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. [subrepos](experimental_subrepos.html)). |
 
 Flag order and dep order are not significative.

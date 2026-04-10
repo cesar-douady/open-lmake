@@ -267,7 +267,7 @@ namespace Backdoor {
 		::vector_s          res       ;
 		::string            abs_cwd_s = cwd_s() ;
 		::optional_s        lcl_cwd_s ;           if ( abs_cwd_s.starts_with(repo_root_s) ) lcl_cwd_s = mk_lcl(abs_cwd_s,repo_root_s) ;
-		::optional<RegExpr> re        ;           if ( +regexpr                           ) re        = *regexpr                      ;
+		::optional<RegExpr> re        ;           if ( +regexpr                           ) re        = {*regexpr,false/*cache*/}     ;
 		//
 		for( ::string& f : r.report_sync({ .proc=JobExecProc::List , .sync=Yes , .comment=Comment::List , .digest{.write=write} , .date=New }).files ) {
 			::string abs_f = mk_glb( f , repo_root_s ) ;

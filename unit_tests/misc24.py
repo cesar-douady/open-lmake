@@ -38,4 +38,4 @@ else :
 	ut.lmake( 'dut' , done=1 )
 
 	print('step=2',file=open('step.py','w'))
-	ut.lmake( 'test' , done=3 )
+	ut.lmake( 'test' , steady=1 , done=2 )   # dut is steady from Dut as there is nothing to compare

@@ -271,8 +271,6 @@ M port to Darwin
 	- as anyway, it is sorted at analysis time
 	- use extract to transform umap into vector
 		- implement mk_vector with && arg
-* avoid using star_targets in gather.cc
-	- pattern_flags could do the whole job
 * multi-thread gather analysis
 	- everything that can possibly be multi-threaded
 * understand when pcre2 JIT features is efficient

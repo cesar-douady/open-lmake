@@ -16,15 +16,15 @@ if __name__!='__main__' :
 	from step import step
 
 	class Base(Rule) :
-		targets      = { 'A' : 'base_target.{File*:.*}' }
-		side_targets = { 'B' : 'base_side_target.x'     }
-		side_deps    = { 'E' : 'base_side_dep.x'        }
+		targets      = { 'A' :   'base_target.{File*:.*}'                }
+		side_targets = { 'B' : ( 'base_side_target.x'     , '-no_star' ) }
+		side_deps    = { 'E' :   'base_side_dep.x'                       }
 		if step==2 :
 			side_deps['E2'] = 'base_side_dep.x2'
 
 	class Derived(Base) :
-		targets      = { 'C' : 'base_side_target.{File*:.*}' } # becomes a target
-		side_targets = { 'D' : 'base_target.x'               } # stay a target
+		targets      = { 'C' :   'base_side_target.{File*:.*}'                } # becomes a target
+		side_targets = { 'D' : ( 'base_target.x'               , '-no_star' ) } # stays a target as being a target is a flag and they all accumulate
 		cmd = '>base_side_target.x ; >base_target.x'
 
 	class Test(Rule) :

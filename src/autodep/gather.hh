@@ -75,8 +75,8 @@ struct Gather {                                                      // NOLINT(c
 		PD _max_read (bool phys) const ;                             // max date for a read  to be taken into account, always <Future
 		// services
 	public :
-		void update( PD , AccessDigest    , bool late , DI const&   ={} ) ;
-		void update(      AccessDigest ad , bool late , DI const& di={} ) { update( {} , ad , late , di ) ; }
+		void update( PD , AccessDigest    , DI const&   ={} ) ;
+		void update(      AccessDigest ad , DI const& di={} ) { update( {} , ad , di ) ; }
 		bool is_hot( Time::Delay prec                              ) const {
 			// if file date is not comfortable enough, we make it hot and server will ensure job producing dep was done before this job started
 			if (!dep_info.is_a<DepInfoKind::Info>()) return false ;                    // we have a crc, no risk to gather bad crc from sig
@@ -103,7 +103,6 @@ struct Gather {                                                      // NOLINT(c
 		PD                    _read_ignore  = PD::Future1                       ;      // first date at which reads  are ignored, always <Future
 		PD                    _write_ignore = PD::Future1                       ;      // first date at which writes are ignored, always <Future
 		PD                    _no_hot       = PD::Future                        ;      // first date at which dep is known sync'ed on disk
-		bool                  _washed       = false                             ;
 	} ;
 	struct Digest {
 		::vmap_s<TargetDigest  > targets        ;
@@ -207,11 +206,8 @@ public :
 	ServerSockFd                              server_master_fd ;
 	KeyedService                              service_mngt     ;                       // no server if empty
 	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> star_matches     ;                       // apply flags to matching accesses
-	::vector<Re::RegExpr>                     star_targets     ;                       // excludes Target flag as it must be fully predictible to ensure a sound rule selection process
 	PD                                        start_date       ;
 	bool                                      started          = false               ;
-	::umap_s<::pair<PD,MatchFlags>>           static_matches   ;                       // .
-	::uset_s                                  static_targets   ;                       // .
 	::string                                  stderr           ;                       // contains child stderr if child_stderr==Pipe
 	::string                                  stdout           ;                       // contains child stdout if child_stdout==Pipe
 	Time::Delay                               timeout          ;

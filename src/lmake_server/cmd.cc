@@ -78,7 +78,7 @@ namespace Engine {
 					return {} ;
 				}
 			) ;
-			star_ignore.emplace_back( pattern , k ) ;
+			star_ignore.emplace_back( RegExpr(pattern,false/*cache*/) , k ) ;
 		}
 		//
 		for( ::string const& target_dir : ecr.dirs() ) {
@@ -323,14 +323,14 @@ namespace Engine {
 		size_t            w_codec_ctx  = 0                             ;
 		size_t            w_codec_kind = 0                             ;
 		::umap_ss         rev_map      ;
-		::vector<Color  > dep_colors   ;                                                                                 // indexed before filtering
-		::vector<NodeIdx> dep_groups   ;                                                                                 // indexed after  filtering, deps in given group are parallel
+		::vector<Color  > dep_colors   ;                                                                                               // indexed before filtering
+		::vector<NodeIdx> dep_groups   ;                                                                                               // indexed after  filtering, deps in given group are parallel
 		NodeIdx           dep_group    = 0                             ;
 		::vmap_s<RegExpr> res          ;
 		if (+rule) {
 			Rule::RuleMatch m = job->rule_match() ;
-			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {                                                   // this cannot fail as we already have the job
-				if (rev_map.try_emplace(d.txt,k).second) {                                                               // in case of multiple matches, retain first
+			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {                                                                 // this cannot fail as we already have the job
+				if (rev_map.try_emplace(d.txt,k).second) {                                                                             // in case of multiple matches, retain first
 					if (porcelaine) w_key = ::max( w_key , mk_py_str(k).size() ) ;
 					else            w_key = ::max( w_key ,           k .size() ) ;
 				}
@@ -339,7 +339,7 @@ namespace Engine {
 			VarIdx            i             = 0                 ;
 			for( MatchKind mk : iota(All<MatchKind>) )
 				for( VarIdx mi : rule->matches_iotas[true/*star*/][+mk] ) {
-					if (mk!=MatchKind::Target) res.emplace_back( rule->matches[mi].first , RegExpr(star_patterns[i]) ) ; // deps cannot be found in targets, but they can in side_targets
+					if (mk!=MatchKind::Target) res.emplace_back( rule->matches[mi].first , RegExpr(star_patterns[i],true/*cache*/) ) ; // deps cannot be found in targets, but they can in side_targets
 					i++ ;
 				}
 		}
@@ -374,8 +374,8 @@ namespace Engine {
 				}
 			}
 		}
-		NodeIdx di1          = 0 ;                                                                                       // before filtering
-		NodeIdx di2          = 0 ;                                                                                       // after  filtering
+		NodeIdx di1          = 0 ;                                                                                                     // before filtering
+		NodeIdx di2          = 0 ;                                                                                                     // after  filtering
 		NodeIdx n_dep_groups = 0 ;
 		if (porcelaine) audit( fd , ro , "(" , true/*as_is*/ , lvl ) ;
 		for( Dep const& dep : job->deps ) {
@@ -1185,15 +1185,15 @@ namespace Engine {
 					VarIdx          i              = 0                        ;
 					for( MatchKind mk : iota(All<MatchKind>) )
 						for( VarIdx mi : rule->matches_iotas[false/*star*/][+mk] ) {
-							if (mk!=MatchKind::SideDep)                                                                           // side deps cannot be targets
-								rev_map.try_emplace( static_matches[i] , rule->matches[mi].first ) ;                              // in case of multiple matches, retain first
+							if (mk!=MatchKind::SideDep)                                                                                         // side deps cannot be targets
+								rev_map.try_emplace( static_matches[i] , rule->matches[mi].first ) ;                                            // in case of multiple matches, retain first
 							i++ ;
 						}
 					::vector<Pattern> star_patterns = m.star_patterns() ;
 					/**/              i             = 0                 ;
 					for( MatchKind mk : iota(All<MatchKind>) )
 						for( VarIdx mi : rule->matches_iotas[true/*star*/][+mk] ) {
-							if (mk!=MatchKind::SideDep) res.emplace_back( rule->matches[mi].first , RegExpr(star_patterns[i]) ) ; // side deps cannot be targets
+							if (mk!=MatchKind::SideDep) res.emplace_back( rule->matches[mi].first , RegExpr(star_patterns[i],true/*cache*/) ) ; // side deps cannot be targets
 							i++ ;
 						}
 				}
