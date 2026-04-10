@@ -6,7 +6,6 @@
 #pragma once
 
 #include "disk.hh"
-#include "hash.hh"
 #include "time.hh"
 
 #include "record.hh"

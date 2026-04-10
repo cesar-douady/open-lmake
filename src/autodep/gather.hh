@@ -165,6 +165,7 @@ public :
 	//
 	Status exec_child() ;
 	//
+	void   update_flags   (                         ) ;                                // update accesses to take static/star_matches into account
 	void   reorder        (bool   at_end            ) ;                                // reorder accesses by first read access and suppress superfluous accesses
 	Digest analyze        (Status status=Status::New) ;                                // status==New means job is not done
 	void   drain_heartbeat(                         ) ;
@@ -200,15 +201,16 @@ public :
 	Time::Delay                               network_delay    = Time::Delay(1)      ; // 1s is reasonable when nothing is said
 	uint8_t                                   nice             = 0                   ;
 	bool                                      no_tmp           = false               ; // if true <=> no tmp access is allowed
-	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> pattern_flags    ;                       // apply flags to matching accesses
 	pid_t                                     pid              = -1                  ; // pid to kill
 	::string                                  rule             ;
 	SeqId                                     seq_id           = 0                   ;
 	ServerSockFd                              server_master_fd ;
 	KeyedService                              service_mngt     ;                       // no server if empty
+	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> star_matches     ;                       // apply flags to matching accesses
 	::vector<Re::RegExpr>                     star_targets     ;                       // excludes Target flag as it must be fully predictible to ensure a sound rule selection process
 	PD                                        start_date       ;
 	bool                                      started          = false               ;
+	::umap_s<::pair<PD,MatchFlags>>           static_matches   ;                       // .
 	::uset_s                                  static_targets   ;                       // .
 	::string                                  stderr           ;                       // contains child stderr if child_stderr==Pipe
 	::string                                  stdout           ;                       // contains child stdout if child_stdout==Pipe

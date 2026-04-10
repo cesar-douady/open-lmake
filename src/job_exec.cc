@@ -144,6 +144,7 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 			Lock lock { s_msg_mutex } ;
 			*msg << add_nl<<"cannot compute checksum for "<<tn ;
 		}
+		g_gather.drain_heartbeat() ;                                                                      // regularly drain hardbeat
 	}
 	trace("done",cnt) ;
 }
@@ -336,18 +337,18 @@ int main( int argc , char* argv[] ) {
 				mf.extra_tflags &= ~ExtraTflag::Allow  ;
 			}
 			if (mf.extra_tflags[ExtraTflag::Optional]) {                                                      // consider Optional as a star target with a fixed pattern
-				if (+mf) g_gather.pattern_flags.emplace_back( Re::escape(dt) , ::pair(washed,mf) ) ;          // fast path : no need to match against a pattern that brings nothing
+				g_gather.star_matches.emplace_back( Re::escape(dt) , ::pair(washed,mf) ) ;
 			} else {
 				g_gather.new_access( washed , ::move(dt) , {.flags=mf} , DepInfo() , Comment::StaticMatch ) ; // always insert an entry for static targets, even with no flags
 			}
 		}
 		for( auto& [p,mf] : g_start_info.star_matches ) {
 			if (mf.tflags[Tflag::Target]) {
-				g_gather.star_targets.push_back(p) ;                                // XXX : find a way to compile p only once when put in both g_gather.star_targets and g_gather.pattern_flags
+				g_gather.star_targets.push_back(p) ;                               // XXX : find a way to compile p only once when put in both g_gather.star_targets and g_gather.star_matches
 				mf.tflags       &= ~Tflag     ::Target ;
 				mf.extra_tflags &= ~ExtraTflag::Allow  ;
 			}
-			if (+mf) g_gather.pattern_flags.emplace_back( p , ::pair(washed,mf) ) ; // fast path : no need to match against a pattern that brings nothing
+			if (+mf) g_gather.star_matches.emplace_back( p , ::pair(washed,mf) ) ; // fast path : no need to match against a pattern that brings nothing
 		}
 		for( ::string& t : washed_files )
 			g_gather.new_access( washed , ::move(t) , {.write=Yes} , DepInfo() , No/*late*/ , Comment::Wash ) ;
@@ -385,7 +386,6 @@ int main( int argc , char* argv[] ) {
 		//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		::string crc_msg = compute_crcs( digest , /*out*/end_report.total_sz ) ;
 		//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		g_gather.drain_heartbeat() ;                                                                                                // regularly drain hardbeat
 		if ( status==Status::Ok && +crc_msg ) status = Status::Forbidden ;
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//

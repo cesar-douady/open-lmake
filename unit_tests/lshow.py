@@ -194,7 +194,7 @@ else :
 		,	'static_dep'     , 'hello' , 'world'
 		,	'start_job'
 		,	'end_job'        , '0000'
-		,	'analyzed'
+		,	'analysis'
 		,	'computed_crcs'
 		,	'end_overhead'   , 'ok'
 		) :
@@ -205,22 +205,22 @@ else :
 		ok = False
 		for o in ('open','openat') :
 			ok |= y==(
-				( 'start_overhead'    , ''               )
-			,	( 'chdir'             , os.getcwd()      )
-			,	( 'start_info(reply)' , ''               )
-			,	( 'fqdn'              , socket.getfqdn() )
-			,	( 'washed'            , ''               )
-			,	( 'stdout'            , 'hello+world_sh' )
-			,	( 'start_job'         , ''               )
-			,	( o+'(read)'          , 'bad'            )
-			,	( o+'(read)'          , 'hello'          )
-			,	( o+'(read)'          , 'world'          )
-			,	( 'end_job'           , '0000'           )
-			,	( 'analyzed'          , 'before_flags 0' )
-			,	( 'analyzed'          , 'reordered'      )
-			,	( 'analyzed'          , ''               )
-			,	( 'computed_crcs'     , ''               )
-			,	( 'end_overhead'      , 'ok'             )
+				( 'start_overhead'    , ''                      )
+			,	( 'chdir'             , os.getcwd()             )
+			,	( 'start_info(reply)' , ''                      )
+			,	( 'fqdn'              , socket.getfqdn()        )
+			,	( 'washed'            , ''                      )
+			,	( 'stdout'            , 'hello+world_sh'        )
+			,	( 'start_job'         , ''                      )
+			,	( o+'(read)'          , 'bad'                   )
+			,	( o+'(read)'          , 'hello'                 )
+			,	( o+'(read)'          , 'world'                 )
+			,	( 'end_job'           , '0000'                  )
+			,	( 'analysis'          , 'total accesses : 4'    )
+			,	( 'analysis'          , 'filtered accesses : 4' )
+			,	( 'analysis'          , 'done'                  )
+			,	( 'computed_crcs'     , ''                      )
+			,	( 'end_overhead'      , 'ok'                    )
 			)
 		assert ok , f'bad lshow -u : {y}'
 		assert all( e in z for e in (

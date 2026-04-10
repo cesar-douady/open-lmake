@@ -16,6 +16,16 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* bug Sylvain :
+	- foo a derived file needed by a job
+	- lmark -fa foo
+	- rm foo
+	- lmark -fd foo
+	- touch foo
+	- git add foo
+	- lmark -fd foo
+	- crash
+
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
@@ -263,8 +273,14 @@ M port to Darwin
 		- implement mk_vector with && arg
 * avoid using star_targets in gather.cc
 	- pattern_flags could do the whole job
+* multi-thread gather analysis
+	- everything that can possibly be multi-threaded
+* understand when pcre2 JIT features is efficient
+	- seems to degrade perfs when regexpr is plain '.*'
 * use lazy evaluation of flags in gather
 	- for example, readdir_ok flag is only necessary if readdir flag is present
+	? a simpler version is to split between with and without readdir_ok
+		- as this seems to be the only case where normal accesses are insensitive
 * avoid computing deps on disk for cached jobs
 	- make status is enough as downloading does not require deps on disk
 	- split a cache.download() into :

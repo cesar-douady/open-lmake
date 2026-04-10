@@ -155,6 +155,39 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 		if (!Record::s_is_simple(f)) new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 }
 
+void Gather::update_flags() {
+	Trace trace("update_flags") ;
+	size_t   i   = 0                                        ;
+	::string msg = cat("total accesses : ",accesses.size()) ;
+	if (+static_matches)
+		for ( auto& [file,ai] : accesses ) {
+			if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                                                                   // regularly drain heartbeat
+			auto                            it         = static_matches.find(file) ; if (it==static_matches.end()) continue ;
+			::pair<Pdate,MatchFlags> const& date_flags = it->second                ;
+			trace("static_match",file,date_flags) ;
+			ai.update( date_flags.first , {.flags=date_flags.second} , date_flags.first<=start_date ) ;
+		}
+	if (+star_matches) {                                                                                                     // fast path : if no patterns, nothing to do
+		NodeIdx n_stars       = 0     ;
+		NodeIdx n_matches     = 0     ;
+		Pdate   heartbeat_chk { New } ;
+		for ( auto& [file,ai] : accesses ) {
+			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
+			n_stars++ ;
+			for ( auto const& [re,date_flags] : star_matches ) {
+				if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                                                               // regularly drain heartbeat
+				if (re.can_match(file)) {
+					n_matches++ ;
+					trace("star_matches",file,date_flags) ;
+					ai.update( date_flags.first , {.flags=date_flags.second} , date_flags.first<=start_date ) ;
+				}
+			}
+		}
+		msg << " , patterns : "<<star_matches.size()<<" , considered accesses : "<<n_stars<<" , tried matches : "<<(n_stars*star_matches.size())<<" , successful matches : "<<n_matches ;
+	}
+	_user_trace( Comment::Analysis , msg ) ;
+}
+
 // reorder accesses in chronological order and suppress implied dependencies :
 // - when a file is depended upon, its uphill directories are implicitly depended upon under the following conditions, no need to keep them and this significantly decreases the number of deps
 //   - either file exists
@@ -163,28 +196,8 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 // - suppress dir when one of its sub-files appears immediately after (and condition above is satisfied)
 void Gather::reorder(bool at_end) {
 	Trace trace("reorder") ;
-	NodeIdx i = 0 ;
-	// update accesses to take pattern_flags into account
-_user_trace( Comment::Analyzed , cat("before_flags ",pattern_flags.size()) ) ;
-	if (+pattern_flags) {                                                           // fast path : if no patterns, nothing to do
-NodeIdx total_cnt = 0 ;
-NodeIdx star_cnt  = 0 ;
-NodeIdx match_cnt = 0 ;
-		for ( auto& [file,ai] : accesses ) {
-total_cnt++ ;
-			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
-star_cnt++ ;
-			if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                          // regularly drain heartbeat
-			for ( auto const& [re,date_flags] : pattern_flags )
-				if (re.can_match(file)) {
-match_cnt++ ;
-					trace("pattern_flags",file,date_flags) ;
-					ai.update( date_flags.first , {.flags=date_flags.second} , date_flags.first<=start_date ) ;
-				}
-		}
-_user_trace(Comment::Analyzed,cat("after_flags ",total_cnt,' ',star_cnt,' ',match_cnt));
-	}
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
+	size_t i = 0 ;
 	::stable_sort(                                                                  // reorder by date, keeping parallel entries together (which must have the same date)
 		accesses
 	,	[]( ::pair_s<AccessInfo> const& a , ::pair_s<AccessInfo> const& b )->bool { return a.second.sort_key()<b.second.sort_key() ; }
@@ -193,7 +206,7 @@ _user_trace(Comment::Analyzed,cat("after_flags ",total_cnt,' ',star_cnt,' ',matc
 	::vector<::vmap_s<AccessInfo>::reverse_iterator> lasts   ;                      // because of parallel deps, there may be several last deps
 	Pdate                                            last_pd = Pdate::Future ;
 	for( auto it=accesses.rbegin() ; it!=accesses.rend() ; it++ ) {
-		if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
+		if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
 		{	AccessInfo&     ai       = it->second       ;
 			Pdate           fw       = ai.first_write() ; if (fw<Pdate::Future              )                   goto NextDep ;
 			/**/                                          if (ai.flags.dflags!=DflagsDfltDyn) { lasts.clear() ; goto NextDep ; }
@@ -217,7 +230,7 @@ _user_trace(Comment::Analyzed,cat("after_flags ",total_cnt,' ',star_cnt,' ',matc
 	size_t                            i_dst = 0     ;
 	bool                              cpy   = false ;
 	for( auto& access : accesses ) {
-		if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
+		if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                              // regularly drain heartbeat
 		::string   const& file = access.first  ;
 		AccessInfo      & ai   = access.second ;
 		if ( ai.first_write()==Pdate::Future && ai.flags.dflags==DflagsDfltDyn && !ai.flags.tflags ) {
@@ -247,6 +260,7 @@ _user_trace(Comment::Analyzed,cat("after_flags ",total_cnt,' ',star_cnt,' ',matc
 	}
 	accesses.resize(i_dst) ;
 	for( NodeIdx i : iota(accesses.size()) ) access_map.at(accesses[i].first) = i ; // always recompute access_map as accesses has been sorted
+	_user_trace(Comment::Analysis,cat("filtered accesses : ",accesses.size()));
 }
 
 Gather::Digest Gather::analyze(Status status) {
@@ -255,14 +269,14 @@ Gather::Digest Gather::analyze(Status status) {
 	Pdate  prev_first_read       = Pdate::Future ;
 	bool   readdir_warned        = false         ;
 	bool   seen_unexpected_write = false         ;
-	//vvvvvvvvvvvvvvvvvvvvvvvvvv
-	reorder(status!=Status::New) ;
-	//^^^^^^^^^^^^^^^^^^^^^^^^^^
-	_user_trace( Comment::Analyzed , "reordered" ) ;
-	int i = 0 ;
+	//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+	update_flags(                   ) ;
+	reorder     (status!=Status::New) ;
+	//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+	size_t i = 0 ;
 	for( auto& [file,info] : accesses ) {
 		static constexpr MatchFlags TargetFlags { .tflags=Tflag::Target , .extra_tflags=ExtraTflag::Allow } ;
-		if (i++>=1000) { drain_heartbeat() ; i = 0 ; }                                                             // regularly drain heartbeat
+		if (++i>=1000) { drain_heartbeat() ; i = 0 ; }                                                             // regularly drain heartbeat
 		//                                                                                                        started
 		if (static_targets.contains(file))                                     info.update( {.flags=TargetFlags} , false ) ;
 		else for( RegExpr const& re : star_targets ) if (re.can_match(file)) { info.update( {.flags=TargetFlags} , false ) ; break ; }
@@ -408,16 +422,20 @@ Gather::Digest Gather::analyze(Status status) {
 			trace("target ",td,STR(unlnk),STR(was_written),st.st_nlink,file) ;
 		}
 	}
-	_user_trace( Comment::Analyzed ) ;
+	_user_trace( Comment::Analysis , "done" ) ;
 	trace("done",res.deps.size(),res.targets.size(),res.crcs.size(),res.msg) ;
 	return res ;
 }
 
 void Gather::drain_heartbeat() {
-	for(;;) {
-		SlaveSockFd fd = server_master_fd.accept() ;
-		if (!fd) break ;
-	}
+	static Atomic<Pdate> s_last_chk { New } ;
+	static Mutex<>       s_mutex    ;
+	Pdate now { New } ;
+	if (now<=s_last_chk.load()+Delay(1)) return ;
+	//
+	Lock lock { s_mutex } ;
+	s_last_chk = now ;
+	while (+server_master_fd.accept()) {}
 }
 
 void Gather::_send_to_server( JobMngtRpcReq const& jmrr ) {
@@ -1036,7 +1054,7 @@ Status Gather::_exec_child() {
 							break ;
 							case Proc::AccessPattern :
 								trace(kind,fd,proc,jerr.date,jerr.digest,jerr.files) ;
-								for( auto const& [f,_] : jerr.files ) pattern_flags.emplace_back( f/*pattern*/ , ::pair(jerr.date,jerr.digest.flags) ) ;
+								for( auto const& [f,_] : jerr.files ) star_matches.emplace_back( f/*pattern*/ , ::pair(jerr.date,jerr.digest.flags) ) ;
 							break ;
 						DF}                                                                                                                            // NO_COV
 						if (sync_) sync( fd , ::move(jerr).mimic_server() ) ;

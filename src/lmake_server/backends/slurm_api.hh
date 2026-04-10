@@ -92,7 +92,6 @@ namespace Backends::Slurm::SlurmApi {
 	inline ::string version_str(long v) {
 		int major = (v>>16)&0xff ;
 		int minor = (v>> 8)&0xff ;
-		SWEAR_PROD( v==(major<<16)+(minor<<8) , v ) ;
 		return cat(major,'.',minor<10?"0":"",minor) ;
 	}
 

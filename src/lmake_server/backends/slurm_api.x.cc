@@ -61,43 +61,48 @@ namespace Backends::Slurm::SlurmApi {
 		SWEAR     ( rsrcs.size()> 0        ) ;
 		SWEAR_PROD( nice        >=0 , nice ) ;
 		// first element is treated specially to avoid allocation in the very frequent case of a single element
-		::string                 job_name     = job->name()              ;
-		::string                 key_job_name = key + job_name           ;
-		::string                 comment      ;                            if (key_job_name.size()>256) comment = ::move(job_name) ;
-		::string                 script       = _cmd_to_string(cmd_line) ;
-		::string                 stderr_file  ;                            if(verbose) dir_guard(stderr_file=get_stderr_file(job)) ; //                 keep alive until slurm is called
-		job_desc_msg_t           job_desc0    ;                                                                                      // first element   .
-		::string                 gres0        ;                                                                                      // .             , .
-		::vector<job_desc_msg_t> job_descs    ;                            if (rsrcs.size()>1) job_descs.reserve(rsrcs.size()-1) ;   // other elements  .
-		::vector_s               gress        ;                            if (rsrcs.size()>1) gress    .reserve(rsrcs.size()-1) ;   // .             , .
+		::string                 job_name       = job->name()              ;
+		::string                 key_job_name   = key + job_name           ;
+		::string                 comment        ;                            if (key_job_name.size()>256) comment = ::move(job_name) ;
+		::string                 script         = _cmd_to_string(cmd_line) ;
+		::string                 stderr_file    ;                            if(verbose) dir_guard(stderr_file=get_stderr_file(job)) ; //                 keep alive until slurm is called
+		job_desc_msg_t           job_desc0      ;                                                                                      // first element   .
+		::string                 gres0          ;                                                                                      // .             , .
+		::vector<job_desc_msg_t> job_descs      ;                            if (rsrcs.size()>1) job_descs.reserve(rsrcs.size()-1) ;   // other elements  .
+		::vector_s               gress          ;                            if (rsrcs.size()>1) gress    .reserve(rsrcs.size()-1) ;   // .             , .
+		uint32_t                 het_job_offset = 0                        ;
 		for( bool first=true ; RsrcsDataSingle const& r : rsrcs ) {
 			//                           first element other elements
-			job_desc_msg_t& j    = first ? job_desc0 : job_descs.emplace_back() ;                                                   // keep alive
-			::string      & gres = first ? gres0     : gress    .emplace_back() ;                                                   // .
+			job_desc_msg_t& j    = first ? job_desc0 : job_descs.emplace_back() ;                                                      // keep alive
+			::string      & gres = first ? gres0     : gress    .emplace_back() ;                                                      // .
 			//
 			gres = "gres:"+r.gres ;
 			//
 			_init_job_desc_msg(&j) ;
 			/**/                     j.comment         = const_cast<char*>(comment.c_str())                            ;
 			/**/                     j.cpus_per_task   = r.cpu                                                         ;
-			/**/                     j.environment     = const_cast<char**>(env)                                       ;            // terminated with an empty string
-			/**/                     j.env_size        = 1                                                             ;            // seems to only work when 1
-			/**/                     j.name            = const_cast<char*>(key_job_name.c_str())                       ;
-			/**/                     j.pn_min_memory   = r.mem                                                         ;            //in MB
-			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;            //in MB
-			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;
-			/**/                     j.std_out         =                                const_cast<char*>("/dev/null") ;
-			/**/                     j.work_dir        = repo_root.data()                                              ;
+			/**/                     j.environment     = const_cast<char**>(env)                                       ;               // terminated with an empty string
+			/**/                     j.env_size        = 1                                                             ;               // seems to only work when 1
 			if(+r.excludes         ) j.exc_nodes       = const_cast<char*>(r.excludes .data())                         ;
 			if(+r.features         ) j.features        = const_cast<char*>(r.features .data())                         ;
+			/**/                     j.het_job_offset  = het_job_offset++                                              ;               // seems to only work when 1
 			if(+r.licenses         ) j.licenses        = const_cast<char*>(r.licenses .data())                         ;
-			if(+r.nodes            ) j.req_nodes       = const_cast<char*>(r.nodes    .data())                         ;
-			if(+r.partition        ) j.partition       = const_cast<char*>(r.partition.data())                         ;
-			if(+r.qos              ) j.qos             = const_cast<char*>(r.qos      .data())                         ;
-			if(+r.reserv           ) j.reservation     = const_cast<char*>(r.reserv   .data())                         ;
-			if(+r.gres             ) j.tres_per_node   =                   gres       .data()                          ;
-			if(first               ) j.script          =                   script     .data()                          ;
+			/**/                     j.max_cpus        = r.cpu                                                         ;               // by symmetry with min_cpus
+			/**/                     j.min_cpus        = r.cpu                                                         ;               // version 25.11 requires this (after gemini recommandation)
+			/**/                     j.name            = const_cast<char*>(key_job_name.c_str())                       ;
 			/**/                     j.nice            = NICE_OFFSET+nice                                              ;
+			/**/                     j.num_tasks       = 1                                                             ;               // version 25.11 requires this (after gemini recommandation)
+			if(+r.partition        ) j.partition       = const_cast<char*>(r.partition.data())                         ;
+			/**/                     j.pn_min_memory   = r.mem                                                         ;               //in MB
+			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;               //in MB
+			if(+r.qos              ) j.qos             = const_cast<char*>(r.qos      .data())                         ;
+			if(+r.nodes            ) j.req_nodes       = const_cast<char*>(r.nodes    .data())                         ;
+			if(+r.reserv           ) j.reservation     = const_cast<char*>(r.reserv   .data())                         ;
+			if(first               ) j.script          =                   script     .data()                          ;
+			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;
+			/**/                     j.std_out         =                                const_cast<char*>("/dev/null") ;
+			if(+r.gres             ) j.tres_per_node   =                   gres       .data()                          ;
+			/**/                     j.work_dir        = repo_root.data()                                              ;
 			first =false ;
 		}
 		for( int i=0 ; i<SlurmSpawnTrials ; i++ ) {

@@ -5,14 +5,7 @@
 
 #pragma once
 
-#include "disk.hh"
 #include "hash.hh"
-#include "serialize.hh"
-#include "time.hh"
-
-#include "repo.hh"
-
-#include "autodep/env.hh"
 
 // START_OF_VERSIONING CACHE JOB REPO
 enum class Dflag : uint8_t { // flags for deps, recorded in server book-keeping
@@ -244,7 +237,7 @@ enum class Comment : uint8_t {
 ,	__realpath_chk
 ,	__xstat                , __xstat64
 // lmake functions
-,	Analyzed
+,	Analysis
 ,	CheckDeps        , CheckTargets // not Chk... as name is seen by user
 ,	ComputedCrcs
 ,	CreateCodec                     // not Creat... as name is seen by user

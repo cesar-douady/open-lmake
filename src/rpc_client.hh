@@ -5,8 +5,6 @@
 
 #pragma once
 
-#include "repo.hh"
-
 #include "app.hh"
 #include "serialize.hh"
 

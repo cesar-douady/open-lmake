@@ -12,6 +12,8 @@
 #include "time.hh"
 #include "zfd.hh"
 
+#include "repo.hh"
+
 #include "autodep/env.hh"
 
 #include "rpc_job_common.hh"

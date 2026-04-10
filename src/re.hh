@@ -23,14 +23,23 @@
 	using std::sub_match   ;
 #endif
 
-// /!\ this interface assumes that all variable parts are enclosed within () : this simpliies a lot prefix and suffix identification
-
 #if HAS_PCRE
+
+	enum class RegExprSpecial : uint8_t {
+		Plain                             // call regexpr package
+	,	Single                            // no stem
+	,	AnyNoCapture                      // a single stem as non-capturing .*
+	,	AnyCapture                        // a single stem as     capturing .*
+	,	NonEmptyNoCapture                 // a single stem as non-capturing .+
+	,	NonEmptyCapture                   // a single stem as     capturing .+
+	} ;
+
 	enum class RegExprUse : uint8_t {
 		Unused
 	,	Old
 	,	New
 	} ;
+
 #endif
 
 namespace Re {
@@ -47,7 +56,8 @@ namespace Re {
 		inline void swap( RegExpr& a , RegExpr& b ) ;
 		struct RegExpr {
 			friend void swap( RegExpr& a , RegExpr& b ) ;
-			using Use = RegExprUse ;
+			using Special = RegExprSpecial ;
+			using Use     = RegExprUse     ;
 			static constexpr size_t ErrMsgSz = 120 ;                                               // per PCRE doc
 			struct Cache {
 				// cxtors & casts
@@ -111,7 +121,7 @@ namespace Re {
 					//
 					SWEAR_PROD(!_cache) ;
 					for( size_t i : iota(keys.size()) ) {
-						#ifdef PCRE2_CONFIG_JIT
+						#if 0 && defined(PCRE2_CONFIG_JIT)
 							::pcre2_jit_compile( codes[i] , PCRE2_JIT_COMPLETE ) ;   // best effort, if there is an error, the code will work anyway
 						#endif
 						bool inserted = _cache.try_emplace(keys[i],codes[i],Use::Unused).second ; SWEAR(inserted,keys[i]) ;
@@ -139,7 +149,6 @@ namespace Re {
 			}
 			static uint8_t const* _s_cast_in(char const* p) { return ::launder(reinterpret_cast<uint8_t const*>(p)) ; }
 			static uint8_t      * _s_cast_in(char      * p) { return ::launder(reinterpret_cast<uint8_t      *>(p)) ; }
-
 			// static data
 		public :
 			static Cache s_cache ;
@@ -152,34 +161,32 @@ namespace Re {
 			RegExpr& operator=(RegExpr&& re) { swap(self,re) ; return self ; }
 			//
 			~RegExpr() {
-				if (_own ) { SWEAR(_code) ; ::pcre2_code_free      (const_cast<pcre2_code*>(_code)) ; }
-				if (_data)                  ::pcre2_match_data_free(                        _data ) ;
+				if ( _own && _code ) ::pcre2_code_free      (const_cast<pcre2_code*>(_code)) ;
+				if ( _data         ) ::pcre2_match_data_free(                        _data ) ;
 			}
 			// services
-			Match match    ( ::string const& subject , Bool3 chk_psfx=Yes ) const ;                                               // chk_psfx=Maybe means check size only
-			bool  can_match( ::string const& subject , Bool3 chk_psfx=Yes ) const { return _n_match1( subject , chk_psfx )>=0 ; } // .
-			size_t n_marks() const {
-				uint32_t cnt ;
-				::pcre2_pattern_info( _code , PCRE2_INFO_CAPTURECOUNT , &cnt ) ;
-				return cnt ;
-			}
+			size_t n_marks  (                                              ) const ;
+			Match  match    ( ::string const& subject , Bool3 chk_psfx=Yes ) const ;                                               // chk_psfx=Maybe means check size only
+			bool   can_match( ::string const& subject , Bool3 chk_psfx=Yes ) const { return _n_match1( subject , chk_psfx )>=0 ; } // .
 		private :
 			int  _n_match1( ::string const& subject , Bool3 chk_psfx ) const ;
 			// data
-			::string            _pfx   ;                                                                                          // fixed prefix
-			::string            _sfx   ;                                                                                          // fixed suffix
-			::vector_s          _infxs ;                                                                                          // internal fixed parts
-			::pcre2_match_data* _data  = nullptr ;
-			::pcre2_code const* _code  = nullptr ;                                                                                // only contains code for infix part, shared and stored in s_store
-			bool                _own   = false   ;                                                                                // if true <=> _code is private and must be freed in dxtor
+			::string            _pfx     ;                                                                            // fixed prefix
+			::string            _sfx     ;                                                                            // fixed suffix
+			::vector_s          _infxs   ;                                                                            // internal fixed parts
+			::pcre2_match_data* _data    = nullptr ;
+			::pcre2_code const* _code    = nullptr ;                                                                  // only contains code for infix part, shared and stored in s_store
+			bool                _own     = false   ;                                                                  // if true <=> _code is private and must be freed in dxtor
+			Special             _special = {}      ;
 		} ;
 		inline void swap( RegExpr& a , RegExpr& b) {
-			::swap( a._pfx   , b._pfx   ) ;
-			::swap( a._sfx   , b._sfx   ) ;
-			::swap( a._infxs , b._infxs ) ;
-			::swap( a._data  , b._data  ) ;
-			::swap( a._code  , b._code  ) ;
-			::swap( a._own   , b._own   ) ;
+			::swap( a._pfx     , b._pfx     ) ;
+			::swap( a._sfx     , b._sfx     ) ;
+			::swap( a._infxs   , b._infxs   ) ;
+			::swap( a._data    , b._data    ) ;
+			::swap( a._code    , b._code    ) ;
+			::swap( a._own     , b._own     ) ;
+			::swap( a._special , b._special ) ;
 		}
 
 	#else
