@@ -154,66 +154,72 @@ struct alignas(::hardware_destructive_interference_size) _Stat {
 	size_t n_matches_ok = 0 ;
 } ;
 static void _update_flags_thread_func(
-	Gather*                                                                      gather
-,	size_t                                                                       id
-,	::array<::vmap<Re::RegExpr,::pair<Pdate,MatchFlags>>,2/*readdir*/>*          star_matches
-,	bool                                                                         drain_heartbeat_
-,	::vector<::umap_s<Gather::AccessInfo>::value_type*>*               /*inout*/ accesses_
-,	_Stat*                                                             /*out  */ stat
+	Gather*                                                                            gather
+,	size_t                                                                             id
+,	::array<::vmap<Re::RegExpr,::pair<Pdate,MatchFlags>>,2/*readdir*/> const*          star_matchess
+,	bool                                                                               drain_heartbeat_
+,	::span<::umap_s<Gather::AccessInfo>::value_type* const>                  /*inout*/ accesses_
+,	Atomic<size_t>*                                                          /*.    */ i
+,	_Stat*                                                                   /*out  */ stat
 ) {
 	if (id) t_thread_key = '0'+id ;
 	Trace trace("_update_flags_thread_func",id) ;
 	//
 	size_t                  t                    = 0 ;
-	::vector<RegExpr::Data> _datas[2/*readdir*/] ;                                                                                      // need to use reentrant matching when multi-thread
+	::vector<RegExpr::Data> datass[2/*readdir*/] ;                                              // need to use reentrant matching when multi-thread
 	if (id)
 		for( int readdir : iota(2/*readdir*/) )
-			for ( auto const& [re,_] : (*star_matches)[readdir] )
-				_datas[readdir].push_back(re.data()) ;
+			for ( auto const& [re,_] : (*star_matchess)[readdir] )
+				datass[readdir].push_back(re.data()) ;
 	//
-	for ( auto a : *accesses_ ) {
-		::string const&     file = a->first  ;
-		Gather::AccessInfo& ai   = a->second ;
-		if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
+	for(;;) {
+		size_t              i_   = (*i)++                ; if (i_>=accesses_.size()                     ) break    ;
+		::string const&     file = accesses_[i_]->first  ;
+		Gather::AccessInfo& ai   = accesses_[i_]->second ; if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
+		//
 		stat->n_stars++ ;
-		for( int readdir : iota(1+ai.read_dir()) )
-			for ( size_t m : iota((*star_matches)[readdir].size()) ) {
-				auto& star_match = (*star_matches)[readdir][m] ;
-				if (++t>=(1<<16)) { t = 0 ; if (drain_heartbeat_) gather->drain_heartbeat() ; }                                         // regularly drain heartbeat
+		for( int readdir : iota(1+ai.read_dir()) ) {
+			::vmap<RegExpr,::pair<Pdate,MatchFlags>> const& star_matches = (*star_matchess)[readdir] ;
+			::vector<RegExpr::Data>                       & datas        = datass          [readdir] ;
+			for ( size_t m : iota(star_matches.size()) ) {
+				::pair<RegExpr,::pair<Pdate,MatchFlags>> const& star_match = star_matches[m] ;
+				if (++t>=(1<<16)) { t = 0 ; if (drain_heartbeat_) gather->drain_heartbeat() ; } // regularly drain heartbeat
 				stat->n_matches++ ;
 				if (
-					id ? star_match.first.can_match( file , _datas[readdir][m] )                                                        // only use _datas in multi-thread
-					:    star_match.first.can_match( file                      )
+					id ? star_match.first.can_match( file , datas[m] )                          // only use _datas in multi-thread
+					:    star_match.first.can_match( file            )
 				) {
 					stat->n_matches_ok++ ;
 					trace(file,star_match.second) ;
 					ai.update( star_match.second.first , {.flags=star_match.second.second} ) ;
 				}
 			}
+		}
 	}
 }
 void Gather::_update_flags(bool drain_heartbeat_) {
 	Trace trace("_update_flags") ;
-	size_t                                      n_sms     = _star_matches[false/*readdir*/].size()+_star_matches[true/*readdir*/].size() ;
-	size_t                                      nws       = n_workers(div_up<1<<16>(n_sms*accesses.size()))                              ;
-	::vector<_Stat>                             stats     ( nws )                                                                        ;
-	::vector<::umap_s<AccessInfo>::value_type*> accesses_ ;                                                                                accesses_.reserve(accesses.size()) ;
+	size_t                                      n_sms     = _star_matchess[false/*readdir*/].size()+_star_matchess[true/*readdir*/].size() ;
+	size_t                                      nws       = n_workers(div_up<1<<16>(n_sms*accesses.size()))                                ;
+	::vector<_Stat>                             stats     ( nws )                                                                          ;
+	::vector<::umap_s<AccessInfo>::value_type*> accesses_ ;                                                                                  accesses_.reserve(accesses.size()) ;
+	Atomic<size_t>                              i         = 0                                                                              ;
 	for( auto& a : accesses ) accesses_.push_back(&a) ;
 	trace("n_workers",nws) ;
 	//
-	if (nws==1) {                                                                                                                   // fast path : avoid creating a single thread
-		_update_flags_thread_func( this , 0/*id*/ , &_star_matches , drain_heartbeat_, /*inout*/&accesses_ , /*inout*/&stats[0] ) ;
+	if (nws==1) {                                                                                                                                       // fast path : avoid creating a single thread
+		_update_flags_thread_func( this , 0/*id*/ , &_star_matchess , drain_heartbeat_, /*inout*/mk_span(accesses_) , &i , /*inout*/&stats[0/*id*/] ) ;
 	} else {
 		::vector<::jthread> workers ; workers.reserve(nws) ;
-		for( size_t id : iota(nws) ) workers.emplace_back( _update_flags_thread_func , this , 1+id , &_star_matches , drain_heartbeat_, /*inout*/&accesses_ , /*out*/&stats[id] ) ;
+		for( size_t id : iota(nws) ) workers.emplace_back( _update_flags_thread_func , this , 1+id , &_star_matchess , drain_heartbeat_, /*inout*/mk_span(accesses_) , &i , /*out*/&stats[id] ) ;
 	}
 	//
 	::string msg = cat("total accesses : ",accesses.size()) ;
 	if (nws) {
-		msg << " , patterns : "           <<_star_matches[false/*readdir*/].size()<<" + "<<_star_matches[true/*readdir*/].size()<<" (readdir)" ;
-		msg << " , considered accesses : "<<::sum<size_t>( stats , [](_Stat const& s) { return s.n_stars      ; } )                            ;
-		msg << " , tried matches : "      <<::sum<size_t>( stats , [](_Stat const& s) { return s.n_matches    ; } )                            ;
-		msg << " , successful matches : " <<::sum<size_t>( stats , [](_Stat const& s) { return s.n_matches_ok ; } )                            ;
+		msg << " , patterns : "           <<_star_matchess[false/*readdir*/].size()<<" + "<<_star_matchess[true/*readdir*/].size()<<" (readdir)" ;
+		msg << " , considered accesses : "<<::sum<size_t>( stats , [](_Stat const& s) { return s.n_stars      ; } )                              ;
+		msg << " , tried matches : "      <<::sum<size_t>( stats , [](_Stat const& s) { return s.n_matches    ; } )                              ;
+		msg << " , successful matches : " <<::sum<size_t>( stats , [](_Stat const& s) { return s.n_matches_ok ; } )                              ;
 	}
 	_user_trace( Comment::Analysis , msg ) ;
 }

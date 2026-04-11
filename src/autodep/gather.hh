@@ -164,7 +164,7 @@ public :
 	//
 	void add_star_match( Re::RegExpr&& re , ::pair<PD,MatchFlags> pd_f ) {
 		static constexpr MatchFlags ReaddirOk { .dflags=DflagsDfltDyn , .extra_dflags=ExtraDflagsDfltDyn|ExtraDflag::ReaddirOk } ;
-		if (+pd_f.second) _star_matches[pd_f.second==ReaddirOk].emplace_back( ::move(re) , pd_f ) ;                                // fast path : no need to match for nothing
+		if (+pd_f.second) _star_matchess[pd_f.second==ReaddirOk].emplace_back( ::move(re) , pd_f ) ;                               // fast path : no need to match for nothing
 	}
 private :
 	void                   _update_flags( bool drain_heartbeat          ) ;                     // update accesses to take star matches into account
@@ -212,7 +212,7 @@ public :
 	::vector<UserTraceEntry>*                 user_trace       = nullptr             ;
 	Atomic<int>                               wstatus          ;
 private :
-	::array<::vmap<Re::RegExpr,::pair<PD,MatchFlags>>,2/*readdir*/> _star_matches         ;     // apply flags to matching accesses
+	::array<::vmap<Re::RegExpr,::pair<PD,MatchFlags>>,2/*readdir*/> _star_matchess        ;     // apply flags to matching accesses
 	::map_ss                                                        _add_env              ;
 	Child                                                           _child                ;
 	size_t                                                          _n_server_req_pending = 0 ;

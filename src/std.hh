@@ -61,6 +61,7 @@
 
 // import std definitions to simplify code
 using std::abort                                  ;
+using std::add_const_t                            ;
 using std::array                                  ;
 using std::as_const                               ;
 using std::atomic                                 ;

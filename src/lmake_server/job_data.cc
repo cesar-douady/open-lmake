@@ -402,7 +402,8 @@ namespace Engine {
 		ReqOptions const&  ro                   = req->options                                        ;
 		Special            special              = r->special                                          ;
 		bool               dep_live_out         = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
-		CoarseDelay        dep_pressure         = ri.pressure + c_exe_time()                          ; bool               archive              = ro.flags[ReqFlag::Archive]                          ;
+		CoarseDelay        dep_pressure         = ri.pressure + c_exe_time()                          ;
+		bool               archive              = ro.flags[ReqFlag::Archive]                          ;
 		bool               report_loop          = false                                               ;
 		MissingRerunReport missing_rerun_report = {}                                                  ;
 		//
