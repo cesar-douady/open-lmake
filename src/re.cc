@@ -58,7 +58,7 @@ namespace Re {
 			return entry.first ;
 		}
 
-		RegExpr::RegExpr( Pattern const& pattern , bool cache ) : _own{!cache} {
+		RegExpr::RegExpr( Pattern const& pattern , bool cache ) {
 			size_t start = 0              ; while ( start<pattern.size() && pattern[start].second==Maybe ) start++ ;
 			size_t end   = pattern.size() ; while ( end>start            && pattern[end-1].second==Maybe ) end  -- ;
 			//
@@ -99,9 +99,9 @@ namespace Re {
 				DF}                                                                // NO_COV
 				prev_capture = pattern[i].second ;
 			}
-			if (cache) _code = s_cache.insert(pat)                                   ;
-			else       _code = _s_compile    (pat)                                   ;
-			/**/       _data = ::pcre2_match_data_create_from_pattern(_code,nullptr) ;
+			if (cache)                 _code = s_cache.insert(pat)                                   ;
+			else       { _own = true ; _code = _s_compile    (pat)                                   ; }
+			/**/                       _data = ::pcre2_match_data_create_from_pattern(_code,nullptr) ;
 			#ifndef NDEBUG
 				SWEAR(::pcre2_get_ovector_count(_data)>0) ;
 			#endif

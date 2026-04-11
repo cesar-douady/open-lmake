@@ -330,13 +330,11 @@ int main( int argc , char* argv[] ) {
 			}
 			g_gather.new_access( washed , ::move(d) , {.accesses=dd.accesses(),.flags{.dflags=dd.dflags,.extra_dflags=edf}} , dd , is_stdin?Comment::Stdin:Comment::StaticDep ) ;
 		}
-		for( auto& [dt,mf] : g_start_info.static_matches ) {
-			// consider Optional as a star target with a fixed pattern
-			if      (!mf.extra_tflags[ExtraTflag::Optional]) g_gather.new_access( washed , ::move(dt) , {.flags=mf} , DepInfo() , Comment::StaticMatch )          ;
-			else if (+mf                                   ) g_gather.star_matches.emplace_back( Re::RegExpr(Re::escape(dt),false/*cache*/) , ::pair(washed,mf) ) ; // fast path : dont match ...
-		}                                                                                                                                                           // ... if no flags
+		for( auto& [dt,mf] : g_start_info.static_matches )
+			if (mf.extra_tflags[ExtraTflag::Optional]) g_gather.add_star_match( {Re::escape(dt),false/*cache*/} , ::pair(washed,mf) )              ; // Optional are star targets with fixed patterns
+			else                                       g_gather.new_access( washed , ::move(dt) , {.flags=mf} , DepInfo() , Comment::StaticMatch ) ;
 		for( auto& [p,mf] : g_start_info.star_matches )
-			if (+mf) g_gather.star_matches.emplace_back( Re::RegExpr(p,true/*cache*/) , ::pair(washed,mf) ) ;                        // fast path : dont match if no flags
+			if (+mf) g_gather.add_star_match( {p,true/*cache*/} , ::pair(washed,mf) ) ;                                                              // fast path : dont match if no flags
 		//
 		if (+g_start_info.stdin) g_gather.child_stdin = Fd( g_start_info.stdin , {.err_ok=true} ) ;
 		else                     g_gather.child_stdin = Fd( "/dev/null"                         ) ;
@@ -346,7 +344,7 @@ int main( int argc , char* argv[] ) {
 			g_gather.child_stdout = Child::PipeFd ;
 		} else {
 			g_gather.child_stdout = Fd( g_start_info.stdout , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ;
-			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ; // writing to stdout last for the whole job
+			g_gather.new_access( washed , ::copy(g_start_info.stdout) , {.write=Yes} , DepInfo() , Yes/*late*/ , Comment::Stdout ) ;                 // writing to stdout last for the whole job
 			g_gather.child_stdout.no_std() ;
 		}
 		g_gather.cmd_line = cmd_line(repo_root_s) ;

@@ -44,20 +44,25 @@
 
 namespace Re {
 
-	struct RegExpr ;
-	using Pattern = ::vmap_s<Bool3/*capturing*/> ; // maybe means fixed parts
+	using Pattern = ::vmap_s<Bool3/*capturing*/>        ; // maybe means fixed parts
+	using Match   = ::optional<::vector<::string_view>> ;
 
 	::string escape(::string const& s) ;
 
-	using Match = ::optional<::vector<::string_view>> ;
-
 	#if HAS_PCRE
 
-		inline void swap( RegExpr& a , RegExpr& b ) ;
-		struct RegExpr {
-			friend void swap( RegExpr& a , RegExpr& b ) ;
+		struct _RegExprBits {
 			using Special = RegExprSpecial ;
 			using Use     = RegExprUse     ;
+			::string            _pfx     ;                                                         // fixed prefix
+			::string            _sfx     ;                                                         // fixed suffix
+			::vector_s          _infxs   ;                                                         // internal fixed parts
+			::pcre2_match_data* _data    = nullptr ;
+			::pcre2_code const* _code    = nullptr ;                                               // only contains code for infix part, shared and stored in s_store
+			bool                _own     = false   ;                                               // if true <=> _code is private and must be freed in dxtor
+			Special             _special = {}      ;
+		} ;
+		struct RegExpr : private _RegExprBits {
 			static constexpr size_t ErrMsgSz = 120 ;                                               // per PCRE doc
 			struct Cache {
 				// cxtors & casts
@@ -80,14 +85,14 @@ namespace Re {
 					/**/                                            keys .reserve(_cache.size()) ; // .
 					for( auto const& [k,v] : _cache ) {
 						switch (v.second) {
-							case Use::Unused :                            continue ; // dont save unused regexprs
-							case Use::New    : codes.push_back(v.first) ; break    ; // new regexprs are usable as is
+							case Use::Unused :                            continue ;       // dont save unused regexprs
+							case Use::New    : codes.push_back(v.first) ; break    ;       // new regexprs are usable as is
 							case Use::Old    :
 								if (!_n_new) {
 									codes.push_back(v.first) ;
 								} else {
-									created.push_back(_s_compile(k)) ;               // unless all are old, old regexprs must be recompiled because they use their own character tables ...
-									codes.push_back(created.back()) ;                // ... and we cannot serialize with different character tables
+									created.push_back(_s_compile(k)) ;                     // unless all are old, old regexprs must be recompiled because they use their own character tables ...
+									codes.push_back(created.back()) ;                      // ... and we cannot serialize with different character tables
 								}
 							break ;
 						}
@@ -96,7 +101,7 @@ namespace Re {
 					//
 					int32_t n_codes = ::pcre2_serialize_encode( codes.data() , codes.size() , &buf , &cnt , nullptr/*general_context*/ ) ; if (n_codes<0) throw _s_err_msg(n_codes) ;
 					SWEAR( size_t(n_codes)==keys.size() , n_codes , keys.size() ) ;
-					for( ::pcre2_code* c : created ) ::pcre2_code_free(c) ;          // free what has been created
+					for( ::pcre2_code* c : created ) ::pcre2_code_free(c) ;                // free what has been created
 					//
 					bytes.resize(size_t(cnt)) ; ::memcpy( bytes.data() , buf , cnt ) ;
 					// START_OF_VERSIONING REPO
@@ -122,7 +127,7 @@ namespace Re {
 					SWEAR_PROD(!_cache) ;
 					for( size_t i : iota(keys.size()) ) {
 						#if 0 && defined(PCRE2_CONFIG_JIT)
-							::pcre2_jit_compile( codes[i] , PCRE2_JIT_COMPLETE ) ;   // best effort, if there is an error, the code will work anyway
+							::pcre2_jit_compile( codes[i] , PCRE2_JIT_COMPLETE ) ;         // best effort, if there is an error, the code will work anyway
 						#endif
 						bool inserted = _cache.try_emplace(keys[i],codes[i],Use::Unused).second ; SWEAR(inserted,keys[i]) ;
 					}
@@ -157,45 +162,36 @@ namespace Re {
 			RegExpr( Pattern  const& pattern , bool cache ) ;
 			RegExpr( ::string const& pattern , bool cache ) : RegExpr{{{pattern,No}},cache} {}
 			//
-			RegExpr           (RegExpr&& re) { swap(self,re) ;               }
-			RegExpr& operator=(RegExpr&& re) { swap(self,re) ; return self ; }
+			RegExpr           (RegExpr&& re) : _RegExprBits{::move(re)} {                                                 re._fix_move() ;               }
+			RegExpr& operator=(RegExpr&& re)                            { close() ; _RegExprBits::operator=(::move(re)) ; re._fix_move() ; return self ; }
 			//
-			~RegExpr() {
-				if ( _own && _code ) ::pcre2_code_free      (const_cast<pcre2_code*>(_code)) ;
-				if ( _data         ) ::pcre2_match_data_free(                        _data ) ;
+			~RegExpr() { close() ; }
+			//
+			void close() {
+				if ( _own && _code ) { ::pcre2_code_free      (const_cast<pcre2_code*>(_code)) ; _code = nullptr ; }
+				if ( _data         ) { ::pcre2_match_data_free(                        _data ) ; _data = nullptr ; }
+			}
+		private :
+			void _fix_move() {
+				_data = nullptr ;
+				_code = nullptr ;
 			}
 			// accesses
+		public :
 			bool has_stems() const { return _special!=Special::Single ; }
 			// services
 			size_t n_marks  (                                              ) const ;
 			Match  match    ( ::string const& subject , Bool3 chk_psfx=Yes ) const ;                                               // chk_psfx=Maybe means check size only
 			bool   can_match( ::string const& subject , Bool3 chk_psfx=Yes ) const { return _n_match1( subject , chk_psfx )>=0 ; } // .
 		private :
-			int  _n_match1( ::string const& subject , Bool3 chk_psfx ) const ;
-			// data
-			::string            _pfx     ;                                                                                         // fixed prefix
-			::string            _sfx     ;                                                                                         // fixed suffix
-			::vector_s          _infxs   ;                                                                                         // internal fixed parts
-			::pcre2_match_data* _data    = nullptr ;
-			::pcre2_code const* _code    = nullptr ;                                                                               // only contains code for infix part, shared and stored in s_store
-			bool                _own     = false   ;                                                                               // if true <=> _code is private and must be freed in dxtor
-			Special             _special = {}      ;
+			int _n_match1( ::string const& subject , Bool3 chk_psfx ) const ;
 		} ;
-		inline void swap( RegExpr& a , RegExpr& b) {
-			::swap( a._pfx     , b._pfx     ) ;
-			::swap( a._sfx     , b._sfx     ) ;
-			::swap( a._infxs   , b._infxs   ) ;
-			::swap( a._data    , b._data    ) ;
-			::swap( a._code    , b._code    ) ;
-			::swap( a._own     , b._own     ) ;
-			::swap( a._special , b._special ) ;
-		}
 
 	#else
 
 		struct RegExpr : private ::regex {
 			static constexpr flag_type Flags = ECMAScript|optimize ;
-			struct Cache {                                                                                       // there is no serialization facility and cache is not implemented, fake it
+			struct Cache {                                           // there is no serialization facility and cache is not implemented, fake it
 				static constexpr bool steady() { return true ; }
 			} ;
 			// statics
@@ -210,7 +206,7 @@ namespace Re {
 						case Maybe : res << escape(s)     ; break ;
 						case Yes   : res << '('  <<s<<')' ; break ;
 						case No    : res << "(?:"<<s<<')' ; break ;
-					DF}                                                                                          // NO_COV
+					DF}                                              // NO_COV
 				}
 				return res ;
 			}
@@ -218,26 +214,29 @@ namespace Re {
 		public :
 			static Cache s_cache ;
 			// cxtors & casts
-			RegExpr() = default ;
 			RegExpr( Pattern  const& pattern , bool /*cache*/ ) : ::regex{_s_mk_pattern(pattern),Flags} , _has_stems{_s_mk_has_stems(pattern)} {} // cache is ignored as no cache is implemented
-			RegExpr( ::string const& pattern , bool /*cache*/ ) : ::regex{pattern               ,Flags} {}
+			RegExpr( ::string const& pattern , bool /*cache*/ ) : ::regex{pattern               ,Flags}                                        {}
+			//
+			RegExpr           (         ) = default ;
+			RegExpr           (RegExpr&&) = default ;
+			RegExpr& operator=(RegExpr&&) = default ;
 			// accesses
 			bool has_stems() const { return _has_stems ; }
 			// services
-			Match match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                              // chk_psfx=Maybe means check size only
+			Match match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                                                               // chk_psfx=Maybe means check size only
 				::smatch m ; ::regex_match( subject , m , self ) ;
 				if (m.empty()) return {} ;
 				//
 				size_t n   = mark_count()              ;
 				Match  res = ::vector<::string_view>() ; res->reserve(n+1) ;
-				for( size_t i : iota(n+1) ) {                                                                    // res[0] is the whole subject
+				for( size_t i : iota(n+1) ) {                                                                                                     // res[0] is the whole subject
 					::sub_match sm = m[i] ;
 					if (sm.matched) res->emplace_back( sm.first , sm.second ) ;
 					else            res->emplace_back(                      ) ;
 				}
 				return res ;
 			}
-			bool can_match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                           // chk_psfx=Maybe means check size only
+			bool can_match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                                                            // chk_psfx=Maybe means check size only
 				::smatch m ; ::regex_match( subject , m , self ) ;
 				return !m.empty() ;
 			}

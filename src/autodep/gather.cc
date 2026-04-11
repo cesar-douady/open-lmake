@@ -151,23 +151,29 @@ void Gather::_update_flags(bool drain_heartbeat_) {
 	Trace trace("_update_flags") ;
 	size_t   i   = 0                                        ;
 	::string msg = cat("total accesses : ",accesses.size()) ;
-	if (+star_matches) {                                                             // fast path : if no patterns, nothing to do
+	if ( +_star_matches[false/*readdir*/] || +_star_matches[true/*readdir*/] ) {         // fast path : if no patterns, nothing to do
 		NodeIdx n_stars       = 0     ;
 		NodeIdx n_matches     = 0     ;
+		NodeIdx n_matches_ok  = 0     ;
 		Pdate   heartbeat_chk { New } ;
 		for ( auto& [file,ai] : accesses ) {
 			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
 			n_stars++ ;
-			for ( auto const& [re,date_flags] : star_matches ) {
-				if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; } // regularly drain heartbeat
-				if (re.can_match(file)) {
+			for( int do_readdir : iota(1+ai.read_dir()) )
+				for ( auto const& [re,date_flags] : _star_matches[do_readdir] ) {
+					if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; } // regularly drain heartbeat
 					n_matches++ ;
-					trace("star_matches",file,date_flags) ;
-					ai.update( date_flags.first , {.flags=date_flags.second} ) ;
+					if (re.can_match(file)) {
+						n_matches_ok++ ;
+						trace("star_matches",file,date_flags) ;
+						ai.update( date_flags.first , {.flags=date_flags.second} ) ;
+					}
 				}
-			}
 		}
-		msg << " , patterns : "<<star_matches.size()<<" , considered accesses : "<<n_stars<<" , tried matches : "<<(n_stars*star_matches.size())<<" , successful matches : "<<n_matches ;
+		msg << " , patterns : "           <<_star_matches[false/*readdir*/].size()<<" + "<<_star_matches[true/*readdir*/].size()<<" (readdir)" ;
+		msg << " , considered accesses : "<<n_stars                                                                                            ;
+		msg << " , tried matches : "      <<n_matches                                                                                          ;
+		msg << " , successful matches : " <<n_matches_ok                                                                                       ;
 	}
 	_user_trace( Comment::Analysis , msg ) ;
 }
@@ -187,12 +193,11 @@ void Gather::_update_flags(bool drain_heartbeat_) {
 		res
 	,	[]( AccessEntry* a , AccessEntry* b )->bool { return a->second.sort_key()<b->second.sort_key() ; }
 	) ;
-	auto can_delete = [](AccessInfo const& ai) { return ai.flags.dflags==DflagsDfltDyn && (!ai.read_dir()||ai.flags.extra_dflags[ExtraDflag::ReaddirOk]) ; } ; // can delete if no flags and no errors
 	// 1st pass (backward) : note dirs immediately preceding sub-files
-	::vector<::vector<AccessEntry*>::reverse_iterator> lasts   ;                                                             // because of parallel deps, there may be several last deps
+	::vector<::vector<AccessEntry*>::reverse_iterator> lasts   ;                                                  // because of parallel deps, there may be several last deps
 	Pdate                                              last_pd = Pdate::Never ;
 	for( auto it=res.rbegin() ; it!=res.rend() ; it++ ) {
-		if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                                 // regularly drain heartbeat
+		if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                      // regularly drain heartbeat
 		::string const& file = (*it)->first  ;
 		AccessInfo&     ai   = (*it)->second ; if (!ai.accesses()) goto NextDep ;
 		//
@@ -202,7 +207,7 @@ void Gather::_update_flags(bool drain_heartbeat_) {
 			else                                        { trace("no_lnk_from_next",file) ; ai.clear_lnk     () ; if (!ai.accesses()) goto NextDep ; }
 		}
 		if ( Pdate fr=ai.first_read() ; fr<last_pd ) {
-			lasts.clear() ;                                                                                                  // not a parallel dep => clear old ones that are no more last
+			lasts.clear() ;                                                                                       // not a parallel dep => clear old ones that are no more last
 			last_pd = fr ;
 		}
 		lasts.push_back(it) ;
@@ -212,7 +217,7 @@ void Gather::_update_flags(bool drain_heartbeat_) {
 	::umap_s<bool/*sub-file exists*/> dirs  ;
 	size_t                            i_dst = 0 ;
 	for( AccessEntry* access : res ) {
-		if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                                 // regularly drain heartbeat
+		if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                      // regularly drain heartbeat
 		::string const& file = access->first       ;
 		AccessInfo    & ai   = access->second      ;
 		auto            it   = dirs.find(file+'/') ;
@@ -220,14 +225,20 @@ void Gather::_update_flags(bool drain_heartbeat_) {
 			if (it->second) { trace("skip_from_prev"  ,file) ; ai.clear_accesses() ; }
 			else            { trace("no_lnk_from_prev",file) ; ai.clear_lnk     () ; }
 		}
-		if ( ai.first_read()==PD::Never && ai.first_write()==Pdate::Never && !ai.flags.tflags && can_delete(ai) ) continue ; // dismiss useless access
+		if (                                                                                                      // dismiss useless access
+			ai.first_read()==PD::Never
+		&&	ai.first_write()==Pdate::Never
+		&&	!ai.flags.tflags
+		&&	ai.flags.dflags==DflagsDfltDyn
+		&&	( !ai.read_dir() || ai.flags.extra_dflags[ExtraDflag::ReaddirOk] )
+		) continue ;
 		bool exists = ai.dep_info.exists()==Yes ;
 		try {
-			for( ::string dir_s=dir_name_s(file) ;; dir_s=dir_name_s(dir_s) ) {                                              // walk all accessible dirs
+			for( ::string dir_s=dir_name_s(file) ;; dir_s=dir_name_s(dir_s) ) {                                   // walk all accessible dirs
 				auto [it,inserted] = dirs.try_emplace(dir_s,exists) ;
 				if (!inserted) {
-					if (it->second>=exists) break ;                                                                          // all uphill dirs are already inserted if a dir has been inserted
-					it->second = exists ;                                                                                    // record existence of a sub-file as soon as one if found
+					if (it->second>=exists) break ;                                                               // all uphill dirs are already inserted if a dir has been inserted
+					it->second = exists ;                                                                         // record existence of a sub-file as soon as one if found
 				}
 			}
 		} catch (::string const&) {}
@@ -1019,7 +1030,7 @@ Status Gather::_exec_child() {
 							break ;
 							case Proc::AccessPattern :
 								trace(kind,fd,proc,jerr.date,jerr.digest,jerr.files) ;
-								for( auto const& [f,_] : jerr.files ) star_matches.emplace_back( RegExpr(f/*pattern*/,true/*cache*/) , ::pair(jerr.date,jerr.digest.flags) ) ;
+								for( auto const& [f,_] : jerr.files ) add_star_match( {f/*pattern*/,true/*cache*/} , ::pair(jerr.date,jerr.digest.flags) ) ;
 							break ;
 						DF}                                                                                                                            // NO_COV
 						if (sync_) sync( fd , ::move(jerr).mimic_server() ) ;

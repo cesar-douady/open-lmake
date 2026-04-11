@@ -43,14 +43,14 @@ enum class KillStep : uint8_t {
 ,	Kill   // must be last as following values are used
 } ;
 
-struct Gather {                                                      // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
+struct Gather {                                         // NOLINT(clang-analyzer-optin.performance.Padding) prefer alphabetical order
 	using Kind = GatherKind    ;
 	using Proc = JobExecProc   ;
 	using Jerr = JobExecRpcReq ;
 	using Crc  = Hash::Crc     ;
 	using PD   = Time::Pdate   ;
 	using DI   = DepInfo       ;
-	static constexpr Time::Delay HeartbeatTick { 10 } ;              // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 100s seems a good compromize
+	static constexpr Time::Delay HeartbeatTick { 10 } ; // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 100s seems a good compromize
 	struct AccessInfo {
 		// cxtors & casts
 		AccessInfo() = default ;
@@ -66,23 +66,23 @@ struct Gather {                                                      // NOLINT(c
 		void clear_accesses() { for( PD& d : _read ) d                   = PD::Never ; }
 		void clear_lnk     () {                      _read[+Access::Lnk] = PD::Never ; }
 		void clear_readdir () {                      _read_dir           = PD::Never ; }
-		//                                                 phys
-		bool seen    () const { return _seen    <_max_read(true) ; } // if true <=> file has been observed existing, we want real info because this is to trigger rerun
-		bool read_dir() const { return _read_dir<_max_read(true) ; } // if true <=> file has been read as a dir    , we want real info because this is to generate error
-		bool allow   () const ;                                      // if true <=> file has been declared target
-	private :
-		PD _max_write(         ) const { return _write_ignore ; }    // max date for a write to be taken into account, always <Never
-		PD _max_read (bool phys) const ;                             // max date for a read  to be taken into account, always <Never
+		//                                                                        phys
+		bool allow   () const ;                                                             // if true <=> file has been declared target
+		bool seen    () const { return                        _seen    <_max_read(true) ; } // if true <=> file has been observed existing, we want real info because this is to trigger rerun
+		bool read_dir() const { return _read_dir<PD::Never && _read_dir<_max_read(true) ; } // if true <=> file has been read as a dir    , we want real info because this is to generate error, ...
+	private :                                                                               // ... optimize by first testing existence of _read_as as this is almost always false
+		PD _max_write(         ) const { return _write_ignore ; }                           // max date for a write to be taken into account, always <Never
+		PD _max_read (bool phys) const ;                                                    // max date for a read  to be taken into account, always <Never
 		// services
 	public :
 		void update( PD , AccessDigest    , DI const&   ={} ) ;
 		void update(      AccessDigest ad , DI const& di={} ) { update( {} , ad , di ) ; }
 		bool is_hot( Time::Delay prec                              ) const {
 			// if file date is not comfortable enough, we make it hot and server will ensure job producing dep was done before this job started
-			if (!dep_info.is_a<DepInfoKind::Info>()) return false ;                    // we have a crc, no risk to gather bad crc from sig
+			if (!dep_info.is_a<DepInfoKind::Info>()) return false ;                         // we have a crc, no risk to gather bad crc from sig
 			PD fr = first_read() ;
-			if (fr>=_no_hot) return false                                       ;      // file has been rebuilt and we are guarded against nfs, no risk
-			/**/             return !dep_info.info().date.avail_at( fr , prec ) ;      // mark hot if dep is not old enough
+			if (fr>=_no_hot) return false                                       ;           // file has been rebuilt and we are guarded against nfs, no risk
+			/**/             return !dep_info.info().date.avail_at( fr , prec ) ;           // mark hot if dep is not old enough
 			;
 		}
 		//
@@ -90,25 +90,25 @@ struct Gather {                                                      // NOLINT(c
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files
-		MatchFlags flags        { .dflags={} } ;                                       // initially, no dflags, not even default ones (as they accumulate)
-		bool       force_is_dep = false        ;                                       // if true => access must be a dep even if written to beforehand
-		DI         dep_info     ;                                                      // state when first read
+		MatchFlags flags        { .dflags={} } ;                                            // initially, no dflags, not even default ones (as they accumulate)
+		bool       force_is_dep = false        ;                                            // if true => access must be a dep even if written to beforehand
+		DI         dep_info     ;                                                           // state when first read
 	private :
-		::array<PD,N<Access>> _read         { mk_array<N<Access>>(PD::Never) } ;       // first access date for each access
-		PD                    _read_dir     = PD::Never                        ;       // first date at which file has been read as a dir
-		PD                    _write        = PD::Never                        ;       // first sure write
-		PD                    _allow        = PD::Never                        ;       // first date at which file was known to be a target
-		PD                    _required     = PD::Never                        ;       // first date at which file was required
-		PD                    _seen         = PD::Never                        ;       // first date at which file has been seen existing
-		PD                    _read_ignore  = PD::Future                       ;       // first date at which reads  are ignored, always <Never
-		PD                    _write_ignore = PD::Future                       ;       // first date at which writes are ignored, always <Never
-		PD                    _no_hot       = PD::Never                        ;       // first date at which dep is known sync'ed on disk
+		::array<PD,N<Access>> _read         { mk_array<N<Access>>(PD::Never) } ;            // first access date for each access
+		PD                    _read_dir     = PD::Never                        ;            // first date at which file has been read as a dir
+		PD                    _write        = PD::Never                        ;            // first sure write
+		PD                    _allow        = PD::Never                        ;            // first date at which file was known to be a target
+		PD                    _required     = PD::Never                        ;            // first date at which file was required
+		PD                    _seen         = PD::Never                        ;            // first date at which file has been seen existing
+		PD                    _read_ignore  = PD::Future                       ;            // first date at which reads  are ignored, always <Never
+		PD                    _write_ignore = PD::Future                       ;            // first date at which writes are ignored, always <Never
+		PD                    _no_hot       = PD::Never                        ;            // first date at which dep is known sync'ed on disk
 	} ;
 	struct Digest {
 		::vmap_s<TargetDigest  > targets        ;
-		::vector<Disk::FileInfo> target_fis     ;                                      // INVARIANT : target_fis.size()==targets.size()
+		::vector<Disk::FileInfo> target_fis     ;                                           // INVARIANT : target_fis.size()==targets.size()
 		::vmap_s<DepDigest     > deps           ;
-		::vector<NodeIdx       > crcs           ;                                      // index in targets of entry for which we need to compute a crc
+		::vector<NodeIdx       > crcs           ;                                           // index in targets of entry for which we need to compute a crc
 		::set_s                  refresh_codecs ;
 		::string                 msg            ;
 	} ;
@@ -123,8 +123,8 @@ struct Gather {                                                      // NOLINT(c
 		// accesses
 		void operator>>(::string&) const ;
 		// data
-		Jerr                            jerr       = {} ;                              // used for DepDirect/DepVerbose until server reply
-		::umap<Jerr::Id,::vector<Jerr>> to_confirm = {} ;                              // jerrs waiting for confirmation
+		Jerr                            jerr       = {} ;                                   // used for DepDirect/DepVerbose until server reply
+		::umap<Jerr::Id,::vector<Jerr>> to_confirm = {} ;                                   // jerrs waiting for confirmation
 		IMsgBuf                         buf        = {} ;
 		SockFd::Key                     key        = {} ;
 	} ;
@@ -138,7 +138,7 @@ public :
 	// services
 private :
 	void _send_to_server( JobMngtRpcReq const&                  ) ;
-	void _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                    // files are required for DepVerbose and forbidden for other
+	void _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                         // files are required for DepVerbose and forbidden for other
 	//
 	void _new_accesses( Fd fd , Jerr&& jerr ) {
 		for( auto& [f,fi] : jerr.files ) new_access( fd , jerr.date , ::move(f) , jerr.digest , fi , Yes/*late*/, jerr.comment , jerr.comment_exts ) ;
@@ -155,16 +155,20 @@ public :
 	//
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
 		jerr.chk() ;
-		try { OMsgBuf(jerr).send(fd,{}/*key*/) ; } catch (::string const&) {}          // dont care if we cannot report the reply to job
+		try { OMsgBuf(jerr).send(fd,{}/*key*/) ; } catch (::string const&) {}                       // dont care if we cannot report the reply to job
 	}
 	//
-	Status exec_child() ;
-	//
-	Digest analyze        (Status status=Status::New) ;                                // status==New means job is not done
+	Status exec_child     (                         ) ;
+	Digest analyze        (Status status=Status::New) ;                                             // status==New means job is not done
 	void   drain_heartbeat(                         ) ;
+	//
+	void add_star_match( Re::RegExpr&& re , ::pair<PD,MatchFlags> pd_f ) {
+		static constexpr MatchFlags ReaddirOk { .extra_dflags=ExtraDflag::ReaddirOk } ;
+		if (+pd_f.second) _star_matches[pd_f.second==ReaddirOk].emplace_back( ::move(re) , pd_f ) ; // fast path : no need to match for nothing
+	}
 private :
-	void                   _update_flags( bool drain_heartbeat          ) ;            // update accesses to take static/star_matches into account
-	::vector<AccessEntry*> _reorder     ( bool drain_heartbeat          ) ;            // reorder accesses by first read access and suppress superfluous accesses
+	void                   _update_flags( bool drain_heartbeat          ) ;                         // update accesses to take star matches into account
+	::vector<AccessEntry*> _reorder     ( bool drain_heartbeat          ) ;                         // reorder accesses by first read access and suppress superfluous accesses
 	Fd                     _spawn_child (                               ) ;
 	Status                 _exec_child  (                               ) ;
 	void                   _trace_child ( Fd report_fd , ::latch* ready ) ;
@@ -176,7 +180,7 @@ private :
 	// data
 public :
 	::umap_s<AccessInfo>                      accesses         ;
-	bool                                      as_session       = false               ; // if true <=> process is launched in its own group
+	bool                                      as_session       = false               ;              // if true <=> process is launched in its own group
 	AutodepEnv                                autodep_env      ;
 	Fd                                        child_stdin      = Fd::Stdin           ;
 	Fd                                        child_stderr     = Fd::Stderr          ;
@@ -185,34 +189,34 @@ public :
 	Time::Delay                               ddate_prec       ;
 	PD                                        end_date         ;
 	::map_ss const*                           env              = nullptr             ;
-	uset_s                                    guards           ;                       // dir creation/deletion that must be guarded against NFS
+	uset_s                                    guards           ;                                    // dir creation/deletion that must be guarded against NFS
 	JobIdx                                    job              = 0                   ;
-	::vector<uint8_t>                         kill_sigs        ;                       // signals used to kill job
+	::vector<uint8_t>                         kill_sigs        ;                                    // signals used to kill job
 	bool                                      live_out         = false               ;
-	::string                                  lmake_root_s     ;                       // contains error messages not from job
+	::string                                  lmake_root_s     ;                                    // contains error messages not from job
 	AutodepMethod                             method           = AutodepMethod::Dflt ;
-	::string                                  msg              ;                       // contains error messages not from job
-	Time::Delay                               network_delay    = Time::Delay(1)      ; // 1s is reasonable when nothing is said
+	::string                                  msg              ;                                    // contains error messages not from job
+	Time::Delay                               network_delay    = Time::Delay(1)      ;              // 1s is reasonable when nothing is said
 	uint8_t                                   nice             = 0                   ;
-	bool                                      no_tmp           = false               ; // if true <=> no tmp access is allowed
-	pid_t                                     pid              = -1                  ; // pid to kill
+	bool                                      no_tmp           = false               ;              // if true <=> no tmp access is allowed
+	pid_t                                     pid              = -1                  ;              // pid to kill
 	::string                                  rule             ;
 	SeqId                                     seq_id           = 0                   ;
 	ServerSockFd                              server_master_fd ;
-	KeyedService                              service_mngt     ;                       // no server if empty
-	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> star_matches     ;                       // apply flags to matching accesses
+	KeyedService                              service_mngt     ;                                    // no server if empty
 	PD                                        start_date       ;
 	bool                                      started          = false               ;
-	::string                                  stderr           ;                       // contains child stderr if child_stderr==Pipe
-	::string                                  stdout           ;                       // contains child stdout if child_stdout==Pipe
+	::string                                  stderr           ;                                    // contains child stderr if child_stderr==Pipe
+	::string                                  stdout           ;                                    // contains child stdout if child_stdout==Pipe
 	Time::Delay                               timeout          ;
 	::vector<UserTraceEntry>*                 user_trace       = nullptr             ;
 	Atomic<int>                               wstatus          ;
 private :
-	::map_ss     _add_env              ;
-	Child        _child                ;
-	size_t       _n_server_req_pending = 0 ;
-	NodeIdx      _parallel_id          = 0 ;                                           // id to identify parallel deps
-	::jthread    _trace_thread         ;
-	BitMap<Kind> _wait                 ;                                               // events we are waiting for
+	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> _star_matches[2/*readdir*/] ;                         // apply flags to matching accesses
+	::map_ss                                  _add_env                    ;
+	Child                                     _child                      ;
+	size_t                                    _n_server_req_pending       = 0 ;
+	NodeIdx                                   _parallel_id                = 0 ;                     // id to identify parallel deps
+	::jthread                                 _trace_thread               ;
+	BitMap<Kind>                              _wait                       ;                         // events we are waiting for
 } ;
