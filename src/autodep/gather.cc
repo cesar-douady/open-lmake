@@ -3,6 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include "thread.hh"
 #include "trace.hh"
 
 #include "ptrace_seccomp.hh"
@@ -147,33 +148,72 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 		if (!Record::s_is_simple(f)) new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 }
 
+struct alignas(::hardware_destructive_interference_size) _Stat {
+	size_t n_stars      = 0 ;
+	size_t n_matches    = 0 ;
+	size_t n_matches_ok = 0 ;
+} ;
+static void _update_flags_thread_func(
+	Gather*                                                                      gather
+,	size_t                                                                       id
+,	::array<::vmap<Re::RegExpr,::pair<Pdate,MatchFlags>>,2/*readdir*/>*          star_matches
+,	bool                                                                         drain_heartbeat_
+,	::vector<::umap_s<Gather::AccessInfo>::value_type*>*               /*inout*/ accesses_
+,	_Stat*                                                             /*out  */ stat
+) {
+	if (id) t_thread_key = '0'+id ;
+	Trace trace("_update_flags_thread_func",id) ;
+	//
+	size_t                  t                    = 0 ;
+	::vector<RegExpr::Data> _datas[2/*readdir*/] ;                                                                                      // need to use reentrant matching when multi-thread
+	if (id)
+		for( int readdir : iota(2/*readdir*/) )
+			for ( auto const& [re,_] : (*star_matches)[readdir] )
+				_datas[readdir].push_back(re.data()) ;
+	//
+	for ( auto a : *accesses_ ) {
+		::string const&     file = a->first  ;
+		Gather::AccessInfo& ai   = a->second ;
+		if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
+		stat->n_stars++ ;
+		for( int readdir : iota(1+ai.read_dir()) )
+			for ( size_t m : iota((*star_matches)[readdir].size()) ) {
+				auto& star_match = (*star_matches)[readdir][m] ;
+				if (++t>=(1<<16)) { t = 0 ; if (drain_heartbeat_) gather->drain_heartbeat() ; }                                         // regularly drain heartbeat
+				stat->n_matches++ ;
+				if (
+					id ? star_match.first.can_match( file , _datas[readdir][m] )                                                        // only use _datas in multi-thread
+					:    star_match.first.can_match( file                      )
+				) {
+					stat->n_matches_ok++ ;
+					trace(file,star_match.second) ;
+					ai.update( star_match.second.first , {.flags=star_match.second.second} ) ;
+				}
+			}
+	}
+}
 void Gather::_update_flags(bool drain_heartbeat_) {
 	Trace trace("_update_flags") ;
-	size_t   i   = 0                                        ;
+	size_t                                      n_sms     = _star_matches[false/*readdir*/].size()+_star_matches[true/*readdir*/].size() ;
+	size_t                                      nws       = n_workers(div_up<1<<16>(n_sms*accesses.size()))                              ;
+	::vector<_Stat>                             stats     ( nws )                                                                        ;
+	::vector<::umap_s<AccessInfo>::value_type*> accesses_ ;                                                                                accesses_.reserve(accesses.size()) ;
+	for( auto& a : accesses ) accesses_.push_back(&a) ;
+	trace("n_workers",nws) ;
+	//
+	if (nws==1) {                                                                                                                   // fast path : avoid creating a single thread
+		_update_flags_thread_func( this , 0/*id*/ , &_star_matches , drain_heartbeat_, /*inout*/&accesses_ , /*inout*/&stats[0] ) ;
+	} else {
+		::vector<::jthread> workers ; workers.reserve(nws) ;
+		for( size_t id : iota(nws) ) workers.emplace_back( _update_flags_thread_func , this , 1+id , &_star_matches , drain_heartbeat_, /*inout*/&accesses_ , /*out*/&stats[id] ) ;
+	}
+	//
 	::string msg = cat("total accesses : ",accesses.size()) ;
-	if ( +_star_matches[false/*readdir*/] || +_star_matches[true/*readdir*/] ) {         // fast path : if no patterns, nothing to do
-		NodeIdx n_stars       = 0     ;
-		NodeIdx n_matches     = 0     ;
-		NodeIdx n_matches_ok  = 0     ;
-		Pdate   heartbeat_chk { New } ;
-		for ( auto& [file,ai] : accesses ) {
-			if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
-			n_stars++ ;
-			for( int do_readdir : iota(1+ai.read_dir()) )
-				for ( auto const& [re,date_flags] : _star_matches[do_readdir] ) {
-					if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; } // regularly drain heartbeat
-					n_matches++ ;
-					if (re.can_match(file)) {
-						n_matches_ok++ ;
-						trace("star_matches",file,date_flags) ;
-						ai.update( date_flags.first , {.flags=date_flags.second} ) ;
-					}
-				}
-		}
+	if (nws) {
 		msg << " , patterns : "           <<_star_matches[false/*readdir*/].size()<<" + "<<_star_matches[true/*readdir*/].size()<<" (readdir)" ;
-		msg << " , considered accesses : "<<n_stars                                                                                            ;
-		msg << " , tried matches : "      <<n_matches                                                                                          ;
-		msg << " , successful matches : " <<n_matches_ok                                                                                       ;
+		msg << " , considered accesses : "<<::sum<size_t>( stats , [](_Stat const& s) { return s.n_stars      ; } )                            ;
+		msg << " , tried matches : "      <<::sum<size_t>( stats , [](_Stat const& s) { return s.n_matches    ; } )                            ;
+		msg << " , successful matches : " <<::sum<size_t>( stats , [](_Stat const& s) { return s.n_matches_ok ; } )                            ;
 	}
 	_user_trace( Comment::Analysis , msg ) ;
 }
@@ -187,7 +227,7 @@ void Gather::_update_flags(bool drain_heartbeat_) {
 ::vector<Gather::AccessEntry*> Gather::_reorder(bool drain_heartbeat_) {
 	Trace trace("_reorder") ;
 	// although not strictly necessary, use a stable sort so that order presented to user is as close as possible to what is expected
-	size_t                 i   = 0 ;
+	size_t                 t   = 0 ;
 	::vector<AccessEntry*> res ;     res.reserve(accesses.size()) ; for( auto& e : accesses ) res.push_back(&e) ;
 	::stable_sort(                                                                                                // reorder by date, keeping parallel entries together (which must have the same date)
 		res
@@ -197,7 +237,7 @@ void Gather::_update_flags(bool drain_heartbeat_) {
 	::vector<::vector<AccessEntry*>::reverse_iterator> lasts   ;                                                  // because of parallel deps, there may be several last deps
 	Pdate                                              last_pd = Pdate::Never ;
 	for( auto it=res.rbegin() ; it!=res.rend() ; it++ ) {
-		if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                      // regularly drain heartbeat
+		if (++t>=1000) { t = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                      // regularly drain heartbeat
 		::string const& file = (*it)->first  ;
 		AccessInfo&     ai   = (*it)->second ; if (!ai.accesses()) goto NextDep ;
 		//
@@ -217,7 +257,7 @@ void Gather::_update_flags(bool drain_heartbeat_) {
 	::umap_s<bool/*sub-file exists*/> dirs  ;
 	size_t                            i_dst = 0 ;
 	for( AccessEntry* access : res ) {
-		if (++i>=1000) { i = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                      // regularly drain heartbeat
+		if (++t>=1000) { t = 0 ; if (drain_heartbeat_) drain_heartbeat() ; }                                      // regularly drain heartbeat
 		::string const& file = access->first       ;
 		AccessInfo    & ai   = access->second      ;
 		auto            it   = dirs.find(file+'/') ;
@@ -260,12 +300,12 @@ Gather::Digest Gather::analyze(Status status) {
 	/**/                                _update_flags(status!=Status::New) ;                                       // regularly drain heartbeat if at end
 	::vector<AccessEntry*> access_seq = _reorder     (status!=Status::New) ;                                       // .
 	//                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-	size_t i = 0 ;
+	size_t t = 0 ;
 	for( AccessEntry* access : access_seq ) {
 		::string const& file  = access->first  ;
 		AccessInfo    & info  = access->second ;
 		MatchFlags      flags = info.flags     ;
-		if (++i>=1000) { i = 0 ; if (status!=Status::New) drain_heartbeat() ; }                                    // regularly drain heartbeat if at end
+		if (++t>=1000) { t = 0 ; if (status!=Status::New) drain_heartbeat() ; }                                    // regularly drain heartbeat if at end
 		//
 		// handle read_dir
 		if ( info.read_dir() && !(flags.extra_dflags[ExtraDflag::ReaddirOk]||flags.tflags[Tflag::Incremental]) ) { // if incremental, user handle previous values

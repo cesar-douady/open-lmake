@@ -178,7 +178,7 @@ struct LruEntry {
 // END_OF_VERSIONING
 
 struct CkeyData {
-	friend struct Ckey ;
+	friend Ckey ;
 	// accesses
 	void operator>>(::string&) const ;
 	// services
@@ -190,7 +190,7 @@ struct CkeyData {
 } ;
 
 struct CjobData {
-	friend struct Cjob ;
+	friend Cjob ;
 	// statics
 	static CnodeIdx s_size       () ;
 	static void     s_empty_trash() ;
@@ -231,7 +231,7 @@ struct CrunHdr {
 } ;
 
 struct CrunData {
-	friend struct Crun ;
+	friend Crun ;
 	// statics
 	static CrunHdr      & s_hdr  () ;
 	static CrunHdr const& s_c_hdr() ;
@@ -268,7 +268,7 @@ struct CrunData {
 static_assert( sizeof(CrunData)==56 ) ;
 
 struct CnodeData {
-	friend struct Cnode ;
+	friend Cnode ;
 	// statics
 	static CnodeIdx s_size       () ;
 	static void     s_empty_trash() ;

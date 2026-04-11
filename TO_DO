@@ -55,6 +55,9 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
+* ensure asking is set to the job that triggered rebuild
+	- as of today, it is more or less a random job/node
+	- generally the last one
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly

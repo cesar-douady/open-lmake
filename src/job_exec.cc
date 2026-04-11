@@ -8,6 +8,7 @@
 #include "fd.hh"
 #include "hash.hh"
 #include "re.hh"
+#include "thread.hh"
 #include "time.hh"
 #include "trace.hh"
 
@@ -82,15 +83,14 @@ JobStartRpcReply get_start_info() {
 	}
 }
 
-void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeIdx> const* crcs , ::string* msg , size_t* sz ) {
+static void _compute_crc_thread_func( size_t id , ::vector<NodeIdx> const* crcs , ::vmap_s<TargetDigest>* /*inout*/ tgts , ::string* /*inout*/ msg , size_t* /*out*/ sz ) {
 	static Atomic<NodeIdx>          s_crc_idx         ;
 	static Mutex<MutexLvl::JobExec> s_msg_mutex       ;
 	static bool                     s_abs_path_warned = false ;
-	t_thread_key = '0'+id ;
-	Trace trace("crc_thread_func",tgts->size(),crcs->size()) ;
+	if (id) t_thread_key = '0'+id ;
+	Trace trace("_compute_crc_thread_func",tgts->size(),crcs->size()) ;
 	NodeIdx  cnt           = 0                                                              ;             // cnt is for trace only
 	::string phy_repo_root = g_start_info.chk_abs_paths ? no_slash(g_phy_repo_root_s) : ""s ;
-	*sz = 0 ;
 	for( NodeIdx ci=0 ; (ci=s_crc_idx++)<crcs->size() ; cnt++ ) {
 		NodeIdx         ti     = (*crcs)[ci]        ;
 		::string const& tn     = (*tgts)[ti].first  ;
@@ -148,21 +148,19 @@ void crc_thread_func( size_t id , ::vmap_s<TargetDigest>* tgts , ::vector<NodeId
 	}
 	trace("done",cnt) ;
 }
-
 ::string/*msg*/ compute_crcs( Gather::Digest& digest , size_t&/*out*/ total_sz ) {
-	size_t                            n_threads = thread::hardware_concurrency() ;
-	if (n_threads<1                 ) n_threads = 1                              ;
-	if (n_threads>8                 ) n_threads = 8                              ;
-	if (n_threads>digest.crcs.size()) n_threads = digest.crcs.size()             ;
+	size_t nws = n_workers(digest.crcs.size()) ;
 	//
-	Trace trace("compute_crcs",digest.crcs.size(),n_threads) ;
+	Trace trace("compute_crcs",digest.crcs.size(),nws) ;
 	::string         msg ;
-	::vector<size_t> szs ( n_threads ) ;
-	{	::vector<::jthread> crc_threads ; crc_threads.reserve(n_threads) ;
-		for( size_t i  : iota(n_threads) ) crc_threads.emplace_back( crc_thread_func , i , &digest.targets , &digest.crcs , &msg , &szs[i] ) ;
+	::vector<size_t> szs ( nws ) ;
+	if (nws==1) {                                                                         // fast path : avoid creating a single thread
+		_compute_crc_thread_func( 0 , &digest.crcs , &digest.targets , &msg , &szs[0] ) ;
+	} else {
+		::vector<::jthread> workers ; workers.reserve(nws) ;
+		for( size_t id  : iota(nws) ) workers.emplace_back( _compute_crc_thread_func , 1+id , &digest.crcs , /*inout*/&digest.targets , /*inout*/&msg , /*out*/&szs[id] ) ;
 	}
-	total_sz = 0 ;
-	for( size_t s : szs ) total_sz += s ;
+	total_sz = ::sum(szs) ;
 	g_user_trace->emplace_back( New/*date*/ , Comment::ComputedCrcs ) ;
 	return msg ;
 }

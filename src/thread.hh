@@ -12,6 +12,14 @@ using std::deque ;
 #include "time.hh"
 #include "trace.hh"
 
+inline size_t n_workers(size_t n_items) {
+	size_t res = ::thread::hardware_concurrency() ;
+	/**/   res = ::max( res , size_t(1) )         ;
+	/**/   res = ::min( res , size_t(8) )         ; // a reasonable max to stay reasonably light
+	/**/   res = ::min( res , n_items   )         ;
+	return res ;
+}
+
 template<class T,bool Flush=true,bool Urgent=false> struct ThreadQueue { // if Flush, process remaining items when asked to stop
 	using L           = Lock<>      ;
 	using Delay       = Time::Delay ;
@@ -40,11 +48,11 @@ public :
 	template<class    U> void push          (U&&    x)                  { LCK ; _queue[0].push_back   (::forward<U>(x)   ) ; _cond.notify_one() ; }
 	template<class... A> void emplace_urgent(A&&... a) requires(Urgent) { LCK ; _queue[1].emplace_back(::forward<A>(a)...) ; _cond.notify_one() ; }
 	template<class... A> void emplace       (A&&... a)                  { LCK ; _queue[0].emplace_back(::forward<A>(a)...) ; _cond.notify_one() ; }
-	// clear res while we are waiting
-	void           pop    (                               T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ;                         _wait(       lock) ;        _pop(res) ;            }
-	bool/*popped*/ pop    ( ::stop_token stop ,           T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,  lock) ; if (p) _pop(res) ; return p ; }
-	bool/*popped*/ pop_for(                     Delay d , T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(     d,lock) ; if (p) _pop(res) ; return p ; }
-	bool/*popped*/ pop_for( ::stop_token stop , Delay d,  T&/*out*/ res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,d,lock) ; if (p) _pop(res) ; return p ; }
+	// clear res while we are waiting                    out
+	void           pop    (                               T& res ) { LCK ; bool e = _empty() ; if (e) res = {} ;                         _wait(       lock) ;        _pop(res) ;            }
+	bool/*popped*/ pop    ( ::stop_token stop ,           T& res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,  lock) ; if (p) _pop(res) ; return p ; }
+	bool/*.     */ pop_for(                     Delay d , T& res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(     d,lock) ; if (p) _pop(res) ; return p ; }
+	bool/*.     */ pop_for( ::stop_token stop , Delay d,  T& res ) { LCK ; bool e = _empty() ; if (e) res = {} ; bool p = (Flush&&!e) || _wait(stop,d,lock) ; if (p) _pop(res) ; return p ; }
 	//
 	/**/       T  pop    (                             ) { LCK ;                                     _wait(       lock) ;             return _pop() ;                  }
 	::optional<T> pop    ( ::stop_token stop           ) { LCK ; bool popped = (Flush&&!_empty()) || _wait(stop,  lock) ; if (popped) return _pop() ; else return {} ; }

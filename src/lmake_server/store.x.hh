@@ -55,6 +55,11 @@ namespace Engine {
 
 	extern SeqId* g_seq_id ; // used to identify launched jobs. Persistent so that we keep as many old traces as possible
 
+	namespace Persistent {
+		struct JobBase  ;
+		struct NodeBase ;
+	}
+
 }
 
 namespace Engine {
@@ -94,8 +99,8 @@ namespace Engine::Persistent {
 	} ;
 
 	struct JobDataBase {
-		friend struct JobBase ;
-		friend struct JobName ;
+		friend JobBase ;
+		friend JobName ;
 		// static data
 	private :
 		static Mutex<MutexLvl::Job,true/*Shared*/> _s_mutex ; // jobs are created in main thread but its name may be accessed in other threads
@@ -111,8 +116,8 @@ namespace Engine::Persistent {
 	} ;
 
 	struct NodeDataBase {
-		friend struct NodeBase ;
-		friend struct NodeName ;
+		friend NodeBase ;
+		friend NodeName ;
 		// static data
 	private :
 		static Mutex<MutexLvl::Node,true/*Shared*/> _s_mutex ; // nodes can be created from several threads, ensure coherence between names and nodes

@@ -99,11 +99,11 @@ namespace Re {
 				DF}                                                                // NO_COV
 				prev_capture = pattern[i].second ;
 			}
-			if (cache)                 _code = s_cache.insert(pat)                                   ;
-			else       { _own = true ; _code = _s_compile    (pat)                                   ; }
-			/**/                       _data = ::pcre2_match_data_create_from_pattern(_code,nullptr) ;
+			if (cache)                 _code = s_cache.insert(pat) ;
+			else       { _own = true ; _code = _s_compile    (pat) ; }
+			/**/                       _data = data()              ;
 			#ifndef NDEBUG
-				SWEAR(::pcre2_get_ovector_count(_data)>0) ;
+				SWEAR(::pcre2_get_ovector_count(_data.p)>0) ;
 			#endif
 		}
 
@@ -120,7 +120,7 @@ namespace Re {
 			return cnt ;
 		}
 
-		int RegExpr::_n_match1( ::string const& subject , Bool3 chk_psfx ) const {
+		int RegExpr::_n_match1( ::string const& subject , Data const& d , Bool3 chk_psfx ) const {
 			size_t psfx_sz = _pfx.size()+_sfx.size() ;
 			switch (chk_psfx) {
 				case Yes :
@@ -146,7 +146,7 @@ namespace Re {
 				case Special::NonEmptyNoCapture : return subject.size()> psfx_sz ? 1/*whole*/         : -1/*mismatch*/ ;
 				case Special::NonEmptyCapture   : return subject.size()> psfx_sz ? 2/*whole+capture*/ : -1/*mismatch*/ ;
 			DN}
-			SWEAR( _code && _data ) ;
+			SWEAR( _code && +d ) ;
 			if (true) {                                                                        // fast path : check infixes first to avoid matching in case of negative result
 				::string_view core { subject.data()+_pfx.size() , subject.size()-psfx_sz } ;
 				size_t        pos  = 0                                                     ;
@@ -161,15 +161,15 @@ namespace Re {
 				_code
 			,	RegExpr::_s_cast_in(subject.data()) , subject.size()-_sfx.size() , _pfx.size() // use subject (and not core) so group positions are correct
 			,	0/*options*/
-			,	_data
+			,	d.p
 			,	nullptr/*context*/
 			) ;
 			SWEAR( n1 , n1,subject ) ;                                                         // there is always at least the whole match as implicit group 0
 			return n1 ;
 		}
 
-		Match RegExpr::match( ::string const& subject , Bool3 chk_psfx ) const {
-			int n1 = _n_match1( subject , chk_psfx ) ; if (n1<0) return {} ;
+		Match RegExpr::match( ::string const& subject , Data const& d , Bool3 chk_psfx ) const {
+			int n1 = _n_match1( subject , d , chk_psfx ) ; if (n1<0) return {} ;
 			//
 			Match res = ::vector<::string_view>() ; res->reserve(n1) ; // res[0] is the whole subject
 			res->emplace_back(subject) ;                               // special case as prefix and suffix are not passed to pcre
@@ -184,7 +184,7 @@ namespace Re {
 					DF}
 				[[fallthrough]] ;
 				default : {
-					PCRE2_SIZE* v = ::pcre2_get_ovector_pointer(_data) ;
+					PCRE2_SIZE* v = ::pcre2_get_ovector_pointer(d.p) ;
 					for( size_t i : iota(1,n1) ) {
 						if (v[2*i]!=PCRE2_UNSET) { SWEAR( v[2*i+1]<=subject.size() , i,n1,v[2*i],v[2*i+1],subject ) ; res->emplace_back( subject.data()+v[2*i] , v[2*i+1]-v[2*i] ) ; }
 						else                                                                                          res->emplace_back(                                         ) ;

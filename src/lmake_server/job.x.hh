@@ -84,7 +84,7 @@ namespace Engine {
 namespace Engine {
 
 	struct Job : JobBase {
-		friend struct JobData ;
+		friend JobData ;
 		//
 		using JobBase::side ;
 		//

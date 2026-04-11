@@ -155,20 +155,20 @@ public :
 	//
 	void sync( Fd fd , JobExecRpcReply const&  jerr ) {
 		jerr.chk() ;
-		try { OMsgBuf(jerr).send(fd,{}/*key*/) ; } catch (::string const&) {}                       // dont care if we cannot report the reply to job
+		try { OMsgBuf(jerr).send(fd,{}/*key*/) ; } catch (::string const&) {}                                                      // dont care if we cannot report the reply to job
 	}
 	//
 	Status exec_child     (                         ) ;
-	Digest analyze        (Status status=Status::New) ;                                             // status==New means job is not done
+	Digest analyze        (Status status=Status::New) ;                                                                            // status==New means job is not done
 	void   drain_heartbeat(                         ) ;
 	//
 	void add_star_match( Re::RegExpr&& re , ::pair<PD,MatchFlags> pd_f ) {
-		static constexpr MatchFlags ReaddirOk { .extra_dflags=ExtraDflag::ReaddirOk } ;
-		if (+pd_f.second) _star_matches[pd_f.second==ReaddirOk].emplace_back( ::move(re) , pd_f ) ; // fast path : no need to match for nothing
+		static constexpr MatchFlags ReaddirOk { .dflags=DflagsDfltDyn , .extra_dflags=ExtraDflagsDfltDyn|ExtraDflag::ReaddirOk } ;
+		if (+pd_f.second) _star_matches[pd_f.second==ReaddirOk].emplace_back( ::move(re) , pd_f ) ;                                // fast path : no need to match for nothing
 	}
 private :
-	void                   _update_flags( bool drain_heartbeat          ) ;                         // update accesses to take star matches into account
-	::vector<AccessEntry*> _reorder     ( bool drain_heartbeat          ) ;                         // reorder accesses by first read access and suppress superfluous accesses
+	void                   _update_flags( bool drain_heartbeat          ) ;                     // update accesses to take star matches into account
+	::vector<AccessEntry*> _reorder     ( bool drain_heartbeat          ) ;                     // reorder accesses by first read access and suppress superfluous accesses
 	Fd                     _spawn_child (                               ) ;
 	Status                 _exec_child  (                               ) ;
 	void                   _trace_child ( Fd report_fd , ::latch* ready ) ;
@@ -180,7 +180,7 @@ private :
 	// data
 public :
 	::umap_s<AccessInfo>                      accesses         ;
-	bool                                      as_session       = false               ;              // if true <=> process is launched in its own group
+	bool                                      as_session       = false               ;          // if true <=> process is launched in its own group
 	AutodepEnv                                autodep_env      ;
 	Fd                                        child_stdin      = Fd::Stdin           ;
 	Fd                                        child_stderr     = Fd::Stderr          ;
@@ -189,34 +189,34 @@ public :
 	Time::Delay                               ddate_prec       ;
 	PD                                        end_date         ;
 	::map_ss const*                           env              = nullptr             ;
-	uset_s                                    guards           ;                                    // dir creation/deletion that must be guarded against NFS
+	uset_s                                    guards           ;                                // dir creation/deletion that must be guarded against NFS
 	JobIdx                                    job              = 0                   ;
-	::vector<uint8_t>                         kill_sigs        ;                                    // signals used to kill job
+	::vector<uint8_t>                         kill_sigs        ;                                // signals used to kill job
 	bool                                      live_out         = false               ;
-	::string                                  lmake_root_s     ;                                    // contains error messages not from job
+	::string                                  lmake_root_s     ;                                // contains error messages not from job
 	AutodepMethod                             method           = AutodepMethod::Dflt ;
-	::string                                  msg              ;                                    // contains error messages not from job
-	Time::Delay                               network_delay    = Time::Delay(1)      ;              // 1s is reasonable when nothing is said
+	::string                                  msg              ;                                // contains error messages not from job
+	Time::Delay                               network_delay    = Time::Delay(1)      ;          // 1s is reasonable when nothing is said
 	uint8_t                                   nice             = 0                   ;
-	bool                                      no_tmp           = false               ;              // if true <=> no tmp access is allowed
-	pid_t                                     pid              = -1                  ;              // pid to kill
+	bool                                      no_tmp           = false               ;          // if true <=> no tmp access is allowed
+	pid_t                                     pid              = -1                  ;          // pid to kill
 	::string                                  rule             ;
 	SeqId                                     seq_id           = 0                   ;
 	ServerSockFd                              server_master_fd ;
-	KeyedService                              service_mngt     ;                                    // no server if empty
+	KeyedService                              service_mngt     ;                                // no server if empty
 	PD                                        start_date       ;
 	bool                                      started          = false               ;
-	::string                                  stderr           ;                                    // contains child stderr if child_stderr==Pipe
-	::string                                  stdout           ;                                    // contains child stdout if child_stdout==Pipe
+	::string                                  stderr           ;                                // contains child stderr if child_stderr==Pipe
+	::string                                  stdout           ;                                // contains child stdout if child_stdout==Pipe
 	Time::Delay                               timeout          ;
 	::vector<UserTraceEntry>*                 user_trace       = nullptr             ;
 	Atomic<int>                               wstatus          ;
 private :
-	::vmap<Re::RegExpr,::pair<PD,MatchFlags>> _star_matches[2/*readdir*/] ;                         // apply flags to matching accesses
-	::map_ss                                  _add_env                    ;
-	Child                                     _child                      ;
-	size_t                                    _n_server_req_pending       = 0 ;
-	NodeIdx                                   _parallel_id                = 0 ;                     // id to identify parallel deps
-	::jthread                                 _trace_thread               ;
-	BitMap<Kind>                              _wait                       ;                         // events we are waiting for
+	::array<::vmap<Re::RegExpr,::pair<PD,MatchFlags>>,2/*readdir*/> _star_matches         ;     // apply flags to matching accesses
+	::map_ss                                                        _add_env              ;
+	Child                                                           _child                ;
+	size_t                                                          _n_server_req_pending = 0 ;
+	NodeIdx                                                         _parallel_id          = 0 ; // id to identify parallel deps
+	::jthread                                                       _trace_thread         ;
+	BitMap<Kind>                                                    _wait                 ;     // events we are waiting for
 } ;

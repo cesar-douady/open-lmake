@@ -51,19 +51,38 @@ namespace Re {
 
 	#if HAS_PCRE
 
+		struct RegExpr ;
 		struct _RegExprBits {
 			using Special = RegExprSpecial ;
 			using Use     = RegExprUse     ;
+			struct Data {
+				Data (RegExpr const& re) ;
+				~Data(                 ) { close() ; }
+				//
+				Data           (        ) = default ;
+				Data           (Data&& d) : p{d.p} {                                d.p = nullptr ;                                  }
+				Data& operator=(Data&& d)          { ::pcre2_match_data* dp = d.p ; d.p = nullptr ; close() ; p = dp ; return self ; } // /!\ beware of auto-assignment
+				//
+				void close() { if (p) ::pcre2_match_data_free(p) ; }
+				// accesses
+				bool operator+() const { return p ; }
+				// data
+				::pcre2_match_data* p = nullptr ;
+			} ;
+			// data
 			::string            _pfx     ;                                                         // fixed prefix
 			::string            _sfx     ;                                                         // fixed suffix
 			::vector_s          _infxs   ;                                                         // internal fixed parts
-			::pcre2_match_data* _data    = nullptr ;
-			::pcre2_code const* _code    = nullptr ;                                               // only contains code for infix part, shared and stored in s_store
-			bool                _own     = false   ;                                               // if true <=> _code is private and must be freed in dxtor
-			Special             _special = {}      ;
+			Data                _data    ;
+			::pcre2_code const* _code    = nullptr                 ;                               // only contains code for infix part, shared and stored in s_store
+			bool                _own     = false                   ;                               // if true <=> _code is private and must be freed in dxtor
+			Special             _special = {}                      ;
+			thread::id          _tid     = ::this_thread::get_id() ;
 		} ;
 		struct RegExpr : private _RegExprBits {
+			friend _RegExprBits::Data ;
 			static constexpr size_t ErrMsgSz = 120 ;                                               // per PCRE doc
+			using _RegExprBits::Data ;
 			struct Cache {
 				// cxtors & casts
 				~Cache() {
@@ -85,14 +104,14 @@ namespace Re {
 					/**/                                            keys .reserve(_cache.size()) ; // .
 					for( auto const& [k,v] : _cache ) {
 						switch (v.second) {
-							case Use::Unused :                            continue ;       // dont save unused regexprs
-							case Use::New    : codes.push_back(v.first) ; break    ;       // new regexprs are usable as is
+							case Use::Unused :                            continue ; // dont save unused regexprs
+							case Use::New    : codes.push_back(v.first) ; break    ; // new regexprs are usable as is
 							case Use::Old    :
 								if (!_n_new) {
 									codes.push_back(v.first) ;
 								} else {
-									created.push_back(_s_compile(k)) ;                     // unless all are old, old regexprs must be recompiled because they use their own character tables ...
-									codes.push_back(created.back()) ;                      // ... and we cannot serialize with different character tables
+									created.push_back(_s_compile(k)) ;               // unless all are old, old regexprs must be recompiled because they use their own character tables ...
+									codes.push_back(created.back()) ;                // ... and we cannot serialize with different character tables
 								}
 							break ;
 						}
@@ -101,7 +120,7 @@ namespace Re {
 					//
 					int32_t n_codes = ::pcre2_serialize_encode( codes.data() , codes.size() , &buf , &cnt , nullptr/*general_context*/ ) ; if (n_codes<0) throw _s_err_msg(n_codes) ;
 					SWEAR( size_t(n_codes)==keys.size() , n_codes , keys.size() ) ;
-					for( ::pcre2_code* c : created ) ::pcre2_code_free(c) ;                // free what has been created
+					for( ::pcre2_code* c : created ) ::pcre2_code_free(c) ;          // free what has been created
 					//
 					bytes.resize(size_t(cnt)) ; ::memcpy( bytes.data() , buf , cnt ) ;
 					// START_OF_VERSIONING REPO
@@ -127,7 +146,7 @@ namespace Re {
 					SWEAR_PROD(!_cache) ;
 					for( size_t i : iota(keys.size()) ) {
 						#if 0 && defined(PCRE2_CONFIG_JIT)
-							::pcre2_jit_compile( codes[i] , PCRE2_JIT_COMPLETE ) ;         // best effort, if there is an error, the code will work anyway
+							::pcre2_jit_compile( codes[i] , PCRE2_JIT_COMPLETE ) ;   // best effort, if there is an error, the code will work anyway
 						#endif
 						bool inserted = _cache.try_emplace(keys[i],codes[i],Use::Unused).second ; SWEAR(inserted,keys[i]) ;
 					}
@@ -162,35 +181,38 @@ namespace Re {
 			RegExpr( Pattern  const& pattern , bool cache ) ;
 			RegExpr( ::string const& pattern , bool cache ) : RegExpr{{{pattern,No}},cache} {}
 			//
-			RegExpr           (RegExpr&& re) : _RegExprBits{::move(re)} {                                                 re._fix_move() ;               }
-			RegExpr& operator=(RegExpr&& re)                            { close() ; _RegExprBits::operator=(::move(re)) ; re._fix_move() ; return self ; }
+			RegExpr           (RegExpr&& re) : _RegExprBits{::move(re)} {                                                 re._code = nullptr ;               }
+			RegExpr& operator=(RegExpr&& re)                            { close() ; _RegExprBits::operator=(::move(re)) ; re._code = nullptr ; return self ; }
 			//
 			~RegExpr() { close() ; }
 			//
 			void close() {
-				if ( _own && _code ) { ::pcre2_code_free      (const_cast<pcre2_code*>(_code)) ; _code = nullptr ; }
-				if ( _data         ) { ::pcre2_match_data_free(                        _data ) ; _data = nullptr ; }
-			}
-		private :
-			void _fix_move() {
-				_data = nullptr ;
-				_code = nullptr ;
+				if ( _own && _code ) { ::pcre2_code_free(const_cast<pcre2_code*>(_code)) ; _code = nullptr ; }
 			}
 			// accesses
-		public :
 			bool has_stems() const { return _special!=Special::Single ; }
+			Data data     () const { return { self }                  ; }
 			// services
-			size_t n_marks  (                                              ) const ;
-			Match  match    ( ::string const& subject , Bool3 chk_psfx=Yes ) const ;                                               // chk_psfx=Maybe means check size only
-			bool   can_match( ::string const& subject , Bool3 chk_psfx=Yes ) const { return _n_match1( subject , chk_psfx )>=0 ; } // .
+			// chk_psfx=Maybe means check size only
+			// without Data, matching is not reentrant
+			size_t n_marks  (                                                              ) const ;
+			Match  match    ( ::string const& subject , Data const&   , Bool3 chk_psfx=Yes ) const ;
+			bool   can_match( ::string const& s       , Data const& d , Bool3 cp      =Yes ) const {                                          return _n_match1( s , d     , cp )>=0 ; }
+			Match  match    ( ::string const& s       ,                 Bool3 cp      =Yes ) const { SWEAR( ::this_thread::get_id()==_tid ) ; return match    ( s , _data , cp )    ; }
+			bool   can_match( ::string const& s       ,                 Bool3 cp      =Yes ) const { SWEAR( ::this_thread::get_id()==_tid ) ; return can_match( s , _data , cp )    ; }
 		private :
-			int _n_match1( ::string const& subject , Bool3 chk_psfx ) const ;
+			int _n_match1( ::string const& subject , Data const& , Bool3 chk_psfx ) const ;
 		} ;
+
+		inline _RegExprBits::Data::Data(RegExpr const& re) {
+			if (!re._special) p = ::pcre2_match_data_create_from_pattern(re._code,nullptr) ;
+		}
 
 	#else
 
 		struct RegExpr : private ::regex {
 			static constexpr flag_type Flags = ECMAScript|optimize ;
+			using Data = ::monostate ;                               // useless : smallest possible type (avoid bool so they can be put in a vector with no burden)
 			struct Cache {                                           // there is no serialization facility and cache is not implemented, fake it
 				static constexpr bool steady() { return true ; }
 			} ;
@@ -222,8 +244,12 @@ namespace Re {
 			RegExpr& operator=(RegExpr&&) = default ;
 			// accesses
 			bool has_stems() const { return _has_stems ; }
+			Data data     () const { return {}         ; }
 			// services
-			Match match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                                                               // chk_psfx=Maybe means check size only
+			size_t n_marks() const {
+				return mark_count() ;
+			}
+			Match match( ::string const& subject , Data& , Bool3 /*chk_psfx*/=Yes ) const {                                                       // chk_psfx=Maybe means check size only
 				::smatch m ; ::regex_match( subject , m , self ) ;
 				if (m.empty()) return {} ;
 				//
@@ -236,13 +262,12 @@ namespace Re {
 				}
 				return res ;
 			}
-			bool can_match( ::string const& subject , Bool3 /*chk_psfx*/=Yes ) const {                                                            // chk_psfx=Maybe means check size only
+			bool can_match( ::string const& subject , Data& , Bool3 /*chk_psfx*/=Yes ) const {                                                    // chk_psfx=Maybe means check size only
 				::smatch m ; ::regex_match( subject , m , self ) ;
 				return !m.empty() ;
 			}
-			size_t n_marks() const {
-				return mark_count() ;
-			}
+			Match  match    ( ::string const& subject , Bool3 chk_psfx=Yes ) const { return match    ( subject , ::ref(Data()) , chk_psfx ) ; }
+			bool   can_match( ::string const& subject , Bool3 chk_psfx=Yes ) const { return can_match( subject , ::ref(Data()) , chk_psfx ) ; }
 			// data
 			bool _has_stems = false ;
 		} ;
