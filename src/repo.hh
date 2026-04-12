@@ -25,8 +25,8 @@ static constexpr uint8_t NNodeIdxBits     = 31 ; // 1 guard bit, there are a few
 static constexpr uint8_t NNodeNameIdxBits = 32 ; // used to index Node names
 static constexpr uint8_t NPsfxIdxBits     = 32 ; // each rule appears in a few Psfx slots, so this idx is a little bit larger than ruleTgtsIdx
 static constexpr uint8_t NReqIdxBits      =  8 ;
+static constexpr uint8_t NRuleCrcIdxBits  = 24 ; //  maximum value for sizeof(JobData)==32
 static constexpr uint8_t NRuleIdxBits     = 16 ;
-static constexpr uint8_t NRuleCrcIdxBits  = 32 ;
 static constexpr uint8_t NRuleStrIdxBits  = 32 ; // used to index serialized Rule description
 static constexpr uint8_t NRuleTgtsIdxBits = 32 ;
 static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets

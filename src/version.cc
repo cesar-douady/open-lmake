@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 41      ; // b97d35834211cf9187aefdcd8724a72b
+	uint64_t    constexpr Cache = 41      ; // 18b249d3bf48cc386b4fc49210b9a042
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 41      ; // fb050ebad39b4d49961ddce4c2f27b05
-	uint64_t    constexpr Job   = 19      ; // 2e0bbbaf3e4445e4c30fd5fa7c829da8
+	uint64_t    constexpr Repo  = 43      ; // 0acb2f30da33404e72e022488ef25339
+	uint64_t    constexpr Job   = 19      ; // 694539b60be5a63b7a4d6ef5bd5972b9
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : b97d35834211cf9187aefdcd8724a72b *
+// * Cache : 18b249d3bf48cc386b4fc49210b9a042 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -365,8 +365,8 @@ namespace Version {
 //	static constexpr uint8_t NNodeNameIdxBits = 32 ; // used to index Node names
 //	static constexpr uint8_t NPsfxIdxBits     = 32 ; // each rule appears in a few Psfx slots, so this idx is a little bit larger than ruleTgtsIdx
 //	static constexpr uint8_t NReqIdxBits      =  8 ;
+//	static constexpr uint8_t NRuleCrcIdxBits  = 24 ; //  maximum value for sizeof(JobData)==32
 //	static constexpr uint8_t NRuleIdxBits     = 16 ;
-//	static constexpr uint8_t NRuleCrcIdxBits  = 32 ;
 //	static constexpr uint8_t NRuleStrIdxBits  = 32 ; // used to index serialized Rule description
 //	static constexpr uint8_t NRuleTgtsIdxBits = 32 ;
 //	static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets
@@ -1090,7 +1090,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : fb050ebad39b4d49961ddce4c2f27b05 *
+// * Repo : 0acb2f30da33404e72e022488ef25339 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1455,11 +1455,11 @@ namespace Version {
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			struct IfPlain {
-//				Node        asking   ;                                    //       32 bits,        last target needing this job
-//				Targets     targets  ;                                    //       32 bits, owned, for plain jobs
-//				CoarseDelay exe_time ;                                    //       16 bits,        for plain jobs
-//				CoarseDelay cost     ;                                    //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
-//				Tokens1     tokens1  = 0 ;                                //        8 bits,        number of tokens - 1 for eta estimation
+//				Node        build_asking ;                                //       32 bits,        node need this job that triggered rebuild
+//				Node        last_asking  ;                                //       32 bits,        last node needing this job
+//				Targets     targets      ;                                //       32 bits, owned, for plain jobs
+//				CoarseDelay exe_time     ;                                //       16 bits,        for plain jobs
+//				CoarseDelay cost         ;                                //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
 //			} ;
 //			struct IfDep {
 //				SeqId seq_id     = 0 ;                                    //       64 bits
@@ -1469,14 +1469,15 @@ namespace Version {
 //		public :
 //		//	JobName          name                               ;         //       32 bits, inherited
 //			Deps             deps                               ;         //  31<= 32 bits, owned
-//			RuleCrc          rule_crc                           ;         //       32 bits
+//			RuleCrcIdx       rule_crc_idx  :NRuleCrcIdxBits     = 0     ; //       24 bits
 //			mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
+//			Tokens1          tokens1                            = 0     ; //        8 bits
 //			RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
 //			Status           status        :NBits<Status      > = {}    ; //        5 bits
-//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
 //			CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
-//			bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
+//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
 //			LocalReason      local_reason  :2                   = {}    ; //        2 bits,           job was last forced to run locally
+//			bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
 //		private :
 //			mutable bool _sure          :1 = false ;                      //        1 bit
 //			Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
@@ -1515,15 +1516,15 @@ namespace Version {
 //			// START_OF_VERSIONING REPO
 //		public :
 //		//	NodeName  name                       ;                      //         32 bits, inherited
-//			Watcher   asking                     ;                      //         32 bits,           last watcher needing this node
+//			Node      dir                        ;                      //  31   < 32 bits, shared
 //			Crc       crc                        = Crc::None          ; // ~45   < 64 bits,           disk file CRC when file mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second
 //			SigDate   sig                        ;                      // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
-//			Node      dir                        ;                      //  31   < 32 bits, shared
 //			JobTgts   job_tgts                   ;                      //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (a reservoir to avoid matching)
 //			RuleTgts  rule_tgts                  ;                      // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 //			RuleTgts  rejected_rule_tgts         ;                      // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
-//			Job       actual_job                 ;                      //  31   < 32 bits, shared,   job that generated node
-//			Job       polluting_job              ;                      //         32 bits,           polluting job when polluted was last set to Polluted::Job
+//			Job       actual_job                 ;                      //  30   < 32 bits, shared,   job that generated node
+//			Watcher   build_asking               ;                      //  30   < 32 bits,           polluting job when polluted was last set to Polluted::Job
+//			Watcher   last_asking                ;                      //         32 bits,           last watcher needing this node
 //			RuleIdx   n_job_tgts                 = 0                  ; //         16 bits,           number of actual meaningful JobTgt's in job_tgts
 //			MatchGen  match_gen                  = 0                  ; //          8 bits,           if <Rule::s_match_gen => deem n_job_tgts==0 && !rule_tgts && !sure
 //			Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
@@ -1856,8 +1857,8 @@ namespace Version {
 //	static constexpr uint8_t NNodeNameIdxBits = 32 ; // used to index Node names
 //	static constexpr uint8_t NPsfxIdxBits     = 32 ; // each rule appears in a few Psfx slots, so this idx is a little bit larger than ruleTgtsIdx
 //	static constexpr uint8_t NReqIdxBits      =  8 ;
+//	static constexpr uint8_t NRuleCrcIdxBits  = 24 ; //  maximum value for sizeof(JobData)==32
 //	static constexpr uint8_t NRuleIdxBits     = 16 ;
-//	static constexpr uint8_t NRuleCrcIdxBits  = 32 ;
 //	static constexpr uint8_t NRuleStrIdxBits  = 32 ; // used to index serialized Rule description
 //	static constexpr uint8_t NRuleTgtsIdxBits = 32 ;
 //	static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets
@@ -2434,7 +2435,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 2e0bbbaf3e4445e4c30fd5fa7c829da8 *
+// * Job : 694539b60be5a63b7a4d6ef5bd5972b9 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2599,8 +2600,8 @@ namespace Version {
 //	static constexpr uint8_t NNodeNameIdxBits = 32 ; // used to index Node names
 //	static constexpr uint8_t NPsfxIdxBits     = 32 ; // each rule appears in a few Psfx slots, so this idx is a little bit larger than ruleTgtsIdx
 //	static constexpr uint8_t NReqIdxBits      =  8 ;
+//	static constexpr uint8_t NRuleCrcIdxBits  = 24 ; //  maximum value for sizeof(JobData)==32
 //	static constexpr uint8_t NRuleIdxBits     = 16 ;
-//	static constexpr uint8_t NRuleCrcIdxBits  = 32 ;
 //	static constexpr uint8_t NRuleStrIdxBits  = 32 ; // used to index serialized Rule description
 //	static constexpr uint8_t NRuleTgtsIdxBits = 32 ;
 //	static constexpr uint8_t NTargetsIdxBits  = 32 ; // used to index targets

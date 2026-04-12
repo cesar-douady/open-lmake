@@ -110,8 +110,8 @@ Show various info about a job, as it last ran (unless stated otherwise):
 	Bullet B_(rule)               : the rule name.
 	Bullet B_(job)                : the job name.
 	Bullet B_(ids)                : the job-id (unique for each job), the small-id (unique among jobs running simultaneously) and the seq-id (unique in a repo).
-	Bullet B_(required target)    : the target that was last required.
-	Bullet B_(required by)        : the job that last required the required target.
+	Bullet B_(required target)    : the target that was required. Info is split into build and last if they differ.
+	Bullet B_(required by)        : the job that required the required target. Info is split into build and last if they differ.
 	Bullet B_(reason)             : the reason why job ran.
 	Bullet B_(host)               : the host on which job ran.
 	Bullet B_(os)                 : the os version, release and architecture on which the job ran.

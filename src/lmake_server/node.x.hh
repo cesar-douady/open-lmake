@@ -477,8 +477,8 @@ namespace Engine {
 		//
 		void set_infinite( Special , ::vector<Node> const& deps ) ;
 		//
-		void make  ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
-		void wakeup( ReqInfo& ri                                 ) { return make(ri,MakeAction::Wakeup) ; }
+		bool/*triggered*/ make  ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
+		void              wakeup( ReqInfo& ri                                 ) { make(ri,MakeAction::Wakeup) ; }
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
@@ -487,12 +487,12 @@ namespace Engine {
 		bool/*modified*/ set_crc_date  ( Crc={} , SigDate const& ={} ) ;
 		void             stamp_crc_date(                             ) ;
 	private :
-		void            _do_set_buildable( Req            , RejectSet&/*lazy*/ known_rejected , DepDepth=0 )       ; // req is for error reporting only
-		bool/*solved*/  _make_pre        ( ReqInfo      & , bool query                                     )       ;
-		void            _do_make         ( ReqInfo      & , MakeAction , Bool3 speculate=Yes               )       ;
-		void            _do_set_pressure ( ReqInfo      &                                                  ) const ;
-		void            _propag_speculate( ReqInfo const&                                                  ) const ;
-		bool/*unlnked*/ _set_no_job      ( ReqInfo      & , bool query                                     )       ;
+		void              _do_set_buildable( Req            , RejectSet&/*lazy*/ known_rejected , DepDepth=0 )       ; // req is for error reporting only
+		bool/*solved*/    _make_pre        ( ReqInfo      & , bool query                                     )       ;
+		bool/*triggered*/ _do_make         ( ReqInfo      & , MakeAction , Bool3 speculate=Yes               )       ;
+		void              _do_set_pressure ( ReqInfo      &                                                  ) const ;
+		void              _propag_speculate( ReqInfo const&                                                  ) const ;
+		bool/*unlnked*/   _set_no_job      ( ReqInfo      & , bool query                                     )       ;
 		//
 		Buildable _gather_special_rule_tgts( ::string const&   name ,       RejectSet&/*lazy*/ known_rejected                  ) ;
 		Buildable _gather_prio_job_tgts    ( ::string&/*lazy*/ name , Req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl=0 ) ;
@@ -502,15 +502,15 @@ namespace Engine {
 		// START_OF_VERSIONING REPO
 	public :
 	//	NodeName  name                       ;                      //         32 bits, inherited
-		Watcher   asking                     ;                      //         32 bits,           last watcher needing this node
+		Node      dir                        ;                      //  31   < 32 bits, shared
 		Crc       crc                        = Crc::None          ; // ~45   < 64 bits,           disk file CRC when file mtime was date. 45 bits : MTBF=1000 years @ 1000 files generated per second
 		SigDate   sig                        ;                      // ~40+40<128 bits,           date : production date, sig : if file sig is sig, crc is valid, 40 bits : 30 years @ms resolution
-		Node      dir                        ;                      //  31   < 32 bits, shared
 		JobTgts   job_tgts                   ;                      //         32 bits, owned ,   ordered by prio, valid if match_ok, may contain extra JobTgt's (a reservoir to avoid matching)
 		RuleTgts  rule_tgts                  ;                      // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 		RuleTgts  rejected_rule_tgts         ;                      // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
-		Job       actual_job                 ;                      //  31   < 32 bits, shared,   job that generated node
-		Job       polluting_job              ;                      //         32 bits,           polluting job when polluted was last set to Polluted::Job
+		Job       actual_job                 ;                      //  30   < 32 bits, shared,   job that generated node
+		Watcher   build_asking               ;                      //  30   < 32 bits,           polluting job when polluted was last set to Polluted::Job
+		Watcher   last_asking                ;                      //         32 bits,           last watcher needing this node
 		RuleIdx   n_job_tgts                 = 0                  ; //         16 bits,           number of actual meaningful JobTgt's in job_tgts
 		MatchGen  match_gen                  = 0                  ; //          8 bits,           if <Rule::s_match_gen => deem n_job_tgts==0 && !rule_tgts && !sure
 		Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
@@ -612,9 +612,9 @@ namespace Engine {
 		_do_set_pressure(ri) ;
 	}
 
-	inline void NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
-		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted && !busy ) return ; // fast path
-		_do_make(ri,ma,s) ;
+	inline bool/*triggered*/ NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
+		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted && !busy ) return false/*triggered*/ ; // fast path
+		return _do_make(ri,ma,s) ;
 	}
 
 	//

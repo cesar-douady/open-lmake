@@ -102,7 +102,7 @@ namespace Engine {
 					/**/                         if (n->buildable==Buildable::Src ) goto Keep       ;
 					/**/                         if (n->sig.sig!=FileSig(target)  ) goto Quarantine ;
 					Job     j  = n->actual_job ; if (!j                           ) goto Quarantine ;
-					RuleCrc rc = j->rule_crc   ; if (!rc                          ) goto Quarantine ;
+					RuleCrc rc = j->rule_crc() ; if (!rc                          ) goto Quarantine ;
 					/**/                         if (rc->state>RuleCrcState::CmdOk) goto Unlnk      ;
 				}
 			Keep :
@@ -968,13 +968,27 @@ namespace Engine {
 							}
 							//
 							push_entry("ids",ids,Color::None,false/*protect*/) ;
-							if ( Node t=job->asking() ; +t ) {
-								Node n = t ;
-								while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
-								/**/            push_entry("required target",localize(mk_file(    t         ->name()),su)) ;
-								if (+n->asking) push_entry("required by"    ,localize(mk_file(Job(n->asking)->name()),su)) ;
-								else            push_entry("required by"    ,localize(mk_file(    n         ->name()),su)) ;
+							// provide both build and last asking info if different, else do a single report
+							Node t_build = job->build_asking() ;
+							Node t_last  = job->last_asking () ;
+							Node n_build = t_build             ; if (+t_build) while ( +n_build->build_asking && n_build->build_asking.is_a<Node>() ) n_build = Node(n_build->build_asking) ;
+							Node n_last  = t_last              ; if (+t_last ) while ( +n_last ->last_asking  && n_last ->last_asking .is_a<Node>() ) n_last  = Node(n_last ->last_asking ) ;
+							Job  j_build ;                       if ( +n_build && +n_build->build_asking )                                            j_build = Job (n_build->build_asking) ;
+							Job  j_last  ;                       if ( +n_last  && +n_last ->last_asking  )                                            j_last  = Job (n_last ->last_asking ) ;
+							if ( +t_build && t_build==t_last ) push_entry( "required target" , localize(mk_file(t_build->name()),su) ) ;
+							else {
+								if (+t_build) push_entry( "build required target" , localize(mk_file(t_build->name()),su) ) ;
+								if (+t_last ) push_entry( "last required target"  , localize(mk_file(t_last ->name()),su) ) ;
 							}
+							if      ( +j_build &&                        j_build==j_last ) push_entry( "required by" , localize(mk_file(j_build->name()),su) ) ;
+							else if ( !j_build && !j_last && +n_build && n_build==n_last ) push_entry( "required by" , localize(mk_file(n_build->name()),su) ) ;
+							else {
+								if      (+j_build) push_entry( "build required by" , localize(mk_file(j_build->name()),su) ) ;
+								else if (+n_build) push_entry( "build required by" , localize(mk_file(n_build->name()),su) ) ;
+								if      (+j_last ) push_entry( "last required by"  , localize(mk_file(j_last ->name()),su) ) ;
+								else if (+n_last ) push_entry( "last required by"  , localize(mk_file(n_last ->name()),su) ) ;
+							}
+							//
 							if (job->cache_hit_info!=CacheHitInfo::NoCache) push_entry( "cache hit info" , CacheHitInfoStrs[+job->cache_hit_info].second ) ;
 							if (+start) {
 								JobInfoStart const& rs       = job_info.start          ;
@@ -1330,10 +1344,10 @@ namespace Engine {
 						}
 					}
 					if (!job) {
-						Node                      n       = target ; while ( +n->asking && n->asking.is_a<Node>() ) n = Node(n->asking) ;
+						Node                      n       = target ; while ( +n->last_asking && n->last_asking.is_a<Node>() ) n = Node(n->last_asking) ;
 						::vmap_s<::pair_s<Color>> entries ;
-						if      (+n->asking) entries.push_back({ porcelaine?"required_by":"required by" , {Job(n->asking)->name(),{}} }) ;
-						else if (n!=target ) entries.push_back({ porcelaine?"required_by":"required by" , {    n         ->name(),{}} }) ;
+						if      (+n->last_asking) entries.push_back({ porcelaine?"required_by":"required by" , {Job(n->last_asking)->name(),{}} }) ;
+						else if (n!=target      ) entries.push_back({ porcelaine?"required_by":"required by" , {    n         ->name(),{}} }) ;
 						if (target->is_src_anti()) {
 							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())!=target->sig.sig ) c = Color::Warning ;
 							//

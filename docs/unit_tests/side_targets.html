@@ -114,15 +114,15 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="kn">from</span> <span class="nn">step</span> <span class="kn">import</span> <span class="n">step</span>
 
     <span class="k">class</span> <span class="nc">Base</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">targets</span>      <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;A&#39;</span> <span class="p">:</span> <span class="s1">&#39;base_target.{File*:.*}&#39;</span> <span class="p">}</span>
-        <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;B&#39;</span> <span class="p">:</span> <span class="s1">&#39;base_side_target.x&#39;</span>     <span class="p">}</span>
-        <span class="n">side_deps</span>    <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;E&#39;</span> <span class="p">:</span> <span class="s1">&#39;base_side_dep.x&#39;</span>        <span class="p">}</span>
+        <span class="n">targets</span>      <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;A&#39;</span> <span class="p">:</span>   <span class="s1">&#39;base_target.{File*:.*}&#39;</span>                <span class="p">}</span>
+        <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;B&#39;</span> <span class="p">:</span> <span class="p">(</span> <span class="s1">&#39;base_side_target.x&#39;</span>     <span class="p">,</span> <span class="s1">&#39;-no_star&#39;</span> <span class="p">)</span> <span class="p">}</span>
+        <span class="n">side_deps</span>    <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;E&#39;</span> <span class="p">:</span>   <span class="s1">&#39;base_side_dep.x&#39;</span>                       <span class="p">}</span>
         <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">2</span> <span class="p">:</span>
             <span class="n">side_deps</span><span class="p">[</span><span class="s1">&#39;E2&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;base_side_dep.x2&#39;</span>
 
     <span class="k">class</span> <span class="nc">Derived</span><span class="p">(</span><span class="n">Base</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">targets</span>      <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;C&#39;</span> <span class="p">:</span> <span class="s1">&#39;base_side_target.{File*:.*}&#39;</span> <span class="p">}</span> <span class="c1"># becomes a target</span>
-        <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;D&#39;</span> <span class="p">:</span> <span class="s1">&#39;base_target.x&#39;</span>               <span class="p">}</span> <span class="c1"># stay a target</span>
+        <span class="n">targets</span>      <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;C&#39;</span> <span class="p">:</span>   <span class="s1">&#39;base_side_target.{File*:.*}&#39;</span>                <span class="p">}</span> <span class="c1"># becomes a target</span>
+        <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;D&#39;</span> <span class="p">:</span> <span class="p">(</span> <span class="s1">&#39;base_target.x&#39;</span>               <span class="p">,</span> <span class="s1">&#39;-no_star&#39;</span> <span class="p">)</span> <span class="p">}</span> <span class="c1"># stays a target as being a target is a flag and they all accumulate</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&gt;base_side_target.x ; &gt;base_target.x&#39;</span>
 
     <span class="k">class</span> <span class="nc">Test</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>

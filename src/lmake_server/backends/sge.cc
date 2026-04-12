@@ -226,13 +226,13 @@ namespace Backends::Sge {
 			int16_t prio = ::max<int16_t>( reqs , [&](ReqIdx r) { return req_prios[r] ; } , Min<int16_t> ) ;
 			//
 			Rsrcs const& rs = se.rsrcs ;
-			if ( prio                 )            { sge_cmd_line.emplace_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ; }
-			if ( +cpu_rsrc && rs->cpu )            { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ; }
-			if ( +mem_rsrc && rs->mem )            { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ; }
-			if ( +tmp_rsrc && rs->tmp )            { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ; }
-			for( auto const& [k,v] : rs ->tokens ) { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ; }
-			if ( +rs->hard            )            {                                      for( ::string const& s : rs->hard ) sge_cmd_line.push_back(s) ; }
-			if ( +rs->soft            )            { sge_cmd_line.emplace_back("-soft") ; for( ::string const& s : rs->soft ) sge_cmd_line.push_back(s) ; }
+			if ( prio                 )           { sge_cmd_line.emplace_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ;   }
+			if ( +cpu_rsrc && rs->cpu )           { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ;   }
+			if ( +mem_rsrc && rs->mem )           { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ;   }
+			if ( +tmp_rsrc && rs->tmp )           { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ;   }
+			for( auto const& [k,v] : rs->tokens ) { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(k       +'='+::to_string(v        )) ;   }
+			if ( +rs->hard            )           {                                      for( ::string const& s : rs->hard ) sge_cmd_line.push_back(s) ; }
+			if ( +rs->soft            )           { sge_cmd_line.emplace_back("-soft") ; for( ::string const& s : rs->soft ) sge_cmd_line.push_back(s) ; }
 			//
 			for( ::string const& c : cmd_line ) sge_cmd_line.push_back(c) ;
 			//

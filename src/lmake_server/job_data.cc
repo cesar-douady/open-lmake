@@ -380,7 +380,7 @@ namespace Engine {
 		JobReasonTag res = ReasonTab[+s].second ; if ( res==JobReasonTag::Retry && !retried_errs[s] ) res = JobReasonTag::None ;
 		return res ;
 	}
-	JobReason JobData::make( ReqInfo& ri , MakeAction make_action , JobReason asked_reason , Bool3 speculate , bool wakeup_watchers ) {
+	::pair<JobReason,bool/*triggered*/> JobData::make( ReqInfo& ri , MakeAction make_action , JobReason asked_reason , Bool3 speculate , bool wakeup_watchers ) {
 		using Step = JobStep ;
 		static constexpr Dep Sentinel { false/*parallel*/ } ;                                        // used to clean up after all deps are processed
 		//
@@ -411,6 +411,7 @@ namespace Engine {
 	RestartFullAnalysis :
 		JobReason pre_reason    ;                                                                    // reason to run job when deps are ready before deps analysis
 		JobReason report_reason ;
+		bool      triggered     = false ;
 		auto reason = [&](ReqInfo::State const& s) {
 			if (ri.force) return pre_reason | ri.reason | s.reason             ;
 			else          return pre_reason |             s.reason | ri.reason ;
@@ -556,10 +557,10 @@ namespace Engine {
 					:	+state.stamped.err            ? ri.speculate|Maybe                            // this dep is not the origin of the error
 					:	                                ri.speculate                                  // this dep will not disappear from us
 					;
-					if (special>Special::Fugitive) dnd.asking = job ;                                 // dont record if job is fugitive
-					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) ;
-					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					if (                                                                 special>Special::Fugitive ) dnd.last_asking  = job ; // dont record if job is fugitive
+					if ( dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) && special>Special::Fugitive ) dnd.build_asking = job ;
+					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
 				if ( is_static && dnd.buildable<Buildable::Yes ) sure = false ;                       // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
 				if (cdri->waiting()) {
@@ -666,11 +667,13 @@ namespace Engine {
 					goto RestartAnalysis/*BACKWARD*/ ;
 				}
 				bool         maybe_new_deps ;
+				bool         triggered1     ;
 				JobReasonTag rt             = ri.reason.tag ;                            // sample before _submit_plain as it may modify ri.reason
 				if (!is_plain()) {
-					//               vvvvvvvvvvvvvvvvvvv
-					maybe_new_deps = _submit_special(ri) ;
-					//               ^^^^^^^^^^^^^^^^^^^
+					//                               vvvvvvvvvvvvvvvvvvv
+					tie(maybe_new_deps,triggered1) = _submit_special(ri) ;
+					//                               ^^^^^^^^^^^^^^^^^^^
+					triggered |= triggered1 ;
 					if (maybe_new_deps) {
 						inc_submits( rt , true/*has_run*/ ) ;
 					} else {
@@ -679,9 +682,10 @@ namespace Engine {
 					}
 				} else {
 					missing_rerun_report = {} ;
-					//               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					maybe_new_deps = _submit_plain( ri , dep_pressure ) ;
-					//               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					tie(maybe_new_deps,triggered1) = _submit_plain( ri , dep_pressure ) ;
+					//                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					triggered |= triggered1 ;
 					inc_submits( rt , ri.waiting() ) ;
 					if (ri.waiting()) {
 						req->n_running++ ;
@@ -757,7 +761,7 @@ namespace Engine {
 		if (+missing_rerun_report) req->audit_job( Color::Note , cat(missing_rerun_report,"_rerun") , job ) ;
 		trace("wait",ri) ;
 	Return :
-		return report_reason ;
+		return {report_reason,triggered} ;
 	}
 
 	void JobData::_propag_speculate(ReqInfo const& cri) const {
@@ -1035,7 +1039,7 @@ namespace Engine {
 		trace("done") ;
 	}
 
-	bool/*maybe_new_deps*/ JobData::_submit_special(ReqInfo& ri) {        // never report new deps
+	::pair<bool/*maybe_new_deps*/,bool/*triggered*/> JobData::_submit_special(ReqInfo& ri) {        // never report new deps
 		Req     req            = ri.req          ;
 		Special special        = rule()->special ;
 		bool    frozen_        = idx().frozen()  ;
@@ -1077,10 +1081,10 @@ namespace Engine {
 				audit_end_special( req , special_step , modified , worst_target ) ;
 			} break ;
 		DF}                                                                                                               // NO_COV
-		return maybe_new_deps ;
+		return {maybe_new_deps,true/*triggered*/} ;
 	}
 
-	bool/*maybe_new_deps*/ JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
+	::pair<bool/*maybe_new_deps*/,bool/*triggered*/> JobData::_submit_plain( ReqInfo& ri , CoarseDelay pressure ) {
 		using Step = JobStep ;
 		Rule            r     = rule() ;
 		Req             req   = ri.req ;
@@ -1104,7 +1108,7 @@ namespace Engine {
 			//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("other_req",rr,ri) ;
 			SWEAR( cache_hit_info>=CacheHitInfo::Miss , cache_hit_info ) ;             // how can job be running if it is cached ?
-			return false/*maybe_new_deps*/ ;
+			return {false/*maybe_new_deps*/,false/*triggered*/} ;
 		}
 		//
 		for( Node t : targets() ) t->set_buildable() ;                                 // we will need to know if target is a source, possibly in another thread, we'd better call set_buildable here
@@ -1175,7 +1179,7 @@ namespace Engine {
 					for( auto& [dn,dd] : job_info.end.digest.deps ) ds.emplace_back( Node(New,dn) , dd ) ;
 				}
 				deps.assign(ds) ;
-				return cache_hit_info!=CacheHitInfo::HitExhaustive/*maybe_new_deps*/ ;
+				return { cache_hit_info!=CacheHitInfo::HitExhaustive/*maybe_new_deps*/ , cache_hit_info<=CacheHitInfo::Hit/*triggered*/ } ;
 			}
 		}
 	CacheDone :
@@ -1219,7 +1223,7 @@ namespace Engine {
 						}
 					deps.assign(new_deps) ;
 					status = Status::EarlyChkDeps ;
-					return true/*maybe_new_deps*/ ;
+					return { true/*maybe_new_deps*/ , false/*triggered*/ } ;
 				}
 			}
 		}
@@ -1227,7 +1231,7 @@ namespace Engine {
 			req->audit_job   ( Color::Err , "failed" , job                                                                                                          ) ;
 			req->audit_stderr(                         job , { with_nl(r->submit_rsrcs_attrs.s_exc_msg(false/*using_static*/))+msg_stderr.msg , msg_stderr.stderr } ) ;
 			status = Status::EarlyError ;
-			return false/*mabe_new_deps*/ ;
+			return { false/*mabe_new_deps*/ , false/*triggered*/ } ;
 		}
 		//
 		ri.inc_wait() ;                                      // set before calling submit call back as in case of flash execution, we must be clean
@@ -1253,14 +1257,12 @@ namespace Engine {
 		} catch (::string const& e) {
 			ri.dec_wait() ;                                  // restore n_wait as we prepared to wait
 			ri.set_step(Step::None,job) ;
-			status  = Status::EarlyError ;
+			status = Status::EarlyError ;
 			req->audit_job ( Color::Err  , "failed" , job ) ;
 			req->audit_info( Color::Note , e , 1/*lvl*/   ) ;
-			trace("submit_err",ri) ;
-			return false/*maybe_new_deps*/ ;
 		} ;
-		trace("submitted",ri) ;
-		return false/*maybe_new_deps*/ ;
+		trace("submitted",status,ri) ;
+		return { false/*maybe_new_deps*/ , true/*triggered*/ } ;
 	}
 
 	void JobData::audit_end_special( Req req , SpecialStep step , Bool3 modified , Node node ) const {

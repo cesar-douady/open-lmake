@@ -1585,7 +1585,7 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>IgnoreError</code></td><td><a href="unit_tests/ignore_err.html#:~:text=%27IgnoreError">ignore_error</a></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
 <tr><td><code>ReaddirOk</code></td><td><a href="unit_tests/wine.html#:~:text=%27readdir%5Fok">readdir_ok</a></td><td>No</td><td>This dep may be accessed as a dir (e.g. using <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> without error.</td></tr>
 <tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
-<tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
+<tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Do not ccept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. <a href="experimental_subrepos.html">subrepos</a>).</td></tr>
 </tbody></table>
 </div>

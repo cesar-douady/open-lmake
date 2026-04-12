@@ -55,9 +55,6 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* ensure asking is set to the job that triggered rebuild
-	- as of today, it is more or less a random job/node
-	- generally the last one
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly
@@ -85,7 +82,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* scancel job when heartbeat decides to report a lost
 ! improve address resolution
 	- as of today, each host is supposed to have a single address
 		- this is not necessarily the case on all network configs
@@ -269,14 +265,8 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* multi-thread gather analysis
-	- everything that can possibly be multi-threaded
 * understand when pcre2 JIT features is efficient
 	- seems to degrade perfs when regexpr is plain '.*'
-* use lazy evaluation of flags in gather
-	- for example, readdir_ok flag is only necessary if readdir flag is present
-	? a simpler version is to split between with and without readdir_ok
-		- as this seems to be the only case where normal accesses are insensitive
 * avoid computing deps on disk for cached jobs
 	- make status is enough as downloading does not require deps on disk
 	- split a cache.download() into :

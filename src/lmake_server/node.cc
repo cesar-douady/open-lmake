@@ -262,15 +262,15 @@ namespace Engine {
 			if (r->special==Special::Plain                      ) { rule_tgts.shorten_by(n_skip) ;         return Buildable::Maybe ; } // skip special rules (rule_tgts is stored reversed, so ...
 			if (known_rejected.contains(rt)                     ) { n_skip++ ;                             continue                ; } // ... shorten_by suppresses initial chunk)
 			if (!rt.pattern().can_match(name_,Maybe/*chk_psfx*/)) { n_skip++ ; known_rejected.insert(rt) ; continue                ; } // rule is pre-filtered, so dont match prefix and ...
-			rule_tgts = ::vector<RuleTgt>({rt}) ;                                                                                  // ... suffix, check size as pfx and sfx could overlap
+			rule_tgts = ::vector<RuleTgt>({rt}) ;                                                                                      // ... suffix, check size as pfx and sfx could overlap
 			switch (r->special) {
 				case Special::Codec      : return Buildable::Codec   ;
 				case Special::Anti       : return Buildable::DynAnti ;
 				case Special::GenericSrc : return Buildable::DynSrc  ;
-			DF}                                                                                                                    // NO_COV
+			DF}                                                                                                                        // NO_COV
 		}
 		rule_tgts.clear() ;
-		return Buildable::Maybe ;                                                                                                  // node may be buildable from dir
+		return Buildable::Maybe ;                                                                                                      // node may be buildable from dir
 	}
 
 	// instantiate rule_tgts into job_tgts by taking the first iso-prio chunk and set rule_tgts accordingly
@@ -469,11 +469,11 @@ namespace Engine {
 		if ( ReqInfo& dri = dir->req_info(req) ; !dir->done(dri,ri.goal) ) {                              // fast path : no need to call make if dir is done
 			if (!dri.waiting()) {
 				ReqInfo::WaitInc sav_n_wait{ri} ;                                                         // appear waiting in case of recursion loop (loop will be caught because of no job on going)
-				dir->asking = idx() ;
 				MakeAction dma = query ? MakeAction::Query : ri.goal<=NodeGoal::Status ? MakeAction::Status : MakeAction::Dsk ;
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				dir->make( dri , dma , ri.speculate ) ;
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				/**/                                         dir->last_asking  = idx() ;
+				if ( dir->make( dri , dma , ri.speculate ) ) dir->build_asking = idx() ;
+				//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 			trace("dir",dir,STR(dir->done(dri,NodeGoal::Status)),ri) ;
 			//
@@ -542,10 +542,7 @@ namespace Engine {
 			} else {
 				trace("no_src",ri.goal,crc,actual_job) ;
 				if (crc!=Crc::None) {
-					if (+actual_job) {
-						polluted      = Polluted::Job ;            // disk has been modified, actual_job cannot be the official job
-						polluting_job = actual_job    ;
-					}
+					if (+actual_job) polluted = Polluted::Job ;    // disk has been modified, actual_job cannot be the official job
 					set_crc_date(Crc::None) ;                      // if not physically unlinked, node will be manual
 					actual_job = {} ;
 				}
@@ -576,7 +573,7 @@ namespace Engine {
 		ri.single   = true             ;                                                                                                          // .
 		return true ;
 	}
-	void NodeData::_do_make( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
+	bool/*triggered*/ NodeData::_do_make( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
 		RuleIdx            prod_idx       = NoIdx                              ;
 		Req                req            = ri.req                             ;
 		::array<RuleIdx,2> multi          = {NoIdx,NoIdx}                      ;
@@ -585,6 +582,7 @@ namespace Engine {
 		bool               chk_regenerate = false                              ;                                      // anti infinite loop : may only regenerate once
 		RejectSet/*lazy*/  known_rejected { self }                             ;
 		::string/*lazy*/   name_          ;                                                                           // = name()
+		bool               triggered      = false                              ;
 		Trace trace("Nmake",idx(),ri,make_action) ;
 		ri.speculate &= speculate ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -655,40 +653,41 @@ namespace Engine {
 						JobTgt      jt     = *it               ;
 						JobReason   reason ;
 						JobReqInfo& jri    = jt->req_info(req) ;
-						if (buildable!=Buildable::Codec) {                                                                              // codec files are managed so as to be always correct
+						if (buildable!=Buildable::Codec) {                                                                         // codec files are managed so as to be always correct
 							if (busy) {
-									/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
+									/**/                                 reason = {JobReasonTag::BusyTarget    ,+idx()} ;
 							} else if (+polluted) {
 								if (crc==Crc::None) {
-									/**/                      reason = {JobReasonTag::NoTarget      ,+idx()} ;
+									/**/                                 reason = {JobReasonTag::NoTarget      ,+idx()} ;
 								} else switch (polluted) {
-									case Polluted::Old      : reason = {JobReasonTag::OldTarget     ,+idx()} ; break ;
-									case Polluted::PreExist : reason = {JobReasonTag::PrevTarget    ,+idx()} ; break ;
-									case Polluted::Job      : reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;                  // polluting job is already set
-								DF}                                                                                                     // NO_COV
-							} else if (ri.goal!=NodeGoal::Status) {                                                                     // dont check disk if asked for Status
+									case Polluted::Old      :            reason = {JobReasonTag::OldTarget     ,+idx()} ; break ;
+									case Polluted::PreExist :            reason = {JobReasonTag::PrevTarget    ,+idx()} ; break ;
+									case Polluted::Job      :            reason = {JobReasonTag::PollutedTarget,+idx()} ; break ;  // polluting job is already set
+								DF}                                                                                                // NO_COV
+							} else if (ri.goal!=NodeGoal::Status) {                                                                // dont check disk if asked for Status
 								if (jt->running(true/*with_zombies*/))
-									/**/                      reason = {JobReasonTag::BusyTarget    ,+idx()} ;
+									/**/                                 reason = {JobReasonTag::BusyTarget    ,+idx()} ;
 								else switch (manual_wash(ri,false/*query*/,false/*dangling*/)) {
-									case Manual::Ok         :                                                  break ;
-									case Manual::Unlnked    : reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
+									case Manual::Ok         :                                                             break ;
+									case Manual::Unlnked    :            reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;
 									case Manual::Empty      :
-									case Manual::Modif      : reason = {JobReasonTag::ManualTarget  ,+idx()} ; break ;
-								DF}                                                                                                     // NO_COV
+									case Manual::Modif      :            reason = {JobReasonTag::ManualTarget  ,+idx()} ; break ;
+								DF}                                                                                                // NO_COV
 							}
 							if (+reason) {
-								if ( jri.done() && !jt.produces(idx()) )             reason =  JobReasonTag::None                   ;   // job cannot do much if we know it does not produce us
-							} else if ( !has_actual_job(jt) && jt.produces(idx(),true/*actual*/) ) {                                    // ensure we dont let go a node with the wrong job
-								if (has_actual_job()) { polluting_job = actual_job ; reason = {JobReasonTag::PollutedTarget,+idx()} ; }
-								else                                                 reason = {JobReasonTag::NoTarget      ,+idx()} ;
+								if ( jri.done() && !jt.produces(idx()) ) reason = JobReasonTag::None                    ;          // job cannot do much if we know it does not produce us
+							} else if ( !has_actual_job(jt) && jt.produces(idx(),true/*actual*/) ) {                               // ensure we dont let go a node with the wrong job
+								if (has_actual_job()                   ) reason = {JobReasonTag::PollutedTarget,+idx()} ;
+								else                                     reason = {JobReasonTag::NoTarget      ,+idx()} ;
 							}
 						}
 						if (ri.live_out) jri.live_out = ri.live_out ;                                                              // transmit user request to job for last level live output
-						jt->asking() = idx() ;
-						//                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						if      (!query ) jt->make( jri , JobMakeAction::Status , reason , ri.speculate ) ;
-						else if (!reason) jt->make( jri , JobMakeAction::Query  , reason , ri.speculate ) ;                        // if we have a reason to run job, answer to query is known
-						//                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						// if we have a reason to run job, answer to query is known
+						//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv triggered
+						/**/                                                                                                 jt->last_asking () = idx() ;
+						if      (!query ) { if ( jt->make( jri , JobMakeAction::Status , reason , ri.speculate ).second  ) { jt->build_asking() = idx() ; triggered = true ; } }
+						else if (!reason) { if ( jt->make( jri , JobMakeAction::Query  , reason , ri.speculate ).second  ) { jt->build_asking() = idx() ; triggered = true ; } }
+						//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						trace("job",ri,STR(query),jt,STR(jri.waiting()),STR(jt.produces(idx())),polluted,STR(busy)) ;
 						if      (jri.waiting()     )   jt->add_watcher(jri,idx(),ri,ri.pressure) ;
 						else if (!jri.done()       ) { SWEAR(query) ; goto Wait ;                                                }
@@ -736,6 +735,7 @@ namespace Engine {
 	Wait :
 		if (stop_speculate) _propag_speculate(ri) ;
 		trace("done",ri) ;
+		return triggered ;
 	}
 
 	void NodeData::_propag_speculate(ReqInfo const& cri) const {

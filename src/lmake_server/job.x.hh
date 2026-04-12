@@ -419,9 +419,9 @@ namespace Engine {
 		// cxtors & casts
 	public :
 		JobData() = delete ;
-		JobData( JobName n                                       ) : JobDataBase{n}                                       {                     }
-		JobData( JobName n , Special sp , Deps ds={}             ) : JobDataBase{n} , deps{ds } , rule_crc{Rule(sp)->crc} {                     } // special Job, all deps
-		JobData( JobName n , Rule::RuleMatch const& m , Deps sds ) : JobDataBase{n} , deps{sds} , rule_crc{m.rule->crc  } { _reset_targets(m) ; } // plain Job, static targets and deps
+		JobData( JobName n                                       ) : JobDataBase{n}                                            {                     }
+		JobData( JobName n , Special sp , Deps ds={}             ) : JobDataBase{n} , deps{ds } , rule_crc_idx{+Rule(sp)->crc} {                     } // special Job, all deps
+		JobData( JobName n , Rule::RuleMatch const& m , Deps sds ) : JobDataBase{n} , deps{sds} , rule_crc_idx{+m.rule->crc  } { _reset_targets(m) ; } // plain Job, static targets and deps
 		//
 		JobData           (JobData&& jd) ;
 		~JobData          (            ) ;
@@ -437,29 +437,30 @@ namespace Engine {
 		bool has_targets() const { return rule()->special>=Special::HasTargets ; }
 		bool is_dep     () const { return rule()->special==Special::Dep        ; }
 		//
-		Node             & asking    ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.asking                   ; }
-		Node        const& asking    () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.asking                   ; }
-		Targets          & targets   ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.targets                  ; }
-		Targets     const& targets   () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.targets                  ; }
-		CoarseDelay      & exe_time  ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.exe_time                 ; }
-		CoarseDelay const& exe_time  () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.exe_time                 ; }
-		CoarseDelay        c_exe_time() const {                                          ; return has_targets() ? _if_plain.exe_time : CoarseDelay() ; }
-		CoarseDelay      & cost      ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                     ; }
-		CoarseDelay const& cost      () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                     ; }
-		CoarseDelay        c_cost    () const {                                          ; return has_targets() ? _if_plain.cost     : CoarseDelay() ; }
-		Tokens1          & tokens1   ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.tokens1                  ; }
-		Tokens1     const& tokens1   () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.tokens1                  ; }
-		Fd               & fd        ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                       ; }
-		Fd          const& fd        () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                       ; }
-		SeqId            & seq_id    ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .seq_id                   ; }
-		SeqId       const& seq_id    () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .seq_id                   ; }
-		Job              & asking_job()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
-		Job         const& asking_job() const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
+		RuleCrc            rule_crc    () const {                                            return RuleCrc(rule_crc_idx)                              ; }
+		Node             & last_asking ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.last_asking              ; }
+		Node        const& last_asking () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.last_asking              ; }
+		Node             & build_asking()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.build_asking             ; }
+		Node        const& build_asking() const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.build_asking             ; }
+		Targets          & targets     ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.targets                  ; }
+		Targets     const& targets     () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.targets                  ; }
+		CoarseDelay      & exe_time    ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.exe_time                 ; }
+		CoarseDelay const& exe_time    () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.exe_time                 ; }
+		CoarseDelay        c_exe_time  () const {                                          ; return has_targets() ? _if_plain.exe_time : CoarseDelay() ; }
+		CoarseDelay      & cost        ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                     ; }
+		CoarseDelay const& cost        () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                     ; }
+		CoarseDelay        c_cost      () const {                                          ; return has_targets() ? _if_plain.cost     : CoarseDelay() ; }
+		Fd               & fd          ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                       ; }
+		Fd          const& fd          () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                       ; }
+		SeqId            & seq_id      ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .seq_id                   ; }
+		SeqId       const& seq_id      () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .seq_id                   ; }
+		Job              & asking_job  ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
+		Job         const& asking_job  () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
 		//
 		CoarseDelay phy_exe_time() const { return cache_hit_info<=CacheHitInfo::Hit ? CoarseDelay() : exe_time() ; }
 		//
 		Job      idx () const { return Job::s_idx(self) ; }
-		Rule     rule() const { return rule_crc->rule   ; }                                                                       // thread-safe
+		Rule     rule() const { return rule_crc()->rule ; }                                                                       // thread-safe
 		::string name() const {
 			::string res ;
 			if ( Rule r=rule() ; +r )   res = full_name(r->job_sfx_len()) ;
@@ -475,19 +476,19 @@ namespace Engine {
 		::vector<Req>  running_reqs( bool with_zombies=true , bool hit_ok=false ) const ;
 		bool           running     ( bool with_zombies=true , bool hit_ok=false ) const ;                                         // fast implementation of +running_reqs(...)
 		//
-		bool cmd_ok  (                    ) const { return                      rule_crc->state<=RuleCrcState::CmdOk ; }
-		bool is_plain(bool frozen_ok=false) const { return rule()->is_plain() && (frozen_ok||!idx().frozen())        ; }
+		bool cmd_ok  (                    ) const { return rule_crc()->state<=RuleCrcState::CmdOk             ; }
+		bool is_plain(bool frozen_ok=false) const { return rule()->is_plain() && (frozen_ok||!idx().frozen()) ; }
 		bool has_req (Req                 ) const ;
 		bool rsrcs_ok(bool local_flag     ) const {
 			if ( is_ok(status)  !=No                                           ) return true  ;                                   // dont care about rsrcs if job went ok
-			if ( rule_crc->state!=RuleCrcState::Ok                             ) return false ;
+			if ( rule_crc()->state!=RuleCrcState::Ok                           ) return false ;
 			if ( +local_reason && !local_flag && g_config->has_remote_backends ) return false ;                                   // if job ran locally, resources may have been lacking
 			/**/                                                                 return true  ;
 		}
 		//
 		void set_exec_ok() {                                                                                                      // set official rule_crc (i.e. with the right cmd and rsrcs crc's)
 			Rule r = rule() ; SWEAR( r->is_plain() , r->special ) ;
-			rule_crc = r->crc ;
+			rule_crc_idx = +r->crc ;
 		}
 		//
 		bool sure   () const ;
@@ -529,7 +530,7 @@ namespace Engine {
 			_propag_speculate(ri) ;
 		}
 		//
-		JobReason/*err*/ make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , bool wakeup_watchers=true ) ;
+		::pair<JobReason,bool/*triggered*/> make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , bool wakeup_watchers=true ) ;
 		//
 		void wakeup(ReqInfo& ri) { make(ri,MakeAction::Wakeup) ; }
 		//
@@ -546,19 +547,19 @@ namespace Engine {
 	private :
 		void _propag_speculate(ReqInfo const&) const ;
 		//
-		void                   _submit_codec   ( Req                             )       ;
-		void                   _submit_req     ( Req                             )       ;
-		bool/*maybe_new_deps*/ _submit_special ( ReqInfo&                        )       ;
-		bool/*maybe_new_deps*/ _submit_plain   ( ReqInfo& , CoarseDelay pressure )       ;
-		void                   _do_set_pressure( ReqInfo& , CoarseDelay          ) const ;
+		void                                             _submit_codec   ( Req                             )       ;
+		void                                             _submit_req     ( Req                             )       ;
+		::pair<bool/*maybe_new_deps*/,bool/*triggered*/> _submit_special ( ReqInfo&                        )       ;
+		::pair<bool/*maybe_new_deps*/,bool/*triggered*/> _submit_plain   ( ReqInfo& , CoarseDelay pressure )       ;
+		void                                             _do_set_pressure( ReqInfo& , CoarseDelay          ) const ;
 		// data
 		// START_OF_VERSIONING REPO
 		struct IfPlain {
-			Node        asking   ;                                    //       32 bits,        last target needing this job
-			Targets     targets  ;                                    //       32 bits, owned, for plain jobs
-			CoarseDelay exe_time ;                                    //       16 bits,        for plain jobs
-			CoarseDelay cost     ;                                    //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
-			Tokens1     tokens1  = 0 ;                                //        8 bits,        number of tokens - 1 for eta estimation
+			Node        build_asking ;                                //       32 bits,        node need this job that triggered rebuild
+			Node        last_asking  ;                                //       32 bits,        last node needing this job
+			Targets     targets      ;                                //       32 bits, owned, for plain jobs
+			CoarseDelay exe_time     ;                                //       16 bits,        for plain jobs
+			CoarseDelay cost         ;                                //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
 		} ;
 		struct IfDep {
 			SeqId seq_id     = 0 ;                                    //       64 bits
@@ -568,14 +569,15 @@ namespace Engine {
 	public :
 	//	JobName          name                               ;         //       32 bits, inherited
 		Deps             deps                               ;         //  31<= 32 bits, owned
-		RuleCrc          rule_crc                           ;         //       32 bits
+		RuleCrcIdx       rule_crc_idx  :NRuleCrcIdxBits     = 0     ; //       24 bits
 		mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
+		Tokens1          tokens1                            = 0     ; //        8 bits
 		RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
 		Status           status        :NBits<Status      > = {}    ; //        5 bits
-		BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
 		CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
-		bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
+		BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
 		LocalReason      local_reason  :2                   = {}    ; //        2 bits,           job was last forced to run locally
+		bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
 	private :
 		mutable bool _sure          :1 = false ;                      //        1 bit
 		Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
@@ -684,7 +686,7 @@ namespace Engine {
 	inline void JobData::record_stats( Delay exe_time_ , CoarseDelay cost_ , Tokens1 tokens1_ ) { // only called in end, so cost stays stable during job execution
 		exe_time()      = exe_time_ ;
 		cost    ()      = cost_     ;
-		tokens1 ()      = tokens1_  ;
+		tokens1         = tokens1_  ;
 		_reliable_stats = Yes       ;
 		rule()->new_job_report( exe_time_ , cost_ , tokens1_ ) ;
 	}

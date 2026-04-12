@@ -117,7 +117,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="k">class</span> <span class="nc">Dep</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dep&#39;</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;echo </span><span class="si">{step}</span><span class="s1">&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;echo </span><span class="si">{step}</span><span class="s1">&#39;</span>
 
     <span class="k">class</span> <span class="nc">Dut1</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut1&#39;</span>
@@ -125,7 +125,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="k">class</span> <span class="nc">Dut2</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut2&#39;</span>
-        <span class="n">deps</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DUT1&#39;</span> <span class="p">:</span> <span class="s1">&#39;dut1&#39;</span> <span class="p">}</span>
+        <span class="n">deps</span>   <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DUT1&#39;</span> <span class="p">:</span> <span class="s1">&#39;dut1&#39;</span> <span class="p">}</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
 <span class="s1">            if   [ $(cat dep) = 1 ]</span>
 <span class="s1">            then echo bad ; echo bad &gt; dut1</span>
@@ -136,7 +136,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="k">class</span> <span class="nc">Chk</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
         <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;chk&#39;</span>
         <span class="n">deps</span>   <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DUT&#39;</span> <span class="p">:</span> <span class="s1">&#39;dut2&#39;</span> <span class="p">}</span>
-        <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;[ $(cat </span><span class="si">{DUT}</span><span class="s1">) = good ]&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;[ $(cat </span><span class="si">{DUT}</span><span class="s1">) = good ]&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
