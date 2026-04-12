@@ -44,7 +44,7 @@ namespace Re {
 			,	&err_code , &err_pos
 			,	nullptr/*context*/
 			) ;
-			#if 0 && defined(PCRE2_CONFIG_JIT)
+			#ifdef PCRE2_CONFIG_JIT
 				::pcre2_jit_compile( code , PCRE2_JIT_COMPLETE ) ; // best effort, if there is an error, the code will work anyway
 			#endif
 			if (!code) throw cat(_s_err_msg(err_code)," at position ",err_pos) ;

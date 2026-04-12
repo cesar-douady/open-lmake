@@ -265,8 +265,6 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* understand when pcre2 JIT features is efficient
-	- seems to degrade perfs when regexpr is plain '.*'
 * avoid computing deps on disk for cached jobs
 	- make status is enough as downloading does not require deps on disk
 	- split a cache.download() into :

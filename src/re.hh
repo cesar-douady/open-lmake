@@ -145,7 +145,7 @@ namespace Re {
 					//
 					SWEAR_PROD(!_cache) ;
 					for( size_t i : iota(keys.size()) ) {
-						#if 0 && defined(PCRE2_CONFIG_JIT)
+						#ifdef PCRE2_CONFIG_JIT
 							::pcre2_jit_compile( codes[i] , PCRE2_JIT_COMPLETE ) ;   // best effort, if there is an error, the code will work anyway
 						#endif
 						bool inserted = _cache.try_emplace(keys[i],codes[i],Use::Unused).second ; SWEAR(inserted,keys[i]) ;
