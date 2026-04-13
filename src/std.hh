@@ -135,6 +135,7 @@ using std::popcount                               ;
 using std::remove_const_t                         ;
 using std::remove_reference_t                     ;
 using std::rethrow_exception                      ;
+using std::reverse                                ;
 using std::set                                    ;
 using std::set_terminate                          ;
 using std::shared_mutex                           ;

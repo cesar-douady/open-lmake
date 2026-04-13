@@ -1076,7 +1076,28 @@ Status Gather::_exec_child() {
 							break ;
 							case Proc::AccessPattern :
 								trace(kind,fd,proc,jerr.date,jerr.digest,jerr.files) ;
-								for( auto const& [f,_] : jerr.files ) add_star_match( {f/*pattern*/,true/*cache*/} , ::pair(jerr.date,jerr.digest.flags) ) ;
+								for( auto const& [f,_] : jerr.files ) {
+									MatchFlags flags = jerr.digest.flags ;
+									Comment c = +flags.tflags || +flags.extra_tflags ? Comment::Target : Comment::Depend ;
+									::string msg ;
+									if ( +flags.dflags || +flags.extra_dflags ) {
+										First first ;
+										/**/                                                              msg << "deps : "                             ;
+										if (+flags.dflags      ) { ::string s = cat(flags.dflags      ) ; msg << first("",",")<<s.substr(1,s.size()-2) ; }
+										if (+flags.extra_dflags) { ::string s = cat(flags.extra_dflags) ; msg << first("",",")<<s.substr(1,s.size()-2) ; }
+										/**/                                                              msg << first(""," ")                         ;
+									}
+									if ( +flags.tflags || +flags.extra_tflags ) {
+										First first ;
+										/**/                                                              msg << "targets : "                          ;
+										if (+flags.tflags      ) { ::string s = cat(flags.tflags      ) ; msg << first("",",")<<s.substr(1,s.size()-2) ; }
+										if (+flags.extra_tflags) { ::string s = cat(flags.extra_tflags) ; msg << first("",",")<<s.substr(1,s.size()-2) ; }
+										/**/                                                              msg << first(""," ")                         ;
+									}
+									msg << f ;
+									_user_trace( jerr.date , c , CommentExt::RegExpr , msg ) ;
+									add_star_match( {f/*pattern*/,true/*cache*/} , ::pair(jerr.date,jerr.digest.flags) ) ;
+								}
 							break ;
 						DF}                                                                                                                            // NO_COV
 						if (sync_) sync( fd , ::move(jerr).mimic_server() ) ;

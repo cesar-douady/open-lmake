@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 41      ; // 18b249d3bf48cc386b4fc49210b9a042
+	uint64_t    constexpr Cache = 41      ; // 5a00145961eb273e2ac5dc81f9b22bf0
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 43      ; // 0acb2f30da33404e72e022488ef25339
-	uint64_t    constexpr Job   = 19      ; // 694539b60be5a63b7a4d6ef5bd5972b9
+	uint64_t    constexpr Repo  = 43      ; // 4f8ac47997336692ca1ee35e99d8d56f
+	uint64_t    constexpr Job   = 19      ; // 7fd43d3cf21643b943bde5f2bf693c00
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 18b249d3bf48cc386b4fc49210b9a042 *
+// * Cache : 5a00145961eb273e2ac5dc81f9b22bf0 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -890,6 +890,7 @@ namespace Version {
 //	,	Unlink   // not Unlnk as name is seen by user
 //	,	Verbose
 //	,	Write
+//	,	RegExpr  // XXX : sort when version can be incremented
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
@@ -1090,7 +1091,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 0acb2f30da33404e72e022488ef25339 *
+// * Repo : 4f8ac47997336692ca1ee35e99d8d56f *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2382,6 +2383,7 @@ namespace Version {
 //	,	Unlink   // not Unlnk as name is seen by user
 //	,	Verbose
 //	,	Write
+//	,	RegExpr  // XXX : sort when version can be incremented
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
@@ -2435,7 +2437,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 694539b60be5a63b7a4d6ef5bd5972b9 *
+// * Job : 7fd43d3cf21643b943bde5f2bf693c00 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2818,6 +2820,7 @@ namespace Version {
 //	,	Unlink   // not Unlnk as name is seen by user
 //	,	Verbose
 //	,	Write
+//	,	RegExpr  // XXX : sort when version can be incremented
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING

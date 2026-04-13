@@ -179,7 +179,7 @@ namespace Re {
 			// cxtors & casts
 			RegExpr() = default ;
 			RegExpr( Pattern  const& pattern , bool cache ) ;
-			RegExpr( ::string const& pattern , bool cache ) : RegExpr{{{pattern,No}},cache} {}
+			RegExpr( ::string const& pattern , bool cache ) ;
 			//
 			RegExpr           (RegExpr&& re) : _RegExprBits{::move(re)} {                                                 re._code = nullptr ;               }
 			RegExpr& operator=(RegExpr&& re)                            { close() ; _RegExprBits::operator=(::move(re)) ; re._code = nullptr ; return self ; }
@@ -237,7 +237,7 @@ namespace Re {
 			static Cache s_cache ;
 			// cxtors & casts
 			RegExpr( Pattern  const& pattern , bool /*cache*/ ) : ::regex{_s_mk_pattern(pattern),Flags} , _has_stems{_s_mk_has_stems(pattern)} {} // cache is ignored as no cache is implemented
-			RegExpr( ::string const& pattern , bool /*cache*/ ) : ::regex{pattern               ,Flags}                                        {}
+			RegExpr( ::string const& pattern , bool /*cache*/ ) : ::regex{              pattern ,Flags}                                        {}
 			//
 			RegExpr           (         ) = default ;
 			RegExpr           (RegExpr&&) = default ;

@@ -82,6 +82,8 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* manage pcre timeout
+	- call match_limit
 ! improve address resolution
 	- as of today, each host is supposed to have a single address
 		- this is not necessarily the case on all network configs

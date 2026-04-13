@@ -296,6 +296,7 @@ enum class CommentExt : uint8_t {
 ,	Unlink   // not Unlnk as name is seen by user
 ,	Verbose
 ,	Write
+,	RegExpr  // XXX : sort when version can be incremented
 } ;
 using CommentExts = BitMap<CommentExt> ;
 // END_OF_VERSIONING

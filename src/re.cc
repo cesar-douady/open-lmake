@@ -13,28 +13,104 @@ namespace Re {
 
 	RegExpr::Cache RegExpr::s_cache ;
 
+	// for details, refer to https://www.pcre.org/current/doc/html/pcre2pattern.html, under chapter CHARACTERS AND METACHARACTERS
+
+	static constexpr ::array<bool,256> _EscapeIsQuantifier = []() {
+		::array<bool,256> res = {} ;
+		for( char const* p = "*+?{" ; *p ; p++ ) res[*p] = true ; // { is the start of a quantifier
+		return res ;
+	}() ;
+
+	static constexpr ::array<bool,256> _EscapeIsSpecial = []() {
+		::array<bool,256> res = {} ;
+		for( char const* p = "()[].*+?|\\{}^$" ; *p ; p++ ) res[*p] = true ; // ] and } is necessary to analyze suffix in split_pattern
+		return res ;
+	}() ;
+
 	::string escape(::string const& s) {
-		static constexpr ::array<bool,256> IsSpecial = []() {
-			::array<bool,256> res = {} ;
-			for( char const* p = "()[.*+?|\\{^$" ; *p ; p++ ) res[*p] = true ; // list from https://www.pcre.org/current/doc/html/pcre2pattern.html, under chapter CHARACTERS AND METACHARACTERS
-			return res ;
-		}() ;
-		::string res ; res.reserve(s.size()+(s.size()>>4)) ;                   // take a little margin for escapes
+		::string res ; res.reserve(s.size()+(s.size()>>4)) ; // take a little margin for escapes
 		for( char c : s ) {
-			if (IsSpecial[c]) res += '\\' ;                                    // escape specials
-			/**/              res += c    ;
+			if (_EscapeIsSpecial[uint8_t(c)]) res += '\\' ;  // escape specials
+			/**/                              res += c    ;
 		}
 		return res ;
 	}
 
 	#if HAS_PCRE
 
+		static bool _is_alphanum(char c) {
+			if ( '0'<=c && c<='9' ) return true  ;
+			if ( 'a'<=c && c<='z' ) return true  ;
+			if ( 'A'<=c && c<='Z' ) return true  ;
+			/**/                    return false ;
+		}
+		static Pattern _mk_pattern(::string const& s) {
+			Pattern res   { {{},Maybe} , {{},No} , {{},Maybe} } ;
+			size_t  start = 0                                   ;
+			size_t  end   = s.size()                            ;
+			// analyze prefix
+			for(; start<end ; start++ ) {
+				char c     = s[start  ] ;
+				char c1    = s[start+1] ;
+				char is_bs = c=='\\'    ;
+				if (is_bs) {
+					c  = c1         ;
+					c1 = s[start+2] ;
+					switch (c) {
+						case 0   : if (start==end-1) goto Done ; else break ;         // embedded 0 is not forbidden by pcre2, but ending backslash is left to pcre to analyze
+						case 'a' : c = '\a' ;                         break ;
+						case 'e' : c = 0x1b ;                         break ;         // escape
+						case 'f' : c = '\f' ;                         break ;
+						case 'n' : c = '\n' ;                         break ;
+						case 'r' : c = '\r' ;                         break ;
+						case 't' : c = '\t' ;                         break ;
+						default  : if (_is_alphanum(c1) ) goto Done ;                 // too many pitfalls to analyze suffix
+					}
+				} else if (_EscapeIsSpecial[uint8_t(c)])
+					goto DoneStart ;
+				if (_EscapeIsQuantifier[uint8_t(c1)])                                 // beware of (possibly escaped) plain char appearing as fixed, but followed by a quantifier
+					goto DoneStart ;
+				res[0].first += c     ;
+				start        += is_bs ;                                               // clobber backslash
+			}
+			goto Done ;                                                               // fixed pattern, no suffix
+		DoneStart :
+			// avoid fancy escapes
+			for( size_t backslash=start ; backslash<end ; backslash++ ) {
+				if ( s[backslash]=='\\' && _is_alphanum(s[backslash+1]) ) goto Done ; // too many pitfalls to analyze suffix
+			}
+			// analyze suffix
+			for(; start+1<end ; end-- ) {                                             // s[start] cannot be plain, so we can stop suffix analysis one char further
+				char c  = s[end-1] ;
+				char c1 = s[end-2] ;
+				if (c1=='\\') {
+					switch (c) {
+						case 'a' : c = '\a' ; break ;
+						case 'e' : c = 0x1b ; break ;                                 // escape
+						case 'f' : c = '\f' ; break ;
+						case 'n' : c = '\n' ; break ;
+						case 'r' : c = '\r' ; break ;
+						case 't' : c = '\t' ; break ;
+						default  : SWEAR( !_is_alphanum(c) , c ) ;                    // fancy escapes have been avoided
+					}
+					end-- ;                                                           // clobber backslash
+				} else {
+					if (_EscapeIsSpecial[uint8_t(c)]) break ;
+				}
+				res[2].first += c ;                                                   // accumulate in reverse order
+			}
+			::reverse( res[2].first.begin() , res[2].first.end() ) ;                  // straighten out
+		Done :
+			res[1].first = s.substr(start,end-start) ;
+			return res ;
+		}
+
 		::pcre2_code* RegExpr::_s_compile(::string const& infix) {
 			#if HAS_PCRE_ENDANCHORED
 				::string const& infix_for_compile = infix ;
 			#else
 				#define PCRE2_ENDANCHORED 0
-				::string infix_for_compile = infix+'$' ;           // work around missing flag
+				::string infix_for_compile = infix+'$' ;                              // work around missing flag
 			#endif
 			int         err_code = 0 ;
 			PCRE2_SIZE  err_pos  = 0 ;
@@ -45,7 +121,7 @@ namespace Re {
 			,	nullptr/*context*/
 			) ;
 			#ifdef PCRE2_CONFIG_JIT
-				::pcre2_jit_compile( code , PCRE2_JIT_COMPLETE ) ; // best effort, if there is an error, the code will work anyway
+				::pcre2_jit_compile( code , PCRE2_JIT_COMPLETE ) ;                    // best effort, if there is an error, the code will work anyway
 			#endif
 			if (!code) throw cat(_s_err_msg(err_code)," at position ",err_pos) ;
 			return code ;
@@ -53,8 +129,14 @@ namespace Re {
 		::pcre2_code const* RegExpr::Cache::insert(::string const& infix) {
 			::pair                           it_inserted = _cache.try_emplace(infix) ;
 			::pair<::pcre2_code const*,Use>& entry       = it_inserted.first->second ;
-			if      (it_inserted.second       ) { entry        = {_s_compile(infix),Use::New} ; _n_new   ++ ; }
-			else if (entry.second==Use::Unused) { entry.second = Use::Old                     ; _n_unused-- ; }
+			if (it_inserted.second) {
+				try                     { entry = {_s_compile(infix),Use::New} ;    }
+				catch (::string const&) { _cache.erase(it_inserted.first) ; throw ; } // do not insert errors in cache
+				_n_new++ ;
+			} else if (entry.second==Use::Unused) {
+				entry.second = Use::Old ;
+				_n_unused-- ;
+			}
 			return entry.first ;
 		}
 
@@ -70,14 +152,14 @@ namespace Re {
 				return ;
 			}
 			if (end==start+1) {
-				if (pattern[start].first==".*") {
+				if ( pattern[start].first==".*" || pattern[start].first==".*?" ) {
 					switch (pattern[start].second) {
 						case Yes : _special = Special::AnyCapture   ; break ;
 						case No  : _special = Special::AnyNoCapture ; break ;
 					DF}                                                            // NO_COV
 					return ;
 				}
-				if (pattern[start].first==".+") {
+				if ( pattern[start].first==".+" || pattern[start].first==".+?" ) {
 					switch (pattern[start].second) {
 						case Yes : _special = Special::NonEmptyCapture   ; break ;
 						case No  : _special = Special::NonEmptyNoCapture ; break ;
@@ -106,6 +188,8 @@ namespace Re {
 				SWEAR(::pcre2_get_ovector_count(_data.p)>0) ;
 			#endif
 		}
+
+		RegExpr::RegExpr( ::string const& pattern , bool cache ) : RegExpr{_mk_pattern(pattern),cache} {}
 
 		size_t RegExpr::n_marks() const {
 			switch (_special) {
