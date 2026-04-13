@@ -15,12 +15,6 @@ namespace Re {
 
 	// for details, refer to https://www.pcre.org/current/doc/html/pcre2pattern.html, under chapter CHARACTERS AND METACHARACTERS
 
-	static constexpr ::array<bool,256> _EscapeIsQuantifier = []() {
-		::array<bool,256> res = {} ;
-		for( char const* p = "*+?{" ; *p ; p++ ) res[*p] = true ; // { is the start of a quantifier
-		return res ;
-	}() ;
-
 	static constexpr ::array<bool,256> _EscapeIsSpecial = []() {
 		::array<bool,256> res = {} ;
 		for( char const* p = "()[].*+?|\\{}^$" ; *p ; p++ ) res[*p] = true ; // ] and } is necessary to analyze suffix in split_pattern
@@ -38,6 +32,12 @@ namespace Re {
 
 	#if HAS_PCRE
 
+		static constexpr ::array<bool,256> _EscapeIsQuantifier = []() {
+			::array<bool,256> res = {} ;
+			for( char const* p = "*+?{" ; *p ; p++ ) res[*p] = true ; // { is the start of a quantifier
+			return res ;
+		}() ;
+
 		static bool _is_alphanum(char c) {
 			if ( '0'<=c && c<='9' ) return true  ;
 			if ( 'a'<=c && c<='z' ) return true  ;
@@ -52,7 +52,7 @@ namespace Re {
 			for(; start<end ; start++ ) {
 				char c     = s[start  ] ;
 				char c1    = s[start+1] ;
-				char is_bs = c=='\\'    ;
+				bool is_bs = c=='\\'    ;
 				if (is_bs) {
 					c  = c1         ;
 					c1 = s[start+2] ;
@@ -64,7 +64,7 @@ namespace Re {
 						case 'n' : c = '\n' ;                         break ;
 						case 'r' : c = '\r' ;                         break ;
 						case 't' : c = '\t' ;                         break ;
-						default  : if (_is_alphanum(c1) ) goto Done ;                 // too many pitfalls to analyze suffix
+						default  : if (_is_alphanum(c)) goto Done ;                   // too many pitfalls to analyze suffix
 					}
 				} else if (_EscapeIsSpecial[uint8_t(c)])
 					goto DoneStart ;

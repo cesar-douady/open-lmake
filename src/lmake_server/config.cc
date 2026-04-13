@@ -416,15 +416,12 @@ namespace Engine {
 				continue ;
 			}
 			res <<"\t\t"<< t <<" :\n" ;
-			::vmap_ss descr = bbe->descr() ;
-			size_t    w     = 0            ;
+			size_t w = 0 ;
 			if (+be.domain_name)              w = ::max( w , strlen("domain_name") ) ;
 			for( auto const& [k,v] : be.dct ) w = ::max( w , k.size()            ) ;
-			for( auto const& [k,v] : descr  ) w = ::max( w , k.size()            ) ;
 			//
 			if (+be.domain_name)              res <<"\t\t\t"<< widen("domain_name",w) <<" : " << be.domain_name <<'\n' ;
 			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k            ,w) <<" : " << v              <<'\n' ;
-			for( auto const& [k,v] : descr  ) res <<"\t\t\t"<< widen(k            ,w) <<" : " << v              <<'\n' ;
 			if (+be.env) {
 				res <<"\t\t\tenviron :\n" ;
 				size_t w2 = ::max<size_t>( be.env , [](auto const& k_v) { return k_v.first.size() ; } ) ;

@@ -128,7 +128,7 @@ static void _compute_crc_thread_func( size_t id , ::vector<NodeIdx> const* crcs 
 						/**/                     *msg << "\n  consider :"                                                                                ;
 						/**/                     *msg << "\n  - "<<g_start_info.rule<<".cmd             = <script that generates no such absolute path>" ;
 						/**/                     *msg << "\n  - "<<g_start_info.rule<<".repo_view       = '/repo'"                                       ;
-						if (+g_start_info.cache) *msg << "\n  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache= None"   ;
+						if (+g_start_info.cache) *msg << "\n  - "<<g_start_info.rule<<".check_abs_paths = False ; "<<g_start_info.rule<<".cache = None"  ;
 						else                     *msg << "\n  - "<<g_start_info.rule<<".check_abs_paths = False"                                         ;
 					}
 				}
@@ -154,7 +154,7 @@ static void _compute_crc_thread_func( size_t id , ::vector<NodeIdx> const* crcs 
 	Trace trace("compute_crcs",digest.crcs.size(),nws) ;
 	::string         msg ;
 	::vector<size_t> szs ( nws ) ;
-	if (nws==1) {                                                                         // fast path : avoid creating a single thread
+	if (nws==1) {                                                                                         // fast path : avoid creating a single thread
 		_compute_crc_thread_func( 0 , &digest.crcs , &digest.targets , &msg , &szs[0] ) ;
 	} else {
 		::vector<::jthread> workers ; workers.reserve(nws) ;
@@ -166,10 +166,10 @@ static void _compute_crc_thread_func( size_t id , ::vector<NodeIdx> const* crcs 
 }
 
 int main( int argc , char* argv[] ) {
-	Pdate    start_overhead  { New }        ;
-	uint64_t upload_key      = 0            ; // key used to identify temporary data uploaded to the cache
-	SeqId    trace_id        = 0/*garbage*/ ;
-	::string chroot_tag      ;
+	Pdate    start_overhead { New }        ;
+	uint64_t upload_key     = 0            ; // key used to identify temporary data uploaded to the cache
+	SeqId    trace_id       = 0/*garbage*/ ;
+	::string chroot_tag     ;
 	//
 	swear_prod(argc==9,argc) ;                // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ domain_name repo_root seq_id job_idx trace_file
 	//

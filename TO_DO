@@ -17,6 +17,8 @@ items (also used in XXX comments) :
 ****************************************************************************************************
 
 * bug Sylvain :
+	- resources.questa=1 does not work but resources.licenses='questa:1' is ok
+* bug Sylvain :
 	- foo a derived file needed by a job
 	- lmark -fa foo
 	- rm foo
@@ -25,6 +27,13 @@ items (also used in XXX comments) :
 	- git add foo
 	- lmark -fd foo
 	- crash
+* check :
+	- frozen does not exist
+	- lmake derived -> no rule (as it depends on frozen)
+	- lmark -af frozen
+	- lmake derived -> ok
+	- lmark -c
+	- lmake derived -> no rule
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
@@ -156,6 +165,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* add a stable_target rule attribute
+	- use it when cache upload is already cached : content must match
+	- when targets are reconstructed : crc must not change
+	- 3 levels : ok, warning or error
+	- default is warning with a consider to put ok or error
 ? consider rules taking locks :
 	- provide a llock command
 		- llock A B C sub-cmd

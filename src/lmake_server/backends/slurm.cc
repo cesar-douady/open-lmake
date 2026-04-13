@@ -145,6 +145,28 @@ namespace Backends::Slurm {
 				}
 				_slurm_env[i] = "" ;                             // slurm env is terminated with an empty string, not a nullptr
 			}
+			::string descr ;
+			::vmap_ss descr_map ;
+			if (+config_file      ) descr_map.emplace_back( "config"            ,     config_file                   ) ;
+			if (+lib_slurm        ) descr_map.emplace_back( "lib_slurm"         ,     lib_slurm                     ) ;
+			if (+init_timeout     ) descr_map.emplace_back( "init_timeout"      ,     init_timeout     .short_str() ) ;
+			if (+n_max_queued_jobs) descr_map.emplace_back( "n_max_queued_jobs" , cat(n_max_queued_jobs)            ) ;
+			if (+repo_key         ) descr_map.emplace_back( "repo_key"          ,     repo_key                      ) ;
+			/**/                    descr_map.emplace_back( "manage_mem"        , cat(daemon.manage_mem)            ) ;
+			{	size_t w = ::max<size_t>( descr_map , [](::pair_ss const& k_v) { return k_v.first.size() ; } ) ;
+				for( auto const& [k,v] : descr_map ) descr << widen(k,w)<<" : "<<v<<'\n' ;
+			}
+			if (+daemon.licenses) {
+				descr << "licenses :\n" ;
+				size_t w = ::max<size_t>( daemon.licenses , [](::pair_s<size_t> const& k_v) { return k_v.first.size() ; } ) ;
+				for( auto const& [k,v] : daemon.licenses ) descr << '\t'<<widen(k,w)<<" : "<<v<<'\n' ;
+			}
+			if (+env_) {
+				descr << "environ :\n" ;
+				size_t w = ::max<size_t>( env_ , [](::pair_ss const& k_v) { return k_v.first.size() ; } ) ;
+				for( auto const& [k,v] : env_ ) descr << '\t'<<widen(k,w)<<" : "<<v<<'\n' ;
+			}
+			AcFd( cat(AdminDirS,"slurm") , {O_WRONLY|O_CREAT|O_TRUNC} ).write( descr ) ;
 			trace("done") ;
 		}
 
@@ -178,14 +200,6 @@ namespace Backends::Slurm {
 			}
 			if (single) res.emplace_back( "<single>" , "1" ) ;
 			trace("done",res) ;
-			return res ;
-		}
-
-		::vmap_ss descr() const override {
-			::vmap_ss res {
-				{ "manage memory" , daemon.manage_mem?"true":"false" }
-			} ;
-			for( auto const& [k,v] : daemon.licenses ) res.emplace_back(k,::to_string(v)) ;
 			return res ;
 		}
 
