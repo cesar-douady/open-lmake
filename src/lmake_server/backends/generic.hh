@@ -237,18 +237,18 @@ namespace Backends {
 		} ;
 
 		// specialization
-		virtual void sub_config( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ ) {}      // NO_COV meant to be overridden
+		virtual void sub_config( ::vmap_ss const& /*dct*/ , ::vmap_ss const& /*env*/ ) {}                     // NO_COV meant to be overridden
 		//
 		virtual bool call_launch_after_start() const { return false ; }
 		virtual bool call_launch_after_end  () const { return false ; }
 		//
-		virtual void       acquire_rsrcs( Rsrcs     const&             ) const = 0 ;           // acquire asked resources
-		virtual ::string   lacking_rsrc ( RsrcsData const&             ) const { return {} ; } // true if job with such resources can be spawned eventually
-		virtual bool/*ok*/ fit_now      ( Rsrcs     const&             ) const = 0 ;           // true if job with such resources can be spawned now
-		virtual void       start_rsrcs  ( Rsrcs     const&             ) const {}              // handle resources at start of job
-		virtual void       end_rsrcs    ( Rsrcs     const&             ) const {}              // handle resources at end   of job
-		virtual ::vmap_ss  export_      ( RsrcsData const&             ) const = 0 ;           // export resources in   a publicly manageable form
-		virtual RsrcsData  import_      ( ::vmap_ss     && , Req , Job ) const = 0 ;           // import resources from a publicly manageable form
+		virtual void                      acquire_rsrcs( Rsrcs     const&             ) const = 0 ;           // acquire asked resources
+		virtual ::pair_ss/*msg,consider*/ lacking_rsrc ( RsrcsData const&             ) const { return {} ; } // if non-empty => job will never be able to be spawned
+		virtual bool/*ok*/                fit_now      ( Rsrcs     const&             ) const = 0 ;           // if true      => job with such resources can be spawned now
+		virtual void                      start_rsrcs  ( Rsrcs     const&             ) const {}              // handle resources at start of job
+		virtual void                      end_rsrcs    ( Rsrcs     const&             ) const {}              // handle resources at end   of job
+		virtual ::vmap_ss                 export_      ( RsrcsData const&             ) const = 0 ;           // export resources in   a publicly manageable form
+		virtual RsrcsData                 import_      ( ::vmap_ss     && , Req , Job ) const = 0 ;           // import resources from a publicly manageable form
 		//
 		virtual ::string                 start_job           ( Job , SpawnedEntry const&          ) const { return  {}                        ; } // NO_COV overridden
 		virtual ::pair_s<bool/*retry*/>  end_job             ( Job , SpawnedEntry const& , Status ) const { return {{},false/*retry*/       } ; } // NO_COV overridden
@@ -306,13 +306,17 @@ namespace Backends {
 		void submit( Job job , Req req , SubmitInfo const& submit_info , ::vmap_ss&& rsrcs ) override {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
 			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
-			SWEAR( !waiting_jobs.contains(job) , job,waiting_jobs ) ;                                                                                                // job must be a new one
+			SWEAR( !waiting_jobs.contains(job) , job,waiting_jobs ) ;                                                                                                 // job must be a new one
 			RsrcsData   rd       = import_(::move(rsrcs),req,job) ;
-			Rsrcs       rs       { New , rd }                     ; if ( ::string msg=lacking_rsrc(*rs) ; +msg ) throw cat(msg," to launch job ",Job(job)->name()) ;
-			ReqEntry&   re       = reqs.at(req)                   ; SWEAR(!re.waiting_jobs.contains(job)) ;                                                          // in particular for this req
+			Rsrcs       rs       { New , rd }                     ;
+			ReqEntry&   re       = reqs.at(req)                   ; SWEAR(!re.waiting_jobs.contains(job)) ;                                                           // in particular for this req
 			CoarseDelay pressure = submit_info.pressure           ;
 			Trace trace(BeChnl,"submit",rs,pressure) ;
 			//
+			if ( ::pair_ss msg=lacking_rsrc(*rs) ; +msg.first ) {
+				::string e = cat(msg.first," to launch job ",Job(job)->name()) ; if (+msg.second) e << "\n  consider : "<<msg.second ;
+				throw e ;
+			}
 			re.waiting_jobs[job] = pressure ;
 			waiting_jobs.emplace( job , WaitEntry(rs,submit_info,re.verbose) ) ;
 			re.waiting_queues[{New,rd.round(self)}].insert({pressure,job})     ;

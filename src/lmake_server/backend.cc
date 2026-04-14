@@ -212,7 +212,7 @@ namespace Backends {
 			tag   = Tag::Local                                                                 ;
 			trace("local",rsrcs) ;
 		}
-		throw_unless( s_ready(tag) , "local backend is not available" ) ;
+		throw_unless( s_ready(tag) , "backend ",tag," is not available" ) ;
 		_s_workload.submit(r,j) ;
 		s_tab[+tag]->submit(j,r,::move(submit_info),::move(rsrcs)) ;
 	}
