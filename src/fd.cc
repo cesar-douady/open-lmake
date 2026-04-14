@@ -19,7 +19,7 @@
 
 using namespace Time ;
 
-static constexpr bool ReuseAddr = false ; // XXX : need to do some trials to know if this is still required now that we have randomization of local communications
+static constexpr bool ReuseAddr = false ; // XXX : now that we have randomization of local communications, we do not need to reuse addresses any more, suppress when code can actually be suppressed
 
 ::uset<int>* _s_epoll_sigs = nullptr ;
 

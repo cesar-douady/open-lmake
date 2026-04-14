@@ -16,8 +16,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* bug Sylvain :
-	- resources.questa=1 does not work but resources.licenses='questa:1' is ok
 ? bug Sylvain :
 	- foo a derived file needed by a job
 	- lmark -fa foo
@@ -84,8 +82,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* manage pcre timeout
-	- call match_limit
 ! improve address resolution
 	- as of today, each host is supposed to have a single address
 		- this is not necessarily the case on all network configs
@@ -105,6 +101,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- while suspended, consider resources to be freed
 	- send a signal to job such as 28 (SIGWINCH) which is normally ignored so it can free expensive resources such as licences
 	- then resume participates to allocation competition
+? manage pcre timeout
+	- call match_limit
+	- complex : need to set up a context
 ? generate an error when calling depend on a target
 	- either known at that time
 	- or when it becomes a target if later

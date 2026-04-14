@@ -562,7 +562,7 @@ namespace Engine {
 					if ( dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) && special>Special::Fugitive ) dnd.build_asking = job ;
 					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
-				if ( is_static && dnd.buildable<Buildable::Yes ) sure = false ;                       // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
+				if ( is_static && dnd.buildable<Buildable::Yes ) sure = false ; // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
 				if (cdri->waiting()) {
 					if      ( is_static                                            ) ri.speculative_wait = false ; // we are non-speculatively waiting, even if after a speculative wait
 					else if ( !stamped_seen_waiting && (+state.stamped.err||modif) ) ri.speculative_wait = true  ;
@@ -1039,14 +1039,14 @@ namespace Engine {
 		trace("done") ;
 	}
 
-	::pair<bool/*maybe_new_deps*/,bool/*triggered*/> JobData::_submit_special(ReqInfo& ri) {        // never report new deps
+	::pair<bool/*maybe_new_deps*/,bool/*triggered*/> JobData::_submit_special(ReqInfo& ri) { // never report new deps
 		Req     req            = ri.req          ;
 		Special special        = rule()->special ;
 		bool    frozen_        = idx().frozen()  ;
 		bool    maybe_new_deps = false           ;
 		Trace trace("_submit_special",idx(),special,ri) ;
 		//
-		if (frozen_) req->frozen_jobs.push(idx()) ;                       // record to repeat in summary
+		if (frozen_) req->frozen_jobs.push(idx()) ;                                          // record to repeat in summary
 		//
 		switch (special) {
 			case Special::Dep          : status = Status::Ok ;                                                                       break ;
@@ -1055,7 +1055,7 @@ namespace Engine {
 			case Special::InfinitePath : status = Status::Forbidden ; audit_end_special( req , SpecialStep::Err , No/*modified*/ ) ; break ;
 			case Special::Codec        : _submit_codec(req) ;                                                                        break ;
 			case Special::Plain : {
-				SWEAR(frozen_) ;                                          // only case where we are here without special rule
+				SWEAR(frozen_) ;                                                             // only case where we are here without special rule
 				SpecialStep special_step = SpecialStep::Steady          ;
 				Node        worst_target ;
 				Bool3       modified     = No                           ;
@@ -1238,6 +1238,7 @@ namespace Engine {
 		ri.set_step(Step::Queued,job) ;
 		backend = submit_rsrcs_attrs.backend ;
 		if (!has_upload(req->cache_method)) cache_idx1 = 0 ;
+		bool rsrcs_done = false ;                            // for trace only
 		try {
 			Tokens1 tokens1_ = submit_rsrcs_attrs.tokens1() ;
 			SubmitInfo si {
@@ -1250,11 +1251,13 @@ namespace Engine {
 			,	.tokens1    =        tokens1_
 			} ;
 			estimate_stats(tokens1_) ;                       // refine estimate with best available info just before submitting
+			rsrcs_done = true ;                              // for trace only
 			//       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			Backend::s_submit( backend , +job , +req , ::move(si) , ::move(submit_rsrcs_attrs.rsrcs) ) ;
 			//       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			for( Node t : targets() ) t->busy = true ;       // make targets busy once we are sure job is submitted
 		} catch (::string const& e) {
+			trace("early_err",STR(rsrcs_done),e) ;
 			ri.dec_wait() ;                                  // restore n_wait as we prepared to wait
 			ri.set_step(Step::None,job) ;
 			status = Status::EarlyError ;

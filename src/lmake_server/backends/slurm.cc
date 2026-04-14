@@ -117,12 +117,14 @@ namespace Backends::Slurm {
 			Trace trace(BeChnl,"Slurm::config",dct) ;
 			//
 			repo_key = no_slash(base_name(*g_repo_root_s))+':' ; // cannot put this code directly as init value as g_repo_root_s is not available early enough
+			::string licenses ;
 			for( auto const& [k,v] : dct ) {
 				try {
 					switch (k[0]) {
 						case 'c' : if (k=="config"           ) { config_file       =                             v   ; continue ; } break ;
 						case 'i' : if (k=="init_timeout"     ) { init_timeout      = Delay(from_string<float   >(v)) ; continue ; } break ;
-						case 'l' : if (k=="lib_slurm"        ) { lib_slurm         =                             v   ; continue ; } break ;
+						case 'l' : if (k=="lib_slurm"        ) { lib_slurm         =                             v   ; continue ; }
+						/**/       if (k=="licenses"         ) { licenses          =                             v   ; continue ; } break ;
 						case 'n' : if (k=="n_max_queued_jobs") { n_max_queued_jobs =       from_string<uint32_t>(v)  ; continue ; } break ;
 						case 'r' : if (k=="repo_key"         ) { repo_key          =                             v   ; continue ; } break ;
 						case 'u' : if (k=="use_nice"         ) { use_nice          =       from_string<bool    >(v)  ; continue ; } break ;
@@ -135,6 +137,8 @@ namespace Backends::Slurm {
 				_s_slurm_cancel_thread.open('K',SlurmApi::cancel_func) ; s_record_thread('K',_s_slurm_cancel_thread.thread) ;
 				s_first_time = false ;
 			}
+			if (+licenses)
+				for( auto& l : split(licenses,',') ) daemon.licenses.try_emplace( strip(::move(l)) , 0 ) ;
 			//
 			_slurm_env.reset(new const char*[env_.size()+1]) ;
 			{	size_t i = 0 ;
@@ -159,7 +163,9 @@ namespace Backends::Slurm {
 			if (+daemon.licenses) {
 				descr << "licenses :\n" ;
 				size_t w = ::max<size_t>( daemon.licenses , [](::pair_s<size_t> const& k_v) { return k_v.first.size() ; } ) ;
-				for( auto const& [k,v] : daemon.licenses ) descr << '\t'<<widen(k,w)<<" : "<<v<<'\n' ;
+				for( auto const& [k,v] : daemon.licenses )
+					if (v) descr << '\t'<<widen(k,w)<<" : "<<v<<'\n' ;
+					else   descr << '\t'<<      k             <<'\n' ;
 			}
 			if (+env_) {
 				descr << "environ :\n" ;
@@ -356,8 +362,8 @@ namespace Backends::Slurm {
 				case 'q' : if (k=="qos"      ) {                          rsds.qos       = ::move                                  (v) ; continue ; } break ;
 				case 'r' : if (k=="reserv"   ) {                          rsds.reserv    = ::move                                  (v) ; continue ; } break ;
 			DN}
-			if ( auto it = d.licenses.find(k) ; it==d.licenses.end() ) {               { if ( +rsds.gres     && rsds.gres    .back()!=',' ) rsds.gres     += ',' ; } rsds.gres     += k+':'+v+',' ; }
-			else                                                       { chk_first() ; { if ( +rsds.licenses && rsds.licenses.back()!=',' ) rsds.licenses += ',' ; } rsds.licenses += k+':'+v+',' ; }
+			if ( d.licenses.contains(k)) { chk_first() ; { if ( +rsds.licenses && rsds.licenses.back()!=',' ) rsds.licenses += ',' ; } rsds.licenses += k+':'+v+',' ; }
+			else                         {               { if ( +rsds.gres     && rsds.gres    .back()!=',' ) rsds.gres     += ',' ; } rsds.gres     += k+':'+v+',' ; }
 		}
 		for( RsrcsDataSingle& rsds : self )    if ( +rsds.gres     && rsds.gres    .back()==',' ) rsds.gres    .pop_back() ;
 		/**/ RsrcsDataSingle& rsds = self[0] ; if ( +rsds.licenses && rsds.licenses.back()==',' ) rsds.licenses.pop_back() ;                                  // licenses are only for first job step

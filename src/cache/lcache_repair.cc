@@ -159,11 +159,12 @@ int main( int argc , char* argv[] ) {
 	//                 ^^^^^^^^^^
 	size_t wd = ::max<size_t>( drd.to_rm , [](::pair_ss const& d_r) { return  is_dir_name(d_r.first) ? mk_shell_str(no_slash(d_r.first)).size() : 0 ; } ) ;
 	size_t wf = ::max<size_t>( drd.to_rm , [](::pair_ss const& f_r) { return !is_dir_name(f_r.first) ? mk_shell_str(         f_r.first ).size() : 0 ; } ) ;
-	for( auto const& [file,reason] : drd.to_rm ) if ( is_dir_name(file)) Fd::Stdout.write(cat("rm -r ",widen(mk_shell_str(no_slash(file)),wd)," # ",reason,'\n')) ;
-	/**/                                         if ( wd && wf         ) Fd::Stdout.write(                                                                 "\n" ) ;
-	for( auto const& [file,reason] : drd.to_rm ) if (!is_dir_name(file)) Fd::Stdout.write(cat("rm "   ,widen(mk_shell_str(         file ),wf)," # ",reason,'\n')) ;
-	Fd::Stdout.write(                                                      "\n" ) ;
-	Fd::Stdout.write(cat("repair ",drd.n_repaired,'/',drd.n_processed," jobs\n")) ;
+	for( auto const& [file,reason] : drd.to_rm ) if ( is_dir_name(file)) Fd::Stdout.write(cat("rm -r ",widen(mk_shell_str(no_slash(file)),wd)," # ",reason       ,'\n')) ;
+	/**/                                         if ( wd && wf         ) Fd::Stdout.write(                                                                        "\n" ) ;
+	for( auto const& [file,reason] : drd.to_rm ) if (!is_dir_name(file)) Fd::Stdout.write(cat("rm "   ,widen(mk_shell_str(         file ),wf)," # ",reason       ,'\n')) ;
+	/**/                                                                 Fd::Stdout.write(                                                                        "\n" ) ;
+	if (drd.n_repaired==drd.n_processed)                                 Fd::Stdout.write(cat("keep all of "                   ,drd.n_processed," jobs\n"        ,'\n')) ;
+	else                                                                 Fd::Stdout.write(cat("keep ",drd.n_repaired," out of ",drd.n_processed," processed jobs",'\n')) ;
 	//
 	if ( cmd_line.flags[Flag::DryRun]) exit(Rc::Ok) ;
 	if (!cmd_line.flags[Flag::Force ]) {
