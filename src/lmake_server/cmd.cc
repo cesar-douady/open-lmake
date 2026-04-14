@@ -189,7 +189,8 @@ namespace Engine {
 				for( Node t : ecr.targets() ) {
 					t->set_buildable() ;
 					Job j = t->actual_job ;
-					if      ( add && !j.is_plain(true/*frozen_ok*/)                     ) handle_node(t) ;
+					if      ( !j                                                        ) handle_node(t) ;
+					else if ( add && !j.is_plain(true/*frozen_ok*/)                     ) handle_node(t) ;
 					else if ( t->is_src_anti()                                          ) handle_node(t) ;
 					else if ( force || (t->status()<=NodeStatus::Makable&&t->conform()) ) handle_job (j) ;
 					else {
@@ -218,7 +219,7 @@ namespace Engine {
 				Persistent::invalidate_match() ;                                   // seen from the engine, we have modified sources, we must rematch everything
 			}
 			trace("done") ;
-			return true ;
+			return true/*ok*/ ;
 		}
 	}
 

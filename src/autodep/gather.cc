@@ -200,7 +200,7 @@ static void _update_flags_thread_func(
 void Gather::_update_flags(bool drain_heartbeat_) {
 	Trace trace("_update_flags") ;
 	size_t                                      n_sms     = _star_matchess[false/*readdir*/].size()+_star_matchess[true/*readdir*/].size() ;
-	size_t                                      nws       = n_workers(div_up<1<<16>(n_sms*accesses.size()))                                ;
+	size_t                                      nws       = n_workers(div_up<1<<8>(n_sms*accesses.size()))                                 ;
 	::vector<_Stat>                             stats     ( nws )                                                                          ;
 	::vector<::umap_s<AccessInfo>::value_type*> accesses_ ;                                                                                  accesses_.reserve(accesses.size()) ;
 	Atomic<size_t>                              i         = 0                                                                              ;

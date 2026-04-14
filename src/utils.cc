@@ -239,7 +239,7 @@ Retry :
 	else                       res = ::dup   ( file.at                                                              ) ;
 	if (res>=0) {
 		if (action.flags&O_CREAT) {
-			if ( mode_t mod2=action.mod2() ; !mod2 ) ::fchmod( res , mod2 ) ;
+			if ( mode_t mod2=action.mod2() ; +mod2 ) ::fchmod( res , mod2 ) ;
 		}
 	} else switch (errno) {
 		case ENOSPC :
@@ -251,7 +251,7 @@ Retry :
 				retried = true ;                                                                    // ensure we retry at most once
 				goto Retry ;
 			}
-		break ;
+		[[fallthrough]] ;
 		default : throw_if( !action.err_ok , "cannot open (",StrErr(),") : ",file ) ;
 	}
 	return res ;

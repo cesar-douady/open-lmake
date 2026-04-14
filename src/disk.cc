@@ -308,7 +308,7 @@ namespace Disk {
 			::string& d_s = to_mk_s.back() ;                                                                 // parents are after children in to_mk
 			if (action.nfs_guard                                ) action.nfs_guard->change({dir_s.at,d_s}) ;
 			if (::mkdirat(dir_s.at,d_s.c_str(),action.mod1())==0) {
-				if ( mode_t mod2=action.mod2() ; !mod2 ) { [[maybe_unused]] int rc = ::fchmodat( dir_s.at , d_s.c_str() , mod2 , 0/*flags*/ ) ; }
+				if ( mode_t mod2=action.mod2() ; +mod2 ) { [[maybe_unused]] int rc = ::fchmodat( dir_s.at , d_s.c_str() , mod2 , 0/*flags*/ ) ; }
 				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;

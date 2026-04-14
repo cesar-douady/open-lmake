@@ -529,7 +529,7 @@ mode_t mod_from_str( ::string const& ) ;
 ::string mod_to_str( mode_t          ) ; // size is always 4
 
 mode_t _action_mod1( mode_t mod , mode_t umask ) ; // return mod to use in system call
-mode_t _action_mod2( mode_t mod , mode_t umask ) ; // return mod to pass to ::chmod to extend permissions, if 0, dont need to call ::chmod
+mode_t _action_mod2( mode_t mod , mode_t umask ) ; // return mod to pass to ::fchmod to extend permissions, if 0, dont need to call ::fchmod
 
 struct _FdAction ;
 struct _CreatAction {
@@ -537,7 +537,7 @@ struct _CreatAction {
 	operator _FdAction() const ;
 	// services
 	mode_t mod1() const { return _action_mod1(mod,umask) ; }
-	mode_t mod2() const { return _action_mod1(mod,umask) ; }
+	mode_t mod2() const { return _action_mod2(mod,umask) ; }
 	// data
 	mode_t    mod       = 0666    ;                          // default to an invalid mod (0 may be usefully used to create a no-access file)
 	bool      force     = false   ;                          // unlink any file on the path to dst
@@ -550,7 +550,7 @@ struct _FdAction {
 	operator _CreatAction() const ;
 	// services
 	mode_t mod1() const { return _action_mod1(mod,umask) ; } // copy _CreatAction as inheriting would prevent aggregate init
-	mode_t mod2() const { return _action_mod1(mod,umask) ; } // .
+	mode_t mod2() const { return _action_mod2(mod,umask) ; } // .
 	// data
 	int       flags     = O_RDONLY ;
 	//
