@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 41      ; // 5a00145961eb273e2ac5dc81f9b22bf0
+	uint64_t    constexpr Cache = 42      ; // 3c4ec56692553f490a383f80c5fd2298
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 43      ; // 4f8ac47997336692ca1ee35e99d8d56f
+	uint64_t    constexpr Repo  = 44      ; // d94a4f6900c613658c893667a1901552
 	uint64_t    constexpr Job   = 19      ; // 7fd43d3cf21643b943bde5f2bf693c00
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 5a00145961eb273e2ac5dc81f9b22bf0 *
+// * Cache : 3c4ec56692553f490a383f80c5fd2298 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -214,17 +214,18 @@ namespace Version {
 //		Disk::DiskSz total_sz     = 0  ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE
-//		Time::Pdate  last_access ;                                                                      //    64 bits
-//		Disk::DiskSz sz          = 0                ;                                                   //    64 bits, size occupied by run
-//		LruEntry     glb_lru     ;                                                                      //    64 bits, global LRU within rate
-//		LruEntry     job_lru     ;                                                                      //    64 bits, job LRU
-//		Cjob         job         ;                                                                      //    32 bits
-//		Cnodes       deps        ;                                                                      //    32 bits, owned sorted by (is_static,existing,idx)
-//		Ccrcs        dep_crcs    ;                                                                      //    32 bits, owned crcs for static and existing deps
-//		Ckey         key         ;                                                                      //    32 bits, identifies origin (repo+git_sha1)
-//		Rate         rate        = 0    /*garbage*/ ;                                                   //     8 bits
-//		bool         key_is_last = false/*.      */ ;                                                   // 1<= 8 bit , 2 runs may be stored for each key : the first and the last
-//		bool         has_hidden  = false            ;                                                   // 1<= 8 bit , some hidden deps exist (i.e. that need not match)
+//		Time::Pdate  last_access ;                                                                                //    64 bits
+//		Hash::Crc    targets_crc ;                                                                                //    64 bits
+//		Disk::DiskSz sz          = 0                ;                                                             //    64 bits, size occupied by run
+//		LruEntry     glb_lru     ;                                                                                //    64 bits, global LRU within rate
+//		LruEntry     job_lru     ;                                                                                //    64 bits, job LRU
+//		Cjob         job         ;                                                                                //    32 bits
+//		Cnodes       deps        ;                                                                                //    32 bits, owned sorted by (is_static,existing,idx)
+//		Ccrcs        dep_crcs    ;                                                                                //    32 bits, owned crcs for static and existing deps
+//		Ckey         key         ;                                                                                //    32 bits, identifies origin (repo+git_sha1)
+//		Rate         rate        = 0    /*garbage*/ ;                                                             //     8 bits
+//		bool         key_is_last = false/*.      */ ;                                                             // 1<= 8 bit , 2 runs may be stored for each key : the first and the last
+//		bool         has_hidden  = false            ;                                                             // 1<= 8 bit , some hidden deps exist (i.e. that need not match)
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE
 //		CrunIdx ref_cnt = 0 ;
@@ -275,6 +276,8 @@ namespace Version {
 //			::vmap<StrId<CnodeIdx>,DepDigest> repo_deps      = {}    ; // if proc = Download | Commit
 //			uint32_t                          conn_id        = 0     ; // if proc =            Upload | Dismiss, when from job_exec
 //			bool                              override_first = false ; // if proc =            Commit          , replace first slot if last slot does not exist, used after a maybe_rerun
+//			bool                              force          = false ; // if proc =            Commit          , check and replace old entry if one already exists
+//			Hash::Crc                         targets_crc    = {}    ; // if proc =            Commit
 //			Disk::DiskSz                      reserved_sz    = 0     ; // if proc =            Upload
 //			Disk::DiskSz                      total_z_sz     = 0     ; // if proc =            Commit
 //			Disk::DiskSz                      job_info_sz    = 0     ; // if proc =            Commit
@@ -628,14 +631,15 @@ namespace Version {
 //		// START_OF_VERSIONING REPO CACHE
 //		CacheUploadKey           upload_key     = {}          ;
 //		::vmap<Key,TargetDigest> targets        = {}          ;
-//		::vmap<Key,DepDigest   > deps           = {}          ;                         // INVARIANT : sorted in first access order
+//		::vmap<Key,DepDigest   > deps           = {}          ;                // INVARIANT : sorted in first access order
+//		Hash::Crc                targets_crc    = {}          ;                // valid if upload_key
 //		::vector_s               refresh_codecs = {}          ;
 //		::string                 chroot_tag     = {}          ;
 //		Time::CoarseDelay        exe_time       = {}          ;
 //		Status                   status         = Status::New ;
-//		bool                     has_msg_stderr = false       ;                         // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
-//		bool                     incremental    = false       ;                         // if true <=  job was run with existing incremental targets
-//		LocalReason              local_reason   = {}          ;                         // if true <=> job was forced to run locally
+//		bool                     has_msg_stderr = false       ;                // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
+//		bool                     incremental    = false       ;                // if true <=  job was run with existing incremental targets
+//		LocalReason              local_reason   = {}          ;                // if true <=> job was forced to run locally
 //		// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			::vector_s phys_s  = {} ;                                                                        // (upper,lower...)
@@ -1091,7 +1095,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 4f8ac47997336692ca1ee35e99d8d56f *
+// * Repo : d94a4f6900c613658c893667a1901552 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2121,14 +2125,15 @@ namespace Version {
 //		// START_OF_VERSIONING REPO CACHE
 //		CacheUploadKey           upload_key     = {}          ;
 //		::vmap<Key,TargetDigest> targets        = {}          ;
-//		::vmap<Key,DepDigest   > deps           = {}          ;                         // INVARIANT : sorted in first access order
+//		::vmap<Key,DepDigest   > deps           = {}          ;                // INVARIANT : sorted in first access order
+//		Hash::Crc                targets_crc    = {}          ;                // valid if upload_key
 //		::vector_s               refresh_codecs = {}          ;
 //		::string                 chroot_tag     = {}          ;
 //		Time::CoarseDelay        exe_time       = {}          ;
 //		Status                   status         = Status::New ;
-//		bool                     has_msg_stderr = false       ;                         // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
-//		bool                     incremental    = false       ;                         // if true <=  job was run with existing incremental targets
-//		LocalReason              local_reason   = {}          ;                         // if true <=> job was forced to run locally
+//		bool                     has_msg_stderr = false       ;                // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
+//		bool                     incremental    = false       ;                // if true <=  job was run with existing incremental targets
+//		LocalReason              local_reason   = {}          ;                // if true <=> job was forced to run locally
 //		// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			::vector_s phys_s  = {} ;                                                                        // (upper,lower...)

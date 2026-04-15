@@ -82,10 +82,12 @@ This options specifies how to manage the cache if any is mentioned in a rule.
 The default value is I_(plain).
 .LP
 Values can be:
-Bullet I_(none)     : the cache is not accessed at all.
-Bullet I_(download) : job results are downloaded from the cache but the cache is not updated when it misses an entry.
-Bullet I_(upload)   : job results are not downloaded from the cache, but new results are uploaded and if an entry already exists, coherence is checked.
-Bullet I_(plain)    : job results are downloaded from the cache in case of hit, and cache is updated in case of miss.
+Bullet I_(none)     : The cache is not accessed at all.
+Bullet I_(download) : Job results are downloaded from the cache but the cache is not updated when it misses an entry.
+Bullet I_(upload)   :
+job results are not downloaded from the cache, but new results are uploaded and if an entry already exists, entry is replaced.
+If an inconsistency is detected, a warning is printed on the stderr of B(lcache_server).
+Bullet I_(plain)    : Job results are downloaded from the cache in case of hit, and cache is updated in case of miss.
 
 Item(B_(-d),B_(--essential-deps))
 When checking if a job is up-to-date, non-essential deps are ignored.

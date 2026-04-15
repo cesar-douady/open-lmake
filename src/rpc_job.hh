@@ -665,11 +665,12 @@ struct TargetDigest {
 	// END_OF_VERSIONING
 } ;
 
-template<class Key=::string> struct JobDigest {                                     // Key may be ::string or Node
+template<class Key=::string> struct JobDigest {                            // Key may be ::string or Node
 	// cxtors & casts
 	template<class KeyTo> operator JobDigest<KeyTo>() const {
 		JobDigest<KeyTo> res {
 			.upload_key     = upload_key
+		,	.targets_crc    = targets_crc
 		,	.refresh_codecs = refresh_codecs
 		,	.chroot_tag     = chroot_tag
 		,	.exe_time       = exe_time
@@ -690,30 +691,33 @@ template<class Key=::string> struct JobDigest {                                 
 	}
 	void chk(bool for_cache=false) const ;
 	// accesses
-	void operator>>(::string& os) const {                                           // START_OF_NO_COV
-		/**/                 os << "JobDigest("<<status                           ;
-		if ( upload_key    ) os << ','<<         to_hex(upload_key)               ;
-		if ( has_msg_stderr) os << ','<<         'E'                              ;
-		/**/                 os << ','<<         targets.size()<<','<<deps.size() ;
-		if (+refresh_codecs) os << ','<<         refresh_codecs                   ;
-		if (+chroot_tag    ) os << ','<<         chroot_tag                       ;
-		if (+upload_key    ) os << ','<<         upload_key                       ;
-		/**/                 os << ')'                                            ;
-	}                                                                               // END_OF_NO_COV
+	void operator>>(::string& os) const {                                  // START_OF_NO_COV
+		/**/                 os << "JobDigest("                          ;
+		/**/                 os <<      status                           ;
+		if ( upload_key    ) os << ','<<to_hex(upload_key)               ;
+		if ( has_msg_stderr) os << ','<<'E'                              ;
+		/**/                 os << ','<<targets.size()<<','<<deps.size() ;
+		if (+targets_crc   ) os << ','<<targets_crc                      ;
+		if (+refresh_codecs) os << ','<<refresh_codecs                   ;
+		if (+chroot_tag    ) os << ','<<chroot_tag                       ;
+		if (+upload_key    ) os << ','<<upload_key                       ;
+		/**/                 os << ')'                                   ;
+	}                                                                      // END_OF_NO_COV
 	// services
 	void cache_cleanup() ;
 	// data
 	// START_OF_VERSIONING REPO CACHE
 	CacheUploadKey           upload_key     = {}          ;
 	::vmap<Key,TargetDigest> targets        = {}          ;
-	::vmap<Key,DepDigest   > deps           = {}          ;                         // INVARIANT : sorted in first access order
+	::vmap<Key,DepDigest   > deps           = {}          ;                // INVARIANT : sorted in first access order
+	Hash::Crc                targets_crc    = {}          ;                // valid if upload_key
 	::vector_s               refresh_codecs = {}          ;
 	::string                 chroot_tag     = {}          ;
 	Time::CoarseDelay        exe_time       = {}          ;
 	Status                   status         = Status::New ;
-	bool                     has_msg_stderr = false       ;                         // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
-	bool                     incremental    = false       ;                         // if true <=  job was run with existing incremental targets
-	LocalReason              local_reason   = {}          ;                         // if true <=> job was forced to run locally
+	bool                     has_msg_stderr = false       ;                // if true <=  msg or stderr are non-empty in englobing JobEndRpcReq
+	bool                     incremental    = false       ;                // if true <=  job was run with existing incremental targets
+	LocalReason              local_reason   = {}          ;                // if true <=> job was forced to run locally
 	// END_OF_VERSIONING
 } ;
 template<class Key> void JobDigest<Key>::chk(bool for_cache) const {

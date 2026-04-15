@@ -32,8 +32,8 @@ namespace Cache {
 			::serdes( s , repo_key                            ) ;
 		}
 		::vmap_ss descr() const ;
-		DownloadDigest download( Engine::Job , Engine::Rule::RuleMatch const& , bool incremental_ok ) ;
-		void commit            ( Engine::Job , CacheUploadKey , bool was_missing_audit              ) ;
+		DownloadDigest download( Engine::Job , Engine::Rule::RuleMatch const& , bool incremental_ok                         ) ;
+		void commit            ( Engine::Job , CacheUploadKey , bool was_missing_audit , bool force , Hash::Crc targets_crc ) ;
 		// data
 		::string repo_key ;
 	private :

@@ -210,6 +210,7 @@ struct CjobData {
 	bool/*done*/ insert(                                                                         // like match, but create when miss
 		CompileDigest const&                                                                     // to search entry
 	,	Ckey key , KeyIsLast key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate // to create entry
+	,	bool force , Hash::Crc targets_crc                                                       // if provided => check and replace entry if an existing one is found
 	,	::string const& reserved_file={} , NfsGuard* =nullptr                                    // to manage files
 	) ;
 	void victimize(NfsGuard* =nullptr) ;
@@ -239,33 +240,34 @@ struct CrunData {
 	static void           s_chk  () ;
 	// cxtors & casts
 	CrunData() = default ;
-	CrunData( Ckey , bool key_is_last , Cjob , Time::Pdate last_access , Disk::DiskSz , Rate , CompileDigest const& ) ;
+	CrunData( Ckey , bool key_is_last , Cjob , Hash::Crc targets_crc , Time::Pdate last_access , Disk::DiskSz , Rate , CompileDigest const& ) ;
 	// accesses
 	void     operator>>(::string&) const ;
 	bool     operator+ (         ) const { return +job                                         ; }
 	Crun     idx       (         ) const ;
 	::string name      (         ) const { return run_file( job->name() , +key , key_is_last ) ; }
 	// services
-	void                   access   (                                                     )       ; // move to top in LRU (both job and glb)
-	bool/*job_victimzied*/ victimize( bool victimize_job=true , NfsGuard* =nullptr        )       ; // if victimize_job, victimize job if last run
-	CacheHitInfo           match    ( CompileDigest const&                                ) const ;
-	void                   chk      (                                                     ) const ;
+	void                   access   (                                                               )       ; // move to top in LRU (both job and glb)
+	bool/*job_victimzied*/ victimize( bool victimize_job=true , NfsGuard* =nullptr                  )       ; // if victimize_job, victimize job if last run
+	CacheHitInfo           match    ( CompileDigest const& , Cnode&/*out*/ not_found=::ref(Cnode()) ) const ; // not_found is set when result is Match
+	void                   chk      (                                                               ) const ;
 	// data
 	// START_OF_VERSIONING CACHE
-	Time::Pdate  last_access ;                                                                      //    64 bits
-	Disk::DiskSz sz          = 0                ;                                                   //    64 bits, size occupied by run
-	LruEntry     glb_lru     ;                                                                      //    64 bits, global LRU within rate
-	LruEntry     job_lru     ;                                                                      //    64 bits, job LRU
-	Cjob         job         ;                                                                      //    32 bits
-	Cnodes       deps        ;                                                                      //    32 bits, owned sorted by (is_static,existing,idx)
-	Ccrcs        dep_crcs    ;                                                                      //    32 bits, owned crcs for static and existing deps
-	Ckey         key         ;                                                                      //    32 bits, identifies origin (repo+git_sha1)
-	Rate         rate        = 0    /*garbage*/ ;                                                   //     8 bits
-	bool         key_is_last = false/*.      */ ;                                                   // 1<= 8 bit , 2 runs may be stored for each key : the first and the last
-	bool         has_hidden  = false            ;                                                   // 1<= 8 bit , some hidden deps exist (i.e. that need not match)
+	Time::Pdate  last_access ;                                                                                //    64 bits
+	Hash::Crc    targets_crc ;                                                                                //    64 bits
+	Disk::DiskSz sz          = 0                ;                                                             //    64 bits, size occupied by run
+	LruEntry     glb_lru     ;                                                                                //    64 bits, global LRU within rate
+	LruEntry     job_lru     ;                                                                                //    64 bits, job LRU
+	Cjob         job         ;                                                                                //    32 bits
+	Cnodes       deps        ;                                                                                //    32 bits, owned sorted by (is_static,existing,idx)
+	Ccrcs        dep_crcs    ;                                                                                //    32 bits, owned crcs for static and existing deps
+	Ckey         key         ;                                                                                //    32 bits, identifies origin (repo+git_sha1)
+	Rate         rate        = 0    /*garbage*/ ;                                                             //     8 bits
+	bool         key_is_last = false/*.      */ ;                                                             // 1<= 8 bit , 2 runs may be stored for each key : the first and the last
+	bool         has_hidden  = false            ;                                                             // 1<= 8 bit , some hidden deps exist (i.e. that need not match)
 	// END_OF_VERSIONING
 } ;
-static_assert( sizeof(CrunData)==56 ) ;
+static_assert( sizeof(CrunData)==64 ) ;
 
 struct CnodeData {
 	friend Cnode ;

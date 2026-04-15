@@ -169,7 +169,7 @@ namespace Cache {
 		return res ;
 	}
 
-	void CacheServerSide::commit( Job job , CacheUploadKey upload_key , bool was_missing_audit ) {
+	void CacheServerSide::commit( Job job , CacheUploadKey upload_key , bool was_missing_audit , bool force , Crc targets_crc ) {
 		Trace trace(CacheChnl,"Cache::commit",upload_key,job) ;
 		//
 		JobInfo job_info = job.job_info() ;
@@ -209,6 +209,8 @@ namespace Cache {
 		,	.job            = job_str_id
 		,	.repo_deps      = ::move(repo_deps)
 		,	.override_first = was_missing_audit                          // if previous run was missing audit, it was may_rerun and this run replaces previous commit
+		,	.force          = force                                      // force update if entry already exists
+		,	.targets_crc    = targets_crc                                // force update if entry already exists
 		,	.total_z_sz     = job_info.end.total_z_sz
 		,	.job_info_sz    = job_info_str.size()
 		,	.exe_time       = job_info.end.digest.exe_time

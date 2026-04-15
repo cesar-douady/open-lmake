@@ -165,11 +165,22 @@ static void _compute_crc_thread_func( size_t id , ::vector<NodeIdx> const* crcs 
 	return msg ;
 }
 
+Crc mk_targets_crc(::vmap_s<TargetDigest> const& targets) {
+	::map_s<::pair<Crc,Tflags>> crc_src ;
+	for( auto const& [tn,td] : targets ) {
+		if (!td.tflags[Tflag::Target]) continue ;
+		if (td.crc.valid()           ) crc_src.emplace( tn , ::pair(td.crc ,td.tflags) ) ;
+		else                           crc_src.emplace( tn , ::pair(Crc(tn),td.tflags) ) ;
+	}
+	return Crc( New , serialize(crc_src) ) ;
+}
+
 int main( int argc , char* argv[] ) {
 	Pdate    start_overhead { New }        ;
-	uint64_t upload_key     = 0            ; // key used to identify temporary data uploaded to the cache
 	SeqId    trace_id       = 0/*garbage*/ ;
 	::string chroot_tag     ;
+	uint64_t upload_key     = 0            ; // key used to identify temporary data uploaded to the cache
+	Crc      targets_crc    ;
 	//
 	swear_prod(argc==9,argc) ;                // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ domain_name repo_root seq_id job_idx trace_file
 	//
@@ -380,8 +391,9 @@ int main( int argc , char* argv[] ) {
 				CacheRemoteSide::UploadDigest ud = g_start_info.cache.upload( exe_time , digest.targets , digest.target_fis , g_start_info.zlvl ) ;
 				//                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				g_gather.drain_heartbeat() ;                                                                                        // regularly drain hardbeat
-				upload_key            = ud.upload_key ;
-				end_report.total_z_sz = ud.z_sz       ;
+				upload_key            = ud.upload_key                  ;
+				targets_crc           = mk_targets_crc(digest.targets) ;
+				end_report.total_z_sz = ud.z_sz                        ;
 				trace("cache",upload_key) ;
 			} catch (::string const& e) {
 				trace("cache_upload_throw",e) ;
@@ -409,6 +421,7 @@ int main( int argc , char* argv[] ) {
 			.upload_key     =           upload_key
 		,	.targets        = ::move   (digest.targets       )
 		,	.deps           = ::move   (digest.deps          )
+		,	.targets_crc    =           targets_crc
 		,	.refresh_codecs = mk_vector(digest.refresh_codecs)
 		,	.status         =           status
 		,	.incremental    =           incremental

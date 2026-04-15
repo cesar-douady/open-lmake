@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Tue Apr 14 16:03:52 2026 -->
+<!-- CreationDate: Wed Apr 15 10:39:40 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -545,7 +545,7 @@ be:</p>
 <td width="82%">
 
 
-<p><i>none</i> : the cache is not accessed at all.</p></td></tr>
+<p><i>none</i> : The cache is not accessed at all.</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="1%">
@@ -556,7 +556,7 @@ be:</p>
 <td width="82%">
 
 
-<p><i>download</i> : job results are downloaded from the
+<p><i>download</i> : Job results are downloaded from the
 cache but the cache is not updated when it misses an
 entry.</p> </td></tr>
 <tr valign="top" align="left">
@@ -571,7 +571,8 @@ entry.</p> </td></tr>
 
 <p><i>upload</i> : job results are not downloaded from the
 cache, but new results are uploaded and if an entry already
-exists, coherence is checked.</p></td></tr>
+exists, entry is replaced. If content are different, a
+warning is printed on the stderr of B(lcache_server).</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="1%">
@@ -582,7 +583,7 @@ exists, coherence is checked.</p></td></tr>
 <td width="82%">
 
 
-<p><i>plain</i> : job results are downloaded from the cache
+<p><i>plain</i> : Job results are downloaded from the cache
 in case of hit, and cache is updated in case of miss.</p></td></tr>
 </table>
 

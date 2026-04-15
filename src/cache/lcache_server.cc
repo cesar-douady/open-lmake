@@ -91,8 +91,9 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 	//
 	conn_entry.upload_keys.erase(crr.upload_key) ;
 	bool inserted = job->insert(
-		cd                                                                                                                                              // to search entry
+		cd                                                                                                                                                // to search entry
 	,	conn_entry.key , crr.override_first?KeyIsLast::OverrideFirst:KeyIsLast::Plain , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
+	,	crr.force , crr.targets_crc
 	,	reserved_file(crr.upload_key) , &::ref(NfsGuard(g_file_sync))
 	) ;
 	trace("done",STR(inserted)) ;

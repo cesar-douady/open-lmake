@@ -149,7 +149,7 @@ namespace Engine {
 				return ;
 			}
 			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , ds.dflags , true/*parallel*/ ) ;
-			else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses_ &= +a ; } // uniquify deps by combining accesses and flags
+			else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses_ |= +a ; } // uniquify deps by combining accesses and flags
 		}
 		if (+digest.first) {                                                        // only bother user for bad deps if job otherwise applies, so handle them once static deps have been analyzed
 			req->audit_job   ( Color::Warning , "bad_dep" , rule , match.name() ) ;
@@ -657,11 +657,13 @@ namespace Engine {
 		EndDigest      end_digest        = end_analyze(/*inout*/digest) ;
 		::vector<bool> must_wakeup       ;
 		bool           was_missing_audit = false                        ;
+		bool           cache_force       = false                        ;                                                    // force update if entry already exists
 		//
 		for( Req req : end_digest.running_reqs ) {
 			ReqInfo& ri = jd.req_info(req) ;
 			trace("req_before",end_digest.target_reason,jd.status,ri) ;
-			if (req->missing_audits.erase(self)) was_missing_audit = true ;                                                  // old missing audit is obsolete as soon as we have rerun the job
+			if (req->missing_audits.erase(self)       ) was_missing_audit = true ;                                           // old missing audit is obsolete as soon as we have rerun the job
+			if (req->cache_method==CacheMethod::Upload) cache_force       = true ;
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason job_reason = jd.make( ri , MakeAction::End , end_digest.target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ).first ;
@@ -699,8 +701,8 @@ namespace Engine {
 			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ; // .
 			end_digest.can_upload &= !( jd.missing() || jd.err() ) ;                                                         // only cache execution without errors
 			try {
-				if (end_digest.can_upload) cache.commit ( self , digest.upload_key , was_missing_audit ) ;
-				else                       cache.dismiss(        digest.upload_key                     ) ;                   // free up temporary storage copied in job_exec
+				if (end_digest.can_upload) cache.commit ( self , digest.upload_key , was_missing_audit , cache_force , digest.targets_crc ) ;
+				else                       cache.dismiss(        digest.upload_key                                                        ) ;     // free up temporary storage copied in job_exec
 			} catch (::string const& e) {
 				const char* action = end_digest.can_upload ? "upload" : "dismiss" ;
 				trace("cache_throw",action,e) ;

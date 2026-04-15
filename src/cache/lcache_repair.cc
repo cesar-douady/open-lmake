@@ -120,6 +120,7 @@ static void _repair(DryRunDigest const& dry_run) {
 		bool done = job->insert(
 			deps                                                                                                                                       // to search entry
 		,	key , entry.is_last?KeyIsLast::Yes:KeyIsLast::No , Pdate(data_stat.st_atim) , sz , to_rate(g_cache_config,sz,job_info.end.digest.exe_time) // to create entry
+		,	false/*force*/ , job_info.end.digest.targets_crc
 		) ;
 		throw_unless( done , "conflict ",job->name() ) ;
 	}
