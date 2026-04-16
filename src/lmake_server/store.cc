@@ -139,8 +139,8 @@ namespace Engine::Persistent {
 		SWEAR( +name_ && is_canon(name_) , name_ ) ;
 		Lock lock { NodeDataBase::_s_mutex } ;
 		if (no_dir) {
-			NodeName nn = _g_node_name_file.insert(name_) ;
-			Node&    n  = _g_node_name_file.at(nn)        ;
+			NodeName nn = _g_node_name_file.insert(name_).first ;
+			Node&    n  = _g_node_name_file.at(nn)              ;
 			if (!n) n = _g_node_file.emplace_back(nn) ;
 			self = n ;
 		} else {

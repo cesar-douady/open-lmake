@@ -421,14 +421,14 @@ namespace Engine {
 		JobData() = delete ;
 		JobData( JobName n                                         ) : JobDataBase{n}                                            {                     }
 		JobData( JobName n , Special sp               , Deps ds={} ) : JobDataBase{n} , deps{ds } , rule_crc_idx{+Rule(sp)->crc} {                     } // special Job, all deps
-		JobData( JobName n , Rule::RuleMatch const& m , Deps sds   ) : JobDataBase{n} , deps{sds} , rule_crc_idx{+m.rule->crc  } { _reset_targets(m) ; } // plain Job, static targets and deps
+		JobData( JobName n , Rule::RuleMatch const& m , Deps sds   ) : JobDataBase{n} , deps{sds} , rule_crc_idx{+m.rule  ->crc} { _reset_targets(m) ; } // plain Job, static targets and deps
 		//
 		JobData           (JobData&& jd) ;
 		~JobData          (            ) ;
 		JobData& operator=(JobData&& jd) ;
 	private :
-		JobData           (JobData const&) = default ;
-		JobData& operator=(JobData const&) = default ;
+		JobData           (JobData const&) = default ; // /!\ only used as convenience to move operators as this duplicates targets and deps that are owned
+		JobData& operator=(JobData const&) = default ; // .
 		void _reset_targets(Rule::RuleMatch const&) ;
 		void _reset_targets(                      ) { _reset_targets(rule_match()) ; }
 		void _close        (                      ) ;
@@ -650,9 +650,9 @@ namespace Engine {
 		if (has_targets()) targets().pop() ;
 		/**/               deps     .pop() ;
 	}
-	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                                             jd._close() ;               }
-	inline JobData::~JobData          (            )               {                                                                _close() ;               }
-	inline JobData& JobData::operator=(JobData&& jd)               { SWEAR( rule()==jd.rule() , rule(),jd.rule() ) ; self = jd ; jd._close() ; return self ; }
+	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                                                      jd.deps={} ; jd.targets()={} ;               }
+	inline JobData::~JobData          (            )               { _close() ;                                                                                                        }
+	inline JobData& JobData::operator=(JobData&& jd)               { SWEAR( rule()==jd.rule() , rule(),jd.rule() ) ; _close() ; self=jd ; jd.deps={} ; jd.targets()={} ; return self ; }
 
 	inline MsgStderr JobData::special_msg_stderr( bool short_msg                  ) const { return special_msg_stderr({},short_msg) ; }
 	inline void      JobData::audit_end_special ( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}     ) ; }

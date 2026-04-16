@@ -417,15 +417,15 @@ namespace Engine::Persistent {
 	}
 	template<class... A> JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
 		SWEAR(t_thread_key=='=') ;
-		Lock    lock  { JobDataBase::_s_mutex }                                 ;
-		JobName name_ = _g_job_name_file.insert(name_sfx.first,name_sfx.second) ;
-		self = _g_job_name_file.c_at(+name_) ;
+		Lock    lock  { JobDataBase::_s_mutex }                                       ;
+		JobName name_ = _g_job_name_file.insert(name_sfx.first,name_sfx.second).first ;
+		self = _g_job_name_file.c_at(name_) ;
 		if (+self) {
 			SWEAR( name_==self->_full_name , name_,self->_full_name ) ;
-			if (new_) *self = JobData( name_ , ::forward<A>(args)...) ;
+			if (new_) *self = JobData( name_ , ::forward<A>(args)... ) ;
 		} else {
 			self             = _g_job_name_file.at(+name_) = _g_job_file.emplace( name_ , ::forward<A>(args)... ) ;
-			self->_full_name =                               name_                                                ;
+			self->_full_name =                                                    name_                           ;
 		}
 	}
 	inline void JobBase::pop() {
@@ -538,7 +538,7 @@ namespace Engine::Persistent {
 		return _g_rule_tgts_file.lst() ;
 	}
 	// cxtors & casts
-	inline RuleTgts::RuleTgts(::span<RuleTgt const> const& gs) : Base{+gs?_g_rule_tgts_file.insert(gs):RuleTgts()} {
+	inline RuleTgts::RuleTgts(::span<RuleTgt const> const& gs) : Base{+gs?_g_rule_tgts_file.insert(gs).first:RuleTgts()} {
 		SWEAR(t_thread_key=='=') ;
 	}
 	inline void RuleTgts::pop() {

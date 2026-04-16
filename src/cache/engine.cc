@@ -266,8 +266,8 @@ void LruEntry ::operator>>(::string& os) const { os << "LruEntry("  ; if (+newer
 // Ckey
 //
 
-Ckey::Ckey(           ::string const& name ) { self = _g_key_file.search(name) ; }
-Ckey::Ckey( NewType , ::string const& name ) { self = _g_key_file.insert(name) ; }
+Ckey::Ckey(           ::string const& name ) { self = _g_key_file.search(name)       ; }
+Ckey::Ckey( NewType , ::string const& name ) { self = _g_key_file.insert(name).first ; }
 
 void Ckey::victimize() {
 	_g_key_file.pop(self) ;
@@ -284,8 +284,8 @@ Cjob::Cjob(::string const& name_) {
 }
 
 Cjob::Cjob( NewType , ::string const& name_ , VarIdx n_statics ) {
-	CjobName jn = _g_job_name_file.insert(name_) ;
-	Cjob&    j  = _g_job_name_file.at(jn)        ;
+	CjobName jn = _g_job_name_file.insert(name_).first ;
+	Cjob&    j  = _g_job_name_file.at(jn)              ;
 	if (!j) j = _g_job_file.emplace(jn,n_statics) ;
 	else    SWEAR( j->n_statics==n_statics , name_,n_statics,j ) ;
 	self = j ;
@@ -303,8 +303,8 @@ Cnode::Cnode(::string const& name_) {
 }
 
 Cnode::Cnode( NewType , ::string const& name_ ) {
-	CnodeName nn = _g_node_name_file.insert(name_) ;
-	Cnode&    n  = _g_node_name_file.at(nn)        ;
+	CnodeName nn = _g_node_name_file.insert(name_).first ;
+	Cnode&    n  = _g_node_name_file.at(nn)              ;
 	if (!n) n = _g_node_file.emplace(nn) ;
 	self = n ;
 	SWEAR( +self , name_ ) ;

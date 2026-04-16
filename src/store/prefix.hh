@@ -645,10 +645,10 @@ namespace Store {
 		}
 	public :
 		// globals
-		void clear      (        )       { Base::clear() ;                                                              }
-		Idx emplace_root(        )       { return Base::emplace( Item::MinUsedSz , Item::MinUsedSz , Kind::Terminal ) ; }
-		Lst lst         (Idx root) const { return Lst(self,root)                                                      ; }
-		void chk(Idx root) const {
+		void clear       (        )       { Base::clear() ;                                                              }
+		Idx  emplace_root(        )       { return Base::emplace( Item::MinUsedSz , Item::MinUsedSz , Kind::Terminal ) ; }
+		Lst  lst         (Idx root) const { return Lst(self,root)                                                      ; }
+		void chk         (Idx root) const {
 			Base::chk() ;
 			if (+root) _chk(root,false/*recurse_backward*/,true/*recurse_forward*/) ;
 		}
@@ -658,19 +658,19 @@ namespace Store {
 		IdxSz _chk       (                                 Idx , bool recurse_backward , bool recurse_forward ) const ;
 		// cannot provide insert_data as insert requires unlocked while data requires locked
 	public :
-		Idx                       search   ( Idx root , VecView const& n , VecView const& psfx={} ) const ;
-		DataNv      *             search_at( Idx root , VecView const& n , VecView const& psfx={} )       requires(HasData) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
-		DataNv const*             search_at( Idx root , VecView const& n , VecView const& psfx={} ) const requires(HasData) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
-		Idx                       insert   ( Idx root , VecView const& n , VecView const& psfx={} ) ;
-		DataNv      &             insert_at( Idx root , VecView const& n , VecView const& psfx={} )                         { return at(insert(root,n,psfx)) ; }
-		Idx                       erase    ( Idx root , VecView const& n , VecView const& psfx={} ) ;
-		::pair<Idx,size_t/*pos*/> longest  ( Idx root , VecView const& n , VecView const& psfx={} ) const ;  // longest existing prefix(!Reverse) / suffix(Reverse)
+		Idx                          search   ( Idx root , VecView const& n , VecView const& psfx={} ) const ;
+		DataNv      *                search_at( Idx root , VecView const& n , VecView const& psfx={} )       requires(HasData) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
+		DataNv const*                search_at( Idx root , VecView const& n , VecView const& psfx={} ) const requires(HasData) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
+		::pair<Idx,bool/*inserted*/> insert   ( Idx root , VecView const& n , VecView const& psfx={} ) ;
+		DataNv      &                insert_at( Idx root , VecView const& n , VecView const& psfx={} )                         { return at(insert(root,n,psfx).first) ;                       }
+		Idx                          erase    ( Idx root , VecView const& n , VecView const& psfx={} ) ;
+		::pair<Idx,size_t/*pos*/>    longest  ( Idx root , VecView const& n , VecView const& psfx={} ) const ; // longest existing prefix(!Reverse) / suffix(Reverse)
 		//
-		::pair<Idx/*top*/,::vector<Idx>/*created*/> insert_chain( Idx root , VecView const& n , Char sep ) ; // insert all intermediate dirs separated by sep
+		::pair<Idx/*top*/,::vector<Idx>/*created*/> insert_chain( Idx root , VecView const& n , Char sep ) ;   // insert all intermediate dirs separated by sep
 		//
-		::vector<Idx> path             ( Idx              ) const ;                                          // path of existing items
-		void          pop              ( Idx              ) ;
-		Idx           insert_shorten_by( Idx , size_t by  ) ;
+		::vector<Idx> path             ( Idx             ) const ;                                             // path of existing items
+		void          pop              ( Idx             ) ;
+		Idx           insert_shorten_by( Idx , size_t by ) ;
 		//
 		bool            empty         ( Idx i                    ) const                               { if (!i) return true ; return !_at            (i).prev    ; }
 		Vec             key           ( Idx i , size_t psfx_sz=0 ) const                               {                       return _key     <false>(i,psfx_sz) ; }
@@ -1264,13 +1264,14 @@ namespace Store {
 			return dvg.dvg==Dvg::Match ? dvg.idx : Idx() ;
 		}
 
+	// psfx is prefix (Reverse) / suffix (!Reverse)
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
+		::pair<Idx,bool/*inserted*/> MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::insert( Idx root , VecView const& name , VecView const& psfx ) {
 			chk_thread() ;
 			DvgDigest dvg { root , self , name , psfx } ;
-			if (dvg.dvg==Dvg::Match) return dvg.idx ;
+			if (dvg.dvg==Dvg::Match) return {dvg.idx,false/*inserted*/} ;
 			Idx res = _insert( dvg.idx , dvg.chunk_pos , name , psfx , dvg.name_pos ) ; if constexpr (HasData) SWEAR(at(res)==DataNv()) ;
-			return res ;
+			return {res,true/*inserted*/} ;
 		}
 
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
@@ -1456,7 +1457,7 @@ namespace Store {
 		Idx                                         search      ( VecView const& n , VecView const& psfx={} ) const                   { return Base::search      ( Root , n , psfx ) ; }
 		DataNv      *                               search_at   ( VecView const& n , VecView const& psfx={} )       requires(HasData) { return Base::search_at   ( Root , n , psfx ) ; }
 		DataNv const*                               search_at   ( VecView const& n , VecView const& psfx={} ) const requires(HasData) { return Base::search_at   ( Root , n , psfx ) ; }
-		Idx                                         insert      ( VecView const& n , VecView const& psfx={} )                         { return Base::insert      ( Root , n , psfx ) ; }
+		::pair<Idx,bool/*inserted*/>                insert      ( VecView const& n , VecView const& psfx={} )                         { return Base::insert      ( Root , n , psfx ) ; }
 		DataNv      &                               insert_at   ( VecView const& n , VecView const& psfx={} )                         { return Base::insert_at   ( Root , n , psfx ) ; }
 		Idx                                         erase       ( VecView const& n , VecView const& psfx={} )                         { return Base::erase       ( Root , n , psfx ) ; }
 		::pair<Idx,size_t/*pos*/>                   longest     ( VecView const& n , VecView const& psfx={} ) const                   { return Base::longest     ( Root , n , psfx ) ; }
