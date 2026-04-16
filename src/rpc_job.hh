@@ -630,15 +630,16 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	// data
 	// START_OF_VERSIONING REPO CACHE
-	uint8_t       sz                        = 0          ;                     //   8 bits, number of items in chunk following header (semantically before)
-	Dflags        dflags                    = DflagsDflt ;                     // 7<8 bits
-	Accesses::Val accesses_      :N<Access> = 0          ;                     //   4 bits
-	Accesses::Val chunk_accesses_:N<Access> = 0          ;                     //   4 bits
-	bool          parallel       :1         = false      ;                     //   1 bit , dep is parallel with prev dep
-	bool          is_crc         :1         = true       ;                     //   1 bit
-	bool          hot            :1         = false      ;                     //   1 bit , if true <= file date was very close from access date (within date granularity)
-	bool          err            :1         = false      ;                     //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
-	bool          create_encode  :1         = false      ;                     //   1 bit , if true <=> dep has been created because of encode
+	//B                                     ;                                  //   32 bits, for DepDigestBase<Node>
+	uint8_t       sz                        = 0          ;                     //    8 bits, number of items in chunk following header (semantically before)
+	Dflags        dflags                    = DflagsDflt ;                     // 7< 8 bits
+	Accesses::Val accesses_      :N<Access> = 0          ;                     //    4 bits
+	Accesses::Val chunk_accesses_:N<Access> = 0          ;                     //    4 bits
+	bool          parallel       :1         = false      ;                     //    1 bit , dep is parallel with prev dep
+	bool          is_crc         :1         = true       ;                     //    1 bit
+	bool          hot            :1         = false      ;                     //    1 bit , if true <= file date was very close from access date (within date granularity)
+	bool          err            :1         = false      ;                     //    1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+	bool          create_encode  :1         = false      ;                     //    1 bit , if true <=> dep has been created because of encode
 private :
 	union {
 		Crc     _crc = {} ;                                                    // ~45<64 bits

@@ -109,7 +109,7 @@ namespace Engine {
 		pop() ;
 	}
 
-	Job::Job( Rule::RuleMatch&& match , Req req , DepDepth lvl ) {
+	Job::Job( Rule::RuleMatch&& match , Req req , DepDepth lvl ) { // XXX : avoid constructing deps if job exists (and store non-constructible jobs as job without JobData)
 		Trace trace("Job",match,req,lvl) ;
 		if (!match) { trace("no_match") ; return ; }
 		Rule rule = match.rule ;

@@ -605,15 +605,16 @@ namespace Version {
 //		using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
-//		uint8_t       sz                        = 0          ;                     //   8 bits, number of items in chunk following header (semantically before)
-//		Dflags        dflags                    = DflagsDflt ;                     // 7<8 bits
-//		Accesses::Val accesses_      :N<Access> = 0          ;                     //   4 bits
-//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                     //   4 bits
-//		bool          parallel       :1         = false      ;                     //   1 bit , dep is parallel with prev dep
-//		bool          is_crc         :1         = true       ;                     //   1 bit
-//		bool          hot            :1         = false      ;                     //   1 bit , if true <= file date was very close from access date (within date granularity)
-//		bool          err            :1         = false      ;                     //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
-//		bool          create_encode  :1         = false      ;                     //   1 bit , if true <=> dep has been created because of encode
+//		//B                                     ;                                  //   32 bits, for DepDigestBase<Node>
+//		uint8_t       sz                        = 0          ;                     //    8 bits, number of items in chunk following header (semantically before)
+//		Dflags        dflags                    = DflagsDflt ;                     // 7< 8 bits
+//		Accesses::Val accesses_      :N<Access> = 0          ;                     //    4 bits
+//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                     //    4 bits
+//		bool          parallel       :1         = false      ;                     //    1 bit , dep is parallel with prev dep
+//		bool          is_crc         :1         = true       ;                     //    1 bit
+//		bool          hot            :1         = false      ;                     //    1 bit , if true <= file date was very close from access date (within date granularity)
+//		bool          err            :1         = false      ;                     //    1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+//		bool          create_encode  :1         = false      ;                     //    1 bit , if true <=> dep has been created because of encode
 //	private :
 //		union {
 //			Crc     _crc = {} ;                                                    // ~45<64 bits
@@ -1803,19 +1804,19 @@ namespace Version {
 //
 //		//                                          ThreadKey header     index             n_index_bits       key       data          misc
 //		// jobs
-//		using JobFile      = Store::AllocFile       < 0     , JobHdr   , Job             , NJobIdxBits      ,           JobData                        > ;
-//		using JobNameFile  = Store::SinglePrefixFile< 0     , void     , JobName         , NJobNameIdxBits  , char    , Job                            > ;
-//		using DepsFile     = Store::VectorFile      < '='   , void     , Deps            , NDepsIdxBits     ,           GenericDep  , NodeIdx , 4      > ; // Deps are compressed when Crc==None
-//		using TargetsFile  = Store::VectorFile      < '='   , void     , Targets         , NTargetsIdxBits  ,           Target                         > ;
+//		using JobFile      = Store::AllocFile       < 0     , JobHdr   , Job             , NJobIdxBits      ,           JobData                            > ;
+//		using JobNameFile  = Store::SinglePrefixFile< 0     , void     , JobName         , NJobNameIdxBits  , char    , Job                                > ;
+//		using DepsFile     = Store::VectorFile      < '='   , void     , Deps            , NDepsIdxBits     ,           GenericDep  , NodeIdx , 4/*MinSz*/ > ; // Deps are compressed when Crc==None
+//		using TargetsFile  = Store::VectorFile      < '='   , void     , Targets         , NTargetsIdxBits  ,           Target                             > ;
 //		// nodes
-//		using NodeFile     = Store::StructFile      < 0     , NodeHdr  , Node            , NNodeIdxBits     ,           NodeData                       > ;
-//		using NodeNameFile = Store::SinglePrefixFile< 0     , void     , NodeName        , NNodeNameIdxBits , char    , Node                           > ;
-//		using JobTgtsFile  = Store::VectorFile      < '='   , void     , JobTgts::Vector , NJobTgtsIdxBits  ,           JobTgt      , RuleIdx          > ;
+//		using NodeFile     = Store::StructFile      < 0     , NodeHdr  , Node            , NNodeIdxBits     ,           NodeData                           > ;
+//		using NodeNameFile = Store::SinglePrefixFile< 0     , void     , NodeName        , NNodeNameIdxBits , char    , Node                               > ;
+//		using JobTgtsFile  = Store::VectorFile      < '='   , void     , JobTgts::Vector , NJobTgtsIdxBits  ,           JobTgt      , RuleIdx              > ;
 //		// rules
-//		using RuleCrcFile  = Store::AllocFile       < '='   , MatchGen , RuleCrc         , NRuleCrcIdxBits  ,           RuleCrcData                    > ;
-//		using RuleTgtsFile = Store::SinglePrefixFile< '='   , void     , RuleTgts        , NRuleTgtsIdxBits , RuleTgt , void        , true /*Reverse*/ > ;
-//		using SfxFile      = Store::SinglePrefixFile< '='   , void     , PsfxIdx         , NPsfxIdxBits     , char    , PsfxIdx     , true /*Reverse*/ > ; // map sfxes to root of pfxes
-//		using PfxFile      = Store::MultiPrefixFile < '='   , void     , PsfxIdx         , NPsfxIdxBits     , char    , RuleTgts    , false/*Reverse*/ > ;
+//		using RuleCrcFile  = Store::AllocFile       < '='   , MatchGen , RuleCrc         , NRuleCrcIdxBits  ,           RuleCrcData                        > ;
+//		using RuleTgtsFile = Store::SinglePrefixFile< '='   , void     , RuleTgts        , NRuleTgtsIdxBits , RuleTgt , void        , true /*Reverse*/     > ;
+//		using SfxFile      = Store::SinglePrefixFile< '='   , void     , PsfxIdx         , NPsfxIdxBits     , char    , PsfxIdx     , true /*.      */     > ; // map sfxes to root of pfxes
+//		using PfxFile      = Store::MultiPrefixFile < '='   , void     , PsfxIdx         , NPsfxIdxBits     , char    , RuleTgts    , false/*.      */     > ;
 //
 //		static constexpr char StartMrkr = 0x0 ; // used to indicate a single match suffix (i.e. a suffix which actually is an entire filename)
 //
@@ -2099,15 +2100,16 @@ namespace Version {
 //		using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
-//		uint8_t       sz                        = 0          ;                     //   8 bits, number of items in chunk following header (semantically before)
-//		Dflags        dflags                    = DflagsDflt ;                     // 7<8 bits
-//		Accesses::Val accesses_      :N<Access> = 0          ;                     //   4 bits
-//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                     //   4 bits
-//		bool          parallel       :1         = false      ;                     //   1 bit , dep is parallel with prev dep
-//		bool          is_crc         :1         = true       ;                     //   1 bit
-//		bool          hot            :1         = false      ;                     //   1 bit , if true <= file date was very close from access date (within date granularity)
-//		bool          err            :1         = false      ;                     //   1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
-//		bool          create_encode  :1         = false      ;                     //   1 bit , if true <=> dep has been created because of encode
+//		//B                                     ;                                  //   32 bits, for DepDigestBase<Node>
+//		uint8_t       sz                        = 0          ;                     //    8 bits, number of items in chunk following header (semantically before)
+//		Dflags        dflags                    = DflagsDflt ;                     // 7< 8 bits
+//		Accesses::Val accesses_      :N<Access> = 0          ;                     //    4 bits
+//		Accesses::Val chunk_accesses_:N<Access> = 0          ;                     //    4 bits
+//		bool          parallel       :1         = false      ;                     //    1 bit , dep is parallel with prev dep
+//		bool          is_crc         :1         = true       ;                     //    1 bit
+//		bool          hot            :1         = false      ;                     //    1 bit , if true <= file date was very close from access date (within date granularity)
+//		bool          err            :1         = false      ;                     //    1 bit , if true <=> dep is in error (useful if IgnoreErr), valid only if is_crc
+//		bool          create_encode  :1         = false      ;                     //    1 bit , if true <=> dep has been created because of encode
 //	private :
 //		union {
 //			Crc     _crc = {} ;                                                    // ~45<64 bits

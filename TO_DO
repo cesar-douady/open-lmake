@@ -276,6 +276,8 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* optimize Job::Job(match)
+	- cf src/lmake_server/job.cc:112
 * use copy-ref when possible :
 	- cache upload/download when a single file and no compression
 	- when uniquify

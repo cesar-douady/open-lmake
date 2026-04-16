@@ -419,9 +419,9 @@ namespace Engine {
 		// cxtors & casts
 	public :
 		JobData() = delete ;
-		JobData( JobName n                                       ) : JobDataBase{n}                                            {                     }
-		JobData( JobName n , Special sp , Deps ds={}             ) : JobDataBase{n} , deps{ds } , rule_crc_idx{+Rule(sp)->crc} {                     } // special Job, all deps
-		JobData( JobName n , Rule::RuleMatch const& m , Deps sds ) : JobDataBase{n} , deps{sds} , rule_crc_idx{+m.rule->crc  } { _reset_targets(m) ; } // plain Job, static targets and deps
+		JobData( JobName n                                         ) : JobDataBase{n}                                            {                     }
+		JobData( JobName n , Special sp               , Deps ds={} ) : JobDataBase{n} , deps{ds } , rule_crc_idx{+Rule(sp)->crc} {                     } // special Job, all deps
+		JobData( JobName n , Rule::RuleMatch const& m , Deps sds   ) : JobDataBase{n} , deps{sds} , rule_crc_idx{+m.rule->crc  } { _reset_targets(m) ; } // plain Job, static targets and deps
 		//
 		JobData           (JobData&& jd) ;
 		~JobData          (            ) ;

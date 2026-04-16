@@ -96,9 +96,9 @@ namespace Engine::Makefiles {
 					size_t   pos = line.find('=',1)     ;
 					::string key = line.substr(1,pos-1) ;
 					auto     it  = user_env.find(key)   ;
-					if      ( pos==Npos && it!=user_env.end()             ) return cat("environment variable ",key," appeared"   ) ;
-					else if ( pos!=Npos && it==user_env.end()             ) return cat("environment variable ",key," disappeared") ;
-					else if ( pos!=Npos && it->second!=line.substr(pos+1) ) return cat("environment variable ",key," changed"    ) ;
+					if      ( pos==Npos && it!=user_env.end()             ) return cat('$',key," appeared"   ) ;
+					else if ( pos!=Npos && it==user_env.end()             ) return cat('$',key," disappeared") ;
+					else if ( pos!=Npos && it->second!=line.substr(pos+1) ) return cat('$',key," changed"    ) ;
 				} break ;
 			DF}                                                                                  // NO_COV
 		}
