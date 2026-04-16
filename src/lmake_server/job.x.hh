@@ -636,9 +636,9 @@ namespace Engine {
 		if (has_targets()) targets().pop() ;
 		/**/               deps     .pop() ;
 	}
-	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                                         jd._close() ;               }
-	inline JobData::~JobData          (            )               {                                                            _close() ;               }
-	inline JobData& JobData::operator=(JobData&& jd)               { SWEAR(rule()==jd.rule(),rule(),jd.rule()) ; self = jd ; jd._close() ; return self ; }
+	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                                                      jd.deps={} ; jd.targets()={} ;               }
+	inline JobData::~JobData          (            )               { _close() ;                                                                                                        }
+	inline JobData& JobData::operator=(JobData&& jd)               { SWEAR( rule()==jd.rule() , rule(),jd.rule() ) ; _close() ; self=jd ; jd.deps={} ; jd.targets()={} ; return self ; }
 
 	inline MsgStderr JobData::special_msg_stderr( bool short_msg                  ) const { return special_msg_stderr({},short_msg) ; }
 	inline void      JobData::audit_end_special ( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}     ) ; }
