@@ -3,7 +3,7 @@ namespace Version {
 	uint64_t    constexpr Cache = 43      ; // 86f3b8fe7d73dd19cb821586ccea22e7
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
 	uint64_t    constexpr Repo  = 45      ; // fc6deb0ddb67a3d3952f279f7818c720
-	uint64_t    constexpr Job   = 20      ; // 4f210cd53f8772057bc732641bf7382d
+	uint64_t    constexpr Job   = 21      ; // 8ee88e5456ba6801fbf1a55bff4ba4ec
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
@@ -2444,7 +2444,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 4f210cd53f8772057bc732641bf7382d *
+// * Job : 8ee88e5456ba6801fbf1a55bff4ba4ec *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2830,6 +2830,29 @@ namespace Version {
 //	,	Write
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
+//	// END_OF_VERSIONING
+//	// START_OF_VERSIONING JOB
+//	enum class JobExecProc : uint8_t {
+//		None
+//	,	ChkDeps
+//	,	Confirm
+//	,	List                 // list deps/targets
+//	// with file
+//	,	Chroot               // forbidden chroot
+//	,	DepDirect
+//	,	DepVerbose
+//	,	Guard
+//	,	Panic                // ensure job is in error
+//	,	Trace                // no algorithmic info, just for tracing purpose
+//	// with file info
+//	,	Access
+//	,	AccessPattern        // pass flags on a regexpr basis
+//	,	Mount                // forbidden mount
+//	//
+//	// aliases
+//	,	HasFile     = Chroot // >=HasFile     means files[*].first  fields are significative
+//	,	HasFileInfo = Access // >=HasFileInfo means files[*].second fields are significative
+//	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO CODEC
 //		using CodecCrc = Hash::Crc96 ;                                                                              // 64 bits is enough, but not easy to prove

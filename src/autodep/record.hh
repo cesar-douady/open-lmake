@@ -149,11 +149,10 @@ public :
 	JobExecRpcReq::Id report_access( FileLoc , JobExecRpcReq&& , FileLoc fl0 , ::string const& f0 , bool force=false ) ; // .
 	JobExecRpcReply   report_sync  (           JobExecRpcReq&&                                                       ) ; // always force
 	//
-	void report_guard( ::vmap_s<FileInfo>&& fs        ) {                          report_direct({ .proc=Proc::Guard , .date=New , .files=::move(fs)       }) ;                             }
-	void report_guard( FileLoc fl , ::string const& f ) { if (fl<=FileLoc::Repo)   report_guard ({ {f,{}}                                                  }) ;                             }
-	void report_panic( ::string&& m , bool die=true   ) {                          report_sync  ({ .proc=Proc::Panic , .date=New , .files={{::move(m),{}}} }) ; if (die) exit(Rc::System) ; }
-	void report_trace( ::string&& m                   ) {                          report_sync  ({ .proc=Proc::Trace , .date=New , .files={{::move(m),{}}} }) ;                             }
-	void report_tmp  (                                ) { if (!_seen_tmp       ) { report_direct({ .proc=Proc::Tmp   , .date=New                           }) ; _seen_tmp = true ; }        }
+	void report_guard( ::vmap_s<FileInfo>&& fs        ) {                        report_direct({ .proc=Proc::Guard , .date=New , .files=::move(fs)       }) ;                             }
+	void report_guard( FileLoc fl , ::string const& f ) { if (fl<=FileLoc::Repo) report_guard ({ {f,{}}                                                  }) ;                             }
+	void report_panic( ::string&& m , bool die=true   ) {                        report_sync  ({ .proc=Proc::Panic , .date=New , .files={{::move(m),{}}} }) ; if (die) exit(Rc::System) ; }
+	void report_trace( ::string&& m                   ) {                        report_sync  ({ .proc=Proc::Trace , .date=New , .files={{::move(m),{}}} }) ;                             }
 	//
 	void report_confirm( int rc , Sent fd , JobExecRpcReq::Id const& id ) {
 		if ( +fd && +id ) report_direct({ .proc=Proc::Confirm , .sync=fd==Sent::Slow?Maybe:No , .digest={.write=No|(rc>=0)} , .id=id }) ;
@@ -182,13 +181,13 @@ public :
 		}
 		~_Path() { _deallocate() ; }
 		// accesses
-		void operator>>(::string& os) const { // START_OF_NO_COV
+		void operator>>(::string& os) const {                                                                   // START_OF_NO_COV
 			const char* sep = "" ;
 			/**/                   os << "Path("   ;
 			if ( at!=Fd::Cwd   ) { os <<       at   ; sep = "," ; }
 			if ( file && *file )   os << sep<< file ;
 			/**/                   os << ')'        ;
-		}                                                                                                 // END_OF_NO_COV
+		}                                                                                                       // END_OF_NO_COV
 		bool operator==(_Path const& p) const {
 			return at==p.at && ::strcmp(file,p.file)==0 ;
 		}
@@ -217,7 +216,7 @@ public :
 		static const size_t MaxSz ;
 		// cxtors & casts
 		Solve()= default ;
-		Solve( Record& r , Base&& path , bool no_follow , bool read , bool create , Comment c , CommentExts ces={} ) : Base{::move(path)} {
+		Solve( Record& r , Base&& path , bool no_follow , bool read , Comment c , CommentExts ces={} ) : Base{::move(path)} {
 			using namespace Disk ;
 			if ( SkipSimple!=No && s_is_simple(file,SkipSimple==Yes/*empty_is_simple*/) ) return ;
 			//
@@ -263,15 +262,14 @@ public :
 			if ( !read && sr.file_accessed==Maybe && has_dir(sr.real) ) handle_dep( sr.file_loc  , no_slash(dir_name_s(sr.real)) , Access::Lnk , false , CommentExt::Last ) ; // real dir is not ...
 			/**/                                                        handle_dep( sr.file_loc  , ::move(sr.real)               , {}          , true  , CommentExt::File ) ; // ... protected by real
 			//
-			if ( create && sr.file_loc==FileLoc::Tmp ) r.report_tmp () ;
-			if ( Send                                ) r.send_report() ;
+			if (Send) r.send_report() ;
 		}
 		// accesses
-		void operator>>(::string& os) const { // START_OF_NO_COV
+		void operator>>(::string& os) const {                                // START_OF_NO_COV
 			/**/        os << "Solve("<<real<<','<<file_loc<<','<<accesses ;
 			if (+real0) os << ','<<real0<<','<<file_loc0                   ;
 			/**/        os << ')'                                          ;
-		}                                                                                                                                            // END_OF_NO_COV
+		}                                                                    // END_OF_NO_COV
 		::string const& real_write() const { return real0 | real ; }
 		::string      & real_write()       { return real0 | real ; }
 		// services
@@ -288,8 +286,8 @@ public :
 		void send_report(Record& r) { r.send_report() ; }
 		// data
 		::string real      ;
-		::string real0     ;                              // real in case reading and writing is to different files because of overlays
-		Accesses accesses  ;                              // Access::Lnk if real was accessed as a sym link
+		::string real0     ;                                                 // real in case reading and writing is to different files because of overlays
+		Accesses accesses  ;                                                 // Access::Lnk if real was accessed as a sym link
 		FileLoc  file_loc  = FileLoc::Unknown ;
 		FileLoc  file_loc0 = FileLoc::Unknown ;
 	} ;
@@ -327,7 +325,7 @@ public :
 		Chdir() = default ;
 		Chdir( Record& , Path&& , Comment ) ;
 		// services
-		int operator()( Record& r , int rc=0 ) {          // calling r.chdir may be done conservatively, it does not record new cwd, just that it may have changed
+		int operator()( Record& r , int rc=0 ) {                             // calling r.chdir may be done conservatively, it does not record new cwd, just that it may have changed
 			if (rc==0) r.chdir() ;
 			return rc ;
 		}
@@ -339,11 +337,11 @@ public :
 	} ;
 	struct Chroot : Solve<> {
 		Chroot() = default ;
-		Chroot( Record& r , Path&& dst , Comment c ) : Solve<>{r,::move(dst),true/*no_follow*/,false/*read*/,false/*create*/,c} { send_report(r) ; }
+		Chroot( Record& r , Path&& dst , Comment c ) : Solve<>{r,::move(dst),true/*no_follow*/,false/*read*/,c} { send_report(r) ; }
 		int operator()( Record& , int rc=0 ) ;
 	} ;
 	struct Hide {
-		Hide( Record&          ) {              }         // in case nothing to hide, just to ensure invariants
+		Hide( Record&          ) {              }                            // in case nothing to hide, just to ensure invariants
 		Hide( Record& , int fd ) { s_hide(fd) ; }
 		#if HAS_CLOSE_RANGE
 			#ifdef CLOSE_RANGE_CLOEXEC
@@ -363,7 +361,7 @@ public :
 		using Base::send_report ;
 		// cxtors & casts
 		Exec() = default ;
-		Exec( Record& r , Path&& path , bool no_follow , Comment c ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c} {
+		Exec( Record& r , Path&& path , bool no_follow , Comment c ) : Base{r,::move(path),no_follow,true/*read*/,c} {
 			// if !SkipSimple => +real is always true hence no need to check
 			if ( !SkipSimple || +real )
 				try {
@@ -394,7 +392,7 @@ public :
 	} ;
 	struct Mount : Solve<> {
 		Mount() = default ;
-		Mount( Record& r , Path&& dst , Comment c ) : Solve<>{r,::move(dst),true/*no_follow*/,false/*read*/,false/*create*/,c} { send_report(r) ; }
+		Mount( Record& r , Path&& dst , Comment c ) : Solve<>{r,::move(dst),true/*no_follow*/,false/*read*/,c} { send_report(r) ; }
 		int operator()( Record& , int rc=0 ) ;
 	} ;
 	struct Open : SolveModify {
@@ -410,7 +408,7 @@ public :
 		using Base::accesses    ;
 		using Base::send_report ;
 		Read() = default ;
-		Read( Record& r , Path&& path , bool no_follow , bool keep_real , Comment c , CommentExts ces={} ) : Base{r,::move(path),no_follow,true/*read*/,false/*create*/,c,ces} {
+		Read( Record& r , Path&& path , bool no_follow , bool keep_real , Comment c , CommentExts ces={} ) : Base{r,::move(path),no_follow,true/*read*/,c,ces} {
 			// if !SkipSimple => +real is alway true hence no need to check
 			if ( !SkipSimple || +real )
 				r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|Access::Reg} , .files={{keep_real?(::copy(real)):(::move(real)),{}}} } ) ;
@@ -418,16 +416,16 @@ public :
 		}
 	} ;
 	struct ReadDir //!     Send Writable SkipSimple
-	:	             Solve<true,false   ,Maybe    >       // Maybe means empty is not simple
+	:	             Solve<true,false   ,Maybe    >                          // Maybe means empty is not simple
 	{	using Base = Solve<true,false   ,Maybe    > ;
 		using Base::real     ;
 		using Base::file_loc ;
 		// cxtors & casts
 		ReadDir() = default ;
-		ReadDir( Record& r , Path&& path , Comment c ) : Base{r,::move(path),false/*no_follow*/,false/*read*/,false/*create*/,c} , comment{c} {}
+		ReadDir( Record& r , Path&& path , Comment c ) : Base{r,::move(path),false/*no_follow*/,false/*read*/,c} , comment{c} {}
 		// services
 		void operator()(Record& r) {
-			if ( +real && !s_autodep_env().readdir_ok ) { // readdir_ok may be false when ptrace as it is inaccessible upfront
+			if ( +real && !s_autodep_env().readdir_ok ) {                    // readdir_ok may be false when ptrace as it is inaccessible upfront
 				if (file_loc==FileLoc::RepoRoot) r.report_access( FileLoc::Repo , { .comment=comment , .digest={.read_dir=true} , .files={{"."         ,{}}} } ) ; // repo root must be analyzed ...
 				else                             r.report_access( file_loc      , { .comment=comment , .digest={.read_dir=true} , .files={{::move(real),{}}} } ) ; // ... when reading it
 			}
@@ -497,11 +495,10 @@ public :
 	bool seen_chdir = false ;
 	bool enable     = false ;
 private :
-	RealPath     _real_path ;
-	mutable bool _seen_tmp  = false ;                                                      // record that tmp usage has been reported, no need to report any further
-	OMsgBuf      _buf       ;                                                              // buffer that accumulate messages to send
-	::pid_t      _buf_pid   = 0     ;                                                      // valid when +_buf, pid for which _buf is valid (ignore buf is wrong pid)
-	Bool3        _is_slow   = No    ;                                                      // valid when +_buf, if Yes => must be sent over slow connection, if Maybe => used connection must be known
+	RealPath _real_path ;
+	OMsgBuf  _buf       ;                                                                  // buffer that accumulate messages to send
+	::pid_t  _buf_pid   = 0  ;                                                             // valid when +_buf, pid for which _buf is valid (ignore buf is wrong pid)
+	Bool3    _is_slow   = No ;                                                             // valid when +_buf, if Yes => must be sent over slow connection, if Maybe => used connection must be known
 } ;
 
 template<bool Send,bool Writable,Bool3 SkipSimple> constexpr size_t Record::Solve<Send,Writable,SkipSimple>::MaxSz = 2*PATH_MAX+sizeof(Solve<Send,Writable,SkipSimple>) ;

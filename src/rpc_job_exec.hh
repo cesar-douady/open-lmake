@@ -11,12 +11,12 @@
 
 #include "rpc_job_common.hh"
 
+// START_OF_VERSIONING JOB
 enum class JobExecProc : uint8_t {
 	None
 ,	ChkDeps
 ,	Confirm
 ,	List                 // list deps/targets
-,	Tmp                  // write activity in tmp has been detected (hence clean up is required)
 // with file
 ,	Chroot               // forbidden chroot
 ,	DepDirect
@@ -33,6 +33,7 @@ enum class JobExecProc : uint8_t {
 ,	HasFile     = Chroot // >=HasFile     means files[*].first  fields are significative
 ,	HasFileInfo = Access // >=HasFileInfo means files[*].second fields are significative
 } ;
+// END_OF_VERSIONING
 
 struct JobExecRpcReq   ;
 struct JobExecRpcReply ;
@@ -70,8 +71,7 @@ struct JobExecRpcReq {
 		if ( proc>=Proc::HasFile && proc<Proc::HasFileInfo ) SWEAR( ::none_of(files,[](::pair_s<Disk::FileInfo> const& e) { return +e.second ; } ) , proc,files ) ;
 		switch (proc) {
 			case Proc::None          : SWEAR(              !digest            &&  !id                       && !date                    , self ) ; break ;
-			case Proc::ChkDeps       :
-			case Proc::Tmp           : SWEAR(              !digest            &&  !id                       && +date                    , self ) ; break ;
+			case Proc::ChkDeps       : SWEAR(              !digest            &&  !id                       && +date                    , self ) ; break ;
 			case Proc::Confirm       : SWEAR(              !digest.has_read() && ( id&&digest.write!=Maybe) && !date                    , self ) ; break ;
 			case Proc::List          : SWEAR( sync==Yes && !digest.has_read() &&  !id                       && +date                    , self ) ; break ;
 			case Proc::Chroot        :
@@ -92,8 +92,7 @@ struct JobExecRpcReq {
 		/**/                     ::serdes(s,comment_exts) ;
 		if (proc>=Proc::HasFile) ::serdes(s,files       ) ;
 		switch (proc) {
-			case Proc::ChkDeps       :
-			case Proc::Tmp           : ::serdes( s ,                     date ) ; break ;
+			case Proc::ChkDeps       : ::serdes( s ,                     date ) ; break ;
 			case Proc::Confirm       : ::serdes( s , digest.write , id        ) ; break ;
 			case Proc::List          : ::serdes( s , digest.write ,      date ) ; break ;
 			case Proc::Chroot        :

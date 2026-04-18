@@ -179,38 +179,37 @@ private :
 	void _user_trace(         Comment c ,                      ::string const& file    ) const { _user_trace( New , c , {}  , file ) ;                     }
 	// data
 public :
-	::umap_s<AccessInfo>                      accesses         ;
-	bool                                      as_session       = false               ;          // if true <=> process is launched in its own group
-	AutodepEnv                                autodep_env      ;
-	Fd                                        child_stdin      = Fd::Stdin           ;
-	Fd                                        child_stderr     = Fd::Stderr          ;
-	Fd                                        child_stdout     = Fd::Stdout          ;
-	::vector_s                                cmd_line         ;
-	Time::Delay                               ddate_prec       ;
-	PD                                        end_date         ;
-	::map_ss const*                           env              = nullptr             ;
-	uset_s                                    guards           ;                                // dir creation/deletion that must be guarded against NFS
-	JobIdx                                    job              = 0                   ;
-	::vector<uint8_t>                         kill_sigs        ;                                // signals used to kill job
-	bool                                      live_out         = false               ;
-	::string                                  lmake_root_s     ;                                // contains error messages not from job
-	AutodepMethod                             method           = AutodepMethod::Dflt ;
-	::string                                  msg              ;                                // contains error messages not from job
-	Time::Delay                               network_delay    = Time::Delay(1)      ;          // 1s is reasonable when nothing is said
-	uint8_t                                   nice             = 0                   ;
-	bool                                      no_tmp           = false               ;          // if true <=> no tmp access is allowed
-	pid_t                                     pid              = -1                  ;          // pid to kill
-	::string                                  rule             ;
-	SeqId                                     seq_id           = 0                   ;
-	ServerSockFd                              server_master_fd ;
-	KeyedService                              service_mngt     ;                                // no server if empty
-	PD                                        start_date       ;
-	bool                                      started          = false               ;
-	::string                                  stderr           ;                                // contains child stderr if child_stderr==Pipe
-	::string                                  stdout           ;                                // contains child stdout if child_stdout==Pipe
-	Time::Delay                               timeout          ;
-	::vector<UserTraceEntry>*                 user_trace       = nullptr             ;
-	Atomic<int>                               wstatus          ;
+	::umap_s<AccessInfo>      accesses         ;
+	bool                      as_session       = false               ;                          // if true <=> process is launched in its own group
+	AutodepEnv                autodep_env      ;
+	Fd                        child_stdin      = Fd::Stdin           ;
+	Fd                        child_stderr     = Fd::Stderr          ;
+	Fd                        child_stdout     = Fd::Stdout          ;
+	::vector_s                cmd_line         ;
+	Time::Delay               ddate_prec       ;
+	PD                        end_date         ;
+	::map_ss const*           env              = nullptr             ;
+	uset_s                    guards           ;                                                // dir creation/deletion that must be guarded against NFS
+	JobIdx                    job              = 0                   ;
+	::vector<uint8_t>         kill_sigs        ;                                                // signals used to kill job
+	bool                      live_out         = false               ;
+	::string                  lmake_root_s     ;                                                // contains error messages not from job
+	AutodepMethod             method           = AutodepMethod::Dflt ;
+	::string                  msg              ;                                                // contains error messages not from job
+	Time::Delay               network_delay    = Time::Delay(1)      ;                          // 1s is reasonable when nothing is said
+	uint8_t                   nice             = 0                   ;
+	pid_t                     pid              = -1                  ;                          // pid to kill
+	::string                  rule             ;
+	SeqId                     seq_id           = 0                   ;
+	ServerSockFd              server_master_fd ;
+	KeyedService              service_mngt     ;                                                // no server if empty
+	PD                        start_date       ;
+	bool                      started          = false               ;
+	::string                  stderr           ;                                                // contains child stderr if child_stderr==Pipe
+	::string                  stdout           ;                                                // contains child stdout if child_stdout==Pipe
+	Time::Delay               timeout          ;
+	::vector<UserTraceEntry>* user_trace       = nullptr             ;
+	Atomic<int>               wstatus          ;
 private :
 	::array<::vmap<Re::RegExpr,::pair<PD,MatchFlags>>,2/*readdir*/> _star_matchess        ;     // apply flags to matching accesses
 	::map_ss                                                        _add_env              ;

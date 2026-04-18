@@ -138,7 +138,6 @@ Sent Record::_do_send_report(pid_t pid) {
 void Record::_static_report(JobExecRpcReq&& jerr) const {
 	jerr.chk() ;
 	switch (jerr.proc) {
-		case Proc::Tmp     :
 		case Proc::Trace   :
 		case Proc::Confirm :
 		case Proc::Guard   : break ;
@@ -274,14 +273,14 @@ JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , Fil
 	return report_access( fl , ::move(jerr) , force ) ;
 }
 
-Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,false/*read*/,false/*create*/,c} {
+Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,false/*read*/,c} {
 	SWEAR(!accesses) ;                                                                                                                    // no access to last component when no_follow
 	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s({at,with_slash(file)}) ;                                        // in case of overlay, create dir in the view
 	r.report_guard( file_loc , real_write() ) ;
 	send_report(r) ;
 }
 
-Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comment c ) : SolveModify{r,::move(path),no_follow,true/*read*/,false/*create*/,c} { // behave like a read-modify-write
+Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comment c ) : SolveModify{r,::move(path),no_follow,true/*read*/,c} { // behave like a read-modify-write
 	if (file_loc>FileLoc::Dep) return ;
 	FileInfo fi {{ s_repo_root_fd() , real }} ;
 	if ( fi.exists() && exe!=(fi.tag()==FileTag::Exe) ) // only consider as a target if exe bit changes
@@ -322,9 +321,9 @@ Record::Glob::Glob( Record& r , const char* pat , int flags , Comment ) {
 }
 
 Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comment c ) :
-	//                       no_follow   read   create
-	src { r , ::move(src_) , no_follow , true  , false , c , CommentExt::Read  }
-,	dst { r , ::move(dst_) , true      , false , true  , c , CommentExt::Write }
+	//                       no_follow   read
+	src { r , ::move(src_) , no_follow , true  , c , CommentExt::Read  }
+,	dst { r , ::move(dst_) , true      , false , c , CommentExt::Write }
 {
 	if (src.real==dst.real) return ;                                                 // posix says it is nop in that case
 	//
@@ -335,7 +334,7 @@ Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comme
 	dst.send_report(r) ;
 }
 
-Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve<>{ r , ::move(path) , true/*no_follow*/ , false/*read*/ , false/*create*/ , c } {
+Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve<>{ r , ::move(path) , true/*no_follow*/ , false/*read*/ , c } {
 	r.report_guard( file_loc , real )  ; // although dirs are not considered targets, it stays that disk has been modified and we want to propagate
 	report_dep( r , Access::Stat , c ) ; // fails if file exists, hence sensitive to existence
 	send_report(r) ;
@@ -354,7 +353,7 @@ static bool _do_stat  (int flags) { return                       ( (flags&O_CREA
 static bool _do_read  (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY ) && !(flags&O_TRUNC)          ; }
 static bool _do_write (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY ) ||  (flags&O_TRUNC)          ; }
 //
-Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveModify{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , bool(flags&O_CREAT) , c } {
+Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveModify{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , c } {
 	if ( !file || !file[0]             ) return ;
 	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                                      // we already solved, this is enough
 	if ( file_loc>FileLoc::Dep         ) return ;                                                                                      // fast path
@@ -377,7 +376,7 @@ Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveMod
 	send_report(r) ;
 }
 
-Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,true/*read*/,false/*create*/,c} , buf{buf_} , sz{sz_} {
+Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,true/*read*/,c} , buf{buf_} , sz{sz_} {
 	magic = at==Backdoor::MagicFd && ::strncmp(file,Backdoor::MagicPfx,Backdoor::MagicPfxLen)==0 ;
 	report_dep( r , Access::Lnk , c ) ;
 	send_report(r) ;
@@ -410,9 +409,9 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 
 // flags is not used if exchange is not supported
 Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , bool no_replace , Comment c ) :
-	//                     no_follow read       create
-	src { r , ::move(src_) , true  , true     , exchange , c , CommentExt::Read  }
-,	dst { r , ::move(dst_) , true  , exchange , true     , c , CommentExt::Write }
+	//                     no_follow read
+	src { r , ::move(src_) , true  , true     , c , CommentExt::Read  }
+,	dst { r , ::move(dst_) , true  , exchange , c , CommentExt::Write }
 {	if (src.real==dst.real) return ;                                                                            // posix says in this case, it is nop
 	SWEAR( +src.real && +dst.real , src,dst ) ;                                                                 // should be absolute to denote repo root
 	// rename has not occurred yet so :
@@ -464,19 +463,19 @@ Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , 
 }
 
 Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , Comment c ) :
-	Solve<>{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , false/*create*/ , c }
+	Solve<>{ r , !s_autodep_env().ignore_stat?::move(path):Path() , no_follow , true/*read*/ , c }
 {
 	CommentExts ces ; if (no_follow) ces |= CommentExt::NoFollow ;
 	if (!s_autodep_env().ignore_stat) report_dep( r , a , c , ces ) ;
 	send_report(r) ;
 }
 
-Record::Symlink::Symlink( Record& r , Path&& p , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,true/*create*/,c} {
+Record::Symlink::Symlink( Record& r , Path&& p , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,c} {
 	report_update( r , Access::Stat , c ) ;                                                                                                // fail if file exists, hence sensitive to existence
 	send_report(r) ;
 }
 
-Record::Unlnk::Unlnk( Record& r , Path&& p , bool remove_dir , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,false/*create*/,c} {
+Record::Unlnk::Unlnk( Record& r , Path&& p , bool remove_dir , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,c} {
 	if (remove_dir) r.report_guard( file_loc , real_write() ) ;
 	else            report_update( r , Access::Stat , c )     ; // fail if file does not exist, hence sensitive to existence
 	send_report(r) ;

@@ -313,7 +313,6 @@ int main( int argc , char* argv[] ) {
 		g_gather.method        =        g_start_info.method             ;
 		g_gather.network_delay =        g_start_info.network_delay      ;
 		g_gather.nice          =        g_start_info.nice               ;
-		g_gather.no_tmp        =       !end_report.phy_tmp_dir_s        ;
 		g_gather.rule          =        g_start_info.rule               ;
 		g_gather.seq_id        =        g_seq_id                        ;
 		g_gather.service_mngt  =        g_service_mngt                  ;

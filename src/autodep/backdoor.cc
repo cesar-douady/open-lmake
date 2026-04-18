@@ -89,7 +89,7 @@ namespace Backdoor {
 		Accesses           as  ;
 		if (dep_idxs1) dep_idxs1->reserve(files.size()) ;
 		for( ::string& f : files ) {
-			Record::Solve<false/*Send*/> sr { r , f , no_follow , bool(+access_digest.accesses) , false/*create*/ , Comment::Depend } ;
+			Record::Solve<false/*Send*/> sr { r , f , no_follow , bool(+access_digest.accesses) , Comment::Depend } ;
 			if ( access_digest.flags.extra_dflags[ExtraDflag::ReaddirOk] && sr.file_loc==FileLoc::RepoRoot ) { // when passing flag readdir_ok, we may want to report top-level dir
 				sr.file_loc = FileLoc::Repo ;
 				sr.real     = "."s          ;                                                                  // /!\ a (warning) bug in gcc-12 is triggered if using "." here instead of "."s
@@ -201,7 +201,7 @@ namespace Backdoor {
 		Accesses                               as          ;
 		bool                                   has_overlay = false ;
 		for( ::string& f : files ) {
-			Record::Solve<false/*Send*/> sr { r , f , no_follow , bool(+access_digest.accesses) , true/*create*/ , Comment::Target } ;
+			Record::Solve<false/*Send*/> sr { r , f , no_follow , bool(+access_digest.accesses) , Comment::Target } ;
 			as          |= sr.accesses ;                  // seems pessimistic but sr.accesses does not actually depend on file, only on no_follow, read and write
 			has_overlay |= +sr.real0   ;
 			srs.push_back(::move(sr)) ;
@@ -260,7 +260,7 @@ namespace Backdoor {
 		::string const& repo_root_s = Record::s_autodep_env().repo_root_s ;
 		::optional_s    abs_dir_s   ;
 		if (+dir) {
-			Record::Solve<false/*Send*/> sr { r , ::copy(*dir) , true/*no_follow*/ , false/*read*/ , false/*create*/ , Comment::List } ;
+			Record::Solve<false/*Send*/> sr { r , ::copy(*dir) , true/*no_follow*/ , false/*read*/ , Comment::List } ;
 			abs_dir_s = mk_glb( with_slash(::move(sr.real)) , repo_root_s ) ;
 		}
 		//
@@ -308,11 +308,11 @@ namespace Backdoor {
 
 	::string ListRootS::process(Record& r) {
 		// report dir as used as prefix when listing dir
-		::string const&              repo_root_s = Record::s_autodep_env().repo_root_s                                                     ;
-		Record::Solve<false/*Send*/> sr          { r , ::move(dir) , true/*no_follow*/ , false/*read*/ , false/*create*/ , Comment::List } ;
-		::string                     dir_s       = with_slash(::move(sr.real))                                                             ;
-		::string                     abs_dir_s   = mk_glb( dir_s , repo_root_s )                                                           ;
-		::string                     abs_cwd_s   = cwd_s()                                                                                 ;
+		::string const&              repo_root_s = Record::s_autodep_env().repo_root_s                                   ;
+		Record::Solve<false/*Send*/> sr          { r , ::move(dir) , true/*no_follow*/ , false/*read*/ , Comment::List } ;
+		::string                     dir_s       = with_slash(::move(sr.real))                                           ;
+		::string                     abs_dir_s   = mk_glb( dir_s , repo_root_s )                                         ;
+		::string                     abs_cwd_s   = cwd_s()                                                               ;
 		//
 		r.send_report() ;
 		if ( abs_cwd_s.starts_with(repo_root_s) && !is_abs(dir_s) ) return mk_lcl( dir_s , mk_lcl(abs_cwd_s,repo_root_s) ) ;
@@ -347,7 +347,7 @@ namespace Backdoor {
 			}
 		}
 		//
-		Record::Solve<false/*Send*/> sr { r , tab , false/*no_follow*/ , true/*read*/ , false/*create*/ , Comment::Encode } ;
+		Record::Solve<false/*Send*/> sr { r , tab , false/*no_follow*/ , true/*read*/ , Comment::Encode } ;
 		throw_unless( sr.file_loc<=FileLoc::Repo , "codec table file must be a local source file" ) ;
 		if (+sr.accesses) r.report_access( { .comment=comment , .digest={.accesses=sr.accesses} , .files={{sr.real,{}}} } , true/*force*/ ) ;
 		//

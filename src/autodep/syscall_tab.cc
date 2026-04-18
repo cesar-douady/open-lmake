@@ -213,7 +213,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 // name_to_handle_at (open_by_handle_at is priviledged, no need to handle it)
 [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_name_to_handle_at( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
 	try {
-		Record::Solve( r , _path<true/*At*/>(proc_mem,args+0) , !(args[4]&AT_SYMLINK_FOLLOW) , false/*read*/ , false/*create*/ , c ) ;
+		Record::Solve( r , _path<true/*At*/>(proc_mem,args+0) , !(args[4]&AT_SYMLINK_FOLLOW) , false/*create*/ , c ) ;
 	} catch (::string const&) {}
 	return {} ;
 }

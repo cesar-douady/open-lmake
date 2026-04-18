@@ -291,7 +291,7 @@ struct Fopen : AuditAction<Record::Open,1/*NPaths*/> {
 
 struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	using Base = AuditAction<Record::Mkstemp,1/*NPaths*/> ;
-	Mkstemp( char* t , int sl , Comment c ) : Base{ t , true/*no_follow*/ , false/*read*/ , true/*create*/ , c } , tmpl{t} , sfx_len{sl} , comment{c} {}
+	Mkstemp( char* t , int sl , Comment c ) : Base{ t , true/*no_follow*/ , false/*read*/ , c } , tmpl{t} , sfx_len{sl} , comment{c} {}
 	Mkstemp( char* t ,          Comment c ) : Mkstemp(t,0,c) {}
 	int operator()(int fd) {
 		// in case of success, tmpl is modified to contain the file that was actually opened, and it was called with file instead of tmpl
@@ -544,7 +544,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	// name_to_handle_at (open_by_handle_at is priviledged, no need to handle it)
 	int name_to_handle_at( int d , CC* p , struct ::file_handle *h , int *mount_id , int f ) NE {
 		HDR1( name_to_handle_at , p , (d,p,h,mount_id,f) ) ;
-		Solve r { {d,p} , !(f&AT_SYMLINK_FOLLOW) , false/*read*/ , false/*create*/ , Comment::name_to_handle_at } ;
+		Solve r { {d,p} , !(f&AT_SYMLINK_FOLLOW) , false/*read*/ , Comment::name_to_handle_at } ;
 		return r(orig(d,p,h,mount_id,f)) ;
 	}
 
@@ -569,7 +569,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int creat64          (      CC* p,mode_t m ) {       HDR_OPEN(creat64          ,p,CWT,(  p,  m),-1) ; Open r{   p ,CWT,Comment::creat64          } ; return r(orig(  p,  m)) ; }
 	#undef CWT
 	#undef MOD
-	DIR* opendir(CC* p) { HDR1(opendir,p,(p)) ; Solve r{p,true/*no_follow*/,false/*read*/,false/*create*/,Comment::opendir} ; return r(orig(p)) ; }
+	DIR* opendir(CC* p) { HDR1(opendir,p,(p)) ; Solve r{p,true/*no_follow*/,false/*read*/,Comment::opendir} ; return r(orig(p)) ; }
 
 	// readlink
 	#define RL Readlink
@@ -636,12 +636,12 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int unlink  (      CC* p      ) NE { HDR1(unlink  ,p,(  p  )) ; NO_SERVER(unlink  ) ; Unlnk r{   p ,false/*rmdir*/      ,Comment::unlink  } ; return r(orig(  p  )) ; }
 	int unlinkat(int d,CC* p,int f) NE { HDR1(unlinkat,p,(d,p,f)) ; NO_SERVER(unlinkat) ; Unlnk r{{d,p},bool(f&AT_REMOVEDIR),Comment::unlinkat} ; return r(orig(d,p,f)) ; }
 
-	// utime                                                                                                 no_follow read  create
-	int utime    (      CC* p,const struct utimbuf* t         ) { HDR1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,false,Comment::utime    } ; return r(orig(  p,t  )) ; }
-	int utimes   (      CC* p,const struct timeval  t[2]      ) { HDR1(utimes   ,p,(  p,t  )) ; Solve r{   p ,false   ,false,false,Comment::utimes   } ; return r(orig(  p,t  )) ; }
-	int futimesat(int d,CC* p,const struct timeval  t[2]      ) { HDR1(futimesat,p,(d,p,t  )) ; Solve r{{d,p},false   ,false,false,Comment::futimesat} ; return r(orig(d,p,t  )) ; }
-	int lutimes  (      CC* p,const struct timeval  t[2]      ) { HDR1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,false,Comment::lutimes  } ; return r(orig(  p,t  )) ; }
-	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HDR1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,false,Comment::utimensat} ; return r(orig(d,p,t,f)) ; }
+	// utime                                                                                                 no_follow read
+	int utime    (      CC* p,const struct utimbuf* t         ) { HDR1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,Comment::utime    } ; return r(orig(  p,t  )) ; }
+	int utimes   (      CC* p,const struct timeval  t[2]      ) { HDR1(utimes   ,p,(  p,t  )) ; Solve r{   p ,false   ,false,Comment::utimes   } ; return r(orig(  p,t  )) ; }
+	int futimesat(int d,CC* p,const struct timeval  t[2]      ) { HDR1(futimesat,p,(d,p,t  )) ; Solve r{{d,p},false   ,false,Comment::futimesat} ; return r(orig(d,p,t  )) ; }
+	int lutimes  (      CC* p,const struct timeval  t[2]      ) { HDR1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,Comment::lutimes  } ; return r(orig(  p,t  )) ; }
+	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HDR1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,Comment::utimensat} ; return r(orig(d,p,t,f)) ; }
 
 	//
 	// stats : mere path accesses (neeed to solve path, but no actual access to file data)

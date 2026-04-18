@@ -623,7 +623,6 @@ Status Gather::_exec_child() {
 	size_t                      kill_step         = 0              ;
 	bool                        seen_mount_chroot = false          ;
 	bool                        seen_panic        = false          ;
-	bool                        seen_tmp          = false          ;
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} ) {
 		if (status==Status::New) status = status_ ;                     // only record first status
@@ -1011,18 +1010,6 @@ Status Gather::_exec_child() {
 								}
 								jse.to_confirm.erase(it) ;
 							} break ;
-							case Proc::Tmp :
-								if (!seen_tmp) {
-									trace(kind,fd,proc) ;
-									if (no_tmp) {
-										_user_trace( jerr.date , Comment::Tmp , CommentExt::Err ) ;
-										kill( Status::Forbidden , "tmp access with no tmp dir" ) ;
-									} else {
-										_user_trace( jerr.date , Comment::Tmp ) ;
-									}
-									seen_tmp = true ;
-								}
-							break ;
 							case Proc::Chroot :
 							case Proc::Mount  : {
 								::string const& dst = jerr.files[0].first                            ;

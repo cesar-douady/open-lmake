@@ -82,8 +82,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* suppress tmp use management in gather.cc and record.cc
-	- now that tmp dir is always created
 ! improve address resolution
 	- as of today, each host is supposed to have a single address
 		- this is not necessarily the case on all network configs
