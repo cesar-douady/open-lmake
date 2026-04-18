@@ -418,7 +418,7 @@ namespace Engine {
 			res <<"\t\t"<< t <<" :\n" ;
 			size_t w = 0 ;
 			if (+be.domain_name)              w = ::max( w , strlen("domain_name") ) ;
-			for( auto const& [k,v] : be.dct ) w = ::max( w , k.size()            ) ;
+			for( auto const& [k,v] : be.dct ) w = ::max( w , k.size()              ) ;
 			//
 			if (+be.domain_name)              res <<"\t\t\t"<< widen("domain_name",w) <<" : " << be.domain_name <<'\n' ;
 			for( auto const& [k,v] : be.dct ) res <<"\t\t\t"<< widen(k            ,w) <<" : " << v              <<'\n' ;

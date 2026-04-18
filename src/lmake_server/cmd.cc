@@ -517,7 +517,7 @@ namespace Engine {
 		//
 		jsrr.small_id = 0 ;
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
-		jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , job_space.tmp_view_s|tmp_dir_s ) ;
+		jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , ade.repo_root_s , ade.tmp_dir_s ) ;
 		::vmap_ss expanded_env = _mk_env(job_info).first ;
 		//
 		if (+env.first) {
@@ -996,6 +996,10 @@ namespace Engine {
 								SubmitInfo   const& si       = rs.submit_info          ;
 								::string            pressure = si.pressure.short_str() ;
 								//
+								bool std_interpreter = start.interpreter.size()==1 && start.interpreter[0]==(job->rule()->is_python?"$PYTHON":"$SHEL") ;
+								start.mk_lmake_version() ;
+								start.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , start.autodep_env.repo_root_s , start.autodep_env.tmp_dir_s ) ;
+								//
 								if (+si.reason            ) push_entry( "reason" , localize(reason_str(si.reason),su)     ) ;
 								if (pre_start.service.addr) push_entry( "host"   , SockFd::s_host(pre_start.service.addr) ) ;
 								//
@@ -1003,7 +1007,12 @@ namespace Engine {
 									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(si.pressure))+" )"      , Color::None,false/*protect*/ ) ;
 									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   si.pressure.short_str()                                ) ;
 								}
-								//
+								if (!std_interpreter) {
+									First    first           ;
+									::string interpreter_str ; for( ::string const& c : start.interpreter ) interpreter_str << first(""," ")<<mk_shell_str(c) ;
+									if (job->rule()->is_python) push_entry( "python" , interpreter_str ) ;
+									else                        push_entry( "shell"  , interpreter_str ) ;
+								}
 								if (+start.chroot_info.dir_s          ) push_entry( "chroot_dir"      , no_slash(start.chroot_info.dir_s     ) ) ;
 								if (+start.chroot_info.actions        ) push_entry( "chroot_actions"  , cat     (start.chroot_info.actions   ) ) ;
 								if (+start.phy_lmake_root_s           ) push_entry( "lmake_root"      , no_slash(start.phy_lmake_root_s      ) ) ;

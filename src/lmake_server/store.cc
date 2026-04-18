@@ -23,6 +23,78 @@ namespace Engine {
 namespace Engine::Persistent {
 
 	//
+	// JobName
+	//
+
+	Mutex<MutexLvl::Job,true/*Shared*/> JobName::_s_mutex ;
+
+	JobName::JobName( ::pair_ss const& name_sfx , bool& inserted ) {
+		Lock lock {_s_mutex} ;
+		tie(self,inserted) = _g_job_name_file.insert( name_sfx.first , name_sfx.second ) ;
+	}
+
+	//
+	// JobBase
+	//
+
+	void JobBase::pop() {
+		SWEAR(t_thread_key=='=') ;
+		if (!self            ) return ;
+		if (+self->_full_name) self->_full_name.pop() ;
+		_g_job_file.pop(Job(+self)) ;
+		clear() ;
+	}
+
+	//
+	// NodeBase
+	//
+
+	Node NodeBase::s_top ; // Node("/")
+
+	Mutex<MutexLvl::Node,true/*Shared*/> NodeDataBase::_s_mutex ;
+
+	NodeBase::NodeBase(::string const& name_) {
+		SWEAR( +name_ && is_canon(name_) , name_ ) ;
+		SharedLock lock { NodeDataBase::_s_mutex }        ;
+		NodeName   nn   = _g_node_name_file.search(name_) ; if (!nn) return ;
+		self = _g_node_name_file.at(nn) ;
+		SWEAR(+self) ;
+	}
+
+	NodeBase::NodeBase( NewType , ::string const& name_ , bool no_dir ) {
+		SWEAR( +name_ && is_canon(name_) , name_ ) ;
+		Lock lock { NodeDataBase::_s_mutex } ;
+		if (no_dir) {
+			NodeName nn = _g_node_name_file.insert(name_).first ;
+			Node&    n  = _g_node_name_file.at(nn)              ;
+			if (!n) n = _g_node_file.emplace_back(nn) ;
+			self = n ;
+		} else {
+			::pair<NodeName/*top*/,::vector<NodeName>/*created*/> top_created = _g_node_name_file.insert_chain(name_,'/') ; SWEAR(+top_created) ;
+			Node                                                  last_n      ;                                             if (name_[0]=='/') last_n = Node::s_top ;
+			if (+top_created.first)
+				last_n = _g_node_name_file.c_at(top_created.first) ;
+			for( NodeName nn : top_created.second ) {
+				Node& n = _g_node_name_file.at(nn) ; SWEAR( !n , n ) ;
+				last_n = n = _g_node_file.emplace_back(nn,last_n/*dir*/) ; // create dir chain from top to bottom
+			}
+			self = last_n ;
+		}
+		SWEAR( +self , name_,no_dir ) ;
+	}
+
+	RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {
+		// first match on suffix
+		PsfxIdx sfx_idx = _g_sfxs_file.longest(target_name,::string{Persistent::StartMrkr}).first ; // StartMrkr is to match rules w/ no stems
+		if (!sfx_idx) return RuleTgts{} ;
+		PsfxIdx pfx_root = _g_sfxs_file.c_at(sfx_idx) ;
+		// then match on prefix
+		PsfxIdx pfx_idx = _g_pfxs_file.longest(pfx_root,target_name).first ;
+		if (!pfx_idx) return RuleTgts{} ;
+		return _g_pfxs_file.c_at(pfx_idx) ;
+	}
+
+	//
 	// RuleBase
 	//
 
@@ -112,61 +184,6 @@ namespace Engine::Persistent {
 	//
 
 	::umap<Crc,RuleCrc> RuleCrcBase::s_by_rsrcs ;
-
-	//
-	// JobBase
-	//
-
-	Mutex<MutexLvl::Job,true/*Shared*/> JobDataBase::_s_mutex ;
-
-	//
-	// NodeBase
-	//
-
-	Node NodeBase::s_top ; // Node("/")
-
-	Mutex<MutexLvl::Node,true/*Shared*/> NodeDataBase::_s_mutex ;
-
-	NodeBase::NodeBase(::string const& name_) {
-		SWEAR( +name_ && is_canon(name_) , name_ ) ;
-		SharedLock lock { NodeDataBase::_s_mutex }        ;
-		NodeName   nn   = _g_node_name_file.search(name_) ; if (!nn) return ;
-		self = _g_node_name_file.at(nn) ;
-		SWEAR(+self) ;
-	}
-
-	NodeBase::NodeBase( NewType , ::string const& name_ , bool no_dir ) {
-		SWEAR( +name_ && is_canon(name_) , name_ ) ;
-		Lock lock { NodeDataBase::_s_mutex } ;
-		if (no_dir) {
-			NodeName nn = _g_node_name_file.insert(name_).first ;
-			Node&    n  = _g_node_name_file.at(nn)              ;
-			if (!n) n = _g_node_file.emplace_back(nn) ;
-			self = n ;
-		} else {
-			::pair<NodeName/*top*/,::vector<NodeName>/*created*/> top_created = _g_node_name_file.insert_chain(name_,'/') ; SWEAR(+top_created) ;
-			Node                                                  last_n      ;                                             if (name_[0]=='/') last_n = Node::s_top ;
-			if (+top_created.first)
-				last_n = _g_node_name_file.c_at(top_created.first) ;
-			for( NodeName nn : top_created.second ) {
-				Node& n = _g_node_name_file.at(nn) ; SWEAR( !n , n ) ;
-				last_n = n = _g_node_file.emplace_back(nn,last_n/*dir*/) ; // create dir chain from top to bottom
-			}
-			self = last_n ;
-		}
-		SWEAR( +self , name_,no_dir ) ;
-	}
-
-	RuleTgts NodeBase::s_rule_tgts(::string const& target_name) {
-		// first match on suffix
-		PsfxIdx sfx_idx = _g_sfxs_file.longest(target_name,::string{Persistent::StartMrkr}).first ; // StartMrkr is to match rules w/ no stems
-		if (!sfx_idx) return RuleTgts{} ;
-		PsfxIdx pfx_root = _g_sfxs_file.c_at(sfx_idx) ;
-		// then match on prefix
-		PsfxIdx pfx_idx = _g_pfxs_file.longest(pfx_root,target_name).first ;
-		if (!pfx_idx) return RuleTgts{} ;
-		return _g_pfxs_file.c_at(pfx_idx) ;
-	}
 
 	//
 	// Persistent
@@ -709,9 +726,8 @@ namespace Engine::Persistent {
 		match_gen++ ;                                         // increase generation, which automatically makes all nodes !match_ok()
 		if ( force_physical || match_gen==0 ) {               // unless we wrapped around
 			trace("reset") ;
-			Fd::Stderr.write("collecting nodes ...") ;
-			for( Node n : node_lst() ) n->mk_old() ;
-			Fd::Stderr.write(" done\n") ;                     // physically reset node match_gen's
+			Fd::Stderr.write("updating nodes ...") ; for( Node n : node_lst() ) n->mk_old() ; Fd::Stderr.write(" done\n") ;
+			Fd::Stderr.write("updating jobs ..." ) ; for( Job  j : job_lst () ) j->mk_old() ; Fd::Stderr.write(" done\n") ;
 			match_gen = 1 ;
 		}
 		Rule::s_match_gen = match_gen ;

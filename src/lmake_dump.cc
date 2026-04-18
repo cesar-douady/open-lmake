@@ -20,14 +20,14 @@ int main( int argc , char* /*argv*/[] ) {
 	try                       { Persistent::new_config({}/*config*/,false/*dyn*/) ; }
 	catch (::string const& e) { exit(Rc::BadState,e) ;                              }
 	//
-	for( const Rule r : Persistent::rule_lst(true/*with_shared*/) )             _out( snake_str(r->special) , cat(r        ) , r->user_name() ) ;
-	for( const Job  j : Persistent::job_lst (                   ) ) { j.chk() ; _out( cat(j)                , cat(j->rule()) , j->name()      ) ; }
+	for( const Rule r : Persistent::rule_lst(true/*with_shared*/) )                            _out( snake_str(r->special) , cat(r        ) , r->user_name() ) ;
+	for( const Job  j : Persistent::job_lst (                   ) ) { j.chk() ; if (j.valid()) _out( cat(j)                , cat(j->rule()) , j->name()      ) ; }
 	for( const Node n : Persistent::node_lst(                   ) ) {
 		n.chk() ;
 		if      ( n->buildable==Buildable::Unknown                                      ) _out( cat(n) , cat(n->actual_job,'?'           ) , n->name() ) ;
 		else if ( n->has_job(false/*reliable*/)==Yes                                    ) _out( cat(n) , cat(n->actual_job               ) , n->name() ) ; // just dump existing info
 		else if ( n->has_job(false/*reliable*/)==Maybe && n->rule_tgts.view().size()==1 ) _out( cat(n) , cat(n->rule_tgts.view()[0]->rule) , n->name() ) ; // .
-		else                                                             _out( cat(n) , cat(n->buildable                ) , n->name() ) ;
+		else                                                                              _out( cat(n) , cat(n->buildable                ) , n->name() ) ;
 	}
 	//
 	try                       { Persistent::chk() ; }

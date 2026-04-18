@@ -184,15 +184,8 @@ In that case, open-lmake will detect this case and regenerate this file so as to
 
 The physical dir is:
 
-- If `$TMPDIR` is set to an empty string, there is no tmp dir.
 - If open-lmake is supposed to keep this dir after job execution, it is a dir under `LMAKE/tmp`, determined by open-lmake (its precise value is reported by `lshow -i`).
-- Else if `$TMPDIR` is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-dir within it.
-- Else, a dir determined by open-lmake lying in the `LMAKE` dir.
-
+- Else if `$TMPDIR` is specified in the environment of the job and is not empty, it is used. Note that it needs not be unique as open-lmake will create a unique sub-dir within it.
+- Else, a dir determined by open-lmake within the `LMAKE` dir.
 
 Unless open-lmake is instructed to keep this dir, it is erased at the end of the job execution.
-
-At execution time:
-
-- If `$TMPDIR` was set to an empty string, it is removed from the environment and if the job uses the default tmp dir (usually `/tmp`), an error is generated.
-- Else `$TMPDIR` is set so that the job can use it to access the tmp dir.

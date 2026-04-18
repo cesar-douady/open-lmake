@@ -182,7 +182,7 @@ int main( int argc , char* argv[] ) {
 	uint64_t upload_key     = 0            ; // key used to identify temporary data uploaded to the cache
 	Crc      targets_crc    ;
 	//
-	swear_prod(argc==9,argc) ;                // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ domain_name repo_root seq_id job_idx trace_file
+	swear_prod(argc==9,argc) ;               // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ domain_name repo_root seq_id job_idx trace_file
 	//
 	try { g_service_start   = {                   argv[1],true/*name_ok*/} ; } catch (::string const& e) { exit(Rc::Fail,"cannot connect to server : ",e) ; }
 	/**/  g_service_mngt    = {                   argv[2]                } ;
@@ -242,26 +242,24 @@ int main( int argc , char* argv[] ) {
 		g_user_trace->emplace_back( washed , Comment::Washed ) ;
 		//
 		SWEAR( !end_report.phy_tmp_dir_s , end_report.phy_tmp_dir_s ) ;
-		{	auto it = g_start_info.env.begin() ;
-			for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
-			if ( it==g_start_info.env.end() || +it->second ) {                                                                           // if TMPDIR is set and empty, no tmp dir is prepared/cleaned
-				if (g_start_info.keep_tmp) {
-					end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"<<g_job<<'/' ;
-				} else {
-					// use seq id instead of small id to make tmp dir to ensure that even if user mistakenly record tmp dir name, there no chance of porosity between jobs
-					// as with small id, by the time the (bad) old tmp dir is referenced by a new job, it may be in use by another job
-					// such a situation cannot occur with seq id
-					if      (it==g_start_info.env.end()         ) {}
-					else if (!it->second                        ) {}
-					else if (it->second!=PassMrkr               ) end_report.phy_tmp_dir_s << it->second       <<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
-					else if (has_env("TMPDIR",false/*empty_ok*/)) end_report.phy_tmp_dir_s << get_env("TMPDIR")<<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ;
-					if      (!end_report.phy_tmp_dir_s          ) end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"auto_tmp/"          <<g_seq_id<<'/' ;
-					else if (!is_abs(end_report.phy_tmp_dir_s)) {
-						end_report.msg_stderr.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") must be absolute" ;
-						goto End ;
-					}
-				}
-			}
+		auto        it   = g_start_info.env.begin() ; for(; it!=g_start_info.env.end() ; it++ ) if (it->first=="TMPDIR") break ;
+		const char* from ;
+		// use seq id instead of small id to make tmp dir to ensure that even if user mistakenly record tmp dir name, there no chance of porosity between jobs
+		// as with small id, by the time the (bad) old tmp dir is referenced by a new job, it may be in use by another job
+		// such a situation cannot occur with seq id
+		if      ( g_start_info.keep_tmp                     ) { from="keep" ; end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"tmp/"               <<g_job   <<'/' ; }
+		else if ( it==g_start_info.env.end() || !it->second ) { from="auto" ; end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"auto_tmp/"          <<g_seq_id<<'/' ; }
+		else if ( it->second!=PassMrkr                      ) { from="rule" ; end_report.phy_tmp_dir_s << it->second       <<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ; }
+		else if ( has_env("TMPDIR",false/*empty_ok*/)       ) { from="env"  ; end_report.phy_tmp_dir_s << get_env("TMPDIR")<<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ; }
+		else                                                  { from="dflt" ; end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"auto_tmp/"          <<g_seq_id<<'/' ; }
+		trace("tmp",from,end_report.phy_tmp_dir_s) ;
+		if (it!=g_start_info.env.end()) {                                                                                                // TMPDIR will be set in enter()
+			for( auto prev_it=it++ ; it!=g_start_info.env.end() ; prev_it=it++ ) *prev_it = ::move(*it) ;
+			g_start_info.env.pop_back() ;
+		}
+		if (!is_abs(end_report.phy_tmp_dir_s)) {
+			end_report.msg_stderr.msg << "$TMPDIR ("<<end_report.phy_tmp_dir_s<<") passed from "<<from<<" must be absolute" ;
+			goto End ;
 		}
 		//
 		::vector_s enter_accesses ;

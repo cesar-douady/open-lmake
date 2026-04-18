@@ -82,7 +82,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 	}
 
 	void Trace::_t_commit() {
-		static const ::string Giant = "<giant record>\n" ;                                               // /!\ cannot be constexpr with gcc-11
+		static const ::string Giant = "<giant record>\n" ;                                                                           // /!\ cannot be constexpr with gcc-11
 		//
 		::string const& buf_view = _t_buf->size()<=(s_sz>>4) ? *_t_buf : Giant ;
 		//
@@ -90,12 +90,12 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 			size_t new_pos = _s_pos+buf_view.size() ;
 			if ( _s_cur_sz<s_sz && new_pos>_s_cur_sz ) {
 				size_t old_sz = _s_cur_sz ;
-				_s_cur_sz = ::max( new_pos                   , old_sz+::min(old_sz>>2,size_t(1<<24)) ) ; // ensure remaps are in log(n) (up to a reasonable size increase)
-				_s_cur_sz = ::min( round_up<4096>(_s_cur_sz) , size_t(s_sz)                          ) ; // legalize
+				_s_cur_sz = ::max( new_pos                   , old_sz+::min(old_sz>>2,size_t(1<<24)) ) ;                             // ensure remaps are in log(n) (up to a reasonable size increase)
+				_s_cur_sz = ::min( round_up<4096>(_s_cur_sz) , size_t(s_sz)                          ) ;                             // legalize
 				//
 				// /!\ dont use ftruncate to avoid race in kernel between ftruncate and write back of dirty pages
-				try                     { _s_fd.write(::string(_s_cur_sz-old_sz,0/*ch*/)) ; }
-				catch (::string const&) { FAIL_PROD(_s_fd,old_sz,_s_cur_sz,*g_trace_file) ; }            // NO_COV
+				try                     { _s_fd.write(::string(_s_cur_sz-old_sz,0/*ch*/)) ;                                        }
+				catch (::string const&) { exit( Rc::System , cat("cannot extend trace from ",old_sz," to ",_s_cur_sz," bytes") ) ; } // NO_COV
 				//
 				_s_data = static_cast<uint8_t*>(::mremap( _s_data , old_sz , _s_cur_sz , MREMAP_MAYMOVE )) ;
 			}

@@ -99,7 +99,7 @@ namespace Engine {
 	private :
 		static StaticUniqPtr<RealPathEnv> _s_rpe ;
 
-		// cxtors & casts
+		// cxtors etc
 	public :
 		using JobBase::JobBase ;
 		Job( Rule::RuleMatch&&                                 , Req={} , DepDepth lvl=0 ) ; // plain Job, used internally and when repairing, req is only for error reporting
@@ -111,9 +111,9 @@ namespace Engine {
 		Job( Special , Node target , Deps deps               ) ;                             // special job
 		Job( Special , Node target , ::vector<JobTgt> const& ) ;                             // multi
 		//
-		explicit operator ::string() const ;
-		// accesses
 		void operator>>(::string&) const ;
+		// accesses
+		bool valid   (                    ) const ;
 		bool is_plain(bool frozen_ok=false) const ;
 		//
 		::string ancillary_file(AncillaryTag tag=AncillaryTag::Data) const ;
@@ -416,21 +416,20 @@ namespace Engine {
 		static Mutex<MutexLvl::TargetDir> _s_target_dirs_mutex ;
 		static ::umap<Node,Idx/*cnt*/>    _s_target_dirs       ; // dirs created for job execution that must not be deleted
 		static ::umap<Node,Idx/*cnt*/>    _s_hier_target_dirs  ; // uphill hierarchy of _s_target_dirs
-		// cxtors & casts
+		// cxtors etc
 	public :
 		JobData() = delete ;
-		JobData( JobName n                                         ) : JobDataBase{n}                                            {                     }
-		JobData( JobName n , Special sp               , Deps ds={} ) : JobDataBase{n} , deps{ds } , rule_crc_idx{+Rule(sp)->crc} {                     } // special Job, all deps
-		JobData( JobName n , Rule::RuleMatch const& m , Deps sds   ) : JobDataBase{n} , deps{sds} , rule_crc_idx{+m.rule  ->crc} { _reset_targets(m) ; } // plain Job, static targets and deps
+		JobData( JobName n , Special sp               , Deps all_deps={} , bool s=false ) : JobDataBase{n} , deps{all_deps   } , rule_crc_idx{+Rule(sp)->crc} , sure{s} {                     }
+		JobData( JobName n , Rule::RuleMatch const& m , Deps static_deps , bool s=false ) : JobDataBase{n} , deps{static_deps} , rule_crc_idx{+m.rule  ->crc} , sure{s} { _reset_targets(m) ; }
 		//
-		JobData           (JobData&& jd) ;
-		~JobData          (            ) ;
-		JobData& operator=(JobData&& jd) ;
+		JobData           (JobData&& jd)       ;
+		~JobData          (            )       { _close() ;                    }
+		JobData& operator=(JobData&& jd)       ;
+		bool     operator+(            ) const { return +rule() ;              }
+		void     clear    (            )       { _close() ; rule_crc_idx = 0 ; }
 	private :
-		JobData           (JobData const&) = default ; // /!\ only used as convenience to move operators as this duplicates targets and deps that are owned
-		JobData& operator=(JobData const&) = default ; // .
-		void _reset_targets(Rule::RuleMatch const&) ;
-		void _reset_targets(                      ) { _reset_targets(rule_match()) ; }
+		JobData           (JobData const&) = default ;           // /!\ only used as convenience to move operators as this duplicates targets and deps that are owned
+		JobData& operator=(JobData const&) = default ;           // .
 		void _close        (                      ) ;
 		// accesses
 	public :
@@ -460,7 +459,7 @@ namespace Engine {
 		CoarseDelay phy_exe_time() const { return cache_hit_info<=CacheHitInfo::Hit ? CoarseDelay() : exe_time() ; }
 		//
 		Job      idx () const { return Job::s_idx(self) ; }
-		Rule     rule() const { return rule_crc()->rule ; }                                                                       // thread-safe
+		Rule     rule() const { RuleCrcIdx rci = rule_crc_idx ; return rci ? RuleCrc(rci)->rule : Rule() ; }                      // thread safe
 		::string name() const {
 			::string res ;
 			if ( Rule r=rule() ; +r )   res = full_name(r->job_sfx_len()) ;
@@ -491,8 +490,6 @@ namespace Engine {
 			rule_crc_idx = +r->crc ;
 		}
 		//
-		bool sure   () const ;
-		void mk_sure()       { match_gen = Rule::s_match_gen ; _sure = true ; }
 		bool err() const {
 			switch (run_status) {
 				case RunStatus::Ok            : return is_ok(status)!=Yes ;
@@ -502,6 +499,8 @@ namespace Engine {
 		}
 		bool missing() const { return run_status==RunStatus::MissingStatic ; }
 		// services
+		void mk_old() { match_gen = 0 ; }
+		//
 		::vmap<Node,FileAction> pre_actions( Rule::RuleMatch const& , bool no_incremental , bool mark_target_dirs=false ) const ; // thread-safe
 		//
 		Tflags tflags(Node target) const ;
@@ -545,7 +544,9 @@ namespace Engine {
 		//
 		template<class... A> void audit_end(A&&... args) const ;
 	private :
-		void _propag_speculate(ReqInfo const&) const ;
+		void _reset_targets   (Rule::RuleMatch const&)       ;
+		void _reset_targets   (                      )       { _reset_targets(rule_match()) ; }
+		void _propag_speculate(ReqInfo const&        ) const ;
 		//
 		void                                             _submit_codec   ( Req                             )       ;
 		void                                             _submit_req     ( Req                             )       ;
@@ -555,40 +556,40 @@ namespace Engine {
 		// data
 		// START_OF_VERSIONING REPO
 		struct IfPlain {
-			Node        build_asking ;                                //       32 bits,        node need this job that triggered rebuild
-			Node        last_asking  ;                                //       32 bits,        last node needing this job
-			Targets     targets      ;                                //       32 bits, owned, for plain jobs
-			CoarseDelay exe_time     ;                                //       16 bits,        for plain jobs
-			CoarseDelay cost         ;                                //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
+			Node        build_asking ;                                    //       32 bits,        node need this job that triggered rebuild
+			Node        last_asking  ;                                    //       32 bits,        last node needing this job
+			Targets     targets      ;                                    //       32 bits, owned, for plain jobs
+			CoarseDelay exe_time     ;                                    //       16 bits,        for plain jobs
+			CoarseDelay cost         ;                                    //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
 		} ;
 		struct IfDep {
-			SeqId seq_id     = 0 ;                                    //       64 bits
-			Fd    fd         ;                                        //       32 bits
-			Job   asking_job ;                                        //       32 bits
+			SeqId seq_id     = 0 ;                                        //       64 bits
+			Fd    fd         ;                                            //       32 bits
+			Job   asking_job ;                                            //       32 bits
 		} ;
 	public :
-	//	JobName          name                               ;         //       32 bits, inherited
-		Deps             deps                               ;         //  31<= 32 bits, owned
-		RuleCrcIdx       rule_crc_idx  :NRuleCrcIdxBits     = 0     ; //       24 bits
-		mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
-		Tokens1          tokens1                            = 0     ; //        8 bits
-		RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
-		Status           status        :NBits<Status      > = {}    ; //        5 bits
-		CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
-		BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
-		LocalReason      local_reason  :2                   = {}    ; //        2 bits,           job was last forced to run locally
-		bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
+	//	JobName      name                               ;         //       32 bits, inherited
+		Deps         deps                               ;         //  31<= 32 bits, owned
+		RuleCrcIdx   rule_crc_idx  :NRuleCrcIdxBits     = 0     ; //       24 bits
+		MatchGen     match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
+		Tokens1      tokens1                            = 0     ; //        8 bits
+		RunStatus    run_status    :NBits<RunStatus   > = {}    ; //        3 bits
+		Status       status        :NBits<Status      > = {}    ; //        5 bits
+		CacheHitInfo cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
+		BackendTag   backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
+		LocalReason  local_reason  :2                   = {}    ; //        2 bits,           job was last forced to run locally
+		bool         incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
+		bool         sure          :1                   = false ; //        1 bit
 	private :
-		mutable bool _sure          :1 = false ;                      //        1 bit
-		Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+		Bool3 _reliable_stats:2 = No ;                                    //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 	public :
 		union {
-			IfPlain _if_plain = {} ;                                  // 104<=128 bits
-			IfDep   _if_dep   ;                                       //      128 bits
+			IfPlain _if_plain = {} ;                                      // 104<=128 bits
+			IfDep   _if_dep   ;                                           //      128 bits
 		} ;
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(JobData)==32) ;                              // ensure size is a power of 2 to maximize cache perf
+	static_assert(sizeof(JobData)==32) ;                                  // ensure size is a power of 2 to maximize cache perf
 
 }
 
@@ -601,18 +602,14 @@ namespace Engine {
 	// Job
 	//
 
-	inline Job::operator ::string() const { return self->name() ; }
-
 	inline Job::Job( RuleTgt rt , ::string const& t  , Bool3 chk_psfx , Req req , DepDepth lvl ) : Job{Rule::RuleMatch(rt,t ,chk_psfx),req,lvl} {} // chk_psfx=Maybe means check size only
 	inline Job::Job( Rule    r  , ::string const& jn , Bool3 chk_psfx , Req req , DepDepth lvl ) : Job{Rule::RuleMatch(r ,jn,chk_psfx),req,lvl} {} // .
 	//
-	inline Job::Job( Special sp                      ) : Job{                                 New , sp      } { SWEAR( sp==Special::Req   , sp ) ; }
-	inline Job::Job( Special sp ,          Deps deps ) : Job{                                 New , sp,deps } { SWEAR( sp==Special::Dep   , sp ) ; }
-	inline Job::Job( Special sp , Node t , Deps deps ) : Job{ {t->name(),Rule(sp)->job_sfx()},New , sp,deps } { SWEAR( sp!=Special::Plain      ) ; }
+	inline Job::Job( Special sp             ) : Job{JobName(), sp     } { SWEAR( sp==Special::Req , sp ) ; }
+	inline Job::Job( Special sp , Deps deps ) : Job{JobName(), sp,deps} { SWEAR( sp==Special::Dep , sp ) ; }
 
-	inline bool Job::is_plain(bool frozen_ok) const {
-		return +self && self->is_plain(frozen_ok) ;
-	}
+	inline bool Job::valid   (              ) const { return +self && +*self                    ; }
+	inline bool Job::is_plain(bool frozen_ok) const { return +self && self->is_plain(frozen_ok) ; }
 
 	//
 	// JobTgt
@@ -622,7 +619,7 @@ namespace Engine {
 	inline JobTgt::JobTgt( Rule::RuleMatch&& m , bool sure                 , Req r , DepDepth lvl ) : JobTgt{ Job(::move(m)    ,r,lvl) , sure      } {}
 
 	inline bool JobTgt::sure() const {
-		return _is_static_phony() && self->sure() ;
+		return _is_static_phony() && self->sure ;
 	}
 
 	inline bool JobTgt::produces(Node t,bool actual) const {
@@ -647,12 +644,18 @@ namespace Engine {
 	//
 
 	inline void JobData::_close() {
-		if (has_targets()) targets().pop() ;
-		/**/               deps     .pop() ;
+		if ( +self && has_targets() ) targets().pop() ;
+		/**/                          deps     .pop() ;
 	}
-	inline JobData::JobData           (JobData&& jd) : JobData(jd) {                                                                      jd.deps={} ; jd.targets()={} ;               }
-	inline JobData::~JobData          (            )               { _close() ;                                                                                                        }
-	inline JobData& JobData::operator=(JobData&& jd)               { SWEAR( rule()==jd.rule() , rule(),jd.rule() ) ; _close() ; self=jd ; jd.deps={} ; jd.targets()={} ; return self ; }
+	inline JobData::JobData           (JobData&& jd) : JobData(jd) { jd.deps={} ; jd.targets()={} ; }
+	inline JobData& JobData::operator=(JobData&& jd)               {
+		if (this!=&jd) {                                             // following code only works if this!=&jd
+			_close() ;
+			self = jd ;
+			jd.deps = {} ; jd.targets() = {} ;
+		}
+		return self ;
+	}
 
 	inline MsgStderr JobData::special_msg_stderr( bool short_msg                  ) const { return special_msg_stderr({},short_msg) ; }
 	inline void      JobData::audit_end_special ( Req r , SpecialStep s , Bool3 m ) const { return audit_end_special(r,s,m,{}     ) ; }
@@ -706,14 +709,6 @@ namespace Engine {
 		JobExec je { idx() , New } ;
 		je.max_stderr_len = rule()->start_ancillary_attrs.spec.max_stderr_len ; // in case it is not dynamic
 		je.audit_end(::forward<A>(args)...) ;
-	}
-
-	inline bool JobData::sure() const {
-		if (match_gen<Rule::s_match_gen) {
-			match_gen = Rule::s_match_gen                                                                                        ;
-			_sure     = ::none_of( deps , [](Dep const& d) { return d.dflags[Dflag::Static] && d->buildable<Buildable::Yes ; } ) ; // only static deps are required to exist for job to be selected
-		}
-		return _sure ;
 	}
 
 	inline bool              JobData::has_req   (Req r             ) const { return Req::s_store[+r      ].jobs.contains  (    idx()) ; }

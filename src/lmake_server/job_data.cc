@@ -323,7 +323,7 @@ namespace Engine {
 	}
 
 	void JobData::_reset_targets(Rule::RuleMatch const& match) {
-		SWEAR( match.rule->special>=Special::HasMatches , idx(),match,match.rule,match.rule->special ) ;
+		SWEAR( match.rule->special>=Special::HasMatches , match,match.rule,match.rule->special ) ;
 		//
 		Rule             r     = rule()                       ;
 		::vector<Target> ts    ;                                ts.reserve(r->matches_iotas[false/*star*/][+MatchKind::Target].size()) ; // there are usually no duplicates
@@ -492,7 +492,7 @@ namespace Engine {
 			bool           stamped_seen_waiting  = false    ;
 			bool           proto_seen_critical   = false    ;                                         // seen critical modif or error or waiting
 			bool           stamped_seen_critical = false    ;
-			bool           sure                  = true     ;
+			bool           sure_                 = true     ;
 			ReqInfo::State state                 = ri.state ;
 			//
 			ri.speculative_wait = false ;                                                             // initially, we are not waiting at all
@@ -562,7 +562,7 @@ namespace Engine {
 					if ( dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) && special>Special::Fugitive ) dnd.build_asking = job ;
 					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
-				if ( is_static && dnd.buildable<Buildable::Yes ) sure = false ; // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
+				if ( is_static && dnd.buildable<Buildable::Yes ) sure_ = false ; // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
 				if (cdri->waiting()) {
 					if      ( is_static                                            ) ri.speculative_wait = false ; // we are non-speculatively waiting, even if after a speculative wait
 					else if ( !stamped_seen_waiting && (+state.stamped.err||modif) ) ri.speculative_wait = true  ;
@@ -645,7 +645,7 @@ namespace Engine {
 				proto_seen_critical |= is_critical && (+dep_err||dep_modif)   ;
 			}
 			if (ri.waiting()                             ) goto Wait ;
-			if (sure                                     ) mk_sure() ;                   // improve sure (sure is pessimistic)
+			if (sure_                                    ) sure = true ;                 // improve sure (sure is pessimistic)
 			if (+(run_status=ri.state.stamped.err)       ) goto Done ;
 			if (no_run_reason(ri.state)==NoRunReason::Dep) goto Done ;
 		}

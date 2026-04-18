@@ -2201,17 +2201,11 @@ In that case, open-lmake will detect this case and regenerate this file so as to
 <h2 id="tmp-dir"><a class="header" href="#tmp-dir">tmp dir</a></h2>
 <p>The physical dir is:</p>
 <ul>
-<li>If <code>$TMPDIR</code> is set to an empty string, there is no tmp dir.</li>
 <li>If open-lmake is supposed to keep this dir after job execution, it is a dir under <code>LMAKE/tmp</code>, determined by open-lmake (its precise value is reported by <code>lshow -i</code>).</li>
-<li>Else if <code>$TMPDIR</code> is specified in the environment of the job, it is used. Note that it need not be unique as open-lmake will create a unique sub-dir within it.</li>
-<li>Else, a dir determined by open-lmake lying in the <code>LMAKE</code> dir.</li>
+<li>Else if <code>$TMPDIR</code> is specified in the environment of the job and is not empty, it is used. Note that it needs not be unique as open-lmake will create a unique sub-dir within it.</li>
+<li>Else, a dir determined by open-lmake within the <code>LMAKE</code> dir.</li>
 </ul>
 <p>Unless open-lmake is instructed to keep this dir, it is erased at the end of the job execution.</p>
-<p>At execution time:</p>
-<ul>
-<li>If <code>$TMPDIR</code> was set to an empty string, it is removed from the environment and if the job uses the default tmp dir (usually <code>/tmp</code>), an error is generated.</li>
-<li>Else <code>$TMPDIR</code> is set so that the job can use it to access the tmp dir.</li>
-</ul>
 <div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2026 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->

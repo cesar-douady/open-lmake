@@ -767,12 +767,6 @@ namespace Engine {
 		return ok ;
 	}
 
-	void NodeData::mk_old() {
-		Trace trace("mk_old",idx()) ;
-		busy      = false ;           // possibly old
-		match_gen = 0     ;
-	}
-
 	void NodeData::mk_no_src() {
 		Trace trace("mk_no_src",idx()) ;
 		buildable = Buildable::Unknown ;

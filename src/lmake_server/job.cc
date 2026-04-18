@@ -97,6 +97,104 @@ namespace Engine {
 		s_real_path = new RealPath{*_s_rpe} ;
 	}
 
+	static bool _match_ok( Rule::RuleMatch const& match , Req req ) {
+		::pair_s<VarIdx> msg = match.reject_msg() ;
+		Trace trace("_match_ok",match,req,msg.first) ;
+		if (!msg.first) return true ;
+		if (+req) {
+			::pair_s<RuleData::MatchEntry> const& k_me = match.rule->matches[msg.second] ;
+			MatchKind                             mk   = k_me.second.flags.kind()        ;
+			req->audit_job   ( Color::Warning , cat("bad_",mk) , match.rule , match.name() ) ;
+			req->audit_stderr( {.msg=cat(mk,' ',k_me.first," : ",msg.first)}               ) ;
+		}
+		return false ;
+	}
+	template<bool WithDeps> static ::optional<::pair<::conditional_t<WithDeps,::vector<Dep>,::monostate>,bool/*sure*/>> _mk_static_deps( Rule::RuleMatch const& match , Req req , DepDepth lvl ) {
+		::pair_s</*msg*/::vmap_s<DepSpec>> digest          ;
+		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ;                   // contains holes
+		Trace trace("_mk_static_deps",match,req) ;
+		try {
+			digest = match.rule->deps_attrs.eval(match) ;
+			if (+digest.first) {
+				if (+req) {
+					req->audit_job   ( Color::Warning , "bad_dep" , match.rule , match.name() ) ;
+					req->audit_stderr( {.msg=digest.first}                                    ) ;
+				}
+				return {} ;
+			}
+		} catch (MsgStderr const& msg_err) {
+			trace("no_dep_subst") ;
+			if (+req) {
+				req->audit_job   ( Color::Note , "deps_not_avail" , match.rule , match.name()                                    ) ;
+				req->audit_stderr( {with_nl(match.rule->deps_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg,msg_err.stderr} ) ;
+			}
+			return {} ;
+		}
+		::conditional_t<WithDeps,::vector<Dep>      ,::monostate> deps ;        if constexpr (WithDeps) deps.reserve(dep_specs_holes.size()) ;
+		::conditional_t<WithDeps,::umap<Node,VarIdx>,::monostate> dis  ;        if constexpr (WithDeps) dis .reserve(dep_specs_holes.size()) ;
+		bool                                                      sure = true ;
+		for( auto const& k_ds : dep_specs_holes ) {
+			DepSpec const& ds = k_ds.second    ; if (!ds.txt) { trace("hole") ; continue ; }   // filter out holes
+			Node           d  { New , ds.txt } ;
+			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			d->set_buildable( req , lvl , true/*throw_if_infinite*/ ) ;
+			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			if (d->buildable<Buildable::Yes) {
+				if (d->buildable<=Buildable::No) {
+					trace("no_dep",d) ;
+					g_kpi.n_aborted_job_creation++ ;
+					return {} ;
+				}
+				sure = false ;
+			}
+			if constexpr (WithDeps) {
+				Accesses a = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : FullAccesses ; // initially, static deps are deemed read, then actual accesses will be considered
+				if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , ds.dflags , true/*parallel*/ ) ;
+				else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses_ |= +a ; } // uniquify deps by combining accesses and flags
+			}
+		}
+		return ::pair(deps,sure) ;
+	}
+	Job::Job( Rule::RuleMatch&& match , Req req , DepDepth lvl ) {
+		Trace trace("Job",match,req,lvl) ;
+		if (!match) { trace("no_match") ; return ; }
+		//
+		JobName name_ { match.full_name() } ;
+		Job     job   = name_.job()         ;
+		//
+		if (!job) {
+			if (name_.match_gen()>=Rule::s_match_gen) return ;
+			if (!_match_ok(match,req)) {
+				name_.set_no_job(Rule::s_match_gen) ;
+			} else {
+				auto deps_sure = _mk_static_deps<true/*WithDeps*/>( match , req , lvl ) ;
+				if (+deps_sure) { job = Job( name_ , match , deps_sure->first , deps_sure->second ) ; name_.set_job   (job              ) ; self = job ; }
+				else                                                                                  name_.set_no_job(Rule::s_match_gen) ;
+			}
+		} else if (!*job) {
+			if (job->match_gen>=Rule::s_match_gen) return ;
+			auto deps_sure = _mk_static_deps<true/*WithDeps*/>( match , req , lvl ) ;
+			if (+deps_sure) { *job = JobData( name_ , match , deps_sure->first , deps_sure->second ) ; self = job ; }
+		} else {
+			if (job->match_gen>=Rule::s_match_gen) { self = job ; return ; }
+			auto deps_sure = _mk_static_deps<false/*WithDeps*/>( match , req , lvl ) ;
+			if (+deps_sure) { job->sure = deps_sure->second ; self = job ; }
+			else              job->clear() ;
+		}
+		if (+job) job->match_gen = Rule::s_match_gen ;
+	}
+
+	Job::Job( Special sp , Node t , Deps deps ) {
+		Trace trace("Job",sp,t) ;
+		//
+		JobName name_ { {t->name(),Rule(sp)->job_sfx()} } ;
+		Job     job   = name_.job()                       ;
+		//
+		if (!job) {  job = Job    ( name_ , sp , deps ) ; name_.set_job(job) ; }
+		else        *job = JobData( name_ , sp , deps ) ;
+		self = job ;
+	}
+
 	void Job::operator>>(::string& os) const { // START_OF_NO_COV
 		/**/       os << "J("  ;
 		if (+self) os << +self ;
@@ -107,60 +205,6 @@ namespace Engine {
 		Trace trace("pop",self,req) ;
 		req->jobs.erase(self) ;
 		pop() ;
-	}
-
-	Job::Job( Rule::RuleMatch&& match , Req req , DepDepth lvl ) { // XXX : avoid constructing deps if job exists (and store non-constructible jobs as job without JobData)
-		Trace trace("Job",match,req,lvl) ;
-		if (!match) { trace("no_match") ; return ; }
-		Rule rule = match.rule ;
-		if ( ::pair_s<VarIdx> msg=match.reject_msg() ; +msg.first ) {
-			trace("not_accepted") ;
-			::pair_s<RuleData::MatchEntry> const& k_me = rule->matches[msg.second] ;
-			MatchKind                             mk   = k_me.second.flags.kind()  ;
-			req->audit_job   ( Color::Warning , cat("bad_",mk) , rule , match.name() ) ;
-			req->audit_stderr( self , {.msg=cat(mk,' ',k_me.first," : ",msg.first)}  ) ;
-			return ;
-		}
-		//
-		::pair_s</*msg*/::vmap_s<DepSpec>> digest          ;
-		/**/            ::vmap_s<DepSpec>& dep_specs_holes = digest.second ;                                                                    // contains holes
-		try {
-			digest = rule->deps_attrs.eval(match) ;
-		} catch (MsgStderr const& msg_err) {
-			trace("no_dep_subst") ;
-			if (+req) {
-				req->audit_job   ( Color::Note , "deps_not_avail" , rule , match.name()                                           ) ;
-				req->audit_stderr( self , {with_nl(rule->deps_attrs.s_exc_msg(false/*using_static*/))+msg_err.msg,msg_err.stderr} ) ;
-			}
-			return ;
-		}
-		::vector<Dep>       deps ; deps.reserve(dep_specs_holes.size()) ;
-		::umap<Node,VarIdx> dis  ; dis .reserve(dep_specs_holes.size()) ;
-		for( auto const& k_ds : dep_specs_holes ) {
-			DepSpec const& ds = k_ds.second                                                     ; if (!ds.txt) { trace("hole") ; continue ; }   // filter out holes
-			Node           d  { New , ds.txt }                                                  ;
-			Accesses       a  = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : FullAccesses ;
-			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			d->set_buildable( req , lvl , true/*throw_if_infinite*/ ) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (d->buildable<=Buildable::No) {
-				trace("no_dep",d) ;
-				g_kpi.n_aborted_job_creation++ ;
-				return ;
-			}
-			if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , ds.dflags , true/*parallel*/ ) ;
-			else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses_ |= +a ; } // uniquify deps by combining accesses and flags
-		}
-		if (+digest.first) {                                                        // only bother user for bad deps if job otherwise applies, so handle them once static deps have been analyzed
-			req->audit_job   ( Color::Warning , "bad_dep" , rule , match.name() ) ;
-			req->audit_stderr( self , {.msg=digest.first}                       ) ;
-			return ;
-		}
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		//          args for store         args for JobData
-		self = Job( match.full_name(),Dflt , match,deps   ) ;                       // initially, static deps are deemed read, then actual accesses will be considered
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		trace("found",self,deps.size(),self->deps) ;
 	}
 
 	::string Job::ancillary_file(AncillaryTag tag) const {
@@ -378,7 +422,7 @@ namespace Engine {
 				case FileActionTag::UnlinkPolluted : { if (aj==self) continue ; } ri.req->audit_node( Color::Warning , "unlinked polluted" , t , 1 ) ; break ;
 				default : continue ;
 			}
-			if ( +aj && aj!=self ) ri.req->audit_info( Color::Note , cat("generated by ",aj->rule()->user_name()) , 2 ) ;
+			if ( aj.valid() && aj!=self ) ri.req->audit_info( Color::Note , cat("generated by ",aj->rule()->user_name()) , 2 ) ;
 		}
 		if (+msg_stderr.stderr) ri.req->audit_stderr( self , msg_stderr ) ;
 		ri.start_reported = true ;
@@ -657,19 +701,19 @@ namespace Engine {
 		EndDigest      end_digest        = end_analyze(/*inout*/digest) ;
 		::vector<bool> must_wakeup       ;
 		bool           was_missing_audit = false                        ;
-		bool           cache_force       = false                        ;                                                    // force update if entry already exists
+		bool           cache_force       = false                        ;          // force update if entry already exists
 		//
 		for( Req req : end_digest.running_reqs ) {
 			ReqInfo& ri = jd.req_info(req) ;
 			trace("req_before",end_digest.target_reason,jd.status,ri) ;
-			if (req->missing_audits.erase(self)       ) was_missing_audit = true ;                                           // old missing audit is obsolete as soon as we have rerun the job
+			if (req->missing_audits.erase(self)       ) was_missing_audit = true ; // old missing audit is obsolete as soon as we have rerun the job
 			if (req->cache_method==CacheMethod::Upload) cache_force       = true ;
 			// we call wakeup_watchers ourselves once reports are done to avoid anti-intuitive report order
 			//                     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			JobReason job_reason = jd.make( ri , MakeAction::End , end_digest.target_reason , Yes/*speculate*/ , false/*wakeup_watchers*/ ).first ;
 			//                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			bool     done        = ri.done()                         ;
-			bool     full_report = done || !end_digest.has_new_deps  ;                                                       // if not done, does a full report anyway if not due to new deps
+			bool     full_report = done || !end_digest.has_new_deps  ;             // if not done, does a full report anyway if not due to new deps
 			bool     job_err     = job_reason.tag>=JobReasonTag::Err ;
 			::string job_msg     ;
 			if (full_report) {
@@ -687,22 +731,22 @@ namespace Engine {
 			,	true/*with_stats*/
 			,	pfx
 			,	digest.chroot_tag
-			,	MsgStderr{ .msg=job_msg , .stderr=end_digest.msg_stderr.stderr }                                             // XXX/ : MsgStderr is necessary for gcc-11
+			,	MsgStderr{ .msg=job_msg , .stderr=end_digest.msg_stderr.stderr }   // XXX/ : MsgStderr is necessary for gcc-11
 			,	digest.exe_time
 			,	is_retry(job_reason.tag)
 			) ;
-			end_digest.can_upload &= maybe_done ;                                                                            // if job is not done, cache entry will be overwritten when actually rerun
+			end_digest.can_upload &= maybe_done ;                                  // if job is not done, cache entry will be overwritten when actually rerun
 			must_wakeup.push_back(done) ;
 			if (!done) req->missing_audits[self] = { .report=jr , .has_msg_stderr=digest.has_msg_stderr , .has_chroot_tag=+digest.chroot_tag } ;
 			trace("req_after",ri,job_reason,STR(done),STR(maybe_done)) ;
 		}
 		if (+digest.upload_key) {
-			/**/                                                                          SWEAR( cache_idx1 , cache_idx1 ) ; // cannot commit/dismiss without cache
-			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ; // .
-			end_digest.can_upload &= !( jd.missing() || jd.err() ) ;                                                         // only cache execution without errors
+			/**/                                                                          SWEAR( cache_idx1 , cache_idx1 ) ;                  // cannot commit/dismiss without cache
+			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ;                  // .
+			end_digest.can_upload &= !( jd.missing() || jd.err() ) ;                                                                          // only cache execution without errors
 			try {
 				if (end_digest.can_upload) cache.commit ( self , digest.upload_key , was_missing_audit , cache_force , digest.targets_crc ) ;
-				else                       cache.dismiss(        digest.upload_key                                                        ) ;     // free up temporary storage copied in job_exec
+				else                       cache.dismiss(        digest.upload_key                                                        ) ; // free up temporary storage copied in job_exec
 			} catch (::string const& e) {
 				const char* action = end_digest.can_upload ? "upload" : "dismiss" ;
 				trace("cache_throw",action,e) ;

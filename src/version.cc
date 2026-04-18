@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 42      ; // 3c4ec56692553f490a383f80c5fd2298
+	uint64_t    constexpr Cache = 43      ; // 86f3b8fe7d73dd19cb821586ccea22e7
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 44      ; // d94a4f6900c613658c893667a1901552
-	uint64_t    constexpr Job   = 19      ; // 7fd43d3cf21643b943bde5f2bf693c00
+	uint64_t    constexpr Repo  = 45      ; // fc6deb0ddb67a3d3952f279f7818c720
+	uint64_t    constexpr Job   = 20      ; // 4f210cd53f8772057bc732641bf7382d
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 3c4ec56692553f490a383f80c5fd2298 *
+// * Cache : 86f3b8fe7d73dd19cb821586ccea22e7 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -889,13 +889,13 @@ namespace Version {
 //	,	Proc
 //	,	RunPath
 //	,	Read
+//	,	RegExpr
 //	,	Reply
 //	,	Stat
 //	,	Tmp
 //	,	Unlink   // not Unlnk as name is seen by user
 //	,	Verbose
 //	,	Write
-//	,	RegExpr  // XXX : sort when version can be incremented
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
@@ -1096,7 +1096,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : d94a4f6900c613658c893667a1901552 *
+// * Repo : fc6deb0ddb67a3d3952f279f7818c720 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1461,36 +1461,36 @@ namespace Version {
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			struct IfPlain {
-//				Node        build_asking ;                                //       32 bits,        node need this job that triggered rebuild
-//				Node        last_asking  ;                                //       32 bits,        last node needing this job
-//				Targets     targets      ;                                //       32 bits, owned, for plain jobs
-//				CoarseDelay exe_time     ;                                //       16 bits,        for plain jobs
-//				CoarseDelay cost         ;                                //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
+//				Node        build_asking ;                                    //       32 bits,        node need this job that triggered rebuild
+//				Node        last_asking  ;                                    //       32 bits,        last node needing this job
+//				Targets     targets      ;                                    //       32 bits, owned, for plain jobs
+//				CoarseDelay exe_time     ;                                    //       16 bits,        for plain jobs
+//				CoarseDelay cost         ;                                    //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
 //			} ;
 //			struct IfDep {
-//				SeqId seq_id     = 0 ;                                    //       64 bits
-//				Fd    fd         ;                                        //       32 bits
-//				Job   asking_job ;                                        //       32 bits
+//				SeqId seq_id     = 0 ;                                        //       64 bits
+//				Fd    fd         ;                                            //       32 bits
+//				Job   asking_job ;                                            //       32 bits
 //			} ;
 //		public :
-//		//	JobName          name                               ;         //       32 bits, inherited
-//			Deps             deps                               ;         //  31<= 32 bits, owned
-//			RuleCrcIdx       rule_crc_idx  :NRuleCrcIdxBits     = 0     ; //       24 bits
-//			mutable MatchGen match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
-//			Tokens1          tokens1                            = 0     ; //        8 bits
-//			RunStatus        run_status    :NBits<RunStatus   > = {}    ; //        3 bits
-//			Status           status        :NBits<Status      > = {}    ; //        5 bits
-//			CacheHitInfo     cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
-//			BackendTag       backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
-//			LocalReason      local_reason  :2                   = {}    ; //        2 bits,           job was last forced to run locally
-//			bool             incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
+//		//	JobName      name                               ;         //       32 bits, inherited
+//			Deps         deps                               ;         //  31<= 32 bits, owned
+//			RuleCrcIdx   rule_crc_idx  :NRuleCrcIdxBits     = 0     ; //       24 bits
+//			MatchGen     match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
+//			Tokens1      tokens1                            = 0     ; //        8 bits
+//			RunStatus    run_status    :NBits<RunStatus   > = {}    ; //        3 bits
+//			Status       status        :NBits<Status      > = {}    ; //        5 bits
+//			CacheHitInfo cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
+//			BackendTag   backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
+//			LocalReason  local_reason  :2                   = {}    ; //        2 bits,           job was last forced to run locally
+//			bool         incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
+//			bool         sure          :1                   = false ; //        1 bit
 //		private :
-//			mutable bool _sure          :1 = false ;                      //        1 bit
-//			Bool3        _reliable_stats:2 = No    ;                      //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+//			Bool3 _reliable_stats:2 = No ;                                    //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 //		public :
 //			union {
-//				IfPlain _if_plain = {} ;                                  // 104<=128 bits
-//				IfDep   _if_dep   ;                                       //      128 bits
+//				IfPlain _if_plain = {} ;                                      // 104<=128 bits
+//				IfDep   _if_dep   ;                                           //      128 bits
 //			} ;
 //			// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO
@@ -1805,7 +1805,7 @@ namespace Version {
 //		//                                          ThreadKey header     index             n_index_bits       key       data          misc
 //		// jobs
 //		using JobFile      = Store::AllocFile       < 0     , JobHdr   , Job             , NJobIdxBits      ,           JobData                            > ;
-//		using JobNameFile  = Store::SinglePrefixFile< 0     , void     , JobName         , NJobNameIdxBits  , char    , Job                                > ;
+//		using JobNameFile  = Store::SinglePrefixFile< 0     , void     , JobName         , NJobNameIdxBits  , char    , JobIdx                             > ; // we also store match_gen when no job
 //		using DepsFile     = Store::VectorFile      < '='   , void     , Deps            , NDepsIdxBits     ,           GenericDep  , NodeIdx , 4/*MinSz*/ > ; // Deps are compressed when Crc==None
 //		using TargetsFile  = Store::VectorFile      < '='   , void     , Targets         , NTargetsIdxBits  ,           Target                             > ;
 //		// nodes
@@ -2384,13 +2384,13 @@ namespace Version {
 //	,	Proc
 //	,	RunPath
 //	,	Read
+//	,	RegExpr
 //	,	Reply
 //	,	Stat
 //	,	Tmp
 //	,	Unlink   // not Unlnk as name is seen by user
 //	,	Verbose
 //	,	Write
-//	,	RegExpr  // XXX : sort when version can be incremented
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING
@@ -2444,7 +2444,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 7fd43d3cf21643b943bde5f2bf693c00 *
+// * Job : 4f210cd53f8772057bc732641bf7382d *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2821,13 +2821,13 @@ namespace Version {
 //	,	Proc
 //	,	RunPath
 //	,	Read
+//	,	RegExpr
 //	,	Reply
 //	,	Stat
 //	,	Tmp
 //	,	Unlink   // not Unlnk as name is seen by user
 //	,	Verbose
 //	,	Write
-//	,	RegExpr  // XXX : sort when version can be incremented
 //	} ;
 //	using CommentExts = BitMap<CommentExt> ;
 //	// END_OF_VERSIONING

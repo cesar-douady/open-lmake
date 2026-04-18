@@ -332,9 +332,10 @@ namespace Engine {
 		void audit_job( Color c , SC& s ,          JobExec const& je , bool at_end=false , SC& tag={} , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,   je,  tag,et) ; }
 		#undef SC
 		//
-		void         audit_status( bool ok                                                             ) const ;
-		void         audit_stats (                                                                     ) const ;
-		bool/*seen*/ audit_stderr( Job , MsgStderr const& , uint16_t max_stderr_len=0 , DepDepth lvl=0 ) const ;
+		void         audit_status( bool ok                                                                        ) const ;
+		void         audit_stats (                                                                                ) const ;
+		bool/*seen*/ audit_stderr( Job , MsgStderr const&            , uint16_t max_stderr_len=0 , DepDepth lvl=0 ) const ;
+		bool/*seen*/ audit_stderr(       MsgStderr const& msg_stderr ,                             DepDepth lvl=0 ) const { return audit_stderr( Job() , msg_stderr , 0/*max_stderr_len*/ , lvl ) ; }
 	private :
 		void _open_log() ;
 		//

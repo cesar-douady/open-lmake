@@ -775,8 +775,8 @@ inline bool has_env( ::string const& name , bool empty_ok=true ) {
 	return v && (empty_ok||*v) ;
 }
 inline ::string get_env( ::string const& name , ::string const& dflt={} ) {
-	if ( const char* c_path = ::getenv(name.c_str()) ) return c_path ;
-	else                                               return dflt   ;
+	if ( const char* c_path=::getenv(name.c_str()) ) return c_path ;
+	else                                             return dflt   ;
 }
 inline void set_env( ::string const& name , ::string const& val ) {
 	int rc = ::setenv( name.c_str() , val.c_str() , true ) ;

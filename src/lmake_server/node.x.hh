@@ -392,9 +392,9 @@ namespace Engine {
 		bool           done      ( Req            , NodeGoal ) const ;
 		bool           done      ( Req                       ) const ;
 		//
-		bool match_ok      (     ) const {                     return match_gen>=Rule::s_match_gen       ; }
-		bool has_actual_job(     ) const {                     return +actual_job && +actual_job->rule() ; }
-		bool has_actual_job(Job j) const { SWEAR(+j->rule()) ; return actual_job==j                      ; }
+		bool match_ok      (     ) const {                    return match_gen>=Rule::s_match_gen ; }
+		bool has_actual_job(     ) const {                    return actual_job.valid()           ; }
+		bool has_actual_job(Job j) const { SWEAR(j.valid()) ; return actual_job==j                ; }
 		//
 		Manual manual        ( FileSig , Accesses=FullAccesses          ) const ;
 		Manual manual_refresh(           Accesses              , Req={} )       ;                                                             // refresh date if file was updated but steady
@@ -450,7 +450,7 @@ namespace Engine {
 		//
 		Manual manual_wash( ReqInfo& ri , bool query , bool dangling ) ;
 		//
-		void mk_old   (                                                   ) ;
+		void mk_old   (                                                   ) { busy = false ; match_gen = 0 ; }
 		void mk_src   ( Buildable=Buildable::Src , ::optional<Crc> crc={} ) ;
 		void mk_no_src(                                                   ) ;
 		//

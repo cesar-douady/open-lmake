@@ -81,12 +81,22 @@ namespace Engine::Persistent {
 	struct JobName
 	:	             Idxed<JobNameIdx>
 	{	using Base = Idxed<JobNameIdx> ;
+		// static data
+	private :
+		static Mutex<MutexLvl::Job,true/*Shared*/> _s_mutex ; // jobs are created in main thread but its name may be accessed in other threads
 		// cxtors & casts
+	public :
 		using Base::Base ;
+		JobName( ::pair_ss const& name_sfx , bool& inserted=::ref(bool()) ) ;
 		// accesses
-		::string str(size_t sfx_sz=0) const ;
+		Job      job       (        ) const ;
+		MatchGen match_gen (        ) const ;
+		void     set_job   (Job     )       ;
+		void     set_no_job(MatchGen)       ;
+		bool     has_job   (        ) const ;
 		// services
-		void pop() ;
+		void     pop(               )       ;
+		::string str(size_t sfx_sz=0) const ;
 	} ;
 
 	struct NodeName
@@ -101,11 +111,7 @@ namespace Engine::Persistent {
 	struct JobDataBase {
 		friend JobBase ;
 		friend JobName ;
-		// static data
-	private :
-		static Mutex<MutexLvl::Job,true/*Shared*/> _s_mutex ; // jobs are created in main thread but its name may be accessed in other threads
 		// cxtors & casts
-	public :
 		JobDataBase() = default ;
 		JobDataBase(JobName n) : _full_name{n} {}
 		// accesses
@@ -143,12 +149,7 @@ namespace Engine::Persistent {
 		static void          s_clear_frozens(                                       ) ;
 		// cxtors & casts
 		using Base::Base ;
-		template<class... A> JobBase(                             NewType  , A&&...      ) ;
-		template<class... A> JobBase( ::pair_ss const& name_sfx , NewType  , A&&... args ) : JobBase(name_sfx,true /*new*/,::forward<A>(args)...) {}
-		template<class... A> JobBase( ::pair_ss const& name_sfx , DfltType , A&&... args ) : JobBase(name_sfx,false/*new*/,::forward<A>(args)...) {}
-		/**/                 JobBase( ::pair_ss const& name_sfx                          ) : JobBase(name_sfx,Dflt                              ) {}
-	private :
-		template<class... A> JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... ) ;
+		template<class... A> JobBase( JobName name_ , A&&... ) ;
 	public :
 		void pop() ;
 		// accesses
@@ -205,8 +206,9 @@ namespace Engine::Persistent {
 	:	             Idxed<RuleIdx>
 	{	using Base = Idxed<RuleIdx> ;
 		friend Iota2<Rule> rule_lst(bool with_shared) ;
-		static constexpr char   NoRuleName[] = "no_rule"            ;
-		static constexpr size_t NoRuleNameSz = sizeof(NoRuleName)-1 ;     // -1 to account for teminating null, cannot use ::strlen which not constexpr with clang
+		static constexpr MatchGen MatchGenAlways = Max<MatchGen>        ;
+		static constexpr char     NoRuleName[]   = "no_rule"            ;
+		static constexpr size_t   NoRuleNameSz   = sizeof(NoRuleName)-1 ;     // -1 to account for teminating null, cannot use ::strlen which not constexpr with clang
 		// statics
 		static void s_from_disk       (       ) ;
 		static void s_from_vec_dyn    (Rules&&) ;
@@ -312,7 +314,7 @@ namespace Engine::Persistent {
 	//                                          ThreadKey header     index             n_index_bits       key       data          misc
 	// jobs
 	using JobFile      = Store::AllocFile       < 0     , JobHdr   , Job             , NJobIdxBits      ,           JobData                            > ;
-	using JobNameFile  = Store::SinglePrefixFile< 0     , void     , JobName         , NJobNameIdxBits  , char    , Job                                > ;
+	using JobNameFile  = Store::SinglePrefixFile< 0     , void     , JobName         , NJobNameIdxBits  , char    , JobIdx                             > ; // we also store match_gen when no job
 	using DepsFile     = Store::VectorFile      < '='   , void     , Deps            , NDepsIdxBits     ,           GenericDep  , NodeIdx , 4/*MinSz*/ > ; // Deps are compressed when Crc==None
 	using TargetsFile  = Store::VectorFile      < '='   , void     , Targets         , NTargetsIdxBits  ,           Target                             > ;
 	// nodes
@@ -380,23 +382,21 @@ namespace Engine::Persistent {
 	//
 	// JobName
 	//
-	// cxtors & casts
-	inline void JobName::pop() {
-		Lock lock { JobDataBase::_s_mutex } ;
-		Persistent::_g_job_name_file.pop(+self) ;
-	}
-	// accesses
-	inline ::string JobName::str(size_t sfx_sz) const {
-		SharedLock lock { JobDataBase::_s_mutex } ;
-		return Persistent::_g_job_name_file.str_key(+self,sfx_sz) ;
-	}
+	inline void     JobName::set_no_job(MatchGen mg)       {                                        _g_job_name_file.at(self) = -mg ; }
+	inline void     JobName::set_job   (Job      j )       {                                        _g_job_name_file.at(self) = +j  ; }
+	inline Job      JobName::job       (           ) const { { if (!has_job()) return 0 ; } return  _g_job_name_file.at(self) ;       }
+	inline MatchGen JobName::match_gen (           ) const { SWEAR(!has_job()) ;            return -_g_job_name_file.at(self) ;       }
+	//
+	inline bool     JobName::has_job(             ) const { JobIdx     i   =_g_job_name_file.at(self) ; return i && i<JobIdx(-Rule::MatchGenAlways)  ; }
+	inline void     JobName::pop    (             )       { Lock       lock{_s_mutex}                 ;        _g_job_name_file.pop    (self       ) ; }
+	inline ::string JobName::str    (size_t sfx_sz) const { SharedLock lock{_s_mutex}                 ; return _g_job_name_file.str_key(self,sfx_sz) ; }
 
 	//
 	// NodeName
 	//
 	inline ::string NodeName::str() const {
 		SharedLock lock { NodeDataBase::_s_mutex } ;
-		return Persistent::_g_node_name_file.str_key(+self) ;
+		return Persistent::_g_node_name_file.str_key(self) ;
 	}
 
 	//
@@ -411,29 +411,9 @@ namespace Engine::Persistent {
 	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { SWEAR(t_thread_key=='=') ; _s_update(_g_job_file.hdr().frozens,_frozen_jobs,add,items) ;        }
 	inline void          JobBase::s_clear_frozens(                                       ) { SWEAR(t_thread_key=='=') ;           _g_job_file.hdr().frozens.clear() ; _frozen_jobs.clear() ; }
 	// cxtors & casts
-	template<class... A> JobBase::JobBase( NewType , A&&... args ) {                               // 1st arg is only used to disambiguate
+	template<class... A> JobBase::JobBase( JobName name_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
 		SWEAR(t_thread_key=='=') ;
-		self = _g_job_file.emplace( JobName() , ::forward<A>(args)... ) ;
-	}
-	template<class... A> JobBase::JobBase( ::pair_ss const& name_sfx , bool new_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
-		SWEAR(t_thread_key=='=') ;
-		Lock    lock  { JobDataBase::_s_mutex }                                       ;
-		JobName name_ = _g_job_name_file.insert(name_sfx.first,name_sfx.second).first ;
-		self = _g_job_name_file.c_at(name_) ;
-		if (+self) {
-			SWEAR( name_==self->_full_name , name_,self->_full_name ) ;
-			if (new_) *self = JobData( name_ , ::forward<A>(args)... ) ;
-		} else {
-			self             = _g_job_name_file.at(+name_) = _g_job_file.emplace( name_ , ::forward<A>(args)... ) ;
-			self->_full_name =                                                    name_                           ;
-		}
-	}
-	inline void JobBase::pop() {
-		SWEAR(t_thread_key=='=') ;
-		if (!self            ) return ;
-		if (+self->_full_name) self->_full_name.pop() ;
-		_g_job_file.pop(Job(+self)) ;
-		clear() ;
+		self = _g_job_file.emplace( name_ , ::forward<A>(args)... ) ;
 	}
 	// accesses
 	inline bool JobBase::frozen() const { return _frozen_jobs.contains(Job(+self)) ; }
@@ -442,8 +422,8 @@ namespace Engine::Persistent {
 	inline JobData      & JobBase::operator*()       { return _g_job_file.at  (+self) ; }
 	// services
 	inline void JobBase::chk() const {
-		JobName fn = self->_full_name          ; if (!fn) return ;
-		Job     j  = _g_job_name_file.c_at(fn) ;
+		JobName fn = self->_full_name ; if (!fn) return ;
+		Job     j  = fn.job()         ;
 		SWEAR( self==j , self , fn , j ) ;
 	}
 
