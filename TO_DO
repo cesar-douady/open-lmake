@@ -16,6 +16,10 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* fix lshow -r
+	- in lmake_env : lmake lmake.tar.gz
+	- in another window : lshow -r lmake.tar.gz
+		- nothing appears although jobs are running
 ? bug Sylvain :
 	- foo a derived file needed by a job
 	- lmark -fa foo

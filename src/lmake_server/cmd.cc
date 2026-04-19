@@ -771,18 +771,18 @@ namespace Engine {
 			//
 			bool     running = step==JobStep::Exec ;
 			::string job_str =
-				porcelaine ? cat("( ",mk_py_str(job->rule()->user_name())," , ",mk_py_str(job->name())," )")
-				:            cat(               job->rule()->user_name() ,' '  ,mk_file  (job->name())     )
+				porcelaine ? cat("( ",mk_py_str(job->rule()->user_name()                        )," , ",mk_py_str(job->name())," )")
+				:            cat(     widen    (job->rule()->user_name(),Rule::s_rules->name_sz) ,' '  ,mk_file  (job->name())     )
 			;
 			if (step==JobStep::Dep) {
 				if (!quiet) { //!                                                                          as_is
 					if (porcelaine) { audit( fd , ro ,      cat(firsts.back()("  ",", "),job_str," : {") , true  , lvl ) ; firsts.emplace_back() ; }
 					else              audit( fd , ro , CH , cat("W "                    ,job_str       ) , false , lvl ) ;
-					lvl += verbose ;
+					lvl++ ;
 				}
 				for( Dep const& dep : job->deps ) show_node(dep) ;
 				if (!quiet) {
-					lvl -= verbose ;
+					lvl-- ;
 					if (porcelaine) { audit( fd , ro , "  }" , true/*as_is*/ , lvl ) ; firsts.pop_back() ; }
 				}
 			} else { //!                                                                                                                as_is
@@ -1305,8 +1305,20 @@ namespace Engine {
 			}
 		}
 		switch (ro.key) {
-			case ReqKey::Bom     : { ShowBom     sb {fd,ro} ; for( Node t : nodes ) sb.show_node(t) ; goto Return ; }
-			case ReqKey::Running : { ShowRunning sr {fd,ro} ; for( Node t : nodes ) sr.show_node(t) ; goto Return ; }
+			case ReqKey::Bom : {
+				ShowBom sb {fd,ro} ;
+				for( Node t : nodes ) sb.show_node(t) ;
+			} goto Return ;
+			case ReqKey::Running : {
+				ShowRunning sr {fd,ro} ;
+				if (+nodes)
+					for( Node t : nodes ) sr.show_node(t) ;
+				else
+					for( Req r : Req::s_reqs_by_start() ) {
+						if (r->job->special()==Special::Req) for ( Node d : r->job->deps ) sr.show_node(d     ) ;
+						else                                                               sr.show_job (r->job) ;
+					}
+			} goto Return ;
 		DN}
 		for( Node target : nodes ) {
 			trace("target",target) ;

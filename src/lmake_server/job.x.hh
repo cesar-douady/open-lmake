@@ -433,28 +433,29 @@ namespace Engine {
 		void _close        (                      ) ;
 		// accesses
 	public :
-		bool has_targets() const { return rule()->special>=Special::HasTargets ; }
-		bool is_dep     () const { return rule()->special==Special::Dep        ; }
+		Special special    () const { return rule()->special                ; }
+		bool    has_targets() const { return special()>=Special::HasTargets ; }
+		bool    is_dep     () const { return special()==Special::Dep        ; }
 		//
 		RuleCrc            rule_crc    () const {                                            return RuleCrc(rule_crc_idx)                              ; }
-		Node             & last_asking ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.last_asking              ; }
-		Node        const& last_asking () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.last_asking              ; }
-		Node             & build_asking()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.build_asking             ; }
-		Node        const& build_asking() const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.build_asking             ; }
-		Targets          & targets     ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.targets                  ; }
-		Targets     const& targets     () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.targets                  ; }
-		CoarseDelay      & exe_time    ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.exe_time                 ; }
-		CoarseDelay const& exe_time    () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.exe_time                 ; }
-		CoarseDelay        c_exe_time  () const {                                          ; return has_targets() ? _if_plain.exe_time : CoarseDelay() ; }
-		CoarseDelay      & cost        ()       { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                     ; }
-		CoarseDelay const& cost        () const { SWEAR( has_targets() , rule()->special ) ; return                 _if_plain.cost                     ; }
-		CoarseDelay        c_cost      () const {                                          ; return has_targets() ? _if_plain.cost     : CoarseDelay() ; }
-		Fd               & fd          ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                       ; }
-		Fd          const& fd          () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .fd                       ; }
-		SeqId            & seq_id      ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .seq_id                   ; }
-		SeqId       const& seq_id      () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .seq_id                   ; }
-		Job              & asking_job  ()       { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
-		Job         const& asking_job  () const { SWEAR( is_dep     () , rule()->special ) ; return                 _if_dep  .asking_job               ; }
+		Node             & last_asking ()       { SWEAR( has_targets() , special() ) ; return                 _if_plain.last_asking              ; }
+		Node        const& last_asking () const { SWEAR( has_targets() , special() ) ; return                 _if_plain.last_asking              ; }
+		Node             & build_asking()       { SWEAR( has_targets() , special() ) ; return                 _if_plain.build_asking             ; }
+		Node        const& build_asking() const { SWEAR( has_targets() , special() ) ; return                 _if_plain.build_asking             ; }
+		Targets          & targets     ()       { SWEAR( has_targets() , special() ) ; return                 _if_plain.targets                  ; }
+		Targets     const& targets     () const { SWEAR( has_targets() , special() ) ; return                 _if_plain.targets                  ; }
+		CoarseDelay      & exe_time    ()       { SWEAR( has_targets() , special() ) ; return                 _if_plain.exe_time                 ; }
+		CoarseDelay const& exe_time    () const { SWEAR( has_targets() , special() ) ; return                 _if_plain.exe_time                 ; }
+		CoarseDelay        c_exe_time  () const {                                    ; return has_targets() ? _if_plain.exe_time : CoarseDelay() ; }
+		CoarseDelay      & cost        ()       { SWEAR( has_targets() , special() ) ; return                 _if_plain.cost                     ; }
+		CoarseDelay const& cost        () const { SWEAR( has_targets() , special() ) ; return                 _if_plain.cost                     ; }
+		CoarseDelay        c_cost      () const {                                    ; return has_targets() ? _if_plain.cost     : CoarseDelay() ; }
+		Fd               & fd          ()       { SWEAR( is_dep     () , special() ) ; return                 _if_dep  .fd                       ; }
+		Fd          const& fd          () const { SWEAR( is_dep     () , special() ) ; return                 _if_dep  .fd                       ; }
+		SeqId            & seq_id      ()       { SWEAR( is_dep     () , special() ) ; return                 _if_dep  .seq_id                   ; }
+		SeqId       const& seq_id      () const { SWEAR( is_dep     () , special() ) ; return                 _if_dep  .seq_id                   ; }
+		Job              & asking_job  ()       { SWEAR( is_dep     () , special() ) ; return                 _if_dep  .asking_job               ; }
+		Job         const& asking_job  () const { SWEAR( is_dep     () , special() ) ; return                 _if_dep  .asking_job               ; }
 		//
 		CoarseDelay phy_exe_time() const { return cache_hit_info<=CacheHitInfo::Hit ? CoarseDelay() : exe_time() ; }
 		//

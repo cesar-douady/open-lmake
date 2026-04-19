@@ -199,7 +199,7 @@ Show various info about a job, as it last ran (unless stated otherwise):
 	If I_(--porcelaine), the output contains the same information generated as a B_(dict).
 
 Item(B_(-r),B_(--running))
-Show the list of jobs currently running to build the arguments.
+Show the list of jobs currently running to build the arguments, defaulting to all targets currently being built if none is provided.
 Wating jobs are prefixed with B_(W), queued jobs are prefixed with B_(Q) and running jobs are prefixed with (R).
 Not running jobs are shown in gray.
 .LP

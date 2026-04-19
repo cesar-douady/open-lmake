@@ -104,51 +104,25 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">lmake</span>
-    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
+    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="s1">&#39;Lmakefile.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;hello&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;world&#39;</span>
-    <span class="p">)</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,)</span>
 
-    <span class="k">class</span> <span class="nc">Cat</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">stems</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s1">&#39;File1&#39;</span> <span class="p">:</span> <span class="sa">r</span><span class="s1">&#39;.*&#39;</span>
-        <span class="p">,</span>   <span class="s1">&#39;File2&#39;</span> <span class="p">:</span> <span class="sa">r</span><span class="s1">&#39;.*&#39;</span>
-        <span class="p">}</span>
-        <span class="n">deps</span> <span class="o">=</span> <span class="p">{</span>
-            <span class="s1">&#39;FIRST&#39;</span>  <span class="p">:</span> <span class="s1">&#39;</span><span class="si">{File1}</span><span class="s1">&#39;</span>
-        <span class="p">,</span>   <span class="s1">&#39;SECOND&#39;</span> <span class="p">:</span> <span class="s1">&#39;</span><span class="si">{File2}</span><span class="s1">&#39;</span>
-        <span class="p">}</span>
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;x{X:.*}{D:\d}&#39;</span>
+        <span class="n">deps</span>   <span class="o">=</span> <span class="p">{</span> <span class="sa">f</span><span class="s1">&#39;DEP_</span><span class="si">{</span><span class="n">d</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">:</span><span class="sa">f</span><span class="s1">&#39;</span><span class="se">{{</span><span class="s1">X</span><span class="se">}}</span><span class="si">{</span><span class="n">d</span><span class="si">}</span><span class="s1">&#39;</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">10</span><span class="p">)</span> <span class="p">}</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;&#39;</span>
 
-    <span class="k">class</span> <span class="nc">CatSh</span><span class="p">(</span><span class="n">Cat</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{File1}</span><span class="s1">+</span><span class="si">{File2}</span><span class="s1">_sh&#39;</span>
-        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;cat </span><span class="si">{FIRST}</span><span class="s1"> </span><span class="si">{SECOND}</span><span class="s1">&#39;</span>
-
-    <span class="k">class</span> <span class="nc">CatPy</span><span class="p">(</span><span class="n">Cat</span><span class="p">,</span><span class="n">PyRule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;</span><span class="si">{File1}</span><span class="s1">+</span><span class="si">{File2}</span><span class="s1">_py&#39;</span>
-        <span class="k">def</span> <span class="nf">cmd</span><span class="p">()</span> <span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">FIRST</span> <span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">(),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
-            <span class="nb">print</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="n">SECOND</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">(),</span><span class="n">end</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+    <span class="k">class</span> <span class="nc">Match</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="sa">r</span><span class="s1">&#39;_ok{D:\d}&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">os</span>
-
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;hello&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;hello&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;world&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;world&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;hello+world_sh&#39;</span> <span class="p">,</span> <span class="s1">&#39;hello+world_py&#39;</span> <span class="p">,</span> <span class="s1">&#39;world+world_sh&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">3</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">2</span> <span class="p">)</span> <span class="c1"># check targets are out-of-date</span>
-
-    <span class="k">assert</span> <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s1">&#39;lmake_repair&#39;</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span>
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;hello2&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;hello&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-<span class="c1">#   ut.lmake( &#39;hello+world_sh&#39; , &#39;hello+world_py&#39; , &#39;world+world_sh&#39; , done=2 , new=2 ) # check targets are remade</span>
-<span class="c1">#</span>
-<span class="c1">#   assert os.system(&#39;mv LMAKE.bck LMAKE.bck2 ; lmake_repair&#39;)==0</span>
-<span class="c1">#   ut.lmake( &#39;hello+world_sh&#39; , &#39;hello+world_py&#39; , &#39;world+world_sh&#39; , done=0 , new=2 ) # check targets are up-to-date</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;xxxxxxxxxx_ok0&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">101</span> <span class="p">)</span> <span class="c1"># check no combinatorial explosion</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;xxxxxxxxxx_ko0&#39;</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span>     <span class="p">)</span> <span class="c1"># .</span>
 </pre></div>
 </body>
 </html>

@@ -311,13 +311,13 @@ namespace Engine {
 				if (!d->done(self)) { _report_cycle(d) ; trace("cycle") ; goto Done ; }
 			fail_prod("job not done but all deps are done :",job->name()) ;             // NO_COV
 		} else {
-			trace("err",job->rule()->special) ;
+			trace("err",job->special()) ;
 			size_t       n_err       = g_config->max_err_lines ? g_config->max_err_lines : size_t(-1) ;
 			bool         seen_stderr = false                                                          ;
 			::uset<Job > seen_jobs   ;
 			::uset<Node> seen_nodes  ;
 			NfsGuard     nfs_guard   { g_config->server_file_sync }                                   ;
-			if (job->rule()->special==Special::Req) {
+			if (job->special()==Special::Req) {
 				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable)       _report_err    (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
 				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) self->_report_no_rule(d,&nfs_guard                                 ) ;
 			} else {
@@ -390,7 +390,7 @@ namespace Engine {
 	void ReqData::clear() {
 		Trace trace("clear",job) ;
 		SWEAR( !n_running , n_running ) ;
-		if ( +job && job->rule()->special==Special::Req ) job.pop(idx());
+		if ( +job && job->special()==Special::Req ) job.pop(idx());
 		self = {} ;
 	}
 

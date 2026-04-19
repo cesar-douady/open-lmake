@@ -394,18 +394,18 @@ namespace Engine {
 		ToPop to_pop ;
 		//
 		SWEAR( asked_reason.tag<JobReasonTag::Err , asked_reason ) ;
-		Job                job                  = idx()                                               ;
-		Rule               r                    = rule()                                              ;
-		bool               query                = make_action==MakeAction::Query                      ;
-		bool               at_end               = make_action==MakeAction::End                        ;
-		Req                req                  = ri.req                                              ;
-		ReqOptions const&  ro                   = req->options                                        ;
-		Special            special              = r->special                                          ;
-		bool               dep_live_out         = special==Special::Req && ro.flags[ReqFlag::LiveOut] ;
-		CoarseDelay        dep_pressure         = ri.pressure + c_exe_time()                          ;
-		bool               archive              = ro.flags[ReqFlag::Archive]                          ;
-		bool               report_loop          = false                                               ;
-		MissingRerunReport missing_rerun_report = {}                                                  ;
+		Job                job                  = idx()                                                ;
+		Rule               r                    = rule()                                               ;
+		bool               query                = make_action==MakeAction::Query                       ;
+		bool               at_end               = make_action==MakeAction::End                         ;
+		Req                req                  = ri.req                                               ;
+		ReqOptions const&  ro                   = req->options                                         ;
+		Special            special_             = r->special                                           ;
+		bool               dep_live_out         = special_==Special::Req && ro.flags[ReqFlag::LiveOut] ;
+		CoarseDelay        dep_pressure         = ri.pressure + c_exe_time()                           ;
+		bool               archive              = ro.flags[ReqFlag::Archive]                           ;
+		bool               report_loop          = false                                                ;
+		MissingRerunReport missing_rerun_report = {}                                                   ;
 		//
 		Trace trace("Jmake",job,ri,make_action,asked_reason,speculate,STR(wakeup_watchers)) ;
 	RestartFullAnalysis :
@@ -467,7 +467,7 @@ namespace Engine {
 			if (ri.waiting()                ) goto Wait   ;                                          // we may have looped in which case stats update is meaningless and may fail()
 			if (req.zombie()                ) goto Done   ;
 			if (job.frozen()                ) goto Run    ;                                          // ensure crc are updated, akin sources
-			if (is_infinite(special)        ) goto Run    ;                                          // special case : Infinite's actually have no dep, just a list of node showing infinity
+			if (is_infinite(special_)       ) goto Run    ;                                          // special case : Infinite's actually have no dep, just a list of node showing infinity
 		}
 		if (ri.step()==Step::None) {
 			estimate_stats() ;                                                                       // initial guestimate to accumulate waiting costs while resources are not fully known yet
@@ -522,7 +522,7 @@ namespace Engine {
 				if (seen_all             ) break ;
 				if (stamped_seen_critical) break ;
 				//
-				if (special!=Special::Req) {
+				if (special_!=Special::Req) {
 					if ( ro.flags[ReqFlag::NoDeps       ]                                  ) continue ;
 					if ( ro.flags[ReqFlag::EssentialDeps] && !dep.dflags[Dflag::Essential] ) continue ;
 				}
@@ -539,11 +539,11 @@ namespace Engine {
 				NodeReqInfo const* cdri        = &dep->c_req_info(req)                          ;     // avoid allocating req_info as long as not necessary
 				NodeReqInfo      * dri         = nullptr                                        ;     // .
 				NodeGoal           dep_goal    =
-					query || archive || special==Special::Req ? NodeGoal::Dsk
-				:	(may_care&&!no_run_reason(state))         ? NodeGoal::Dsk
-				:	may_care || sense_err                     ? NodeGoal::Status
-				:	is_static || required                     ? NodeGoal::Status
-				:	                                            NodeGoal::None
+					query || archive || special_==Special::Req ? NodeGoal::Dsk
+				:	(may_care&&!no_run_reason(state))          ? NodeGoal::Dsk
+				:	may_care || sense_err                      ? NodeGoal::Status
+				:	is_static || required                      ? NodeGoal::Status
+				:	                                             NodeGoal::None
 				;
 				if (!dep_goal) continue ;                                                             // this is not a dep (not static while asked for makable only)
 			RestartDep :
@@ -558,8 +558,8 @@ namespace Engine {
 					:	                                ri.speculate                                  // this dep will not disappear from us
 					;
 					//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					if (                                                                 special>Special::Fugitive ) dnd.last_asking  = job ; // dont record if job is fugitive
-					if ( dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) && special>Special::Fugitive ) dnd.build_asking = job ;
+					if (                                                                 special_>Special::Fugitive ) dnd.last_asking  = job ; // dont record if job is fugitive
+					if ( dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) && special_>Special::Fugitive ) dnd.build_asking = job ;
 					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
 				if ( is_static && dnd.buildable<Buildable::Yes ) sure_ = false ; // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)
@@ -662,7 +662,7 @@ namespace Engine {
 				trace("run",ri,STR(query),pre_reason,run_status) ;
 				if (query) goto Return ;
 				if (ri.state.missing_dsk) {                                              // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
-					SWEAR( !is_infinite(special) , special,job ) ;                       // Infinite do not process their deps
+					SWEAR( !is_infinite(special_) , special_,job ) ;                     // Infinite do not process their deps
 					ri.reset(job) ;
 					goto RestartAnalysis/*BACKWARD*/ ;
 				}
@@ -738,7 +738,7 @@ namespace Engine {
 		}
 		trace("wakeup",ri) ;
 		if ( ri.done() && wakeup_watchers ) {
-			if (special!=Special::Dep) {
+			if (special_!=Special::Dep) {
 				ri.wakeup_watchers() ;
 			} else if (!running_reqs()) {
 				trace("send_reply",status) ;
@@ -786,11 +786,11 @@ namespace Engine {
 
 	MsgStderr JobData::special_msg_stderr( Node node , bool short_msg ) const {
 		if (is_ok(status)!=No) return {} ;
-		Rule      r          = rule()            ;
+		Special   special_   = special()         ;
 		MsgStderr msg_stderr ;
 		::string& msg        = msg_stderr.msg    ;
 		::string& stderr     = msg_stderr.stderr ;
-		switch (r->special) {
+		switch (special_) {
 			case Special::Plain :
 				SWEAR(idx().frozen()) ;
 				if (+node) return {.msg="frozen file does not exist while not phony : "+node->name()+'\n'} ;
@@ -822,7 +822,7 @@ namespace Engine {
 				return msg_stderr ;
 			}
 			default :
-				return {.msg=cat(r->special," error\n")} ;
+				return {.msg=cat(special_," error\n")} ;
 		}
 	}
 
@@ -1040,15 +1040,15 @@ namespace Engine {
 	}
 
 	::pair<bool/*maybe_new_deps*/,bool/*triggered*/> JobData::_submit_special(ReqInfo& ri) { // never report new deps
-		Req     req            = ri.req          ;
-		Special special        = rule()->special ;
-		bool    frozen_        = idx().frozen()  ;
-		bool    maybe_new_deps = false           ;
-		Trace trace("_submit_special",idx(),special,ri) ;
+		Req     req            = ri.req         ;
+		Special special_       = special()      ;
+		bool    frozen_        = idx().frozen() ;
+		bool    maybe_new_deps = false          ;
+		Trace trace("_submit_special",idx(),special_,ri) ;
 		//
 		if (frozen_) req->frozen_jobs.push(idx()) ;                                          // record to repeat in summary
 		//
-		switch (special) {
+		switch (special_) {
 			case Special::Dep          : status = Status::Ok ;                                                                       break ;
 			case Special::Req          : _submit_req(req) ; maybe_new_deps = true ;                                                  break ;
 			case Special::InfiniteDep  :

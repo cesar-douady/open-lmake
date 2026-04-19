@@ -3,6 +3,8 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+import ut
+
 if __name__!='__main__' :
 
 	import lmake
@@ -10,6 +12,7 @@ if __name__!='__main__' :
 
 	lmake.manifest = (
 		'Lmakefile.py'
+	,	'ut.py'
 	,	'hello'
 	,	'world'
 	)
@@ -36,12 +39,19 @@ if __name__!='__main__' :
 			for fn in (FIRST,SECOND) :
 				with open(fn) as f : sys.stdout.write(f.read())
 
+	class Running(PyRule) :
+		target = 'running'
+		def cmd() :
+			ut.trigger_sync(0)
+			ut.wait_sync   (1)
+
 	class Dut(Rule) :
 		stderr_ok = True
 		targets = { 'DUT':'dut' }
 		deps = {
-			'SH' : 'hello+world_sh'
-		,	'PY' : 'hello+world_py'
+			'SH'      : 'hello+world_sh'
+		,	'PY'      : 'hello+world_py'
+		,	'RUNNING' : 'running'
 		}
 		cmd = '''
 			ldepend {SH} {PY} # parallel deps
@@ -56,8 +66,6 @@ else :
 	import socket
 	import subprocess as sp
 
-	import ut
-
 	def lshow(key,*args) :
 		x            = sp.check_output(('lshow',key[0],               *args),universal_newlines=True)
 		long_x       = sp.check_output(('lshow',key[1],               *args),universal_newlines=True)
@@ -68,20 +76,33 @@ else :
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
 
+	ut.mk_syncs(2)
+
 	ut.lmake() # init repo
 
 	x,xp = lshow( ('-i','--info') , 'dut' )
 	assert 'consider' in x and 'dut' in x
 	assert xp['dut']=={None:{'special':None}}
 
-	ut.lmake( 'dut' , done=3 , new=2 )
+	proc = ut.lmake( 'dut' , wait=False , done=4 , new=3 )
+	ut.wait_sync(0)
+	x,px = lshow( ('-r','--running') , 'dut' )
+	ut.trigger_sync(1)
+	proc()
+
+	assert all( w in x for w in ('W','Dut','dut','R','Running','running')),x
+	assert px=={
+		('Dut','dut') : {
+			('Running','running') : True
+		}
+	}
 
 	assert os.system('chmod -w -R .')==0 # check we can interrogate a read-only repo
 
 	try :
 
-		x      = sp.run(('lshow','-h'),stderr=sp.PIPE,universal_newlines=True).stderr
-		long_x = sp.run(('lshow','-h'),stderr=sp.PIPE,universal_newlines=True).stderr
+		x      = sp.run(('lshow','-h'    ),stderr=sp.PIPE,universal_newlines=True).stderr
+		long_x = sp.run(('lshow','--help'),stderr=sp.PIPE,universal_newlines=True).stderr
 		assert x==long_x
 		assert x.startswith('lshow ') and '--porcelaine' in x and 'man lshow' in x
 
@@ -95,8 +116,8 @@ else :
 		x,px = lshow( ('-b','--bom') , 'dut' )
 		assert 'hello' in x and 'world' in x
 		assert (
-			px=={'dut':{'hello+world_sh':{'hello':True,'world':True},'hello+world_py':{}}}
-		or	px=={'dut':{'hello+world_py':{'hello':True,'world':True},'hello+world_sh':{}}}
+			px=={ 'dut':{ 'hello+world_sh':{'hello':True,'world':True} , 'hello+world_py':{} , 'running':{'ut.py':True} } }
+		or	px=={ 'dut':{ 'hello+world_py':{'hello':True,'world':True} , 'hello+world_sh':{} , 'running':{'ut.py':True} } }
 		),px
 
 		x,px = lshow( ('-b','--bom') , '--verbose' , 'hello+world_sh' )
@@ -105,7 +126,7 @@ else :
 
 		x,px = lshow( ('-b','--bom') , '--quiet' , 'dut' )
 		assert 'hello' in x and 'world' in x
-		assert px=={'hello':True,'world':True},px
+		assert px=={'hello':True,'world':True,'ut.py':True},px
 
 		x,px = lshow( ('-b','--bom') , '--verbose' , '--quiet' , 'hello+world_sh' )
 		assert 'hello' in x and 'world' in x and 'bad' in x
@@ -132,7 +153,7 @@ else :
 		e    = px['dut'][('Dut','dut','generating')]
 		assert all( w in x for w in ('/','\\','SH','hello+world_sh','PY','hello+world_py') )
 		print(px)
-		assert len(e)==1 and len(e[0])==2
+		assert len(e)==2 and len(e[0])==2,e
 
 		x,px = lshow( ('-E','--env') ,        'hello+world_sh' )
 		_,e  = lshow( ('-E','--env') , '-J' , 'hello+world_sh' )
