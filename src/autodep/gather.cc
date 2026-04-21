@@ -327,6 +327,8 @@ Gather::Digest Gather::analyze( Status status , bool do_upload ) {
 				readdir_warned = true ;
 			}
 		}
+		if (file==".") continue ;                                                                                  // . is only reported when reading dir but otherwise is an external file
+		//
 		// handle codec
 		if (flags.extra_dflags[ExtraDflag::CreateEncode]) {
 			trace("codec  ",file) ;
@@ -334,18 +336,14 @@ Gather::Digest Gather::analyze( Status status , bool do_upload ) {
 			if (is_lcl(file)) res.refresh_codecs.insert(Codec::CodecFile(New,file).file) ;
 		}
 		//
-		Accesses as           = info.accesses()                 ;
-		bool     was_written  = info.first_write()<Pdate::Never ;
-		bool     force_is_dep = info.force_is_dep               ;
-		//
-		if (file==".") continue ;                                                                                  // . is only reported when reading dir but otherwise is an external file
-		//
-		Pdate first_read    = info.first_read(false/*with_readdir*/)                                         ;
-		bool  was_read      = first_read<Pdate::Never                                                        ;
-		bool  is_dep        = force_is_dep || +as || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
-		bool  allow         = info.allow()                                                                   ;
-		bool  is_static_tgt = flags.tflags[Tflag::Target] && flags.tflags[Tflag::Static]                     ;
-		bool  is_tgt        = was_written || allow || is_static_tgt                                          ;
+		Accesses as            = info.accesses()                                                                     ;
+		bool     was_written   = info.first_write()<Pdate::Never                                                     ;
+		Pdate    first_read    = info.first_read(false/*with_readdir*/)                                              ;
+		bool     was_read      = first_read<Pdate::Never                                                             ;
+		bool     is_dep        = info.force_is_dep || +as || (was_read&&!was_written) || flags.dflags[Dflag::Static] ;
+		bool     allow         = info.allow()                                                                        ;
+		bool     is_static_tgt = flags.tflags[Tflag::Target] && flags.tflags[Tflag::Static]                          ;
+		bool     is_tgt        = was_written || allow || is_static_tgt                                               ;
 		//
 		if ( !is_dep && !is_tgt ) {
 			trace("ignore ",file) ;

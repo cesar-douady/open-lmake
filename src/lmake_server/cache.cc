@@ -113,7 +113,7 @@ namespace Cache {
 		AcFd           info_fd         { {_dir_fd,rf+"-info"} , {.nfs_guard=&cache_nfs_guard}                      }                         ; // .
 		DownloadDigest res             { .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }                         ;
 		//
-		if (res.hit_info<=CacheHitInfo::Hit) {                         // actually download targets
+		if (res.hit_info<=CacheHitInfo::Hit) {                       // actually download targets
 			Zlvl zlvl = res.job_info.start.start.zlvl ;
 			#if !HAS_ZLIB
 				throw_if( zlvl.tag==ZlvlTag::Zlib , "cannot uncompress without zlib" ) ;
@@ -139,10 +139,10 @@ namespace Cache {
 					::string const& tn    = entry.first            ;
 					FileTag         tag   = entry.second.sig.tag() ;
 					DiskSz          sz    = target_szs[ti]         ;
-					n_copied = ti+1 ;                                  // this is a protection, so record n_copied *before* action occurs
+					n_copied = ti+1 ;                                // this is a protection, so record n_copied *before* action occurs
 					repo_nfs_guard.change(tn) ;
 					if (tag<=FileTag::Target) {
-						try { unlnk(tn) ; } catch (::string const&) {} // if we do not want the target, avoid unlinking potentially existing sub-files
+						unlnk(tn) ;                                  // if we do not want the target, avoid unlinking potentially existing sub-files
 					} else {
 						bool retried = false ;
 					Retry :
@@ -173,7 +173,7 @@ namespace Cache {
 				trace("throw") ;
 				throw ;
 			}
-			end.end_date = New ;                                                                                             // date must be after files are copied
+			end.end_date = New ;                                                                                                     // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
 		}

@@ -179,7 +179,7 @@ int main( int argc , char* argv[] ) {
 	}
 	//
 	for( auto const& [file,reason] : drd.to_rm ) unlnk( file          , {.abs_ok=true,.dir_ok=is_dir_name(file)} ) ;
-	/**/                                         unlnk( g_store_dir_s , {.dir_ok=true                          } ) ;
+	/**/                                         unlnk( g_store_dir_s , {             .dir_ok=true             } ) ;
 	cache_init(false/*rescue*/) ;
 	//vvvvvvvvvv
 	_repair(drd) ;

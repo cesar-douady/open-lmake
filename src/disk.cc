@@ -204,10 +204,11 @@ namespace Disk {
 	}
 
 	bool/*done*/ unlnk( FileRef file , _UnlnkAction action ) {
-		/**/                                            SWEAR_PROD( +file                           , action.abs_ok ) ; // do not unlink cwd
-		if (!action.abs_ok                            ) SWEAR_PROD( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
-		if (::unlinkat(file.at,file.file.c_str(),0)==0) return true /*done*/ ;
-		if ( errno==ENOENT || errno==ENOTDIR          ) return false/*.   */ ;
+		/**/                                              SWEAR_PROD( +file                           , action.abs_ok ) ; // do not unlink cwd
+		if ( !action.abs_ok                             ) SWEAR_PROD( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
+		if ( ::unlinkat(file.at,file.file.c_str(),0)==0 ) return true /*done*/ ;
+		if ( errno==ENOENT || errno==ENOTDIR            ) return false/*.   */ ;
+		if ( !action.dir_ok && errno==EISDIR            ) return false/*.   */ ;
 		//
 		if ( !action.dir_ok || errno!=EISDIR ) throw cat("cannot unlink file (",StrErr(),") ",file ) ;
 		//
