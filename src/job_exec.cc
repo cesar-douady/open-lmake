@@ -169,8 +169,8 @@ Crc mk_targets_crc(::vmap_s<TargetDigest> const& targets) {
 	::map_s<::pair<Crc,Tflags>> crc_src ;
 	for( auto const& [tn,td] : targets ) {
 		if (!td.tflags[Tflag::Target]) continue ;
-		if (td.crc.valid()           ) crc_src.emplace( tn , ::pair(td.crc ,td.tflags) ) ;
-		else                           crc_src.emplace( tn , ::pair(Crc(tn),td.tflags) ) ;
+		SWEAR( td.crc.valid() , tn,td.crc ) ;
+		crc_src.emplace( tn , ::pair(td.crc ,td.tflags) ) ;
 	}
 	return Crc( New , serialize(crc_src) ) ;
 }
@@ -366,19 +366,20 @@ int main( int argc , char* argv[] ) {
 		struct ::rusage rsrcs ; ::getrusage(RUSAGE_CHILDREN,&rsrcs) ;
 		//
 		if (+g_to_unlnk) unlnk(g_to_unlnk) ;                                                                                        // XXX/ : suppress when CentOS7 bug is fixed
-		//                      vvvvvvvvvvvvvvvvvvvvvvvv
-		Gather::Digest digest = g_gather.analyze(status) ;
-		//                      ^^^^^^^^^^^^^^^^^^^^^^^^
+		bool do_upload = status==Status::Ok && +g_start_info.cache ;
+		//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		Gather::Digest digest = g_gather.analyze( status , do_upload ) ;
+		//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		trace("analysis",g_gather.start_date,g_gather.end_date,status,g_gather.msg,digest.msg) ;
 		//
 		Delay exe_time = g_gather.end_date - g_gather.start_date ;
 		//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		::string crc_msg = compute_crcs( digest , /*out*/end_report.total_sz ) ;
 		//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-		if ( status==Status::Ok && +crc_msg ) status = Status::Forbidden ;
+		if ( status==Status::Ok && +crc_msg ) { status = Status::Forbidden ; do_upload = false ; }
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
-		if ( status==Status::Ok && +g_start_info.cache ) {                                                                          // jobs in error are not cached
+		if (do_upload) {                                                                          // jobs in error are not cached
 			trace("cache_addr",g_start_info.cache.service.addr) ;
 			if (!g_start_info.cache.service.addr) {
 				end_report.cache_addr = g_start_info.cache.service.addr = SockFd::s_addr(g_start_info.cache.fqdn,true/*name_ok*/) ; // if solving cache addr, report to server so next jobs can reuse it

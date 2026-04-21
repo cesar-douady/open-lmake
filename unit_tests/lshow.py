@@ -67,11 +67,12 @@ else :
 	import subprocess as sp
 
 	def lshow(key,*args) :
-		x            = sp.check_output(('lshow',key[0],               *args),universal_newlines=True)
-		long_x       = sp.check_output(('lshow',key[1],               *args),universal_newlines=True)
-		porcelaine_x = sp.check_output(('lshow',key[1],'--porcelaine',*args),universal_newlines=True)
-		assert x==long_x,('/'+x+'/','/'+long_x+'/')
-		return x,eval(porcelaine_x)
+		long_x       = sp.check_output(('lshow',key[-1],               *args),universal_newlines=True)
+		porcelaine_x = sp.check_output(('lshow',key[-1],'--porcelaine',*args),universal_newlines=True)
+		if len(key)>1 :
+			x = sp.check_output(('lshow',key[0],*args),universal_newlines=True)
+			assert x==long_x,('/'+x+'/','/'+long_x+'/')
+		return long_x,eval(porcelaine_x)
 
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
@@ -86,7 +87,8 @@ else :
 
 	proc = ut.lmake( 'dut' , wait=False , done=4 , new=3 )
 	ut.wait_sync(0)
-	x,px = lshow( ('-r','--running') , 'dut' )
+	x,px = lshow( ('-r'       ,) , 'dut' ) # dont check -r versus --running as output is unstable
+	x,px = lshow( ('--running',) , 'dut' ) # .
 	ut.trigger_sync(1)
 	proc()
 

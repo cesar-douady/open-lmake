@@ -1029,9 +1029,11 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( Delay exe_time , ::vmap_s
 						trace("read_from",tn,sz) ;
 						data_fd.send_from( AcFd(tn,{.flags=O_RDONLY|O_NOFOLLOW}) , sz ) ;
 						throw_unless( FileInfo(tn)==target_fis[ti] , "unstable ",tn ) ;                                                // ensure cache entry is reliable by checking file *after* copy
+					} else {
+						trace("empty",tn,tag) ;
 					}
 				break ;
-				case FileTag::Empty : trace("empty_from",tn) ; break ;
+				case FileTag::Empty : trace("empty",tn,tag) ; break ;
 			DN}
 		}
 		data_fd.flush() ;                                                                                                              // update data_fd.sz

@@ -280,6 +280,8 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* pass timeout to slurm to allow it optimize its scheduling
+	- add some margin to ensure timeout is handled by lmake
 * use copy-ref when possible :
 	- cache upload/download when a single file and no compression
 	- when uniquify

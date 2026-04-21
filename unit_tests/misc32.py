@@ -12,15 +12,28 @@ if __name__!='__main__' :
 
 	lmake.manifest = (
 		'Lmakefile.py'
-	,	'src'
+	,	'src1'
 	)
 
-	class Dut(PyRule) :
-		target = 'dut'
+	class Init(PyRule) :
+		target = 'init'
+		def cmd() :
+			lmake.target('src2')
+			print('from job',file=open('src2','w'))
+
+	class Dut1(PyRule) :
+		target = 'dut1'
 		cache = 'my_cache'
 		def cmd() :
-			lmake.target('src', source_ok=True)
-			print('from_job',file=open('src','w'))
+			lmake.target('src1',source_ok=True)
+			open('src1')
+
+	class Dut2(PyRule) :
+		target = 'dut2'
+		cache = 'my_cache'
+		def cmd() :
+			lmake.target('src2',incremental=True)
+			open('src2')
 
 else :
 
@@ -37,10 +50,13 @@ else :
 		size = 1<<20
 	''')[1:],file=open('CACHE/LMAKE/config.py','w'))
 
-	print('src',file=open('src','w'))
+	print('src1',file=open('src1','w'))
 
-	ut.lmake( 'dut' , done=1 )
-	sp.run(('lforget','dut'))
-	ut.lmake( 'dut' , hit_steady=1 )
+	ut.lmake( 'init' , done=1 )
 
-	assert osp.exists('src')
+	ut.lmake( 'dut1' , 'dut2' , done=2 , new=1 )
+	sp.run(('lforget','dut1','dut2'))
+	ut.lmake( 'dut1' , 'dut2' , hit_steady=2 )
+
+	assert open('src1').read().strip()=='src1'
+	assert open('src2').read().strip()=='from job'

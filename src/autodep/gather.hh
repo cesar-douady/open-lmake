@@ -158,9 +158,9 @@ public :
 		try { OMsgBuf(jerr).send(fd,{}/*key*/) ; } catch (::string const&) {}                                                      // dont care if we cannot report the reply to job
 	}
 	//
-	Status exec_child     (                         ) ;
-	Digest analyze        (Status status=Status::New) ;                                                                            // status==New means job is not done
-	void   drain_heartbeat(                         ) ;
+	Status exec_child     (                                                  ) ;
+	Digest analyze        ( Status status=Status::New , bool do_upload=false ) ;                                                   // status==New means job is not done
+	void   drain_heartbeat(                                                  ) ;
 	//
 	void add_star_match( Re::RegExpr&& re , ::pair<PD,MatchFlags> pd_f ) {
 		static constexpr MatchFlags ReaddirOk { .dflags=DflagsDfltDyn , .extra_dflags=ExtraDflagsDfltDyn|ExtraDflag::ReaddirOk } ;

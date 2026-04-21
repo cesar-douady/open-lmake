@@ -296,7 +296,7 @@ void Gather::_update_flags(bool drain_heartbeat_) {
 	return res ;
 }
 
-Gather::Digest Gather::analyze(Status status) {
+Gather::Digest Gather::analyze( Status status , bool do_upload ) {
 	Trace trace("analyze",status,accesses.size()) ;
 	Digest res                   ;                res.deps.reserve(accesses.size()) ;                              // typically most of accesses are deps
 	Pdate  prev_first_read       = Pdate::Never ;
@@ -373,7 +373,7 @@ Gather::Digest Gather::analyze(Status status) {
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.deps.emplace_back( file , dd ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			if (status!=Status::New) {                                       // only trace for user at end of job as intermediate analyses are of marginal interest for user
+			if (status!=Status::New) {                                                  // only trace for user at end of job as intermediate analyses are of marginal interest for user
 				if      (unstable) _user_trace( Comment::Unstable , file ) ;
 				else if (dd.hot  ) _user_trace( Comment::Hot      , file ) ;
 			}
@@ -399,10 +399,11 @@ Gather::Digest Gather::analyze(Status status) {
 			TargetDigest td    { .tflags=flags.tflags , .extra_tflags=flags.extra_tflags } ;
 			bool         unlnk = !fi.exists()                                              ;
 			//
-			if (is_dep) td.tflags    |= Tflag::Incremental                            ;                            // if is_dep, previous target state is guaranteed by being a dep, use it
+			if (is_dep) td.tflags    |= Tflag::Incremental                            ; // if is_dep, previous target state is guaranteed by being a dep, use it
 			/**/        td.pre_exist  = info.seen() && !td.tflags[Tflag::Incremental] ;
 			/**/        td.written    = was_written                                   ;
-			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {                                                // if SourceOk => ok to simultaneously be a dep and a target
+			/**/        td.sig        = fi.sig()                                      ;
+			if ( !allow || (is_dep&&!flags.dep_and_target_ok()) ) {
 				const char* write_msg = unlnk ? "unlink of" : was_written ? "write to" : "target declaration of" ;
 				if (flags.dflags[Dflag::Static]) {
 					if (unlnk) _user_trace( Comment::StaticDepAndTarget , CommentExt::Unlink , file ) ;
@@ -429,7 +430,7 @@ Gather::Digest Gather::analyze(Status status) {
 						/**/          res.msg << "unexpected "<<write_msg<<" file after it has been "<<read<<" : "<<mk_file(file)<<'\n'  ;
 						if (read_lnk) res.msg << "  note : readlink is implicit when writing to a file while following symbolic links\n" ;
 					}
-					if (!seen_unexpected_write) {                                                                           // only give a single advice to avoid pullution
+					if (!seen_unexpected_write) {                                                                                                   // only give a single advice to avoid pullution
 						res.msg << "  consider calling before file is accessed :\n"                ;
 						res.msg << "       lmake.target("<<mk_file(file,FileDisplay::Py   )<<")\n" ;
 						res.msg << "    or ltarget "     <<mk_file(file,FileDisplay::Shell)<<'\n'  ;
@@ -439,12 +440,14 @@ Gather::Digest Gather::analyze(Status status) {
 			}
 			if (unlnk) {
 				td.crc = Crc::None ;
-			} else if ( was_written || (fi.exists()&&st.st_nlink>1) ) {                                                     // file may change through another link if any
-				if ( status<=Status::Garbage || !td.tflags[Tflag::Target] ) { td.sig = fi.sig() ; td.crc = fi.tag() ;     } // no crc if meaningless
-				else                                                          res.crcs.emplace_back(res.targets.size()) ;   // record index in res.targets for deferred (parallel) crc computation
+			} else if ( was_written || (fi.exists()&&st.st_nlink>1) || fi.tag()==FileTag::Empty ) {                                                 // file may change through another link if any
+				if ( fi.tag()==FileTag::Empty || status<=Status::Garbage || !td.tflags[Tflag::Target] ) td.crc = fi.tag() ;                         // no crc if meaningless
+				else                                                                                    res.crcs.emplace_back(res.targets.size()) ; // deferred (parallel) crc computation
+			} else if ( do_upload && td.tflags[Tflag::Target] ) {                                                                                   // if uploading cache, must have crc for all targets
+				res.crcs.emplace_back(res.targets.size()) ;                                                                                         // deferred (parallel) crc computation
 			}
-			if ( is_static_tgt && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok )                                 // target is expected, not produced and no more important reason
-				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ;                                 // warn specifically
+			if ( is_static_tgt && !td.tflags[Tflag::Phony] && unlnk && status==Status::Ok ) // target is expected, not produced and no more important reason
+				res.msg << "missing static target " << mk_file(file,No/*exists*/) << '\n' ; // warn specifically
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			res.targets   .emplace_back(file,td) ;
 			res.target_fis.push_back   (fi     ) ;
