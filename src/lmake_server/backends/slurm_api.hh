@@ -84,6 +84,7 @@ namespace Backends::Slurm::SlurmApi {
 	,	::vector_s       const& cmd_line
 	,	const char**            env
 	,	RsrcsData        const& rsrcs
+	,	Time::Delay             timeout
 	,	bool                    verbose
 	) ;
 	extern ::pair_s<Bool3/*job_ok*/> (*job_state_func)(SlurmId) ;                // Maybe means job has not completed

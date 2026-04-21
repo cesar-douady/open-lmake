@@ -311,12 +311,13 @@ namespace Engine {
 			// cache, deps and tag are independent of req but may not always be present
 			if (!cache_idx1) cache_idx1    =                    si.cache_idx1    ; else if (+si.cache_idx1) SWEAR( cache_idx1==si.cache_idx1 , cache_idx1,si.cache_idx1 ) ;
 			if (!deps      ) deps          =                    si.deps          ; else if (+si.deps      ) SWEAR( deps      ==si.deps       , deps      ,si.deps       ) ;
-			/**/             nice          = ::min(nice        ,si.nice        ) ;
-			/**/             pressure      = ::max(pressure    ,si.pressure    ) ;
-			/**/             tokens1       = ::max(tokens1     ,si.tokens1     ) ;
 			/**/             live_out     |=                    si.live_out      ;
 			/**/             local_reason  = ::max(local_reason,si.local_reason) ;
+			/**/             nice          = ::min(nice        ,si.nice        ) ;
+			/**/             pressure      = ::max(pressure    ,si.pressure    ) ;
 			/**/             reason       |=                    si.reason        ;
+			if (!timeout   ) timeout       =                    si.timeout       ; else if (+si.timeout   ) timeout = ::min(timeout,si.timeout) ;
+			/**/             tokens1       = ::max(tokens1     ,si.tokens1     ) ;
 			return self ;
 		}
 		SubmitInfo operator|(SubmitInfo const& si) const {
@@ -338,6 +339,7 @@ namespace Engine {
 		uint8_t             nice         = -1    ; // -1 means not specified
 		Time::CoarseDelay   pressure     = {}    ;
 		JobReason           reason       = {}    ;
+		Time::Delay         timeout      = {}    ;
 		Tokens1             tokens1      = 0     ;
 		// END_OF_VERSIONING
 	} ;

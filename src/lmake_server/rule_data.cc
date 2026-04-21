@@ -787,6 +787,7 @@ namespace Engine {
 			k="auto_mkdir"          ; if (scad&&sca.dyn_auto_mkdir       ) EB(k,n) ; else if ( sca.auto_mkdir                ) EB(k,cat        (sca.auto_mkdir             )) ;
 			k="autodep"             ; if (srad&&sra.dyn_method           ) EB(k,n) ; else                                      EB(k,snake      (sra.method                 )) ;
 			k="backend"             ; if (urad&&ura.dyn_backend          ) EB(k,n) ; else if ( ura.backend!=BackendTag::Local) EB(k,snake      (ura.backend                )) ;
+			k="timeout"             ; if (urad&&ura.dyn_timeout          ) EB(k,n) ; else if (+ura.timeout                   ) EB(k,            ura.timeout.short_str()     ) ;
 			k="cache"               ; if (uaad&&uaa.dyn_cache_name       ) EB(k,n) ; else if (+uaa.cache_name                ) EB(k,            uaa.cache_name              ) ;
 			k="check_abs_paths"     ; if (srad&&sra.dyn_chk_abs_paths    ) EB(k,n) ; else if ( sra.chk_abs_paths             ) EB(k,cat        (sra.chk_abs_paths          )) ;
 			k="chroot_dir"          ; if (scad&&sca.dyn_chroot_dir_s     ) EB(k,n) ; else if (+sca.chroot_dir_s              ) EB(k,no_slash   (sca.chroot_dir_s           )) ;
@@ -809,7 +810,6 @@ namespace Engine {
 			k="repo_view"           ; if (scad&&sca.dyn_repo_view_s      ) EB(k,n) ; else if (+sca.job_space.repo_view_s     ) EB(k,no_slash   (sca.job_space.repo_view_s  )) ;
 			k="start_delay"         ; if (saad&&saa.dyn_start_delay      ) EB(k,n) ; else if (+saa.start_delay               ) EB(k,            saa.start_delay.short_str() ) ;
 			k="stderr_ok"           ; if (srad&&sra.dyn_stderr_ok        ) EB(k,n) ; else if ( sra.stderr_ok                 ) EB(k,cat        (sra.stderr_ok              )) ;
-			k="timeout"             ; if (srad&&sra.dyn_timeout          ) EB(k,n) ; else if (+sra.timeout                   ) EB(k,            sra.timeout.short_str()     ) ;
 			k="tmp_view"            ; if (scad&&sca.dyn_tmp_view_s       ) EB(k,n) ; else if (+sca.job_space.tmp_view_s      ) EB(k,no_slash   (sca.job_space.tmp_view_s   )) ;
 			k="use_script"          ; if (srad&&sra.dyn_use_script       ) EB(k,n) ; else if ( sra.use_script                ) EB(k,cat        (sra.use_script             )) ;
 			#undef EB

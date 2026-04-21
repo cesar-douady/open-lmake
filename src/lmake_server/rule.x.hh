@@ -208,10 +208,12 @@ namespace Engine {
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , backend ) ;
 			::serdes( s , rsrcs   ) ;
+			::serdes( s , timeout ) ;
 		}
 		void update(Py::Dict const& py_dct) {
-			Attrs::acquire_from_dct( backend , dyn_backend , py_dct , "backend" ) ;
-			Attrs::acquire_from_dct( rsrcs   , dyn_rsrcs   , py_dct , "rsrcs"   ) ;
+			Attrs::acquire_from_dct( backend , dyn_backend , py_dct , "backend"                        ) ;
+			Attrs::acquire_from_dct( rsrcs   , dyn_rsrcs   , py_dct , "rsrcs"                          ) ;
+			Attrs::acquire_from_dct( timeout , dyn_timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
 		}
 		Tokens1 tokens1() const {
 			for( auto const& [k,v] : rsrcs ) if (k=="cpu")
@@ -221,8 +223,9 @@ namespace Engine {
 		}
 		// data
 		// START_OF_VERSIONING REPO
-		BackendTag backend = BackendTag::Local ; bool     dyn_backend = false ;                                                     // backend to use to launch jobs
-		::vmap_ss  rsrcs   ;                     IsDynMap dyn_rsrcs   = {}    ;
+		BackendTag  backend = BackendTag::Local ; bool     dyn_backend = false ;                                                    // backend to use to launch jobs
+		::vmap_ss   rsrcs   ;                     IsDynMap dyn_rsrcs   = {}    ;
+		Time::Delay timeout ;                     bool     dyn_timeout = false ;                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
 		// END_OF_VERSIONING
 	} ;
 
@@ -296,19 +299,17 @@ namespace Engine {
 			::serdes( s , method         ) ;
 			::serdes( s , readdir_ok     ) ;
 			::serdes( s , stderr_ok      ) ;
-			::serdes( s , timeout        ) ;
 			::serdes( s , use_script     ) ;
 		}
 		void update( Py::Dict const& py_dct ) {
-			Attrs::acquire_from_dct( chk_abs_paths  , dyn_chk_abs_paths  , py_dct , "check_abs_paths"                      ) ;
-			Attrs::acquire_from_dct( chroot_actions , dyn_chroot_actions , py_dct , "chroot_actions"                       ) ;
-			Attrs::acquire_env     ( env            , dyn_env            , py_dct , "env"                                  ) ;
-			Attrs::acquire_from_dct( lmake_root_s   , dyn_lmake_root_s   , py_dct , "lmake_root"                           ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
-			Attrs::acquire_from_dct( method         , dyn_method         , py_dct , "autodep"                              ) ;
-			Attrs::acquire_from_dct( readdir_ok     , dyn_readdir_ok     , py_dct , "readdir_ok"                           ) ;
-			Attrs::acquire_from_dct( stderr_ok      , dyn_stderr_ok      , py_dct , "stderr_ok"                            ) ;
-			Attrs::acquire_from_dct( timeout        , dyn_timeout        , py_dct , "timeout"       , Time::Delay()/*min*/ ) ;
-			Attrs::acquire_from_dct( use_script     , dyn_use_script     , py_dct , "use_script"                           ) ;
+			Attrs::acquire_from_dct( chk_abs_paths  , dyn_chk_abs_paths  , py_dct , "check_abs_paths" ) ;
+			Attrs::acquire_from_dct( chroot_actions , dyn_chroot_actions , py_dct , "chroot_actions"  ) ;
+			Attrs::acquire_env     ( env            , dyn_env            , py_dct , "env"             ) ;
+			Attrs::acquire_from_dct( lmake_root_s   , dyn_lmake_root_s   , py_dct , "lmake_root"      ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
+			Attrs::acquire_from_dct( method         , dyn_method         , py_dct , "autodep"         ) ;
+			Attrs::acquire_from_dct( readdir_ok     , dyn_readdir_ok     , py_dct , "readdir_ok"      ) ;
+			Attrs::acquire_from_dct( stderr_ok      , dyn_stderr_ok      , py_dct , "stderr_ok"       ) ;
+			Attrs::acquire_from_dct( use_script     , dyn_use_script     , py_dct , "use_script"      ) ;
 		}
 		// data
 		// START_OF_VERSIONING REPO
@@ -319,7 +320,6 @@ namespace Engine {
 		AutodepMethod method         = AutodepMethod::Dflt ; bool     dyn_method         = false ;
 		bool          readdir_ok     = false               ; bool     dyn_readdir_ok     = false ;
 		bool          stderr_ok      = false               ; bool     dyn_stderr_ok      = false ;
-		Time::Delay   timeout        ;                       bool     dyn_timeout        = false ; // if 0 <=> no timeout, maximum time allocated to job execution in s
 		bool          use_script     = false               ; bool     dyn_use_script     = false ;
 		// END_OF_VERSIONING
 	} ;

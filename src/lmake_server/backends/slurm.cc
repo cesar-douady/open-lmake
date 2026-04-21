@@ -8,6 +8,7 @@
 #include "app.hh"
 
 using namespace Disk ;
+using namespace Time ;
 
 enum class SlurmFlag : uint8_t {
 	CpusPerTask
@@ -38,6 +39,7 @@ namespace Backends::Slurm {
 		,	::vector_s       const& cmd_line
 		,	const char**            env
 		,	RsrcsData        const& rsrcs
+		,	Delay                   timeout
 		,	bool                    verbose
 		) = nullptr ;
 		::pair_s<Bool3/*job_ok*/> (*job_state_func)(SlurmId) = nullptr ;
@@ -275,7 +277,7 @@ namespace Backends::Slurm {
 		SpawnId launch_job( ::stop_token st , Job j , ::vector<ReqIdx> const& reqs , Pdate prio , ::vector_s const& cmd_line , SpawnedEntry const& se ) const override {
 			int32_t nice = use_nice ? int32_t((prio-daemon.time_origin).sec()*daemon.nice_factor) : 0 ;
 			nice &= 0x7fffffff ;                                                                        // slurm will not accept negative values, default values overflow in ... 2091
-			SlurmId id = SlurmApi::spawn_job_func( st , repo_key , j , reqs , nice , cmd_line , _slurm_env.get() , *se.rsrcs , se.verbose ) ;
+			SlurmId id = SlurmApi::spawn_job_func( st , repo_key , j , reqs , nice , cmd_line , _slurm_env.get() , *se.rsrcs , se.timeout , se.verbose ) ;
 			Trace trace(BeChnl,"Slurm::launch_job",repo_key,j,id,nice,cmd_line,se.rsrcs,STR(se.verbose)) ;
 			return id ;
 		}

@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 43      ; // 86f3b8fe7d73dd19cb821586ccea22e7
+	uint64_t    constexpr Cache = 44      ; // 8400443ab8c1b3190cb732499ec3a991
 	uint64_t    constexpr Codec = 2       ; // 92b278dc7fadca006a85487809cac9ca
-	uint64_t    constexpr Repo  = 45      ; // fc6deb0ddb67a3d3952f279f7818c720
+	uint64_t    constexpr Repo  = 46      ; // 75195635378be5a7fb3f0bf4bcab8cc1
 	uint64_t    constexpr Job   = 21      ; // 8ee88e5456ba6801fbf1a55bff4ba4ec
 	const char* const     Major = "26.04" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 86f3b8fe7d73dd19cb821586ccea22e7 *
+// * Cache : 8400443ab8c1b3190cb732499ec3a991 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -324,6 +324,7 @@ namespace Version {
 //			uint8_t             nice         = -1    ; // -1 means not specified
 //			Time::CoarseDelay   pressure     = {}    ;
 //			JobReason           reason       = {}    ;
+//			Time::Delay         timeout      = {}    ;
 //			Tokens1             tokens1      = 0     ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
@@ -1096,7 +1097,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : fc6deb0ddb67a3d3952f279f7818c720 *
+// * Repo : 75195635378be5a7fb3f0bf4bcab8cc1 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1443,6 +1444,7 @@ namespace Version {
 //			uint8_t             nice         = -1    ; // -1 means not specified
 //			Time::CoarseDelay   pressure     = {}    ;
 //			JobReason           reason       = {}    ;
+//			Time::Delay         timeout      = {}    ;
 //			Tokens1             tokens1      = 0     ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
@@ -1609,8 +1611,9 @@ namespace Version {
 //			::vmap_s<DepSpec> deps ; IsDynMap dyn_deps = {} ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			BackendTag backend = BackendTag::Local ; bool     dyn_backend = false ;                                                     // backend to use to launch jobs
-//			::vmap_ss  rsrcs   ;                     IsDynMap dyn_rsrcs   = {}    ;
+//			BackendTag  backend = BackendTag::Local ; bool     dyn_backend = false ;                                                    // backend to use to launch jobs
+//			::vmap_ss   rsrcs   ;                     IsDynMap dyn_rsrcs   = {}    ;
+//			Time::Delay timeout ;                     bool     dyn_timeout = false ;                                                    // if 0 <=> no timeout, maximum time allocated to job execution in s
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			::string cache_name ; bool dyn_cache_name = false ;
@@ -1635,7 +1638,6 @@ namespace Version {
 //			AutodepMethod method         = AutodepMethod::Dflt ; bool     dyn_method         = false ;
 //			bool          readdir_ok     = false               ; bool     dyn_readdir_ok     = false ;
 //			bool          stderr_ok      = false               ; bool     dyn_stderr_ok      = false ;
-//			Time::Delay   timeout        ;                       bool     dyn_timeout        = false ; // if 0 <=> no timeout, maximum time allocated to job execution in s
 //			bool          use_script     = false               ; bool     dyn_use_script     = false ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO

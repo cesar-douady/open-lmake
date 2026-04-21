@@ -172,6 +172,7 @@
 <ul>
 <li>No</li>
 <li>Simple: globals include module globals, user attributes, stems and targets, no file access allowed.</li>
+<li>Submit: globals include module globals, user attributes, stems, targets and deps, file accesses become deps.</li>
 <li>Full:   globals include module globals, user attributes, stems, targets, deps and resources, file accesses become deps.</li>
 </ul>
 </li>
@@ -264,13 +265,13 @@ This means:</p>
 <p>This attribute specifies the method used by <a href="autodep.html">autodep</a> to discover hidden deps.</p>
 <h3 id="backend"><a class="header" href="#backend"><a href="unit_tests/slurm.html#:~:text=backend%20%3D%20%27slurm"><code>backend</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Full</td><td><code>'slurm'</code></td></tr>
+<tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Submit</td><td><code>'slurm'</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the <a href="backends.html">backend</a> to use to launch jobs.</p>
 <h3 id="cache"><a class="header" href="#cache"><a href="unit_tests/cache.html#:~:text=cache%20%3D%20%27my%5Fcache"><code>cache</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Simple</td><td></td></tr>
+<tr><td>python</td><td><code>f-str</code></td><td>-</td><td>Submit</td><td></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the cache to use for jobs executed by this rule.</p>
@@ -670,7 +671,7 @@ If it already exists, it must be a (preferably empty) dir, else it must be a top
 This allows such jobs to be repeatable independently of the location of the repo, making for example caching possible.</p>
 <h3 id="resources"><a class="header" href="#resources"><a href="unit_tests/resources.html#:~:text=resources%20%3D%20%7B%20%27gnat%27%3A%20%271%27%20%7D"><code>resources</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Full</td><td><code>{ 'MY_RESOURCE' : '1' }</code></td></tr>
+<tr><td>Combined</td><td><code>dict</code></td><td><code>{}</code></td><td>Submit</td><td><code>{ 'MY_RESOURCE' : '1' }</code></td></tr>
 </tbody></table>
 </div>
 <p>This attribute specifies the resources required by a job to run successfully.
@@ -828,7 +829,7 @@ possibly duplicating flags mentioned in other matching entries (<code>side_deps<
 </ul>
 <h3 id="timeout"><a class="header" href="#timeout"><a href="unit_tests/wine.html#:~:text=timeout%20%3D%20120"><code>timeout</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
-<tr><td>python</td><td><code>float</code></td><td>no timeout</td><td>Full</td><td></td></tr>
+<tr><td>python</td><td><code>float</code></td><td>no timeout</td><td>Submit</td><td></td></tr>
 </tbody></table>
 </div>
 <p>When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.</p>

@@ -134,7 +134,7 @@ namespace Backends {
 		_SpawnedEntry() = default ;
 		_SpawnedEntry( Rsrcs const& rsrcs_ , Rsrcs const& rounded_rsrcs_ ) : rsrcs{rsrcs_} , rounded_rsrcs{rounded_rsrcs_} {}
 		// accesses
-		void operator>>(::string& os) const {                       // START_OF_NO_COV
+		void operator>>(::string& os) const {                           // START_OF_NO_COV
 			os << "SpawnedEntry(" ;
 			if (!zombie) {
 				/**/          os <<      rsrcs ;
@@ -143,15 +143,16 @@ namespace Backends {
 				if (verbose ) os << ",verbose" ;
 			}
 			os << ')' ;
-		}                                                           // END_OF_NO_COV
+		}                                                               // END_OF_NO_COV
 		// data
-		Rsrcs                               rsrcs         ;
-		Rsrcs                               rounded_rsrcs ;
-		Atomic<SpawnId,MutexLvl::BackendId> id            = NoId  ;
-		Atomic<bool                       > started       ;         // if true <=> start() has been called for this job, for assert only
-		Atomic<bool                       > verbose       ;
-		Atomic<bool                       > zombie        ;         // if true <=> entry waiting for suppression
-		Atomic<bool                       > hold          ;         // when held, entry cannot be destroyed
+		Rsrcs                                   rsrcs         ;
+		Rsrcs                                   rounded_rsrcs ;
+		Atomic<Time::Delay                    > timeout       ;
+		Atomic<SpawnId    ,MutexLvl::BackendId> id            = NoId  ;
+		Atomic<bool                           > started       ;         // if true <=> start() has been called for this job, for assert only
+		Atomic<bool                           > verbose       ;
+		Atomic<bool                           > zombie        ;         // if true <=> entry waiting for suppression
+		Atomic<bool                           > hold          ;         // when held, entry cannot be destroyed
 	} ;
 
 	// we could maintain a list of reqs sorted by eta as we have open_req to create entries, close_req to erase them and new_req_etas to reorder them upon need
@@ -284,32 +285,32 @@ namespace Backends {
 		}
 		void open_req( Req req , JobIdx n_jobs ) override {
 			Trace trace(BeChnl,"open_req",req,n_jobs) ;
-			Lock lock     { Req::s_reqs_mutex }                                                              ; // taking Req::s_reqs_mutex is compulsory to derefence req
+			Lock lock     { Req::s_reqs_mutex }                                                              ;  // taking Req::s_reqs_mutex is compulsory to derefence req
 			bool inserted = reqs.insert({ req , {n_jobs,Req(req)->options.flags[ReqFlag::Verbose]} }).second ;
-			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                     // check no overflow
+			if (n_jobs) { n_n_jobs++ ; SWEAR(n_n_jobs) ; }                                                      // check no overflow
 			SWEAR(inserted) ;
 		}
 		void close_req(Req req) override {
 			auto it = reqs.find(req) ;
 			Trace trace(BeChnl,"close_req",req,STR(it==reqs.end())) ;
-			if (it==reqs.end()) return ;                                                                       // req has been killed
+			if (it==reqs.end()) return ;                                                                        // req has been killed
 			ReqEntry const& re = it->second ;
 			SWEAR( !re.waiting_jobs , re.waiting_jobs ) ;
-			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                  // check no underflow
+			if (re.n_jobs) { SWEAR(n_n_jobs) ; n_n_jobs-- ; }                                                   // check no underflow
 			reqs.erase(it) ;
 			if (!reqs) {
 				SWEAR( !waiting_jobs , waiting_jobs ) ;
-				SWEAR( !spawned_jobs , spawned_jobs ) ;                                                        // there may be !live entries waiting for destruction
+				SWEAR( !spawned_jobs , spawned_jobs ) ;                                                         // there may be !live entries waiting for destruction
 			}
 		}
 		// do not launch immediately to have a better view of which job should be launched first
 		void submit( Job job , Req req , SubmitInfo const& submit_info , ::vmap_ss&& rsrcs ) override {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
 			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
-			SWEAR( !waiting_jobs.contains(job) , job,waiting_jobs ) ;                                                                                                 // job must be a new one
+			SWEAR( !waiting_jobs.contains(job) , job,waiting_jobs ) ;                                           // job must be a new one
 			RsrcsData   rd       = import_(::move(rsrcs),req,job) ;
 			Rsrcs       rs       { New , rd }                     ;
-			ReqEntry&   re       = reqs.at(req)                   ; SWEAR(!re.waiting_jobs.contains(job)) ;                                                           // in particular for this req
+			ReqEntry&   re       = reqs.at(req)                   ; SWEAR(!re.waiting_jobs.contains(job)) ;     // in particular for this req
 			CoarseDelay pressure = submit_info.pressure           ;
 			Trace trace(BeChnl,"submit",rs,pressure) ;
 			//
@@ -483,7 +484,8 @@ namespace Backends {
 						//
 						SpawnedEntry& se = spawned_jobs.create( self , j , wit->second.rsrcs , candidate->first )->second ;
 						//
-						se.verbose = wit->second.verbose ;
+						se.timeout = wit->second.submit_info.timeout ;
+						se.verbose = wit->second.verbose             ;
 						::vector<ReqIdx> rs { +req } ;
 						for( auto const& [r,re] : reqs )
 							if      (!re.waiting_jobs.contains(j)) SWEAR( r!=req , r ) ;

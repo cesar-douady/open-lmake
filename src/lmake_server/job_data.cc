@@ -1243,11 +1243,12 @@ namespace Engine {
 			Tokens1 tokens1_ = submit_rsrcs_attrs.tokens1() ;
 			SubmitInfo si {
 				.cache_idx1 =        cache_idx1
-			,	.deps       = ::move(early_deps )
+			,	.deps       = ::move(early_deps                )
 			,	.live_out   =        ri.live_out
 			,	.nice       =        req->nice
 			,	.pressure   =        pressure
 			,	.reason     =        ri.reason
+			,	.timeout    =        submit_rsrcs_attrs.timeout
 			,	.tokens1    =        tokens1_
 			} ;
 			estimate_stats(tokens1_) ;                       // refine estimate with best available info just before submitting

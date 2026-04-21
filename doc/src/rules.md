@@ -16,6 +16,7 @@ Each attribute is characterized by a few flags:
 - Whether it can be defined dynamically from job to job:
   - No
   - Simple: globals include module globals, user attributes, stems and targets, no file access allowed.
+  - Submit: globals include module globals, user attributes, stems, targets and deps, file accesses become deps.
   - Full:   globals include module globals, user attributes, stems, targets, deps and resources, file accesses become deps.
 
 When targets are allowed in dynamic values, the `targets` variable is also available as a `dict` of the targets.
@@ -110,7 +111,7 @@ This attribute specifies the method used by [autodep](autodep.html) to discover 
 
 | Inheritance | Type    | Default | Dynamic | Example   |
 |-------------|---------|---------|---------|-----------|
-| python      | `f-str` | -       | Full    | `'slurm'` |
+| python      | `f-str` | -       | Submit  | `'slurm'` |
 
 This attribute specifies the [backend](backends.html) to use to launch jobs.
 
@@ -118,7 +119,7 @@ This attribute specifies the [backend](backends.html) to use to launch jobs.
 
 | Inheritance | Type    | Default | Dynamic | Example |
 |-------------|---------|---------|---------|---------|
-| python      | `f-str` | -       | Simple  |         |
+| python      | `f-str` | -       | Submit  |         |
 
 This attribute specifies the cache to use for jobs executed by this rule.
 
@@ -640,7 +641,7 @@ This allows such jobs to be repeatable independently of the location of the repo
 
 | Inheritance | Type   | Default | Dynamic | Example                   |
 |-------------|--------|---------|---------|---------------------------|
-| Combined    | `dict` | `{}`    | Full    | `{ 'MY_RESOURCE' : '1' }` |
+| Combined    | `dict` | `{}`    | Submit  | `{ 'MY_RESOURCE' : '1' }` |
 
 This attribute specifies the resources required by a job to run successfully.
 These may be cpu availability, memory, commercial tool licenses, access to dedicated hardware, ...
@@ -834,7 +835,7 @@ possibly duplicating flags mentioned in other matching entries (`side_deps` and 
 
 | Inheritance | Type    | Default    | Dynamic | Example |
 |-------------|---------|------------|---------|---------|
-| python      | `float` | no timeout | Full    |         |
+| python      | `float` | no timeout | Submit  |         |
 
 When this attribute has a non-zero value, job is killed and a failure is reported if it is not done before that many seconds.
 

@@ -436,7 +436,7 @@ namespace Backends {
 			reply.phy_lmake_root_s       = ::move(start_rsrcs_attrs.lmake_root_s  ) ;
 			reply.method                 =        start_rsrcs_attrs.method          ;
 			reply.stderr_ok              =        start_rsrcs_attrs.stderr_ok       ;
-			reply.timeout                =        start_rsrcs_attrs.timeout         ;
+			reply.timeout                =        submit_info.timeout               ;
 			reply.use_script             =        start_rsrcs_attrs.use_script      ;
 			reply.autodep_env.readdir_ok =        start_rsrcs_attrs.readdir_ok      ;
 			//

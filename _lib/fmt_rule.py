@@ -506,8 +506,9 @@ class Handle :
 
 	def handle_submit_rsrcs(self) :
 		self._init()
-		self._handle_val('backend'            )
-		self._handle_val('rsrcs'  ,'resources')
+		self._handle_val( 'backend'               )
+		self._handle_val( 'rsrcs'   , 'resources' )
+		self._handle_val( 'timeout'               )
 		self.rule_rep.submit_rsrcs_attrs = self._finalize()
 		self.aggregate_per_job.add('resources')
 		rsrcs = self.rule_rep.submit_rsrcs_attrs.get('static',{}).get('rsrcs')
@@ -543,7 +544,6 @@ class Handle :
 		self._handle_val( 'lmake_root'                                    )
 		self._handle_val( 'readdir_ok'                                    )
 		self._handle_val( 'stderr_ok'                                     )
-		self._handle_val( 'timeout'                                       )
 		self._handle_val( 'use_script'                                    )
 		self.rule_rep.start_rsrcs_attrs = self._finalize()
 

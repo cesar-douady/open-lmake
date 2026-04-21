@@ -16,6 +16,7 @@ namespace Backends::Slurm::SlurmApi {
 	}
 
 	using namespace Disk ;
+	using namespace Time ;
 
 	static constexpr int SlurmSpawnTrials  = 15 ;
 	static constexpr int SlurmCancelTrials = 10 ;
@@ -53,6 +54,7 @@ namespace Backends::Slurm::SlurmApi {
 	,	::vector_s       const& cmd_line
 	,	const char**            env
 	,	RsrcsData        const& rsrcs
+	,	Delay                   timeout
 	,	bool                    verbose
 	) {
 		static ::string repo_root = no_slash(*g_repo_root_s) ;
@@ -79,29 +81,31 @@ namespace Backends::Slurm::SlurmApi {
 			gres = "gres:"+r.gres ;
 			//
 			_init_job_desc_msg(&j) ;
+			SWEAR( timeout>=Delay() , timeout ) ;
 			/**/                     j.comment         = const_cast<char*>(comment.c_str())                            ;
 			/**/                     j.cpus_per_task   = r.cpu                                                         ;
 			/**/                     j.environment     = const_cast<char**>(env)                                       ;               // terminated with an empty string
 			/**/                     j.env_size        = 1                                                             ;               // seems to only work when 1
-			if(+r.excludes         ) j.exc_nodes       = const_cast<char*>(r.excludes .data())                         ;
-			if(+r.features         ) j.features        = const_cast<char*>(r.features .data())                         ;
+			if (+r.excludes        ) j.exc_nodes       = const_cast<char*>(r.excludes .data())                         ;
+			if (+r.features        ) j.features        = const_cast<char*>(r.features .data())                         ;
 			/**/                     j.het_job_offset  = het_job_offset++                                              ;               // seems to only work when 1
-			if(+r.licenses         ) j.licenses        = const_cast<char*>(r.licenses .data())                         ;
+			if (+r.licenses        ) j.licenses        = const_cast<char*>(r.licenses .data())                         ;
 			/**/                     j.max_cpus        = r.cpu                                                         ;               // by symmetry with min_cpus
 			/**/                     j.min_cpus        = r.cpu                                                         ;               // version 25.11 requires this (after gemini recommandation)
 			/**/                     j.name            = const_cast<char*>(key_job_name.c_str())                       ;
 			/**/                     j.nice            = NICE_OFFSET+nice                                              ;
 			/**/                     j.num_tasks       = 1                                                             ;               // version 25.11 requires this (after gemini recommandation)
-			if(+r.partition        ) j.partition       = const_cast<char*>(r.partition.data())                         ;
+			if (+r.partition       ) j.partition       = const_cast<char*>(r.partition.data())                         ;
 			/**/                     j.pn_min_memory   = r.mem                                                         ;               //in MB
 			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;               //in MB
-			if(+r.qos              ) j.qos             = const_cast<char*>(r.qos      .data())                         ;
-			if(+r.nodes            ) j.req_nodes       = const_cast<char*>(r.nodes    .data())                         ;
-			if(+r.reserv           ) j.reservation     = const_cast<char*>(r.reserv   .data())                         ;
-			if(first               ) j.script          =                   script     .data()                          ;
+			if (+r.qos             ) j.qos             = const_cast<char*>(r.qos      .data())                         ;
+			if (+r.nodes           ) j.req_nodes       = const_cast<char*>(r.nodes    .data())                         ;
+			if (+r.reserv          ) j.reservation     = const_cast<char*>(r.reserv   .data())                         ;
+			if (first              ) j.script          =                   script     .data()                          ;
 			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;
 			/**/                     j.std_out         =                                const_cast<char*>("/dev/null") ;
-			if(+r.gres             ) j.tres_per_node   =                   gres       .data()                          ;
+			if (+timeout           ) j.time_limit      = div_up<60>(::make_unsigned_t<Delay::Tick>(timeout.sec()))+1   ;               // take some margin so actual timeout occurs in job
+			if (+r.gres            ) j.tres_per_node   =                   gres       .data()                          ;
 			/**/                     j.work_dir        = repo_root.data()                                              ;
 			first =false ;
 		}
