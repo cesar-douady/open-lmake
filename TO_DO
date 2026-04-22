@@ -279,6 +279,7 @@ M port to Darwin
 * use copy-ref when possible :
 	- cache upload/download when a single file and no compression
 	- when uniquify
+	- cases are exceptionnal, maybe not worthwhile
 * avoid computing deps on disk for cached jobs
 	- make status is enough as downloading does not require deps on disk
 	- split a cache.download() into :

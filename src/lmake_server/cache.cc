@@ -113,7 +113,7 @@ namespace Cache {
 		AcFd           info_fd         { {_dir_fd,rf+"-info"} , {.nfs_guard=&cache_nfs_guard}                      }                         ; // .
 		DownloadDigest res             { .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }                         ;
 		//
-		if (res.hit_info<=CacheHitInfo::Hit) {                       // actually download targets
+		if (res.hit_info<=CacheHitInfo::Hit) {                                                     // actually download targets
 			Zlvl zlvl = res.job_info.start.start.zlvl ;
 			#if !HAS_ZLIB
 				throw_if( zlvl.tag==ZlvlTag::Zlib , "cannot uncompress without zlib" ) ;
@@ -139,41 +139,34 @@ namespace Cache {
 					::string const& tn    = entry.first            ;
 					FileTag         tag   = entry.second.sig.tag() ;
 					DiskSz          sz    = target_szs[ti]         ;
-					n_copied = ti+1 ;                                // this is a protection, so record n_copied *before* action occurs
+					n_copied = ti+1 ;                                                              // this is a protection, so record n_copied *before* action occurs
 					repo_nfs_guard.change(tn) ;
-					if (tag<=FileTag::Target) {
-						unlnk(tn) ;                                  // if we do not want the target, avoid unlinking potentially existing sub-files
-					} else {
-						bool retried = false ;
-					Retry :
-						try {
-							switch (tag) {
-								case FileTag::None  :                                                                                   break ;
-								case FileTag::Lnk   : trace("lnk_to"  ,sz,tn) ; sym_lnk( tn , data_fd.read(target_szs[ti]) )          ; break ;
-								case FileTag::Empty : trace("empty_to",   tn) ; AcFd   ( tn , {O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW} ) ; break ;
-								case FileTag::Exe   :
-								case FileTag::Reg   : {
-									AcFd fd { tn , { O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , mode_t(tag==FileTag::Exe?0777:0666) } } ;
-									retried = true ;                                                                                 // dont consume data_fd twice
-									if (sz) { trace("write_to"  ,sz,tn) ; data_fd.receive_to( fd , sz ) ; }
-								}
-							DN}
-						} catch (::string const&) {
-							if (retried) throw ;
-							unlnk( tn , {.dir_ok=true} ) ;
-							retried = true ;
-							goto Retry/*BACKWARD*/ ;
-						}
-					}
-					entry.second.sig = FileSig(tn) ;                                                                                 // target digest is not stored in cache
+					trace("to",tag,sz,tn) ;
+					switch (tag) {
+						case FileTag::None :
+						case FileTag::Dir  : unlnk(tn,{.dir_ok=false}) ; break ;                   // if we do not want the target, avoid unlinking potentially existing sub-files
+						case FileTag::Lnk  : {
+							::string t = data_fd.read(target_szs[ti]) ;                            // data_fd must be read once
+							try                     {                            sym_lnk(tn,t) ; }
+							catch (::string const&) { unlnk(tn,{.dir_ok=true}) ; sym_lnk(tn,t) ; }
+						} break ;
+						case FileTag::Empty :
+						case FileTag::Exe   :
+						case FileTag::Reg   : {
+							AcFd                                  fd {       tn , { .flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , .mod=mode_t(tag==FileTag::Exe?0777:0666) , .err_ok=true } } ;
+							if (!fd) { unlnk(tn,{.dir_ok=true}) ; fd = AcFd( tn , { .flags=O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW , .mod=mode_t(tag==FileTag::Exe?0777:0666)                } ) ; }
+							data_fd.receive_to( fd , sz ) ;                                        // data_fd must be read once
+						} break ;
+					DF}                                                                            // NO_COV
+					entry.second.sig = FileSig(tn) ;                                               // target digest is not stored in cache
 				}
 			} catch(::string const& e) {
 				trace("failed",e,n_copied) ;
-				for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                                                        // clean up partial job
+				for( NodeIdx ti : iota(n_copied) ) unlnk(targets[ti].first) ;                      // clean up partial job
 				trace("throw") ;
 				throw ;
 			}
-			end.end_date = New ;                                                                                                     // date must be after files are copied
+			end.end_date = New ;                                                                   // date must be after files are copied
 			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
 		}
