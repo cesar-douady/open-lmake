@@ -17,20 +17,20 @@ if __name__!='__main__' :
 
 	class Hi(Rule) :
 		prio = 1
-		if step==1 : targets = { 'T' :  r'a{D*:.*}'          }
-		else       : targets = { 'T' : (r'a{D*:.*}','phony') }
+		if step==1 : targets = { 'T' :  r'dut{D*:.*}'          }
+		else       : targets = { 'T' : (r'dut{D*:.*}','phony') }
 		cmd = ''
 
 
 	class Low(Rule):
-		target = 'a'
+		target = 'dut'
 		cmd    = 'echo low'
 
 
 	class Test(Rule) :
 		target = 'test'
-		dep    = 'a'
-		cmd    = 'cat'
+		deps   = { 'DUT' : 'dut' }
+		cmd    = 'cat {DUT}'
 
 else :
 

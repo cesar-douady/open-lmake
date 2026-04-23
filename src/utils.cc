@@ -57,59 +57,67 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		auto fill = [&]( ulong typ , FileSync fs=FileSync::None ) {
 			if (typ) tab[n_entries++] = { typ , fs } ;
 		} ;
-		// EXT, EXT3 and EXT4 actually define the same super-magic, check it
-		constexpr ulong ExtSuperMagic = ::max( MACRO_VAL(EXT2_SUPER_MAGIC,0UL) , ::max( MACRO_VAL(EXT3_SUPER_MAGIC,0UL) , MACRO_VAL(EXT4_SUPER_MAGIC,0UL) ) ) ;
-		static_assert( MACRO_VAL(EXT2_SUPER_MAGIC,0UL)==0 || MACRO_VAL(EXT2_SUPER_MAGIC,0UL)==ExtSuperMagic ) ;
-		static_assert( MACRO_VAL(EXT3_SUPER_MAGIC,0UL)==0 || MACRO_VAL(EXT3_SUPER_MAGIC,0UL)==ExtSuperMagic ) ;
-		static_assert( MACRO_VAL(EXT4_SUPER_MAGIC,0UL)==0 || MACRO_VAL(EXT4_SUPER_MAGIC,0UL)==ExtSuperMagic ) ;
+		// all macros are not defined everywhere, so we use the official value if available and default to wellknown values
 		//
-		fill( MACRO_VAL(AFS_FS_MAGIC         ,0UL)                  ) ;                           // known to be reliable
-		fill( MACRO_VAL(AUTOFS_SUPER_MAGIC   ,0UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
-		fill( MACRO_VAL(BEEGFS_MAGIC         ,0UL)                  ) ;                           // check name, known to be reliable
-		fill( MACRO_VAL(BTRFS_SUPER_MAGIC    ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(BTRFS_TEST_MAGIC     ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(CEPH_SUPER_MAGIC     ,0UL)                  ) ;                           // has been tested reliable
-	//	fill( MACRO_VAL(CIFS_SUPER_MAGIC     ,0UL)                  ) ;                           // no info on reliability
-	//	fill( MACRO_VAL(CODA_SUPER_MAGIC     ,0UL)                  ) ;                           // no info on reliability
-		fill( MACRO_VAL(CRAMFS_MAGIC         ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(CRAMFS_MAGIC_WEND    ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(DAXFS_MAGIC          ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(ECRYPTFS_SUPER_MAGIC ,0UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
-		fill( MACRO_VAL(EFS_SUPER_MAGIC      ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(EROFS_SUPER_MAGIC_V1 ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(EXFAT_SUPER_MAGIC    ,0UL)                  ) ;                           // local
-		fill( ExtSuperMagic                                         ) ;                           // local
-		fill( MACRO_VAL(F2FS_SUPER_MAGIC     ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(FUSE_SUPER_MAGIC     ,0UL) , FileSync::Auto ) ;                           // depend on underlying process
-		fill( MACRO_VAL(GPFS_SUPER_MAGIC     ,0UL)                  ) ;                           // check macro name, known to be reliable
-		fill( MACRO_VAL(HOSTFS_SUPER_MAGIC   ,0UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
-		fill( MACRO_VAL(HPFS_SUPER_MAGIC     ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(ISOFS_SUPER_MAGIC    ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(JFFS2_SUPER_MAGIC    ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(LL_SUPER_MAGIC       ,0UL)                  ) ;                           // lustre is known to be reliable
-		fill( MACRO_VAL(LUSTRE_SUPER_MAGIC   ,0UL)                  ) ;                           // lustre is known to be reliable
-		fill( MACRO_VAL(MINIX2_SUPER_MAGIC   ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(MINIX2_SUPER_MAGIC2  ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(MINIX3_SUPER_MAGIC   ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(MINIX_SUPER_MAGIC    ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(MINIX_SUPER_MAGIC2   ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(MSDOS_SUPER_MAGIC    ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(NFS_SUPER_MAGIC      ,0UL) , FileSync::Dir  ) ;                           // has been tested to require dir synchronization
-		fill( MACRO_VAL(NILFS_SUPER_MAGIC    ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(OCFS2_SUPER_MAGIC    ,0UL)                  ) ;                           // known to be reliable
-		fill( MACRO_VAL(OVERLAYFS_SUPER_MAGIC,0UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
-		fill( MACRO_VAL(QNX4_SUPER_MAGIC     ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(QNX6_SUPER_MAGIC     ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(RAMFS_MAGIC          ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(REISERFS_SUPER_MAGIC ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(SECRETMEM_MAGIC      ,0UL)                  ) ;                           // local
-	//	fill( MACRO_VAL(SMB2_SUPER_MAGIC     ,0UL)                  ) ;                           // no info on reliability
-	//	fill( MACRO_VAL(SMB_SUPER_MAGIC      ,0UL)                  ) ;                           // no info on reliability
-		fill( MACRO_VAL(SQUASHFS_MAGIC       ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(TMPFS_MAGIC          ,0UL)                  ) ;                           // local
-	//	fill( MACRO_VAL(V9FS_MAGIC           ,0UL)                  ) ;                           // no info on reliability
-		fill( MACRO_VAL(XFS_SUPER_MAGIC      ,0UL)                  ) ;                           // local
-		fill( MACRO_VAL(ZFS_SUPER_MAGIC      ,0UL)                  ) ;                           // local
+		// EXT, EXT3 and EXT4 actually define the same super-magic, check it
+		constexpr ulong _ExtSuperMagic = ::max( MACRO_VAL(EXT2_SUPER_MAGIC,0UL) , ::max( MACRO_VAL(EXT3_SUPER_MAGIC,0UL) , MACRO_VAL(EXT4_SUPER_MAGIC,0UL) ) ) ;
+		static_assert( MACRO_VAL(EXT2_SUPER_MAGIC,0UL)==0 || MACRO_VAL(EXT2_SUPER_MAGIC,0UL)==_ExtSuperMagic ) ;
+		static_assert( MACRO_VAL(EXT3_SUPER_MAGIC,0UL)==0 || MACRO_VAL(EXT3_SUPER_MAGIC,0UL)==_ExtSuperMagic ) ;
+		static_assert( MACRO_VAL(EXT4_SUPER_MAGIC,0UL)==0 || MACRO_VAL(EXT4_SUPER_MAGIC,0UL)==_ExtSuperMagic ) ;
+		constexpr ulong ExtSuperMagic = _ExtSuperMagic ? _ExtSuperMagic : 0xef53UL ;
+		// LL_SUPER_MAGIC and LUSTRE_SUPEFR_MATIC are synonymous
+		constexpr ulong _LustreSuperMagic = ::max( MACRO_VAL(LUSTRE_SUPER_MAGIC,0UL) , MACRO_VAL(LL_SUPER_MAGIC,0UL) ) ;
+		static_assert( MACRO_VAL(LUSTRE_SUPER_MAGIC,0UL)==0 || MACRO_VAL(LUSTRE_SUPER_MAGIC,0UL)==_LustreSuperMagic ) ;
+		static_assert( MACRO_VAL(LL_SUPER_MAGIC    ,0UL)==0 || MACRO_VAL(LL_SUPER_MAGIC    ,0UL)==_LustreSuperMagic ) ;
+		constexpr ulong LustreSuperMagic = _LustreSuperMagic ? _LustreSuperMagic : 0x0bd00bd0UL ;
+		//
+		fill( MACRO_VAL(AFS_FS_MAGIC         ,0x6B414653UL)                  ) ;                           // local
+		fill( MACRO_VAL(AFS_SUPER_MAGIC      ,0x5346414fUL)                  ) ;                           // known to be reliable
+		fill( MACRO_VAL(AUTOFS_SUPER_MAGIC   ,    0x0187UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
+		fill( MACRO_VAL(BEEGFS_MAGIC         ,0x19830326UL)                  ) ;                           // check name, known to be reliable
+		fill( MACRO_VAL(BTRFS_SUPER_MAGIC    ,0x9123683eUL)                  ) ;                           // local
+		fill( MACRO_VAL(BTRFS_TEST_MAGIC     ,0x73727279UL)                  ) ;                           // local
+		fill( MACRO_VAL(CEPH_SUPER_MAGIC     ,0x00c36400UL)                  ) ;                           // has been tested reliable
+	//	fill( MACRO_VAL(CIFS_SUPER_MAGIC     ,0xff534d42UL)                  ) ;                           // no info on reliability
+	//	fill( MACRO_VAL(CODA_SUPER_MAGIC     ,0x73757245UL)                  ) ;                           // no info on reliability
+		fill( MACRO_VAL(CRAMFS_MAGIC         ,0x28cd3d45UL)                  ) ;                           // local
+		fill( MACRO_VAL(CRAMFS_MAGIC_WEND    ,0x453dcd28UL)                  ) ;                           // local
+		fill( MACRO_VAL(DAXFS_MAGIC          ,0x64646178UL)                  ) ;                           // local
+		fill( MACRO_VAL(ECRYPTFS_SUPER_MAGIC ,    0xf15fUL) , FileSync::Auto ) ;                           // depend on underlying filesystem
+		fill( MACRO_VAL(EFS_SUPER_MAGIC      ,  0x414a53UL)                  ) ;                           // local
+		fill( MACRO_VAL(EROFS_SUPER_MAGIC_V1 ,0xe0f5e1e2UL)                  ) ;                           // local
+		fill( MACRO_VAL(EXFAT_SUPER_MAGIC    ,0x2011bab0UL)                  ) ;                           // local
+		fill( ExtSuperMagic                                                  ) ;                           // local
+		fill( MACRO_VAL(F2FS_SUPER_MAGIC     ,0xf2f52010UL)                  ) ;                           // local
+		fill( MACRO_VAL(FUSE_SUPER_MAGIC     ,0x65735546UL) , FileSync::Auto ) ;                           // depend on underlying process
+		fill( MACRO_VAL(GPFS_SUPER_MAGIC     ,0x47504653UL)                  ) ;                           // check macro name, known to be reliable
+		fill( MACRO_VAL(HOSTFS_SUPER_MAGIC   ,0x00c0ffeeUL) , FileSync::Auto ) ;                           // depend on underlying filesystem
+		fill( MACRO_VAL(HPFS_SUPER_MAGIC     ,0xf995e849UL)                  ) ;                           // local
+		fill( MACRO_VAL(ISOFS_SUPER_MAGIC    ,    0x9660UL)                  ) ;                           // local
+		fill( MACRO_VAL(JFFS2_SUPER_MAGIC    ,    0x72b6UL)                  ) ;                           // local
+		fill( LustreSuperMagic                                               ) ;                           // lustre is known to be reliable
+		fill( MACRO_VAL(MINIX2_SUPER_MAGIC   ,    0x2468UL)                  ) ;                           // local
+		fill( MACRO_VAL(MINIX2_SUPER_MAGIC2  ,    0x2478UL)                  ) ;                           // local
+		fill( MACRO_VAL(MINIX3_SUPER_MAGIC   ,    0x4d5aUL)                  ) ;                           // local
+		fill( MACRO_VAL(MINIX_SUPER_MAGIC    ,    0x137fUL)                  ) ;                           // local
+		fill( MACRO_VAL(MINIX_SUPER_MAGIC2   ,    0x138fUL)                  ) ;                           // local
+		fill( MACRO_VAL(MSDOS_SUPER_MAGIC    ,    0x4d44UL)                  ) ;                           // local
+		fill( MACRO_VAL(NFS_SUPER_MAGIC      ,    0x6969UL) , FileSync::Dir  ) ;                           // has been tested to require dir synchronization
+		fill( MACRO_VAL(NILFS_SUPER_MAGIC    ,    0x3434UL)                  ) ;                           // local
+		fill( MACRO_VAL(OCFS2_SUPER_MAGIC    ,0x7461636fUL)                  ) ;                           // known to be reliable
+		fill( MACRO_VAL(OVERLAYFS_SUPER_MAGIC,0x794c7630UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
+		fill( MACRO_VAL(QNX4_SUPER_MAGIC     ,    0x002fUL)                  ) ;                           // local
+		fill( MACRO_VAL(QNX6_SUPER_MAGIC     ,0x68191122UL)                  ) ;                           // local
+		fill( MACRO_VAL(RAMFS_MAGIC          ,0x858458f6UL)                  ) ;                           // local
+		fill( MACRO_VAL(REISERFS_SUPER_MAGIC ,0x52654973UL)                  ) ;                           // local
+		fill( MACRO_VAL(SECRETMEM_MAGIC      ,0x5345434dUL)                  ) ;                           // local
+	//	fill( MACRO_VAL(SMB2_SUPER_MAGIC     ,0xfe534d42UL)                  ) ;                           // no info on reliability
+	//	fill( MACRO_VAL(SMB_SUPER_MAGIC      ,    0x517bUL)                  ) ;                           // no info on reliability
+		fill( MACRO_VAL(SQUASHFS_MAGIC       ,0x73717368UL)                  ) ;                           // local
+		fill( MACRO_VAL(TMPFS_MAGIC          ,0x01021994UL)                  ) ;                           // local
+	//	fill( MACRO_VAL(V9FS_MAGIC           ,0x01021997UL)                  ) ;                           // no info on reliability
+		fill( MACRO_VAL(XFS_SUPER_MAGIC      ,0x58465342UL)                  ) ;                           // local
+		fill( MACRO_VAL(ZFS_SUPER_MAGIC      ,0x2fc12fc1UL)                  ) ;                           // local
 		::sort( tab.begin() , tab.begin()+n_entries ) ;
 		//
 		bool super_magic_conflict = ::any_of( iota(n_entries-1) , [&](size_t i) { return tab[i].first==tab[i+1].first ; } ) ;

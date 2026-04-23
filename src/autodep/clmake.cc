@@ -44,7 +44,7 @@ template<void(*Func)( Tuple const& args , Dict const& kwds )>
 		return _py_func<Object,_add_none<Func>>(null,args,kwds) ;
 	} ;
 
-static uint8_t _mk_uint8( Object const& o , ::string const& arg_name={} ) {
+template<class I> static I _mk_int( Object const& o , ::string const& arg_name={} ) {
 	try                       { return o.as_a<Int>() ;                                          }
 	catch (::string const& e) { throw cat("bad type/value for arg",+arg_name?" ":"",arg_name) ; }
 }
@@ -214,34 +214,35 @@ static Ptr<Str> _list_root_s( Tuple const& py_args , Dict const& py_kwds ) {
 // cv means code for decode and val for encode
 template<bool Encode> static Ptr<> _codec( Tuple const& py_args , Dict const& py_kwds ) {
 	static constexpr const char* Cv = Encode ? "val" : "code" ;
-	size_t              n_args      = py_args.size() ;
-	::optional_s        file        ;
-	::optional_s        ctx         ;
-	::optional_s        cv          ;
-	bool                cv_is_bytes = false          ;
-	::optional<uint8_t> min_len     ;
+	size_t               n_args      = py_args.size() ;
+	::optional_s         file        ;
+	::optional_s         ctx         ;
+	::optional_s         cv          ;
+	bool                 cv_is_bytes = false          ;
+	::optional<uint8_t > min_len     ;
+	::optional<uint64_t> version     ;   // default means latest version
 	auto get_cv = [&](Object const& a) {
 			cv_is_bytes = a.is_a<Bytes>() ;
 			if (cv_is_bytes) cv = ::string(a.as_a<Bytes>()) ;
 			else             cv = *a.str()                  ;
 	} ;
-	if (n_args>(Encode?4:3)) throw cat("too many args : ",n_args,'>',Encode?4:3) ;
-	switch (n_args) {
-		case 4 : min_len = _mk_uint8(py_args[3],"min_len") ; [[fallthrough]] ;
-		case 3 : get_cv(             py_args[2]          ) ; [[fallthrough]] ;
-		case 2 : ctx     =          *py_args[1].str()      ; [[fallthrough]] ;
-		case 1 : file    =          *py_args[0].str()      ; [[fallthrough]] ;
-		case 0 : break ;
-	DF}                                            // NO_COV
+	size_t i = 0 ;
+	if (           i<n_args ) file    =                  *py_args[i++].str()      ;
+	if (           i<n_args ) ctx     =                  *py_args[i++].str()      ;
+	if (           i<n_args ) get_cv(                     py_args[i++]          ) ;
+	if ( Encode && i<n_args ) min_len = _mk_int<uint8_t >(py_args[i++],"min_len") ;
+	if (           i<n_args ) version = _mk_int<uint64_t>(py_args[i++],"version") ;
+	if (           i<n_args ) throw cat("too many args : ",n_args,'>',i         ) ;
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
 		switch (key[0]) {
-			case 'c' : if (key=="ctx"    ) { throw_if(+ctx    ,"arg ",key,MsgEnd) ; ctx     =          *py_val.str()  ; continue ; }
-			/**/       if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; get_cv(             py_val      ) ; continue ; } break ;
-			case 't' : if (key=="table"  ) { throw_if(+file   ,"arg ",key,MsgEnd) ; file    =          *py_val.str()  ; continue ; } break ;
-			case 'v' : if (key==Cv       ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =          *py_val.str()  ; continue ; } break ;
-			case 'm' : if (key=="min_len") { throw_if(+min_len,"arg ",key,MsgEnd) ; min_len = _mk_uint8(py_val,key)   ; continue ; } break ;
+			case 'c' : if (key=="ctx"          ) { throw_if(+ctx    ,"arg ",key,MsgEnd) ; ctx     =                  *py_val.str()  ; continue ; }
+			/**/       if (key==Cv             ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; get_cv(                     py_val      ) ; continue ; }
+			/**/       if (key=="codec_version") { throw_if(+version,"arg ",key,MsgEnd) ; version = _mk_int<uint64_t>(py_val,key)   ; continue ; } break ;
+			case 't' : if (key=="table"        ) { throw_if(+file   ,"arg ",key,MsgEnd) ; file    =                  *py_val.str()  ; continue ; } break ;
+			case 'm' : if (key=="min_len"      ) { throw_if(+min_len,"arg ",key,MsgEnd) ; min_len = _mk_int<uint8_t >(py_val,key)   ; continue ; } break ;
+			case 'v' : if (key==Cv             ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =                  *py_val.str()  ; continue ; } break ;
 		DN}
 		throw "unexpected keyword arg "+key ;
 	}
@@ -252,8 +253,8 @@ template<bool Encode> static Ptr<> _codec( Tuple const& py_args , Dict const& py
 	//
 	try {
 		::string res =
-			Encode ? JobSupport::encode( ::move(*file) , ::move(*ctx) , ::move(*cv/*val*/ ) , min_len.value_or(1) )
-			:        JobSupport::decode( ::move(*file) , ::move(*ctx) , ::move(*cv/*code*/)                       )
+			Encode ? JobSupport::encode( ::move(*file) , ::move(*ctx) , ::move(*cv/*val*/ ) , min_len.value_or(1) , version.value_or(0) )
+			:        JobSupport::decode( ::move(*file) , ::move(*ctx) , ::move(*cv/*code*/)                       , version.value_or(0) )
 		;
 		if (cv_is_bytes) return Ptr<Bytes>(res) ;
 		else             return Ptr<Str  >(res) ;

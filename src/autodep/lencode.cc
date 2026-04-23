@@ -11,13 +11,15 @@ enum class Flag : uint8_t {
 	Table
 ,	Context
 ,	MinLen
+,	CodecVersion
 } ;
 
 int main( int argc , char* argv[]) {
 	Syntax<Flag> syntax {{
-		{ Flag::Table   , { .short_name='t' , .has_arg=true , .doc="table storing code-value associations"                    } }
-	,	{ Flag::Context , { .short_name='x' , .has_arg=true , .doc="context used within file to store code-value association" } }
-	,	{ Flag::MinLen  , { .short_name='l' , .has_arg=true , .doc="min length of generated code from value"                  } }
+		{ Flag::Table        , { .short_name='t' , .has_arg=true , .doc="table storing code-value associations"                     } }
+	,	{ Flag::Context      , { .short_name='x' , .has_arg=true , .doc="context used within file to store code-value association"  } }
+	,	{ Flag::MinLen       , { .short_name='l' , .has_arg=true , .doc="min length of generated code from value"                   } }
+	,	{ Flag::CodecVersion , { .short_name='v' , .has_arg=true , .doc="table version when using external code-value associations" } }
 	}} ;
 	CmdLine<Flag> cmd_line { syntax , argc , argv } ;
 	//
@@ -26,15 +28,16 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::Table  ]) syntax.usage("must have file to store code-value association"   ) ;
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to store code-value association") ;
 	//
-	uint8_t min_len = 1 ;
-	if (cmd_line.flags[Flag::MinLen]) {
-		try                       { min_len = from_string<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ; }
-		catch (::string const& e) { syntax.usage("bad min len value : "+e) ;                            }
-	}
+	uint8_t  min_len = 1 ;
+	uint64_t version = 0 ;
+	try                       { if (cmd_line.flags[Flag::MinLen]) min_len = from_string<uint8_t>(cmd_line.flag_args[+Flag::MinLen]) ;              }
+	catch (::string const& e) { syntax.usage("bad min len value : "+e) ;                                                                           }
+	try                       { if (cmd_line.flags[Flag::CodecVersion]) version = from_string<uint64_t>(cmd_line.flag_args[+Flag::CodecVersion]) ; }
+	catch (::string const& e) { syntax.usage("cannot recognize codec version : "+e) ;                                                              }
 	//
 	try {
-		auto&    fa    = cmd_line.flag_args                                                                                       ;
-		::string reply = JobSupport::encode( ::move(fa[+Flag::Table]) , ::move(fa[+Flag::Context]) , Fd::Stdin.read() , min_len ) ;
+		auto&    fa    = cmd_line.flag_args                                                                                                 ;
+		::string reply = JobSupport::encode( ::move(fa[+Flag::Table]) , ::move(fa[+Flag::Context]) , Fd::Stdin.read() , min_len , version ) ;
 		Fd::Stdout.write(::move(reply)+'\n') ;
 	} catch (::string const& e) {
 		exit(Rc::Fail,e) ;

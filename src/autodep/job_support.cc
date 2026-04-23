@@ -28,18 +28,18 @@ namespace JobSupport {
 			SWEAR(ad.write==No) ;
 			throw_if( !no_follow   , "regexpr and follow_symlinks are exclusive" ) ;
 			throw_if( +ad.accesses , "regexpr and read are exclusive"            ) ;
-			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                              // it is meaningless to exclude regexpr when we are a regexpr
+			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                                               // it is meaningless to exclude regexpr when we are a regexpr
 		}
 		if (ad.flags.extra_dflags[ExtraDflag::ReaddirOk]) {
-			ad.flags.dflags &= ~Dflag::Required ;                                       // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
-			ad.read_dir     |= +ad.accesses     ;                                       // if reading and allow dir access, assume user meant reading a dir
+			ad.flags.dflags &= ~Dflag::Required ;                                                        // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
+			ad.read_dir     |= +ad.accesses     ;                                                        // if reading and allow dir access, assume user meant reading a dir
 		}
 		if (verbose) {
 			bool read       = +(ad.accesses&FullAccesses)         ;
 			bool ignore_err = ad.flags.dflags[Dflag::IgnoreError] ;
 			throw_unless( read || ignore_err , "verbose is meaningless without read or ignore_error" ) ;
-			if (read      ) ad.force_is_dep  = true        ; // we access the content of the file even if file has been written to
-			if (ignore_err) ad.accesses     |= Access::Err ; // if errors are not ignored, reporting them is meaningless as deps are necessarily ok
+			if (read      ) ad.force_is_dep  = true        ;                                             // we access the content of the file even if file has been written to
+			if (ignore_err) ad.accesses     |= Access::Err ;                                             // if errors are not ignored, reporting them is meaningless as deps are necessarily ok
 		}
 		_chk_files(files) ;
 		//
@@ -74,13 +74,13 @@ namespace JobSupport {
 		return Backdoor::call<Backdoor::ListRootS>({.dir=::move(dir)}) ;
 	}
 
-	::string decode( ::string&& tab , ::string&& ctx , ::string&& code ) {
-		return Backdoor::call<Backdoor::Decode>({ .tab=::move(tab) , .ctx=::move(ctx) , .code=::move(code) }) ;
+	::string decode( ::string&& tab , ::string&& ctx , ::string&& code , uint64_t version ) {
+		return Backdoor::call<Backdoor::Decode>({ .tab=::move(tab) , .ctx=::move(ctx) , .code=::move(code) , .version=version }) ;
 	}
-	::string encode( ::string&& tab , ::string&& ctx , ::string&& val  , uint8_t min_len ) {
+	::string encode( ::string&& tab , ::string&& ctx , ::string&& val  , uint8_t min_len , uint64_t version ) {
 		throw_unless( min_len>=1             , "min_len (",min_len,") must be at least 1"                                           ) ;
-		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",Codec::CodecCrc::HexSz,')' ) ; // codes are output in hex, 4 bits/digit
-		return Backdoor::call<Backdoor::Encode>({ .tab=::move(tab) , .ctx=::move(ctx) , .val=::move(val) , .min_len=min_len }) ;
+		throw_unless( min_len<=sizeof(Crc)*2 , "min_len (",min_len,") must be at most checksum length (",Codec::CodecCrc::HexSz,')' ) ;             // codes are output in hex, 4 bits/digit
+		return Backdoor::call<Backdoor::Encode>({ .tab=::move(tab) , .ctx=::move(ctx) , .val=::move(val) , .min_len=min_len , .version=version }) ;
 	}
 
 }

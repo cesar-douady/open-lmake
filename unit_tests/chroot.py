@@ -39,7 +39,7 @@ else :
 	,	'fedora43'
 	,	'rocky8'   , 'rocky9'   , 'rocky10'
 	,	'suse154'  , 'suse155'  , 'suse156'
-	,	'ubuntu20' , 'ubuntu22' , 'ubuntu24'
+	,	'ubuntu20' , 'ubuntu22' , 'ubuntu24' , 'ubuntu26'
 	)
 	try :
 		os_known = [ os for os in os_candidates if osp.isdir(image_root(os)) and osp.isdir(lmake_install_root(os)) ]
@@ -58,7 +58,7 @@ else :
 		os_no_ld_audit = {
 			'centos7'
 		,	'suse154'  , 'suse155'
-		,	'ubuntu20'
+		,	'ubuntu20' , 'ubuntu26'
 		}
 		n_no_ld_audit = sum(1 for os in os_known if os in os_no_ld_audit)
 		ut.lmake( *(f'dut-ld_audit-{os}' for os in os_known) , done=n_known-n_no_ld_audit , failed=n_no_ld_audit , rc=bool(n_no_ld_audit) )

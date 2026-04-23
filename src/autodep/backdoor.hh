@@ -233,9 +233,10 @@ namespace Backdoor {
 		::string process(Record& r                )       ;
 		::string descr  (::string const& reason={}) const ;
 		// data
-		::string tab  = {} ;
-		::string ctx  = {} ;
-		::string code = {} ;
+		::string tab     = {} ;
+		::string ctx     = {} ;
+		::string code    = {} ;
+		uint64_t version = 0  ; // 0 means latest
 	} ;
 
 	struct Encode {
@@ -252,6 +253,7 @@ namespace Backdoor {
 		::string ctx     = {} ;
 		::string val     = {} ;
 		uint8_t  min_len = 0  ;
+		uint64_t version = 0  ; // 0 means latest
 	} ;
 
 }

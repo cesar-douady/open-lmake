@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include "re.hh"
+#include "version.hh"
 
 #include "env.hh"
 
@@ -324,7 +325,7 @@ namespace Backdoor {
 	//
 
 	static CodecRemoteSide _real( Record& r , ::string const& tab , Comment comment ) {
-		throw_unless( +tab  , "table cannot be empty"   ) ;
+		throw_unless( +tab  , "table cannot be empty" ) ;
 		CodecRemoteSide res ;
 		if (is_dir_name(tab)) {
 			res = { New , tab } ;
@@ -392,6 +393,9 @@ namespace Backdoor {
 		AccessDigest         ad        { .accesses=Access::Lnk }                  ; ad.flags.dflags |= Dflag::Codec ; ad.flags.extra_dflags |= ExtraDflag::NoHot ; // beware of default flags, ...
 		FileInfo             fi        ;                                                                                                                           // ... dep is guarded
 		::optional<::string> res       ;
+		//
+		throw_unless( !version || version==Version::Codec , "unsupported version (",version,") : must be ",Version::Codec ) ;
+		//
 	Retry :
 		try {
 			fi = { {rfd,node} } ; throw_unless( fi.tag()==FileTag::Lnk ) ;
@@ -436,6 +440,9 @@ namespace Backdoor {
 		CodecLock       lock       ;                                      // for use with local to ensure server maintenance is not on-going
 		NfsGuard        nfs_guard  { crs.file_sync }                    ;
 		Fd              rfd        = Record::s_repo_root_fd()           ;
+		//
+		throw_unless( !version || version==Version::Codec , "unsupported version (",version,") : must be ",Version::Codec ) ;
+		//
 		try {
 		Retry :
 			fi = { {rfd,node} , {.nfs_guard=&nfs_guard} } ;                                                                                // get date before access to be pessimistic

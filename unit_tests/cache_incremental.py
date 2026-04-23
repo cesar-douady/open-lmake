@@ -35,21 +35,12 @@ else :
 	os.makedirs( 'CACHE/LMAKE' , mode=stat.S_ISGID|stat.S_IRWXU|stat.S_IRWXG )
 	print( 'size = 1<<20' , file=open('CACHE/LMAKE/config.py','w') )
 
-	print( 'v1' , file= open('src','w') )
-
-	ut.lmake( 'dut' , new=1 , done=1 )             # dut is not actually built incrementally
+	print( 'v1' , file= open('src','w') )          ; ut.lmake(        'dut' , new    =1 , done    =1                        ) # dut is not actually built incrementally
+	os.system(f'mkdir bck_1 ; mv LMAKE dut bck_1') ; ut.lmake(        'dut' , new    =1 , hit_done=1                        )
+	os.system(f'mkdir bck_2 ; mv LMAKE dut bck_2') ; ut.lmake( '-I' , 'dut' , new    =1 , hit_done=1                        ) # dut was not actually built incrementally
 	#
-	os.system(f'mkdir bck_1 ; mv LMAKE dut bck_1')
-	ut.lmake( 'dut' , new=1 , hit_done=1 )
+	print( 'v2' , file= open('src','w') )          ; ut.lmake(        'dut' , changed=1 , done    =1                        ) # dut is actually built incrementally
+	os.system(f'mkdir bck_3 ; mv LMAKE dut bck_3') ; ut.lmake(        'dut' , new    =1 , hit_done=1                        )
+	os.system(f'mkdir bck_4 ; mv LMAKE dut bck_4') ; ut.lmake( '-I' , 'dut' , new    =1 , done    =1 , bad_cache_download=1 ) # dut was actually built incrementally
 	#
-	os.system(f'mkdir bck_2 ; mv LMAKE dut bck_2')
-	ut.lmake( '-I' , 'dut' , new=1 , hit_done=1 )  # dut was not actually built incrementally
-	#
-	print( 'v2' , file= open('src','w') )
-	ut.lmake( 'dut' , changed=1 , done=1 )         # dut is actually built incrementally
-	#
-	os.system(f'mkdir bck_3 ; mv LMAKE dut bck_3')
-	ut.lmake( 'dut' , new=1 , hit_done=1 )
-	#
-	os.system(f'mkdir bck_4 ; mv LMAKE dut bck_4')
-	ut.lmake( '-I' , 'dut' , new=1 , bad_cache_download=1 , done=1 )              # dut was actually built incrementally
+	os.system(f'mkdir bck_5 ; mv LMAKE dut bck_5') ; ut.lmake(        'dut' , new    =1 , hit_done=1                        ) # now cache contains a non-incremental job

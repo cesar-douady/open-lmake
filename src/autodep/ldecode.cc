@@ -11,13 +11,15 @@ enum class Flag : uint8_t {
 	Code
 ,	Table
 ,	Context
+,	CodecVersion
 } ;
 
 int main( int argc , char* argv[]) {
 	Syntax<Flag> syntax {{
-		{ Flag::Code    , { .short_name='c' , .has_arg=true , .doc="code to retreive associated value from"               } }
-	,	{ Flag::Table   , { .short_name='t' , .has_arg=true , .doc="table storing code-value associations"                } }
-	,	{ Flag::Context , { .short_name='x' , .has_arg=true , .doc="context used within file to retreive value from code" } }
+		{ Flag::Code         , { .short_name='c' , .has_arg=true , .doc="code to retreive associated value from"                    } }
+	,	{ Flag::Table        , { .short_name='t' , .has_arg=true , .doc="table storing code-value associations"                     } }
+	,	{ Flag::Context      , { .short_name='x' , .has_arg=true , .doc="context used within file to retreive value from code"      } }
+	,	{ Flag::CodecVersion , { .short_name='v' , .has_arg=true , .doc="table version when using external code-value associations" } }
 	}} ;
 	CmdLine<Flag> cmd_line { syntax , argc , argv } ;
 	//
@@ -27,9 +29,12 @@ int main( int argc , char* argv[]) {
 	if (!cmd_line.flags[Flag::Table  ]) syntax.usage("must have file to retrieve associated value"   ) ;
 	if (!cmd_line.flags[Flag::Context]) syntax.usage("must have context to retrieve associated value") ;
 	//
+	uint64_t version = 0 ;
+	try                       { if (cmd_line.flags[Flag::CodecVersion]) version = from_string<uint64_t>(cmd_line.flag_args[+Flag::CodecVersion]) ; }
+	catch (::string const& e) { syntax.usage("cannot recognize codec version : "+e) ;                                                              }
 	try {
-		auto&    fa    = cmd_line.flag_args                                                                                   ;
-		::string reply = JobSupport::decode( ::move(fa[+Flag::Table]) , ::move(fa[+Flag::Context]) , ::move(fa[+Flag::Code]) ) ;
+		auto&    fa    = cmd_line.flag_args                                                                                              ;
+		::string reply = JobSupport::decode( ::move(fa[+Flag::Table]) , ::move(fa[+Flag::Context]) , ::move(fa[+Flag::Code]) , version ) ;
 		Fd::Stdout.write(reply) ;
 	} catch (::string const& e) {
 		exit(Rc::Fail,e) ;

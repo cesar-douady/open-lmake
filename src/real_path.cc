@@ -10,13 +10,11 @@
 using namespace Disk ;
 
 static FileLoc _lcl_file_loc(::string_view file) {
-	static ::string_view s_private_admin_dir { PrivateAdminDirS , ::strlen(PrivateAdminDirS)-1 } ; // get rid of final /
-	if (!file.starts_with(s_private_admin_dir)) return FileLoc::Repo ;
-	switch (file[s_private_admin_dir.size()]) {
-		case '/' :
-		case 0   : return FileLoc::Admin ;
-		default  : return FileLoc::Repo  ;
-	}
+	::string_view s_private_admin_dir { PrivateAdminDirS , sizeof(PrivateAdminDirS)-2/* /+null*/ } ;
+	if (!file.starts_with(s_private_admin_dir) ) return FileLoc::Repo  ;
+	if (file.size()==s_private_admin_dir.size()) return FileLoc::Admin ;
+	if (file[s_private_admin_dir.size()]=='/'  ) return FileLoc::Admin ;
+	/**/                                         return FileLoc::Repo  ;
 }
 
 //

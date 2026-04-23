@@ -65,6 +65,7 @@ else :
 	import os
 	import socket
 	import subprocess as sp
+	import sys
 
 	def lshow(key,*args) :
 		long_x       = sp.check_output(('lshow',key[-1],               *args),universal_newlines=True)
@@ -72,7 +73,12 @@ else :
 		if len(key)>1 :
 			x = sp.check_output(('lshow',key[0],*args),universal_newlines=True)
 			assert x==long_x,('/'+x+'/','/'+long_x+'/')
-		return long_x,eval(porcelaine_x)
+		try :
+			dict_x = eval(porcelaine_x)
+		except :
+			print(f'porcelaine_x = {porcelaine_x}',file=sys.stderr)
+			raise
+		return long_x,dict_x
 
 	print('hello',file=open('hello','w'))
 	print('world',file=open('world','w'))
@@ -99,7 +105,7 @@ else :
 		}
 	}
 
-	assert os.system('chmod -w -R .')==0 # check we can interrogate a read-only repo
+	assert os.system('chmod a-w -R .')==0 # check we can interrogate a read-only repo
 
 	try :
 
@@ -225,11 +231,11 @@ else :
 		,	'end_overhead'   , 'ok'
 		) :
 			assert w in x , f'in lshow -u : missing {w} in\n{x}'
-		assert 'open(read)' in x or 'openat(read)' in x , f'in lshow -u : missing open(read) or openat(read) in\n{x}'
+		assert any( t in x for t in ('open(read)','openat(read)','statx(no_follow)') ) , f'in lshow -u : missing open(read) or openat(read) or statx(no_follow) in\n{x}'
 		y = tuple( e[1:] for e in px if e[1] not in ('static_dep','static_unlnk','static_match') )
 		z =      { e[1:] for e in px if e[1]     in ('static_dep','static_unlnk','static_match') }
 		ok = False
-		for o in ('open','openat') :
+		for o in ('open(read)','openat(read)','statx(no_follow)') :
 			ok |= y==(
 				( 'start_overhead'    , ''                      )
 			,	( 'chdir'             , os.getcwd()             )
@@ -238,9 +244,9 @@ else :
 			,	( 'washed'            , ''                      )
 			,	( 'stdout'            , 'hello+world_sh'        )
 			,	( 'start_job'         , ''                      )
-			,	( o+'(read)'          , 'bad'                   )
-			,	( o+'(read)'          , 'hello'                 )
-			,	( o+'(read)'          , 'world'                 )
+			,	( o                   , 'bad'                   )
+			,	( o                   , 'hello'                 )
+			,	( o                   , 'world'                 )
 			,	( 'end_job'           , '0000'                  )
 			,	( 'analysis'          , 'total accesses : 4'    )
 			,	( 'analysis'          , 'filtered accesses : 4' )
@@ -250,8 +256,8 @@ else :
 			)
 		assert ok , f'bad lshow -u : {y}'
 		assert all( e in z for e in (
-			( 'static_dep'   , 'hello' )
-		,	( 'static_dep'   , 'world' )
+			( 'static_dep' , 'hello' )
+		,	( 'static_dep' , 'world' )
 		) ) , f'bad lshow -u : {z}'
 
 	except  : raise
