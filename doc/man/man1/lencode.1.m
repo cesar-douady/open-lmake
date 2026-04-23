@@ -50,7 +50,7 @@ Item(B_(-l) I_(min_len),B_(--min-len)=I_(min_len)) specifies the minimum code le
 The dir must read/write/execute access to any user needing to use the codec service, and if such accsses are at group level (but not other), it must have its setgid bit set.
 
 .LP
-Item(B_(-v) I_(code),B_(--table-version)=I_(version)) specifies the version to use for external tables.
+Item(B_(-v) I_(code),B_(--codec-version)=I_(version)) specifies the version to use for external tables.
 If not provided, use the latest available.
 As of now, only version 3 is supported.
 

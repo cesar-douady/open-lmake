@@ -40,7 +40,7 @@ Item(B_(-x) I_(context),B_(--context)=I_(context)) specifies the context in whic
 Item(B_(-c) I_(code),B_(--code)=I_(code)) specifies the code to search within passed context in the passed table.
 
 .LP
-Item(B_(-v) I_(code),B_(--table-version)=I_(version)) specifies the version to use for external tables.
+Item(B_(-v) I_(code),B_(--codec-version)=I_(version)) specifies the version to use for external tables.
 If not provided, use the latest available.
 As of now, only version 3 is supported.
 
