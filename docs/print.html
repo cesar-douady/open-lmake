@@ -646,7 +646,7 @@ time can be save by avoiding full compilation with bad inputs when deps are bein
 <h3 id="cp_target_tree-from_dir--to_dir--regexprnone-"><a class="header" href="#cp_target_tree-from_dir--to_dir--regexprnone-"><a href="unit_tests/target_tree.html#:~:text=lmake%2Ecp%5Ftarget%5Ftree%28%27dut%27%2C%27dut2%27%2Cregexpr%3D%27dut%2Fa%2E%27%29"><code>cp_target_tree( from_dir , to_dir , regexpr=None )</code></a></a></h3>
 <p>Copy generated targets that are inside <code>from_dir</code> and match <code>regexpr</code> to <code>to_dir</code>.</p>
 <p>Links are copied as is, without effort to make them point to the same place.</p>
-<h3 id="decode-table--ctx--code-"><a class="header" href="#decode-table--ctx--code-"><a href="unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29"><code>decode( table , ctx , code )</code></a></a></h3>
+<h3 id="decode-table--ctx--code--table_version0-"><a class="header" href="#decode-table--ctx--code--table_version0-"><a href="unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29"><code>decode( table , ctx , code , table_version=0 )</code></a></a></h3>
 <p>If a val is associated to <code>code</code> within <code>table</code> and context <code>ctx</code>, return it.
 Else an exception is raised.</p>
 <p><code>table</code> may be:</p>
@@ -659,6 +659,8 @@ Else an exception is raised.</p>
 When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <p>If <code>code</code> is a <code>bytes</code>, it is used as is and the result is a <code>bytes</code>.
 Else it is transformed into a <code>str</code> by calling the <code>str()</code> function and encoded in UTF-8, in which case the result is a <code>str</code>.</p>
+<p>If <code>table_version</code> is provided and non-null, use that version for external tables, else use latest version.
+As of now, only version 3 is supported.</p>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
 <h3 id="depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a href="unit_tests/critical.html#:~:text=lmake%2Edepend%28%27src1%27%2C%27src2%27%20%2Cread%3DTrue%2Ccritical%3DTrue%29"><code>depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></a></h3>
@@ -748,7 +750,7 @@ In that case, using the <code>direct</code> flag reduces the number of reruns, w
 In that case, it is most probably wise to use the <code>critical</code> flag simultaneously.</p>
 </li>
 </ul>
-<h3 id="encode-table--ctx--val--min_length1-"><a class="header" href="#encode-table--ctx--val--min_length1-"><a href="unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29"><code>encode( table , ctx , val , min_length=1 )</code></a></a></h3>
+<h3 id="encode-table--ctx--val--min_length1--table_version0-"><a class="header" href="#encode-table--ctx--val--min_length1--table_version0-"><a href="unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29"><code>encode( table , ctx , val , min_length=1 , table_version=0 )</code></a></a></h3>
 <p>If a code is associated to <code>val</code> within <code>table</code> and context <code>ctx</code>, return it.
 Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.</p>
 <p><code>table</code> may be:</p>
@@ -761,6 +763,8 @@ Else a code is created, of length at least <code>min_length</code>, is associate
 When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
 <p>If <code>val</code> is a <code>bytes</code>, it is used as is and the result is a <code>bytes</code>.
 Else it is transformed into a <code>str</code> by calling the <code>str()</code> function and encoded in UTF-8, in which case the result is a <code>str</code>.</p>
+<p>If <code>table_version</code> is provided and non-null, use that version for external tables, else use latest version.
+As of now, only version 3 is supported.</p>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <h3 id="get_autodep"><a class="header" href="#get_autodep"><code>get_autodep()</code></a></h3>
 <p>Returns whether autodep is currently active or not.</p>

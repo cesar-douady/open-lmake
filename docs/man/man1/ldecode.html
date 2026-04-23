@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Tue Apr 14 16:03:52 2026 -->
+<!-- CreationDate: Thu Apr 23 13:03:25 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -126,13 +126,20 @@ error if <i>code</i> cannot be found with the accompanying
 -x</b> <i>context</i>, <b>--context</b>=<i>context</i></p>
 
 <p style="margin-left:18%;">specifies the context in which
-to find the value associated with passed code</p>
+to find the value associated with passed code.</p>
 
 <p style="margin-left:9%;"><b>-c</b> <i>code</i>,
 <b>--code</b>=<i>code</i></p>
 
 <p style="margin-left:18%;">specifies the code to search
-within passed context in the passed table</p>
+within passed context in the passed table.</p>
+
+<p style="margin-left:9%;"><b>-v</b> <i>code</i>,
+<b>--table-version</b>=<i>version</i></p>
+
+<p style="margin-left:18%;">specifies the version to use
+for external tables. If not provided, use the latest
+available. As of now, only version 3 is supported.</p>
 
 <h2>EXIT STATUS
 <a name="EXIT STATUS"></a>

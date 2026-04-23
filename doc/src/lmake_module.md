@@ -108,7 +108,7 @@ Copy generated targets that are inside `from_dir` and match `regexpr` to `to_dir
 
 Links are copied as is, without effort to make them point to the same place.
 
-### [`decode( table , ctx , code )`](unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29)
+### [`decode( table , ctx , code , table_version=0 )`](unit_tests/codec.html#:~:text=lmake%2Edecode%28%27codec%5Ffile%27%2C%27ctx%27%2Ccode%29%29)
 
 If a val is associated to `code` within `table` and context `ctx`, return it.
 Else an exception is raised.
@@ -124,6 +124,9 @@ When an external dir, it may contain a file `LMAKE/file_sync` containing one of 
 
 If `code` is a `bytes`, it is used as is and the result is a `bytes`.
 Else it is transformed into a `str` by calling the `str()` function and encoded in UTF-8, in which case the result is a `str`.
+
+If `table_version` is provided and non-null, use that version for external tables, else use latest version.
+As of now, only version 3 is supported.
 
 Cf. [encode/decode](codec.html).
 
@@ -210,7 +213,7 @@ Notes:
 	In that case, using the `direct` flag reduces the number of reruns, which can occur for each step otherwise.
 	In that case, it is most probably wise to use the `critical` flag simultaneously.
 
-### [`encode( table , ctx , val , min_length=1 )`](unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29)
+### [`encode( table , ctx , val , min_length=1 , table_version=0 )`](unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29)
 
 If a code is associated to `val` within `table` and context `ctx`, return it.
 Else a code is created, of length at least `min_length`, is associated to `val` and is return.
@@ -226,6 +229,9 @@ When an external dir, it may contain a file `LMAKE/file_sync` containing one of 
 
 If `val` is a `bytes`, it is used as is and the result is a `bytes`.
 Else it is transformed into a `str` by calling the `str()` function and encoded in UTF-8, in which case the result is a `str`.
+
+If `table_version` is provided and non-null, use that version for external tables, else use latest version.
+As of now, only version 3 is supported.
 
 Cf. [encode/decode](codec.html).
 

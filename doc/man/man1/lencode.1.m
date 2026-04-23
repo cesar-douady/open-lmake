@@ -43,10 +43,16 @@ Item(an external dir) recording the association table.
 In the former case, when an external dir, it must lie within a source dir.
 An external dir may contain a file I_(LMAKE/file_sync) containing one of B_(none), B_(dir) or B_(sync) for choosing the method to ensure proper consistent operations.
 In absence of such a file, file_sync is determined automatically if possible from the filesystem type.
+
 .LP
 Item(B_(-l) I_(min_len),B_(--min-len)=I_(min_len)) specifies the minimum code length to use to encode value
 .LP
 The dir must read/write/execute access to any user needing to use the codec service, and if such accsses are at group level (but not other), it must have its setgid bit set.
+
+.LP
+Item(B_(-v) I_(code),B_(--table-version)=I_(version)) specifies the version to use for external tables.
+If not provided, use the latest available.
+As of now, only version 3 is supported.
 
 .SH EXAMPLES
 .LP

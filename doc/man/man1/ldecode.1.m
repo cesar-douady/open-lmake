@@ -34,10 +34,15 @@ The dir must have read/write/execute access to any user needing to use the codec
 It is also an error if I_(code) cannot be found with the accompanying I_(context).
 
 .LP
-Item(B_(-x) I_(context),B_(--context)=I_(context)) specifies the context in which to find the value associated with passed code
+Item(B_(-x) I_(context),B_(--context)=I_(context)) specifies the context in which to find the value associated with passed code.
 
 .LP
-Item(B_(-c) I_(code),B_(--code)=I_(code)) specifies the code to search within passed context in the passed table
+Item(B_(-c) I_(code),B_(--code)=I_(code)) specifies the code to search within passed context in the passed table.
+
+.LP
+Item(B_(-v) I_(code),B_(--table-version)=I_(version)) specifies the version to use for external tables.
+If not provided, use the latest available.
+As of now, only version 3 is supported.
 
 .SH "EXIT STATUS"
 .LP
