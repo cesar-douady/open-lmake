@@ -332,10 +332,10 @@ static bool/*interrupted*/ _engine_loop() {
 
 int main( int argc , char** argv ) {
 	//
-	Trace::s_backup_trace = true                                               ;
-	g_writable            = !app_init({ .cd_root=false  ,.chk_version=Maybe }) ; // server is always launched at root
+	Trace::s_backup_trace = true                                              ;
+	g_writable            = !app_init({ .cd_root=false ,.chk_version=Maybe }) ; // server is always launched at root
 	_chk_os() ;
-	g_user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ;         // before Py::init() as it records the environment to make it available in os.environ
+	g_user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ;                // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
 	Record::s_static_report = true ;
 	Record::s_autodep_env(New) ;
@@ -378,7 +378,7 @@ int main( int argc , char** argv ) {
 	//
 	if (+msg      ) Fd::Stderr.write(with_nl(msg))    ;
 	if (+rc.second) exit( rc.second , rc.first )      ;
-	if (!is_daemon) ::setpgid( 0/*pid*/ , 0/*pgid*/ ) ;                          // once we have reported we have started, lmake will send us a message to kill us
+	if (!is_daemon) ::setpgid( 0/*pid*/ , 0/*pgid*/ ) ;                         // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;

@@ -18,16 +18,16 @@ StaticUniqPtr<::string> g_startup_dir_s ; // relative to g_repo_root_s , dir fro
 StaticUniqPtr<::string> g_exe_name      ;
 
 void crash_handler( int sig , void* addr ) {
-	if (sig==SIGABRT) crash( 4/*n_hide*/ , sig , 1 , "aborted"                            ) ;
-	else              crash( 2/*.     */ , sig , 1 , ::strsignal(sig)," at address ",addr ) ;
+	if (sig==SIGABRT) crash( 2/*n_hide*/ , sig , 0/*n_hdrs*/ , "aborted"                            ) ;
+	else              crash( 2/*.     */ , sig , 2/*.     */ , ::strsignal(sig)," at address ",addr ) ;
 }
 
 static void _terminate() {
-	try                          { ::rethrow_exception(::current_exception()) ;                        }
-	catch (::string    const& e) { crash( 4/*n_hide*/ , SIGABRT , 1 , "uncaught exception : ",e        ) ; }
-	catch (int         const& e) { crash( 4/*.     */ , SIGABRT , 1 , "uncaught exception : ",e        ) ; }
-	catch (::exception const& e) { crash( 4/*.     */ , SIGABRT , 1 , "uncaught exception : ",e.what() ) ; }
-	catch (...                 ) { crash( 4/*.     */ , SIGABRT , 1 , "uncaught exception"             ) ; }
+	try                          { ::rethrow_exception(::current_exception()) ;                                      }
+	catch (::string    const& e) { crash( 3/*n_hide*/ , SIGABRT , 1/*n_hdrs*/ , "uncaught exception : ",e        ) ; }
+	catch (int         const& e) { crash( 3/*.     */ , SIGABRT , 1/*.     */ , "uncaught exception : ",e        ) ; }
+	catch (::exception const& e) { crash( 3/*.     */ , SIGABRT , 1/*.     */ , "uncaught exception : ",e.what() ) ; }
+	catch (...                 ) { crash( 3/*.     */ , SIGABRT , 0/*.     */ , "uncaught exception"             ) ; }
 }
 
 struct SearchRootResult {
@@ -114,22 +114,23 @@ bool/*read_only*/ app_init(AppInitAction const& action) {
 		if ( read_only && !action.read_only_ok ) exit(Rc::Perm,"cannot run in read-only repository") ;
 		//
 		try {
-			chk_version( {}/*dir_s*/ , {
-				.chk       = action.chk_version
-			,	.key       = action.key
-			,	.init_msg  = action.init_msg
-			,	.clean_msg = action.clean_msg|git_clean_msg()
-			,	.umask     = action.umask
-			,	.version   = action.version
-			} ) ;
-		} catch (::string const& e) { exit(Rc::Version,e) ;                                                                                                                                           }
+			chk_version(
+				{}/*dir_s*/
+			,	{	.chk       = action.chk_version
+				,	.key       = action.key
+				,	.init_msg  = action.init_msg
+				,	.clean_msg = action.clean_msg|git_clean_msg()
+				,	.umask     = action.umask
+				,	.version   = action.version
+				}
+			) ;
+		} catch (::string const& e) { exit(Rc::Version,e) ; }
 		//
 		do_trace |= action.trace==Maybe ;
 	}
 	if ( !read_only && do_trace ) {
 		if (!g_trace_file) g_trace_file = new ::string { cat(PrivateAdminDirS,"trace/",*g_exe_name) } ;
-		try                       { Trace::s_start() ; }
-		catch (::string const& e) { exit(Rc::Perm,e) ; }
+		Trace::s_start() ;
 		#if PROFILING
 			set_env( "GMON_OUT_PREFIX" , dir_guard(cat(*g_repo_root_s,AdminDirS,"gmon.out/",*g_exe_name)) ) ; // ensure unique gmon data file in a non-intrusive (wrt autodep) place
 		#endif

@@ -47,7 +47,7 @@ namespace Store {
 			_alloc() ;
 			if (+name) {
 				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				_fd = AcFd( name , {writable?O_RDWR|O_CREAT:O_RDONLY} ) ;              // mode is only used if created, which implies writable
+				_fd = AcFd( name , {writable?O_RDWR|O_CREAT:O_RDONLY} ) ;                 // mode is only used if created, which implies writable
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (writable) _chk_rc( ::lseek(_fd,0/*offset*/,SEEK_END)>=0 , "lseek" ) ; // ensure writes (when expanding) are done at end of file when resizing
 				SWEAR_PROD(+_fd) ;
@@ -76,11 +76,11 @@ namespace Store {
 				,	"\tconsider to recompile open-lmake with increased corresponding parameter in src/repo.hh\n"
 				) ;
 			//
-			sz = ::max( sz              , size+::min(size>>2,size_t(1<<24)) ) ;        // ensure remaps are in log(n) (up to a reasonable size increase)
-			sz = ::min( _s_round_up(sz) , Capacity                          ) ;        // legalize
+			sz = ::max( sz              , size+::min(size>>2,size_t(1<<24)) ) ;           // ensure remaps are in log(n) (up to a reasonable size increase)
+			sz = ::min( _s_round_up(sz) , Capacity                          ) ;           // legalize
 			if (+_fd)
-				try                     { _fd.write(::string(sz-size,0/*ch*/)) ; }     // /!\ dont use ftruncate to avoid race in kernel between ftruncate and write back of dirty pages
-				catch (::string const&) { _chk_rc(false/*ok*/,"expand") ;        }     // NO_COV
+				try                     { _fd.write(::string(sz-size,0/*ch*/)) ; }        // /!\ dont use ftruncate to avoid race in kernel between ftruncate and write back of dirty pages
+				catch (::string const&) { _chk_rc(false/*ok*/,"expand") ;        }        // NO_COV
 			_map(sz) ;
 		}
 		void clear(size_t sz=0) {
@@ -92,7 +92,7 @@ namespace Store {
 			//
 			_dealloc() ;
 			//                 vvvvvvvvvvvvvvvvvvv
-			if (+_fd) _chk_rc( ::ftruncate(_fd,sz)==0 , "truncate" ) ;                    // /!\ can use ftruncate here as there is no mapping, hence no page write back, hence no race
+			if (+_fd) _chk_rc( ::ftruncate(_fd,sz)==0 && ::lseek(_fd,0/*offset*/,SEEK_END)>=0 , "truncate" ) ; // can use ftruncate here as there is no mapping, hence no race with page write back
 			//                 ^^^^^^^^^^^^^^^^^^^
 			_alloc() ;
 			_map(sz) ;
@@ -132,8 +132,8 @@ namespace Store {
 		// data
 	public :
 		::string       name     ;
-		char*          base     = nullptr ;                                            // address of mapped file
-		Atomic<size_t> size     ;                                                      // underlying file size (fake if no file)
+		char*          base     = nullptr ;                                                                    // address of mapped file
+		Atomic<size_t> size     ;                                                                              // underlying file size (fake if no file)
 		bool           writable = false   ;
 	private :
 		AcFd _fd ;

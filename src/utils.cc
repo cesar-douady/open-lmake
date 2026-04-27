@@ -74,7 +74,7 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		fill( MACRO_VAL(AFS_FS_MAGIC         ,0x6B414653UL)                  ) ;                           // local
 		fill( MACRO_VAL(AFS_SUPER_MAGIC      ,0x5346414fUL)                  ) ;                           // known to be reliable
 		fill( MACRO_VAL(AUTOFS_SUPER_MAGIC   ,    0x0187UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
-		fill( MACRO_VAL(BEEGFS_MAGIC         ,0x19830326UL)                  ) ;                           // check name, known to be reliable
+		fill( MACRO_VAL(BEEGFS_MAGIC         ,0x19830326UL)                  ) ;                           // known to be reliable
 		fill( MACRO_VAL(BTRFS_SUPER_MAGIC    ,0x9123683eUL)                  ) ;                           // local
 		fill( MACRO_VAL(BTRFS_TEST_MAGIC     ,0x73727279UL)                  ) ;                           // local
 		fill( MACRO_VAL(CEPH_SUPER_MAGIC     ,0x00c36400UL)                  ) ;                           // has been tested reliable
@@ -95,14 +95,14 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		fill( MACRO_VAL(HPFS_SUPER_MAGIC     ,0xf995e849UL)                  ) ;                           // local
 		fill( MACRO_VAL(ISOFS_SUPER_MAGIC    ,    0x9660UL)                  ) ;                           // local
 		fill( MACRO_VAL(JFFS2_SUPER_MAGIC    ,    0x72b6UL)                  ) ;                           // local
-		fill( LustreSuperMagic                                               ) ;                           // lustre is known to be reliable
+		fill( LustreSuperMagic                                               ) ;                           // known to be reliable
 		fill( MACRO_VAL(MINIX2_SUPER_MAGIC   ,    0x2468UL)                  ) ;                           // local
 		fill( MACRO_VAL(MINIX2_SUPER_MAGIC2  ,    0x2478UL)                  ) ;                           // local
 		fill( MACRO_VAL(MINIX3_SUPER_MAGIC   ,    0x4d5aUL)                  ) ;                           // local
 		fill( MACRO_VAL(MINIX_SUPER_MAGIC    ,    0x137fUL)                  ) ;                           // local
 		fill( MACRO_VAL(MINIX_SUPER_MAGIC2   ,    0x138fUL)                  ) ;                           // local
 		fill( MACRO_VAL(MSDOS_SUPER_MAGIC    ,    0x4d44UL)                  ) ;                           // local
-		fill( MACRO_VAL(NFS_SUPER_MAGIC      ,    0x6969UL) , FileSync::Dir  ) ;                           // has been tested to require dir synchronization
+		fill( MACRO_VAL(NFS_SUPER_MAGIC      ,    0x6969UL) , FileSync::Dir  ) ;                           // tested to require dir synchronization
 		fill( MACRO_VAL(NILFS_SUPER_MAGIC    ,    0x3434UL)                  ) ;                           // local
 		fill( MACRO_VAL(OCFS2_SUPER_MAGIC    ,0x7461636fUL)                  ) ;                           // known to be reliable
 		fill( MACRO_VAL(OVERLAYFS_SUPER_MAGIC,0x794c7630UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
@@ -183,7 +183,7 @@ mode_t get_umask() {
 			//
 			s_umask = 0 ;
 			for( char c : substr_view( status , start , end-start ) ) {
-				throw_unless( c>='0' || c<'8' , "bad format in ",status_file ) ;
+				throw_unless( c>='0' && c<'8' , "bad format in ",status_file ) ;
 				s_umask = (s_umask<<3)+c-'0' ;
 			}
 		}

@@ -87,7 +87,7 @@ endif
 #
 # Manifest
 #
-IDX_DIR := $(shell git rev-parse --git-dir 2>/dev/null)
+IDX_DIR := $(wildcard .git)
 ifeq ($(IDX_DIR),)
 ifeq ($(wildcard Manifest),)
 $(error file Manifest must exist with the sorted list of sources. If a fresh repo, consider : find . -mindepth 1 -type d -o -print | sed `s:^\./::' | sort -u > Manifest)
@@ -511,8 +511,8 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 
 SLURM_SRCS := $(patsubst ext/slurm/%/slurm/slurm.h,src/lmake_server/backends/slurm_api-%.cc,$(filter ext/slurm/%/slurm/slurm.h,$(SRCS)))
 #
-DEP_SRCS   := $(CC_SRCS) $(SLURM_SRCS)
-include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
+DEP_SRCS := $(CC_SRCS) $(SLURM_SRCS)
+-include $(if $(findstring 1,$(SYS_CONFIG_OK)) , $(patsubst %.cc,%.d, $(DEP_SRCS) ) )
 
 # XXX/ : for a mysterious reason, clangd does not support -Werror and -Wno-misleading-indentation
 $(COMPILE_COMMANDS) : % : Manifest

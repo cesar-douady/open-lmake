@@ -67,12 +67,11 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		//
 		_s_cur_sz = 4096 ;
 		//
-		try                       { _s_fd = { tmp_trace_file , {.flags=O_RDWR|O_TRUNC|O_CREAT,.no_std=true} } ;                   }
-		catch (::string const& e) { throw cat("cannot create temporary trace file : ",e) ;                                        }
-		try                       { rename( tmp_trace_file/*src*/ , *g_trace_file/*dst*/ ) ;                                      }
-		catch (::string const& e) { throw cat("cannot create trace file : ",e) ;                                                  }
-		try                       { _s_fd.write(::string(_s_cur_sz,0/*ch*/)) ;                                                    }
-		catch (::string const& e) { throw cat("cannot set trace file ",*g_trace_file," to its initial size ",_s_cur_sz," : ",e) ; }
+		static constexpr Fd::Action TraceAction { .flags=O_RDWR|O_TRUNC|O_CREAT , .no_std=true } ;
+		// initial size can be set with ftruncate becase no mapping exists yet, so no race with page write-back
+		try { _s_fd = {tmp_trace_file,TraceAction} ;               } catch (::string const& e) { exit(Rc::System,"cannot create temporary trace file : "                                       ,e) ; }
+		try { rename(tmp_trace_file/*src*/,*g_trace_file/*dst*/) ; } catch (::string const& e) { exit(Rc::System,"cannot create trace file : "                                                 ,e) ; }
+		try { _s_fd.write(::string(_s_cur_sz,0)) ;                 } catch (::string const& e) { exit(Rc::System,"cannot set trace file ",*g_trace_file," to its initial size ",_s_cur_sz," : ",e) ; }
 		//
 		_s_pos  = 0                                                                                                                      ;
 		_s_data = static_cast<uint8_t*>(::mmap( nullptr/*addr*/ , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0/*offset*/ )) ;
@@ -105,7 +104,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 				_s_pos  = 0               ;
 				new_pos = buf_view.size() ;
 			}
-			::memmove( _s_data+_s_pos , buf_view.data() , buf_view.size() ) ;
+			::memcpy( _s_data+_s_pos , buf_view.data() , buf_view.size() ) ;
 			_s_pos = new_pos ;
 		}
 		_t_buf->clear() ;

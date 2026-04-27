@@ -140,7 +140,7 @@ int main( int argc , char* /*argv*/[] ) {
 	}
 	if (FileInfo(cat(PrivateAdminDirS,"local_admin/job_data/")).tag()!=FileTag::Dir) exit(Rc::Fail,"nothing to repair") ;
 	//
-	g_trace_file = New ;
+	Trace::s_new_trace_file({}) ;
 	block_sigs({SIGCHLD}) ;
 	::umap_ss user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ; // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
@@ -152,8 +152,7 @@ int main( int argc , char* /*argv*/[] ) {
 	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
 	//
-	g_trace_file = new ::string{cat(PrivateAdminDirS,"trace/",*g_exe_name)} ;
-	Trace::s_start() ;
+	Trace::s_new_trace_file(cat(PrivateAdminDirS,"trace/",*g_exe_name)) ;
 	//
 	// make a fresh local admin dir
 	{	::string msg ;
