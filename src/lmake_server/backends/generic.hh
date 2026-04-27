@@ -164,22 +164,23 @@ namespace Backends {
 		using WaitEntry    = _WaitEntry   <Rsrcs> ;
 		using SpawnedEntry = _SpawnedEntry<Rsrcs> ;
 
-		struct SpawnedTab : ::umap<Job,SpawnedEntry> {
-			using Base = ::umap<Job,SpawnedEntry> ;
-			using typename Base::iterator       ;
-			using typename Base::const_iterator ;
-			using Base::end ;
-			//
-			const_iterator find(Job j) const { const_iterator res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
-			iterator       find(Job j)       { iterator       res = Base::find(j) ; if ( res==Base::end() || res->second.zombie ) return Base::end() ; else return res ; }
-			//
-			bool   operator+() const { return size()                       ; }
-			size_t size     () const { return Base::size()-_zombies.size() ; }
-			//
+		struct SpawnedTab {
+			using Tab = ::umap<Job,SpawnedEntry> ;
+			using iterator       = typename Tab::iterator       ;
+			using const_iterator = typename Tab::const_iterator ;
+			// cxtor & co
+			bool   operator+ (            ) const { return _tab.size()                 ; }
+			size_t size      (            ) const { return _tab.size()-_zombies.size() ; }
+			void   operator>>(::string& os) const {        _tab>>os                    ; }
+			// accesses
+			const_iterator end (     ) const { return _tab.end() ; }
+			iterator       end (     )       { return _tab.end() ; }
+			const_iterator find(Job j) const { const_iterator res = _tab.find(j) ; if ( res==_tab.end() || res->second.zombie ) return _tab.end() ; else return res ; }
+			iterator       find(Job j)       { iterator       res = _tab.find(j) ; if ( res==_tab.end() || res->second.zombie ) return _tab.end() ; else return res ; }
+			// services
 			iterator create( GenericBackend const& be , Job j , Rsrcs const& rsrcs , Rsrcs const& rounded_rsrcs ) {
 				be.acquire_rsrcs(rounded_rsrcs) ;
-				iterator res = Base::try_emplace(j,rsrcs,rounded_rsrcs).first  ;
-				return res ;
+				return _tab.try_emplace(j,rsrcs,rounded_rsrcs).first ;
 			}
 			void start( GenericBackend const& be , iterator&& it ) {
 				SWEAR( !it->second.zombie  , it->first ) ;
@@ -187,7 +188,7 @@ namespace Backends {
 				be.start_rsrcs(it->second.rounded_rsrcs) ;
 				it->second.started = true ;
 				#ifndef NDEBUG
-					it = end() ;                                                         // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
+					it = _tab.end() ;                                                    // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
 				#endif
 			}
 			void end( GenericBackend const& be , iterator&& it ) {
@@ -195,18 +196,19 @@ namespace Backends {
 				SWEAR(!se.zombie) ;
 				if ( !se.started)   be.start_rsrcs(se.rounded_rsrcs) ;
 				/**/                be.end_rsrcs  (se.rounded_rsrcs) ;
-				if (!se.hold    )   Base::erase(it)                  ;
+				if (!se.hold    )   _tab.erase(it)                   ;
 				else              { se.zombie = true ; _zombies.push_back(it->first) ; } // _launch may hold pointers with no lock, so dont physically erase entries
 				#ifndef NDEBUG
-					it = end() ;                                                         // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
+					it = _tab.end() ;                                                    // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
 				#endif
 			} ;
 			void flush() {
 				if (!_zombies) return ;                                                  // fast path : most of the time, there is nothing to do
-				for( Job j : _zombies ) Base::erase(j) ;
+				for( Job j : _zombies ) _tab.erase(j) ;
 				_zombies.clear() ;
 			}
 		private :
+			Tab           _tab     ;
 			::vector<Job> _zombies ;
 		} ;
 

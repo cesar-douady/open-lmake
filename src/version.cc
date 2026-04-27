@@ -2,7 +2,7 @@
 namespace Version {
 	uint64_t    constexpr Cache = 44      ; // 92fc73f268e8a8de4eb23a326e6f0043
 	uint64_t    constexpr Codec = 3       ; // 588c4728c080de98d2a26cee45494e09
-	uint64_t    constexpr Repo  = 46      ; // 5605bf36029a68d73e2373cacb01c5f9
+	uint64_t    constexpr Repo  = 46      ; // cb801b785918f1294dc13e19db6668b0
 	uint64_t    constexpr Job   = 21      ; // 8ee88e5456ba6801fbf1a55bff4ba4ec
 	const char* const     Major = "26.05" ;
 	uint64_t    constexpr Tag   = 0       ;
@@ -1099,7 +1099,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 5605bf36029a68d73e2373cacb01c5f9 *
+// * Repo : cb801b785918f1294dc13e19db6668b0 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1422,9 +1422,9 @@ namespace Version {
 //				::serdes(s,static_cast<ConfigDyn   &>(self)) ;
 //				// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO
-//				::serdes(s,py_sys_path             ) ;    // when deserializing, py_sys_path must be restored before reading RuleData's
-//				::serdes(s,static_cast<Base&>(self)) ;
-//				::serdes(s,sys_path_crc            ) ;
+//				::serdes(s,py_sys_path ) ;                // when deserializing, py_sys_path must be restored before reading RuleData's
+//				::serdes(s,rules       ) ;
+//				::serdes(s,sys_path_crc) ;
 //				// cant directly serdes the vector as we need a context for DynEntry's
 //				uint32_t sz ;
 //				if (IsIStream<S>) {                                 ::serdes(s,sz) ; dyn_vec.resize(sz) ; }

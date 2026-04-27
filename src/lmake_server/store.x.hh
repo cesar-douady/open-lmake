@@ -208,7 +208,7 @@ namespace Engine::Persistent {
 		friend Iota2<Rule> rule_lst(bool with_shared) ;
 		static constexpr MatchGen MatchGenAlways = Max<MatchGen>        ;
 		static constexpr char     NoRuleName[]   = "no_rule"            ;
-		static constexpr size_t   NoRuleNameSz   = sizeof(NoRuleName)-1 ;     // -1 to account for teminating null, cannot use ::strlen which not constexpr with clang
+		static constexpr size_t   NoRuleNameSz   = sizeof(NoRuleName)-1 ; // -1 to account for teminating null, cannot use ::strlen which not constexpr with clang
 		// statics
 		static void s_from_disk       (       ) ;
 		static void s_from_vec_dyn    (Rules&&) ;
@@ -474,12 +474,12 @@ namespace Engine::Persistent {
 	// RuleBase
 	//
 	inline Iota2<Rule> rule_lst(bool with_shared=false) {
-		if (+Rule::s_rules) return { with_shared?1:+Special::NUniq , Rule(Rule::s_rules->size()+1) } ; // rules are numbered from 1 to _s_n_rules
+		if (+Rule::s_rules) return { with_shared?1:+Special::NUniq , Rule(Rule::s_rules->size()+1) } ;     // rules are numbered from 1 to _s_n_rules
 		else                return { 0                             , 0                             } ;
 	}
 	// accesses
-	inline RuleData      & RuleBase::data     ()       { SWEAR(+self) ; return (*s_rules)[+self-1] ; } // 0 is reserved to mean no rule
-	inline RuleData const& RuleBase::operator*() const { SWEAR(+self) ; return (*s_rules)[+self-1] ; } // .
+	inline RuleData      & RuleBase::data     ()       { SWEAR(+self) ; return s_rules->rules[+self-1] ; } // 0 is reserved to mean no rule
+	inline RuleData const& RuleBase::operator*() const { SWEAR(+self) ; return s_rules->rules[+self-1] ; } // .
 
 	//
 	// RuleCrcBase

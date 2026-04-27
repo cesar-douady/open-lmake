@@ -16,26 +16,31 @@ if __name__!='__main__' :
 	)
 
 	class Wait(PyRule) :
-		target = 'wait'
+		target = r'wait{D:\d}'
 		def cmd() :
-			ut.trigger_sync(0)
-			ut.wait_sync   (1)
+			ut.trigger_sync(int(D)*2  )
+			ut.wait_sync   (int(D)*2+1)
 
 	class Cpy(Rule) :
 		target = 'dut'
-		dep    = 'wait'
-		cmd    = 'cat'
+		deps   = {
+			'W0' : 'wait0'
+		,	'W1' : 'wait1'
+		}
+		cmd = 'cat'
 
 else :
 
-	ut.mk_syncs(2)
+	ut.mk_syncs(4)
 
-	proc = ut.lmake( 'dut' , wait=False , new=1 , done=2 )
+	proc = ut.lmake( 'dut' , wait=False , new=1 , done=3 )
 	#
 	ut.wait_sync(0)
+	ut.wait_sync(2)
 	x,xp = ut.lshow( ('-r','--running') , 'dut' )
 	ut.trigger_sync(1)
+	ut.trigger_sync(3)
 	#
 	proc()
 
-	assert xp=={('Cpy','dut'):{('Wait','wait'):True}},xp
+	assert xp=={('Cpy','dut'):{('Wait','wait0'):True,('Wait','wait1'):True}},xp

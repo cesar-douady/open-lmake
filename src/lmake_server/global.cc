@@ -331,12 +331,12 @@ namespace Engine {
 			py_sys_path = ::move(py_t) ;
 		}
 		sys_path_crc = Crc( New , ::string(*py_sys_path->str()) ) ;
-		for( Object const& py_rule : py_d["rules"].as_a<Sequence>() ) emplace_back( self , py_rule.as_a<Dict>() ) ;
+		for( Object const& py_rule : py_d["rules"].as_a<Sequence>() ) rules.emplace_back( self , py_rule.as_a<Dict>() ) ;
 	}
 
 	void RulesBase::compile() {
-		for( RuleData& rd : self ) rd.compile() ;                                                                          // for cmd and patterns
-		name_sz = ::max<size_t>( self , [](RuleData const& rd) { return rd.user_name().size() ; } , Rule::NoRuleNameSz ) ;
+		for( RuleData& rd : rules ) rd.compile() ;                                                                          // for cmd and patterns
+		name_sz = ::max<size_t>( rules , [](RuleData const& rd) { return rd.user_name().size() ; } , Rule::NoRuleNameSz ) ;
 		name_sz = ::max( name_sz , strlen("no_rule") )                                                                   ;
 	}
 

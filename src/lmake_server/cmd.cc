@@ -785,9 +785,9 @@ namespace Engine {
 					lvl-- ;
 					if (porcelaine) { audit( fd , ro , "  }" , true/*as_is*/ , lvl ) ; firsts.pop_back() ; }
 				}
-			} else { //!                                                                                                                as_is
-				if (porcelaine) { audit( fd , ro ,                 cat(firsts.back()("  ",", "),job_str," : ",running?"True":"False") , true  , lvl ) ; firsts.emplace_back() ; }
-				else              audit( fd , ro , running?CN:CH , cat(running?"R ":"Q "       ,job_str                             ) , false , lvl ) ;
+			} else { //!                                                                                                              as_is
+				if (porcelaine) audit( fd , ro ,                 cat(firsts.back()("  ",", "),job_str," : ",running?"True":"False") , true  , lvl ) ;
+				else            audit( fd , ro , running?CN:CH , cat(running?"R ":"Q "       ,job_str                             ) , false , lvl ) ;
 			}
 		}
 		void show_node(Node node) {

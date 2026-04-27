@@ -154,10 +154,10 @@ namespace Engine::Persistent {
 		SWEAR( s_rules->sys_path_crc==new_rules.sys_path_crc , s_rules->sys_path_crc,new_rules.sys_path_crc ) ; // may not change dynamically as this would potentially change rule cmd's
 		SWEAR( s_rules->size()      ==new_rules.size()       , s_rules->size()      ,new_rules.size()       ) ; // may not change dynamically
 		//
-		::umap<Crc,RuleData*> rule_map ; rule_map.reserve(new_rules.size()) ; for( RuleData& rd : new_rules ) rule_map.try_emplace( rd.crc->match , &rd ) ;
+		::umap<Crc,RuleData*> rule_map ; rule_map.reserve(new_rules.size()) ; for( RuleData& rd : new_rules.rules ) rule_map.try_emplace( rd.crc->match , &rd ) ;
 		//
-		Rules* next_rules = new Rules{New} ; if (+s_rules) next_rules->reserve(s_rules->size()) ;
-		for( Rule r : rule_lst() ) next_rules->push_back(::move(*rule_map.at(r->crc->match))) ;                 // crc->match's must be identical between old and new or we should be here
+		Rules* next_rules = new Rules{New} ; if (+s_rules) next_rules->rules.reserve(s_rules->size()) ;
+		for( Rule r : rule_lst() ) next_rules->rules.push_back(::move(*rule_map.at(r->crc->match))) ;           // crc->match's must be identical between old and new or we should be here
 		next_rules->dyn_vec      = ::move(new_rules.dyn_vec     ) ;
 		next_rules->py_sys_path  = ::move(new_rules.py_sys_path ) ;
 		next_rules->sys_path_crc =        new_rules.sys_path_crc  ;
@@ -454,13 +454,13 @@ namespace Engine::Persistent {
 	static constexpr size_t NRules = ::min( (size_t(1)<<NRuleIdxBits)-1 , (size_t(1)<<NBits<Rule>)-+Special::NUniq ) ; // reserv 0 and full 1 to manage prio
 
 	static void _compute_prios(Rules& rules) {
-		::map<RuleData::Prio,RuleIdx> prio_map ; for( RuleData const& rd : rules ) prio_map[rd.user_prio] ; // mapping from user_prio (double) to prio (RuleIdx) in same order
+		::map<RuleData::Prio,RuleIdx> prio_map ; for( RuleData const& rd : rules.rules ) prio_map[rd.user_prio] ; // mapping from user_prio (double) to prio (RuleIdx) in same order
 		RuleIdx p = 1 ;
 		for( auto& [k,v] : prio_map ) {
-			SWEAR( 0<p && p<NRules , p ) ;                                                                  // reserv 0 for "after all user rules" and full 1 for "before all user rules"
+			SWEAR( 0<p && p<NRules , p ) ;                                                                        // reserv 0 for "after all user rules" and full 1 for "before all user rules"
 			v = p++ ;
 		}
-		for( RuleData& rd : rules ) rd.prio = prio_map.at(rd.user_prio) ;
+		for( RuleData& rd : rules.rules ) rd.prio = prio_map.at(rd.user_prio) ;
 	}
 
 	bool/*invalidate*/ new_rules(Rules&& new_rules_) {
@@ -475,7 +475,7 @@ namespace Engine::Persistent {
 		::umap<Crc,RuleData      *> new_rds   ;                     new_rds.reserve(new_rules_   . size()) ;
 		::uset_s                    new_names ;
 		for( Rule r : rule_lst() ) old_rds.try_emplace(r->crc->match,&*r) ;
-		for( RuleData& rd : new_rules_ ) {
+		for( RuleData& rd : new_rules_.rules ) {
 			if (rd.special<Special::NUniq) continue ;
 			auto [it,new_crc ] = new_rds.try_emplace(rd.crc->match,&rd)  ;
 			bool     new_name  = new_names.insert(rd.user_name()).second ;

@@ -331,22 +331,22 @@ namespace Engine {
 
 namespace Engine {
 
-	struct RulesBase : ::vector<RuleData> {           // used to read rules and pass them to store
-		using Base   = ::vector<RuleData> ;
-		using PyType = Py::Dict           ;
-		// cxtors & casts
+	struct RulesBase {                                // used to read rules and pass them to store
+		using PyType = Py::Dict ;
+		// cxtors & co
 		RulesBase() = default ;
 		RulesBase(NewType        ) ;
 		RulesBase(Py::Dict const&) ;
 		//
-		bool operator+() const { return +static_cast<Base const&>(self) ; }
-		// services
+		bool   operator+() const { return +rules        ; }
+		size_t size     () const { return  rules.size() ; }
+		//
 		template<IsStream S> void serdes(S& s) {
 			Py::Gil gil ;
 			// START_OF_VERSIONING REPO
-			::serdes(s,py_sys_path             ) ;    // when deserializing, py_sys_path must be restored before reading RuleData's
-			::serdes(s,static_cast<Base&>(self)) ;
-			::serdes(s,sys_path_crc            ) ;
+			::serdes(s,py_sys_path ) ;                // when deserializing, py_sys_path must be restored before reading RuleData's
+			::serdes(s,rules       ) ;
+			::serdes(s,sys_path_crc) ;
 			// cant directly serdes the vector as we need a context for DynEntry's
 			uint32_t sz ;
 			if (IsIStream<S>) {                                 ::serdes(s,sz) ; dyn_vec.resize(sz) ; }
@@ -354,8 +354,10 @@ namespace Engine {
 			for( DynEntry& de : dyn_vec ) de.serdes(s,this) ;
 			// END_OF_VERSIONING
 		}
+		// services
 		void compile() ;
 		// data
+		::vector<RuleData>         rules        ;
 		Py::Ptr<Py::Sequence>      py_sys_path  ;
 		Crc                        sys_path_crc ;
 		::vector<DynEntry        > dyn_vec      ;
@@ -364,18 +366,16 @@ namespace Engine {
 	} ;
 	struct Rules : Py::WithGil<RulesBase> {
 		using Base = Py::WithGil<RulesBase> ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		Rules(Rules&& rs) : Base{::move(static_cast<RulesBase&&>(rs))} {}
 		Rules& operator=(Rules&&) = default ;
-		// accesses
-		using Base::operator+ ;
 		bool operator+() const { return +static_cast<RulesBase const&>(self) ; }
 	} ;
 
 	struct Sources : ::vector_s {     // used to read manifest and pass it to store
 		using PyType = Py::Sequence ;
-		// cxtors & casts
+		// cxtors & co
 		Sources() = default ;
 		Sources(PyType const&) ;
 	} ;
@@ -405,7 +405,7 @@ namespace Engine {
 		return "\x1b[0m" ;
 	}
 
-	inline RulesBase::RulesBase(NewType) { for( Special s : iota(1,Special::NUniq) ) emplace_back(s) ; } ; // rule 0 is not stored
+	inline RulesBase::RulesBase(NewType) { for( Special s : iota(1,Special::NUniq) ) rules.emplace_back(s) ; } ; // rule 0 is not stored
 
 }
 
