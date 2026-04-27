@@ -183,7 +183,7 @@ mode_t get_umask() {
 			//
 			s_umask = 0 ;
 			for( char c : substr_view( status , start , end-start ) ) {
-				throw_unless( c>='0' || c<'8' , "bad format in ",status_file ) ;
+				throw_unless( c>='0' && c<'8' , "bad format in ",status_file ) ;
 				s_umask = (s_umask<<3)+c-'0' ;
 			}
 		}
