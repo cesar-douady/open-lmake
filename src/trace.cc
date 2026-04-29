@@ -105,7 +105,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 				_s_pos  = 0               ;
 				new_pos = buf_view.size() ;
 			}
-			::memmove( _s_data+_s_pos , buf_view.data() , buf_view.size() ) ;
+			::memcpy( _s_data+_s_pos , buf_view.data() , buf_view.size() ) ;
 			_s_pos = new_pos ;
 		}
 		_t_buf->clear() ;
