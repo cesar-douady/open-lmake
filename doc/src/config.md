@@ -148,12 +148,14 @@ This attribute specifies how to ensure file synchronization when a file is produ
 
 Possible values are (ordered by decreasing performance):
 
-| Value     | Recommanded for  | Default | Comment                                                                                        |
-|-----------|------------------|---------|------------------------------------------------------------------------------------------------|
-| `'auto'`  | all              | X       | precautions are determined automatically from filesystem type                                  |
-| `'none'`  | local disk, CEPH |         | no precaution, file system is coherent                                                         |
-| `'dir'`   | NFS              |         | enclosing dir (recursively) is open before any read and closed after any write                 |
-| `'sync'`  |                  |         | [`fsync`](https://man7.org/linux/man-pages/man2/fsync.2.html) is called after any modification |
+| Value      | Recommanded for | Default | Comment                                                                        |
+|------------|-----------------|---------|--------------------------------------------------------------------------------|
+| `'auto'`   | all             | X       | adequate precaution is determined automatically when possible                  |
+| `'none'`   | local disk      |         | no precaution, file system is coherent                                         |
+| `'beegfs'` | BeeGFS          |         | enclosing dir (recursively) is read before any read and closed after any write |
+| `'ceph'`   | CEPH            |         | no precaution, file system is coherent                                         |
+| `'lustre'` | Lustre          |         | enclosing dir (recursively) is read before any read and closed after any write |
+| `'nfs'`    | NFS             |         | enclosing dir (recursively) is open before any read and closed after any write |
 
 ### [`heartbeat`](lib/lmake/config_.html#:~:text=%2C%20heartbeat%20%3D%2010%20%23%20in%20seconds%2C%20minimum%20interval%20between%202%20heartbeat%20checks%20%28and%20before%20first%20one%29%20for%20the%20same%20job%20%28no%20heartbeat%20if%20None) : Static (`10`)
 

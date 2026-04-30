@@ -129,8 +129,8 @@ bool/*read_only*/ app_init(AppInitAction const& action) {
 		do_trace |= action.trace==Maybe ;
 	}
 	if ( !read_only && do_trace ) {
-		if (!g_trace_file) g_trace_file = new ::string { cat(PrivateAdminDirS,"trace/",*g_exe_name) } ;
-		Trace::s_start() ;
+		if (+action.trace_file) Trace::s_start(action.trace_file                         ) ;
+		else                    Trace::s_start(cat(PrivateAdminDirS,"trace/",*g_exe_name)) ;
 		#if PROFILING
 			set_env( "GMON_OUT_PREFIX" , dir_guard(cat(*g_repo_root_s,AdminDirS,"gmon.out/",*g_exe_name)) ) ; // ensure unique gmon data file in a non-intrusive (wrt autodep) place
 		#endif

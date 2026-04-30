@@ -24,6 +24,7 @@ struct AppInitAction {
 	bool       read_only_ok = true                                         ;
 	::vector_s root_mrkrs   = { "Lmakefile.py" , "Lmakefile/__init__.py" } ;
 	Bool3      trace        = Maybe                                        ; // if Maybe, trace if chk_version!=No
+	::string   trace_file   = {}                                           ;
 	uint64_t   version      = Version::Repo                                ;
 } ;
 

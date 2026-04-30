@@ -244,10 +244,12 @@ It must account for file date granularity (generally a few ms) and date discrepa
 <p>This attribute specifies how to ensure file synchronization when a file is produced by a host and read by another one.</p>
 <p>Possible values are (ordered by decreasing performance):</p>
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
-<tr><td><code>'auto'</code></td><td>all</td><td>X</td><td>precautions are determined automatically from filesystem type</td></tr>
-<tr><td><code>'none'</code></td><td>local disk, CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'dir'</code></td><td>NFS</td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
-<tr><td><code>'sync'</code></td><td></td><td></td><td><a href="https://man7.org/linux/man-pages/man2/fsync.2.html"><code>fsync</code></a> is called after any modification</td></tr>
+<tr><td><code>'auto'</code></td><td>all</td><td>X</td><td>adequate precaution is determined automatically when possible</td></tr>
+<tr><td><code>'none'</code></td><td>local disk</td><td></td><td>no precaution, file system is coherent</td></tr>
+<tr><td><code>'beegfs'</code></td><td>BeeGFS</td><td></td><td>enclosing dir (recursively) is read before any read and closed after any write</td></tr>
+<tr><td><code>'ceph'</code></td><td>CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
+<tr><td><code>'lustre'</code></td><td>Lustre</td><td></td><td>enclosing dir (recursively) is read before any read and closed after any write</td></tr>
+<tr><td><code>'nfs'</code></td><td>NFS</td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
 </tbody></table>
 </div>
 <h3 id="heartbeat--static-10"><a class="header" href="#heartbeat--static-10"><a href="lib/lmake/config_.html#:~:text=%2C%20heartbeat%20%3D%2010%20%23%20in%20seconds%2C%20minimum%20interval%20between%202%20heartbeat%20checks%20%28and%20before%20first%20one%29%20for%20the%20same%20job%20%28no%20heartbeat%20if%20None"><code>heartbeat</code></a> : Static (<code>10</code>)</a></h3>

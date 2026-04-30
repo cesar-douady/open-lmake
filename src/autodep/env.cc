@@ -16,11 +16,14 @@ namespace Codec {
 		SWEAR_PROD( descr[descr.size()-6]==':' , descr ) ;
 		tab = descr.substr(0,descr.size()-6) ;
 		switch (descr[descr.size()-5]) {
-			case 'A' : file_sync = FileSync::Auto ; break ;
-			case 'N' : file_sync = FileSync::None ; break ;
-			case 'D' : file_sync = FileSync::Dir  ; break ;
-			case 'S' : file_sync = FileSync::Sync ; break ;
-		DF}                                                  // NO_COV
+			case 'A' : file_sync = FileSync::Auto   ; break ;
+			case '-' : file_sync = FileSync::None   ; break ;
+			case 'B' : file_sync = FileSync::Beegfs ; break ;
+			case 'C' : file_sync = FileSync::Ceph   ; break ;
+			case 'L' : file_sync = FileSync::Lustre ; break ;
+			case 'N' : file_sync = FileSync::Nfs    ; break ;
+			case 'D' : file_sync = FileSync::Dir    ; break ; // XXX> : suppress when compatibility with 26.04 is waived
+		DF}                                                   // NO_COV
 		umask = mod_from_str(descr.substr(descr.size()-4)) ;
 	}
 
@@ -48,11 +51,14 @@ namespace Codec {
 		::string res = tab ;
 		res << ':' ;
 		switch (file_sync) {
-			case FileSync::Auto : res << 'A' ; break ;
-			case FileSync::None : res << 'N' ; break ;
-			case FileSync::Dir  : res << 'D' ; break ;
-			case FileSync::Sync : res << 'S' ; break ;
-		DF}                                                  // NO_COV
+			case FileSync::Auto   : res << 'A' ; break ;
+			case FileSync::None   : res << '-' ; break ;
+			case FileSync::Beegfs : res << 'B' ; break ;
+			case FileSync::Ceph   : res << 'C' ; break ;
+			case FileSync::Lustre : res << 'L' ; break ;
+			case FileSync::Nfs    : res << 'N' ; break ;
+			case FileSync::Dir    : res << 'D' ; break ; // XXX> : suppress when compatibility with 26.04 is waived
+		DF}                                              // NO_COV
 		res << mod_to_str(umask) ;
 		return res ;
 	}
@@ -119,10 +125,13 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			case 's' :
 				pos++ ;
 				switch (env[pos]) {
-					case 'a' : file_sync = FileSync::Auto ; break ;
-					case 'n' : file_sync = FileSync::None ; break ;
-					case 'd' : file_sync = FileSync::Dir  ; break ;
-					case 's' : file_sync = FileSync::Sync ; break ;
+					case 'a' : file_sync = FileSync::Auto   ; break ;
+					case '-' : file_sync = FileSync::None   ; break ;
+					case 'b' : file_sync = FileSync::Beegfs ; break ;
+					case 'c' : file_sync = FileSync::Ceph   ; break ;
+					case 'l' : file_sync = FileSync::Lustre ; break ;
+					case 'n' : file_sync = FileSync::Nfs    ; break ;
+					case 'd' : file_sync = FileSync::Dir    ; break ; // XXX> : suppress when compatilibity with 26.04 is waived
 					default  : goto Fail ;
 				}
 			break ;
@@ -160,11 +169,14 @@ AutodepEnv::operator ::string() const {
 	if (mount_chroot_ok) res << 'M' ;
 	if (readdir_ok     ) res << 'D' ;
 	switch (file_sync) {
-		case FileSync::Auto : res << "sa" ; break ;
-		case FileSync::None : res << "sn" ; break ;
-		case FileSync::Dir  : res << "sd" ; break ;
-		case FileSync::Sync : res << "ss" ; break ;
-	DF} // NO_COV
+		case FileSync::Auto   : res << "sa" ; break ;
+		case FileSync::None   : res << "s-" ; break ;
+		case FileSync::Beegfs : res << "sb" ; break ;
+		case FileSync::Ceph   : res << "sc" ; break ;
+		case FileSync::Lustre : res << "sl" ; break ;
+		case FileSync::Nfs    : res << "sn" ; break ;
+		case FileSync::Dir    : res << "sd" ; break ; // XXX> : suppress when compatilibity with 26.04 is waived
+	DF}                                             // NO_COV
 	switch (lnk_support) {
 		case LnkSupport::None : res << "ln" ; break ;
 		case LnkSupport::File : res << "lf" ; break ;

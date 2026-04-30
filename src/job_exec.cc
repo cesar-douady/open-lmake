@@ -193,8 +193,6 @@ int main( int argc , char* argv[] ) {
 	/**/  g_job             = from_string<JobIdx>(argv[7])                 ;
 	/**/  trace_id          = from_string<SeqId >(argv[8])                 ;
 	//
-	g_trace_file = new ::string{cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id)} ;
-	//
 	JobEndRpcReq end_report { {g_seq_id,g_job} } ;
 	end_report.digest   = { .status=Status::EarlyError } ;                   // prepare to return an error, so we can goto End anytime
 	end_report.wstatus  = 255<<8                         ;                   // .
@@ -212,7 +210,7 @@ int main( int argc , char* argv[] ) {
 	g_user_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(g_phy_repo_root_s) ) ;
 	Trace::s_sz = 10<<20 ;                                                                                                      // this is more than enough
 	block_sigs({SIGCHLD}) ;                                                                                                     // necessary to capture it using signalfd
-	app_init({ .chk_version=No , .trace=Yes }) ;                                                                                // dont check version for perf, but trace nevertheless
+	app_init({ .chk_version=No , .trace=Yes , .trace_file=cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id) }) ;                                                                                // dont check version for perf, but trace nevertheless
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;

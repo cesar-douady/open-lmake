@@ -99,14 +99,17 @@ And if such accesses are at group level (but not other), all dirs must have the 
 
 ## Coherence
 
-Some file systems, such as NFS, lack coherence.
+Some file systems, such as BeeGFS, Lustre or NFS, lack coherence, depending on specific system configuration.
 In that case, precautions must be taken to ensure coherence. Most of the time, this can be handled automatically.
 
-In case automatic management fails, (e.g. if the cache dir is mounted through an overlay), the `file_sync` variable in `LMAKE/config.py` can be set to:
+In case automatic management fails, (e.g. if the cache dir is mounted through an overlay), or to use a more agressive method when configuration allows it,
+the `file_sync` variable in `LMAKE/config.py` can be set to:
 
-| Value     | Recommanded for  | Default | Comment                                                                        |
-|-----------|------------------|---------|--------------------------------------------------------------------------------|
-| `'auto'`  | X                | X       | adequate precaution is determined automatically when possible                  |
-| `'none'`  | local disk, CEPH |         | no precaution, file system is coherent                                         |
-| `'dir'`   | NFS              |         | enclosing dir (recursively) is open before any read and closed after any write |
-| `'sync'`  |                  |         | `fsync` is called after any modification                                       |
+| Value      | Recommanded for | Default | Comment                                                                        |
+|------------|-----------------|---------|--------------------------------------------------------------------------------|
+| `'auto'`   | all             | X       | adequate precaution is determined automatically when possible                  |
+| `'none'`   | local disk      |         | no precaution, file system is coherent                                         |
+| `'beegfs'` | BeeGFS          |         | enclosing dir (recursively) is read before any read and closed after any write |
+| `'ceph'`   | CEPH            |         | no precaution, file system is coherent                                         |
+| `'lustre'` | Lustre          |         | enclosing dir (recursively) is read before any read and closed after any write |
+| `'nfs'`    | NFS             |         | enclosing dir (recursively) is open before any read and closed after any write |

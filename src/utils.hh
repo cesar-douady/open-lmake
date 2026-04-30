@@ -44,8 +44,11 @@ inline constexpr Bool3  common    ( bool   b1 , bool  b2 ) {                retu
 enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 	Auto
 ,	None
-,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
-,	Sync                        // sync file after write
+,	Beegfs
+,	Ceph
+,	Lustre
+,	Nfs
+,	Dir                         // XXX> : suppress when compatibility with 26.04 is not more necessary
 } ;
 // END_OF_VERSIONING
 FileSync auto_file_sync( FileSync , ::string const& dir_s={} ) ;
@@ -684,9 +687,9 @@ public :
 	Fd at   ;
 	F  file ;
 } ;
-struct NfsGuardDir {                                              // open/close uphill dirs before read accesses and after write accesses
+struct NfsGuardBeegfs {                                           // open/close uphill dirs after write accesses and readdir before read accesses
 	// cxtors & casts
-	~NfsGuardDir() { flush() ; }
+	~NfsGuardBeegfs() { flush() ; }
 	//services
 	void access      (FileRef path ) ;
 	void access_dir_s(FileRef dir_s) ;
@@ -696,35 +699,57 @@ struct NfsGuardDir {                                              // open/close 
 	::uset<File> fetched_dirs_s  ;
 	::uset<File> to_stamp_dirs_s ;
 } ;
-struct NfsGuardSync {                                             // fsync file after they are written
-	// cxtors & casts
-	~NfsGuardSync() { flush() ; }
+struct NfsGuardCeph {                                             // ceph is known to be reliable
 	//services
-	void access      (FileRef     ) {                          }
-	void access_dir_s(FileRef     ) {                          }
-	void change      (FileRef path) { to_stamp.emplace(path) ; }
-	void flush() {
-		for( auto const& f : to_stamp ) if ( AcFd fd{f,{.err_ok=true}} ; +fd ) ::fsync(fd) ;
-		to_stamp.clear() ;
-	}
-	// data
-	::uset<File> to_stamp ;
+	void access      (FileRef /*path */) {}
+	void access_dir_s(FileRef /*dir_s*/) {}
+	void change      (FileRef /*path */) {}
+	void flush       (                 ) {}
 } ;
-struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
+struct NfsGuardLustre {                                           // open/close uphill dirs after write accesses and readdir before read accesses
+	// cxtors & casts
+	~NfsGuardLustre() { flush() ; }
+	//services
+	void access      (FileRef path ) ;
+	void access_dir_s(FileRef dir_s) ;
+	void change      (FileRef path ) ;
+	void flush       (             ) ;
+	// data
+	::uset<File> fetched_dirs_s  ;
+	::uset<File> to_stamp_dirs_s ;
+} ;
+struct NfsGuardNfs {                                              // open/close uphill dirs before read accesses and after write accesses
+	// cxtors & casts
+	~NfsGuardNfs() { flush() ; }
+	//services
+	void access      (FileRef path ) ;
+	void access_dir_s(FileRef dir_s) ;
+	void change      (FileRef path ) ;
+	void flush       (             ) ;
+	// data
+	::uset<File> fetched_dirs_s  ;
+	::uset<File> to_stamp_dirs_s ;
+} ;
+struct NfsGuard : ::variant< ::monostate , NfsGuardBeegfs , NfsGuardCeph , NfsGuardLustre , NfsGuardNfs > {
 	// cxtors & casts
 	constexpr NfsGuard(FileSync fs=FileSync::None) {
 		switch (fs) {                                             // PER_FILE_SYNC : add entry here
-			case FileSync::None :                break ;
-			case FileSync::Dir  : emplace<1>() ; break ;
-			case FileSync::Sync : emplace<2>() ; break ;
+			case FileSync::None   :                break ;
+			case FileSync::Beegfs : emplace<1>() ; break ;
+			case FileSync::Ceph   : emplace<2>() ; break ;
+			case FileSync::Lustre : emplace<3>() ; break ;
+			case FileSync::Nfs    : emplace<4>() ; break ;
+			case FileSync::Dir    : emplace<4>() ; break ;        // XXX> : suppress when when waiving compatibility with 26.04
 		DF}                                                       // NO_COV
 	}
 	// accesses
 	FileSync file_sync() const {
 		switch (index()) {                                        // PER_FILE_SYNC : add entry here
-			case 0 : return FileSync::None ;
-			case 1 : return FileSync::Dir  ;
-			case 2 : return FileSync::Sync ;
+			case 0 : return FileSync::None   ;
+			case 1 : return FileSync::Beegfs ;
+			case 2 : return FileSync::Ceph   ;
+			case 3 : return FileSync::Lustre ;
+			case 4 : return FileSync::Nfs    ;
 		DF}                                                       // NO_COV
 	}
 	// services
@@ -733,6 +758,8 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 0 :                               break ;
 			case 1 : ::get<1>(self).access(path) ; break ;
 			case 2 : ::get<2>(self).access(path) ; break ;
+			case 3 : ::get<3>(self).access(path) ; break ;
+			case 4 : ::get<4>(self).access(path) ; break ;
 		DF}                                                       // NO_COV
 		return path ;
 	}
@@ -741,6 +768,8 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 0 :                                      break ;
 			case 1 : ::get<1>(self).access_dir_s(dir_s) ; break ;
 			case 2 : ::get<2>(self).access_dir_s(dir_s) ; break ;
+			case 3 : ::get<3>(self).access_dir_s(dir_s) ; break ;
+			case 4 : ::get<4>(self).access_dir_s(dir_s) ; break ;
 		DF}                                                       // NO_COV
 		return dir_s ;
 	}
@@ -749,6 +778,8 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 0 :                               break ;
 			case 1 : ::get<1>(self).change(path) ; break ;
 			case 2 : ::get<2>(self).change(path) ; break ;
+			case 3 : ::get<3>(self).change(path) ; break ;
+			case 4 : ::get<4>(self).change(path) ; break ;
 		DF}                                                       // NO_COV
 		return path ;
 	}
@@ -762,6 +793,8 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardDir , NfsGuardSync > {
 			case 0 :                          break ;
 			case 1 : ::get<1>(self).flush() ; break ;
 			case 2 : ::get<2>(self).flush() ; break ;
+			case 3 : ::get<3>(self).flush() ; break ;
+			case 4 : ::get<4>(self).flush() ; break ;
 		DF}                                                       // NO_COV
 	}
 } ;

@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 44      ; // 92fc73f268e8a8de4eb23a326e6f0043
+	uint64_t    constexpr Cache = 45      ; // 727355ca11382350789b6ca39078a6b3
 	uint64_t    constexpr Codec = 3       ; // 588c4728c080de98d2a26cee45494e09
-	uint64_t    constexpr Repo  = 46      ; // cb801b785918f1294dc13e19db6668b0
-	uint64_t    constexpr Job   = 21      ; // 8ee88e5456ba6801fbf1a55bff4ba4ec
+	uint64_t    constexpr Repo  = 47      ; // bbafc2cb46151edbfe6462c889a476b2
+	uint64_t    constexpr Job   = 22      ; // 6870c2d3b4355d442eeb72b30018ac6c
 	const char* const     Major = "26.05" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 92fc73f268e8a8de4eb23a326e6f0043 *
+// * Cache : 727355ca11382350789b6ca39078a6b3 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -21,11 +21,14 @@ namespace Version {
 //		if (mount_chroot_ok) res << 'M' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
-//			case FileSync::Auto : res << "sa" ; break ;
-//			case FileSync::None : res << "sn" ; break ;
-//			case FileSync::Dir  : res << "sd" ; break ;
-//			case FileSync::Sync : res << "ss" ; break ;
-//		DF} // NO_COV
+//			case FileSync::Auto   : res << "sa" ; break ;
+//			case FileSync::None   : res << "s-" ; break ;
+//			case FileSync::Beegfs : res << "sb" ; break ;
+//			case FileSync::Ceph   : res << "sc" ; break ;
+//			case FileSync::Lustre : res << "sl" ; break ;
+//			case FileSync::Nfs    : res << "sn" ; break ;
+//			case FileSync::Dir    : res << "sd" ; break ; // XXX> : suppress when compatilibity with 26.04 is waived
+//		DF}                                             // NO_COV
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -929,8 +932,11 @@ namespace Version {
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 //		Auto
 //	,	None
-//	,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
-//	,	Sync                        // sync file after write
+//	,	Beegfs
+//	,	Ceph
+//	,	Lustre
+//	,	Nfs
+//	,	Dir                         // XXX> : suppress when compatibility with 26.04 is not more necessary
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
@@ -1099,7 +1105,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : cb801b785918f1294dc13e19db6668b0 *
+// * Repo : bbafc2cb46151edbfe6462c889a476b2 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1111,11 +1117,14 @@ namespace Version {
 //		if (mount_chroot_ok) res << 'M' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
-//			case FileSync::Auto : res << "sa" ; break ;
-//			case FileSync::None : res << "sn" ; break ;
-//			case FileSync::Dir  : res << "sd" ; break ;
-//			case FileSync::Sync : res << "ss" ; break ;
-//		DF} // NO_COV
+//			case FileSync::Auto   : res << "sa" ; break ;
+//			case FileSync::None   : res << "s-" ; break ;
+//			case FileSync::Beegfs : res << "sb" ; break ;
+//			case FileSync::Ceph   : res << "sc" ; break ;
+//			case FileSync::Lustre : res << "sl" ; break ;
+//			case FileSync::Nfs    : res << "sn" ; break ;
+//			case FileSync::Dir    : res << "sd" ; break ; // XXX> : suppress when compatilibity with 26.04 is waived
+//		DF}                                             // NO_COV
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -2427,8 +2436,11 @@ namespace Version {
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 //		Auto
 //	,	None
-//	,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
-//	,	Sync                        // sync file after write
+//	,	Beegfs
+//	,	Ceph
+//	,	Lustre
+//	,	Nfs
+//	,	Dir                         // XXX> : suppress when compatibility with 26.04 is not more necessary
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
@@ -2449,7 +2461,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 8ee88e5456ba6801fbf1a55bff4ba4ec *
+// * Job : 6870c2d3b4355d442eeb72b30018ac6c *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2461,11 +2473,14 @@ namespace Version {
 //		if (mount_chroot_ok) res << 'M' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
-//			case FileSync::Auto : res << "sa" ; break ;
-//			case FileSync::None : res << "sn" ; break ;
-//			case FileSync::Dir  : res << "sd" ; break ;
-//			case FileSync::Sync : res << "ss" ; break ;
-//		DF} // NO_COV
+//			case FileSync::Auto   : res << "sa" ; break ;
+//			case FileSync::None   : res << "s-" ; break ;
+//			case FileSync::Beegfs : res << "sb" ; break ;
+//			case FileSync::Ceph   : res << "sc" ; break ;
+//			case FileSync::Lustre : res << "sl" ; break ;
+//			case FileSync::Nfs    : res << "sn" ; break ;
+//			case FileSync::Dir    : res << "sd" ; break ; // XXX> : suppress when compatilibity with 26.04 is waived
+//		DF}                                             // NO_COV
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -2883,7 +2898,10 @@ namespace Version {
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 //		Auto
 //	,	None
-//	,	Dir                         // close file directory after write, open it before read (in practice, open/close upon both events)
-//	,	Sync                        // sync file after write
+//	,	Beegfs
+//	,	Ceph
+//	,	Lustre
+//	,	Nfs
+//	,	Dir                         // XXX> : suppress when compatibility with 26.04 is not more necessary
 //	} ;
 //	// END_OF_VERSIONING

@@ -17,13 +17,7 @@
 namespace Store {
 
 	template<char ThreadKey,size_t Capacity> struct RawFile {
-		// statics
-	private :
-		static size_t _s_round_up(size_t sz) {
-			return round_up<PAGE_SZ>(sz) ;
-		}
-		// cxtors & casts
-	public :
+		// cxtors & co
 		RawFile () = default ;
 		RawFile ( NewType                                ) { init(New            ) ; }
 		RawFile ( ::string const& name_ , bool writable_ ) { init(name_,writable_) ; }
@@ -35,7 +29,6 @@ namespace Store {
 			base     =        other.base      ; other.base     = nullptr ;
 			size     =        other.size      ; other.size     = 0       ;
 			writable =        other.writable  ; other.writable = false   ;
-			_fd      = ::move(other._fd     ) ;
 			return self ;
 		}
 		//
@@ -44,25 +37,16 @@ namespace Store {
 			name     = name_     ;
 			writable = writable_ ;
 			//
-			_alloc() ;
-			if (+name) {
-				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				_fd = AcFd( name , {writable?O_RDWR|O_CREAT:O_RDONLY} ) ;                 // mode is only used if created, which implies writable
-				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (writable) _chk_rc( ::lseek(_fd,0/*offset*/,SEEK_END)>=0 , "lseek" ) ; // ensure writes (when expanding) are done at end of file when resizing
-				SWEAR_PROD(+_fd) ;
-				Disk::FileInfo fi{_fd} ;
-				SWEAR_PROD( fi.tag()>=FileTag::Reg , fi ) ;
-				_map(fi.sz) ;
-			}
+			SWEAR(!base) ;
+			base = static_cast<char*>( ::mmap( nullptr/*addr*/ , Capacity , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1/*fd*/  , 0/*offfset*/ ) ) ;
+			_chk_rc( base!=MAP_FAILED , "reserve address space" ) ;
+			if (+name) _map( Disk::FileInfo(name).sz , false/*truncate*/ ) ;
 		}
 		void close() {
 			if (!base) return ;
-			//
-			_dealloc()  ;
-			_fd.close() ;
+			_chk_rc( ::munmap(base,Capacity)==0 , "unmap" ) ;
+			base = nullptr ;
 		}
-		// accesses
 		bool operator+() const { return size ; }
 		// services
 		void expand( size_t sz , bool thread_chk=true ) {
@@ -76,67 +60,53 @@ namespace Store {
 				,	"\tconsider to recompile open-lmake with increased corresponding parameter in src/repo.hh\n"
 				) ;
 			//
-			sz = ::max( sz              , size+::min(size>>2,size_t(1<<24)) ) ;           // ensure remaps are in log(n) (up to a reasonable size increase)
-			sz = ::min( _s_round_up(sz) , Capacity                          ) ;           // legalize
-			if (+_fd)
-				try                     { _fd.write(::string(sz-size,0/*ch*/)) ; }        // /!\ dont use ftruncate to avoid race in kernel between ftruncate and write back of dirty pages
-				catch (::string const&) { _chk_rc(false/*ok*/,"expand") ;        }        // NO_COV
-			_map(sz) ;
+			sz = ::max( sz                    , size+(size>>2) ) ;                                                   // ensure remaps are in log(n)
+			sz = ::min( round_up<PAGE_SZ>(sz) , Capacity       ) ;                                                   // legalize
+			_map( sz , true/*truncate*/ ) ;
 		}
 		void clear(size_t sz=0) {
 			chk_thread  () ;
 			chk_writable() ;
 			//
-			sz = _s_round_up(sz) ;
-			SWEAR( sz<=Capacity , sz,Capacity ) ;
+			sz = round_up<PAGE_SZ>(sz) ; SWEAR( sz<=Capacity , sz,Capacity ) ;
 			//
-			_dealloc() ;
-			//                 vvvvvvvvvvvvvvvvvvv
-			if (+_fd) _chk_rc( ::ftruncate(_fd,sz)==0 && ::lseek(_fd,0/*offset*/,SEEK_END)>=0 , "truncate" ) ; // can use ftruncate here as there is no mapping, hence no race with page write back
-			//                 ^^^^^^^^^^^^^^^^^^^
-			_alloc() ;
-			_map(sz) ;
+			::mmap( base , size , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1/*fd*/  , 0/*offfset*/ ) ; // reset old mapping
+			size = 0 ;
+			_map( sz , true/*truncate*/ ) ;
 		}
-		void chk         () const { if (+_fd     ) SWEAR( base                                                  ) ; }
+		void chk         () const { if (+name    ) SWEAR( base                                                  ) ; }
 		void chk_thread  () const { if (ThreadKey) SWEAR( t_thread_key==ThreadKey , ThreadKey,t_thread_key,name ) ; }
 		void chk_writable() const { throw_unless( writable , name," is read-only" ) ;                               }
 	private :
 		void _chk_rc( bool ok , const char* msg ) {
 			if (!ok) exit( Rc::System , "cannot ",msg," (",StrErr(),") ",name ) ;
 		}
-		void _dealloc() {
-			SWEAR(base) ;
-			_chk_rc( ::munmap(base,Capacity)==0 , "unmap" ) ;
-			base = nullptr ;
-		}
-		void _alloc() {
-			SWEAR(!base) ;
-			base = static_cast<char*>( ::mmap( nullptr/*addr*/ , Capacity , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1/*d*/  , 0/*offfset*/ ) ) ;
-			if (base==MAP_FAILED) FAIL_PROD(StrErr()) ;
-			size = 0 ;
-		}
-		void _map(size_t sz) {
+		void _map( size_t sz , bool truncate ) {
 			SWEAR(sz>=size) ;
 			if (sz==size) return ;
 			//
-			int map_prot  = PROT_READ ;
-			int map_flags = 0         ;
-			if (writable) map_prot  |= PROT_WRITE                  ;
-			if (!name   ) map_flags |= MAP_PRIVATE | MAP_ANONYMOUS ;
-			else          map_flags |= MAP_SHARED                  ;
+			int  map_prot  = writable ? PROT_READ|PROT_WRITE : PROT_READ                 ;
+			int  map_flags = +name    ? MAP_SHARED           : MAP_PRIVATE|MAP_ANONYMOUS ;
+			AcFd fd        ;
 			//
-			void* actual = ::mmap( base+size , sz-size , map_prot , MAP_FIXED|map_flags , _fd , size ) ;
-			if (actual!=base+size) FAIL_PROD(to_hex(size_t(base)),to_hex(size_t(actual)),size,sz,StrErr()) ;
+			if (+name) {
+				fd = AcFd( name , {writable?O_RDWR|O_CREAT:O_RDONLY} ) ;
+				if (truncate) {
+					_chk_rc( ::ftruncate(fd,sz)==0 , "resize" ) ;
+					try                       { fd = AcFd( name , {writable?O_RDWR:O_RDONLY} ) ; } // reopen to ensure no race between ftruncate and mmap, .e.g. BeeGFS with tuneCoherentBuffers=0
+					catch (::string const& e) { _chk_rc( false/*ok*/ , "reopen" ) ;              }
+				}
+			}
+			//
+			_chk_rc( ::mmap( base , sz , map_prot , MAP_FIXED|map_flags , fd , 0/*offset*/ )!=MAP_FAILED , "map" ) ;
 			size = sz ;
 		}
 		// data
 	public :
 		::string       name     ;
-		char*          base     = nullptr ;                                                                    // address of mapped file
-		Atomic<size_t> size     ;                                                                              // underlying file size (fake if no file)
+		char*          base     = nullptr ;                                                // address of mapped file
+		Atomic<size_t> size     ;                                                          // underlying file size (fake if no file)
 		bool           writable = false   ;
-	private :
-		AcFd _fd ;
 	} ;
 
 }

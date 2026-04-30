@@ -10,35 +10,36 @@
 using namespace Disk ;
 using namespace Time ;
 
-StaticUniqPtr<::string> g_trace_file ;
-
 Atomic<bool    > Trace::s_backup_trace ;
 Atomic<size_t  > Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden
 Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace default channel
 
 #ifdef TRACE
 
-	size_t                 Trace::_s_pos       =  0      ;
-	bool                   Trace::_s_ping      = false   ;
-	Fd                     Trace::_s_fd        ;
-	Atomic<bool>           Trace::_s_has_trace ;
-	uint8_t*               Trace::_s_data      = nullptr ;
-	size_t                 Trace::_s_cur_sz    = 0       ;
-	Mutex<MutexLvl::Trace> Trace::_s_mutex     ;
+	::string               Trace::_s_trace_file ;
+	size_t                 Trace::_s_pos        =  0      ;
+	bool                   Trace::_s_ping       = false   ;
+	Fd                     Trace::_s_fd         ;
+	Atomic<bool>           Trace::_s_has_trace  ;
+	uint8_t*               Trace::_s_data       = nullptr ;
+	size_t                 Trace::_s_cur_sz     = 0       ;
+	Mutex<MutexLvl::Trace> Trace::_s_mutex      ;
 
 	thread_local int       Trace::_t_lvl  = 0       ;
 	thread_local bool      Trace::_t_hide = false   ;
 	thread_local ::string* Trace::_t_buf  = nullptr ;
 
-	void Trace::s_start() {
-		if ( !g_trace_file || !*g_trace_file ) return ;
+	void Trace::s_start(::string const& trace_file) {
+		SWEAR( !_s_trace_file , _s_trace_file ) ;
+		if (!trace_file) return ;
+		_s_trace_file = trace_file ;
 		Lock lock{_s_mutex} ;
 		_s_open() ;
 	}
 
 	void Trace::s_new_trace_file(::string const& trace_file) {
 		if (!_s_has_trace            ) return ;                // change trace file, but dont start tracing
-		if (trace_file==*g_trace_file) return ;
+		if (trace_file==_s_trace_file) return ;
 		//
 		Lock lock{_s_mutex} ;
 		//
@@ -49,55 +50,41 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		_s_cur_sz = 0       ;
 		_s_pos    = 0       ;
 		_s_fd.close() ;
-		*g_trace_file = trace_file ;
+		_s_trace_file = trace_file ;
 		_s_open() ;
 	}
 
 	void Trace::_s_open() {
-		if (s_sz<4096     ) return ; // not enough room to trace
+		if (s_sz<PAGE_SZ  ) return ; // not enough room to trace
 		if (!s_channels   ) return ; // nothing to trace
-		if (!*g_trace_file) return ; // nowhere to trace to
+		if (!_s_trace_file) return ; // nowhere to trace to
 		if (s_backup_trace) {
 			::string prev_old ; //!                                                                      src             dst
-			for( char c : "54321"s ) { ::string old = *g_trace_file+'.'+c ; if (+prev_old) try { rename( old           , prev_old ) ; } catch (::string const&) {} prev_old = ::move(old) ; }
-			/**/                                                            if (+prev_old) try { rename( *g_trace_file , prev_old ) ; } catch (::string const&) {}
+			for( char c : "54321"s ) { ::string old = _s_trace_file+'.'+c ; if (+prev_old) try { rename( old           , prev_old ) ; } catch (::string const&) {} prev_old = ::move(old) ; }
+			/**/                                                            if (+prev_old) try { rename( _s_trace_file , prev_old ) ; } catch (::string const&) {}
 		}
-		::string trace_dir_s    = dir_name_s(*g_trace_file)                                         ;
+		::string trace_dir_s    = dir_name_s(_s_trace_file)                                         ;
 		::string tmp_trace_file = cat(trace_dir_s,::to_string(Pdate(New).nsec_in_s()),'-',getpid()) ;
 		//
-		_s_cur_sz = 4096 ;
+		// initial size can be set with ftruncate because no mapping exists yet, so no race with page write-back
+		// re-open trace file after setting its initial size as mmap would not work with BeeGFS with tuneCoherentBuffers=0
+		try { _s_fd = {tmp_trace_file,{.flags=O_RDWR|O_TRUNC|O_CREAT}} ; } catch (::string const& e) { exit(Rc::System,"cannot create temporary trace file : ",e) ; }
+		try { rename(tmp_trace_file/*src*/,_s_trace_file/*dst*/) ;       } catch (::string const& e) { exit(Rc::System,"cannot create trace file : "          ,e) ; }
+		_s_map(PAGE_SZ) ;
 		//
-		static constexpr Fd::Action TraceAction { .flags=O_RDWR|O_TRUNC|O_CREAT , .no_std=true } ;
-		// initial size can be set with ftruncate becase no mapping exists yet, so no race with page write-back
-		try { _s_fd = {tmp_trace_file,TraceAction} ;               } catch (::string const& e) { exit(Rc::System,"cannot create temporary trace file : "                                       ,e) ; }
-		try { rename(tmp_trace_file/*src*/,*g_trace_file/*dst*/) ; } catch (::string const& e) { exit(Rc::System,"cannot create trace file : "                                                 ,e) ; }
-		try { _s_fd.write(::string(_s_cur_sz,0)) ;                 } catch (::string const& e) { exit(Rc::System,"cannot set trace file ",*g_trace_file," to its initial size ",_s_cur_sz," : ",e) ; }
-		//
-		_s_pos  = 0                                                                                                                      ;
-		_s_data = static_cast<uint8_t*>(::mmap( nullptr/*addr*/ , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0/*offset*/ )) ;
-		SWEAR_PROD( _s_data!=MAP_FAILED , *g_trace_file ) ;
-		fence() ;
+		_s_pos       = 0      ;
 		_s_has_trace = +_s_fd ;      // ensure _s_has_trace is updated once everything is ok as tracing may be called from other threads while being initialized
 	}
 
 	void Trace::_t_commit() {
-		static const ::string Giant = "<giant record>\n" ;                                                                           // /!\ cannot be constexpr with gcc-11
+		static const ::string Giant = "<giant record>\n" ; // /!\ cannot be constexpr with gcc-11
 		//
 		::string const& buf_view = _t_buf->size()<=(s_sz>>4) ? *_t_buf : Giant ;
 		//
 		{	Lock   lock    { _s_mutex }             ;
 			size_t new_pos = _s_pos+buf_view.size() ;
-			if ( _s_cur_sz<s_sz && new_pos>_s_cur_sz ) {
-				size_t old_sz = _s_cur_sz ;
-				_s_cur_sz = ::max( new_pos                   , old_sz+::min(old_sz>>2,size_t(1<<24)) ) ;                             // ensure remaps are in log(n) (up to a reasonable size increase)
-				_s_cur_sz = ::min( round_up<4096>(_s_cur_sz) , size_t(s_sz)                          ) ;                             // legalize
-				//
-				// /!\ dont use ftruncate to avoid race in kernel between ftruncate and write back of dirty pages
-				try                     { _s_fd.write(::string(_s_cur_sz-old_sz,0/*ch*/)) ;                                        }
-				catch (::string const&) { exit( Rc::System , cat("cannot extend trace from ",old_sz," to ",_s_cur_sz," bytes") ) ; } // NO_COV
-				//
-				_s_data = static_cast<uint8_t*>(::mremap( _s_data , old_sz , _s_cur_sz , MREMAP_MAYMOVE )) ;
-			}
+			if ( _s_cur_sz<s_sz && new_pos>_s_cur_sz )
+				_s_map( ::min( round_up<PAGE_SZ>(::max(new_pos,_s_cur_sz+(_s_cur_sz>>2))) , size_t(s_sz) ) ) ;
 			if (new_pos>s_sz) {
 				if (_s_pos<s_sz) ::memset(_s_data+_s_pos,0,s_sz-_s_pos) ;
 				_s_ping = !_s_ping        ;
@@ -108,6 +95,23 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 			_s_pos = new_pos ;
 		}
 		_t_buf->clear() ;
+	}
+
+	void Trace::_s_map(size_t sz) {
+		if ( _s_cur_sz && ::munmap(_s_data,_s_cur_sz)!=0 )
+			exit( Rc::System , "cannot unmap trace file ",_s_trace_file," from size ",_s_cur_sz," : ",StrErr() ) ;
+		//
+		_s_cur_sz = sz ;
+		//
+		if ( ::ftruncate(_s_fd,_s_cur_sz)!=0 )                                                                // ftruncate is ok as long as no mapping exists
+			exit(Rc::System,"cannot extend trace file ",_s_trace_file," to size ",_s_cur_sz," : ",StrErr()) ;
+		//
+		try                       { _s_fd = {_s_trace_file,{.flags=O_RDWR,.no_std=true}} ; }                  // reopen so no race with mmap, even with BeeGFS with tuneCoherentBuffers=0
+		catch (::string const& e) { exit(Rc::System,"cannot reopen trace file"," : ",e) ;  }
+		//
+		_s_data = static_cast<uint8_t*>(::mmap( nullptr/*addr*/ , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0/*offset*/ )) ;
+		if (_s_data==MAP_FAILED)
+			exit( Rc::System , "cannot map trace file ",_s_trace_file," : ",StrErr() ) ;
 	}
 
 #endif

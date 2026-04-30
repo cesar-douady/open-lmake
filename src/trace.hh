@@ -11,8 +11,6 @@
 // STR must only be called for tracing as return type is undefined
 #define STR(x) Trace::s_str((x),#x)
 
-extern StaticUniqPtr<::string> g_trace_file ;
-
 enum class Channel : uint8_t {
 	Default
 ,	Backend
@@ -26,8 +24,8 @@ static constexpr Channels DfltChannels = ~Channels() ;
 
 	struct Trace {
 		// statics
-		static void s_start         (                   ) {}                             // called from main thread
-		static void s_new_trace_file(::string const& ={}) {}
+		static void s_start         (::string const& /*trace_file*/ ) {}                 // called from main thread
+		static void s_new_trace_file(::string const& /*trace_file*/ ) {}                 // .
 		template<class T> static bool s_str( T const& , const char* ) { return false ; } // return anything (least expensive)
 		// static data
 		static Atomic<bool    > s_backup_trace ;
@@ -48,29 +46,31 @@ static constexpr Channels DfltChannels = ~Channels() ;
 
 	struct Trace {
 		// statics
-		static void s_start         (                   ) ;
-		static void s_new_trace_file(::string const& ={}) ;
+		static void s_start         (::string const& trace_file ) ;                                                // called from main thread
+		static void s_new_trace_file(::string const& trace_file ) ;                                                // .
 	private :
-		static void _s_open  () ;
-		static void _t_commit() ;
+		static void _s_open  (         ) ;
+		static void _t_commit(         ) ;
+		static void _s_map   (size_t sz) ;
 		//
 	public :
 		template<class T> static ::string s_str( T const& v , const char* s ) { return cat(s,"=",v)            ; }
 		/**/              static ::string s_str( bool     v , const char* s ) { return v ? cat(s) : cat('!',s) ; }
 		/**/              static ::string s_str( uint8_t  v , const char* s ) { return s_str(int(v),s)         ; } // avoid confusion with char
-		/**/              static ::string s_str( int8_t   v , const char* s ) { return s_str(int(v),s)         ; } // avoid confusion with char
+		/**/              static ::string s_str( int8_t   v , const char* s ) { return s_str(int(v),s)         ; } // .
 		// static data
 		static Atomic<bool    > s_backup_trace ;
 		static Atomic<size_t  > s_sz           ;                                                                   // max overall size of trace, beyond, trace wraps
 		static Atomic<Channels> s_channels     ;
 	private :
-		static size_t                 _s_pos       ;                                                               // current line number
-		static bool                   _s_ping      ;                                                               // ping-pong to distinguish where trace stops in the middle of a trace
-		static Fd                     _s_fd        ;
-		static Atomic<bool>           _s_has_trace ;
-		static uint8_t*               _s_data      ;                                                               // pointer to mmap'ped trace file
-		static size_t                 _s_cur_sz    ;                                                               // current size of trace file
-		static Mutex<MutexLvl::Trace> _s_mutex     ;
+		static ::string               _s_trace_file ;
+		static size_t                 _s_pos        ;                                                              // current line number
+		static bool                   _s_ping       ;                                                              // ping-pong to distinguish where trace stops in the middle of a trace
+		static Fd                     _s_fd         ;
+		static Atomic<bool>           _s_has_trace  ;
+		static uint8_t*               _s_data       ;                                                              // pointer to mmap'ped trace file
+		static size_t                 _s_cur_sz     ;                                                              // current size of trace file
+		static Mutex<MutexLvl::Trace> _s_mutex      ;
 		//
 		static thread_local int       _t_lvl  ;
 		static thread_local bool      _t_hide ;                                                                    // if true <=> do not generate trace

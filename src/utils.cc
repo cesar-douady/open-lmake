@@ -4,6 +4,7 @@
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 #include <sys/vfs.h>
+#include <sys/syscall.h>
 #include <linux/magic.h>
 
 #include "utils.hh"
@@ -71,53 +72,53 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		static_assert( MACRO_VAL(LL_SUPER_MAGIC    ,0UL)==0 || MACRO_VAL(LL_SUPER_MAGIC    ,0UL)==_LustreSuperMagic ) ;
 		constexpr ulong LustreSuperMagic = _LustreSuperMagic ? _LustreSuperMagic : 0x0bd00bd0UL ;
 		//
-		fill( MACRO_VAL(AFS_FS_MAGIC         ,0x6B414653UL)                  ) ;                           // local
-		fill( MACRO_VAL(AFS_SUPER_MAGIC      ,0x5346414fUL)                  ) ;                           // known to be reliable
-		fill( MACRO_VAL(AUTOFS_SUPER_MAGIC   ,    0x0187UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
-		fill( MACRO_VAL(BEEGFS_MAGIC         ,0x19830326UL)                  ) ;                           // known to be reliable
-		fill( MACRO_VAL(BTRFS_SUPER_MAGIC    ,0x9123683eUL)                  ) ;                           // local
-		fill( MACRO_VAL(BTRFS_TEST_MAGIC     ,0x73727279UL)                  ) ;                           // local
-		fill( MACRO_VAL(CEPH_SUPER_MAGIC     ,0x00c36400UL)                  ) ;                           // has been tested reliable
-	//	fill( MACRO_VAL(CIFS_SUPER_MAGIC     ,0xff534d42UL)                  ) ;                           // no info on reliability
-	//	fill( MACRO_VAL(CODA_SUPER_MAGIC     ,0x73757245UL)                  ) ;                           // no info on reliability
-		fill( MACRO_VAL(CRAMFS_MAGIC         ,0x28cd3d45UL)                  ) ;                           // local
-		fill( MACRO_VAL(CRAMFS_MAGIC_WEND    ,0x453dcd28UL)                  ) ;                           // local
-		fill( MACRO_VAL(DAXFS_MAGIC          ,0x64646178UL)                  ) ;                           // local
-		fill( MACRO_VAL(ECRYPTFS_SUPER_MAGIC ,    0xf15fUL) , FileSync::Auto ) ;                           // depend on underlying filesystem
-		fill( MACRO_VAL(EFS_SUPER_MAGIC      ,  0x414a53UL)                  ) ;                           // local
-		fill( MACRO_VAL(EROFS_SUPER_MAGIC_V1 ,0xe0f5e1e2UL)                  ) ;                           // local
-		fill( MACRO_VAL(EXFAT_SUPER_MAGIC    ,0x2011bab0UL)                  ) ;                           // local
-		fill( ExtSuperMagic                                                  ) ;                           // local
-		fill( MACRO_VAL(F2FS_SUPER_MAGIC     ,0xf2f52010UL)                  ) ;                           // local
-		fill( MACRO_VAL(FUSE_SUPER_MAGIC     ,0x65735546UL) , FileSync::Auto ) ;                           // depend on underlying process
-		fill( MACRO_VAL(GPFS_SUPER_MAGIC     ,0x47504653UL)                  ) ;                           // check macro name, known to be reliable
-		fill( MACRO_VAL(HOSTFS_SUPER_MAGIC   ,0x00c0ffeeUL) , FileSync::Auto ) ;                           // depend on underlying filesystem
-		fill( MACRO_VAL(HPFS_SUPER_MAGIC     ,0xf995e849UL)                  ) ;                           // local
-		fill( MACRO_VAL(ISOFS_SUPER_MAGIC    ,    0x9660UL)                  ) ;                           // local
-		fill( MACRO_VAL(JFFS2_SUPER_MAGIC    ,    0x72b6UL)                  ) ;                           // local
-		fill( LustreSuperMagic                                               ) ;                           // known to be reliable
-		fill( MACRO_VAL(MINIX2_SUPER_MAGIC   ,    0x2468UL)                  ) ;                           // local
-		fill( MACRO_VAL(MINIX2_SUPER_MAGIC2  ,    0x2478UL)                  ) ;                           // local
-		fill( MACRO_VAL(MINIX3_SUPER_MAGIC   ,    0x4d5aUL)                  ) ;                           // local
-		fill( MACRO_VAL(MINIX_SUPER_MAGIC    ,    0x137fUL)                  ) ;                           // local
-		fill( MACRO_VAL(MINIX_SUPER_MAGIC2   ,    0x138fUL)                  ) ;                           // local
-		fill( MACRO_VAL(MSDOS_SUPER_MAGIC    ,    0x4d44UL)                  ) ;                           // local
-		fill( MACRO_VAL(NFS_SUPER_MAGIC      ,    0x6969UL) , FileSync::Dir  ) ;                           // tested to require dir synchronization
-		fill( MACRO_VAL(NILFS_SUPER_MAGIC    ,    0x3434UL)                  ) ;                           // local
-		fill( MACRO_VAL(OCFS2_SUPER_MAGIC    ,0x7461636fUL)                  ) ;                           // known to be reliable
-		fill( MACRO_VAL(OVERLAYFS_SUPER_MAGIC,0x794c7630UL) , FileSync::Auto ) ;                           // depend on underlying filesystem
-		fill( MACRO_VAL(QNX4_SUPER_MAGIC     ,    0x002fUL)                  ) ;                           // local
-		fill( MACRO_VAL(QNX6_SUPER_MAGIC     ,0x68191122UL)                  ) ;                           // local
-		fill( MACRO_VAL(RAMFS_MAGIC          ,0x858458f6UL)                  ) ;                           // local
-		fill( MACRO_VAL(REISERFS_SUPER_MAGIC ,0x52654973UL)                  ) ;                           // local
-		fill( MACRO_VAL(SECRETMEM_MAGIC      ,0x5345434dUL)                  ) ;                           // local
-	//	fill( MACRO_VAL(SMB2_SUPER_MAGIC     ,0xfe534d42UL)                  ) ;                           // no info on reliability
-	//	fill( MACRO_VAL(SMB_SUPER_MAGIC      ,    0x517bUL)                  ) ;                           // no info on reliability
-		fill( MACRO_VAL(SQUASHFS_MAGIC       ,0x73717368UL)                  ) ;                           // local
-		fill( MACRO_VAL(TMPFS_MAGIC          ,0x01021994UL)                  ) ;                           // local
-	//	fill( MACRO_VAL(V9FS_MAGIC           ,0x01021997UL)                  ) ;                           // no info on reliability
-		fill( MACRO_VAL(XFS_SUPER_MAGIC      ,0x58465342UL)                  ) ;                           // local
-		fill( MACRO_VAL(ZFS_SUPER_MAGIC      ,0x2fc12fc1UL)                  ) ;                           // local
+		fill( MACRO_VAL(AFS_FS_MAGIC         ,0x6B414653UL)                    ) ;                // local
+		fill( MACRO_VAL(AFS_SUPER_MAGIC      ,0x5346414fUL)                    ) ;                // reliable after AI advice (not tested)
+		fill( MACRO_VAL(AUTOFS_SUPER_MAGIC   ,    0x0187UL) , FileSync::Auto   ) ;                // depend on underlying filesystem
+		fill( MACRO_VAL(BEEGFS_MAGIC         ,0x19830326UL) , FileSync::Beegfs ) ;                // depend on config options, be pessimistic
+		fill( MACRO_VAL(BTRFS_SUPER_MAGIC    ,0x9123683eUL)                    ) ;                // local
+		fill( MACRO_VAL(BTRFS_TEST_MAGIC     ,0x73727279UL)                    ) ;                // local
+		fill( MACRO_VAL(CEPH_SUPER_MAGIC     ,0x00c36400UL) , FileSync::Ceph   ) ;                // seems to be reliable
+	//	fill( MACRO_VAL(CIFS_SUPER_MAGIC     ,0xff534d42UL)                    ) ;                // no info on reliability
+	//	fill( MACRO_VAL(CODA_SUPER_MAGIC     ,0x73757245UL)                    ) ;                // no info on reliability
+		fill( MACRO_VAL(CRAMFS_MAGIC         ,0x28cd3d45UL)                    ) ;                // local
+		fill( MACRO_VAL(CRAMFS_MAGIC_WEND    ,0x453dcd28UL)                    ) ;                // local
+		fill( MACRO_VAL(DAXFS_MAGIC          ,0x64646178UL)                    ) ;                // local
+		fill( MACRO_VAL(ECRYPTFS_SUPER_MAGIC ,    0xf15fUL) , FileSync::Auto   ) ;                // depend on underlying filesystem
+		fill( MACRO_VAL(EFS_SUPER_MAGIC      ,  0x414a53UL)                    ) ;                // local
+		fill( MACRO_VAL(EROFS_SUPER_MAGIC_V1 ,0xe0f5e1e2UL)                    ) ;                // local
+		fill( MACRO_VAL(EXFAT_SUPER_MAGIC    ,0x2011bab0UL)                    ) ;                // local
+		fill( ExtSuperMagic                                                    ) ;                // local
+		fill( MACRO_VAL(F2FS_SUPER_MAGIC     ,0xf2f52010UL)                    ) ;                // local
+		fill( MACRO_VAL(FUSE_SUPER_MAGIC     ,0x65735546UL) , FileSync::Auto   ) ;                // depend on underlying process
+		fill( MACRO_VAL(GPFS_SUPER_MAGIC     ,0x47504653UL)                    ) ;                // reliable after AI advice (not tested)
+		fill( MACRO_VAL(HOSTFS_SUPER_MAGIC   ,0x00c0ffeeUL) , FileSync::Auto   ) ;                // depend on underlying filesystem
+		fill( MACRO_VAL(HPFS_SUPER_MAGIC     ,0xf995e849UL)                    ) ;                // local
+		fill( MACRO_VAL(ISOFS_SUPER_MAGIC    ,    0x9660UL)                    ) ;                // local
+		fill( MACRO_VAL(JFFS2_SUPER_MAGIC    ,    0x72b6UL)                    ) ;                // local
+		fill( LustreSuperMagic                              , FileSync::Lustre ) ;                // depend on config options, be pessimistic, after AI advice (not tested)
+		fill( MACRO_VAL(MINIX2_SUPER_MAGIC   ,    0x2468UL)                    ) ;                // local
+		fill( MACRO_VAL(MINIX2_SUPER_MAGIC2  ,    0x2478UL)                    ) ;                // local
+		fill( MACRO_VAL(MINIX3_SUPER_MAGIC   ,    0x4d5aUL)                    ) ;                // local
+		fill( MACRO_VAL(MINIX_SUPER_MAGIC    ,    0x137fUL)                    ) ;                // local
+		fill( MACRO_VAL(MINIX_SUPER_MAGIC2   ,    0x138fUL)                    ) ;                // local
+		fill( MACRO_VAL(MSDOS_SUPER_MAGIC    ,    0x4d44UL)                    ) ;                // local
+		fill( MACRO_VAL(NFS_SUPER_MAGIC      ,    0x6969UL) , FileSync::Nfs    ) ;                // requires dir access after modif, before access
+		fill( MACRO_VAL(NILFS_SUPER_MAGIC    ,    0x3434UL)                    ) ;                // local
+		fill( MACRO_VAL(OCFS2_SUPER_MAGIC    ,0x7461636fUL)                    ) ;                // reliable after AI advice (not tested)
+		fill( MACRO_VAL(OVERLAYFS_SUPER_MAGIC,0x794c7630UL) , FileSync::Auto   ) ;                // depend on underlying filesystem
+		fill( MACRO_VAL(QNX4_SUPER_MAGIC     ,    0x002fUL)                    ) ;                // local
+		fill( MACRO_VAL(QNX6_SUPER_MAGIC     ,0x68191122UL)                    ) ;                // local
+		fill( MACRO_VAL(RAMFS_MAGIC          ,0x858458f6UL)                    ) ;                // local
+		fill( MACRO_VAL(REISERFS_SUPER_MAGIC ,0x52654973UL)                    ) ;                // local
+		fill( MACRO_VAL(SECRETMEM_MAGIC      ,0x5345434dUL)                    ) ;                // local
+	//	fill( MACRO_VAL(SMB2_SUPER_MAGIC     ,0xfe534d42UL)                    ) ;                // no info on reliability
+	//	fill( MACRO_VAL(SMB_SUPER_MAGIC      ,    0x517bUL)                    ) ;                // no info on reliability
+		fill( MACRO_VAL(SQUASHFS_MAGIC       ,0x73717368UL)                    ) ;                // local
+		fill( MACRO_VAL(TMPFS_MAGIC          ,0x01021994UL)                    ) ;                // local
+	//	fill( MACRO_VAL(V9FS_MAGIC           ,0x01021997UL)                    ) ;                // no info on reliability
+		fill( MACRO_VAL(XFS_SUPER_MAGIC      ,0x58465342UL)                    ) ;                // local
+		fill( MACRO_VAL(ZFS_SUPER_MAGIC      ,0x2fc12fc1UL)                    ) ;                // local
 		::sort( tab.begin() , tab.begin()+n_entries ) ;
 		//
 		bool super_magic_conflict = ::any_of( iota(n_entries-1) , [&](size_t i) { return tab[i].first==tab[i+1].first ; } ) ;
@@ -353,31 +354,86 @@ size_t/*cnt*/ Fd::read_to(::span<char> dst) const {
 // NfsGuard
 //
 
-static void _nfs_guard_protect(FileRef dir_s) {
-	::close( ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ;
-}
+struct linux_dirent64 {
+	linux_dirent64() ;
+	ino64_t        d_ino            = 0  ;                                                                         // 64-bit inode number
+	off64_t        d_off            = 0  ;                                                                         // Not an offset; see getdents()
+	unsigned short d_reclen         = 0  ;                                                                         // Size of this dirent
+	unsigned char  d_type           = 0  ;                                                                         // File type
+	char           d_name[PATH_MAX] = {} ;                                                                         // Filename (null-terminated)
+} ;
+linux_dirent64::linux_dirent64() : d_reclen{sizeof(linux_dirent64)} {}
 
-void NfsGuardDir::access(FileRef path) {
-	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ; // cannot go uphill
+void NfsGuardBeegfs::access(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
 	if ( !has_dir(path.file)                                                             ) return ;
 	access_dir_s({path.at,dir_name_s(path.file)}) ;
 }
-
-void NfsGuardDir::access_dir_s(FileRef dir_s) {
-	access(dir_s) ;                                                       // we opend dir, we must ensure its dir is up-to-date w.r.t. NFS
-	if (fetched_dirs_s.emplace(dir_s).second) _nfs_guard_protect(dir_s) ; // open to force NFS close to open coherence, close is useless
+void NfsGuardBeegfs::access_dir_s(FileRef dir_s) {
+	access(dir_s) ;                                                                                                    // we opened dir, we must ensure its dir is up-to-date w.r.t. BeeGFS
+	if (fetched_dirs_s.emplace(dir_s).second) {
+		Fd             fd     = ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ;
+		linux_dirent64 dirent ;
+		::syscall( SYS_getdents64 , fd , &dirent , 1 ) ;
+		::close(fd) ;
+	}
 }
-
-void NfsGuardDir::change(FileRef path) {
-	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ; // cannot go uphill
+void NfsGuardBeegfs::change(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
 	if ( !has_dir(path.file)                                                             ) return ;
 	File dir_s { path.at , dir_name_s(path.file) } ;
 	access_dir_s(dir_s) ;
 	to_stamp_dirs_s.emplace(::move(dir_s)) ;
 }
+void NfsGuardBeegfs::flush() {
+	for( auto const& d_s : to_stamp_dirs_s ) ::close( ::openat( d_s.at , d_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ; // after access closing the dir forces it to update server
+	to_stamp_dirs_s.clear() ;
+}
 
-void NfsGuardDir::flush() {
-	for( auto const& f : to_stamp_dirs_s ) _nfs_guard_protect(f) ;
+void NfsGuardLustre::access(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
+	if ( !has_dir(path.file)                                                             ) return ;
+	access_dir_s({path.at,dir_name_s(path.file)}) ;
+}
+void NfsGuardLustre::access_dir_s(FileRef dir_s) {
+	access(dir_s) ;                                                                                                    // we opened dir, we must ensure its dir is up-to-date w.r.t. BeeGFS
+	if (fetched_dirs_s.emplace(dir_s).second) {
+		Fd             fd     = ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ;
+		linux_dirent64 dirent ;
+		::syscall( SYS_getdents64 , fd , &dirent , 1 ) ;
+		::close(fd) ;
+	}
+}
+void NfsGuardLustre::change(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
+	if ( !has_dir(path.file)                                                             ) return ;
+	File dir_s { path.at , dir_name_s(path.file) } ;
+	access_dir_s(dir_s) ;
+	to_stamp_dirs_s.emplace(::move(dir_s)) ;
+}
+void NfsGuardLustre::flush() {
+	for( auto const& d_s : to_stamp_dirs_s ) ::close( ::openat( d_s.at , d_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ; // after access closing the dir forces it to update server
+	to_stamp_dirs_s.clear() ;
+}
+
+void NfsGuardNfs::access(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                         // cannot go uphill
+	if ( !has_dir(path.file)                                                             ) return ;
+	access_dir_s({path.at,dir_name_s(path.file)}) ;
+}
+void NfsGuardNfs::access_dir_s(FileRef dir_s) {
+	access(dir_s) ;                                                                                                         // we opened dir, we must ensure its dir is up-to-date w.r.t. NFS
+	if (fetched_dirs_s.emplace(dir_s).second) ::close( ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ; // open to force NFS close to open coherence, close is useless
+}
+void NfsGuardNfs::change(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                         // cannot go uphill
+	if ( !has_dir(path.file)                                                             ) return ;
+	File dir_s { path.at , dir_name_s(path.file) } ;
+	access_dir_s(dir_s) ;
+	to_stamp_dirs_s.emplace(::move(dir_s)) ;
+}
+void NfsGuardNfs::flush() {
+	for( auto const& d_s : to_stamp_dirs_s ) ::close( ::openat( d_s.at , d_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ;
 	to_stamp_dirs_s.clear() ;
 }
 
