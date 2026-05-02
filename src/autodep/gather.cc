@@ -904,8 +904,8 @@ Status Gather::_exec_child() {
 										_user_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat( ok_str , +ok_str&&+crc_str?"/":"" , crc_str ) ) ;
 									}
 								} else {
-									NfsGuard nfs_guard { autodep_env.file_sync } ;
-									for( auto const& [f,_] : jse.jerr.files ) nfs_guard.access(f) ;
+									SyncGuard sync_guard { autodep_env.file_sync } ;
+									for( auto const& [f,_] : jse.jerr.files ) sync_guard.access(f) ;
 									jse.jerr.digest.flags.extra_dflags |= ExtraDflag::NoHot ;                                  // dep has been built and we are guarded : it cannot be hot from now on
 									_user_trace( now , Comment::Depend , CommentExts(CommentExt::Direct,CommentExt::Reply) ) ;
 								}

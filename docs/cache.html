@@ -162,7 +162,7 @@ The daemon is started automatically when needed and dies as soon as it becomes u
 It is also possible to run it manually with the <code>lcache_server</code> command.</p>
 <p>It must be initialized with a file <code>LMAKE/config.py</code> defining some variables:</p>
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Default</th><th>Possible values</th><th>Comment</th></tr></thead><tbody>
-<tr><td><code>file_sync</code></td><td>'dir'</td><td><code>'auto'</code>, <code>'none'</code>, <code>'dir'</code>, <code>'sync'</code></td><td>the method used to ensure consistent access to the file system containing the cache</td></tr>
+<tr><td><code>file_sync</code></td><td>'auto'</td><td><code>'auto'</code>,<code>'none'</code>,<code>'dir'</code>,<code>'readdir'</code> or filesystem names (lower case)</td><td>the method used to ensure consistent access to the cache</td></tr>
 <tr><td><code>domain_name</code></td><td>''</td><td>any <code>str</code></td><td>the domain name to use to determine the fqdn of the cache</td></tr>
 <tr><td><code>max_rate</code></td><td>'1G'</td><td>any positive <code>int</code> or <code>str</code> composed of a number followed by a unit suffix</td><td>the maximum rate in B/s above which entries are not recorded in the cache</td></tr>
 <tr><td><code>max_runs_per_job</code></td><td>100</td><td>any positive <code>int</code></td><td>the maximum number of runs kept for a given job</td></tr>
@@ -231,10 +231,15 @@ the <code>file_sync</code> variable in <code>LMAKE/config.py</code> can be set t
 <div class="table-wrapper"><table><thead><tr><th>Value</th><th>Recommanded for</th><th>Default</th><th>Comment</th></tr></thead><tbody>
 <tr><td><code>'auto'</code></td><td>all</td><td>X</td><td>adequate precaution is determined automatically when possible</td></tr>
 <tr><td><code>'none'</code></td><td>local disk</td><td></td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'beegfs'</code></td><td>BeeGFS</td><td></td><td>enclosing dir (recursively) is read before any read and closed after any write</td></tr>
-<tr><td><code>'ceph'</code></td><td>CEPH</td><td></td><td>no precaution, file system is coherent</td></tr>
-<tr><td><code>'lustre'</code></td><td>Lustre</td><td></td><td>enclosing dir (recursively) is read before any read and closed after any write</td></tr>
-<tr><td><code>'nfs'</code></td><td>NFS</td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
+<tr><td><code>'dir'</code></td><td></td><td></td><td>enclosing dir (recursively) is open before any read and closed after any write</td></tr>
+<tr><td><code>'readdir'</code></td><td></td><td></td><td>enclosing dir (recursively) is open and read before any read and closed after any write</td></tr>
+<tr><td><code>'afs'</code></td><td>AFS</td><td></td><td>a method suitable for AFS    (as of now, aliased to <code>'none'</code>)</td></tr>
+<tr><td><code>'beegfs'</code></td><td>BeeGFS</td><td></td><td>a method suitable for BeeGFS (as of now, aliased to <code>'dir'</code>)</td></tr>
+<tr><td><code>'ceph'</code></td><td>CEPH</td><td></td><td>a method suitable for CEPH   (as of now, aliased to <code>'none'</code>)</td></tr>
+<tr><td><code>'gpfs'</code></td><td>GPFS</td><td></td><td>a method suitable for GPFS   (as of now, aliased to <code>'none'</code>)</td></tr>
+<tr><td><code>'lustre'</code></td><td>Lustre</td><td></td><td>a method suitable for Lustre (as of now, aliased to <code>'readdir'</code>)</td></tr>
+<tr><td><code>'nfs'</code></td><td>NFS</td><td></td><td>a method suitable for NFS    (as of now, aliased to <code>'dir'</code>)</td></tr>
+<tr><td><code>'ocfs2'</code></td><td>OCFS2</td><td></td><td>a method suitable for OCFS2  (as of now, aliased to <code>'none'</code>)</td></tr>
 </tbody></table>
 </div>
                     </main>

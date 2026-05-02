@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Apr 23 16:49:13 2026 -->
+<!-- CreationDate: Sat May  2 16:08:16 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -104,10 +104,13 @@ table.</p>
 <p style="margin-left:9%; margin-top: 1em">In the former
 case, when an external dir, it must lie within a source dir.
 An external dir may contain a file <i>LMAKE/file_sync</i>
-containing one of <b>none</b>, <b>dir</b> or <b>sync</b> for
-choosing the method to ensure proper consistent operations.
-In absence of such a file, file_sync is determined
-automatically if possible from the filesystem type.</p>
+containing one of <b>auto</b> (default), <b>none</b>,
+<b>dir</b>, <b>readdir</b>, <b>afs</b>, <b>beegfs</b>,
+<b>ceph</b>, <b>gpfs</b>, <b>lustre</b>, <b>nfs</b> or
+<b>ocfs2</b> for choosing the method to ensure consistent
+operations. In absence of such a file, file_sync is
+determined automatically if possible from the filesystem
+type.</p>
 
 <p style="margin-left:9%; margin-top: 1em">The dir must
 have read/write/execute access to any user needing to use
@@ -161,10 +164,13 @@ table.</p>
 <p style="margin-left:9%; margin-top: 1em">In the former
 case, when an external dir, it must lie within a source dir.
 An external dir may contain a file <i>LMAKE/file_sync</i>
-containing one of <b>none</b>, <b>dir</b> or <b>sync</b> for
-choosing the method to ensure proper consistent operations.
-In absence of such a file, file_sync is determined
-automatically if possible from the filesystem type. <b><br>
+containing one of <b>auto</b> (default), <b>none</b>,
+<b>dir</b>, <b>readdir</b>, <b>afs</b>, <b>beegfs</b>,
+<b>ceph</b>, <b>gpfs</b>, <b>lustre</b>, <b>nfs</b> or
+<b>ocfs2</b> for choosing the method to ensure consistent
+operations. In absence of such a file, file_sync is
+determined automatically if possible from the filesystem
+type. <b><br>
 -l</b> <i>min_len</i>, <b>--min-len</b>=<i>min_len</i></p>
 
 <p style="margin-left:18%;">specifies the minimum code

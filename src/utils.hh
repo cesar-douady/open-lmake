@@ -43,12 +43,18 @@ inline constexpr Bool3  common    ( bool   b1 , bool  b2 ) {                retu
 // PER_FILE_SYNC : add entry here
 enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 	Auto
+// raw methods
 ,	None
+,	Dir
+,	Readdir
+// logical methods (routed to raw methods)
+,	Afs
 ,	Beegfs
 ,	Ceph
+,	Gpfs
 ,	Lustre
 ,	Nfs
-,	Dir                         // XXX> : suppress when compatibility with 26.04 is not more necessary
+,	Ocfs2
 } ;
 // END_OF_VERSIONING
 FileSync auto_file_sync( FileSync , ::string const& dir_s={} ) ;
@@ -520,7 +526,7 @@ private :
 // Fd
 //
 
-struct NfsGuard ;
+struct SyncGuard ;
 //
 template<class F> struct _File ;
 using File     = _File<::string       > ;
@@ -542,11 +548,11 @@ struct _CreatAction {
 	mode_t mod1() const { return _action_mod1(mod,umask) ; }
 	mode_t mod2() const { return _action_mod2(mod,umask) ; }
 	// data
-	mode_t    mod       = 0666    ;                          // default to an invalid mod (0 may be usefully used to create a no-access file)
-	bool      force     = false   ;                          // unlink any file on the path to dst
-	bool      mk_dir    = true    ;
-	NfsGuard* nfs_guard = nullptr ;
-	mode_t    umask     = -1      ;                          // -1 means use standard umask
+	mode_t     mod        = 0666    ;                        // default to an invalid mod (0 may be usefully used to create a no-access file)
+	bool       force      = false   ;                        // unlink any file on the path to dst
+	bool       mk_dir     = true    ;
+	SyncGuard* sync_guard = nullptr ;
+	mode_t     umask      = -1      ;                        // -1 means use standard umask
 } ;
 struct _FdAction {
 	// cxtors & casts
@@ -555,19 +561,19 @@ struct _FdAction {
 	mode_t mod1() const { return _action_mod1(mod,umask) ; } // copy _CreatAction as inheriting would prevent aggregate init
 	mode_t mod2() const { return _action_mod2(mod,umask) ; } // .
 	// data
-	int       flags     = O_RDONLY ;
+	int        flags      = O_RDONLY ;
 	//
-	mode_t    mod       = 0666     ;                         // copy _CreatAction as inheriting would prevent aggregate init
-	bool      force     = false    ;                         // .
-	bool      mk_dir    = true     ;                         // .
-	NfsGuard* nfs_guard = nullptr  ;                         // .
-	mode_t    umask     = -1       ;                         // .
+	mode_t     mod        = 0666     ;                       // copy _CreatAction as inheriting would prevent aggregate init
+	bool       force      = false    ;                       // .
+	bool       mk_dir     = true     ;                       // .
+	SyncGuard* sync_guard = nullptr  ;                       // .
+	mode_t     umask      = -1       ;                       // .
 	//
-	bool      err_ok    = false    ;
-	bool      no_std    = false    ;
+	bool       err_ok     = false    ;
+	bool       no_std     = false    ;
 } ;
-inline _CreatAction::operator _FdAction   () const { return { .mod=mod , .force=force , .mk_dir=mk_dir , .nfs_guard=nfs_guard , .umask=umask } ; }
-inline _FdAction   ::operator _CreatAction() const { return { .mod=mod , .force=force , .mk_dir=mk_dir , .nfs_guard=nfs_guard , .umask=umask } ; }
+inline _CreatAction::operator _FdAction   () const { return { .mod=mod , .force=force , .mk_dir=mk_dir , .sync_guard=sync_guard , .umask=umask } ; }
+inline _FdAction   ::operator _CreatAction() const { return { .mod=mod , .force=force , .mk_dir=mk_dir , .sync_guard=sync_guard , .umask=umask } ; }
 
 struct Fd {
 	static const Fd Cwd    ;
@@ -687,9 +693,9 @@ public :
 	Fd at   ;
 	F  file ;
 } ;
-struct NfsGuardBeegfs {                                           // open/close uphill dirs after write accesses and readdir before read accesses
+struct SyncGuardDir {                                             // open/close uphill dirs before read accesses and after write accesses
 	// cxtors & casts
-	~NfsGuardBeegfs() { flush() ; }
+	~SyncGuardDir() { flush() ; }
 	//services
 	void access      (FileRef path ) ;
 	void access_dir_s(FileRef dir_s) ;
@@ -699,16 +705,9 @@ struct NfsGuardBeegfs {                                           // open/close 
 	::uset<File> fetched_dirs_s  ;
 	::uset<File> to_stamp_dirs_s ;
 } ;
-struct NfsGuardCeph {                                             // ceph is known to be reliable
-	//services
-	void access      (FileRef /*path */) {}
-	void access_dir_s(FileRef /*dir_s*/) {}
-	void change      (FileRef /*path */) {}
-	void flush       (                 ) {}
-} ;
-struct NfsGuardLustre {                                           // open/close uphill dirs after write accesses and readdir before read accesses
+struct SyncGuardReaddir {                                         // open/close uphill dirs after write accesses and readdir before read accesses
 	// cxtors & casts
-	~NfsGuardLustre() { flush() ; }
+	~SyncGuardReaddir() { flush() ; }
 	//services
 	void access      (FileRef path ) ;
 	void access_dir_s(FileRef dir_s) ;
@@ -718,38 +717,20 @@ struct NfsGuardLustre {                                           // open/close 
 	::uset<File> fetched_dirs_s  ;
 	::uset<File> to_stamp_dirs_s ;
 } ;
-struct NfsGuardNfs {                                              // open/close uphill dirs before read accesses and after write accesses
+struct SyncGuard : ::variant< ::monostate , SyncGuardDir , SyncGuardReaddir > {
 	// cxtors & casts
-	~NfsGuardNfs() { flush() ; }
-	//services
-	void access      (FileRef path ) ;
-	void access_dir_s(FileRef dir_s) ;
-	void change      (FileRef path ) ;
-	void flush       (             ) ;
-	// data
-	::uset<File> fetched_dirs_s  ;
-	::uset<File> to_stamp_dirs_s ;
-} ;
-struct NfsGuard : ::variant< ::monostate , NfsGuardBeegfs , NfsGuardCeph , NfsGuardLustre , NfsGuardNfs > {
-	// cxtors & casts
-	constexpr NfsGuard(FileSync fs=FileSync::None) {
+	constexpr SyncGuard(FileSync fs=FileSync::None) {
 		switch (fs) {                                             // PER_FILE_SYNC : add entry here
-			case FileSync::None   :                break ;
-			case FileSync::Beegfs : emplace<1>() ; break ;
-			case FileSync::Ceph   : emplace<2>() ; break ;
-			case FileSync::Lustre : emplace<3>() ; break ;
-			case FileSync::Nfs    : emplace<4>() ; break ;
-			case FileSync::Dir    : emplace<4>() ; break ;        // XXX> : suppress when when waiving compatibility with 26.04
-		DF}                                                       // NO_COV
-	}
-	// accesses
-	FileSync file_sync() const {
-		switch (index()) {                                        // PER_FILE_SYNC : add entry here
-			case 0 : return FileSync::None   ;
-			case 1 : return FileSync::Beegfs ;
-			case 2 : return FileSync::Ceph   ;
-			case 3 : return FileSync::Lustre ;
-			case 4 : return FileSync::Nfs    ;
+			case FileSync::None    :                break ;
+			case FileSync::Dir     : emplace<1>() ; break ;
+			case FileSync::Readdir : emplace<2>() ; break ;
+			case FileSync::Afs     :                break ;       // AFS is reliable (after AI advice)
+			case FileSync::Beegfs  : emplace<1>() ; break ;       // BeeGFS with tuneCoherentBuffers=0 has been observed ok with dir access
+			case FileSync::Ceph    :                break ;       // ceph has been tested as reliable
+			case FileSync::Gpfs    :                break ;       // GPFS is reliable (after AI advice)
+			case FileSync::Lustre  : emplace<2>() ; break ;       // Lustre requires reading dir (after AI advice)
+			case FileSync::Nfs     : emplace<1>() ; break ;       // NFS has been observed ok with dir access
+			case FileSync::Ocfs2   :                break ;       // OCFS2 is reliable (after AI advice)
 		DF}                                                       // NO_COV
 	}
 	// services
@@ -758,8 +739,6 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardBeegfs , NfsGuardCeph , NfsGu
 			case 0 :                               break ;
 			case 1 : ::get<1>(self).access(path) ; break ;
 			case 2 : ::get<2>(self).access(path) ; break ;
-			case 3 : ::get<3>(self).access(path) ; break ;
-			case 4 : ::get<4>(self).access(path) ; break ;
 		DF}                                                       // NO_COV
 		return path ;
 	}
@@ -768,8 +747,6 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardBeegfs , NfsGuardCeph , NfsGu
 			case 0 :                                      break ;
 			case 1 : ::get<1>(self).access_dir_s(dir_s) ; break ;
 			case 2 : ::get<2>(self).access_dir_s(dir_s) ; break ;
-			case 3 : ::get<3>(self).access_dir_s(dir_s) ; break ;
-			case 4 : ::get<4>(self).access_dir_s(dir_s) ; break ;
 		DF}                                                       // NO_COV
 		return dir_s ;
 	}
@@ -778,8 +755,6 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardBeegfs , NfsGuardCeph , NfsGu
 			case 0 :                               break ;
 			case 1 : ::get<1>(self).change(path) ; break ;
 			case 2 : ::get<2>(self).change(path) ; break ;
-			case 3 : ::get<3>(self).change(path) ; break ;
-			case 4 : ::get<4>(self).change(path) ; break ;
 		DF}                                                       // NO_COV
 		return path ;
 	}
@@ -793,8 +768,6 @@ struct NfsGuard : ::variant< ::monostate , NfsGuardBeegfs , NfsGuardCeph , NfsGu
 			case 0 :                          break ;
 			case 1 : ::get<1>(self).flush() ; break ;
 			case 2 : ::get<2>(self).flush() ; break ;
-			case 3 : ::get<3>(self).flush() ; break ;
-			case 4 : ::get<4>(self).flush() ; break ;
 		DF}                                                       // NO_COV
 	}
 } ;

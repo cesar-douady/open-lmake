@@ -211,9 +211,9 @@ struct CjobData {
 		CompileDigest const&                                                                     // to search entry
 	,	Ckey key , KeyIsLast key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate // to create entry
 	,	bool force , Hash::Crc targets_crc                                                       // if provided => check and replace entry if an existing one is found
-	,	::string const& reserved_file={} , NfsGuard* =nullptr                                    // to manage files
+	,	::string const& reserved_file={} , SyncGuard* =nullptr                                   // to manage files
 	) ;
-	void victimize(NfsGuard* =nullptr) ;
+	void victimize(SyncGuard* =nullptr) ;
 	// data
 	// START_OF_VERSIONING CACHE
 	LruEntry lru       ;
@@ -248,7 +248,7 @@ struct CrunData {
 	::string name      (         ) const { return run_file( job->name() , +key , key_is_last ) ; }
 	// services
 	void                   access   (                                                               )       ; // move to top in LRU (both job and glb)
-	bool/*job_victimzied*/ victimize( bool victimize_job=true , NfsGuard* =nullptr                  )       ; // if victimize_job, victimize job if last run
+	bool/*job_victimzied*/ victimize( bool victimize_job=true , SyncGuard* =nullptr                 )       ; // if victimize_job, victimize job if last run
 	CacheHitInfo           match    ( CompileDigest const& , Cnode&/*out*/ not_found=::ref(Cnode()) ) const ; // not_found is set when result is Match
 	void                   chk      (                                                               ) const ;
 	// data

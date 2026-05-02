@@ -164,8 +164,8 @@ namespace Disk {
 	struct FileSig ;
 
 	struct _FileInfoAction {
-		bool      no_follow = true    ;
-		NfsGuard* nfs_guard = nullptr ;
+		bool       no_follow  = true    ;
+		SyncGuard* sync_guard = nullptr ;
 	} ;
 	struct FileInfo {
 		using Action = _FileInfoAction ;
@@ -229,20 +229,20 @@ namespace Disk {
 		Time::Pdate date ;
 	} ;
 
-	::vector_s      lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , NfsGuard*   =nullptr ) ; // list files within dir with pfx in front of each entry
+	::vector_s      lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , SyncGuard*  =nullptr ) ; // list files within dir with pfx in front of each entry
 	size_t/*pos*/   mk_dir_s ( FileRef dir_s         ,                          _CreatAction={}      ) ;
 	::string const& dir_guard( FileRef file          ,                          _CreatAction={}      ) ;
 
 	struct _UnlnkAction {
-		bool      abs_ok    = false   ; // unless abs_ok, absolute paths are not accepted to avoid catastrophic unlinks when dir_ok
-		bool      dir_ok    = false   ; // if dir_ok <=> unlink whole dir if it is one
-		bool      force     = false   ;
-		NfsGuard* nfs_guard = nullptr ;
+		bool       abs_ok     = false   ; // unless abs_ok, absolute paths are not accepted to avoid catastrophic unlinks when dir_ok
+		bool       dir_ok     = false   ; // if dir_ok <=> unlink whole dir if it is one
+		bool       force      = false   ;
+		SyncGuard* sync_guard = nullptr ;
 	} ;
 
 	struct _RmDirAction {
-		bool      uphill    = false   ; // if true <=> remove empty uphill dirs
-		NfsGuard* nfs_guard = nullptr ;
+		bool       uphill     = false   ; // if true <=> remove empty uphill dirs
+		SyncGuard* sync_guard = nullptr ;
 	} ;
 
 	void         unlnk_inside_s( FileRef dir_s ,                          _UnlnkAction={} ) ;
@@ -254,7 +254,7 @@ namespace Disk {
 	void         touch         ( FileRef file  , Time::Pdate            , _CreatAction={} ) ;
 	void         touch         ( FileRef file  ,                          _CreatAction={} ) ;
 
-	::string read_lnk( FileRef file , NfsGuard* =nullptr ) ;
+	::string read_lnk( FileRef file , SyncGuard* =nullptr ) ;
 
 	// deep list files whose tag matches FileTags within dir with pfx in front of each entry, return a single entry {pfx} if file is not a dir (including if file does not exist)
 	// prune is called on each directory which is not traversed if return value is true

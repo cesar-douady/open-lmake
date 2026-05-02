@@ -86,14 +86,14 @@ namespace Backdoor {
 	//
 
 	::vmap_s<FileInfo> AccessBase::_mk_deps( Record& r , bool sync , ::vector<NodeIdx>* /*out*/ dep_idxs1 ) {
-		::vmap_s<FileInfo> res ; res.reserve(files.size()) ;                                                   // typically all files are pertinent
+		::vmap_s<FileInfo> res ; res.reserve(files.size()) ;                                                          // typically all files are pertinent
 		Accesses           as  ;
 		if (dep_idxs1) dep_idxs1->reserve(files.size()) ;
 		for( ::string& f : files ) {
 			Record::Solve<false/*Send*/> sr { r , f , no_follow , bool(+access_digest.accesses) , Comment::Depend } ;
-			if ( access_digest.flags.extra_dflags[ExtraDflag::ReaddirOk] && sr.file_loc==FileLoc::RepoRoot ) { // when passing flag readdir_ok, we may want to report top-level dir
+			if ( access_digest.flags.extra_dflags[ExtraDflag::ReaddirOk] && sr.file_loc==FileLoc::RepoRoot ) {        // when passing flag readdir_ok, we may want to report top-level dir
 				sr.file_loc = FileLoc::Repo ;
-				sr.real     = "."s          ;                                                                  // /!\ a (warning) bug in gcc-12 is triggered if using "." here instead of "."s
+				sr.real     = "."s          ;                                                                         // /!\ a (warning) bug in gcc-12 is triggered if using "." here instead of "."s
 			}
 			if (sr.file_loc>FileLoc::Dep) {
 				if (dep_idxs1) dep_idxs1->push_back(0) ;                         // 0 means no dep info
@@ -385,14 +385,14 @@ namespace Backdoor {
 	// /!\ this function must stay in sync with Engine::_create in job_data.cc
 	::string Decode::process(Record& r) {
 		using namespace Codec ;
-		CodecRemoteSide      crs       = _real( r , tab , Comment::Decode )       ;
-		CodecFile            cf        { false/*Encode*/ , crs.tab , ctx , code } ; cf.chk() ;
-		::string             node      = cf.name()                                ;
-		Fd                   rfd       = Record::s_repo_root_fd()                 ;
-		NfsGuard             nfs_guard { crs.file_sync }                          ;
-		AccessDigest         ad        { .accesses=Access::Lnk }                  ; ad.flags.dflags |= Dflag::Codec ; ad.flags.extra_dflags |= ExtraDflag::NoHot ; // beware of default flags, ...
-		FileInfo             fi        ;                                                                                                                           // ... dep is guarded
-		::optional<::string> res       ;
+		CodecRemoteSide      crs        = _real( r , tab , Comment::Decode )       ;
+		CodecFile            cf         { false/*Encode*/ , crs.tab , ctx , code } ; cf.chk() ;
+		::string             node       = cf.name()                                ;
+		Fd                   rfd        = Record::s_repo_root_fd()                 ;
+		SyncGuard            sync_guard { crs.file_sync }                          ;
+		AccessDigest         ad         { .accesses=Access::Lnk }                  ; ad.flags.dflags |= Dflag::Codec ; ad.flags.extra_dflags |= ExtraDflag::NoHot ; // beware of default flags, ...
+		FileInfo             fi         ;                                                                                                                           // ... dep is guarded
+		::optional<::string> res        ;
 		//
 		throw_unless( !version || version==Version::Codec , "unsupported version (",version,") : must be ",Version::Codec ) ;
 		//
@@ -400,7 +400,7 @@ namespace Backdoor {
 		try {
 			fi = { {rfd,node} } ; throw_unless( fi.tag()==FileTag::Lnk ) ;
 			// START_OF_VERSIONING CODEC
-			res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                                         // if node exists, it contains the reply
+			res = AcFd({rfd,node},{.sync_guard=&sync_guard}).read() ;                                       // if node exists, it contains the reply
 			// END_OF_VERSIONING
 		} catch (::string const&) {                                                                         // if node does not exist, maybe the table is not initialized
 			if (_retry_codec(r,crs,node,Comment::Decode)) goto Retry/*BACKWARD*/ ;
@@ -438,16 +438,16 @@ namespace Backdoor {
 		::string        res        ;
 		::string        msg        ;
 		CodecLock       lock       ;                                      // for use with local to ensure server maintenance is not on-going
-		NfsGuard        nfs_guard  { crs.file_sync }                    ;
+		SyncGuard       sync_guard { crs.file_sync }                    ;
 		Fd              rfd        = Record::s_repo_root_fd()           ;
 		//
 		throw_unless( !version || version==Version::Codec , "unsupported version (",version,") : must be ",Version::Codec ) ;
 		//
 		try {
 		Retry :
-			fi = { {rfd,node} , {.nfs_guard=&nfs_guard} } ;                                                                                // get date before access to be pessimistic
+			fi = { {rfd,node} , {.sync_guard=&sync_guard} } ;                                                                              // get date before access to be pessimistic
 			// START_OF_VERSIONING CODEC
-			if (fi.tag()==FileTag::Lnk) res = read_lnk( {rfd,node} , &nfs_guard ) ;
+			if (fi.tag()==FileTag::Lnk) res = read_lnk( {rfd,node} , &sync_guard ) ;
 			if (+res) {
 				throw_unless( res.ends_with(DecodeSfx) , "bad encode link" ) ;
 				res.resize( res.size() - DecodeSfxSz )                       ;
@@ -459,7 +459,7 @@ namespace Backdoor {
 					goto Retry/*BACKWARD*/ ;
 				}
 				::string dir_s = CodecFile::s_dir_s(crs.tab) ;
-				creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                   // ensure data exist in store
+				creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &sync_guard ) ;                                                  // ensure data exist in store
 				//
 				CodecFile dcf       { false/*encode*/ , crs.tab , ctx , crc_hex.substr(0,min_len) }                                       ;
 				::string& code      = dcf.code()                                                                                          ;
@@ -469,16 +469,16 @@ namespace Backdoor {
 				for(; code.size()<crc_hex.size() ; code.push_back(crc_hex[code.size()]) ) {
 					::string decode_node = dcf.name() ;
 					try {
-						sym_lnk( {rfd,decode_node} , rel_data       , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;
-						sym_lnk( {rfd,node       } , code+DecodeSfx , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;                         // create the encode side
+						sym_lnk( {rfd,decode_node} , rel_data       , {.sync_guard=&sync_guard,.umask=crs.umask} ) ;
+						sym_lnk( {rfd,node       } , code+DecodeSfx , {.sync_guard=&sync_guard,.umask=crs.umask} ) ;                       // create the encode side
 						//
-						FileInfo stamp_fi { dir_s+"stamp" , {.nfs_guard=&nfs_guard} } ;                                                    // stamp created links to logical date to ensure proper ...
-						touch( {rfd,decode_node} , stamp_fi.date , {.nfs_guard=&nfs_guard} ) ;                                             // ... overwritten detection in lmake engine ...
-						touch( {rfd,node       } , stamp_fi.date , {.nfs_guard=&nfs_guard} ) ;                                             // ... if no stamp, date is the epoch, which is fine
+						FileInfo stamp_fi { dir_s+"stamp" , {.sync_guard=&sync_guard} } ;                                                  // stamp created links to logical date to ensure proper ...
+						touch( {rfd,decode_node} , stamp_fi.date , {.sync_guard=&sync_guard} ) ;                                           // ... overwritten detection in lmake engine ...
+						touch( {rfd,node       } , stamp_fi.date , {.sync_guard=&sync_guard} ) ;                                           // ... if no stamp, date is the epoch, which is fine
 						//
 						if (!crs.is_dir()) {
 							::string new_code = cat(dir_s,"new_codes/",CodecCrc(New,decode_node).base64()) ;
-							sym_lnk( {rfd,new_code} , "../"+node , {.nfs_guard=&nfs_guard} ) ;                                             // tell server
+							sym_lnk( {rfd,new_code} , "../"+node , {.sync_guard=&sync_guard} ) ;                                           // tell server
 						}
 						ad.flags.extra_dflags |= ExtraDflag::CreateEncode ;
 						r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{decode_node,FileInfo()}} } , true/*force*/ ) ; // report no access, but with create_encode flag
@@ -490,7 +490,7 @@ namespace Backdoor {
 				}
 				throw "no available code"s ;
 			Found :
-				fi  = { {rfd,node} , {.nfs_guard=&nfs_guard} } ;                                            // update date after create
+				fi  = { {rfd,node} , {.sync_guard=&sync_guard} } ;                                          // update date after create
 				res = ::move(code)   ;
 			}
 			// END_OF_VERSIONING

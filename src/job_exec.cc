@@ -202,40 +202,40 @@ int main( int argc , char* argv[] ) {
 	//
 	g_gather.server_master_fd = { 0/*backlog*/ } ;                           // server socket must be listening before connecting to server and last to the very end to ensure we can handle heartbeats
 	//
-	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                                                                // START_OF_NO_COV defensive programming
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                         // if !g_start_info, server ask us to give up
+	if (::chdir(g_phy_repo_root_s.c_str())!=0) {                                                                                         // START_OF_NO_COV defensive programming
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                                  // if !g_start_info, server ask us to give up
 		end_report.msg_stderr.msg << "cannot chdir to root : "<<g_phy_repo_root_s<<rm_slash ;
 		goto End ;
-	}                                                                                                                           // END_OF_NO_COV
+	}                                                                                                                                    // END_OF_NO_COV
 	g_user_trace->emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(g_phy_repo_root_s) ) ;
-	Trace::s_sz = 10<<20 ;                                                                                                      // this is more than enough
-	block_sigs({SIGCHLD}) ;                                                                                                     // necessary to capture it using signalfd
-	app_init({ .chk_version=No , .trace=Yes , .trace_file=cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id) }) ;                                                                                // dont check version for perf, but trace nevertheless
+	Trace::s_sz = 10<<20 ;                                                                                                               // this is more than enough
+	block_sigs({SIGCHLD}) ;                                                                                                              // necessary to capture it using signalfd
+	app_init({ .chk_version=No , .trace=Yes , .trace_file=cat(g_phy_repo_root_s,PrivateAdminDirS,"trace/job_exec/",trace_id) }) ;        // dont check version for perf, but trace nevertheless
 	//
 	{	Trace trace("main",Pdate(New),::span<char*>(argv,argc)) ;
 		trace("pid",::getpid(),::getpgrp()) ;
 		trace("start_overhead",start_overhead) ;
 		//
-		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                         // if !g_start_info, server ask us to give up
+		g_start_info = get_start_info() ; if (!g_start_info) return 0 ;                                                                  // if !g_start_info, server ask us to give up
 		try                       { g_start_info.mk_canon( g_phy_repo_root_s ) ;                                              }
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                                               } // NO_COV defensive programming
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                                               }          // NO_COV defensive programming
 		try                       { g_start_info.autodep_env.file_sync = auto_file_sync(g_start_info.autodep_env.file_sync) ; }
-		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                                               } // NO_COV defensive programming
+		catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                                               }          // NO_COV defensive programming
 		//
 		g_user_trace->emplace_back( New/*date*/ , Comment::Fqdn , CommentExts() , g_start_info.autodep_env.fqdn ) ;
 		//
-		NfsGuard   nfs_guard    { g_start_info.autodep_env.file_sync } ;
+		SyncGuard  sync_guard   { g_start_info.autodep_env.file_sync } ;
 		bool       incremental  = false/*garbage*/                     ;
 		::vector_s washed_files ;
 		//
 		try {
-			end_report.msg_stderr.msg += with_nl(do_file_actions( /*out*/washed_files , /*out*/incremental , ::move(g_start_info.pre_actions) , &nfs_guard )) ;
-		} catch (::string const& e) {                                                                                                                           // START_OF_NO_COV defensive programming
+			end_report.msg_stderr.msg += with_nl(do_file_actions( /*out*/washed_files , /*out*/incremental , ::move(g_start_info.pre_actions) , &sync_guard )) ;
+		} catch (::string const& e) {                                                                                                    // START_OF_NO_COV defensive programming
 			trace("bad_file_actions",e) ;
 			end_report.msg_stderr.msg += e                   ;
 			end_report.digest.status   = Status::LateLostErr ;
 			goto End ;
-		}                                                                                                                                                       // END_OF_NO_COV
+		}                                                                                                                                // END_OF_NO_COV
 		Pdate washed { New } ;
 		g_user_trace->emplace_back( washed , Comment::Washed ) ;
 		//
@@ -377,7 +377,7 @@ int main( int argc , char* argv[] ) {
 		if ( status==Status::Ok && +crc_msg ) { status = Status::Forbidden ; do_upload = false ; }
 		end_report.msg_stderr.msg <<add_nl<< ::move(crc_msg) ;
 		//
-		if (do_upload) {                                                                          // jobs in error are not cached
+		if (do_upload) {                                                                                                            // jobs in error are not cached
 			trace("cache_addr",g_start_info.cache.service.addr) ;
 			if (!g_start_info.cache.service.addr) {
 				end_report.cache_addr = g_start_info.cache.service.addr = SockFd::s_addr(g_start_info.cache.fqdn,true/*name_ok*/) ; // if solving cache addr, report to server so next jobs can reuse it
@@ -400,8 +400,8 @@ int main( int argc , char* argv[] ) {
 		}
 		//
 		if (+g_start_info.autodep_env.file_sync) {                                                                                  // fast path : avoid listing targets & guards if !file_sync
-			for( auto const& [t,_] : digest.targets  ) nfs_guard.change(t) ;
-			for( auto const&  f    : g_gather.guards ) nfs_guard.change(f) ;
+			for( auto const& [t,_] : digest.targets  ) sync_guard.change(t) ;
+			for( auto const&  f    : g_gather.guards ) sync_guard.change(f) ;
 		}
 		//
 		if ( status==Status::Ok && ( +digest.msg || (+g_gather.stderr&&!g_start_info.stderr_ok) ) ) status = Status::Forbidden ;

@@ -67,11 +67,11 @@ namespace Codec {
 		return res ;
 	}
 
-	static void _read_new_codes( ::vector<Entry>&/*inout*/ entries , ::string const& new_codes_dir_s , NfsGuard* nfs_guard ) {
+	static void _read_new_codes( ::vector<Entry>&/*inout*/ entries , ::string const& new_codes_dir_s , SyncGuard* sync_guard ) {
 		::string tab     = dir_name_s(new_codes_dir_s) ;
 		::string store_s = tab+"store/"                ;
 		Trace trace("_read_new_codes",new_codes_dir_s,tab) ;
-		for( ::string const& new_code_file : lst_dir_s(new_codes_dir_s,new_codes_dir_s,nfs_guard) ) {
+		for( ::string const& new_code_file : lst_dir_s(new_codes_dir_s,new_codes_dir_s,sync_guard) ) {
 			Entry     e          ;
 			::string  enc_node   = read_lnk(new_code_file)                                  ; SWEAR( enc_node.starts_with("../") , tab,enc_node ) ; enc_node = enc_node.substr(3/*../ */) ;
 			CodecFile cf         { New , enc_node }                                         ;
@@ -834,7 +834,7 @@ namespace Engine {
 	}
 
 	// /!\ this function must stay in sync with Decode::process and Encode::process in backdoor.cc
-	template<bool Encode> static void _create( Codec::CodecFile const& codec_file , ::string const& code_val , Job job , bool tmp , NfsGuard* nfs_guard ) {
+	template<bool Encode> static void _create( Codec::CodecFile const& codec_file , ::string const& code_val , Job job , bool tmp , SyncGuard* sync_guard ) {
 		using namespace Codec ;
 		//
 		codec_file.chk() ;
@@ -856,9 +856,9 @@ namespace Engine {
 				::string val_crc = CodecCrc( New , code_val ).base64()     ;
 				::string dir_s   = CodecFile::s_dir_s(codec_file.file,tmp) ;
 				target = mk_rel( cat(dir_s,"store/",substr_view(val_crc,0,2),'/',substr_view(val_crc,2)) , dir_name_s(disk_node_name) ) ;
-				creat_store( dir_s , val_crc , code_val , -1/*umask*/ , nfs_guard ) ;
+				creat_store( dir_s , val_crc , code_val , -1/*umask*/ , sync_guard ) ;
 			}
-			sym_lnk( disk_node_name , target , {.nfs_guard=nfs_guard} ) ;
+			sym_lnk( disk_node_name , target , {.sync_guard=sync_guard} ) ;
 			nd.set_crc_date( Crc(New,target,Yes/*is_lnk*/) , FileSig(disk_node_name) ) ;
 		} catch (::string const&) {
 			if (retried) throw ;
@@ -871,13 +871,13 @@ namespace Engine {
 		nd.actual_job    = job                                                   ;
 		nd.actual_tflags = { Tflag::Incremental , Tflag::Phony , Tflag::Target } ;
 		//
-		if (!tmp) rename( disk_node_name/*src*/ , node_name/*dst*/ , {.nfs_guard=nfs_guard} ) ;
+		if (!tmp) rename( disk_node_name/*src*/ , node_name/*dst*/ , {.sync_guard=sync_guard} ) ;
 	} ;
-	static void _erase( Codec::CodecFile const& codec_file , NfsGuard* nfs_guard ) {
+	static void _erase( Codec::CodecFile const& codec_file , SyncGuard* sync_guard ) {
 		::string  node_name = codec_file.name()    ;
 		NodeData& nd        = *Node(New,node_name) ;
 		//
-		unlnk( node_name , {.nfs_guard=nfs_guard} )    ;
+		unlnk( node_name , {.sync_guard=sync_guard} )  ;
 		nd.set_buildable()                             ;
 		nd.set_crc_date( Crc::None , {FileTag::None} ) ;
 		//
@@ -913,7 +913,7 @@ namespace Engine {
 		bool                                        codec_dir_exists    = FileInfo(codec_dir_s).tag()==FileTag::Dir                                              ;
 		::string                                    new_codes_dir_s     ;
 		::string                                    new_codes_bck_dir_s ;
-		NfsGuard                                    nfs_guard           { Engine::g_config->server_file_sync }                                                   ;
+		SyncGuard                                   sync_guard          { Engine::g_config->server_file_sync }                                                   ;
 		//
 		if (!codec_dir_exists) {                                                                    // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
 			trace("fresh") ;
@@ -929,8 +929,8 @@ namespace Engine {
 				for( auto const& [code,val] : d_entry ) {
 					CodecCrc crc { New , val } ;
 					n_entries++ ; //!                                                            tmp
-					_create<false/*Encode*/>( {false/*encode*/,filename,ctx,code} , val  , job , true , &nfs_guard ) ;
-					_create<true /*.     */>( {                filename,ctx,crc } , code , job , true , &nfs_guard ) ;
+					_create<false/*Encode*/>( {false/*encode*/,filename,ctx,code} , val  , job , true , &sync_guard ) ;
+					_create<true /*.     */>( {                filename,ctx,crc } , code , job , true , &sync_guard ) ;
 					manifest <<'\t'<<mk_printable(code)<<'\t'<<crc.base64()<<'\n' ;
 				}
 			}
@@ -947,13 +947,13 @@ namespace Engine {
 			//
 			if (FileInfo(new_codes_bck_dir_s).tag()==FileTag::Dir) {                                // in case of previous crash
 				trace("from_bck",new_codes_bck_dir_s) ;
-				_read_new_codes( /*inout*/new_codes , new_codes_bck_dir_s , &nfs_guard ) ;
-				unlnk( new_codes_bck_dir_s , {.dir_ok=true,.nfs_guard=&nfs_guard} ) ;
+				_read_new_codes( /*inout*/new_codes , new_codes_bck_dir_s , &sync_guard ) ;
+				unlnk( new_codes_bck_dir_s , {.dir_ok=true,.sync_guard=&sync_guard} ) ;
 			}
 			CodecLock lock { filename } ; lock.lock_excl() ;
 			if (FileInfo(new_codes_dir_s).tag()==FileTag::Dir) {                                    // in case of previous crash
 				rename( new_codes_dir_s , new_codes_bck_dir_s ) ;
-				_read_new_codes       ( /*inout*/new_codes , new_codes_bck_dir_s     , &nfs_guard             ) ;
+				_read_new_codes       ( /*inout*/new_codes , new_codes_bck_dir_s     , &sync_guard            ) ;
 				_update_old_decode_tab(          new_codes , /*inout*/old_decode_tab                          ) ;
 				_update_encode_tab    (          new_codes , /*inout*/encode_tab     , /*inout*/has_new_codes ) ;
 			}
@@ -971,14 +971,14 @@ namespace Engine {
 					bool     d_is_clean = dit==old_d_entry.end() ;
 					bool     e_is_clean = eit==old_e_entry.end() ;
 					n_entries++ ; //!                              Encode                                                      tmp
-					if (  d_is_clean || dit->second!=crc  ) _create<false>( {false/*encode*/,filename,ctx,code} , val  , job , false , &nfs_guard ) ;
-					if (  e_is_clean || eit->second!=code ) _create<true >( {                filename,ctx,crc } , code , job , false , &nfs_guard ) ;
+					if (  d_is_clean || dit->second!=crc  ) _create<false>( {false/*encode*/,filename,ctx,code} , val  , job , false , &sync_guard ) ;
+					if (  e_is_clean || eit->second!=code ) _create<true >( {                filename,ctx,crc } , code , job , false , &sync_guard ) ;
 					if ( !d_is_clean                      ) old_d_entry.erase(dit)                                                                  ;
 					if ( !e_is_clean                      ) old_e_entry.erase(eit)                                                                  ;
 					manifest <<'\t'<<mk_printable(code)<<'\t'<<crc.base64()<<'\n' ;
 				}
-				for( auto const& [code,_] : old_d_entry ) { _erase( {false/*encode*/,filename,ctx,code} , &nfs_guard ) ; }
-				for( auto const& [crc ,_] : old_e_entry ) { _erase( {                filename,ctx,crc } , &nfs_guard ) ; }
+				for( auto const& [code,_] : old_d_entry ) { _erase( {false/*encode*/,filename,ctx,code} , &sync_guard ) ; }
+				for( auto const& [crc ,_] : old_e_entry ) { _erase( {                filename,ctx,crc } , &sync_guard ) ; }
 			}
 			trace("done_update",n_ctxs,n_entries) ;
 		}
@@ -1001,9 +1001,9 @@ namespace Engine {
 		}
 		AcFd ( manifest_filename , {O_WRONLY|O_CREAT|O_TRUNC} ).write( manifest ) ;
 		//
-		if (codec_dir_exists) unlnk( new_codes_bck_dir_s , {.dir_ok=true,.nfs_guard=&nfs_guard} ) ; // cleanup once everything went smooth so as to retry in case of crash
+		if (codec_dir_exists) unlnk( new_codes_bck_dir_s , {.dir_ok=true,.sync_guard=&sync_guard} ) ; // cleanup once everything went smooth so as to retry in case of crash
 		//
-		touch( codec_dir_s+"stamp" , file_fi.date , {.nfs_guard=&nfs_guard} ) ;                     // mark update date to be used when encoding/decoding to ensure proper overwritten detection
+		touch( codec_dir_s+"stamp" , file_fi.date , {.sync_guard=&sync_guard} ) ;                     // mark update date to be used when encoding/decoding to ensure proper overwritten detection
 		//
 		status = Status::Ok ;
 		trace("done",has_new_codes) ;
@@ -1013,14 +1013,14 @@ namespace Engine {
 		Trace trace("_submit_req",req,req->files) ;
 		::vector<Dep> lnk_vector ;
 		::vector<Dep> dep_vector ; dep_vector.reserve(req->files.size()) ; // typically, all are deps
-		NfsGuard      nfs_guard  { g_config->server_file_sync }          ;
+		SyncGuard     sync_guard { g_config->server_file_sync }          ;
 		First         first      ;
 		//
 		status = Status::EarlyError ;                                      // defensive programming : only set status=Ok when deps are checked
 		for( ::string const& file : req->files ) {
 			RealPath::SolveReport rp  = Job::s_real_path->solve(file,true/*no_follow*/) ;
 			for( ::string& l : rp.lnks ) {
-				Dep d { {New,l} , Access::Lnk , FileInfo(l,{.nfs_guard=&nfs_guard}) } ;
+				Dep d { {New,l} , Access::Lnk , FileInfo(l,{.sync_guard=&sync_guard}) } ;
 				d.acquire_crc() ;
 				lnk_vector.push_back(::move(d)) ;
 			}
@@ -1029,7 +1029,7 @@ namespace Engine {
 				status = Status::Forbidden ;
 				continue ;
 			}
-			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real,{.nfs_guard=&nfs_guard}) , DflagsDflt|Dflag::Essential|Dflag::Required , first(false,true)/*parallel*/ } ;
+			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real,{.sync_guard=&sync_guard}) , DflagsDflt|Dflag::Essential|Dflag::Required , first(false,true)/*parallel*/ } ;
 			d.acquire_crc() ;
 			dep_vector.push_back(::move(d)) ;
 		}
@@ -1059,11 +1059,11 @@ namespace Engine {
 				SpecialStep special_step = SpecialStep::Steady          ;
 				Node        worst_target ;
 				Bool3       modified     = No                           ;
-				NfsGuard    nfs_guard    { g_config->server_file_sync } ;
+				SyncGuard   sync_guard   { g_config->server_file_sync } ;
 				for( Target t : targets() ) {
 					::string    tn = t->name()           ;
 					SpecialStep ss = SpecialStep::Steady ;
-					if (!( t->crc.valid() && FileSig(tn,{.nfs_guard=&nfs_guard})==t->sig.sig )) {
+					if (!( t->crc.valid() && FileSig(tn,{.sync_guard=&sync_guard})==t->sig.sig )) {
 						FileSig sig ;
 						Crc     crc { tn , /*out*/sig } ;
 						modified |= crc.match(t->crc) ? No : t->crc.valid() ? Yes : Maybe ;

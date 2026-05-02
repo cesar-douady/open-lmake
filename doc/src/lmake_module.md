@@ -120,7 +120,8 @@ Else an exception is raised.
 - an external dir (symbolic links are followed) recording the association table
 
 In the former case, an external dir must lie within a source dir.
-When an external dir, it may contain a file `LMAKE/file_sync` containing one of `auto`, `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
+When an external dir, it may contain a file `LMAKE/file_sync` containing one of `auto` (default), `none`, `dir`, `readdir`, `afs`, `beegfs`, `ceph`, `gpfs`, `lustre`, `nfs` or `ocfs2`
+for choosing the method to ensure consistent operations.
 
 If `code` is a `bytes`, it is used as is and the result is a `bytes`.
 Else it is transformed into a `str` by calling the `str()` function and encoded in UTF-8, in which case the result is a `str`.
@@ -225,7 +226,8 @@ Else a code is created, of length at least `min_length`, is associated to `val` 
 - an external dir (symbolic links are followed) recording the association table
 
 In the former case, an external dir must lie within a source dir.
-When an external dir, it may contain a file `LMAKE/file_sync` containing one of `auto`, `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
+When an external dir, it may contain a file `LMAKE/file_sync` containing one of `auto` (default), `none`, `dir`, `readdir`, `afs`, `beegfs`, `ceph`, `gpfs`, `lustre`, `nfs` or `ocfs2`
+for choosing the method to ensure consistent operations.
 
 If `val` is a `bytes`, it is used as is and the result is a `bytes`.
 Else it is transformed into a `str` by calling the `str()` function and encoded in UTF-8, in which case the result is a `str`.

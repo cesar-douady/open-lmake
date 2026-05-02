@@ -106,12 +106,12 @@ namespace Cache {
 		trace("hit_info",reply.hit_info) ;
 		if (reply.hit_info>=CacheHitInfo::Miss) return {.hit_info=reply.hit_info} ;
 		//
-		::string       rf              = run_file( job_str_id.is_name()?job_str_id.name:job->unique_name() , reply.key , reply.key_is_last ) ;
-		NfsGuard       cache_nfs_guard { _server_file_sync                                                         }                         ;
-		NfsGuard       repo_nfs_guard  { g_config->file_sync                                                       }                         ;
-		AcFd           download_fd     { {_dir_fd,rf+"-data"} , {.nfs_guard=&cache_nfs_guard}                      }                         ; // open as soon as possible as entry could disappear
-		AcFd           info_fd         { {_dir_fd,rf+"-info"} , {.nfs_guard=&cache_nfs_guard}                      }                         ; // .
-		DownloadDigest res             { .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }                         ;
+		::string       rf               = run_file( job_str_id.is_name()?job_str_id.name:job->unique_name() , reply.key , reply.key_is_last ) ;
+		SyncGuard      cache_sync_guard { _server_file_sync                                                         }                         ;
+		SyncGuard      repo_sync_guard  { g_config->file_sync                                                       }                         ;
+		AcFd           download_fd      { {_dir_fd,rf+"-data"} , {.sync_guard=&cache_sync_guard}                    }                         ; // open as soon as possible as entry could disappear
+		AcFd           info_fd          { {_dir_fd,rf+"-info"} , {.sync_guard=&cache_sync_guard}                    }                         ; // .
+		DownloadDigest res              { .hit_info=reply.hit_info , .job_info=deserialize<JobInfo>(info_fd.read()) }                         ;
 		//
 		if (res.hit_info<=CacheHitInfo::Hit) {                                                     // actually download targets
 			Zlvl zlvl = res.job_info.start.start.zlvl ;
@@ -129,7 +129,7 @@ namespace Cache {
 			::vmap_s<FileAction>    actions  ;                    for( auto [t,a] : job->pre_actions(match,true/*no_incremental*/) ) actions.emplace_back( t->name() , a ) ;
 			//
 			trace("download",targets.size(),zlvl) ;
-			res.file_actions_msg = do_file_actions( /*out*/::ref(::vector_s())/*unlnks*/ , /*out*/::ref(false)/*incremental*/ , ::move(actions) , &repo_nfs_guard ) ;
+			res.file_actions_msg = do_file_actions( /*out*/::ref(::vector_s())/*unlnks*/ , /*out*/::ref(false)/*incremental*/ , ::move(actions) , &repo_sync_guard ) ;
 			try {
 				InflateFd data_fd    { ::move(download_fd) , zlvl }                                             ;
 				auto      target_szs = IMsgBuf().receive<::vector<DiskSz>>( data_fd , Yes/*once*/ , {}/*key*/ ) ; SWEAR( target_szs.size()==targets.size() , target_szs.size(),targets.size() ) ;
@@ -140,7 +140,7 @@ namespace Cache {
 					FileTag         tag   = entry.second.sig.tag() ;
 					DiskSz          sz    = target_szs[ti]         ;
 					n_copied = ti+1 ;                                                              // this is a protection, so record n_copied *before* action occurs
-					repo_nfs_guard.change(tn) ;
+					repo_sync_guard.change(tn) ;
 					trace("to",tag,sz,tn) ;
 					switch (tag) {
 						case FileTag::None :
@@ -200,8 +200,8 @@ namespace Cache {
 		}
 		job_info.cache_cleanup() ;                                       // defensive programming : remove useless/meaningless info
 		::string job_info_str = serialize(job_info) ;
-		{	NfsGuard nfs_guard { _server_file_sync                                                                                                            } ;
-			AcFd     ifd       { {_dir_fd,reserved_file(upload_key)+"-info"} , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.umask=umask} } ;
+		{	SyncGuard sync_guard { _server_file_sync                                                                                                              } ;
+			AcFd      ifd        { {_dir_fd,reserved_file(upload_key)+"-info"} , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.sync_guard=&sync_guard,.umask=umask} } ;
 			ifd.write(job_info_str) ;
 		}
 		//

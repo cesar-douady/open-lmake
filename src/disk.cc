@@ -168,8 +168,8 @@ namespace Disk {
 	// disk access library
 	//
 
-	vector_s lst_dir_s( FileRef dir_s , ::string const& prefix , NfsGuard* nfs_guard ) {
-		AcFd dir_fd { dir_s , {.flags=O_RDONLY|O_DIRECTORY,.nfs_guard=nfs_guard} } ;
+	vector_s lst_dir_s( FileRef dir_s , ::string const& prefix , SyncGuard* sync_guard ) {
+		AcFd dir_fd { dir_s , {.flags=O_RDONLY|O_DIRECTORY,.sync_guard=sync_guard} } ;
 		//
 		DIR* dir_fp = ::fdopendir(dir_fd) ;
 		throw_unless( dir_fp , "cannot list dir ",dir_s," : ",StrErr() ) ;
@@ -196,7 +196,7 @@ namespace Disk {
 		}
 		::string e ;
 		action.dir_ok = true ;
-		for( ::string const& f : lst_dir_s(dir_s,dir_s.file,action.nfs_guard) ) {
+		for( ::string const& f : lst_dir_s(dir_s,dir_s.file,action.sync_guard) ) {
 			try                        { unlnk({dir_s.at,f},action) ; }                                                                                             // remove all removable files
 			catch (::string const& e2) { e = e2 ;                     }
 		}
@@ -214,14 +214,14 @@ namespace Disk {
 		//
 		unlnk_inside_s({file.at,with_slash(file.file)},action) ;
 		//
-		if (action.nfs_guard) action.nfs_guard->change(file) ;
+		if (action.sync_guard) action.sync_guard->change(file) ;
 		if (::unlinkat(file.at,file.file.c_str(),AT_REMOVEDIR)!=0) throw cat("cannot unlink dir (",StrErr(),") ",file) ;
 		return true/*done*/ ;
 	}
 
 	void rmdir_s( FileRef dir_s , _RmDirAction action ) {
 		SWEAR(+dir_s.file) ;
-		if      ( action.nfs_guard                                                     ) action.nfs_guard->change(dir_s) ;
+		if      ( action.sync_guard                                                    ) action.sync_guard->change(dir_s) ;
 		if      ( ::unlinkat(dir_s.at,dir_s.file.c_str(),AT_REMOVEDIR)!=0              ) throw_unless( errno==ENOENT||errno==ENOTDIR , "cannot rmdir (",StrErr(),") ",dir_s ) ;
 		else if ( action.uphill && has_dir(dir_s.file) && !dir_s.file.ends_with("../") )
 			for( ::string d_s=dir_name_s(dir_s.file) ; +d_s && d_s!="/" && !d_s.ends_with("../") ; d_s=dir_name_s(d_s) )
@@ -231,7 +231,7 @@ namespace Disk {
 	static void _touch( FileRef file , TimeSpec date , _CreatAction action ) {
 		TimeSpec time_specs[2] { {.tv_sec=0,.tv_nsec=UTIME_OMIT} , date } ;
 		bool     retried       = false                                    ;
-		if (action.nfs_guard) action.nfs_guard->change(file) ;
+		if (action.sync_guard) action.sync_guard->change(file) ;
 	Retry :
 		if ( ::utimensat( file.at , file.file.c_str() , time_specs , AT_SYMLINK_NOFOLLOW )==0 ) return ;
 		if ( errno==ENOENT && !retried ) {
@@ -247,13 +247,13 @@ namespace Disk {
 	void touch( FileRef file ,              _CreatAction action ) { _touch( file , {.tv_sec=0                 ,.tv_nsec=UTIME_NOW                } , action ) ; }
 
 	void mk_dir_empty_s( FileRef dir_s , _UnlnkAction action ) {
-		try                     { unlnk_inside_s(dir_s,action                       ) ; }
-		catch (::string const&) { mk_dir_s      (dir_s,{.nfs_guard=action.nfs_guard}) ; } // ensure tmp dir exists
+		try                     { unlnk_inside_s(dir_s,action                         ) ; }
+		catch (::string const&) { mk_dir_s      (dir_s,{.sync_guard=action.sync_guard}) ; } // ensure tmp dir exists
 	}
 
 	void sym_lnk( FileRef file , ::string const& target , _CreatAction action ) {
 		bool retried = false ;
-		if (action.nfs_guard) action.nfs_guard->change(file) ;
+		if (action.sync_guard) action.sync_guard->change(file) ;
 	Retry :
 		if (::symlinkat(target.c_str(),file.at,file.file.c_str())!=0) {
 			if ( errno==ENOENT && !retried && action.mk_dir ) {
@@ -298,30 +298,34 @@ namespace Disk {
 	}
 
 	size_t/*pos*/ mk_dir_s( FileRef dir_s , _CreatAction action ) {
-		if (!dir_s.file) return Npos ;                                                                       // nothing to create
+		if (!dir_s.file) return Npos ;                                                                                    // nothing to create
 		//
-		action.mod = 0777 ;                                                                                  // generally speaking restring dirs is useless, use whatever umask says
+		action.mod = 0777 ;                                                                                               // generally speaking restring dirs is useless, use whatever umask says
 		//
 		::vector_s  to_mk_s { dir_s.file }              ;
 		const char* msg     = nullptr                   ;
-		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                                    // return the pos of the / between existing and new components
+		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                                                 // return the pos of the / between existing and new components
 		while (+to_mk_s) {
-			::string& d_s = to_mk_s.back() ;                                                                 // parents are after children in to_mk
-			if (action.nfs_guard                                ) action.nfs_guard->change({dir_s.at,d_s}) ;
+			::string& d_s = to_mk_s.back() ;                                                                              // parents are after children in to_mk
+			if (action.sync_guard                               ) action.sync_guard->change({dir_s.at,d_s}) ;
 			if (::mkdirat(dir_s.at,d_s.c_str(),action.mod1())==0) {
 				if ( mode_t mod2=action.mod2() ; +mod2 ) { [[maybe_unused]] int rc = ::fchmodat( dir_s.at , d_s.c_str() , mod2 , 0/*flags*/ ) ; }
 				pos++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                                // done
+			}                                                                                                             // done
 			switch (errno) {
 				case EEXIST :
-					if ( action.force && FileInfo({dir_s.at,d_s},{.nfs_guard=action.nfs_guard}).tag()!=FileTag::Dir )   unlnk({dir_s.at,d_s},{.abs_ok=true,.nfs_guard=action.nfs_guard} ) ;   // retry
-					else                                                                                              { pos = d_s.size()-1 ; to_mk_s.pop_back() ;                           } // done
+					if ( action.force && FileInfo({dir_s.at,d_s},{.sync_guard=action.sync_guard}).tag()!=FileTag::Dir ) { // retry
+						unlnk({dir_s.at,d_s},{.abs_ok=true,.sync_guard=action.sync_guard} ) ;
+					} else {                                                                                              // done
+						pos = d_s.size()-1 ;
+						to_mk_s.pop_back() ;
+					}
 				break ;
 				case ENOENT :
-					if ( action.mk_dir && has_dir(d_s)) to_mk_s.push_back(dir_name_s(d_s)) ; // retry after parent is created
-					else                                msg = "cannot create top dir" ;      // if ENOTDIR, a parent is not a dir, it will not be fixed up
+					if ( action.mk_dir && has_dir(d_s)) to_mk_s.push_back(dir_name_s(d_s)) ;                              // retry after parent is created
+					else                                msg = "cannot create top dir" ;                                   // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break ;
 				default :
 					msg = "cannot create dir" ;
@@ -336,8 +340,8 @@ namespace Disk {
 		return file.file ;
 	}
 
-	::string read_lnk( FileRef file , NfsGuard* nfs_guard ) {
-		if (nfs_guard) nfs_guard->access(file) ;
+	::string read_lnk( FileRef file , SyncGuard* sync_guard ) {
+		if (sync_guard) sync_guard->access(file) ;
 		char    buf[PATH_MAX] ;
 		ssize_t cnt           = ::readlinkat(file.at,file.file.c_str(),buf,PATH_MAX) ;
 		if ( cnt<0 || cnt>=PATH_MAX ) return {} ;
@@ -368,16 +372,16 @@ namespace Disk {
 				if (rc!=0) throw cat("cannot copy (",StrErr(),") ",src," to ",dst) ;
 			} break ;
 			case FileTag::Lnk :
-				sym_lnk( dst , read_lnk(src,action.nfs_guard) , action ) ;
+				sym_lnk( dst , read_lnk(src,action.sync_guard) , action ) ;
 			break ;
 		DF}                                                                             // NO_COV
 		return tag ;
 	}
 
 	void rename( FileRef src , FileRef dst , _CreatAction action ) {
-		if (action.nfs_guard) {
-			action.nfs_guard->update(src) ;
-			action.nfs_guard->change(dst) ;
+		if (action.sync_guard) {
+			action.sync_guard->update(src) ;
+			action.sync_guard->change(dst) ;
 		}
 		int retried = false ;
 	Retry :
@@ -420,7 +424,7 @@ namespace Disk {
 	}
 
 	FileInfo::FileInfo( FileRef path , Action action ) {
-		if (action.nfs_guard) action.nfs_guard->access(path) ;
+		if (action.sync_guard) action.sync_guard->access(path) ;
 		FileStat st ;
 		if      (+path.file      ) { if (::fstatat( path.at , path.file.c_str() , &st , action.no_follow?AT_SYMLINK_NOFOLLOW:0 )!=0) return ; }
 		else if (path.at.fd>=0   ) { if (::fstat  ( path.at ,                     &st                                          )!=0) return ; }

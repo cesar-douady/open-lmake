@@ -94,7 +94,7 @@ static void _commit( Fd fd , CacheRpcReq const& crr ) {
 		cd                                                                                                                                                // to search entry
 	,	conn_entry.key , crr.override_first?KeyIsLast::OverrideFirst:KeyIsLast::Plain , New/*last_access*/ , sz , to_rate(g_cache_config,sz,crr.exe_time) // to create entry
 	,	crr.force , crr.targets_crc
-	,	reserved_file(crr.upload_key) , &::ref(NfsGuard(g_file_sync))
+	,	reserved_file(crr.upload_key) , &::ref(SyncGuard(g_file_sync))
 	) ;
 	trace("done",STR(inserted)) ;
 }
@@ -106,7 +106,7 @@ static void _dismiss( Fd fd , CacheUploadKey upload_key ) {
 	_g_reserved_szs[upload_key] = 0 ;
 	_g_conn_tab.at(fd).upload_keys.erase(upload_key) ;
 	//
-	unlnk_run( reserved_file(upload_key) , &::ref(NfsGuard(g_file_sync)) ) ;
+	unlnk_run( reserved_file(upload_key) , &::ref(SyncGuard(g_file_sync)) ) ;
 	trace("done") ;
 }
 

@@ -183,16 +183,16 @@ void cache_init( bool rescue , bool read_only ) {
 		AcFd ( sensed_config_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( sensed_config_str ) ;
 	} catch (::string const&) {}                                                              // best effort
 	//
-	NfsGuard nfs_guard { g_file_sync } ;
+	SyncGuard sync_guard { g_file_sync } ;
 	// START_OF_VERSIONING CACHE
-	{ ::string file=g_store_dir_s+"key"       ; nfs_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
-	{ ::string file=g_store_dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
-	{ ::string file=g_store_dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
-	{ ::string file=g_store_dir_s+"job"       ; nfs_guard.access(file) ; _g_job_file      .init( file , !read_only ) ; }
-	{ ::string file=g_store_dir_s+"run"       ; nfs_guard.access(file) ; _g_run_file      .init( file , !read_only ) ; }
-	{ ::string file=g_store_dir_s+"node"      ; nfs_guard.access(file) ; _g_node_file     .init( file , !read_only ) ; }
-	{ ::string file=g_store_dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
-	{ ::string file=g_store_dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"key"       ; sync_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"job_name"  ; sync_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"node_name" ; sync_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"job"       ; sync_guard.access(file) ; _g_job_file      .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"run"       ; sync_guard.access(file) ; _g_run_file      .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"node"      ; sync_guard.access(file) ; _g_node_file     .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"nodes"     ; sync_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
+	{ ::string file=g_store_dir_s+"crcs"      ; sync_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 	// END_OF_VERSIONING
 	if (rescue) {
 		Fd::Stderr.write(cat("crash detected, check and rescueing cache ",cwd_s(),rm_slash,'\n')) ;
@@ -215,22 +215,22 @@ void cache_empty_trash() {
 }
 
 void cache_finalize() {
-	NfsGuard nfs_guard { g_file_sync } ;
+	SyncGuard sync_guard { g_file_sync } ;
 	Trace trace("cache_finalize") ;
-	nfs_guard.change(g_store_dir_s+"key"      ) ;
-	nfs_guard.change(g_store_dir_s+"job_name" ) ;
-	nfs_guard.change(g_store_dir_s+"node_name") ;
-	nfs_guard.change(g_store_dir_s+"job"      ) ;
-	nfs_guard.change(g_store_dir_s+"run"      ) ;
-	nfs_guard.change(g_store_dir_s+"node"     ) ;
-	nfs_guard.change(g_store_dir_s+"nodes"    ) ;
-	nfs_guard.change(g_store_dir_s+"crcs"     ) ;
+	sync_guard.change(g_store_dir_s+"key"      ) ;
+	sync_guard.change(g_store_dir_s+"job_name" ) ;
+	sync_guard.change(g_store_dir_s+"node_name") ;
+	sync_guard.change(g_store_dir_s+"job"      ) ;
+	sync_guard.change(g_store_dir_s+"run"      ) ;
+	sync_guard.change(g_store_dir_s+"node"     ) ;
+	sync_guard.change(g_store_dir_s+"nodes"    ) ;
+	sync_guard.change(g_store_dir_s+"crcs"     ) ;
 	trace("done") ;
 }
 
 void mk_room( DiskSz sz , Cjob keep_job ) {
-	CrunHdr& hdr       = CrunData::s_hdr() ;
-	NfsGuard nfs_guard { g_file_sync }     ;
+	CrunHdr&  hdr        = CrunData::s_hdr() ;
+	SyncGuard sync_guard { g_file_sync }     ;
 	Trace trace("mk_room",sz,hdr.total_sz,g_reserved_sz) ;
 	//
 	if (g_reserved_sz+sz>g_cache_config.max_sz) {
@@ -246,8 +246,7 @@ void mk_room( DiskSz sz , Cjob keep_job ) {
 		Rate best_rate = *RateCmp::s_tab.begin()                    ;
 		Crun best_run  = RateCmp::s_lrus[best_rate].newer/*oldest*/ ;
 		//
-		if (best_run->victimize( best_run->job!=keep_job , &nfs_guard )) {
-		}
+		best_run->victimize( best_run->job!=keep_job , &sync_guard ) ;
 	}
 	trace("done",sz,hdr.total_sz) ;
 }
@@ -482,7 +481,7 @@ bool/*done*/ CjobData::insert(
 	CompileDigest const& compile_digest
 ,	Ckey key , KeyIsLast key_is_last , Time::Pdate last_access , Disk::DiskSz sz , Rate rate
 ,	bool force , Crc targets_crc
-,	::string const& reserved_file , NfsGuard* nfs_guard
+,	::string const& reserved_file , SyncGuard* sync_guard
 ) {
 	Trace trace("insert",idx(),key,key_is_last,last_access,sz,rate,compile_digest) ;
 	::array<Crun,2> found_runs ;                                                     // first and last with same key
@@ -496,10 +495,10 @@ bool/*done*/ CjobData::insert(
 			if ( force && targets_crc!=rd.targets_crc ) Fd::Stderr.write(cat("while uploading ",name()," old and new contents differ"                                 )) ;
 			else {
 				trace(r,hit_info) ;
-				if (+reserved_file) unlnk_run( reserved_file , nfs_guard ) ;
+				if (+reserved_file) unlnk_run( reserved_file , sync_guard ) ;
 				return false/*done*/ ;
 			}
-			rd.victimize( false/*victimize_job*/ , nfs_guard ) ;
+			rd.victimize( false/*victimize_job*/ , sync_guard ) ;
 		} else if (rd.key==key) {
 			SWEAR( !found_runs[rd.key_is_last] , r,found_runs[rd.key_is_last] ) ;
 			found_runs[rd.key_is_last] = r ;
@@ -516,25 +515,25 @@ bool/*done*/ CjobData::insert(
 	if (+found_runs[last]) {
 		if ( mk_first && last && !found_runs[false/*last*/] ) {
 			::string last_name  = found_runs[last]->name() ; found_runs[last]->key_is_last = false ;
-			::string first_name = found_runs[last]->name() ; rename_run( last_name , first_name , &::ref(NfsGuard(g_file_sync)) ) ;
+			::string first_name = found_runs[last]->name() ; rename_run( last_name , first_name , &::ref(SyncGuard(g_file_sync)) ) ;
 		} else {
-			found_runs[last]->victimize( false/*victimize_job*/ , nfs_guard ) ;
+			found_runs[last]->victimize( false/*victimize_job*/ , sync_guard ) ;
 		}
 	}
-	while (n_runs>=g_cache_config.max_runs_per_job) lru.newer->victimize( false/*victimize_job*/ , nfs_guard ) ; // maybe several pass in case.max_runs_per_job has been reduced
+	while (n_runs>=g_cache_config.max_runs_per_job) lru.newer->victimize( false/*victimize_job*/ , sync_guard ) ; // maybe several pass in case.max_runs_per_job has been reduced
 	mk_room( sz , idx() ) ;
 	Crun run { New , key , last , idx() , targets_crc , last_access , sz , rate , compile_digest } ;
 	trace("miss",run,found_runs,STR(last)) ;
-	if (+reserved_file) rename_run( reserved_file , run->name() , nfs_guard ) ;
+	if (+reserved_file) rename_run( reserved_file , run->name() , sync_guard ) ;
 	return true/*done*/ ;
 }
 
-void CjobData::victimize(NfsGuard* nfs_guard) {
+void CjobData::victimize(SyncGuard* sync_guard) {
 	Trace trace("victimize",idx()) ;
 	s_trash.push_back(idx()) ;
 	::string n = with_slash(name()) ;
 	try {
-		rmdir_s( n , {.uphill=true,.nfs_guard=nfs_guard} ) ;
+		rmdir_s( n , {.uphill=true,.sync_guard=sync_guard} ) ;
 	} catch (::string const& e) {
 		Trace trace("cannot_rmdir",n,e) ;
 		exit( Rc::System , "cache error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())) ) ;
@@ -609,7 +608,7 @@ void CrunData::access() {
 	RateCmp::s_insert(rate) ;                                                 // erase and re-insert is necessary when glb_lru chain is modified
 }
 
-bool/*job_victimized*/ CrunData::victimize( bool victimize_job , NfsGuard* nfs_guard ) {
+bool/*job_victimized*/ CrunData::victimize( bool victimize_job , SyncGuard* sync_guard ) {
 	CrunHdr& hdr            = s_hdr() ;
 	bool     job_victimized = false   ;
 	Trace trace("victimize",idx(),STR(victimize_job),hdr.total_sz,sz) ;
@@ -628,8 +627,8 @@ bool/*job_victimized*/ CrunData::victimize( bool victimize_job , NfsGuard* nfs_g
 	SWEAR( job->n_runs>0 , job ) ; job->n_runs-- ;
 	for( Cnode d : deps ) d->dec() ;
 	//
-	unlnk_run( name() , nfs_guard ) ;
-	if ( victimize_job && last ) { trace("victimize_job",job) ; job->victimize(nfs_guard) ; job_victimized = true  ; }
+	unlnk_run( name() , sync_guard ) ;
+	if ( victimize_job && last ) { trace("victimize_job",job) ; job->victimize(sync_guard) ; job_victimized = true  ; }
 	//
 	SWEAR( hdr.total_sz >= sz , hdr.total_sz,sz,idx() ) ;
 	hdr.total_sz -= sz ;

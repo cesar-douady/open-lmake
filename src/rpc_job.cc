@@ -53,13 +53,13 @@ using namespace Time  ;
 // quarantine
 //
 
-void quarantine( ::string const& file , NfsGuard* nfs_guard ) {
+void quarantine( ::string const& file , SyncGuard* sync_guard ) {
 	if (!FileInfo(file).tag()) return ;
 	//
 	::string qf = cat( ADMIN_DIR_S "quarantine/" , file ) ;
 	try {
-		unlnk (        qf , {.dir_ok=true,.force=true,.nfs_guard=nfs_guard} ) ;
-		rename( file , qf , {             .force=true,.nfs_guard=nfs_guard} ) ;
+		unlnk (        qf , {.dir_ok=true,.force=true,.sync_guard=sync_guard} ) ;
+		rename( file , qf , {             .force=true,.sync_guard=sync_guard} ) ;
 	} catch (::string const& e) {
 		throw cat("cannot quarantine : ",e) ;
 	}
@@ -253,7 +253,7 @@ void FileAction::operator>>(::string& os) const {               // START_OF_NO_C
 	/**/                             os << ')'                ;
 }                                                               // END_OF_NO_COV
 
-::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& pre_actions , NfsGuard* nfs_guard ) {
+::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& pre_actions , SyncGuard* sync_guard ) {
 	::uset_s                  keep_dirs       ;
 	::string                  msg             ;
 	::string                  trash           ;
@@ -276,7 +276,7 @@ void FileAction::operator>>(::string& os) const {               // START_OF_NO_C
 			case FileActionTag::UnlinkWarning  :
 			case FileActionTag::UnlinkPolluted :
 			case FileActionTag::Uniquify       :
-				if (nfs_guard                )   nfs_guard->access(f) ;
+				if (sync_guard               )   sync_guard->access(f) ;
 				if (::lstat(f.c_str(),&fs)!=0) { trace(a.tag,"no_file",f) ; continue ; }                                                               // file does not exist, nothing to do
 				dir_exists(f) ;                                                                                                                        // if a file exists, its dir necessarily exists
 				if (a.tag!=FileActionTag::Uniquify) {
@@ -285,10 +285,10 @@ void FileAction::operator>>(::string& os) const {               // START_OF_NO_C
 					bool    quarantine_ = sig.exists() && ( sig!=a.sig && !empty && ( a.crc==Crc::None || !a.crc.valid() || !a.crc.match(Crc(f)) ) ) ; // only compute crc if file has been modified
 					if (!sig.exists()) trace(a.tag,"awkward",f,sig.tag()) ;
 					if (quarantine_) {
-						quarantine( f , nfs_guard ) ;
+						quarantine( f , sync_guard ) ;
 						msg << "quarantined "<<mk_file(f)<<'\n' ;
 					} else {
-						unlnk(f,{.dir_ok=true,.nfs_guard=nfs_guard}) ;
+						unlnk(f,{.dir_ok=true,.sync_guard=sync_guard}) ;
 						if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) {                                   // if a file has been unlinked, its dir necessarily exists
 							/**/                              msg << "unlinked "      ;
 							if      (empty                  ) msg << "(empty) "       ;
@@ -313,12 +313,12 @@ void FileAction::operator>>(::string& os) const {               // START_OF_NO_C
 			break ;
 			case FileActionTag::Mkdir : {
 				::string f_s = with_slash(f) ;
-				if (!existing_dirs_s.contains(f_s)) mk_dir_s(f_s,{.nfs_guard=nfs_guard}) ;
+				if (!existing_dirs_s.contains(f_s)) mk_dir_s(f_s,{.sync_guard=sync_guard}) ;
 			} break ;
 			case FileActionTag::Rmdir :
 				if (!keep_dirs.contains(f))
 					try {
-						rmdir_s(with_slash(f),{.nfs_guard=nfs_guard}) ;
+						rmdir_s(with_slash(f),{.sync_guard=sync_guard}) ;
 					} catch (::string const&) {                                                                                        // if a dir cannot rmdir'ed, no need to try those uphill
 						keep_dirs.insert(f) ;
 						for( ::string d_s=dir_name_s(f) ; +d_s ; d_s=dir_name_s(d_s) )
@@ -1006,9 +1006,9 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( Delay exe_time , ::vmap_s
 	throw_unless(  reply.upload_key , reply.msg             ) ;
 	//
 	try {
-		NfsGuard  nfs_guard { file_sync_                                                                                                                     } ;
-		AcFd      dfd       { dir_s+reserved_file(reply.upload_key)+"-data" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.nfs_guard=&nfs_guard,.umask=umask} } ;
-		DeflateFd data_fd   { ::move(dfd) , zlvl                                                                                                             } ;
+		SyncGuard sync_guard { file_sync_                                                                                                                       } ;
+		AcFd      dfd        { dir_s+reserved_file(reply.upload_key)+"-data" , {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0444,.sync_guard=&sync_guard,.umask=umask} } ;
+		DeflateFd data_fd    { ::move(dfd) , zlvl                                                                                                               } ;
 		OMsgBuf(target_szs).send( data_fd , {}/*key*/ ) ;
 		//
 		for( NodeIdx ti : iota(targets.size()) ) {

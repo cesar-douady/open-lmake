@@ -17,8 +17,9 @@ import sys     as _sys
 # XXX! : provide support for get_autodep() and set_autodep()
 
 import subprocess as _sp
-def _run(cmd_line,**kwds) :
-	return _sp.check_output(cmd_line,universal_newlines=True,**kwds)
+def _run( cmd_line , input=None , with_output=False ) :
+	if not with_output :        _sp.check_output(cmd_line,                        input=input) # fast path : dont pass universal_newlines if not necessary
+	else               : return _sp.check_output(cmd_line,universal_newlines=True,input=input)
 _lmake_root = _osp.dirname(_osp.dirname(_osp.dirname(__file__)))
 def _bin(f) : return _lmake_root+'/bin/'+f
 

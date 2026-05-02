@@ -81,7 +81,7 @@ void JobExecRpcReply::operator>>(::string& os) const {                    // STA
 
 namespace Codec {
 
-	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , mode_t umask , NfsGuard* nfs_guard ) {
+	void creat_store( FileRef dir_s , ::string const& crc_str , ::string const& val , mode_t umask , SyncGuard* sync_guard ) {
 		SWEAR( crc_str.size()==CodecCrc::Base64Sz , dir_s,crc_str ) ;
 		// START_OF_VERSIONING CODEC
 		::string data = cat(dir_s.file,"store/",substr_view(crc_str,0,2),'/',substr_view(crc_str,2)) ;
@@ -92,7 +92,7 @@ namespace Codec {
 			// START_OF_VERSIONING CODEC
 			AcFd( {dir_s.at,tmp_data} , {.flags=O_WRONLY|O_CREAT,.mod=0444,.umask=umask} ).write( val ) ;
 			// END_OF_VERSIONING
-			rename( {dir_s.at,tmp_data} , {dir_s.at,data} , {.nfs_guard=nfs_guard} ) ; // ok even if created concurrently as this is content addressable
+			rename( {dir_s.at,tmp_data} , {dir_s.at,data} , {.sync_guard=sync_guard} ) ; // ok even if created concurrently as this is content addressable
 		}
 	}
 

@@ -572,7 +572,7 @@ namespace Engine::Persistent {
 		//
 		size_t               n_codecs       = g_config->codecs.size()                                                ;
 		size_t               n_old_srcs     = Node::s_srcs(false/*dirs*/).size() + Node::s_srcs(true/*dirs*/).size() ;
-		NfsGuard             nfs_guard      { first_time ? FileSync::None : g_config->server_file_sync }             ;  // when dynamic, sources may be modified from jobs
+		SyncGuard            sync_guard     { first_time ? FileSync::None : g_config->server_file_sync }             ;  // when dynamic, sources may be modified from jobs
 		::vmap<Node,FileTag> srcs           ; srcs    .reserve(src_names.size()+n_codecs)                            ;  // worst case
 		::umap<Node,FileTag> old_srcs       ; old_srcs.reserve(n_old_srcs               )                            ;
 		::umap<Node,FileTag> new_srcs       ; new_srcs.reserve(src_names.size()+n_codecs)                            ;  // worst case
@@ -616,7 +616,7 @@ namespace Engine::Persistent {
 			} else {
 				throw_unless( sr.file_loc==FileLoc::Repo , "source ",src," is not in repo" ) ;
 				SWEAR( src==sr.real , src,sr.real ) ;                                          // src is local, canonic and there are no links, what may justify real from being different ?
-				tag = FileInfo(src,{.nfs_guard=&nfs_guard}).tag() ;
+				tag = FileInfo(src,{.sync_guard=&sync_guard}).tag() ;
 				switch (tag) {
 					case FileTag::Dir   : tag = FileTag::None ; break ;                        // dirs do not officially exist as source
 					case FileTag::Empty : tag = FileTag::Reg  ; break ;                        // do not remember file is empty, so it is marked new instead of steady/changed when first seen

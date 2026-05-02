@@ -73,7 +73,7 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		constexpr ulong LustreSuperMagic = _LustreSuperMagic ? _LustreSuperMagic : 0x0bd00bd0UL ;
 		//
 		fill( MACRO_VAL(AFS_FS_MAGIC         ,0x6B414653UL)                    ) ;                // local
-		fill( MACRO_VAL(AFS_SUPER_MAGIC      ,0x5346414fUL)                    ) ;                // reliable after AI advice (not tested)
+		fill( MACRO_VAL(AFS_SUPER_MAGIC      ,0x5346414fUL) , FileSync::Afs    ) ;                // reliable after AI advice (not tested)
 		fill( MACRO_VAL(AUTOFS_SUPER_MAGIC   ,    0x0187UL) , FileSync::Auto   ) ;                // depend on underlying filesystem
 		fill( MACRO_VAL(BEEGFS_MAGIC         ,0x19830326UL) , FileSync::Beegfs ) ;                // depend on config options, be pessimistic
 		fill( MACRO_VAL(BTRFS_SUPER_MAGIC    ,0x9123683eUL)                    ) ;                // local
@@ -91,7 +91,7 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		fill( ExtSuperMagic                                                    ) ;                // local
 		fill( MACRO_VAL(F2FS_SUPER_MAGIC     ,0xf2f52010UL)                    ) ;                // local
 		fill( MACRO_VAL(FUSE_SUPER_MAGIC     ,0x65735546UL) , FileSync::Auto   ) ;                // depend on underlying process
-		fill( MACRO_VAL(GPFS_SUPER_MAGIC     ,0x47504653UL)                    ) ;                // reliable after AI advice (not tested)
+		fill( MACRO_VAL(GPFS_SUPER_MAGIC     ,0x47504653UL) , FileSync::Gpfs   ) ;                // reliable after AI advice (not tested)
 		fill( MACRO_VAL(HOSTFS_SUPER_MAGIC   ,0x00c0ffeeUL) , FileSync::Auto   ) ;                // depend on underlying filesystem
 		fill( MACRO_VAL(HPFS_SUPER_MAGIC     ,0xf995e849UL)                    ) ;                // local
 		fill( MACRO_VAL(ISOFS_SUPER_MAGIC    ,    0x9660UL)                    ) ;                // local
@@ -105,7 +105,7 @@ FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
 		fill( MACRO_VAL(MSDOS_SUPER_MAGIC    ,    0x4d44UL)                    ) ;                // local
 		fill( MACRO_VAL(NFS_SUPER_MAGIC      ,    0x6969UL) , FileSync::Nfs    ) ;                // requires dir access after modif, before access
 		fill( MACRO_VAL(NILFS_SUPER_MAGIC    ,    0x3434UL)                    ) ;                // local
-		fill( MACRO_VAL(OCFS2_SUPER_MAGIC    ,0x7461636fUL)                    ) ;                // reliable after AI advice (not tested)
+		fill( MACRO_VAL(OCFS2_SUPER_MAGIC    ,0x7461636fUL) , FileSync::Ocfs2  ) ;                // reliable after AI advice (not tested)
 		fill( MACRO_VAL(OVERLAYFS_SUPER_MAGIC,0x794c7630UL) , FileSync::Auto   ) ;                // depend on underlying filesystem
 		fill( MACRO_VAL(QNX4_SUPER_MAGIC     ,    0x002fUL)                    ) ;                // local
 		fill( MACRO_VAL(QNX6_SUPER_MAGIC     ,0x68191122UL)                    ) ;                // local
@@ -232,12 +232,12 @@ mode_t mod_from_str(::string const& s) {
 }
 
 int Fd::_s_mk_fd( FileRef file , Action action ) {
-	if (action.nfs_guard) {
+	if (action.sync_guard) {
 		if (action.flags&O_DIRECTORY) {
-			/**/                                                                 action.nfs_guard->access_dir_s({file.at,with_slash(file.file)}) ;
+			/**/                                                                 action.sync_guard->access_dir_s({file.at,with_slash(file.file)}) ;
 		} else {
-			if ( (action.flags&O_ACCMODE)!=O_WRONLY || !(action.flags&O_TRUNC) ) action.nfs_guard->access      (                    file       ) ;
-			if ( (action.flags&O_ACCMODE)!=O_RDONLY                            ) action.nfs_guard->change      (                    file       ) ;
+			if ( (action.flags&O_ACCMODE)!=O_WRONLY || !(action.flags&O_TRUNC) ) action.sync_guard->access      (                    file       ) ;
+			if ( (action.flags&O_ACCMODE)!=O_RDONLY                            ) action.sync_guard->change      (                    file       ) ;
 		}
 	}
 	int  res     ;
@@ -351,7 +351,7 @@ size_t/*cnt*/ Fd::read_to(::span<char> dst) const {
 }
 
 //
-// NfsGuard
+// SyncGuard
 //
 
 struct linux_dirent64 {
@@ -364,76 +364,50 @@ struct linux_dirent64 {
 } ;
 linux_dirent64::linux_dirent64() : d_reclen{sizeof(linux_dirent64)} {}
 
-void NfsGuardBeegfs::access(FileRef path) {
-	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
-	if ( !has_dir(path.file)                                                             ) return ;
-	access_dir_s({path.at,dir_name_s(path.file)}) ;
-}
-void NfsGuardBeegfs::access_dir_s(FileRef dir_s) {
-	access(dir_s) ;                                                                                                    // we opened dir, we must ensure its dir is up-to-date w.r.t. BeeGFS
-	if (fetched_dirs_s.emplace(dir_s).second) {
-		Fd             fd     = ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ;
-		linux_dirent64 dirent ;
-		::syscall( SYS_getdents64 , fd , &dirent , 1 ) ;
-		::close(fd) ;
-	}
-}
-void NfsGuardBeegfs::change(FileRef path) {
-	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
-	if ( !has_dir(path.file)                                                             ) return ;
-	File dir_s { path.at , dir_name_s(path.file) } ;
-	access_dir_s(dir_s) ;
-	to_stamp_dirs_s.emplace(::move(dir_s)) ;
-}
-void NfsGuardBeegfs::flush() {
-	for( auto const& d_s : to_stamp_dirs_s ) ::close( ::openat( d_s.at , d_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ; // after access closing the dir forces it to update server
-	to_stamp_dirs_s.clear() ;
-}
-
-void NfsGuardLustre::access(FileRef path) {
-	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
-	if ( !has_dir(path.file)                                                             ) return ;
-	access_dir_s({path.at,dir_name_s(path.file)}) ;
-}
-void NfsGuardLustre::access_dir_s(FileRef dir_s) {
-	access(dir_s) ;                                                                                                    // we opened dir, we must ensure its dir is up-to-date w.r.t. BeeGFS
-	if (fetched_dirs_s.emplace(dir_s).second) {
-		Fd             fd     = ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ;
-		linux_dirent64 dirent ;
-		::syscall( SYS_getdents64 , fd , &dirent , 1 ) ;
-		::close(fd) ;
-	}
-}
-void NfsGuardLustre::change(FileRef path) {
-	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
-	if ( !has_dir(path.file)                                                             ) return ;
-	File dir_s { path.at , dir_name_s(path.file) } ;
-	access_dir_s(dir_s) ;
-	to_stamp_dirs_s.emplace(::move(dir_s)) ;
-}
-void NfsGuardLustre::flush() {
-	for( auto const& d_s : to_stamp_dirs_s ) ::close( ::openat( d_s.at , d_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ; // after access closing the dir forces it to update server
-	to_stamp_dirs_s.clear() ;
-}
-
-void NfsGuardNfs::access(FileRef path) {
+void SyncGuardDir::access(FileRef path) {
 	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                         // cannot go uphill
 	if ( !has_dir(path.file)                                                             ) return ;
 	access_dir_s({path.at,dir_name_s(path.file)}) ;
 }
-void NfsGuardNfs::access_dir_s(FileRef dir_s) {
+void SyncGuardDir::access_dir_s(FileRef dir_s) {
 	access(dir_s) ;                                                                                                         // we opened dir, we must ensure its dir is up-to-date w.r.t. NFS
 	if (fetched_dirs_s.emplace(dir_s).second) ::close( ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ; // open to force NFS close to open coherence, close is useless
 }
-void NfsGuardNfs::change(FileRef path) {
+void SyncGuardDir::change(FileRef path) {
 	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                         // cannot go uphill
 	if ( !has_dir(path.file)                                                             ) return ;
 	File dir_s { path.at , dir_name_s(path.file) } ;
 	access_dir_s(dir_s) ;
 	to_stamp_dirs_s.emplace(::move(dir_s)) ;
 }
-void NfsGuardNfs::flush() {
+void SyncGuardDir::flush() {
 	for( auto const& d_s : to_stamp_dirs_s ) ::close( ::openat( d_s.at , d_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ;
+	to_stamp_dirs_s.clear() ;
+}
+
+void SyncGuardReaddir::access(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
+	if ( !has_dir(path.file)                                                             ) return ;
+	access_dir_s({path.at,dir_name_s(path.file)}) ;
+}
+void SyncGuardReaddir::access_dir_s(FileRef dir_s) {
+	access(dir_s) ;                                                                                                    // we opened dir, we must ensure its dir is up-to-date w.r.t. BeeGFS
+	if (fetched_dirs_s.emplace(dir_s).second) {
+		Fd             fd     = ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ;
+		linux_dirent64 dirent ;
+		::syscall( SYS_getdents64 , fd , &dirent , 1 ) ;
+		::close(fd) ;
+	}
+}
+void SyncGuardReaddir::change(FileRef path) {
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
+	if ( !has_dir(path.file)                                                             ) return ;
+	File dir_s { path.at , dir_name_s(path.file) } ;
+	access_dir_s(dir_s) ;
+	to_stamp_dirs_s.emplace(::move(dir_s)) ;
+}
+void SyncGuardReaddir::flush() {
+	for( auto const& d_s : to_stamp_dirs_s ) ::close( ::openat( d_s.at , d_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ; // after access closing the dir forces it to update server
 	to_stamp_dirs_s.clear() ;
 }
 

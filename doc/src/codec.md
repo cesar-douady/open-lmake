@@ -134,11 +134,16 @@ In that case, precautions must be taken to ensure coherence. Most of the time, t
 In case automatic management fails, (e.g. if the cache dir is mounted through an overlay), or to use a more agressive method when configuration allows it,
 the `file_sync` variable in `LMAKE/config.py` can be set to:
 
-| Value      | Recommanded for | Default | Comment                                                                        |
-|------------|-----------------|---------|--------------------------------------------------------------------------------|
-| `'auto'`   | all             | X       | adequate precaution is determined automatically when possible                  |
-| `'none'`   | local disk      |         | no precaution, file system is coherent                                         |
-| `'beegfs'` | BeeGFS          |         | enclosing dir (recursively) is read before any read and closed after any write |
-| `'ceph'`   | CEPH            |         | no precaution, file system is coherent                                         |
-| `'lustre'` | Lustre          |         | enclosing dir (recursively) is read before any read and closed after any write |
-| `'nfs'`    | NFS             |         | enclosing dir (recursively) is open before any read and closed after any write |
+| Value       | Recommanded for | Default | Comment                                                                                 |
+|-------------|-----------------|---------|-----------------------------------------------------------------------------------------|
+| `'auto'`    | all             | X       | adequate precaution is determined automatically when possible                           |
+| `'none'`    | local disk      |         | no precaution, file system is coherent                                                  |
+| `'dir'`     |                 |         | enclosing dir (recursively) is open before any read and closed after any write          |
+| `'readdir'` |                 |         | enclosing dir (recursively) is open and read before any read and closed after any write |
+| `'afs'`     | AFS             |         | a method suitable for AFS    (as of now, aliased to `'none'`)                           |
+| `'beegfs'`  | BeeGFS          |         | a method suitable for BeeGFS (as of now, aliased to `'dir'`)                            |
+| `'ceph'`    | CEPH            |         | a method suitable for CEPH   (as of now, aliased to `'none'`)                           |
+| `'gpfs'`    | GPFS            |         | a method suitable for GPFS   (as of now, aliased to `'none'`)                           |
+| `'lustre'`  | Lustre          |         | a method suitable for Lustre (as of now, aliased to `'readdir'`)                        |
+| `'nfs'`     | NFS             |         | a method suitable for NFS    (as of now, aliased to `'dir'`)                            |
+| `'ocfs2'`   | OCFS2           |         | a method suitable for OCFS2  (as of now, aliased to `'none'`)                           |

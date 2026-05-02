@@ -232,7 +232,8 @@ Else an exception is raised.</p>
 <li>an external dir (symbolic links are followed) recording the association table</li>
 </ul>
 <p>In the former case, an external dir must lie within a source dir.
-When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code> (default), <code>none</code>, <code>dir</code>, <code>readdir</code>, <code>afs</code>, <code>beegfs</code>, <code>ceph</code>, <code>gpfs</code>, <code>lustre</code>, <code>nfs</code> or <code>ocfs2</code>
+for choosing the method to ensure consistent operations.</p>
 <p>If <code>code</code> is a <code>bytes</code>, it is used as is and the result is a <code>bytes</code>.
 Else it is transformed into a <code>str</code> by calling the <code>str()</code> function and encoded in UTF-8, in which case the result is a <code>str</code>.</p>
 <p>If <code>codec_version</code> is provided and non-null, use that version for external tables, else use latest version.
@@ -336,7 +337,8 @@ Else a code is created, of length at least <code>min_length</code>, is associate
 <li>an external dir (symbolic links are followed) recording the association table</li>
 </ul>
 <p>In the former case, an external dir must lie within a source dir.
-When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+When an external dir, it may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code> (default), <code>none</code>, <code>dir</code>, <code>readdir</code>, <code>afs</code>, <code>beegfs</code>, <code>ceph</code>, <code>gpfs</code>, <code>lustre</code>, <code>nfs</code> or <code>ocfs2</code>
+for choosing the method to ensure consistent operations.</p>
 <p>If <code>val</code> is a <code>bytes</code>, it is used as is and the result is a <code>bytes</code>.
 Else it is transformed into a <code>str</code> by calling the <code>str()</code> function and encoded in UTF-8, in which case the result is a <code>str</code>.</p>
 <p>If <code>codec_version</code> is provided and non-null, use that version for external tables, else use latest version.

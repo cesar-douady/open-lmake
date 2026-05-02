@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 45      ; // 727355ca11382350789b6ca39078a6b3
-	uint64_t    constexpr Codec = 3       ; // 588c4728c080de98d2a26cee45494e09
-	uint64_t    constexpr Repo  = 47      ; // bbafc2cb46151edbfe6462c889a476b2
-	uint64_t    constexpr Job   = 22      ; // 6870c2d3b4355d442eeb72b30018ac6c
+	uint64_t    constexpr Cache = 46      ; // a06c6232f0579d2d3c630d4ad88cf3b3
+	uint64_t    constexpr Codec = 3       ; // a85c79c72b73ba8527bf86b4e20cc83f
+	uint64_t    constexpr Repo  = 48      ; // f2376b4ed8a4591faf7c4a9d047e62ae
+	uint64_t    constexpr Job   = 23      ; // 46197d0f92406bdf09e486e219c65a83
 	const char* const     Major = "26.05" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 727355ca11382350789b6ca39078a6b3 *
+// * Cache : a06c6232f0579d2d3c630d4ad88cf3b3 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -21,14 +21,18 @@ namespace Version {
 //		if (mount_chroot_ok) res << 'M' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
-//			case FileSync::Auto   : res << "sa" ; break ;
-//			case FileSync::None   : res << "s-" ; break ;
-//			case FileSync::Beegfs : res << "sb" ; break ;
-//			case FileSync::Ceph   : res << "sc" ; break ;
-//			case FileSync::Lustre : res << "sl" ; break ;
-//			case FileSync::Nfs    : res << "sn" ; break ;
-//			case FileSync::Dir    : res << "sd" ; break ; // XXX> : suppress when compatilibity with 26.04 is waived
-//		DF}                                             // NO_COV
+//			case FileSync::Auto    : res << "s?" ; break ;
+//			case FileSync::None    : res << "s-" ; break ;
+//			case FileSync::Dir     : res << "sd" ; break ;
+//			case FileSync::Readdir : res << "sr" ; break ;
+//			case FileSync::Afs     : res << "sa" ; break ;
+//			case FileSync::Beegfs  : res << "sb" ; break ;
+//			case FileSync::Ceph    : res << "sc" ; break ;
+//			case FileSync::Gpfs    : res << "sg" ; break ;
+//			case FileSync::Lustre  : res << "sl" ; break ;
+//			case FileSync::Nfs     : res << "sn" ; break ;
+//			case FileSync::Ocfs2   : res << "so" ; break ;
+//		DF}                                                // NO_COV
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -43,14 +47,14 @@ namespace Version {
 //		res <<':'<<      mk_printable     (                  views_s     ,false )      ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE
-//		{ ::string file=g_store_dir_s+"key"       ; nfs_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
-//		{ ::string file=g_store_dir_s+"job_name"  ; nfs_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
-//		{ ::string file=g_store_dir_s+"node_name" ; nfs_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
-//		{ ::string file=g_store_dir_s+"job"       ; nfs_guard.access(file) ; _g_job_file      .init( file , !read_only ) ; }
-//		{ ::string file=g_store_dir_s+"run"       ; nfs_guard.access(file) ; _g_run_file      .init( file , !read_only ) ; }
-//		{ ::string file=g_store_dir_s+"node"      ; nfs_guard.access(file) ; _g_node_file     .init( file , !read_only ) ; }
-//		{ ::string file=g_store_dir_s+"nodes"     ; nfs_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
-//		{ ::string file=g_store_dir_s+"crcs"      ; nfs_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
+//		{ ::string file=g_store_dir_s+"key"       ; sync_guard.access(file) ; _g_key_file      .init( file , !read_only ) ; }
+//		{ ::string file=g_store_dir_s+"job_name"  ; sync_guard.access(file) ; _g_job_name_file .init( file , !read_only ) ; }
+//		{ ::string file=g_store_dir_s+"node_name" ; sync_guard.access(file) ; _g_node_name_file.init( file , !read_only ) ; }
+//		{ ::string file=g_store_dir_s+"job"       ; sync_guard.access(file) ; _g_job_file      .init( file , !read_only ) ; }
+//		{ ::string file=g_store_dir_s+"run"       ; sync_guard.access(file) ; _g_run_file      .init( file , !read_only ) ; }
+//		{ ::string file=g_store_dir_s+"node"      ; sync_guard.access(file) ; _g_node_file     .init( file , !read_only ) ; }
+//		{ ::string file=g_store_dir_s+"nodes"     ; sync_guard.access(file) ; _g_nodes_file    .init( file , !read_only ) ; }
+//		{ ::string file=g_store_dir_s+"crcs"      ; sync_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO
 //		FileSig::FileSig(FileInfo const& fi) : FileSig{fi.tag()} {
@@ -931,12 +935,18 @@ namespace Version {
 //	// PER_FILE_SYNC : add entry here
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 //		Auto
+//	// raw methods
 //	,	None
+//	,	Dir
+//	,	Readdir
+//	// logical methods (routed to raw methods)
+//	,	Afs
 //	,	Beegfs
 //	,	Ceph
+//	,	Gpfs
 //	,	Lustre
 //	,	Nfs
-//	,	Dir                         // XXX> : suppress when compatibility with 26.04 is not more necessary
+//	,	Ocfs2
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
@@ -957,14 +967,14 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ********************************************
-// * Codec : 588c4728c080de98d2a26cee45494e09 *
+// * Codec : a85c79c72b73ba8527bf86b4e20cc83f *
 // ********************************************
 //
 //			// START_OF_VERSIONING CODEC
-//				res = AcFd({rfd,node},{.nfs_guard=&nfs_guard}).read() ;                                         // if node exists, it contains the reply
+//				res = AcFd({rfd,node},{.sync_guard=&sync_guard}).read() ;                                       // if node exists, it contains the reply
 //				// END_OF_VERSIONING
 //				// START_OF_VERSIONING CODEC
-//				if (fi.tag()==FileTag::Lnk) res = read_lnk( {rfd,node} , &nfs_guard ) ;
+//				if (fi.tag()==FileTag::Lnk) res = read_lnk( {rfd,node} , &sync_guard ) ;
 //				if (+res) {
 //					throw_unless( res.ends_with(DecodeSfx) , "bad encode link" ) ;
 //					res.resize( res.size() - DecodeSfxSz )                       ;
@@ -976,7 +986,7 @@ namespace Version {
 //						goto Retry/*BACKWARD*/ ;
 //					}
 //					::string dir_s = CodecFile::s_dir_s(crs.tab) ;
-//					creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &nfs_guard ) ;                                                   // ensure data exist in store
+//					creat_store( {rfd,dir_s} , crc_base64 , val , crs.umask , &sync_guard ) ;                                                  // ensure data exist in store
 //					//
 //					CodecFile dcf       { false/*encode*/ , crs.tab , ctx , crc_hex.substr(0,min_len) }                                       ;
 //					::string& code      = dcf.code()                                                                                          ;
@@ -986,16 +996,16 @@ namespace Version {
 //					for(; code.size()<crc_hex.size() ; code.push_back(crc_hex[code.size()]) ) {
 //						::string decode_node = dcf.name() ;
 //						try {
-//							sym_lnk( {rfd,decode_node} , rel_data       , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;
-//							sym_lnk( {rfd,node       } , code+DecodeSfx , {.nfs_guard=&nfs_guard,.umask=crs.umask} ) ;                         // create the encode side
+//							sym_lnk( {rfd,decode_node} , rel_data       , {.sync_guard=&sync_guard,.umask=crs.umask} ) ;
+//							sym_lnk( {rfd,node       } , code+DecodeSfx , {.sync_guard=&sync_guard,.umask=crs.umask} ) ;                       // create the encode side
 //							//
-//							FileInfo stamp_fi { dir_s+"stamp" , {.nfs_guard=&nfs_guard} } ;                                                    // stamp created links to logical date to ensure proper ...
-//							touch( {rfd,decode_node} , stamp_fi.date , {.nfs_guard=&nfs_guard} ) ;                                             // ... overwritten detection in lmake engine ...
-//							touch( {rfd,node       } , stamp_fi.date , {.nfs_guard=&nfs_guard} ) ;                                             // ... if no stamp, date is the epoch, which is fine
+//							FileInfo stamp_fi { dir_s+"stamp" , {.sync_guard=&sync_guard} } ;                                                  // stamp created links to logical date to ensure proper ...
+//							touch( {rfd,decode_node} , stamp_fi.date , {.sync_guard=&sync_guard} ) ;                                           // ... overwritten detection in lmake engine ...
+//							touch( {rfd,node       } , stamp_fi.date , {.sync_guard=&sync_guard} ) ;                                           // ... if no stamp, date is the epoch, which is fine
 //							//
 //							if (!crs.is_dir()) {
 //								::string new_code = cat(dir_s,"new_codes/",CodecCrc(New,decode_node).base64()) ;
-//								sym_lnk( {rfd,new_code} , "../"+node , {.nfs_guard=&nfs_guard} ) ;                                             // tell server
+//								sym_lnk( {rfd,new_code} , "../"+node , {.sync_guard=&sync_guard} ) ;                                           // tell server
 //							}
 //							ad.flags.extra_dflags |= ExtraDflag::CreateEncode ;
 //							r.report_access( { .comment=Comment::Encode , .digest=ad , .files={{decode_node,FileInfo()}} } , true/*force*/ ) ; // report no access, but with create_encode flag
@@ -1007,7 +1017,7 @@ namespace Version {
 //					}
 //					throw "no available code"s ;
 //				Found :
-//					fi  = { {rfd,node} , {.nfs_guard=&nfs_guard} } ;                                            // update date after create
+//					fi  = { {rfd,node} , {.sync_guard=&sync_guard} } ;                                          // update date after create
 //					res = ::move(code)   ;
 //				}
 //				// END_OF_VERSIONING
@@ -1105,7 +1115,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : bbafc2cb46151edbfe6462c889a476b2 *
+// * Repo : f2376b4ed8a4591faf7c4a9d047e62ae *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1117,14 +1127,18 @@ namespace Version {
 //		if (mount_chroot_ok) res << 'M' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
-//			case FileSync::Auto   : res << "sa" ; break ;
-//			case FileSync::None   : res << "s-" ; break ;
-//			case FileSync::Beegfs : res << "sb" ; break ;
-//			case FileSync::Ceph   : res << "sc" ; break ;
-//			case FileSync::Lustre : res << "sl" ; break ;
-//			case FileSync::Nfs    : res << "sn" ; break ;
-//			case FileSync::Dir    : res << "sd" ; break ; // XXX> : suppress when compatilibity with 26.04 is waived
-//		DF}                                             // NO_COV
+//			case FileSync::Auto    : res << "s?" ; break ;
+//			case FileSync::None    : res << "s-" ; break ;
+//			case FileSync::Dir     : res << "sd" ; break ;
+//			case FileSync::Readdir : res << "sr" ; break ;
+//			case FileSync::Afs     : res << "sa" ; break ;
+//			case FileSync::Beegfs  : res << "sb" ; break ;
+//			case FileSync::Ceph    : res << "sc" ; break ;
+//			case FileSync::Gpfs    : res << "sg" ; break ;
+//			case FileSync::Lustre  : res << "sl" ; break ;
+//			case FileSync::Nfs     : res << "sn" ; break ;
+//			case FileSync::Ocfs2   : res << "so" ; break ;
+//		DF}                                                // NO_COV
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -2435,12 +2449,18 @@ namespace Version {
 //	// PER_FILE_SYNC : add entry here
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 //		Auto
+//	// raw methods
 //	,	None
+//	,	Dir
+//	,	Readdir
+//	// logical methods (routed to raw methods)
+//	,	Afs
 //	,	Beegfs
 //	,	Ceph
+//	,	Gpfs
 //	,	Lustre
 //	,	Nfs
-//	,	Dir                         // XXX> : suppress when compatibility with 26.04 is not more necessary
+//	,	Ocfs2
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
@@ -2461,7 +2481,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 6870c2d3b4355d442eeb72b30018ac6c *
+// * Job : 46197d0f92406bdf09e486e219c65a83 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2473,14 +2493,18 @@ namespace Version {
 //		if (mount_chroot_ok) res << 'M' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
-//			case FileSync::Auto   : res << "sa" ; break ;
-//			case FileSync::None   : res << "s-" ; break ;
-//			case FileSync::Beegfs : res << "sb" ; break ;
-//			case FileSync::Ceph   : res << "sc" ; break ;
-//			case FileSync::Lustre : res << "sl" ; break ;
-//			case FileSync::Nfs    : res << "sn" ; break ;
-//			case FileSync::Dir    : res << "sd" ; break ; // XXX> : suppress when compatilibity with 26.04 is waived
-//		DF}                                             // NO_COV
+//			case FileSync::Auto    : res << "s?" ; break ;
+//			case FileSync::None    : res << "s-" ; break ;
+//			case FileSync::Dir     : res << "sd" ; break ;
+//			case FileSync::Readdir : res << "sr" ; break ;
+//			case FileSync::Afs     : res << "sa" ; break ;
+//			case FileSync::Beegfs  : res << "sb" ; break ;
+//			case FileSync::Ceph    : res << "sc" ; break ;
+//			case FileSync::Gpfs    : res << "sg" ; break ;
+//			case FileSync::Lustre  : res << "sl" ; break ;
+//			case FileSync::Nfs     : res << "sn" ; break ;
+//			case FileSync::Ocfs2   : res << "so" ; break ;
+//		DF}                                                // NO_COV
 //		switch (lnk_support) {
 //			case LnkSupport::None : res << "ln" ; break ;
 //			case LnkSupport::File : res << "lf" ; break ;
@@ -2897,11 +2921,17 @@ namespace Version {
 //	// PER_FILE_SYNC : add entry here
 //	enum class FileSync : uint8_t { // method used to ensure real close-to-open file synchronization (including file creation)
 //		Auto
+//	// raw methods
 //	,	None
+//	,	Dir
+//	,	Readdir
+//	// logical methods (routed to raw methods)
+//	,	Afs
 //	,	Beegfs
 //	,	Ceph
+//	,	Gpfs
 //	,	Lustre
 //	,	Nfs
-//	,	Dir                         // XXX> : suppress when compatibility with 26.04 is not more necessary
+//	,	Ocfs2
 //	} ;
 //	// END_OF_VERSIONING

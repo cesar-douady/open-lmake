@@ -99,5 +99,5 @@ private :
 	size_t             _repo_root_sz   = 0       ;
 	::string           _cwd            ;
 	pid_t              _cwd_pid        = 0       ;                    // pid for which _cwd is valid if pid==0
-	NfsGuard           _nfs_guard      ;
+	SyncGuard          _nfs_guard      ;
 } ;

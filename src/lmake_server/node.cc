@@ -123,12 +123,12 @@ namespace Engine {
 	}
 
 	bool/*modified*/ NodeData::refresh_src_anti( ::string const& name_ , Accesses a , bool report_no_file , bool keep_actual_job , ::vector<Req> const& reqs_ ) { // reqs_ are for reporting only
-		bool             prev_ok   = crc.valid() && crc.exists()       ;
-		bool             frozen    = idx().frozen()                    ;
-		::string/*lazy*/ msg       ;
-		NfsGuard         nfs_guard { g_config->server_file_sync      } ;
-		FileInfo         fi        { name_ , {.nfs_guard=&nfs_guard} } ;
-		FileSig          sig_      { fi                              } ;
+		bool             prev_ok    = crc.valid() && crc.exists()         ;
+		bool             frozen     = idx().frozen()                      ;
+		::string/*lazy*/ msg        ;
+		SyncGuard        sync_guard { g_config->server_file_sync        } ;
+		FileInfo         fi         { name_ , {.sync_guard=&sync_guard} } ;
+		FileSig          sig_       { fi                                } ;
 		auto lazy_msg = [&]()->::string const& {
 			static ::string const Frozen = "frozen" ;
 			static ::string const Src    = "src"    ;

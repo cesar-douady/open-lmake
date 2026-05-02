@@ -351,7 +351,7 @@ using CacheUploadKey = uint64_t ; // used to identify temporary data to upload
 // quarantine
 //
 
-void quarantine( ::string const& file , NfsGuard* =nullptr ) ;
+void quarantine( ::string const& file , SyncGuard* =nullptr ) ;
 
 //
 // mk_simple_cmd_line
@@ -373,7 +373,7 @@ struct FileAction {
 	// END_OF_VERSIONING
 } ;
 // incremental means existing increment targets have been seen
-::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& , NfsGuard* ) ;
+::string do_file_actions( ::vector_s&/*out*/ unlnks , bool&/*out*/ incremental , ::vmap_s<FileAction>&& , SyncGuard* ) ;
 
 struct ChrootInfo {
 	template<IsStream S> void serdes(S& s) {

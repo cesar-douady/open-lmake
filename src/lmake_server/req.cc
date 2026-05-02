@@ -244,13 +244,13 @@ namespace Engine {
 					}
 					return false/*overflow*/ ;
 				}
-				err = "not built" ;                                                              // if no better explanation found
+				err = "not built" ;                          // if no better explanation found
 			break ;
 			case NodeStatus::None :
 				if      (dep->manual({dep->name()})>=Manual::Changed) err = "dangling" ;
 				else if (dep.dflags[Dflag::Required]                ) err = "missing"  ;
 			break ;
-		DF}                                                                                          // NO_COV
+		DF}                                                  // NO_COV
 		if ( !err && cri.overwritten ) err = "overwritten" ;
 		if (err) return self->_send_err( false/*intermediate*/ , err , dep->name() , n_err , lvl ) ;
 		else     return false/*overflow*/                                                          ;
@@ -316,10 +316,10 @@ namespace Engine {
 			bool         seen_stderr = false                                                          ;
 			::uset<Job > seen_jobs   ;
 			::uset<Node> seen_nodes  ;
-			NfsGuard     nfs_guard   { g_config->server_file_sync }                                   ;
+			SyncGuard    sync_guard  { g_config->server_file_sync }                                   ;
 			if (job->special()==Special::Req) {
 				for( Dep const& d : job->deps ) if (d->status()<=NodeStatus::Makable)       _report_err    (d     ,n_err,seen_stderr,seen_jobs,seen_nodes) ;
-				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) self->_report_no_rule(d,&nfs_guard                                 ) ;
+				for( Dep const& d : job->deps ) if (d->status()> NodeStatus::Makable) self->_report_no_rule(d,&sync_guard                                ) ;
 			} else {
 				/**/                                                                        _report_err    (job,{},n_err,seen_stderr,seen_jobs,seen_nodes) ;
 			}
@@ -586,7 +586,7 @@ namespace Engine {
 		return !n_err/*overflow*/ ;
 	}
 
-	void ReqData::_report_no_rule( Node node , NfsGuard* nfs_guard , DepDepth lvl ) {
+	void ReqData::_report_no_rule( Node node , SyncGuard* sync_guard , DepDepth lvl ) {
 		::string                        name      = node->name() ;
 		::vmap<RuleTgt,Rule::RuleMatch> mrts      ;                        // matching rules
 		RuleTgt                         art       ;                        // set if an anti-rule matches
@@ -624,13 +624,13 @@ namespace Engine {
 			mrts.emplace_back(rt,::move(m)) ;
 		}
 		//
-		if ( !art && !mrts                                          ) audit_node( Color::Err  , "no rule match"      , node , lvl   ) ;
-		else                                                          audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
-		if ( !art && FileInfo(name,{.nfs_guard=nfs_guard}).exists() ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
+		if ( !art && !mrts                                            ) audit_node( Color::Err  , "no rule match"      , node , lvl   ) ;
+		else                                                            audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
+		if ( !art && FileInfo(name,{.sync_guard=sync_guard}).exists() ) audit_node( Color::Note , "consider : git add" , node , lvl+1 ) ;
 		//
-		for( auto const& [rt,m] : mrts ) {                                                     // second pass to do report
+		for( auto const& [rt,m] : mrts ) {                                                       // second pass to do report
 			Rule              r           = rt->rule                ;
-			JobTgt            jt          { ::copy(m) , rt.sure() } ;                          // do not pass self as req to avoid generating error message at cxtor time
+			JobTgt            jt          { ::copy(m) , rt.sure() } ;                            // do not pass self as req to avoid generating error message at cxtor time
 			::string          reason      ;
 			Node              missing_dep ;
 			::vmap_s<DepSpec> static_deps ;
@@ -649,10 +649,10 @@ namespace Engine {
 			catch (::string  const& msg    ) { reason << "cannot compute its deps :\n"<<indent<' ',2>(msg                       ) ; goto Report ; }
 			catch (MsgStderr const& msg_err) { reason << "cannot compute its deps :\n"<<indent<' ',2>(msg_err.msg+msg_err.stderr) ; goto Report ; }
 			//
-			for( bool search_non_buildable : {true,false} )                                    // first search a non-buildable, if not found, search for non makable as deps have been made
+			for( bool search_non_buildable : {true,false} )                                      // first search a non-buildable, if not found, search for non makable as deps have been made
 				for( auto const& [k,ds] : static_deps ) {
 					if (!is_canon(ds.txt)) {
-						if (search_non_buildable) continue ;                                   // non-canonic deps are detected after non-buidlable ones
+						if (search_non_buildable) continue ;                                     // non-canonic deps are detected after non-buidlable ones
 						const char* tl = +options.startup_dir_s ? " (top-level)" : "" ;
 						if (+ds.txt) reason = "non-canonic static dep "+k+tl+" : "+ds.txt ;
 						else         reason = "empty static dep "      +k                 ;
@@ -661,8 +661,8 @@ namespace Engine {
 					Node d { ds.txt } ; SWEAR( +d , ds.txt ) ;
 					if ( search_non_buildable ? d->buildable>Buildable::No : d->status()<=NodeStatus::Makable ) continue ;
 					missing_dep = d ;
-					SWEAR(+missing_dep) ;                                                      // else why wouldn't it apply ?!?
-					FileTag tag = FileInfo(missing_dep->name(),{.nfs_guard=nfs_guard}).tag() ;
+					SWEAR(+missing_dep) ;                                                        // else why wouldn't it apply ?!?
+					FileTag tag = FileInfo(missing_dep->name(),{.sync_guard=sync_guard}).tag() ;
 					reason = "misses static dep " + k + (tag>=FileTag::Target?" (existing)":tag==FileTag::Dir?" (dir)":"") ;
 					goto Report ;
 				}
@@ -670,7 +670,7 @@ namespace Engine {
 			if (+missing_dep) audit_node( Color::Note , "rule "+r->user_name()+' '+reason+" :" , missing_dep , lvl+1 ) ;
 			else              audit_info( Color::Note , "rule "+r->user_name()+' '+reason      ,               lvl+1 ) ;
 			//
-			if ( +missing_dep && n_missing==1 && (!g_config->max_err_lines||lvl<g_config->max_err_lines) ) _report_no_rule( missing_dep , nfs_guard , lvl+2 ) ;
+			if ( +missing_dep && n_missing==1 && (!g_config->max_err_lines||lvl<g_config->max_err_lines) ) _report_no_rule( missing_dep , sync_guard , lvl+2 ) ;
 		}
 		//
 		if (+art) audit_info( Color::Note , "anti-rule "+art->rule->user_name()+" matches" , lvl+1 ) ;
@@ -680,7 +680,7 @@ namespace Engine {
 	// JobAudit
 	//
 
-	void JobAudit::operator>>(::string& os) const { // START_OF_NO_COV
+	void JobAudit::operator>>(::string& os) const {     // START_OF_NO_COV
 		/**/                os << "JobAudit("<<report ;
 		if (has_msg_stderr) os << ",has_msg_stderr"   ;
 		/**/                os << ')'                 ;
