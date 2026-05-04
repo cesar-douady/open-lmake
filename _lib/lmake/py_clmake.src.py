@@ -3,6 +3,8 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+# XXX> : as long as python2 is supported, this file must be python2 compatible
+
 '''
 	Normally, job support functions defined here are implemented in C++ in lmake.clmake.
 	However, in case the python lib cannot be dynamically imported, this module provides a minimal fall back in pure python.
@@ -13,8 +15,7 @@ import os.path as _osp
 import sys     as _sys
 
 # provide minimal support in pure python
-# XXX? : for now, it is best effort (e.g. $LMAKE_AUTODEP_ENV is not fully resistant to pathalogical cases)
-# XXX! : provide support for get_autodep() and set_autodep()
+# XXX! : for now, it is best effort (e.g. $LMAKE_AUTODEP_ENV is not fully resistant to pathalogical cases), provide support for get_autodep() and set_autodep()
 
 import subprocess as _sp
 def _run( cmd_line , input=None , with_output=False ) :
@@ -81,16 +82,22 @@ def report_import( module_name=None , path=None , module_suffixes=None ) :
 	global _report_import_std_sfxs
 	if not _report_import_std_sfxs :
 		if _sys.version_info.major<3 :
-			_report_import_std_sfxs = tuple( p+s for p in ('/__init__','') for s in ( '.so' , 'module.so' , '.py' , '.pyc' ) )
+			sfxs = ( '.so' , 'module.so' , '.py' , '.pyc' )
 		else :
 			import importlib.machinery
 			sfxs = importlib.machinery.all_suffixes()
-			_report_import_std_sfxs = (
-				*('/__init___'+s for s in sfxs if     s.endswith('.so'))
-			,	*('/__init___'+s for s in sfxs if not s.endswith('.so'))
-			,	*(             s for s in sfxs if     s.endswith('.so'))
-			,	*(             s for s in sfxs if not s.endswith('.so'))
-			)
+		# python3 code would be (but not available with python2) : XXX> : restore better prototype when python2 is no longer supported
+		#	_report_import_std_sfxs = (
+		#		*('/__init___'+s for s in sfxs if     s.endswith('.so'))
+		#	,	*('/__init___'+s for s in sfxs if not s.endswith('.so'))
+		#	,	*(             s for s in sfxs if     s.endswith('.so'))
+		#	,	*(             s for s in sfxs if not s.endswith('.so'))
+		#	)
+		_report_import_std_sfxs  = ['/__init___'+s for s in sfxs if     s.endswith('.so')]
+		_report_import_std_sfxs += ['/__init___'+s for s in sfxs if not s.endswith('.so')]
+		_report_import_std_sfxs += [             s for s in sfxs if     s.endswith('.so')]
+		_report_import_std_sfxs += [             s for s in sfxs if not s.endswith('.so')]
+		_report_import_std_sfxs  = tuple(_report_import_std_sfxs)
 	if not module_suffixes        : module_suffixes = _report_import_std_sfxs
 	if not path                   : path            = tuple( d or '.' for d in _sys.path )
 	if _sys.version_info.major>=3 : depend( *path , readdir_ok=True )
@@ -101,7 +108,7 @@ def report_import( module_name=None , path=None , module_suffixes=None ) :
 		base    = _osp.join(abs_dir,tail)
 		if abs_dir.startswith(top_repo_root) : sfxs = module_suffixes
 		else                                 : sfxs = _report_import_std_sfxs
-		for sfx in module_suffixes :
+		for sfx in sfxs :
 			if _osp.exists(base+sfx) : return
 
 if 'LMAKE_AUTODEP_ENV' in _os.environ :
