@@ -526,7 +526,8 @@ namespace Disk {
 			::string stored = version_fd.read() ;
 			throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
 			stored.pop_back() ;
-			if (from_string<uint64_t>(stored)!=action.version) {
+			uint64_t stored_int = 0/*invalid*/ ; try { stored_int = from_string<uint64_t>(stored) ; } catch(::string const&) {}
+			if (stored_int!=action.version) {
 				::string msg = action.clean_msg ;
 				if (msg.find('\n')==Npos) throw cat("version mismatch, consider : " ,       msg )  ;
 				else                      throw cat("version mismatch, consider :\n",indent(msg)) ;
