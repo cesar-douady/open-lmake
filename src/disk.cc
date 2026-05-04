@@ -526,12 +526,12 @@ namespace Disk {
 			::string stored = version_fd.read() ;
 			throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
 			stored.pop_back() ;
-			uint64_t stored_int = from_string<uint64_t>(stored) ;
+			uint64_t stored_int = 0/*invalid*/ ; try { stored_int = from_string<uint64_t>(stored) ; } catch(::string const&) {}
 			if (stored_int!=action.version) {
 				::string r   = read_lnk(cat(AdminDirS,"lmake_root")) ;
 				::string msg = action.clean_msg                      ; if (+r) msg << add_nl<<"use "<<r<<"/bin/"<<base_name(get_exe())<<'\n' ;
-				if (msg.find('\n')==Npos) throw cat("version mismatch (found ",stored_int,"!=expected ",action.version,") consider : " ,       msg )  ;
-				else                      throw cat("version mismatch (found ",stored_int,"!=expected ",action.version,") consider :\n",indent(msg)) ;
+				if (msg.find('\n')==Npos) throw cat("version mismatch (found ",stored,"!=expected ",action.version,") consider : " ,       msg )  ;
+				else                      throw cat("version mismatch (found ",stored,"!=expected ",action.version,") consider :\n",indent(msg)) ;
 			}
 		}
 	}

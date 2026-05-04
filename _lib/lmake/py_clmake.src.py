@@ -84,12 +84,18 @@ def report_import( module_name=None , path=None , module_suffixes=None ) :
 		else :
 			import importlib.machinery
 			sfxs = importlib.machinery.all_suffixes()
-			_report_import_std_sfxs = (
-				*('/__init___'+s for s in sfxs if     s.endswith('.so'))
-			,	*('/__init___'+s for s in sfxs if not s.endswith('.so'))
-			,	*(             s for s in sfxs if     s.endswith('.so'))
-			,	*(             s for s in sfxs if not s.endswith('.so'))
-			)
+			# python3 code would be (but not available with python2) : XXX> : restore better prototype when python2 is no longer supported
+			#	_report_import_std_sfxs = (
+			#		*('/__init___'+s for s in sfxs if     s.endswith('.so'))
+			#	,	*('/__init___'+s for s in sfxs if not s.endswith('.so'))
+			#	,	*(             s for s in sfxs if     s.endswith('.so'))
+			#	,	*(             s for s in sfxs if not s.endswith('.so'))
+			#	)
+			_report_import_std_sfxs  = ['/__init___'+s for s in sfxs if     s.endswith('.so')]
+			_report_import_std_sfxs += ['/__init___'+s for s in sfxs if not s.endswith('.so')]
+			_report_import_std_sfxs += [             s for s in sfxs if     s.endswith('.so')]
+			_report_import_std_sfxs += [             s for s in sfxs if not s.endswith('.so')]
+			_report_import_std_sfxs  = tuple(_report_import_std_sfxs)
 	if not module_suffixes        : module_suffixes = _report_import_std_sfxs
 	if not path                   : path            = tuple( d or '.' for d in _sys.path )
 	if _sys.version_info.major>=3 : depend( *path , readdir_ok=True )
