@@ -989,7 +989,7 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( Delay exe_time , ::vmap_s
 		targets_sz += fi.sz ;
 		target_szs.push_back(fi.sz) ;
 	}
-	trace("size",targets_sz) ;
+	trace("size",targets_sz,file_sync_) ;
 	//
 	float        rate      = targets_sz/float(exe_time)           ; throw_unless( rate<=max_rate , "too fast : ",rate,'>',max_rate ) ; // job is too easy to reproduce, no interest to cache
 	ClientSockFd fd        { service }                            ;

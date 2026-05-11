@@ -102,7 +102,7 @@ protected :
 	SockFd( int fd , Key k                                                            ) : AcFd{fd} , key{k} {} // for Slave
 	// accesses
 public :
-	void operator>>(::string& os) const { append_to_str(os,"SockFd",cat(key)) ; } // NO_COV
+	void operator>>(::string& os) const { append_to_str(os,"SockFd",cat(key)) ; }                              // NO_COV
 	// services
 	// if timeout is 0, it means infinity (no timeout)
 	void set_receive_timeout(Time::Delay to={}) { Time::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
@@ -249,7 +249,7 @@ private :
 	}
 	// accesses
 public :
-	void operator>>(::string& os) const { append_to_str(os,"SignalFd") ; } // NO_COV
+	void operator>>(::string& os) const { append_to_str(os,"SignalFd") ; }                                                      // NO_COV
 	// services
 	int/*sig*/ read() const {
 		struct ::signalfd_siginfo si ;
@@ -263,7 +263,8 @@ public :
 // Epoll
 //
 
-extern ::uset<int>* _s_epoll_sigs ;                    // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
+extern ::uset<int>* _s_epoll_sigs       ; // use pointer to avoid troubles when freeing at end of execution, cannot wait for the same signal on several instances
+extern Mutex<>      _s_epoll_sigs_mutex ;
 template<Enum E=NewType/*when_unused*/> struct Epoll {
 	struct Event : ::epoll_event {
 		// cxtors & casts
@@ -283,7 +284,7 @@ template<Enum E=NewType/*when_unused*/> struct Epoll {
 		for( auto [fd,sig_pid] : _fd_infos ) _s_epoll_sigs->erase(sig_pid.first) ;
 	}
 	// accesses
-	void operator>>(::string& os) const { os<<"Epoll("<<_fd.fd<<','<<_n_waits<<')' ; } // NO_COV
+	void operator>>(::string& os) const { os<<"Epoll("<<_fd.fd<<','<<_n_waits<<')' ; }                                        // NO_COV
 	uint operator+ (            ) const { return _n_waits ;                          }
 	void dec       (            )       { SWEAR(_n_waits>0) ; _n_waits-- ;           }
 	// services
@@ -303,11 +304,13 @@ template<Enum E=NewType/*when_unused*/> struct Epoll {
 	}
 private :
 	void _add_sig( int sig , E data , pid_t pid , bool wait ) {
-		if (!_s_epoll_sigs) _s_epoll_sigs = new ::uset<int> ;
-		Fd   fd       = SignalFd(New,sig).detach()                                              ;
+		{	Lock lock { _s_epoll_sigs_mutex } ;
+			if (!_s_epoll_sigs) _s_epoll_sigs = new ::uset<int> ;
+			bool inserted = _s_epoll_sigs->insert(sig).second ; SWEAR(inserted,sig) ;
+		}
+		Fd   fd       = SignalFd(New,sig).detach()                 ;
 		bool inserted = _sig_infos.try_emplace(sig,fd     ).second ; SWEAR(inserted,fd,sig    ) ;
 		/**/ inserted = _fd_infos .try_emplace(fd ,sig,pid).second ; SWEAR(inserted,fd,sig,pid) ;
-		/**/ inserted = _s_epoll_sigs->insert (sig        ).second ; SWEAR(inserted,fd,sig    ) ;
 		add( false/*write*/ , fd , data , wait ) ;
 		_n_sigs++ ;
 	}

@@ -535,8 +535,8 @@ namespace Disk {
 			if (stored_int!=action.version) {
 				::string r   = read_lnk(cat(AdminDirS,"lmake_root")) ;
 				::string msg = action.clean_msg                      ; if (+r) msg << add_nl<<"use "<<r<<"/bin/"<<base_name(get_exe())<<'\n' ;
-				if (msg.find('\n')==Npos) throw cat("version mismatch (found ",stored,"!=expected ",action.version,") consider : " ,       msg )  ;
-				else                      throw cat("version mismatch (found ",stored,"!=expected ",action.version,") consider :\n",indent(msg)) ;
+				if (msg.find('\n')==Npos) throw cat("version mismatch (found ",stored,"!=expected ",action.version,")\n  consider : " ,              msg   ) ;
+				else                      throw cat("version mismatch (found ",stored,"!=expected ",action.version,")\n  consider :\n",indent<' ',2>(msg,2)) ;
 			}
 		}
 	}

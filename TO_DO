@@ -55,8 +55,6 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 * COSMETIC (ugly as long as not implemented)
 ****************************************************************************************************
 
-* if LMAKE/version is not an int, generate a 'bad version' message
-	- as it used to be a checksum, this may occur
 ! add a warning when ids reach 1/2 of their limits
 	- hard to do in a nice, informative and homogeneous way
 	- as getting a hard error on a very big base is not really user friendly
@@ -72,7 +70,6 @@ X replace environ/environ_resources/environ_ancillary with a unique dict
 	- close to current report
 	- no ambiguities
 ? improve lmake -h
-	- add tag
 	- simplify text
 	? consider to accept abbreviation for enum option args
 ? add a target attribute to mean that content may vary from one execution to another

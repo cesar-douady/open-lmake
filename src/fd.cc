@@ -21,7 +21,8 @@ using namespace Time ;
 
 static constexpr bool ReuseAddr = false ; // XXX : now that we have randomization of local communications, we do not need to reuse addresses any more, suppress when code can actually be suppressed
 
-::uset<int>* _s_epoll_sigs = nullptr ;
+::uset<int>* _s_epoll_sigs       = nullptr ;
+Mutex<>      _s_epoll_sigs_mutex ;
 
 ::string fqdn(::string const& domain_name) {
 	static ::umap_ss s_fqdns = []() {

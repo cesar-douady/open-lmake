@@ -483,7 +483,7 @@ bool/*done*/ CjobData::insert(
 ,	bool force , Crc targets_crc
 ,	::string const& reserved_file , SyncGuard* sync_guard
 ) {
-	Trace trace("insert",idx(),key,key_is_last,last_access,sz,rate,compile_digest) ;
+	Trace trace("insert",idx(),key,key_is_last,last_access,sz,rate,compile_digest,g_file_sync) ;
 	::array<Crun,2> found_runs ;                                                     // first and last with same key
 	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
 		CrunData&    rd        = *r                                            ;
