@@ -32,10 +32,10 @@ template< IsIStream S , HasSerdeserIn  T > void serdes1( S& is , T       & x ) {
 template< IsOStream S , SerializableOut... T > void serdes( S& os , T  const&... args ) { (serdes1(os,args),...) ; }
 template< IsIStream S , SerializableIn ... T > void serdes( S& is , T       &... args ) { (serdes1(is,args),...) ; }
 //
-template< SerializableOut T , IsOStream S > void     serialize  ( S& os , T const&        x ) {                serdes(os ,x  ) ;              }
-template< SerializableOut T               > ::string serialize  (         T const&        x ) { ::string res ; serdes(res,x  ) ; return res ; }
-template< SerializableIn  T , IsIStream S > void     deserialize( S& is , T      &/*out*/ x ) { x = {} ;       serdes(is ,x  ) ;              }
-template< SerializableIn  T , IsIStream S > T        deserialize( S& is                     ) { T res = {} ;   serdes(is ,res) ; return res ; }
+template< SerializableOut T , IsOStream S > void     serialize  ( S& os , T const&        x ) {                     serdes(os ,x  ) ;              }
+template< SerializableOut T               > ::string serialize  (         T const&        x ) { ::string res ;      serdes(res,x  ) ; return res ; }
+template< SerializableIn  T , IsIStream S > void     deserialize( S& is , T      &/*out*/ x ) {          x   = {} ; serdes(is ,x  ) ;              } // = {} to ensure x is always set
+template< SerializableIn  T , IsIStream S > T        deserialize( S& is                     ) { T        res = {} ; serdes(is ,res) ; return res ; } // = {} to please compiler
 //
 template< SerializableOut T , IsOStream S > void serialize  ( S            && os , T const&        x ) {        serialize  <T>(os              ,x) ; }
 template< SerializableIn  T , IsIStream S > void deserialize( S            && is , T      &/*out*/ x ) {        deserialize<T>(is              ,x) ; }
@@ -111,7 +111,7 @@ template<> struct Serdeser<::string> {
 		os += ::string_view(s) ;
 	}
 	template<IsIStream S> static void s_serdes( S& is , ::string& s ) {
-		SerdesSz sz ; serdes(is,sz) ;
+		SerdesSz sz = 0 ; serdes(is,sz) ;                               // = 0 to please compiler
 		throw_unless( is.size()>=sz , "truncated stream" ) ;
 		s.resize(sz) ;
 		is.copy         ( s.data() , sz ) ;
