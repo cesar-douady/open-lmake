@@ -26,6 +26,7 @@ struct AppInitAction {
 	Bool3      trace        = Maybe                                        ; // if Maybe, trace if chk_version!=No
 	::string   trace_file   = {}                                           ;
 	uint64_t   version      = Version::Repo                                ;
+	uint64_t   py_version   = 0                                            ;
 } ;
 
 bool/*read_only*/ app_init(AppInitAction const& ={}) ;

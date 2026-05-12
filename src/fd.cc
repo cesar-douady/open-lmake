@@ -25,7 +25,7 @@ static constexpr bool ReuseAddr = false ; // XXX : now that we have randomizatio
 Mutex<>      _s_epoll_sigs_mutex ;
 
 ::string fqdn(::string const& domain_name) {
-	static ::umap_ss s_fqdns = []() {
+	static ::umap_ss s_fqdns = [] {
 		::umap_ss          res   ;
 		::string const&    h     = host()  ; if (h.find('.')!=Npos) return res ;                           // do not ask network if host is fully qualified
 		struct ::addrinfo  hints = {}      ; hints.ai_family = AF_UNSPEC ; hints.ai_flags = AI_CANONNAME ;
@@ -74,7 +74,7 @@ struct Ports {
 	in_port_t sz    = 0 ;
 } ;
 static Ports const& _ports() {
-	static Ports s_ports = []() {
+	static Ports s_ports = [] {
 		Ports      res   ;
 		::vector_s ports = split(AcFd("/proc/sys/net/ipv4/ip_local_port_range").read()) ; SWEAR_PROD( ports.size()==2 , ports ) ;
 		res.first  = from_string<in_port_t>(ports[0])               ;

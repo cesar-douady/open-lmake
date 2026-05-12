@@ -18,6 +18,8 @@
 
 namespace Py {
 
+	static constexpr uint64_t Version = (PY_MAJOR_VERSION<<16) | PY_MINOR_VERSION ;
+
 	struct Object       ;
 	struct NoneType     ;
 	struct EllipsisType ;
@@ -759,10 +761,8 @@ namespace Py {
 
 	template<IsStream S> void Ptr<Object>::serdes(S& s) {
 		s_init() ;
-		::string buf ;
-		if (!IsIStream<S>) buf  = *s_dumps->call<Bytes>(*self)    ;
-		::serdes(s,buf) ;
-		if ( IsIStream<S>) self = s_loads->call(*Ptr<Bytes>(buf)) ;
+		::string buf ;    if (!IsIStream<S>) buf  = *s_dumps->call<Bytes>(*self           ) ;
+		::serdes(s,buf) ; if ( IsIStream<S>) self =  s_loads->call       (*Ptr<Bytes>(buf)) ;
 	}
 
 	//

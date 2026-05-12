@@ -26,7 +26,7 @@ enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddat
 } ;
 // END_OF_VERSIONING
 using FileTags = BitMap<FileTag> ;
-constexpr FileTags TargetTags = []()->FileTags {
+constexpr FileTags TargetTags = [] {
 	FileTags res ;
 	for( FileTag t : iota(All<FileTag>) ) if (t>=FileTag::Target) res |= t ;
 	return res ;

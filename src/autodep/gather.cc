@@ -648,7 +648,7 @@ Status Gather::_exec_child() {
 		kill_step++ ;
 		trace("kill_done",end_kill) ;
 	} ;
-	auto open_fast_report_fd = [&]() {
+	auto open_fast_report_fd = [&] {
 		if (!autodep_env.fast_report_pipe) return ;
 		fast_report_fd = AcFd( autodep_env.fast_report_pipe , {.flags=O_RDONLY|O_NONBLOCK,.err_ok=true} ) ; // avoid blocking waiting for child, no impact on epoll-controled ops
 		if (+fast_report_fd) {                                                                              // work w/o fast report if it does not work (seen on some instances of Centos7)

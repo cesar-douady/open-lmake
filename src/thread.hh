@@ -63,10 +63,10 @@ private :
 	void _pop(T& res) { swear_locked() ; bool has_urgent = Urgent && !_queue[1].empty() ;   res = ::move(_queue[has_urgent].front()) ; _queue[has_urgent].pop_front() ;              }
 	T    _pop(      ) { swear_locked() ; bool has_urgent = Urgent && !_queue[1].empty() ; T res = ::move(_queue[has_urgent].front()) ; _queue[has_urgent].pop_front() ; return res ; }
 	//
-	void _wait(                               L& lock ) {        _cond.wait    ( lock ,                                   [&](){ return !_empty() ; } ) ; }
-	bool _wait( ::stop_token stop           , L& lock ) { return _cond.wait    ( lock , stop ,                            [&](){ return !_empty() ; } ) ; }
-	bool _wait(                     Delay d , L& lock ) { return _cond.wait_for( lock ,        ::chrono::nanoseconds(d) , [&](){ return !_empty() ; } ) ; }
-	bool _wait( ::stop_token stop , Delay d , L& lock ) { return _cond.wait_for( lock , stop , ::chrono::nanoseconds(d) , [&](){ return !_empty() ; } ) ; }
+	void _wait(                               L& lock ) {        _cond.wait    ( lock ,                                   [&]{ return !_empty() ; } ) ; }
+	bool _wait( ::stop_token stop           , L& lock ) { return _cond.wait    ( lock , stop ,                            [&]{ return !_empty() ; } ) ; }
+	bool _wait(                     Delay d , L& lock ) { return _cond.wait_for( lock ,        ::chrono::nanoseconds(d) , [&]{ return !_empty() ; } ) ; }
+	bool _wait( ::stop_token stop , Delay d , L& lock ) { return _cond.wait_for( lock , stop , ::chrono::nanoseconds(d) , [&]{ return !_empty() ; } ) ; }
 	// data
 	Mutex<> mutable          _mutex           ;
 	::condition_variable_any _cond            ;
@@ -185,7 +185,7 @@ private :
 		Trace trace("WakeupThread::_s_thread_func") ;
 		::stop_callback stop_cb {
 			stop
-		,	[&]() {
+		,	[&] {
 				Trace trace("WakeupThread::_s_thread_func::stop_cb") ;
 				this_->_request_stop() ;
 			}
@@ -248,7 +248,7 @@ private :
 		::umap<Fd,SlaveEntry> slaves  ;
 		::stop_callback       stop_cb {                                                          // transform request_stop into an event Epoll can wait for
 			stop
-		,	[&]() {
+		,	[&] {
 				Trace trace("ServerThread::_s_thread_func::stop_cb",stop_fd) ;
 				stop_fd.wakeup() ;
 			}

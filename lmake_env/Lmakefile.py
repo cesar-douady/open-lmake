@@ -519,16 +519,20 @@ class LinkLdumpJobExe(LinkLmakeServerExe) :
 	targets = { 'TARGET' : '_bin/ldump_job'  }
 	deps    = { 'MAIN'   : 'src/ldump_job.o' }
 
-for client in ('lforget','lmake','lmark','lshow') :
-	class LinkLmake(LinkClientAppExe) :
+for client in ('lforget','lmark','lshow') :
+	class LinkClient(LinkClientAppExe) :
 		name    = f'link {client}'
 		targets = { 'TARGET' : f'bin/{client}'   }
 		deps    = { 'MAIN'   : f'src/{client}.o' }
-		if client=='ldebug' : deps['PY'] = 'src/py.o'
 
-class LinkLdebug(LinkClientAppExe,LinkPython) :
-	targets = { 'TARGET' : f'bin/ldebug'   }
-	deps    = { 'MAIN'   : f'src/ldebug.o' }
+for client in ('ldebug','lmake') :
+	class LinkClientPython(LinkClientAppExe,LinkPython) :
+		name    = f'link {client}'
+		targets = { 'TARGET' : f'bin/{client}'   }
+		deps    = {
+			'PY'   : 'src/py.o'
+		,	'MAIN' : f'src/{client}.o'
+		}
 
 for app in ('xxhsum','align_comments') :
 	class LinkXxhsum(LinkAppExe) :

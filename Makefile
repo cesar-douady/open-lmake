@@ -644,22 +644,22 @@ bin/lmake_server bin/lmake_repair _bin/lmake_dump bin/lcache_server bin/lcache_r
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
-bin/lcollect : $(CLIENT_SAN_OBJS) src/lcollect$(SAN).o
-bin/ldebug   : $(CLIENT_SAN_OBJS) src/ldebug$(SAN).o src/py$(SAN).o
-bin/lforget  : $(CLIENT_SAN_OBJS) src/lforget$(SAN).o
-bin/lmake    : $(CLIENT_SAN_OBJS) src/lmake$(SAN).o
-bin/lmark    : $(CLIENT_SAN_OBJS) src/lmark$(SAN).o
-bin/lshow    : $(CLIENT_SAN_OBJS) src/lshow$(SAN).o
+bin/lcollect : $(CLIENT_SAN_OBJS)                src/lcollect$(SAN).o
+bin/ldebug   : $(CLIENT_SAN_OBJS) src/py$(SAN).o src/ldebug$(SAN).o
+bin/lforget  : $(CLIENT_SAN_OBJS)                src/lforget$(SAN).o
+bin/lmake    : $(CLIENT_SAN_OBJS) src/py$(SAN).o src/lmake$(SAN).o
+bin/lmark    : $(CLIENT_SAN_OBJS)                src/lmark$(SAN).o
+bin/lshow    : $(CLIENT_SAN_OBJS)                src/lshow$(SAN).o
 
 LMAKE_DBG_FILES += bin/lcollect bin/lforget bin/lmake bin/lmark bin/lshow
-bin/lcollect bin/lforget bin/lmake bin/lmark bin/lshow :
+bin/lcollect bin/lforget bin/lmark bin/lshow :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldebug
-bin/ldebug :
+bin/ldebug bin/lmake :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(LINK_LIB)

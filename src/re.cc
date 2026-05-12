@@ -15,7 +15,7 @@ namespace Re {
 
 	// for details, refer to https://www.pcre.org/current/doc/html/pcre2pattern.html, under chapter CHARACTERS AND METACHARACTERS
 
-	static constexpr ::array<bool,256> _EscapeIsSpecial = []() {
+	static constexpr ::array<bool,256> _EscapeIsSpecial = [] {
 		::array<bool,256> res = {} ;
 		for( char const* p = "()[].*+?|\\{}^$" ; *p ; p++ ) res[*p] = true ; // ] and } is necessary to analyze suffix in split_pattern
 		return res ;
@@ -32,7 +32,7 @@ namespace Re {
 
 	#if HAS_PCRE
 
-		static constexpr ::array<bool,256> _EscapeIsQuantifier = []() {
+		static constexpr ::array<bool,256> _EscapeIsQuantifier = [] {
 			::array<bool,256> res = {} ;
 			for( char const* p = "*+?{" ; *p ; p++ ) res[*p] = true ; // { is the start of a quantifier
 			return res ;

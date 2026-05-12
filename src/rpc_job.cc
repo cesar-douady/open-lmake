@@ -137,7 +137,7 @@ bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&&
 		bool       nl_seen         = false       ;
 		bool       cmd_seen        = false       ;
 		//
-		auto special_cmd = [&]() {
+		auto special_cmd = [&] {
 			return simple_cmd_line.size()==1 && !slash_seen && SpecialWords.contains(simple_cmd_line[0]) ;
 		} ;
 		//
@@ -1296,7 +1296,7 @@ void JobStartRpcReply::update_val( ::string&/*inout*/ v , ::string const& phy_re
 void JobStartRpcReply::update_env( ::vmap_ss&/*out*/ dyn_env , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId seq_id ) {
 	::uset_s to_erase ;
 	//
-	auto tmp_dir = [&]() { return no_slash(job_space.tmp_view_s|phy_tmp_dir_s) ; } ;
+	auto tmp_dir = [&] { return no_slash(job_space.tmp_view_s|phy_tmp_dir_s) ; } ;
 	//
 	for( auto& [k,v] : env ) {
 		if (v!=PassMrkr   ) { update_val( v , phy_repo_root_s , phy_tmp_dir_s , seq_id ) ; continue ; }

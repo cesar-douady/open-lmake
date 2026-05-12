@@ -1048,7 +1048,7 @@ template<char Delimiter> ::string parse_printable( ::string const& x , size_t&/*
 }
 
 constexpr inline int8_t _unit_val(char u) {
-	constexpr ::array<int8_t,256> Tab = []()->::array<int8_t,256> {
+	constexpr ::array<int8_t,256> Tab = [] {
 		::array<int8_t,256> res ; for( size_t i : iota(res.size()) ) res[i] = 127 ;
 		res['a'] = -6 ;
 		res['f'] = -5 ;

@@ -3,7 +3,7 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh"      // /!\ must be first to include Python.h first
+#include "core.hh" // /!\ must be first to include Python.h first
 
 #include <pwd.h>
 
@@ -427,23 +427,25 @@ namespace Engine::Makefiles {
 	void refresh( ::string&/*out*/ msg , ReqOptions const* options , ::umap_ss const& env , bool rescue , bool refresh_ , ::string const& startup_dir_s ) {
 		Trace trace("refresh",STR(rescue),STR(refresh_)) ;
 		static bool     s_first_time   = true                                  ; bool first_time = s_first_time ; s_first_time = false ;
-		static ::string reg_exprs_file = cat(PrivateAdminDirS,"regexpr_cache") ;
+		static ::string reg_exprs_file = cat(PrivateAdminDirS,"regexpr_cache") ;                                                         // g_config is not available yet, so no local_admin_dir_s
 		//
-		if (first_time) {
-			AcFd fd { reg_exprs_file ,{.err_ok=true} } ;
-			if (+fd)
-				try         { deserialize( ::string_view(fd.read()) , RegExpr::s_cache ) ;                                      } // load from persistent cache
-				catch (...) { Fd::Stderr.write(cat("cannot read reg expr cache (no consequences) from ",reg_exprs_file,'\n')) ; } // perf only, ignore errors (e.g. first time)
-		}
-		//
+		if (first_time)
+			if ( AcFd fd{reg_exprs_file,{.err_ok=true}} ; +fd ) {                                                                        // load from persistent cache
+				::string res ;
+				try                       { res = fd.read() ;                                                                                                                      }
+				catch (::string const&  ) { Fd::Stderr.write(cat("cannot read (",StrErr(),") reg expr cache (no consequences) from "   ,reg_exprs_file,'\n')) ; goto RegexprDone ; }
+				try                       { deserialize( ::string_view(res) , RegExpr::s_cache ) ;                                                                                 }
+				catch (::string const& e) { Fd::Stderr.write(cat("bad format (",e        ,") in reg expr cache (no consequences) from ",reg_exprs_file,'\n')) ;                    }
+			}
+	RegexprDone :
 		// ensure this regexpr is always set, even when useless to avoid cache instability depending on whether makefiles have been read or not
-		_g_pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;                // dir_s is \1, module is \2, matches both python 2 & 3
+		_g_pyc_re = new RegExpr{ R"(((?:.*/)?)(?:(?:__pycache__/)?)(\w+)(?:(?:\.\w+-\d+)?)\.pyc)" , true/*cache*/ } ;                    // dir_s is \1, module is \2, matches both python 2 & 3
 		//
 		_refresh( /*out*/msg , options , rescue , refresh_ , env , startup_dir_s ) ;
 		//
 		if ( first_time && g_writable && !RegExpr::s_cache.steady() )
-			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( serialize(RegExpr::s_cache) ) ;       }      // update persistent cache
-			catch (...) { Fd::Stderr.write(cat("cannot write reg expr cache (no consequences) to ",reg_exprs_file,'\n')) ; }      // perf only, ignore errors (e.g. read-only)
+			try         { AcFd( reg_exprs_file , {O_WRONLY|O_TRUNC|O_CREAT} ).write( serialize(RegExpr::s_cache) ) ;       }             // update persistent cache
+			catch (...) { Fd::Stderr.write(cat("cannot write reg expr cache (no consequences) to ",reg_exprs_file,'\n')) ; }             // perf only, ignore errors (e.g. read-only)
 		trace("done",msg) ;
 	}
 

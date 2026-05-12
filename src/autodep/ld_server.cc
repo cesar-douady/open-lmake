@@ -33,7 +33,7 @@ static void* get_orig(const char* libcall) {
 	#define LIBCALL_ENTRY(libcall) false                                                      // to enumrate libcalls
 	static constexpr size_t NLibcalls = ::initializer_list<bool>{ENUMERATE_LIBCALLS}.size() ;
 	#undef LIBCALL_ENTRY
-	static constexpr ::array<const char*,NLibcalls> LibcallNames = []() {
+	static constexpr ::array<const char*,NLibcalls> LibcallNames = [] {
 		::array<const char*,NLibcalls> libcall_names ;
 		size_t                         i             = 0 ;
 		#define LIBCALL_ENTRY(libcall) #libcall                                               // to enumrate libcalls

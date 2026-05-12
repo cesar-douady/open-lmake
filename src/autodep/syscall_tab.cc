@@ -505,8 +505,8 @@ template<uint8_t N> static constexpr ::array<BpfInstr,NBpfInstrs<N>> _mk_bpf_fil
 	return res ;
 }
 
-/**/       static constexpr uint NBpfSyscalls   = []() { uint n = 0 ; for( SyscallDescr const& e : SyscallDescrTab   ) if (+e) n++ ; return n ; }() ;
-IF_HAS_32( static constexpr uint NBpfSyscalls32 = []() { uint n = 0 ; for( SyscallDescr const& e : SyscallDescrTab32 ) if (+e) n++ ; return n ; }() ; )
+/**/       static constexpr uint NBpfSyscalls   = [] { uint n = 0 ; for( SyscallDescr const& e : SyscallDescrTab   ) if (+e) n++ ; return n ; }() ;
+IF_HAS_32( static constexpr uint NBpfSyscalls32 = [] { uint n = 0 ; for( SyscallDescr const& e : SyscallDescrTab32 ) if (+e) n++ ; return n ; }() ; )
 
 constexpr uint8_t BpfFilterSz =
 	IF_HAS_32( +2                            ) // load+check arch

@@ -443,8 +443,8 @@ namespace Backends {
 			for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 			//
 			if (+reply.chroot_info.actions[ChrootAction::UserName]) {
-				static ::string s_user  = []()->const char* { if ( uid_t uid=::getuid() ) { if ( struct passwd* pw=::getpwuid(uid) ) return pw->pw_name ; } ; return "" ; }() ;
-				static ::string s_group = []()->const char* { if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) return gr->gr_name ; } ; return "" ; }() ;
+				static ::string s_user  = []->const char* { if ( uid_t uid=::getuid() ) { if ( struct passwd* pw=::getpwuid(uid) ) return pw->pw_name ; } ; return "" ; }() ;
+				static ::string s_group = []->const char* { if ( gid_t gid=::getgid() ) { if ( struct group * gr=::getgrgid(gid) ) return gr->gr_name ; } ; return "" ; }() ;
 				if (!s_user ) { start_msg_err.msg << add_nl<<"cannot find user name for " <<::getuid() ; steps &= ~StartStep::RsrcsAttrs ; }
 				if (!s_group) { start_msg_err.msg << add_nl<<"cannot find group name for "<<::getgid() ; steps &= ~StartStep::RsrcsAttrs ; }
 				reply.chroot_info.user  = s_user  ;

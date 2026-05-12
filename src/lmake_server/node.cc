@@ -129,7 +129,7 @@ namespace Engine {
 		SyncGuard        sync_guard { g_config->server_file_sync        } ;
 		FileInfo         fi         { name_ , {.sync_guard=&sync_guard} } ;
 		FileSig          sig_       { fi                                } ;
-		auto lazy_msg = [&]()->::string const& {
+		auto lazy_msg = [&]->::string const& {
 			static ::string const Frozen = "frozen" ;
 			static ::string const Src    = "src"    ;
 			if (!msg) {
@@ -442,7 +442,7 @@ namespace Engine {
 		Trace trace("Nmake_pre",idx(),buildable,ri) ;
 		Req              req   = ri.req ;
 		::string/*lazy*/ name_ ;
-		auto lazy_name = [&]()->::string const& {
+		auto lazy_name = [&]->::string const& {
 			if (!name_) name_ = name() ;
 			return name_ ;
 		} ;

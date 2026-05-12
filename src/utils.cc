@@ -52,7 +52,7 @@ extern "C" {
 //
 
 FileSync auto_file_sync( FileSync file_sync , ::string const& dir_s ) {
-	static constexpr auto Data = [&]()->::pair<::amap<ulong,FileSync,64>,size_t/*n_entries*/> {
+	static constexpr auto Data = [&]->::pair<::amap<ulong,FileSync,64>,size_t/*n_entries*/> {
 		::amap<ulong,FileSync,64> tab       ;
 		size_t                    n_entries = 0 ;
 		auto fill = [&]( ulong typ , FileSync fs=FileSync::None ) {
@@ -330,12 +330,12 @@ size_t/*cnt*/ Fd::read_to(::span<char> dst) const {
 						case EWOULDBLOCK :
 					#endif
 					case EAGAIN     :
-					case EINTR      : continue                                                  ; // retry
-					case ECONNRESET : break                                                     ; // process as eof as this appears with sockets when peer dies abruptly
-					default         : throw cat("cannot read ",dst.size()," bytes from fd ",fd) ;
+					case EINTR      : continue                                                                 ; // retry
+					case ECONNRESET : break                                                                    ; // process as eof as this appears with sockets when peer dies abruptly
+					default         : throw cat("cannot read (",StrErr(),") ",dst.size()," bytes from fd ",fd) ;
 				}
 			}
-			return pos ;                                                                          // eof
+			return pos ;                                                                                         // eof
 		}
 		pos += cnt ;
 	}
@@ -356,11 +356,11 @@ size_t/*cnt*/ Fd::read_to(::span<char> dst) const {
 
 struct linux_dirent64 {
 	linux_dirent64() ;
-	ino64_t        d_ino            = 0  ;                                                                         // 64-bit inode number
-	off64_t        d_off            = 0  ;                                                                         // Not an offset; see getdents()
-	unsigned short d_reclen         = 0  ;                                                                         // Size of this dirent
-	unsigned char  d_type           = 0  ;                                                                         // File type
-	char           d_name[PATH_MAX] = {} ;                                                                         // Filename (null-terminated)
+	ino64_t        d_ino            = 0  ; // 64-bit inode number
+	off64_t        d_off            = 0  ; // Not an offset; see getdents()
+	unsigned short d_reclen         = 0  ; // Size of this dirent
+	unsigned char  d_type           = 0  ; // File type
+	char           d_name[PATH_MAX] = {} ; // Filename (null-terminated)
 } ;
 linux_dirent64::linux_dirent64() : d_reclen{sizeof(linux_dirent64)} {}
 
@@ -764,7 +764,7 @@ thread_local MutexLvl t_mutex_lvl = MutexLvl::None ;
 //
 
 ::string const& host() {
-	static ::string s_res = []()->::string {
+	static ::string s_res = []->::string {
 		char buf[HOST_NAME_MAX+1] ;
 		int  rc                   = ::gethostname( buf , sizeof(buf) ) ; buf[HOST_NAME_MAX]= 0 ; SWEAR_PROD( rc==0 , StrErr() ) ;
 		/**/                                                                                     SWEAR_PROD( buf[0]           ) ; // ensure name is not empty

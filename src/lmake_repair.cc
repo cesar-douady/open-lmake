@@ -112,7 +112,7 @@ int main( int argc , char* /*argv*/[] ) {
 	::string rm_admin_dir     ;
 	::string rm_bck_admin_dir ;
 	//
-	auto mk_lad = [&]() {
+	auto mk_lad = [&] {
 		phy_lad          = {}                     ; if (FileInfo(std_lad    ).tag()==FileTag::Lnk) phy_lad           = mk_glb( read_lnk(std_lad    ) , dir_name_s(std_lad    ) ) ;
 		bck_phy_lad      = {}                     ; if (FileInfo(bck_std_lad).tag()==FileTag::Lnk) bck_phy_lad       = mk_glb( read_lnk(bck_std_lad) , dir_name_s(bck_std_lad) ) ;
 		rm_admin_dir     = "rm -r "+admin_dir     ; if (+phy_lad                                 ) rm_admin_dir     << ' '<<phy_lad                                              ;
@@ -121,7 +121,7 @@ int main( int argc , char* /*argv*/[] ) {
 		if ( +phy_lad && +bck_phy_lad ) SWEAR( phy_lad!=bck_phy_lad , phy_lad , bck_phy_lad ) ;
 	} ;
 	//
-	app_init({.read_only_ok=false}) ;
+	app_init({ .read_only_ok=false , .py_version=Py::Version }) ;
 	Record::s_autodep_env(New) ;
 	//
 	if (argc!=1                            ) exit(Rc::Usage   ,"must be called without arg"                                                      ) ;
@@ -149,7 +149,7 @@ int main( int argc , char* /*argv*/[] ) {
 	try                       { rename( admin_dir/*src*/ , bck_admin_dir/*dst*/ ) ; }
 	catch (::string const& e) { fail_prod(e) ;                                      }
 	//
-	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
+	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ;                // create marker
 	g_writable = true ;
 	//
 	Trace::s_new_trace_file(cat(PrivateAdminDirS,"trace/",*g_exe_name)) ;
@@ -178,7 +178,7 @@ int main( int argc , char* /*argv*/[] ) {
 	RepairDigest digest = repair(bck_std_lad+"/job_data") ;
 	//                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	Persistent::chk() ;
-	chk_version( {}/*dir_s*/ , { .chk=Maybe , .key="repo" , .clean_msg=git_clean_msg() , .version=Version::Repo } ) ;            // mark repo as initialized
+	chk_version( {}/*dir_s*/ , { .chk=Maybe , .key="repo" , .clean_msg=git_clean_msg() , .version=Version::Repo , .py_version=Py::Version } ) ; // mark repo as initialized
 	unlnk(repair_mrkr) ;
 	{	::string msg ;
 		msg <<                                                                                                                                  '\n' ;

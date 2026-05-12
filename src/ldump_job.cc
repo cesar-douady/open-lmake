@@ -7,6 +7,7 @@
 
 #include "app.hh"
 #include "disk.hh"
+#include "py.hh"
 #include "rpc_job.hh"
 
 using namespace Disk   ;
@@ -104,7 +105,7 @@ void print_end(JobEndRpcReq const& jerr) {
 
 int main( int argc , char* argv[] ) {
 	if (argc!=2) exit(Rc::Usage,"usage : ldump_job file") ;
-	app_init({.chk_version=No}) ;
+	app_init({ .chk_version=No , .py_version=Py::Version }) ;
 	//
 	JobInfo job_info { argv[1] } ;
 	if (+job_info.start) {

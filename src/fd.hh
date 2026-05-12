@@ -239,21 +239,21 @@ struct EventFd : AcFd {
 
 struct SignalFd : AcFd {
 	// cxtors & casts
-	SignalFd( NewType, int sig ) : AcFd{_mk_fd(sig),true/*no_std*/} {}
-	SignalFd( Fd fd_           ) : AcFd{fd_                       } {}
+	SignalFd( NewType , int sig ) : AcFd{_mk_fd(sig),true/*no_std*/} {}
+	SignalFd( Fd fd_            ) : AcFd{fd_                       } {}
 private :
 	int _mk_fd(int sig) {
-		SWEAR(is_blocked_sig(sig)) ;                                                                                            // if not blocked, it may signal the process
-		::sigset_t sig_set  ;                                                 sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
+		SWEAR(is_blocked_sig(sig)) ;                                           // if not blocked, it may signal the process
+		::sigset_t sig_set ; sigemptyset(&sig_set) ; sigaddset(&sig_set,sig) ; // sigemptyset and sigaddset can be macros
 		return ::signalfd( -1/*fd*/ , &sig_set , SFD_CLOEXEC|SFD_NONBLOCK ) ;
 	}
 	// accesses
 public :
-	void operator>>(::string& os) const { append_to_str(os,"SignalFd") ; }                                                      // NO_COV
+	void operator>>(::string& os) const { append_to_str(os,"SignalFd") ; }     // NO_COV
 	// services
 	int/*sig*/ read() const {
-		struct ::signalfd_siginfo si ;
-		ssize_t  cnt = ::read(self,&si,sizeof(si)) ;
+		struct ::signalfd_siginfo si  ;
+		ssize_t                   cnt = ::read(self,&si,sizeof(si)) ;
 		SWEAR( cnt==sizeof(si) , cnt,self ) ;
 		return int(si.ssi_signo) ;
 	}

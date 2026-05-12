@@ -22,7 +22,7 @@ namespace Disk {
 		if (!path) return action.empty_ok ;
 		const char* p = path.data() ;
 		//
-		auto handle_slash = [&]() {
+		auto handle_slash = [&] {
 			size_t sz = p - path.data() ;                               // if test ok, else, [path:p) is (x is single wildcard, u is not ., y is not /, z is not / nor .) :
 			if (sz==0     ) return true                               ; //                *x
 			if (p[-1]=='/') return false                              ; //      */        *y
@@ -520,23 +520,46 @@ namespace Disk {
 
 	void chk_version( ::string const& dir_s , VersionAction const& action ) {
 		if (action.chk==No) return ;
-		SWEAR( action.version ) ;                                 // 0 is never a version
+		SWEAR( action.version ) ;                                                                                                    // 0 is never a version
 		::string version_file = cat(dir_s,AdminDirS,"version")  ;
 		AcFd     version_fd   { version_file , {.err_ok=true} } ;
 		if (!version_fd) {
 			throw_unless( action.chk==Maybe , action.key," not initialized, consider : ",action.init_msg ) ;
-			AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.umask=action.umask} ).write( cat(action.version,'\n') ) ;
+			::string v ;           v << action.version                                          <<'\n' ;
+			if (action.py_version) v << (action.py_version>>16)<<'.'<<(action.py_version&0xffff)<<'\n' ;
+			AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.umask=action.umask} ).write(v) ;
 			try { sym_lnk( cat(AdminDirS,"lmake_root") , no_slash(dir_name_s(get_exe(),2)) ) ; } catch (::string const&) {}
 		} else {
-			::string stored = version_fd.read() ;
-			throw_unless( +stored && stored.back()=='\n' , "bad version file" ) ;
-			stored.pop_back() ;
-			uint64_t stored_int = 0/*invalid*/ ; try { stored_int = from_string<uint64_t>(stored) ; } catch(::string const&) {}
-			if (stored_int!=action.version) {
-				::string r   = read_lnk(cat(AdminDirS,"lmake_root")) ;
-				::string msg = action.clean_msg                      ; if (+r) msg << add_nl<<"use "<<r<<"/bin/"<<base_name(get_exe())<<'\n' ;
-				if (msg.find('\n')==Npos) throw cat("version mismatch (found ",stored,"!=expected ",action.version,")\n  consider : " ,              msg   ) ;
-				else                      throw cat("version mismatch (found ",stored,"!=expected ",action.version,")\n  consider :\n",indent<' ',2>(msg,2)) ;
+			::vector_s stored  = split(version_fd.read()) ;
+			bool       v_ok    = false                    ;
+			bool       py_v_ok = false                    ;
+			if      (!action.version   ) v_ok = true ;
+			else if (stored.size()<1   ) throw "bad version file"s ;
+			else                         try { v_ok = from_string<uint64_t>(stored[0])==action.version ; } catch(::string const&) {}
+			if      (!v_ok             ) {}                                                                                          // py_v_ok is only checked when v_ok is true
+			else if (!action.py_version) py_v_ok = true ;
+			else if (stored.size()<2   ) throw "bad version file"s ;
+			else
+				try {
+					::vector_s py_v_vec = split(stored[1],'.')                                                          ; throw_unless(py_v_vec.size()==2 , "bad version file" ) ;
+					uint64_t   py_v_int = (from_string<uint32_t>(py_v_vec[0])<<16) | from_string<uint32_t>(py_v_vec[1]) ;
+					py_v_ok = py_v_int==action.py_version ;
+				} catch(::string const&) {}
+			if ( !v_ok || !py_v_ok ) {
+				::string r         = read_lnk(cat(AdminDirS,"lmake_root")) ;
+				::string msg       ;
+				::string clean_msg = action.clean_msg                      ; if (+r) clean_msg << add_nl<<"use "<<r<<"/bin/"<<base_name(get_exe())<<'\n' ;
+				if (!v_ok                     ) msg << "version"                                                ;
+				else                            msg << "python version"                                         ;
+				if (stored.size()>v_ok        ) msg << " mismatch (found "<<stored[v_ok]<<"!="                  ;
+				else                            msg << " not found ("                                           ;
+				/**/                            msg << "expected "                                              ;
+				if (!v_ok                     ) msg << action.version                                           ;
+				else                            msg << (action.py_version>>16)<<'.'<<(action.py_version&0xffff) ;
+				/**/                            msg << ")\n  consider :"                                        ;
+				if (clean_msg.find('\n')==Npos) msg << ' '  <<               clean_msg                          ;
+				else                            msg << '\n' << indent<' ',2>(clean_msg,2)                       ;
+				throw msg ;
 			}
 		}
 	}

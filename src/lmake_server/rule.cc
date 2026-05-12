@@ -156,11 +156,11 @@ namespace Engine {
 		::umap_ss        rtab                ;
 		Iota2<VarIdx>    static_targets_iota = rd.matches_iotas[false/*star*/][+MatchKind::Target] ;
 		//
-		auto match = [&]()->Rule::RuleMatch const& { { if (!m) m = Rule::RuleMatch(j) ; } return m ; } ; // solve lazy evaluation
+		auto match = [&]->Rule::RuleMatch const& { { if (!m) m = Rule::RuleMatch(j) ; } return m ; } ; // solve lazy evaluation
 		//
-		auto matches = [&]()->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,rd.sub_repo_s)) ; } return mtab ; } ;
-		auto deps    = [&]()->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps_holes() ) dtab.emplace_back(k,mk_lcl(dn.txt,rd.sub_repo_s)) ; } return dtab ; } ;
-		auto rsrcs   = [&]()->::umap_ss  const& { { if (!rtab) rtab = mk_umap(rsrcs_) ;                                                                                 } return rtab ; } ;
+		auto matches = [&]->::vector_s const& { { if (!mtab) for( ::string const& t      : match().py_matches() ) mtab.push_back   (  mk_lcl(t     ,rd.sub_repo_s)) ; } return mtab ; } ;
+		auto deps    = [&]->::vmap_ss  const& { { if (!dtab) for( auto     const& [k,dn] : match().deps_holes() ) dtab.emplace_back(k,mk_lcl(dn.txt,rd.sub_repo_s)) ; } return dtab ; } ;
+		auto rsrcs   = [&]->::umap_ss  const& { { if (!rtab) rtab = mk_umap(rsrcs_) ;                                                                                 } return rtab ; } ;
 		for( auto [vc,i] : ctx ) {
 			::vmap_ss dct ;
 			switch (vc) {

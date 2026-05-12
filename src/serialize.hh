@@ -35,7 +35,7 @@ template< IsIStream S , SerializableIn ... T > void serdes( S& is , T       &...
 template< SerializableOut T , IsOStream S > void     serialize  ( S& os , T const&        x ) {                serdes(os ,x  ) ;              }
 template< SerializableOut T               > ::string serialize  (         T const&        x ) { ::string res ; serdes(res,x  ) ; return res ; }
 template< SerializableIn  T , IsIStream S > void     deserialize( S& is , T      &/*out*/ x ) { x = {} ;       serdes(is ,x  ) ;              }
-template< SerializableIn  T , IsIStream S > T        deserialize( S& is                     ) { T res ;        serdes(is ,res) ; return res ; }
+template< SerializableIn  T , IsIStream S > T        deserialize( S& is                     ) { T res = {} ;   serdes(is ,res) ; return res ; }
 //
 template< SerializableOut T , IsOStream S > void serialize  ( S            && os , T const&        x ) {        serialize  <T>(os              ,x) ; }
 template< SerializableIn  T , IsIStream S > void deserialize( S            && is , T      &/*out*/ x ) {        deserialize<T>(is              ,x) ; }
@@ -76,7 +76,7 @@ template<class T> requires(::has_unique_object_representations_v<T>) struct Serd
 	}
 	template<IsIStream S> static void s_serdes( S& is , T& x ) {
 		static_assert(!IsOStream<S>) ;                                                                     // there is an ambiguity about the direction
-		if (is.size()<sizeof(x)) throw "truncated stream"s ;
+		throw_unless( is.size()>=sizeof(x) , "truncated stream" ) ;
 		is.copy         ( ::launder(reinterpret_cast<char*>(&x)) , sizeof(x) ) ;
 		is.remove_prefix(                                          sizeof(x) ) ;
 	}
@@ -99,7 +99,7 @@ template<class T> requires(::is_floating_point_v<T>) struct Serdeser<T> {
 	}
 	template<IsIStream S> static void s_serdes( S& is , T& x ) {
 		static_assert(!IsOStream<S>) ;                                                                    // there is an ambiguity about the direction
-		if (is.size()<sizeof(x)) throw "truncated stream"s ;
+		throw_unless( is.size()>=sizeof(x) , "truncated stream" ) ;
 		is.copy         ( ::launder(reinterpret_cast<char*>(&x)) , sizeof(x) ) ;
 		is.remove_prefix(                                          sizeof(x) ) ;
 	}
@@ -112,7 +112,7 @@ template<> struct Serdeser<::string> {
 	}
 	template<IsIStream S> static void s_serdes( S& is , ::string& s ) {
 		SerdesSz sz ; serdes(is,sz) ;
-		if (is.size()<sz) throw "truncated stream"s ;
+		throw_unless( is.size()>=sz , "truncated stream" ) ;
 		s.resize(sz) ;
 		is.copy         ( s.data() , sz ) ;
 		is.remove_prefix(            sz ) ;

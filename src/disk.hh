@@ -300,12 +300,13 @@ namespace Disk {
 	mode_t             auto_umask ( ::string const& dir_s , ::string const& msg ) ;
 
 	struct VersionAction {
-		Bool3    chk       = Yes ; // Maybe means it is ok to initialize
-		::string key       = {}  ; // short id (e.g. repo)
-		::string init_msg  = {}  ;
-		::string clean_msg = {}  ;
-		mode_t   umask     = -1  ; // right to apply if initializing
-		uint64_t version   ;
+		Bool3    chk        = Yes ; // Maybe means it is ok to initialize
+		::string key        = {}  ; // short id (e.g. repo)
+		::string init_msg   = {}  ;
+		::string clean_msg  = {}  ;
+		mode_t   umask      = -1  ; // right to apply if initializing
+		uint64_t version    = 0   ;
+		uint64_t py_version = 0   ;
 	} ;
 
 	void chk_version( ::string const& dir_s , VersionAction const& action ) ;

@@ -3,7 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "trace.hh"
+#include "py.hh" // /!\ must be first to include Python.h first
+
 #include "trace.hh"
 
 #include "msg.hh"
@@ -15,16 +16,16 @@ Atomic<bool> g_seen_int ;
 
 static void _int_thread_func(::stop_token stop) {
 	t_thread_key = 'I' ;
-	::stop_callback stop_cb { stop , [&](){ Trace trace("stop") ; kill_self(SIGINT) ; } } ;                         // transform request_stop into an event we wait for
-	Epoll           epoll   { New                                                       } ; epoll.add_sig(SIGINT) ;
+	::stop_callback stop_cb { stop , [&]{ Trace trace("stop") ; kill_self(SIGINT) ; } } ;                         // transform request_stop into an event we wait for
+	Epoll           epoll   { New                                                     } ; epoll.add_sig(SIGINT) ;
 	Trace trace("_int_thread_func") ;
 	for(;;) {
 		epoll.wait() ;
 		bool stop_requested = stop.stop_requested() ;
 		trace("int",STR(stop_requested)) ;
-		if (stop_requested) break ;                                                                                 // not an interrupt, just normal exit
+		if (stop_requested) break ;                                                                               // not an interrupt, just normal exit
 		OMsgBuf(ReqRpcReq(ReqProc::Kill)).send(g_server_fd) ;
-		Fd::Stdout.write("\n") ;                                                                                    // output is nicer if ^C is on its own line
+		Fd::Stdout.write("\n") ;                                                                                  // output is nicer if ^C is on its own line
 		g_seen_int = true ;
 	}
 	trace("done") ;
@@ -89,7 +90,7 @@ int main( int argc , char* argv[] ) {
 	//
 	ReqCmdLine cmd_line { syntax , int(args.size()) , args.data() } ;
 	//
-	app_init({ .chk_version=Maybe , .read_only_ok=false }) ;
+	app_init({ .chk_version=Maybe , .read_only_ok=false , .py_version=Py::Version }) ;
 	Trace trace("main",::span<char*>(argv,argc)) ;
 	/**/  trace(       env_args                ) ;
 	/**/  trace(       args                    ) ;

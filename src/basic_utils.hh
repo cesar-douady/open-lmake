@@ -422,7 +422,7 @@ template<class... A> ::string cat(A&&... args) {
 
 // ::isspace is too high level as it accesses environment, which may not be available during static initialization
 inline constexpr bool is_space(char c) {
-	constexpr ::array<bool,256> Tab = []()->::array<bool,256> {
+	constexpr ::array<bool,256> Tab = [] {
 		::array<bool,256> res = {} ;
 		res['\f'] = true ;
 		res['\n'] = true ;

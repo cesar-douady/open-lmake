@@ -157,13 +157,13 @@ static void _reqs_thread_func(::stop_token stop) {
 	t_thread_key = 'Q' ;
 	Trace trace("_reqs_thread_func",STR(_g_server.is_daemon)) ;
 	//
-	::stop_callback stop_cb { stop , [&](){ trace("stop") ; kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for
+	::stop_callback stop_cb { stop , [&]{ trace("stop") ; kill_self(SIGINT) ; } } ; // transform request_stop into an event we wait for
 	_g_server.stop = stop ;
 	//vvvvvvvvvvvvvvvvvvvv
 	_g_server.event_loop() ;
 	//^^^^^^^^^^^^^^^^^^^^
 	_g_done = true ;
-	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                    // ensure engine loop sees we are done
+	g_engine_queue.emplace( GlobalProc::Wakeup ) ;                                  // ensure engine loop sees we are done
 	trace("done") ;
 }
 
@@ -332,10 +332,10 @@ static bool/*interrupted*/ _engine_loop() {
 
 int main( int argc , char** argv ) {
 	//
-	Trace::s_backup_trace = true                                              ;
-	g_writable            = !app_init({ .cd_root=false ,.chk_version=Maybe }) ; // server is always launched at root
+	Trace::s_backup_trace = true                                                                        ;
+	g_writable            = !app_init({ .cd_root=false ,.chk_version=Maybe , .py_version=Py::Version }) ; // server is always launched at root
 	_chk_os() ;
-	g_user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ;                // before Py::init() as it records the environment to make it available in os.environ
+	g_user_env = Makefiles::clean_env(false/*under_lmake_ok*/) ;                                          // before Py::init() as it records the environment to make it available in os.environ
 	Py::init(*g_lmake_root_s) ;
 	Record::s_static_report = true ;
 	Record::s_autodep_env(New) ;
@@ -378,7 +378,7 @@ int main( int argc , char** argv ) {
 	//
 	if (+msg      ) Fd::Stderr.write(with_nl(msg))    ;
 	if (+rc.second) exit( rc.second , rc.first )      ;
-	if (!is_daemon) ::setpgid( 0/*pid*/ , 0/*pgid*/ ) ;                         // once we have reported we have started, lmake will send us a message to kill us
+	if (!is_daemon) ::setpgid( 0/*pid*/ , 0/*pgid*/ ) ;                                                   // once we have reported we have started, lmake will send us a message to kill us
 	//
 	Trace::s_channels = g_config->trace.channels ;
 	Trace::s_sz       = g_config->trace.sz       ;
@@ -387,7 +387,7 @@ int main( int argc , char** argv ) {
 	Job             ::s_init() ;
 	//
 	if ( Record::s_is_simple( *g_repo_root_s , No/*deps_in_system*/ ) )
-		exit(Rc::Usage,"cannot use lmake inside a system directory ",*g_repo_root_s,rm_slash) ;                          // all local files would be seen as simple, defeating autodep
+		exit(Rc::Usage,"cannot use lmake inside a system directory ",*g_repo_root_s,rm_slash) ;           // all local files would be seen as simple, defeating autodep
 	if (+g_config->server_start_proc) { Py::Gil gil ; Py::py_run(g_config->server_start_proc) ; }
 	//                 vvvvvvvvvvvvvv
 	bool interrupted = _engine_loop() ;

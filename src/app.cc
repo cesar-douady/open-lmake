@@ -116,12 +116,13 @@ bool/*read_only*/ app_init(AppInitAction const& action) {
 		try {
 			chk_version(
 				{}/*dir_s*/
-			,	{	.chk       = action.chk_version
-				,	.key       = action.key
-				,	.init_msg  = action.init_msg
-				,	.clean_msg = action.clean_msg|git_clean_msg()
-				,	.umask     = action.umask
-				,	.version   = action.version
+			,	{	.chk        = action.chk_version
+				,	.key        = action.key
+				,	.init_msg   = action.init_msg
+				,	.clean_msg  = action.clean_msg|git_clean_msg()
+				,	.umask      = action.umask
+				,	.version    = action.version
+				,	.py_version = action.py_version
 				}
 			) ;
 		} catch (::string const& e) { exit(Rc::Version,e) ; }

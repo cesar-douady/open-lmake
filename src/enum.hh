@@ -45,7 +45,7 @@ namespace EnumHelper {
 	template<auto V> constexpr ::string_view EnumValNameView = enum_val_name_view<V>() ;
 
 	// computes the length of the name
-	template<auto V,bool Snake> constexpr size_t EnumValNameSz = []() {
+	template<auto V,bool Snake> constexpr size_t EnumValNameSz = [] {
 		size_t res = EnumValNameView<V>.size() ;
 		if (Snake) {
 			bool first = true ;
@@ -56,7 +56,7 @@ namespace EnumHelper {
 		return res ;
 	}() ;
 
-	template<auto V,bool Snake> constexpr ::array<char,EnumValNameSz<V,Snake>> EnumValName = []() {
+	template<auto V,bool Snake> constexpr ::array<char,EnumValNameSz<V,Snake>> EnumValName = [] {
 		::array<char,EnumValNameSz<V,Snake>> res ;
 		size_t                               j   = 0 ;
 		for( char c : EnumValNameView<V> )
@@ -100,7 +100,7 @@ namespace EnumHelper {
 	template<Enum E,bool Snake> constexpr ::array<::string_view,N<E>> EnumNames = enum_names<E,Snake>()    ;
 
 	template<UEnum E> ::optional<E> mk_enum(::string const& x) {
-		static ::umap_s<E> const s_tab = []() {
+		static ::umap_s<E> const s_tab = [] {
 			::umap_s<E> res ;
 			for( E e : iota(All<E>) ) {
 				res[camel_str(e)] = e ;
