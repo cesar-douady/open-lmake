@@ -192,12 +192,12 @@ void AutoServerBase::start() {
 	Trace trace("start_server",mrkr,file_mrkr) ;
 	if ( +file_mrkr.first && file_mrkr.first!=mrkr.first ) {
 		trace("already_existing_elsewhere",file_mrkr) ;
-		throw ::pair_s<Rc>( cat("server already running on ",file_mrkr.first) , Rc::BadServer ) ;
+		throw ::pair_s<Rc>( cat("server already running on ",file_mrkr.first) , Rc::Ok ) ;
 	}
 	if (file_mrkr.second) {
 		if (sense_process(file_mrkr.second)) {                                  // another server exists on same host
 			trace("already_existing",file_mrkr) ;
-			throw ::pair_s<Rc>( "server already running" , Rc::BadServer ) ;
+			throw ::pair_s<Rc>( "server already running" , Rc::Ok ) ;
 		}
 		unlnk(File(server_mrkr)) ;                                              // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		rescue = true ;
