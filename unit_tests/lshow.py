@@ -103,7 +103,7 @@ else :
 		('Dut','dut') : {
 			('Running','running') : True
 		}
-	}
+	},px
 
 	assert os.system('chmod a-w -R .')==0 # check we can interrogate a read-only repo
 

@@ -213,6 +213,7 @@ The goal is to improve repeatability by protecting jobs from the variability env
 In particular :
 Bullet B_($HOME) is redirected to the root of the repo.
 	This protects the job from all specificities stored in I_(.xxxrc) files in the home dir.
+Bullet B_($LD_LIBRARY_PATH) is set to a suitable value to execute python, as determined when open-lmake was built.
 Bullet B_($LMAKE_ARGS), although used by B_(lmake), is not passed to jobs.
 Bullet B_($PATH) is reset to the default path for the system, plus the OpenLmake bin dir.
 Bullet B_($PYTHONPATH) is set to the OpenLmake lib dir.

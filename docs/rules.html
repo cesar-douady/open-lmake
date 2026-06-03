@@ -455,8 +455,9 @@ This is typically used to access some environment variables set by <code>slurm</
 <div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Defined in</th><th>Value</th><th>comment</th></tr></thead><tbody>
 <tr><td><code>$HOME</code></td><td>Rule</td><td><code>$TOP_REPO_ROOT</code></td><td>See above, isolates tools startup from user specific data</td></tr>
 <tr><td><code>$HOME</code></td><td>HomelessRule</td><td><code>$TMPDIR</code></td><td>See above, pretend tools are used for the first time</td></tr>
+<tr><td><code>$LD_LIBRARY_PATH</code></td><td>Rule</td><td>a suitable value to execute python, as determined when open-lmake was built</td><td></td></tr>
 <tr><td><code>$PATH</code></td><td>Rule</td><td>The standard path with <code>$LMAKE_ROOT/bin:</code> in front</td><td></td></tr>
-<tr><td><code>$PYTHONPATH</code></td><td>PyRule</td><td><code>$LMAKE_ROOT/lib</code></td><td></td></tr>
+<tr><td><code>$PYTHONPATH</code></td><td>Rule</td><td><code>$LMAKE_ROOT/lib</code></td><td></td></tr>
 </tbody></table>
 </div>
 <p>Note that environment variables <code>$PATH</code>, <code>$LD_LIBRARY_PATH</code>, <code>$MANPATH</code> and <code>$PYTHONPATH</code> are subject to

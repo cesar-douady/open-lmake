@@ -854,6 +854,7 @@ struct JobStartRpcReq : JobRpcReq {
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
 		::serdes( s , service                       ) ;
+		::serdes( s , msg                           ) ;
 	}
 	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;

@@ -24,7 +24,7 @@ With these assumptions, which correspond to usual code organization, the list of
 
 ## The `Lmakefile.py` file
 
-`Lmakefile.py` is the file that describes the flow. It is analogous to `Makefile` when using `make` and is plain python (hence its name).
+`Lmakefile.py` is the file that describes the flow. It is analogous to `Makefile` when using `make` and is plain python (hence its `.py` suffix).
 It is composed of 3 parts:
 
 - config
@@ -116,7 +116,7 @@ class Test(Rule) :
 	deps   = { 'SCN' : '{File}.scn' }
 	cmd    = '{SCN}'
 
-class TestSuiteExpansion(Rule) :
+class TestSuiteExpansion(PyRule) :
 	targets = { 'SCN'       : '{File:.*}.test_dir/{Test*:.*}.scn' }
 	deps    = { 'TEST_SUIT' : '{File}.test_suite'                 }
 	def cmd() :
@@ -125,7 +125,7 @@ class TestSuiteExpansion(Rule) :
 			open(SCN(name),'w').write(scn)
 			os.chmod(SCN(name),0o755)
 
-class TestSuiteReport(Rule) :
+class TestSuiteReport(PyRule) :
 	target = '{File:.*}.test_suit_report'
 	deps   = { 'TEST_SUIT' : '{File}.test_suite' }
 	def cmd() :
@@ -141,7 +141,7 @@ Notes:
   Although more rarely used, `dep` can be used and feeds `cmd` as its stdin.
 - In `TestSuiteExpansion` targets, there is a `*` after `Test`.
   This a so-called 'star-stem'.
-  It means that a single execution of the job generates files with diferent values for this star-stem.
+  It means that a single execution of the job generates files with different values for this star-stem.
 - for python `cmd` (when it is a function), targets, deps and stems are accessible as global variables.
   Star-stems are not defined (they would be meaningless) and the corresponding targets are functions instead of variables: you must pass the star-stems as arguments.
 

@@ -1,10 +1,10 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 46      ; // a06c6232f0579d2d3c630d4ad88cf3b3
+	uint64_t    constexpr Cache = 47      ; // a06c6232f0579d2d3c630d4ad88cf3b3
 	uint64_t    constexpr Codec = 3       ; // a85c79c72b73ba8527bf86b4e20cc83f
-	uint64_t    constexpr Repo  = 49      ; // f2376b4ed8a4591faf7c4a9d047e62ae
+	uint64_t    constexpr Repo  = 50      ; // f2376b4ed8a4591faf7c4a9d047e62ae
 	uint64_t    constexpr Job   = 23      ; // 46197d0f92406bdf09e486e219c65a83
-	const char* const     Major = "26.05" ;
+	const char* const     Major = "26.06" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 

@@ -173,7 +173,7 @@ In this flow, we will assume that:</p>
 </ul>
 <p>With these assumptions, which correspond to usual code organization, the list of objects necessary to link an executable can be derived automatically by analyzing the source files.</p>
 <h2 id="the-lmakefilepy-file"><a class="header" href="#the-lmakefilepy-file">The <code>Lmakefile.py</code> file</a></h2>
-<p><code>Lmakefile.py</code> is the file that describes the flow. It is analogous to <code>Makefile</code> when using <code>make</code> and is plain python (hence its name).
+<p><code>Lmakefile.py</code> is the file that describes the flow. It is analogous to <code>Makefile</code> when using <code>make</code> and is plain python (hence its <code>.py</code> suffix).
 It is composed of 3 parts:</p>
 <ul>
 <li>config</li>
@@ -250,7 +250,7 @@ In such a case, the rule will not be executed.</li>
 	deps   = { 'SCN' : '{File}.scn' }
 	cmd    = '{SCN}'
 
-class TestSuiteExpansion(Rule) :
+class TestSuiteExpansion(PyRule) :
 	targets = { 'SCN'       : '{File:.*}.test_dir/{Test*:.*}.scn' }
 	deps    = { 'TEST_SUIT' : '{File}.test_suite'                 }
 	def cmd() :
@@ -259,7 +259,7 @@ class TestSuiteExpansion(Rule) :
 			open(SCN(name),'w').write(scn)
 			os.chmod(SCN(name),0o755)
 
-class TestSuiteReport(Rule) :
+class TestSuiteReport(PyRule) :
 	target = '{File:.*}.test_suit_report'
 	deps   = { 'TEST_SUIT' : '{File}.test_suite' }
 	def cmd() :
@@ -274,7 +274,7 @@ It is a single target and is special in that is is fed by the stdout of <code>cm
 Although more rarely used, <code>dep</code> can be used and feeds <code>cmd</code> as its stdin.</li>
 <li>In <code>TestSuiteExpansion</code> targets, there is a <code>*</code> after <code>Test</code>.
 This a so-called 'star-stem'.
-It means that a single execution of the job generates files with diferent values for this star-stem.</li>
+It means that a single execution of the job generates files with different values for this star-stem.</li>
 <li>for python <code>cmd</code> (when it is a function), targets, deps and stems are accessible as global variables.
 Star-stems are not defined (they would be meaningless) and the corresponding targets are functions instead of variables: you must pass the star-stems as arguments.</li>
 </ul>

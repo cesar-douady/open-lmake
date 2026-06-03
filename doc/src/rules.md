@@ -340,12 +340,13 @@ If a value contains one of the following strings, they are replaced by their cor
 
 By default the following environment variables are defined :
 
-| Variable      | Defined in   | Value                                              | comment                                                   |
-|---------------|--------------|----------------------------------------------------|-----------------------------------------------------------|
-| `$HOME`       | Rule         | `$TOP_REPO_ROOT`                                   | See above, isolates tools startup from user specific data |
-| `$HOME`       | HomelessRule | `$TMPDIR`                                          | See above, pretend tools are used for the first time      |
-| `$PATH`       | Rule         | The standard path with `$LMAKE_ROOT/bin:` in front |                                                           |
-| `$PYTHONPATH` | PyRule       | `$LMAKE_ROOT/lib`                                  |                                                           |
+| Variable           | Defined in   | Value                                                                       | comment                                                   |
+|--------------------|--------------|-----------------------------------------------------------------------------|-----------------------------------------------------------|
+| `$HOME`            | Rule         | `$TOP_REPO_ROOT`                                                            | See above, isolates tools startup from user specific data |
+| `$HOME`            | HomelessRule | `$TMPDIR`                                                                   | See above, pretend tools are used for the first time      |
+| `$LD_LIBRARY_PATH` | Rule         | a suitable value to execute python, as determined when open-lmake was built |
+| `$PATH`            | Rule         | The standard path with `$LMAKE_ROOT/bin:` in front                          |                                                           |
+| `$PYTHONPATH`      | Rule         | `$LMAKE_ROOT/lib`                                                           |                                                           |
 
 Note that environment variables `$PATH`, `$LD_LIBRARY_PATH`, `$MANPATH` and `$PYTHONPATH` are subject to
 [`...` processing]writing_lmakefile.html#:~:text=paths,environ%2EPYTHONPATH%27%3A%27%3A%27%20%7D) to access value in super-class.

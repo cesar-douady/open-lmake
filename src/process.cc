@@ -192,23 +192,23 @@ void AutoServerBase::start() {
 	Trace trace("start_server",mrkr,file_mrkr) ;
 	if ( +file_mrkr.first && file_mrkr.first!=mrkr.first ) {
 		trace("already_existing_elsewhere",file_mrkr) ;
-		throw ::pair_s<Rc>( cat("server already running on ",file_mrkr.first) , Rc::BadServer ) ;
+		throw ::pair_s<Rc>( cat("server already running on ",file_mrkr.first) , Rc::Ok ) ; // must be ok in case of race to distinguish from real error
 	}
 	if (file_mrkr.second) {
-		if (sense_process(file_mrkr.second)) {                                  // another server exists on same host
+		if (sense_process(file_mrkr.second)) {                                 // another server exists on same host
 			trace("already_existing",file_mrkr) ;
-			throw ::pair_s<Rc>( "server already running" , Rc::BadServer ) ;
+			throw ::pair_s<Rc>( "server already running" , Rc::Ok ) ;          // must be ok in case of race to distinguish from real error
 		}
-		unlnk(File(server_mrkr)) ;                                              // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
+		unlnk(File(server_mrkr)) ;                                             // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		rescue = true ;
 		trace("vanished",file_mrkr) ;
 	}
 	server_fd = { 0/*backlog*/ , false/*reuse_addr*/ } ;
 	if (!is_daemon)
-		AcFd(3).write(serialize(server_fd.service(0/*addr*/))) ; // pass connection info to client, no need for addr as client is necessarily local
+		AcFd(3).write(serialize(server_fd.service(0/*addr*/))) ;               // pass connection info to client, no need for addr as client is necessarily local
 	if (writable) {
 		SWEAR(+server_mrkr) ;
-		mode_t   mod    = 0666 & ~((get_umask()&0222)<<1)                    ;  // if we have access to server, we grant write access, so suppress read access for those not having write access
+		mode_t   mod    = 0666 & ~((get_umask()&0222)<<1)                    ; // if we have access to server, we grant write access, so suppress read access for those not having write access
 		::string tmp    = cat(server_mrkr,'.',mrkr.first,'.',mrkr.second)    ;
 		AcFd     tmp_fd { tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=mod} } ;
 		tmp_fd.write(cat(
@@ -251,13 +251,13 @@ static int/*rc*/ _pre_exec(void* arg) {
 		ClientSockFd res       { service , false/*reuse_addr*/ , Delay(3)/*timeout*/ } ; res.set_receive_timeout(Delay(10)) ; // if server is too long to answer, it is probably not working properly
 		::string     magic_str = res.read(sizeof(magic))                               ; throw_unless( magic_str.size()==sizeof(magic) , "server closed connection"       ) ;
 		uint64_t     magic_    = decode_int<uint64_t>(&magic_str[0])                   ; throw_unless( magic_          ==magic         , "not talking to expected server" ) ;
-		res.set_receive_timeout() ;                                                                                                                          // restore
+		res.set_receive_timeout() ;                                                                                                                                           // restore
 		return res ;
 	} ;
 	//
 	for ( int i : iota(10) ) {
 		trace("try_old",i) ;
-		if (try_old) {                                                                             // try to connect to an existing server if we have a magic key to identify it
+		if (try_old) {                                                                         // try to connect to an existing server if we have a magic key to identify it
 			AcFd       server_mrkr_fd { dir_s+server_mrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
 			::vector_s lines          = server_mrkr_fd.read_lines()          ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
 			//
@@ -267,7 +267,7 @@ static int/*rc*/ _pre_exec(void* arg) {
 			try {
 				KeyedService service { file_service_str , true/*name_ok*/ } ;
 				server_is_local |= fqdn()==SockFd::s_host(file_service_str) ;
-				if (server_is_local==Yes) service.addr = 0 ;                                       // dont use network if not necessary
+				if (server_is_local==Yes) service.addr = 0 ;                                   // dont use network if not necessary
 				//
 				try                     { return { mk_client(service) , server_pid } ; }
 				catch (::string const&) { goto LaunchServer                          ; }
@@ -288,15 +288,14 @@ static int/*rc*/ _pre_exec(void* arg) {
 		//
 		try {
 			auto                       service = deserialize<KeyedService>(pipe.read.read()) ;
-			::pair<ClientSockFd,pid_t> res     { mk_client(service) , server.pid }               ;
-			server.stdin.close() ;                                                                 // now that we have connected to server, we can release its stdin
+			::pair<ClientSockFd,pid_t> res     { mk_client(service) , server.pid }           ;
+			server.stdin.close() ;                                                             // now that we have connected to server, we can release its stdin
 			pipe.read   .close() ;
-			server.mk_daemon() ;                                                                   // let process survive to server dxtor
+			server.mk_daemon() ;                                                               // let process survive to server dxtor
 			return res ;
 		} catch (::string const&) {
-			int wstatus = server.wait() ;                                                          // dont care about return code, we are going to relauch/reconnect anyway
-			if (!wstatus_ok(wstatus)) break ;
-			// retry if not successful, may be a race between several clients trying to connect to/launch servers
+			int wstatus = server.wait() ;
+			if (!wstatus_ok(wstatus)) break ; // retry if not a real error as this is a race between several clients trying to connect to/launch servers
 			now += Delay(0.1) ;
 			now.sleep_until() ;
 		}

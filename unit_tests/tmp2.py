@@ -38,20 +38,22 @@ if __name__!='__main__' :
 		cmd = 'diff {REF} {DUT} >&2'
 
 	class Lnk(TmpRule) :
-		target       = 'lnk_dut'
+		targets      = { 'DUT':'lnk_dut' }
 		side_targets = { 'SIDE'      : 'lnk_dut.tmp' }
 		environ      = { 'REPO_ROOT' : '$REPO_ROOT'  }
 		# make a chain of links with all potential cases
 		cmd = '''
-			ln -s /tmp/a         lnk_dut.tmp      # link from repo to tmp
+			ln -s /tmp/a         lnk_dut.tmp                        # link from repo to tmp
 			cd /tmp
-			ln -s b              a                # relative link within tmp
-			ln -s /tmp/c         b                # absolute link within tmp
-			ln -s $REPO_ROOT/src c                # link from tmp to repo
-			readlink a b c $REPO_ROOT/lnk_dut.tmp
+			ln -s b              a                                  # relative link within tmp
+			ln -s /tmp/c         b                                  # absolute link within tmp
+			ln -s $REPO_ROOT/src c                                  # link from tmp to repo
+			readlink a b c $REPO_ROOT/lnk_dut.tmp >$REPO_ROOT/{DUT}
 			cd $REPO_ROOT
-			readlink /tmp/a /tmp/b /tmp/c lnk_dut.tmp
-			cat lnk_dut.tmp
+			readlink /tmp/a /tmp/b /tmp/c lnk_dut.tmp >>{DUT}
+			pwd
+			LMAKE_AUTODEP_ENV= ls -l . /tmp                         # for debug only, dont record deps
+			cat lnk_dut.tmp >>{DUT}
 		'''
 
 	class Cp(TmpRule) :

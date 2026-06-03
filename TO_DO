@@ -16,6 +16,7 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
+* bug Sylvain (cf whatsapp)
 ? bug Sylvain :
 	- foo a derived file needed by a job
 	- lmark -fa foo
@@ -32,6 +33,8 @@ items (also used in XXX comments) :
 
 ! before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
+? make ignore_error transitive
+	- ignore dep_err as well as jobs in error.
 ? add a dead-lock removal mechanism for depend direct
 	- as resources may be held by depending (suspended) job
 	- how to distinguish dead-lock from waiting resources that are occupied externally ?
@@ -159,6 +162,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* provide an anti_manifest
+	- same as manifest, except that accessing such a file is an error
+* provide a flag to allow writing outside repo
+	- and forbid that by default
 * add a stable_target rule attribute
 	- use it when cache upload is already cached : content must match
 		- consider a check cache mode that does not upload but check contents if it happens to already be cached

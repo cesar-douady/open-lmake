@@ -804,7 +804,7 @@ namespace Backends {
 				trace("handle_job",job,entry,status) ;
 				_s_start_tab.erase(it) ;
 			}
-			{	JobExec      je   { job , New }          ;                                                                          // job starts and ends, no host
+			{	JobExec      je   { job , New          } ;                                                                          // job starts and ends, no host
 				JobEndRpcReq jerr { {0/*seq_id*/,+job} } ;
 				jerr.digest.status         = status                    ;
 				jerr.digest.has_msg_stderr = true                      ;
