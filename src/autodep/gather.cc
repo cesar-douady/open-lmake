@@ -166,32 +166,35 @@ static void _update_flags_thread_func(
 	Trace trace("_update_flags_thread_func",id) ;
 	//
 	size_t                  t                    = 0 ;
-	::vector<RegExpr::Data> datass[2/*readdir*/] ;                                              // need to use reentrant matching when multi-thread
+	::vector<RegExpr::Data> datass[2/*readdir*/] ;                                                                                                // need to use reentrant matching when multi-thread
 	if (id)
 		for( int readdir : iota(2/*readdir*/) )
 			for ( auto const& [re,_] : (*star_matchess)[readdir] )
 				datass[readdir].push_back(re.data()) ;
 	//
 	for(;;) {
-		size_t              i_   = (*i)++                ; if (i_>=accesses_.size()                     ) break    ;
-		::string const&     file = accesses_[i_]->first  ;
-		Gather::AccessInfo& ai   = accesses_[i_]->second ; if (ai.flags.extra_dflags[ExtraDflag::NoStar]) continue ;
+		size_t              i_      = (*i)++                                    ; if (i_>=accesses_.size()) break ;
+		::string const&     file    = accesses_[i_]->first                      ;
+		Gather::AccessInfo& ai      = accesses_[i_]->second                     ;
+		bool                no_star = ai.flags.extra_dflags[ExtraDflag::NoStar] ;                                                                 // if no_star => still apply regexprs to find Target
 		//
 		stat->n_stars++ ;
 		for( int readdir : iota(1+ai.read_dir()) ) {
 			::vmap<RegExpr,::pair<Pdate,MatchFlags>> const& star_matches = (*star_matchess)[readdir] ;
 			::vector<RegExpr::Data>                       & datas        = datass          [readdir] ;
 			for ( size_t m : iota(star_matches.size()) ) {
-				::pair<RegExpr,::pair<Pdate,MatchFlags>> const& star_match = star_matches[m] ;
-				if (++t>=(1<<16)) { t = 0 ; if (drain_heartbeat_) gather->drain_heartbeat() ; } // regularly drain heartbeat
+				::pair<RegExpr,::pair<Pdate,MatchFlags>> const& star_match = star_matches[m]                                ;
+				bool                                            is_target  = star_match.second.second.tflags[Tflag::Target] ;
+				if (++t>=(1<<16)) { t = 0 ; if (drain_heartbeat_) gather->drain_heartbeat() ; }                                                   // regularly drain heartbeat
 				stat->n_matches++ ;
 				if (
-					id ? star_match.first.can_match( file , datas[m] )                          // only use _datas in multi-thread
+					id ? star_match.first.can_match( file , datas[m] )                                                                            // only use _datas in multi-thread
 					:    star_match.first.can_match( file            )
 				) {
 					stat->n_matches_ok++ ;
 					trace(file,star_match.second) ;
-					ai.update( star_match.second.first , {.flags=star_match.second.second} ) ;
+					if      (!no_star ) ai.update( star_match.second.first , {.flags=star_match.second.second                               } ) ;
+					else if (is_target) ai.update( star_match.second.first , {.flags={.tflags=Tflag::Target,.extra_tflags=ExtraTflag::Allow}} ) ; // no_star's only get the Target flag
 				}
 			}
 		}
