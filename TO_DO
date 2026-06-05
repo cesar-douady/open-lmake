@@ -164,9 +164,11 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 
 * provide an anti_manifest
 	- same as manifest, except that accessing such a file is an error
-* provide a flag to allow writing outside repo
+	- goal is typically to ensure data in home dir (such as .foorc) is not read
+* provide a external_write_ok flag to allow writing outside repo
 	- and forbid that by default
-* add a stable_target rule attribute
+	- mimic readdir_ok
+* add a deterministic rule attribute
 	- use it when cache upload is already cached : content must match
 		- consider a check cache mode that does not upload but check contents if it happens to already be cached
 	- when targets are reconstructed : crc must not change

@@ -183,7 +183,7 @@ namespace Engine {
 		// data
 		::string    txt          ;
 		Dflags      dflags       ;
-		ExtraDflags extra_dflags ;
+		ExtraDflags extra_dflags = {} ;
 	} ;
 
 	// used at match time

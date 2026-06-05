@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 47      ; // a06c6232f0579d2d3c630d4ad88cf3b3
-	uint64_t    constexpr Codec = 3       ; // a85c79c72b73ba8527bf86b4e20cc83f
-	uint64_t    constexpr Repo  = 50      ; // f2376b4ed8a4591faf7c4a9d047e62ae
-	uint64_t    constexpr Job   = 23      ; // 46197d0f92406bdf09e486e219c65a83
+	uint64_t    constexpr Cache = 48      ; // f75768525a9bf75d1c1aa0be3bbfebcb
+	uint64_t    constexpr Codec = 4       ; // 7319fd9fdc817eb270477875338dd334
+	uint64_t    constexpr Repo  = 51      ; // a3a0c7c859c65816c65807e90139c0d0
+	uint64_t    constexpr Job   = 24      ; // ed0991cb2c20806e1e1d73072a144d84
 	const char* const     Major = "26.06" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : a06c6232f0579d2d3c630d4ad88cf3b3 *
+// * Cache : f75768525a9bf75d1c1aa0be3bbfebcb *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -115,15 +115,15 @@ namespace Version {
 //					// START_OF_VERSIONING REPO CACHE CODEC
 //					static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 //					stems = {
-//						{ "File" ,     ".+"                                            } // static
-//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             } // star
-//					,	{ "Code" ,     "[^/]*"                                         } // .
-//					,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') } // .      /!\ - must be first or last char in []
+//						{ "File" ,     ".+"                                            }                      // static
+//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             }                      // star
+//					,	{ "Code" ,     "[^/]*"                                         }                      // .
+//					,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') }                      // .      /!\ - must be first or last char in []
 //					} ;
-//					n_static_stems = 1 ; // other stems are star-stems
+//					n_static_stems = 1 ;                                                                      // other stems are star-stems
 //					//
 //					::string       pfx      = Codec::CodecFile::s_pfx_s() ;
-//					::vector<bool> captures ( 4 )                         ; // no back-references, no need for capture
+//					::vector<bool> captures ( 4 )                         ;                                   // no back-references, no need for capture
 //					job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
 //					matches  = { //!                             File                        Ctx
 //						{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures=captures} }
@@ -132,7 +132,7 @@ namespace Version {
 //					matches_iotas[true/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
 //					//
 //					deps_attrs.spec.deps = {
-//						{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
+//						{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic} }
 //					} ;
 //					// END_OF_VERSIONING
 //			// START_OF_VERSIONING CACHE JOB REPO
@@ -736,9 +736,9 @@ namespace Version {
 //		Top
 //	,	Ignore
 //	,	ReaddirOk
-//	,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 //	,	CreateEncode                  // used when creating a codec entry while encoding
 //	,	NoHot                         // dep access is guarded and cannot be hot
+//	,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 //	// aliases
 //	,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
 //	} ;
@@ -967,7 +967,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ********************************************
-// * Codec : a85c79c72b73ba8527bf86b4e20cc83f *
+// * Codec : 7319fd9fdc817eb270477875338dd334 *
 // ********************************************
 //
 //			// START_OF_VERSIONING CODEC
@@ -1024,15 +1024,15 @@ namespace Version {
 //					// START_OF_VERSIONING REPO CACHE CODEC
 //					static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 //					stems = {
-//						{ "File" ,     ".+"                                            } // static
-//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             } // star
-//					,	{ "Code" ,     "[^/]*"                                         } // .
-//					,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') } // .      /!\ - must be first or last char in []
+//						{ "File" ,     ".+"                                            }                      // static
+//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             }                      // star
+//					,	{ "Code" ,     "[^/]*"                                         }                      // .
+//					,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') }                      // .      /!\ - must be first or last char in []
 //					} ;
-//					n_static_stems = 1 ; // other stems are star-stems
+//					n_static_stems = 1 ;                                                                      // other stems are star-stems
 //					//
 //					::string       pfx      = Codec::CodecFile::s_pfx_s() ;
-//					::vector<bool> captures ( 4 )                         ; // no back-references, no need for capture
+//					::vector<bool> captures ( 4 )                         ;                                   // no back-references, no need for capture
 //					job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
 //					matches  = { //!                             File                        Ctx
 //						{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures=captures} }
@@ -1041,7 +1041,7 @@ namespace Version {
 //					matches_iotas[true/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
 //					//
 //					deps_attrs.spec.deps = {
-//						{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
+//						{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic} }
 //					} ;
 //					// END_OF_VERSIONING
 //			// START_OF_VERSIONING CODEC
@@ -1115,7 +1115,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : f2376b4ed8a4591faf7c4a9d047e62ae *
+// * Repo : a3a0c7c859c65816c65807e90139c0d0 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1211,15 +1211,15 @@ namespace Version {
 //					// START_OF_VERSIONING REPO CACHE CODEC
 //					static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 //					stems = {
-//						{ "File" ,     ".+"                                            } // static
-//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             } // star
-//					,	{ "Code" ,     "[^/]*"                                         } // .
-//					,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') } // .      /!\ - must be first or last char in []
+//						{ "File" ,     ".+"                                            }                      // static
+//					,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             }                      // star
+//					,	{ "Code" ,     "[^/]*"                                         }                      // .
+//					,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') }                      // .      /!\ - must be first or last char in []
 //					} ;
-//					n_static_stems = 1 ; // other stems are star-stems
+//					n_static_stems = 1 ;                                                                      // other stems are star-stems
 //					//
 //					::string       pfx      = Codec::CodecFile::s_pfx_s() ;
-//					::vector<bool> captures ( 4 )                         ; // no back-references, no need for capture
+//					::vector<bool> captures ( 4 )                         ;                                   // no back-references, no need for capture
 //					job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
 //					matches  = { //!                             File                        Ctx
 //						{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures=captures} }
@@ -1228,7 +1228,7 @@ namespace Version {
 //					matches_iotas[true/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
 //					//
 //					deps_attrs.spec.deps = {
-//						{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
+//						{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic} }
 //					} ;
 //					// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
@@ -2250,9 +2250,9 @@ namespace Version {
 //		Top
 //	,	Ignore
 //	,	ReaddirOk
-//	,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 //	,	CreateEncode                  // used when creating a codec entry while encoding
 //	,	NoHot                         // dep access is guarded and cannot be hot
+//	,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 //	// aliases
 //	,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
 //	} ;
@@ -2481,7 +2481,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 46197d0f92406bdf09e486e219c65a83 *
+// * Job : ed0991cb2c20806e1e1d73072a144d84 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2703,9 +2703,9 @@ namespace Version {
 //		Top
 //	,	Ignore
 //	,	ReaddirOk
-//	,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 //	,	CreateEncode                  // used when creating a codec entry while encoding
 //	,	NoHot                         // dep access is guarded and cannot be hot
+//	,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 //	// aliases
 //	,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
 //	} ;

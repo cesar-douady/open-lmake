@@ -23,7 +23,6 @@ enum class Flag : uint8_t {
 ,	Essential
 ,	Ignore
 ,	IgnoreError
-,	NoExcludeStar
 ,	NoRequired
 ,	ReaddirOk
 ,	Verbose
@@ -39,13 +38,12 @@ int main( int argc , char* argv[]) {
 	,	{ Flag::Direct         , { .short_name='d' ,                 .doc="suspend job until deps are up-to-date" } }
 	,	{ Flag::Verbose        , { .short_name='v' ,                 .doc="write dep checksums on stdout"         } }
 	//
-	,	{ Flag::Critical      , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .doc="report critical deps"                    } }
-	,	{ Flag::Essential     , { .short_name=DflagChars     [+Dflag     ::Essential  ].second , .doc="ask that deps be seen in graphical flow" } }
-	,	{ Flag::IgnoreError   , { .short_name=DflagChars     [+Dflag     ::IgnoreError].second , .doc="ignore if deps are in error"             } }
-	,	{ Flag::Ignore        , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore     ].second , .doc="ignore deps"                             } }
-	,	{ Flag::NoExcludeStar , { .short_name=ExtraDflagChars[+ExtraDflag::NoStar     ].second , .doc="accept regexpr-based flags"              } }
-	,	{ Flag::NoRequired    , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .doc="ignore if deps cannot be built"          } }
-	,	{ Flag::ReaddirOk     , { .short_name=ExtraDflagChars[+ExtraDflag::ReaddirOk  ].second , .doc="allow readdir"                           } }
+	,	{ Flag::Critical    , { .short_name=DflagChars     [+Dflag     ::Critical   ].second , .doc="report critical deps"                    } }
+	,	{ Flag::Essential   , { .short_name=DflagChars     [+Dflag     ::Essential  ].second , .doc="ask that deps be seen in graphical flow" } }
+	,	{ Flag::IgnoreError , { .short_name=DflagChars     [+Dflag     ::IgnoreError].second , .doc="ignore if deps are in error"             } }
+	,	{ Flag::Ignore      , { .short_name=ExtraDflagChars[+ExtraDflag::Ignore     ].second , .doc="ignore deps"                             } }
+	,	{ Flag::NoRequired  , { .short_name=DflagChars     [+Dflag     ::Required   ].second , .doc="ignore if deps cannot be built"          } }
+	,	{ Flag::ReaddirOk   , { .short_name=ExtraDflagChars[+ExtraDflag::ReaddirOk  ].second , .doc="allow readdir"                           } }
 	}} ;
 	CmdLine<Flag> cmd_line { syntax , argc , argv } ;
 	Rc                rc       = Rc::Ok                 ;
@@ -70,18 +68,17 @@ int main( int argc , char* argv[]) {
 		if (!cmd_line.args) return 0 ;                                                                 // fast path : depends on nothing
 		for( ::string const& f : cmd_line.args ) if (!f) syntax.usage("cannot depend on empty file") ;
 		//
-		AccessDigest ad      { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
-		bool         verbose = flags[Flag::Verbose]                                                   ;
-		bool         direct  = flags[Flag::Direct ]                                                   ;
+		AccessDigest ad      { .flags{.dflags=DflagsDfltDepend} } ;
+		bool         verbose = flags[Flag::Verbose]               ;
+		bool         direct  = flags[Flag::Direct ]               ;
 		//
-		if (flags[Flag::Read         ]) ad.accesses            = DataAccesses             ;
-		if (flags[Flag::Critical     ]) ad.flags.dflags       |=  Dflag     ::Critical    ;
-		if (flags[Flag::Essential    ]) ad.flags.dflags       |=  Dflag     ::Essential   ;
-		if (flags[Flag::Ignore       ]) ad.flags.extra_dflags |=  ExtraDflag::Ignore      ;
-		if (flags[Flag::IgnoreError  ]) ad.flags.dflags       |=  Dflag     ::IgnoreError ;
-		if (flags[Flag::NoRequired   ]) ad.flags.dflags       &= ~Dflag     ::Required    ;
-		if (flags[Flag::ReaddirOk    ]) ad.flags.extra_dflags |=  ExtraDflag::ReaddirOk   ;
-		if (flags[Flag::NoExcludeStar]) ad.flags.extra_dflags &= ~ExtraDflag::NoStar      ;
+		if (flags[Flag::Read       ]) ad.accesses            = DataAccesses             ;
+		if (flags[Flag::Critical   ]) ad.flags.dflags       |=  Dflag     ::Critical    ;
+		if (flags[Flag::Essential  ]) ad.flags.dflags       |=  Dflag     ::Essential   ;
+		if (flags[Flag::Ignore     ]) ad.flags.extra_dflags |=  ExtraDflag::Ignore      ;
+		if (flags[Flag::IgnoreError]) ad.flags.dflags       |=  Dflag     ::IgnoreError ;
+		if (flags[Flag::NoRequired ]) ad.flags.dflags       &= ~Dflag     ::Required    ;
+		if (flags[Flag::ReaddirOk  ]) ad.flags.extra_dflags |=  ExtraDflag::ReaddirOk   ;
 		::pair<::vector<VerboseInfo>,bool/*ok*/> dep_infos ;
 		try                       { dep_infos = JobSupport::depend( ::copy(cmd_line.args) , ad , !flags[Flag::FollowSymlinks] , flags[Flag::Regexpr] , direct , verbose ) ; }
 		catch (::string const& e) { syntax.usage(e) ;                                                                                                                       }

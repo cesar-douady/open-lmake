@@ -38,11 +38,11 @@ enum class JobExecProc : uint8_t {
 struct JobExecRpcReq   ;
 struct JobExecRpcReply ;
 
-struct AccessDigest {                                                                        // semantic access order is first read, first write, last write, unlink
+struct AccessDigest {                                                     // semantic access order is first read, first write, last write, unlink
 	// accesses
 	void operator>>(::string&) const ;
-	bool has_read  (         ) const { return +accesses || read_dir   ; }                    // true if some read access of some sort is done
-	bool operator+ (         ) const { return has_read() || write!=No ; }                    // true if some      access of some sort is done
+	bool has_read  (         ) const { return +accesses || read_dir   ; } // true if some read access of some sort is done
+	bool operator+ (         ) const { return has_read() || write!=No ; } // true if some      access of some sort is done
 	// services
 	bool          operator==(AccessDigest const&   ) const = default ;
 	AccessDigest& operator|=(AccessDigest const&   )       ;
@@ -50,11 +50,11 @@ struct AccessDigest {                                                           
 	AccessDigest& operator|=(Accesses     const& a )       { accesses |= a ; return        self      ; }
 	AccessDigest  operator| (Accesses     const& a ) const {                 return ::copy(self)|=a  ; }
 	// data
-	Bool3      write        = No                                                           ; // if Maybe => write is not confirmed
-	bool       read_dir     = false                                                        ;
-	bool       force_is_dep = false                                                        ; // if true => access must be a dep even if written to beforehand
-	Accesses   accesses     = {}                                                           ;
-	MatchFlags flags        = { .dflags=DflagsDfltDyn , .extra_dflags=ExtraDflagsDfltDyn } ; // kind is unused
+	Bool3      write        = No                        ;                 // if Maybe => write is not confirmed
+	bool       read_dir     = false                     ;
+	bool       force_is_dep = false                     ;                 // if true => access must be a dep even if written to beforehand
+	Accesses   accesses     = {}                        ;
+	MatchFlags flags        = { .dflags=DflagsDfltDyn } ;                 // kind is unused
 } ;
 
 struct JobExecRpcReq {

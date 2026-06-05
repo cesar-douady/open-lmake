@@ -459,7 +459,7 @@ namespace Engine {
 				continue ;
 			}
 			VarIdx     n_unnamed = 0                                                                                        ;
-			MatchFlags mfs       = { .dflags=DflagsDfltStatic , .extra_dflags=ExtraDflagsDfltStatic }                       ;
+			MatchFlags mfs       = { .dflags=DflagsDfltStatic , .extra_dflags=ExtraDflag::NoStar }                          ;
 			::string   dep       = Rule::s_split_flags( "dep "+key , py_val , 1/*n_skip*/ , /*out*/mfs , true/*dep_only*/ ) ; dep = rd.add_cwd( ::move(dep) , mfs.extra_dflags[ExtraDflag::Top] ) ;
 			try {
 				bool     keep       = false/*garbage*/                                                                   ;
@@ -507,7 +507,7 @@ namespace Engine {
 						if (&py_val==&None) continue ;
 						::string key = py_key.as_a<Str>() ;
 						try {
-							MatchFlags mfs = { .dflags=DflagsDfltStatic , .extra_dflags=ExtraDflagsDfltStatic }                       ;
+							MatchFlags mfs = { .dflags=DflagsDfltStatic , .extra_dflags=ExtraDflag::NoStar }                          ;
 							::string   dep = Rule::s_split_flags( "dep "+key , py_val , 1/*n_skip*/ , /*out*/mfs , true/*dep_only*/ ) ;
 							dep = match.rule->add_cwd( ::move(dep) , mfs.extra_dflags[ExtraDflag::Top] ) ;
 							DepSpec ds { dep , mfs.dflags , mfs.extra_dflags } ;

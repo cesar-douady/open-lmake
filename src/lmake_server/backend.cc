@@ -193,7 +193,7 @@ namespace Backends {
 	}
 
 	static LocalReason _localize( Tag t , Req r ) {
-		Lock lock{Req::s_reqs_mutex} ;                                    // taking Req::s_reqs_mutex is compulsory to derefence req
+		Lock lock{Req::s_reqs_mutex} ;                                                  // taking Req::s_reqs_mutex is compulsory to derefence req
 		if (r->options.flags[ReqFlag::Local]) return LocalReason::AskedLocal          ;
 		if (!Backend::s_ready(t)            ) return LocalReason::BackendNotAvailable ; // if asked backend is not usable, force local execution
 		/**/                                  return {}                               ;
@@ -500,8 +500,8 @@ namespace Backends {
 		if (+deps) {
 			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )
-				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second.first |= dd ;                   // update existing dep
-				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,::pair(dd,ExtraDflagsDfltDyn)) ; } // create new dep
+				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second.first |= dd ;              // update existing dep
+				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,::pair(dd,ExtraDflags())) ; } // create new dep
 		}
 		bool deps_done =                                                             // true if all deps are done for at least one non-zombie req
 			::any_of(
@@ -910,7 +910,7 @@ namespace Backends {
 		SeqId seq_id = (*Engine::g_seq_id)++ ;
 		//
 		_s_mutex.swear_locked() ;
-		auto        it_inserted = _s_start_tab.try_emplace(job) ; SWEAR(it_inserted.second,job) ;   // ensure entry is created
+		auto        it_inserted = _s_start_tab.try_emplace(job) ; SWEAR(it_inserted.second,job) ; // ensure entry is created
 		StartEntry& entry       = it_inserted.first->second     ;
 		entry.submit_info = ::move(submit_info) ;
 		entry.conn.seq_id =        seq_id       ;
@@ -926,11 +926,11 @@ namespace Backends {
 		;
 		::vector_s cmd_line {
 			_s_job_exec
-		,	_s_job_start_thread.fd.service_str(server_host)                                         // server address is only passed as start service as others use the same
-		,	_s_job_mngt_thread .fd.service_str({}         )                                         // .
-		,	_s_job_end_thread  .fd.service_str({}         )                                         // .
-		,	domain_name                                                                             // passed early so that job init can start early
-		,	*g_repo_root_s                                                                          // .
+		,	_s_job_start_thread.fd.service_str(server_host)                                       // server address is only passed as start service as others use the same
+		,	_s_job_mngt_thread .fd.service_str({}         )                                       // .
+		,	_s_job_end_thread  .fd.service_str({}         )                                       // .
+		,	domain_name                                                                           // passed early so that job init can start early
+		,	*g_repo_root_s                                                                        // .
 		,	::to_string(seq_id)
 		,	::to_string(+job  )
 		,	::to_string(seq_id%g_config->trace.n_jobs)

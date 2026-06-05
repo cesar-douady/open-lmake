@@ -91,15 +91,15 @@ namespace Engine {
 				// START_OF_VERSIONING REPO CACHE CODEC
 				static constexpr MatchFlags IncPhony { .tflags{Tflag::Incremental,Tflag::Phony,Tflag::Target} } ;
 				stems = {
-					{ "File" ,     ".+"                                            } // static
-				,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             } // star
-				,	{ "Code" ,     "[^/]*"                                         } // .
-				,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') } // .      /!\ - must be first or last char in []
+					{ "File" ,     ".+"                                            }                      // static
+				,	{ "Ctx"  , cat("[^",CodecSep,"]*")                             }                      // star
+				,	{ "Code" ,     "[^/]*"                                         }                      // .
+				,	{ "Val"  , cat("[A-Za-z0-9_-]{",Codec::CodecCrc::Base64Sz,'}') }                      // .      /!\ - must be first or last char in []
 				} ;
-				n_static_stems = 1 ; // other stems are star-stems
+				n_static_stems = 1 ;                                                                      // other stems are star-stems
 				//
 				::string       pfx      = Codec::CodecFile::s_pfx_s() ;
-				::vector<bool> captures ( 4 )                         ; // no back-references, no need for capture
+				::vector<bool> captures ( 4 )                         ;                                   // no back-references, no need for capture
 				job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
 				matches  = { //!                             File                        Ctx
 					{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures=captures} }
@@ -108,11 +108,11 @@ namespace Engine {
 				matches_iotas[true/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
 				//
 				deps_attrs.spec.deps = {
-					{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic,.extra_dflags=ExtraDflagsDfltStatic} }
+					{ "CODEC_FILE" , {.txt=_stem_mrkr(VarCmd::Stem,0/*File*/),.dflags=DflagsDfltStatic} }
 				} ;
 				// END_OF_VERSIONING
 			} break ;
-		DF}                                                                                                                                                                       // NO_COV
+		DF}                                                                                               // NO_COV
 		for( auto const& [_,v] : stems ) stem_n_marks.push_back(Re::RegExpr(v,true/*cache*/).n_marks()) ;
 		_set_crcs({}) ;                                                                                   // rules is not necessary for special rules
 	}

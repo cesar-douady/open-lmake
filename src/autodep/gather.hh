@@ -163,9 +163,8 @@ public :
 	void   drain_heartbeat(                                                  ) ;
 	//
 	void add_star_match( Re::RegExpr&& re , ::pair<PD,MatchFlags> pd_f ) {
-		static constexpr MatchFlags ReaddirOk { .dflags=DflagsDfltDyn , .extra_dflags=ExtraDflagsDfltDyn|ExtraDflag::ReaddirOk } ;
 		if (+pd_f.second) {
-			::vmap<Re::RegExpr,::pair<PD,MatchFlags>>& _star_matches = _star_matchess[pd_f.second==ReaddirOk] ;
+			::vmap<Re::RegExpr,::pair<PD,MatchFlags>>& _star_matches = _star_matchess[pd_f.second==MatchFlags{.dflags=DflagsDfltDyn,.extra_dflags=ExtraDflag::ReaddirOk}] ;
 			// Target entries must appear before non-Target ones
 			if (+_star_matches) SWEAR( _star_matches.back().second.second.tflags[Tflag::Target]>=pd_f.second.tflags[Tflag::Target] , _star_matches.back().second,pd_f.second ) ;
 			_star_matches.emplace_back( ::move(re) , pd_f ) ;                                   // fast path : no need to match for nothing

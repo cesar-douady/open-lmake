@@ -68,12 +68,12 @@ static ::vector_s _get_files(Tuple const& py_args) {
 }
 
 static Ptr<> _depend( Tuple const& py_args , Dict const& py_kwds ) {
-	bool         no_follow = true                                                                   ;
-	bool         regexpr   = false                                                                  ;
-	bool         direct    = false                                                                  ;
-	bool         verbose   = false                                                                  ;
-	AccessDigest ad        { .flags{.dflags=DflagsDfltDepend,.extra_dflags=ExtraDflagsDfltDepend} } ;
-	::vector_s   files     = _get_files(py_args)                                                    ;
+	bool         no_follow = true                               ;
+	bool         regexpr   = false                              ;
+	bool         direct    = false                              ;
+	bool         verbose   = false                              ;
+	AccessDigest ad        { .flags{.dflags=DflagsDfltDepend} } ;
+	::vector_s   files     = _get_files(py_args)                ;
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
@@ -117,10 +117,10 @@ static Ptr<> _depend( Tuple const& py_args , Dict const& py_kwds ) {
 }
 
 static void _target( Tuple const& py_args , Dict const& py_kwds ) {
-	bool         no_follow = true                                                                       ;
-	bool         regexpr   = false                                                                      ;
-	AccessDigest ad        { .flags{.extra_tflags=ExtraTflag::Allow,.extra_dflags=ExtraDflag::NoStar} } ;
-	::vector_s   files     = _get_files(py_args)                                                        ;
+	bool         no_follow = true                                      ;
+	bool         regexpr   = false                                     ;
+	AccessDigest ad        { .flags{.extra_tflags=ExtraTflag::Allow} } ;
+	::vector_s   files     = _get_files(py_args)                       ;
 	//
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		::string key = py_key.template as_a<Str>() ;
@@ -440,7 +440,6 @@ PyMODINIT_FUNC
 			",\tfollow_symlinks=False\n"
 			",\tread           =False # pretend deps are read in addition to setting flags\n"
 			",\tregexpr        =False # deps are regexprs\n"
-			",\tno_star        =True  # do not take regexpr-based flags into account\n"
 			",\tverbose        =False # return a report as a dict { dep:(ok,checksum) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
 			"# flags :\n"
 			",\tcritical       =False # if modified, ignore following deps\n"
@@ -458,7 +457,6 @@ PyMODINIT_FUNC
 			"\t*targets\n"
 			",\tregexpr     =False # targets are regexprs\n"
 			",\twrite       =False # pretend targets are written in addition to setting flags\n"
-			",\tno_star     =True  # do not take regexpr-based flags into account\n"
 			"# flags :\n"
 			",\tallow       =True  # writing to this target is allowed\n"
 			",\tessential   =False # show when generating user oriented graphs\n"

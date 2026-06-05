@@ -43,9 +43,9 @@ enum class ExtraDflag : uint8_t { // flags for deps, not recorded in server book
 	Top
 ,	Ignore
 ,	ReaddirOk
-,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 ,	CreateEncode                  // used when creating a codec entry while encoding
 ,	NoHot                         // dep access is guarded and cannot be hot
+,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 // aliases
 ,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
 } ;
@@ -54,16 +54,12 @@ static constexpr ::amap<ExtraDflag,char,N<ExtraDflag>> ExtraDflagChars {{
 	{ ExtraDflag::Top          , 0   }
 ,	{ ExtraDflag::Ignore       , 'I' }
 ,	{ ExtraDflag::ReaddirOk    , 'D' }
-,	{ ExtraDflag::NoStar       , 'x' }
 ,	{ ExtraDflag::CreateEncode , 0   }
 ,	{ ExtraDflag::NoHot        , 0   }
+,	{ ExtraDflag::NoStar       , 0   }
 }} ;
 using ExtraDflags = BitMap<ExtraDflag> ;
 static_assert(chk_enum_tab(ExtraDflagChars)) ;
-static constexpr ExtraDflags ExtraDflagsDflt       = {}                                 ;
-static constexpr ExtraDflags ExtraDflagsDfltStatic = ExtraDflagsDflt|ExtraDflag::NoStar ;
-static constexpr ExtraDflags ExtraDflagsDfltDyn    = ExtraDflagsDflt                    ;
-static constexpr ExtraDflags ExtraDflagsDfltDepend = ExtraDflagsDflt|ExtraDflag::NoStar ;
 
 // START_OF_VERSIONING CACHE JOB REPO
 enum class Tflag : uint8_t { // flags for targets, recorded in server book-keeping

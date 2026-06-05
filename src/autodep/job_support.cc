@@ -28,7 +28,8 @@ namespace JobSupport {
 			SWEAR(ad.write==No) ;
 			throw_if( !no_follow   , "regexpr and follow_symlinks are exclusive" ) ;
 			throw_if( +ad.accesses , "regexpr and read are exclusive"            ) ;
-			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                                               // it is meaningless to exclude regexpr when we are a regexpr
+		} else {
+			ad.flags.extra_dflags |= ExtraDflag::NoStar ;                                                // ignore regexpr based flags if specified specifically
 		}
 		if (ad.flags.extra_dflags[ExtraDflag::ReaddirOk]) {
 			ad.flags.dflags &= ~Dflag::Required ;                                                        // ReaddirOk means dep is expected to be a dir, it is non-sens to require it to be buidlable
@@ -51,10 +52,8 @@ namespace JobSupport {
 
 	void target( ::vector_s&& files , AccessDigest ad , bool no_follow , bool regexpr ) {
 		SWEAR(ad.write!=Maybe) ;                                                          // useless, but if necessary, implement a confirmation mecanism
-		if (regexpr) {
-			throw_unless( ad.write==No , "regexpr and write are exclusive" ) ;
-			ad.flags.extra_dflags &= ~ExtraDflag::NoStar ;                                // it is meaningless to exclude regexpr when we are a regexpr
-		}
+		if (regexpr) throw_unless( ad.write==No , "regexpr and write are exclusive" ) ;
+		else         ad.flags.extra_dflags |= ExtraDflag::NoStar ;                        // ignore regexpr based flags if specified specifically
 		_chk_files(files) ;
 		if (regexpr) Backdoor::call<Backdoor::Regexpr>( { .files=::move(files) , .access_digest=ad                        } ) ;
 		else         Backdoor::call<Backdoor::Target >({{ .files=::move(files) , .access_digest=ad , .no_follow=no_follow }}) ;
