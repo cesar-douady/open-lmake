@@ -1,7 +1,7 @@
 #include "version.hh"
 namespace Version {
 	uint64_t    constexpr Cache = 48      ; // f75768525a9bf75d1c1aa0be3bbfebcb
-	uint64_t    constexpr Codec = 4       ; // 7319fd9fdc817eb270477875338dd334
+	uint64_t    constexpr Codec = 3       ; // 7319fd9fdc817eb270477875338dd334
 	uint64_t    constexpr Repo  = 51      ; // a3a0c7c859c65816c65807e90139c0d0
 	uint64_t    constexpr Job   = 24      ; // ed0991cb2c20806e1e1d73072a144d84
 	const char* const     Major = "26.06" ;
