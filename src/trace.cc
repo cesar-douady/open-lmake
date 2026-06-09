@@ -16,6 +16,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 
 #ifdef TRACE
 
+	size_t                 Trace::_s_sz         =  0      ;
 	::string               Trace::_s_trace_file ;
 	size_t                 Trace::_s_pos        =  0      ;
 	bool                   Trace::_s_ping       = false   ;
@@ -32,30 +33,32 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 	void Trace::s_start(::string const& trace_file) {
 		SWEAR( !_s_trace_file , _s_trace_file ) ;
 		if (!trace_file) return ;
-		_s_trace_file = trace_file ;
 		Lock lock{_s_mutex} ;
-		_s_open() ;
+		_s_open(trace_file) ;
 	}
 
 	void Trace::s_new_trace_file(::string const& trace_file) {
-		if (!_s_has_trace            ) return ;                // change trace file, but dont start tracing
+		if (!_s_has_trace            ) return ;
 		if (trace_file==_s_trace_file) return ;
 		//
 		Lock lock{_s_mutex} ;
-		//
-		_s_has_trace = false ;
-		fence() ;
-		::munmap(_s_data,_s_cur_sz) ;
-		_s_data   = nullptr ;
-		_s_cur_sz = 0       ;
-		_s_pos    = 0       ;
-		_s_fd.close() ;
-		_s_trace_file = trace_file ;
-		_s_open() ;
+		_s_close() ;
+		_s_open(trace_file) ;
 	}
 
-	void Trace::_s_open() {
-		if (s_sz<PAGE_SZ  ) return ; // not enough room to trace
+	void Trace::_s_open(::string const& trace_file) {
+		_s_trace_file = trace_file ;
+		if ( s_sz!=_s_sz && _s_sz ) {
+			int rc = ::munmap( _s_data , _s_sz ) ; SWEAR( rc==0 , rc ) ;
+			_s_sz   = 0       ;
+			_s_data = nullptr ;
+		}
+		if (s_sz<PAGE_SZ) return ;   // not enough room to trace
+		if (s_sz!=_s_sz) {
+			_s_data = static_cast<uint8_t*>(::mmap( nullptr/*addr*/ , s_sz , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1/*fd*/ , 0/*offset*/ )) ;
+			if (_s_data==MAP_FAILED) exit( Rc::System , "cannot prepare trace file mapping to ",_s_trace_file," : ",StrErr() ) ;
+			_s_sz = s_sz ;
+		}
 		if (!s_channels   ) return ; // nothing to trace
 		if (!_s_trace_file) return ; // nowhere to trace to
 		if (s_backup_trace) {
@@ -72,8 +75,18 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		try { rename(tmp_trace_file/*src*/,_s_trace_file/*dst*/) ;       } catch (::string const& e) { exit(Rc::System,"cannot create trace file : "          ,e) ; }
 		_s_map(PAGE_SZ) ;
 		//
-		_s_pos       = 0      ;
+		_s_pos = 0 ;
+		fence() ;
 		_s_has_trace = +_s_fd ;      // ensure _s_has_trace is updated once everything is ok as tracing may be called from other threads while being initialized
+	}
+
+	void Trace::_s_close() {
+		_s_has_trace = false ;
+		fence() ;
+		::mmap( _s_data , _s_cur_sz , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED , -1/*fd*/ , 0/*offset*/ ) ;
+		_s_cur_sz = 0 ;
+		_s_pos    = 0 ; // avoid leaving stale useless info
+		_s_fd.close() ;
 	}
 
 	void Trace::_t_commit() {
@@ -98,20 +111,11 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 	}
 
 	void Trace::_s_map(size_t sz) {
-		if ( _s_cur_sz && ::munmap(_s_data,_s_cur_sz)!=0 )
-			exit( Rc::System , "cannot unmap trace file ",_s_trace_file," from size ",_s_cur_sz," : ",StrErr() ) ;
-		//
-		_s_cur_sz = sz ;
-		//
-		if ( ::ftruncate(_s_fd,_s_cur_sz)!=0 )                                                                // ftruncate is ok as long as no mapping exists
-			exit(Rc::System,"cannot extend trace file ",_s_trace_file," to size ",_s_cur_sz," : ",StrErr()) ;
-		//
-		try                       { _s_fd = {_s_trace_file,{.flags=O_RDWR,.no_std=true}} ; }                  // reopen so no race with mmap, even with BeeGFS with tuneCoherentBuffers=0
-		catch (::string const& e) { exit(Rc::System,"cannot reopen trace file"," : ",e) ;  }
-		//
-		_s_data = static_cast<uint8_t*>(::mmap( nullptr/*addr*/ , _s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED , _s_fd , 0/*offset*/ )) ;
-		if (_s_data==MAP_FAILED)
+		if ( ::posix_fallocate( _s_fd , _s_cur_sz , sz-_s_cur_sz )!=0 )
+			exit(Rc::System,"cannot extend trace file ",_s_trace_file," to size ",sz," : ",StrErr()) ;
+		if ( ::mmap( _s_data+_s_cur_sz , sz-_s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED|MAP_FIXED , _s_fd , _s_cur_sz )==MAP_FAILED )
 			exit( Rc::System , "cannot map trace file ",_s_trace_file," : ",StrErr() ) ;
+		_s_cur_sz = sz ;
 	}
 
 #endif

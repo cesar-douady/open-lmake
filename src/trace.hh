@@ -49,9 +49,10 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static void s_start         (::string const& trace_file ) ;                                                // called from main thread
 		static void s_new_trace_file(::string const& trace_file ) ;                                                // .
 	private :
-		static void _s_open  (         ) ;
-		static void _t_commit(         ) ;
-		static void _s_map   (size_t sz) ;
+		static void _s_open  (::string const& trace_file) ;
+		static void _s_close (                          ) ;
+		static void _t_commit(                          ) ;
+		static void _s_map   (size_t          sz        ) ;
 		//
 	public :
 		template<class T> static ::string s_str( T const& v , const char* s ) { return cat(s,"=",v)            ; }
@@ -60,9 +61,10 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		/**/              static ::string s_str( int8_t   v , const char* s ) { return s_str(int(v),s)         ; } // .
 		// static data
 		static Atomic<bool    > s_backup_trace ;
-		static Atomic<size_t  > s_sz           ;                                                                   // max overall size of trace, beyond, trace wraps
+		static Atomic<size_t  > s_sz           ;                                                                   // max overall size of trace, beyond, trace wraps (cannot be modified after s_start)
 		static Atomic<Channels> s_channels     ;
 	private :
+		static size_t                 _s_sz         ;                                                              // copy of s_sz to ensure it is not modified
 		static ::string               _s_trace_file ;
 		static size_t                 _s_pos        ;                                                              // current line number
 		static bool                   _s_ping       ;                                                              // ping-pong to distinguish where trace stops in the middle of a trace
