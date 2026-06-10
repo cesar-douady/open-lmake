@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <glob.h>
+#include <spawn.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -569,7 +570,16 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int creat64          (      CC* p,mode_t m ) {       HDR_OPEN(creat64          ,p,CWT,(  p,  m),-1) ; Open r{   p ,CWT,Comment::creat64          } ; return r(orig(  p,  m)) ; }
 	#undef CWT
 	#undef MOD
-	DIR* opendir(CC* p) { HDR1(opendir,p,(p)) ; Solve r{p,true/*no_follow*/,false/*read*/,Comment::opendir} ; return r(orig(p)) ; }
+	DIR* opendir(CC* p) { HDR1(opendir,p,(p)) ; Solve r{p,false/*no_follow*/,false/*read*/,Comment::opendir} ; return r(orig(p)) ; }
+
+	// posix_spawn
+	#define PSFA ::posix_spawn_file_actions_t
+	#define PA   ::posix_spawnattr_t
+	//                                                                                                                             no_follow
+	int posix_spawn (pid_t* pid,CC* p,PSFA const*x,PA const* a,char* const argv[],char* const envp[]) { HDR_EXEC(Exec ,posix_spawn ,false  ,p,envp) ; return orig(pid,p,x,a,argv,envp) ; }
+	int posix_spawnp(pid_t* pid,CC* p,PSFA const*x,PA const* a,char* const argv[],char* const envp[]) { HDR_EXEC(Execp,posix_spawnp,false  ,p,envp) ; return orig(pid,p,x,a,argv,envp) ; }
+	#undef PSFA
+	#undef PA
 
 	// readlink
 	#define RL Readlink
@@ -650,8 +660,10 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	// access
 	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses(Access::Stat) )
 	//                                                                                    no_follow accesses
-	int access   (      CC* p,int m      ) NE { HDR1(access   ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::access   } ; return r(orig(  p,m  )) ; }
-	int faccessat(int d,CC* p,int m,int f) NE { HDR1(faccessat,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),Comment::faccessat} ; return r(orig(d,p,m,f)) ; }
+	int access    (      CC* p,int m      ) NE { HDR1(access    ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::access    } ; return r(orig(  p,m  )) ; }
+	int eaccess   (      CC* p,int m      ) NE { HDR1(eaccess   ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::euidaccess} ; return r(orig(  p,m  )) ; }
+	int euidaccess(      CC* p,int m      ) NE { HDR1(euidaccess,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::euidaccess} ; return r(orig(  p,m  )) ; }
+	int faccessat (int d,CC* p,int m,int f) NE { HDR1(faccessat ,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),Comment::faccessat } ; return r(orig(d,p,m,f)) ; }
 	#undef ACCESSES
 
 	// stat* accesses provide the size field, which make the user sensitive to file content
@@ -682,7 +694,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		#else
 			Accesses a = FullAccesses ;                                           // if access macros are not defined, be pessimistic
 		#endif
-		Stat r{{d,p},true/*no_follow*/,a,Comment::statx} ;
+		Stat r { {d,p} , ASLNF(f) , a , Comment::statx } ;
 		return r(orig(d,p,f,msk,b)) ;
 	}
 

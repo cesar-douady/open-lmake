@@ -231,11 +231,11 @@ else :
 		,	'end_overhead'   , 'ok'
 		) :
 			assert w in x , f'in lshow -u : missing {w} in\n{x}'
-		assert any( t in x for t in ('open(read)','openat(read)','statx(no_follow)') ) , f'in lshow -u : missing open(read) or openat(read) or statx(no_follow) in\n{x}'
+		assert any( t in x for t in ('open(read)','openat(read)','statx') ) , f'in lshow -u : missing open(read) or openat(read) or statx in\n{x}'
 		y = tuple( e[1:] for e in px if e[1] not in ('static_dep','static_unlnk','static_match') )
 		z =      { e[1:] for e in px if e[1]     in ('static_dep','static_unlnk','static_match') }
 		ok = False
-		for o in ('open(read)','openat(read)','statx(no_follow)') :
+		for o in ('open(read)','openat(read)','statx') :
 			ok |= y==(
 				( 'start_overhead'    , ''                      )
 			,	( 'chdir'             , os.getcwd()             )

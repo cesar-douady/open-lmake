@@ -34,6 +34,7 @@ else :
 
 	os_candidates = (
 		'alma9'
+	,	'bookworm'
 	,	'centos7'
 	,	'debian12' , 'debian13'
 	,	'fedora43'

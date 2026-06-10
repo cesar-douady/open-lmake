@@ -273,8 +273,8 @@ JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , Fil
 	return report_access( fl , ::move(jerr) , force ) ;
 }
 
-Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),true/*no_follow*/,false/*read*/,c} {
-	SWEAR(!accesses) ;                                                                                                                    // no access to last component when no_follow
+Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),false/*no_follow*/,false/*read*/,c} {
+	report_dep( r , Access() , c ) ;
 	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s({at,with_slash(file)}) ;                                        // in case of overlay, create dir in the view
 	r.report_guard( file_loc , real_write() ) ;
 	send_report(r) ;

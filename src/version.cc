@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 48      ; // f75768525a9bf75d1c1aa0be3bbfebcb
+	uint64_t    constexpr Cache = 50      ; // 4921c0c3bc0ca1fead479b589724182a
 	uint64_t    constexpr Codec = 3       ; // 7319fd9fdc817eb270477875338dd334
-	uint64_t    constexpr Repo  = 51      ; // a3a0c7c859c65816c65807e90139c0d0
-	uint64_t    constexpr Job   = 24      ; // ed0991cb2c20806e1e1d73072a144d84
+	uint64_t    constexpr Repo  = 53      ; // 198c98089ae876d3600a7c327456538b
+	uint64_t    constexpr Job   = 26      ; // 2925a8dbd72966061bac50e56e5bbcd5
 	const char* const     Major = "26.06" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : f75768525a9bf75d1c1aa0be3bbfebcb *
+// * Cache : 4921c0c3bc0ca1fead479b589724182a *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -781,7 +781,7 @@ namespace Version {
 //	enum class Comment : uint8_t {
 //		None
 //	// syscalls
-//	,	access
+//	,	access                 , euidaccess
 //	,	canonicalize_file_name
 //	,	chdir
 //	,	chmod
@@ -822,6 +822,7 @@ namespace Version {
 //	,	open                   , open64          , openat            , openat64       , openat2
 //	,	open_tree
 //	,	opendir
+//	,	posix_spawn            , posix_spawnp
 //	,	readdir                , readdir64       , readdir_r         , readdir64_r
 //	,	readlink                                 , readlinkat
 //	,	realpath
@@ -1115,7 +1116,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : a3a0c7c859c65816c65807e90139c0d0 *
+// * Repo : 198c98089ae876d3600a7c327456538b *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2295,7 +2296,7 @@ namespace Version {
 //	enum class Comment : uint8_t {
 //		None
 //	// syscalls
-//	,	access
+//	,	access                 , euidaccess
 //	,	canonicalize_file_name
 //	,	chdir
 //	,	chmod
@@ -2336,6 +2337,7 @@ namespace Version {
 //	,	open                   , open64          , openat            , openat64       , openat2
 //	,	open_tree
 //	,	opendir
+//	,	posix_spawn            , posix_spawnp
 //	,	readdir                , readdir64       , readdir_r         , readdir64_r
 //	,	readlink                                 , readlinkat
 //	,	realpath
@@ -2481,7 +2483,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : ed0991cb2c20806e1e1d73072a144d84 *
+// * Job : 2925a8dbd72966061bac50e56e5bbcd5 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2748,7 +2750,7 @@ namespace Version {
 //	enum class Comment : uint8_t {
 //		None
 //	// syscalls
-//	,	access
+//	,	access                 , euidaccess
 //	,	canonicalize_file_name
 //	,	chdir
 //	,	chmod
@@ -2789,6 +2791,7 @@ namespace Version {
 //	,	open                   , open64          , openat            , openat64       , openat2
 //	,	open_tree
 //	,	opendir
+//	,	posix_spawn            , posix_spawnp
 //	,	readdir                , readdir64       , readdir_r         , readdir64_r
 //	,	readlink                                 , readlinkat
 //	,	realpath

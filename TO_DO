@@ -87,6 +87,18 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* support io_uring :
+	- IORING_OP_OPENAT
+	- IORING_OP_STATX
+	- IORING_OP_OPENAT2
+	- IORING_OP_RENAMEAT
+	- IORING_OP_UNLINKAT
+	- IORING_OP_MKDIRAT
+	- IORING_OP_SYMLINKAT
+	- IORING_OP_LINKAT
+	- IORING_OP_URING_CMD ?
+	= by default, forbid io_uring_setup, io_uring_enter and io_uring_register
+	- use ebpf to trigger on internal kernel function
 * ensure SGE job are actually removed from queue when job is done
 	- and call qdel if not
 ! improve address resolution
@@ -289,6 +301,8 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
+* use ebpf in seccomp/ptrace to better filter files
+	- in particular, exclude system files which are very frequently accessed
 * use copy-ref when possible :
 	- cache upload/download when a single file and no compression
 	- when uniquify

@@ -3,6 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
+#include <sys/param.h>
+
 #include "disk.hh"
 
 #include "real_path.hh"
@@ -111,7 +113,7 @@ size_t RealPath::_find_src_idx(::string const& real) const {
 // - do not support links outside repo & tmp, except from /proc (which is meaningful)
 // - note that besides syscalls, this algo is very fast and caching intermediate results could degrade performances (checking the cache could take as long as doing the job)
 RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
-	static constexpr int NMaxLnks = _POSIX_SYMLOOP_MAX ;                  // max number of links to follow before decreting it is a loop
+	static constexpr int NMaxLnks = MAXSYMLINKS ;                  // max number of links to follow before decreting it is a loop
 	//
 	::string_view tmp_dir_s = +_env->tmp_dir_s ? ::string_view(_env->tmp_dir_s) : ::string_view(P_tmpdir "/") ;
 	//

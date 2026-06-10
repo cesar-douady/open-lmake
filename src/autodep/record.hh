@@ -6,10 +6,14 @@
 #pragma once
 
 #include "disk.hh"
-#include "gather.hh"
+#include "msg.hh"
 #include "real_path.hh"
-#include "rpc_job_exec.hh"
 #include "time.hh"
+
+#include "rpc_job.hh"
+#include "rpc_job_exec.hh"
+
+#include "env.hh"
 
 enum class Sent : uint8_t {
 	NotSent

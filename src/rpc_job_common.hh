@@ -168,7 +168,7 @@ struct MatchFlags {
 enum class Comment : uint8_t {
 	None
 // syscalls
-,	access
+,	access                 , euidaccess
 ,	canonicalize_file_name
 ,	chdir
 ,	chmod
@@ -209,6 +209,7 @@ enum class Comment : uint8_t {
 ,	open                   , open64          , openat            , openat64       , openat2
 ,	open_tree
 ,	opendir
+,	posix_spawn            , posix_spawnp
 ,	readdir                , readdir64       , readdir_r         , readdir64_r
 ,	readlink                                 , readlinkat
 ,	realpath
