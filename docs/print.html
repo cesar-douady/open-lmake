@@ -664,7 +664,7 @@ Else it is transformed into a <code>str</code> by calling the <code>str()</code>
 As of now, only version 3 is supported.</p>
 <p>Cf. <a href="codec.html">encode/decode</a>.</p>
 <p>Associations are usually created using <code>encode</code> but not necessarily (they can be created by hand).</p>
-<h3 id="depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a class="header" href="#depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse--no_startrue-"><a href="unit_tests/critical.html#:~:text=lmake%2Edepend%28%27src1%27%2C%27src2%27%20%2Cread%3DTrue%2Ccritical%3DTrue%29"><code>depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False , no_star=True )</code></a></a></h3>
+<h3 id="depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse-"><a class="header" href="#depend-deps--follow_symlinksfalse--directfalse--verbosefalse--readfalse--criticalfalse--essentialfalse--ignorefalse--ignore_errorfalse--readdir_okfalse--requiredtrue--regexprfalse-"><a href="unit_tests/critical.html#:~:text=lmake%2Edepend%28%27src1%27%2C%27src2%27%20%2Cread%3DTrue%2Ccritical%3DTrue%29"><code>depend( *deps , follow_symlinks=False , direct=False , verbose=False , read=False , critical=False , essential=False , ignore=False , ignore_error=False , readdir_ok=False , required=True , regexpr=False )</code></a></a></h3>
 <p>Declare <code>deps</code> as parallel deps (i.e. no order exist between them).</p>
 <p>If <code>follow_symlinks</code>, <code>deps</code> that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).</p>
 <p>Each dep is associated with an access pattern.
@@ -694,14 +694,13 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <p>If <code>read</code>, report an actual read of <code>deps</code>. Default is just to alter associated flags.</p>
 <p>If <code>regexpr</code>, pass flags to all deps matching <code>deps</code> interpreted as regexprs, much like the <code>side_deps</code> rule attribute.
 However, the <code>ignore</code> flag only applies to deps following this call.</p>
-<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code>, <code>readdir_ok</code>, <code>required</code> and <code>no_star</code>, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>:</p>
+<p>For <code>critical</code>, <code>essential</code>, <code>ignore</code>, <code>ignore_error</code>, <code>readdir_ok</code> and <code>required</code> and, set the corresponding <a href="rules.html#deps">flag</a> on all <code>deps</code>:</p>
 <ul>
 <li>If <code>critical</code>,     create critical deps (cf. note (5)).</li>
 <li>If <code>essential</code>,    passed deps will appear in the flow shown with a graphical tool.</li>
 <li>If <code>ignore_error</code>, ignore the error status of the passed deps.</li>
 <li>If <code>readdir_ok</code>,   <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> can be called on passed deps without error even if not <code>ignore</code>'ed nor <code>incremental</code>.</li>
 <li>If not <code>required</code>, accept that deps be not buildable, as for a normal read access (in such a case, the read may fail, but open-lmake is ok).</li>
-<li>If not <code>no_star</code>,  accept regexpr based flags (e.g. calls to this function with <code>regexpr=True</code>).</li>
 <li>If <code>ignore</code>,       deps are ignored altogether, even if further accessed (but previous accesses are kept).</li>
 </ul>
 <p>During job execution, flags accumulate and are never reset.</p>
@@ -821,7 +820,7 @@ Enclosing dirs becoming empty are removed as well if they are <code>dir</code> o
 <p><code>stdin</code> is the text ot send as the stdin of <code>cmd_line</code>.</p>
 <h3 id="set_autodepactive"><a class="header" href="#set_autodepactive"><code>set_autodep(active)</code></a></h3>
 <p>Set the state of autodep.</p>
-<h3 id="target-targets--follow_symlinksfalse--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><a class="header" href="#target-targets--follow_symlinksfalse--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse--no_startrue-"><a href="unit_tests/target.html#:~:text=lmake%2Etarget%28%27side%2Epy%27%2Cwrite%3DTrue%2Csource%5Fok%3DTrue%29"><code>target( *targets , follow_symlinks=False , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False , no_star=True )</code></a></a></h3>
+<h3 id="target-targets--follow_symlinksfalse--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse-"><a class="header" href="#target-targets--follow_symlinksfalse--writefalse--regexprfalse--allowtrue--essentialfalse--ignorefalse--incrementalfalse--no_warningfalse--source_okfalse--criticalfalse--ignore_errorfalse--readdir_okfalse--requiredfalse-"><a href="unit_tests/target.html#:~:text=lmake%2Etarget%28%27side%2Epy%27%2Cwrite%3DTrue%2Csource%5Fok%3DTrue%29"><code>target( *targets , follow_symlinks=False , write=False , regexpr=False , allow=True , essential=False , ignore=False , incremental=False , no_warning=False , source_ok=False , critical=False , ignore_error=False , readdir_ok=False , required=False )</code></a></a></h3>
 <p>Declare <code>targets</code> as targets and alter associated flags.
 Note that the <code>allow</code> argument default value is <code>True</code>.</p>
 <p>If <code>follow_symlinks</code>, <code>targets</code> that are symbolic links are followed (and a dep is set on links themselves, independently of the passed flags that apply for the target the links).</p>
@@ -830,14 +829,13 @@ The official job of a target is the one selected if needing its content, it must
 <p>If <code>write</code>, report that <code>targets</code> were written to.</p>
 <p>If <code>regexpr</code>, pass flags to all targets matching <code>targets</code> interpreted as regexprs, much like the <code>side_targets</code> rule attribute.
 However, the <code>ignore</code> flag only applies to targets following this call.</p>
-<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code>, <code>source_ok</code> and <code>no_star</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>:</p>
+<p>For <code>allow</code>, <code>essential</code>, <code>ignore</code>, <code>incremental</code>, <code>no_warning</code> and <code>source_ok</code>, set the corresponding <a href="rules.html#targets">flag</a> on all <code>targets</code>:</p>
 <ul>
 <li>If <code>essential</code>,   show when generating user oriented graphs.</li>
 <li>If <code>incremental</code>, <code>targets</code> are not unlinked before job execution and read accesses to them are ignored.</li>
 <li>If <code>no_warning</code>,  no warning is emitted if <code>targets</code> are either uniquified or unlinked while generated by another job.</li>
 <li>If <code>ignore</code>,      from now on, ignore all reads and writes to <code>targets</code>.</li>
 <li>If not <code>allow</code>,   do not make <code>targets</code> valid targets.</li>
-<li>If not <code>no_star</code>, accept regexpr based flags (e.g. calls to this function with <code>regexpr=True</code>).</li>
 <li>If <code>source_ok</code>,   accept that <code>targets</code> be sources. Else, writing to a source is an error.</li>
 </ul>
 <p>In case passed targets turn out to be deps, the deps flags are also available: <code>critical</code>, <code>ignore_error</code>, <code>readdir_ok</code> and <code>required</code>:</p>
@@ -1599,7 +1597,6 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>IgnoreError</code></td><td><a href="unit_tests/ignore_err.html#:~:text=%27IgnoreError">ignore_error</a></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
 <tr><td><code>ReaddirOk</code></td><td><a href="unit_tests/wine.html#:~:text=%27readdir%5Fok">readdir_ok</a></td><td>No</td><td>This dep may be accessed as a dir (e.g. using <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> without error.</td></tr>
 <tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
-<tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Do not ccept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. <a href="experimental_subrepos.html">subrepos</a>).</td></tr>
 </tbody></table>
 </div>
@@ -1609,8 +1606,6 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <li>The  <code>critical</code> flag is typically used for deps that contain a list of deps, for example for a test suite.
 In that case, if the list changes, speculatively building the old deps is probably not the best strategy.</li>
 <li>The <code>ignore_error</code> flag is also typically use for test suites to generate a colored report.</li>
-<li>The <code>-no_star</code> flag is used to avoid repetition, as it is generally possible to mention all the flags that must apply to a target,
-possibly duplicating flags mentioned in other matching entries (<code>side_deps</code> and <code>side_targets</code>).</li>
 <li>The <code>top</code> flag is used in case of sub-repo, which is an experimental feature.</li>
 </ul>
 <h3 id="environ"><a class="header" href="#environ"><a href="unit_tests/env.html#:~:text=environ%20%3D%20%7B%20%27FROM%5FBACKEND%27%20%3A%20%2E%2E%2E%20%2C%20%27FROM%5FRULE%27%20%3A%20%27from%5Frule%27%20%7D"><code>environ</code></a></a></h3>
@@ -1990,7 +1985,6 @@ Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple<
 <tr><td><code>Optional</code></td><td><code>optional</code></td><td>No</td><td>If this target is not generated, it is not deemed to be produced by the job. Cf note (2).</td></tr>
 <tr><td><code>Phony</code></td><td><a href="unit_tests/regression.html#:~:text=%27phony"><code>phony</code></a></td><td>No</td><td>Accept that this target is not generated, in which case it is deemed generated even not physically on disk. Cf note (3).</td></tr>
 <tr><td><code>SourceOk</code></td><td><a href="unit_tests/regression.html#:~:text=%27source%5Fok"><code>source_ok</code></a></td><td>No</td><td>Do not generate an error if target is actually a source</td></tr>
-<tr><td><code>NoStar</code></td><td><code>no_star</code></td><td>Yes</td><td>Accept regexpr-based flags (e.g. from star <code>side_deps</code> or <code>side_targets</code>)</td></tr>
 <tr><td><code>NoWarning</code></td><td><a href="unit_tests/repo.html#:~:text=%27no%5Fwarning"><code>no_warning</code></a></td><td>No</td><td>Warning is not reported if a target is uniquified or unlinked before job execution while generated by another job.</td></tr>
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Target pattern is interpreted relative to the root dir of the repo, else it is relative to the <code>cwd</code> of the rule.</td></tr>
 </tbody></table>
@@ -2018,8 +2012,6 @@ For Example, a job could call another build-system and the user is confident tha
 <li>The <code>optional</code> flag is used when, depending on the content of the deps, a target may or may not be produced.</li>
 <li>The <code>phony</code> flag is typically used when a target acts as a symbolique name to mean that some action has been carried out.
 It could be for example the target <code>ALL</code>, so that <code>lmake ALL</code> rebuilds everything while no actual file named <code>ALL</code> exists on disk.</li>
-<li>The <code>-no_star</code> flag is used to avoid repetition, as it is generally possible to mention all the flags that must apply to a target,
-possibly duplicating flags mentioned in other matching entries (<code>side_deps</code> and <code>side_targets</code>).</li>
 <li>The <code>top</code> flag is used in case of sub-repo, which is an experimental feature.</li>
 </ul>
 <h3 id="timeout"><a class="header" href="#timeout"><a href="unit_tests/wine.html#:~:text=timeout%20%3D%20120"><code>timeout</code></a></a></h3>
@@ -2221,7 +2213,50 @@ In that case, open-lmake will detect this case and regenerate this file so as to
 <li>Else, a dir determined by open-lmake within the <code>LMAKE</code> dir.</li>
 </ul>
 <p>Unless open-lmake is instructed to keep this dir, it is erased at the end of the job execution.</p>
-<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<h2 id="status-line"><a class="header" href="#status-line">Status line</a></h2>
+<p>Before, after and sometimes during job execution, a status line is written to the console with an associated step as follows:</p>
+<div class="table-wrapper"><table><thead><tr><th>Step</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>bad_cache_download</code></td><td>job targets could not be downloaded from cache (no impact on repo, job is run, but cache may have to be repaired)</td></tr>
+<tr><td><code>bad_dep</code></td><td>an explanation is provided</td></tr>
+<tr><td><code>bad_side_dep</code></td><td>an explanation is provided</td></tr>
+<tr><td><code>bad_side_target</code></td><td>an explanation is provided</td></tr>
+<tr><td><code>bad_target</code></td><td>an explanation is provided</td></tr>
+<tr><td><code>changed</code></td><td>a source file has been observed to be modified</td></tr>
+<tr><td><code>completed</code></td><td>job completed before being killed after a ^C (but was not analyzed, so it may or may not have to be rerun and may or may not be in error)</td></tr>
+<tr><td><code>continue</code></td><td>used to interleave stdout from different jobs when the <code>-o</code> <code>lmake</code> option is used</td></tr>
+<tr><td><code>continue</code></td><td>^C was hit but job continues because it is necessary for another <code>lmake</code> command running in parallel</td></tr>
+<tr><td><code>dep_error</code></td><td>job cannot start because some of its deps are in error</td></tr>
+<tr><td><code>early_rerun</code></td><td>a dep discovered during dynamic attribute evaluation is not up-to-date</td></tr>
+<tr><td><code>expand</code></td><td>a codec file was expanded to an internal format optimized for performance</td></tr>
+<tr><td><code>missing_static</code></td><td>job cannot start because some of its static deps are not buildable</td></tr>
+<tr><td><code>deps_not_available</code></td><td>an explanation is provided with the message</td></tr>
+<tr><td><code>done</code></td><td>job has completed ok, open-lmake can proceed with dependent jobs</td></tr>
+<tr><td><code>double_start</code></td><td>job has started twice (typically slurm may restart a job in some error cases), for information only, this is smoothly handled</td></tr>
+<tr><td><code>hit_done</code></td><td>same as <code>done</code> but targets were downloaded from cache rather than computed during job execution</td></tr>
+<tr><td><code>hit_rerun</code></td><td>same as <code>may_rerun</code> but deps were acquired from cache rather than from job execution</td></tr>
+<tr><td><code>hit_steady</code></td><td>same as <code>hit_done</code> and all targets have been observed to be identical to the last time job was executed</td></tr>
+<tr><td><code>killed</code></td><td>job was killed after a ^C</td></tr>
+<tr><td><code>lost</code></td><td>a system error (or an open-lmake bug) crashed job baby sitting</td></tr>
+<tr><td><code>lost_error</code></td><td>a severe system error leading open-lmake to think problem is not recovable or max retry after lost count is reached</td></tr>
+<tr><td><code>may_rerun</code></td><td>new deps have been discovered and job has to rerun unless such deps turn out to be ok during this execution</td></tr>
+<tr><td><code>missing</code></td><td>a source file is missing</td></tr>
+<tr><td><code>new</code></td><td>a source file is needed for the first time</td></tr>
+<tr><td><code>no_cache_dismiss</code></td><td>open-lmake needed to dismiss data previously uploaded to cache and could not do so (no impact on repo but cache may have to be repaired)</td></tr>
+<tr><td><code>no_cache_upload</code></td><td>open-lmake needed to upload data to cache and could not do so (no impact on repo but cache may have to be repaired)</td></tr>
+<tr><td><code>no_dynamic</code></td><td>some dynamic attributes could not be computed</td></tr>
+<tr><td><code>reformat</code></td><td>a codec file was reformatted to recover a canonical format</td></tr>
+<tr><td><code>rerun</code></td><td>an event forces open-lmake to rerun the job (e.g. a non-incremental target existed before job execution or a dep has been modified during job execution)</td></tr>
+<tr><td><code>retry</code></td><td>job starts execution after being retried because previous execution was lost</td></tr>
+<tr><td><code>run_loop</code></td><td>max configured number of job execution has been reached</td></tr>
+<tr><td><code>start</code></td><td>job starts execution (may be skipped if job is short, as specified in <code>lmake.config.console.start_delay</code>)</td></tr>
+<tr><td><code>started</code></td><td>job was already started because of another <code>lmake</code> command running in parallel</td></tr>
+<tr><td><code>steady</code></td><td>same as <code>done</code> and all targets have been observed to be identical to the last time job was executed</td></tr>
+<tr><td><code>steady</code></td><td>a source file has been observed to have a new date but content did not change</td></tr>
+<tr><td><code>submit_loop</code></td><td>max configured number of job submission has been reached</td></tr>
+<tr><td><code>unlink</code></td><td>a file was needed, existed, but no rule apply to generate it, so its official state is to be inexistent</td></tr>
+<tr><td><code>update</code></td><td>a codec file was updated from an internal format optimized for performance</td></tr>
+</tbody></table>
+</div><div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
 <!-- Copyright (c) 2023-2026 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
@@ -2229,15 +2264,36 @@ In that case, open-lmake will detect this case and regenerate this file so as to
 <p>Job are executed by calling the provided interpreter (generally python or bash).</p>
 <p>When calling the interpreter, the following environment variable are automatically set, in addition to what is mentioned in the <code>environ</code> attribute (and the like).
 They must remain untouched:</p>
+<div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>$LD_AUDIT</code></td><td>a variable necessary for <a href="autodep.html#:~:text=%24LD%5FAUDIT">autodep</a>   when the <code>autodep</code> attribute is set to <code>'ld_audit'</code></td></tr>
+<tr><td><code>$LD_PRELOAD</code></td><td>a variable necessary for <a href="autodep.html#:~:text=%24LD%5FPRELOAD">autodep</a> when the <code>autodep</code> attribute is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code></td></tr>
+<tr><td><code>$LMAKE_AUTODEP_ENV</code></td><td>a variable necessary for <a href="autodep.html">autodep</a> in all cases even when the <code>autodep</code> attribute is set to <code>'none'</code></td></tr>
+<tr><td><code>$TMPDIR</code></td><td>the name of a dir which is empty at the start of the job</td></tr>
+</tbody></table>
+</div>
+<p>The following environment variables are provided by default but may be overridden by the rule attributes or within <code>cmd</code>:</p>
+<div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>$HOME</code></td><td>the repo root, except if rule derives from <code>HomelessRule</code> in which case it is the temporary dir</td></tr>
+<tr><td><code>$LD_LIBRARY_PATH</code></td><td>a suitable value to execute the default python (as specified when open-lmake was compiled)</td></tr>
+<tr><td><code>$PATH</code></td><td>the open-lmake bin dir followed by standard system default</td></tr>
+<tr><td><code>$PYTHONPATH</code></td><td>the open-lmake lib dir</td></tr>
+</tbody></table>
+</div>
+<h2 id="before-job-execution"><a class="header" href="#before-job-execution">Before job execution</a></h2>
 <ul>
-<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html#:~:text=%24LD%5FAUDIT">autodep</a>   when the <code>autodep</code> attribute is set to <code>'ld_audit'</code>.</li>
-<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html#:~:text=%24LD%5FPRELOAD">autodep</a> when the <code>autodep</code> attribute is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code>.</li>
-<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases even when the <code>autodep</code> attribute is set to <code>'none'</code>.</li>
-<li><code>$TMPDIR</code>            : The name of a dir which is empty at the start of the job.
-If the temporary dir is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this dir is cleaned up at the end of the job execution.</li>
+<li>A fresh temporary dir is created and its name is put in <code>$TMPDIR</code>.</li>
+<li>The environment is set according to the previously mentioned variables and any ones that are specified in attributes <code>environ</code>, <code>environ_resources</code> and <code>environ_ancillary</code>.
+Variables mentioned in <code>environ_resources</code> are deemed to only have an impact on the error condition but not on the content of the targets.
+Variables mentioned in <code>environ_ancillary</code> are deemed to have no impact at all (they may alter logging for example).</li>
+<li>Necessary <code>chroot</code> and <code>mount</code> are called in an adequate namespace according to attributes <code>repo_view</code>, <code>lmake_view</code>, <code>tmp_view</code> and <code>views</code>.</li>
 </ul>
-<p>After job execution, a checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the <code>ignore</code> attribute).</p>
-<p>The job is reported ok if all of the following conditions are met:</p>
+<h2 id="after-job-execution"><a class="header" href="#after-job-execution">After job execution</a></h2>
+<ul>
+<li>Unless kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> <code>lmake</code> option, thie temporary dir is cleaned up.</li>
+<li>A checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the <code>ignore</code> attribute).</li>
+</ul>
+<h2 id="error-condition"><a class="header" href="#error-condition">Error condition</a></h2>
+<p>The job is reported ok if all of the following conditions are met at end of execution:</p>
 <ul>
 <li>Job execution (as mentioned below) is successful.</li>
 <li>All static targets are generated</li>

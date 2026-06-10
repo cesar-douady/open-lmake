@@ -136,20 +136,22 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;diff </span><span class="si">{REF}</span><span class="s1"> </span><span class="si">{DUT}</span><span class="s1"> &gt;&amp;2&#39;</span>
 
     <span class="k">class</span> <span class="nc">Lnk</span><span class="p">(</span><span class="n">TmpRule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span>       <span class="o">=</span> <span class="s1">&#39;lnk_dut&#39;</span>
+        <span class="n">targets</span>      <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DUT&#39;</span><span class="p">:</span><span class="s1">&#39;lnk_dut&#39;</span> <span class="p">}</span>
         <span class="n">side_targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;SIDE&#39;</span>      <span class="p">:</span> <span class="s1">&#39;lnk_dut.tmp&#39;</span> <span class="p">}</span>
         <span class="n">environ</span>      <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;REPO_ROOT&#39;</span> <span class="p">:</span> <span class="s1">&#39;$REPO_ROOT&#39;</span>  <span class="p">}</span>
         <span class="c1"># make a chain of links with all potential cases</span>
         <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">            ln -s /tmp/a         lnk_dut.tmp      # link from repo to tmp</span>
+<span class="s1">            ln -s /tmp/a         lnk_dut.tmp                        # link from repo to tmp</span>
 <span class="s1">            cd /tmp</span>
-<span class="s1">            ln -s b              a                # relative link within tmp</span>
-<span class="s1">            ln -s /tmp/c         b                # absolute link within tmp</span>
-<span class="s1">            ln -s $REPO_ROOT/src c                # link from tmp to repo</span>
-<span class="s1">            readlink a b c $REPO_ROOT/lnk_dut.tmp</span>
+<span class="s1">            ln -s b              a                                  # relative link within tmp</span>
+<span class="s1">            ln -s /tmp/c         b                                  # absolute link within tmp</span>
+<span class="s1">            ln -s $REPO_ROOT/src c                                  # link from tmp to repo</span>
+<span class="s1">            readlink a b c $REPO_ROOT/lnk_dut.tmp &gt;$REPO_ROOT/</span><span class="si">{DUT}</span>
 <span class="s1">            cd $REPO_ROOT</span>
-<span class="s1">            readlink /tmp/a /tmp/b /tmp/c lnk_dut.tmp</span>
-<span class="s1">            cat lnk_dut.tmp</span>
+<span class="s1">            readlink /tmp/a /tmp/b /tmp/c lnk_dut.tmp &gt;&gt;</span><span class="si">{DUT}</span>
+<span class="s1">            pwd</span>
+<span class="s1">            LMAKE_AUTODEP_ENV= ls -l . /tmp                         # for debug only, dont record deps</span>
+<span class="s1">            cat lnk_dut.tmp &gt;&gt;</span><span class="si">{DUT}</span>
 <span class="s1">        &#39;&#39;&#39;</span>
 
     <span class="k">class</span> <span class="nc">Cp</span><span class="p">(</span><span class="n">TmpRule</span><span class="p">)</span> <span class="p">:</span>

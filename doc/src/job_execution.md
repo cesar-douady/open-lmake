@@ -10,15 +10,38 @@ Job are executed by calling the provided interpreter (generally python or bash).
 When calling the interpreter, the following environment variable are automatically set, in addition to what is mentioned in the `environ` attribute (and the like).
 They must remain untouched:
 
-- `$LD_AUDIT`          : A variable necessary for [autodep](autodep.html#:~:text=%24LD%5FAUDIT)   when the `autodep` attribute is set to `'ld_audit'`.
-- `$LD_PRELOAD`        : A variable necessary for [autodep](autodep.html#:~:text=%24LD%5FPRELOAD) when the `autodep` attribute is set to `'ld_preload'` or `'ld_preload_jemalloc'`.
-- `$LMAKE_AUTODEP_ENV` : A variable necessary for [autodep](autodep.html) in all cases even when the `autodep` attribute is set to `'none'`.
-- `$TMPDIR`            : The name of a dir which is empty at the start of the job.
-  If the temporary dir is not kept through the use of the `keep_tmp` attribute or the `-t` option, this dir is cleaned up at the end of the job execution.
+| Variable             | Description                                                                                                                                               |
+| ---------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `$LD_AUDIT`          | a variable necessary for [autodep](autodep.html#:~:text=%24LD%5FAUDIT)   when the `autodep` attribute is set to `'ld_audit'`                              |
+| `$LD_PRELOAD`        | a variable necessary for [autodep](autodep.html#:~:text=%24LD%5FPRELOAD) when the `autodep` attribute is set to `'ld_preload'` or `'ld_preload_jemalloc'` |
+| `$LMAKE_AUTODEP_ENV` | a variable necessary for [autodep](autodep.html) in all cases even when the `autodep` attribute is set to `'none'`                                        |
+| `$TMPDIR`            | the name of a dir which is empty at the start of the job                                                                                                  |
 
-After job execution, a checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the `ignore` attribute).
+The following environment variables are provided by default but may be overridden by the rule attributes or within `cmd`:
 
-The job is reported ok if all of the following conditions are met:
+| Variable           | Description                                                                                     |
+| -------------------|-------------------------------------------------------------------------------------------------|
+| `$HOME`            | the repo root, except if rule derives from `HomelessRule` in which case it is the temporary dir |
+| `$LD_LIBRARY_PATH` | a suitable value to execute the default python (as specified when open-lmake was compiled)      |
+| `$PATH`            | the open-lmake bin dir followed by standard system default                                      |
+| `$PYTHONPATH`      | the open-lmake lib dir                                                                          |
+
+## Before job execution
+
+- A fresh temporary dir is created and its name is put in `$TMPDIR`.
+- The environment is set according to the previously mentioned variables and any ones that are specified in attributes `environ`, `environ_resources` and `environ_ancillary`.
+  Variables mentioned in `environ_resources` are deemed to only have an impact on the error condition but not on the content of the targets.
+  Variables mentioned in `environ_ancillary` are deemed to have no impact at all (they may alter logging for example).
+- Necessary `chroot` and `mount` are called in an adequate namespace according to attributes `repo_view`, `lmake_view`, `tmp_view` and `views`.
+
+## After job execution
+
+- Unless kept through the use of the `keep_tmp` attribute or the `-t` `lmake` option, thie temporary dir is cleaned up.
+- A checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the `ignore` attribute).
+
+## Error condition
+
+The job is reported ok if all of the following conditions are met at end of execution:
 
 - Job execution (as mentioned below) is successful.
 - All static targets are generated

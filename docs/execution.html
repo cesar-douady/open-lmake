@@ -301,7 +301,50 @@ In that case, open-lmake will detect this case and regenerate this file so as to
 <li>Else, a dir determined by open-lmake within the <code>LMAKE</code> dir.</li>
 </ul>
 <p>Unless open-lmake is instructed to keep this dir, it is erased at the end of the job execution.</p>
-
+<h2 id="status-line"><a class="header" href="#status-line">Status line</a></h2>
+<p>Before, after and sometimes during job execution, a status line is written to the console with an associated step as follows:</p>
+<div class="table-wrapper"><table><thead><tr><th>Step</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>bad_cache_download</code></td><td>job targets could not be downloaded from cache (no impact on repo, job is run, but cache may have to be repaired)</td></tr>
+<tr><td><code>bad_dep</code></td><td>an explanation is provided</td></tr>
+<tr><td><code>bad_side_dep</code></td><td>an explanation is provided</td></tr>
+<tr><td><code>bad_side_target</code></td><td>an explanation is provided</td></tr>
+<tr><td><code>bad_target</code></td><td>an explanation is provided</td></tr>
+<tr><td><code>changed</code></td><td>a source file has been observed to be modified</td></tr>
+<tr><td><code>completed</code></td><td>job completed before being killed after a ^C (but was not analyzed, so it may or may not have to be rerun and may or may not be in error)</td></tr>
+<tr><td><code>continue</code></td><td>used to interleave stdout from different jobs when the <code>-o</code> <code>lmake</code> option is used</td></tr>
+<tr><td><code>continue</code></td><td>^C was hit but job continues because it is necessary for another <code>lmake</code> command running in parallel</td></tr>
+<tr><td><code>dep_error</code></td><td>job cannot start because some of its deps are in error</td></tr>
+<tr><td><code>early_rerun</code></td><td>a dep discovered during dynamic attribute evaluation is not up-to-date</td></tr>
+<tr><td><code>expand</code></td><td>a codec file was expanded to an internal format optimized for performance</td></tr>
+<tr><td><code>missing_static</code></td><td>job cannot start because some of its static deps are not buildable</td></tr>
+<tr><td><code>deps_not_available</code></td><td>an explanation is provided with the message</td></tr>
+<tr><td><code>done</code></td><td>job has completed ok, open-lmake can proceed with dependent jobs</td></tr>
+<tr><td><code>double_start</code></td><td>job has started twice (typically slurm may restart a job in some error cases), for information only, this is smoothly handled</td></tr>
+<tr><td><code>hit_done</code></td><td>same as <code>done</code> but targets were downloaded from cache rather than computed during job execution</td></tr>
+<tr><td><code>hit_rerun</code></td><td>same as <code>may_rerun</code> but deps were acquired from cache rather than from job execution</td></tr>
+<tr><td><code>hit_steady</code></td><td>same as <code>hit_done</code> and all targets have been observed to be identical to the last time job was executed</td></tr>
+<tr><td><code>killed</code></td><td>job was killed after a ^C</td></tr>
+<tr><td><code>lost</code></td><td>a system error (or an open-lmake bug) crashed job baby sitting</td></tr>
+<tr><td><code>lost_error</code></td><td>a severe system error leading open-lmake to think problem is not recovable or max retry after lost count is reached</td></tr>
+<tr><td><code>may_rerun</code></td><td>new deps have been discovered and job has to rerun unless such deps turn out to be ok during this execution</td></tr>
+<tr><td><code>missing</code></td><td>a source file is missing</td></tr>
+<tr><td><code>new</code></td><td>a source file is needed for the first time</td></tr>
+<tr><td><code>no_cache_dismiss</code></td><td>open-lmake needed to dismiss data previously uploaded to cache and could not do so (no impact on repo but cache may have to be repaired)</td></tr>
+<tr><td><code>no_cache_upload</code></td><td>open-lmake needed to upload data to cache and could not do so (no impact on repo but cache may have to be repaired)</td></tr>
+<tr><td><code>no_dynamic</code></td><td>some dynamic attributes could not be computed</td></tr>
+<tr><td><code>reformat</code></td><td>a codec file was reformatted to recover a canonical format</td></tr>
+<tr><td><code>rerun</code></td><td>an event forces open-lmake to rerun the job (e.g. a non-incremental target existed before job execution or a dep has been modified during job execution)</td></tr>
+<tr><td><code>retry</code></td><td>job starts execution after being retried because previous execution was lost</td></tr>
+<tr><td><code>run_loop</code></td><td>max configured number of job execution has been reached</td></tr>
+<tr><td><code>start</code></td><td>job starts execution (may be skipped if job is short, as specified in <code>lmake.config.console.start_delay</code>)</td></tr>
+<tr><td><code>started</code></td><td>job was already started because of another <code>lmake</code> command running in parallel</td></tr>
+<tr><td><code>steady</code></td><td>same as <code>done</code> and all targets have been observed to be identical to the last time job was executed</td></tr>
+<tr><td><code>steady</code></td><td>a source file has been observed to have a new date but content did not change</td></tr>
+<tr><td><code>submit_loop</code></td><td>max configured number of job submission has been reached</td></tr>
+<tr><td><code>unlink</code></td><td>a file was needed, existed, but no rule apply to generate it, so its official state is to be inexistent</td></tr>
+<tr><td><code>update</code></td><td>a codec file was updated from an internal format optimized for performance</td></tr>
+</tbody></table>
+</div>
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">

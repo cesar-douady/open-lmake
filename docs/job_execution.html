@@ -160,15 +160,36 @@
 <p>Job are executed by calling the provided interpreter (generally python or bash).</p>
 <p>When calling the interpreter, the following environment variable are automatically set, in addition to what is mentioned in the <code>environ</code> attribute (and the like).
 They must remain untouched:</p>
+<div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>$LD_AUDIT</code></td><td>a variable necessary for <a href="autodep.html#:~:text=%24LD%5FAUDIT">autodep</a>   when the <code>autodep</code> attribute is set to <code>'ld_audit'</code></td></tr>
+<tr><td><code>$LD_PRELOAD</code></td><td>a variable necessary for <a href="autodep.html#:~:text=%24LD%5FPRELOAD">autodep</a> when the <code>autodep</code> attribute is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code></td></tr>
+<tr><td><code>$LMAKE_AUTODEP_ENV</code></td><td>a variable necessary for <a href="autodep.html">autodep</a> in all cases even when the <code>autodep</code> attribute is set to <code>'none'</code></td></tr>
+<tr><td><code>$TMPDIR</code></td><td>the name of a dir which is empty at the start of the job</td></tr>
+</tbody></table>
+</div>
+<p>The following environment variables are provided by default but may be overridden by the rule attributes or within <code>cmd</code>:</p>
+<div class="table-wrapper"><table><thead><tr><th>Variable</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>$HOME</code></td><td>the repo root, except if rule derives from <code>HomelessRule</code> in which case it is the temporary dir</td></tr>
+<tr><td><code>$LD_LIBRARY_PATH</code></td><td>a suitable value to execute the default python (as specified when open-lmake was compiled)</td></tr>
+<tr><td><code>$PATH</code></td><td>the open-lmake bin dir followed by standard system default</td></tr>
+<tr><td><code>$PYTHONPATH</code></td><td>the open-lmake lib dir</td></tr>
+</tbody></table>
+</div>
+<h2 id="before-job-execution"><a class="header" href="#before-job-execution">Before job execution</a></h2>
 <ul>
-<li><code>$LD_AUDIT</code>          : A variable necessary for <a href="autodep.html#:~:text=%24LD%5FAUDIT">autodep</a>   when the <code>autodep</code> attribute is set to <code>'ld_audit'</code>.</li>
-<li><code>$LD_PRELOAD</code>        : A variable necessary for <a href="autodep.html#:~:text=%24LD%5FPRELOAD">autodep</a> when the <code>autodep</code> attribute is set to <code>'ld_preload'</code> or <code>'ld_preload_jemalloc'</code>.</li>
-<li><code>$LMAKE_AUTODEP_ENV</code> : A variable necessary for <a href="autodep.html">autodep</a> in all cases even when the <code>autodep</code> attribute is set to <code>'none'</code>.</li>
-<li><code>$TMPDIR</code>            : The name of a dir which is empty at the start of the job.
-If the temporary dir is not kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> option, this dir is cleaned up at the end of the job execution.</li>
+<li>A fresh temporary dir is created and its name is put in <code>$TMPDIR</code>.</li>
+<li>The environment is set according to the previously mentioned variables and any ones that are specified in attributes <code>environ</code>, <code>environ_resources</code> and <code>environ_ancillary</code>.
+Variables mentioned in <code>environ_resources</code> are deemed to only have an impact on the error condition but not on the content of the targets.
+Variables mentioned in <code>environ_ancillary</code> are deemed to have no impact at all (they may alter logging for example).</li>
+<li>Necessary <code>chroot</code> and <code>mount</code> are called in an adequate namespace according to attributes <code>repo_view</code>, <code>lmake_view</code>, <code>tmp_view</code> and <code>views</code>.</li>
 </ul>
-<p>After job execution, a checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the <code>ignore</code> attribute).</p>
-<p>The job is reported ok if all of the following conditions are met:</p>
+<h2 id="after-job-execution"><a class="header" href="#after-job-execution">After job execution</a></h2>
+<ul>
+<li>Unless kept through the use of the <code>keep_tmp</code> attribute or the <code>-t</code> <code>lmake</code> option, thie temporary dir is cleaned up.</li>
+<li>A checksum is computed on all generated files, whether they are allowed or not, except ignored targets (those marked with the <code>ignore</code> attribute).</li>
+</ul>
+<h2 id="error-condition"><a class="header" href="#error-condition">Error condition</a></h2>
+<p>The job is reported ok if all of the following conditions are met at end of execution:</p>
 <ul>
 <li>Job execution (as mentioned below) is successful.</li>
 <li>All static targets are generated</li>

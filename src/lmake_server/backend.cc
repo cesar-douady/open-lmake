@@ -704,17 +704,16 @@ namespace Backends {
 		}
 		//
 		if (+jerr.end_date) {
-			Pdate jerr_start_date = jerr.end_date - jerr.stats.job                                     ;
-			Delay d               = ::max( jerr.end_date-je.end_date , je.start_date-jerr_start_date ) ;
-			if (d>g_config->network_delay) {
-				static ::uset<in_addr_t> s_warned ;
-				if (s_warned.insert(je.host).second) {
-					Delay nd = g_config->network_delay ;
-					Fd::Stderr.write(cat(
-						"detected (harmless) date discrepancy (>",d.short_str(),") between ",SockFd::s_host(je.host)," and ",host()," larger than network delay (",nd.short_str(),")\n"
-					)) ;
-				}
-			}
+			static ::uset<in_addr_t> s_warned ;
+			//
+			Pdate jerr_start_date = jerr.end_date - jerr.stats.job ;
+			Delay nd              = g_config->network_delay        ;
+			auto  is_behind = [&]( Delay d , ::string const& a , ::string const& b ) {
+				if (s_warned.insert(je.host).second/*inserted*/)
+					Fd::Stderr.write( cat("detected date discrepancy (harmless) : ",a," is behind ",b," by at least ",d.short_str()," which is larger than network delay (",nd.short_str(),")\n") ) ;
+			} ;
+			if      (Delay d=jerr.end_date-je.end_date     ; d>nd ) is_behind(d,host()                 ,SockFd::s_host(je.host)) ;
+			else if (Delay d=je.start_date-jerr_start_date ; d>nd ) is_behind(d,SockFd::s_host(je.host),host()                 ) ;
 		}
 		//
 		trace("digest",digest) ;

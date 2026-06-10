@@ -189,3 +189,49 @@ The physical dir is:
 - Else, a dir determined by open-lmake within the `LMAKE` dir.
 
 Unless open-lmake is instructed to keep this dir, it is erased at the end of the job execution.
+
+## Status line
+
+Before, after and sometimes during job execution, a status line is written to the console with an associated step as follows:
+
+| Step                 | Description                                                                                                                                              |
+|----------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `bad_cache_download` | job targets could not be downloaded from cache (no impact on repo, job is run, but cache may have to be repaired)                                        |
+| `bad_dep`            | an explanation is provided                                                                                                                               |
+| `bad_side_dep`       | an explanation is provided                                                                                                                               |
+| `bad_side_target`    | an explanation is provided                                                                                                                               |
+| `bad_target`         | an explanation is provided                                                                                                                               |
+| `changed`            | a source file has been observed to be modified                                                                                                           |
+| `completed`          | job completed before being killed after a ^C (but was not analyzed, so it may or may not have to be rerun and may or may not be in error)                |
+| `continue`           | used to interleave stdout from different jobs when the `-o` `lmake` option is used                                                                       |
+| `continue`           | ^C was hit but job continues because it is necessary for another `lmake` command running in parallel                                                     |
+| `dep_error`          | job cannot start because some of its deps are in error                                                                                                   |
+| `early_rerun`        | a dep discovered during dynamic attribute evaluation is not up-to-date                                                                                   |
+| `expand`             | a codec file was expanded to an internal format optimized for performance                                                                                |
+| `missing_static`     | job cannot start because some of its static deps are not buildable                                                                                       |
+| `deps_not_available` | an explanation is provided with the message                                                                                                              |
+| `done`               | job has completed ok, open-lmake can proceed with dependent jobs                                                                                         |
+| `double_start`       | job has started twice (typically slurm may restart a job in some error cases), for information only, this is smoothly handled                            |
+| `hit_done`           | same as `done` but targets were downloaded from cache rather than computed during job execution                                                          |
+| `hit_rerun`          | same as `may_rerun` but deps were acquired from cache rather than from job execution                                                                     |
+| `hit_steady`         | same as `hit_done` and all targets have been observed to be identical to the last time job was executed                                                  |
+| `killed`             | job was killed after a ^C                                                                                                                                |
+| `lost`               | a system error (or an open-lmake bug) crashed job baby sitting                                                                                           |
+| `lost_error`         | a severe system error leading open-lmake to think problem is not recovable or max retry after lost count is reached                                      |
+| `may_rerun`          | new deps have been discovered and job has to rerun unless such deps turn out to be ok during this execution                                              |
+| `missing`            | a source file is missing                                                                                                                                 |
+| `new`                | a source file is needed for the first time                                                                                                               |
+| `no_cache_dismiss`   | open-lmake needed to dismiss data previously uploaded to cache and could not do so (no impact on repo but cache may have to be repaired)                 |
+| `no_cache_upload`    | open-lmake needed to upload data to cache and could not do so (no impact on repo but cache may have to be repaired)                                      |
+| `no_dynamic`         | some dynamic attributes could not be computed                                                                                                            |
+| `reformat`           | a codec file was reformatted to recover a canonical format                                                                                               |
+| `rerun`              | an event forces open-lmake to rerun the job (e.g. a non-incremental target existed before job execution or a dep has been modified during job execution) |
+| `retry`              | job starts execution after being retried because previous execution was lost                                                                             |
+| `run_loop`           | max configured number of job execution has been reached                                                                                                  |
+| `start`              | job starts execution (may be skipped if job is short, as specified in `lmake.config.console.start_delay`)                                                |
+| `started`            | job was already started because of another `lmake` command running in parallel                                                                           |
+| `steady`             | same as `done` and all targets have been observed to be identical to the last time job was executed                                                      |
+| `steady`             | a source file has been observed to have a new date but content did not change                                                                            |
+| `submit_loop`        | max configured number of job submission has been reached                                                                                                 |
+| `unlink`             | a file was needed, existed, but no rule apply to generate it, so its official state is to be inexistent                                                  |
+| `update`             | a codec file was updated from an internal format optimized for performance                                                                               |

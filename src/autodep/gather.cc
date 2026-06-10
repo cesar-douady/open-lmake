@@ -698,18 +698,18 @@ Status Gather::_exec_child() {
 			if ( _wait[Kind::Stdout] || _wait[Kind::Stderr] ) {
 				First first ;
 				//
-				::string                 msg_                                                                                                             ;
-				if (_wait[Kind::Stdout]) msg_ << first(         )<<"stdout "                                                                              ;
-				if (_wait[Kind::Stderr]) msg_ << first("","and ")<<"stderr "                                                                              ;
-				/**/                     msg_ << "still open after job has terminated "<<dead<<" ago (networkd_delay is "<<network_delay.short_str()<<')' ;
+				::string                 msg_                                                                                                            ;
+				if (_wait[Kind::Stdout]) msg_ << first(         )<<"stdout "                                                                             ;
+				if (_wait[Kind::Stderr]) msg_ << first("","and ")<<"stderr "                                                                             ;
+				/**/                     msg_ << "still open after job has terminated "<<dead<<" ago (network_delay is "<<network_delay.short_str()<<')' ;
 				set_status(Status::TerminationError,msg_) ;
 			}
 			::string kill_msg = "still alive after having " ;
-			if      (timeout_fired              ) kill_msg << "timed out and "                                                            ;
-			if      (!kill_step                 ) kill_msg << "exited "<<dead<<" ago (networkd_delay is "<<network_delay.short_str()<<')' ;
-			else if (kill_step<=kill_sigs.size()) kill_msg << "been killed "<<kill_step       <<" times"                                  ;
-			else if (+kill_sigs.size()          ) kill_msg << "been killed "<<kill_sigs.size()<<" times followed by SIGKILL"              ;
-			else                                  kill_msg << "been killed with SIGKILL"                                                  ;
+			if      (timeout_fired              ) kill_msg << "timed out and "                                                           ;
+			if      (!kill_step                 ) kill_msg << "exited "<<dead<<" ago (network_delay is "<<network_delay.short_str()<<')' ;
+			else if (kill_step<=kill_sigs.size()) kill_msg << "been killed "<<kill_step       <<" times"                                 ;
+			else if (+kill_sigs.size()          ) kill_msg << "been killed "<<kill_sigs.size()<<" times followed by SIGKILL"             ;
+			else                                  kill_msg << "been killed with SIGKILL"                                                 ;
 			kill_msg << '\n' ;
 			set_status( Status::Timeout , kill_msg ) ;
 			break ;                                              // exit loop

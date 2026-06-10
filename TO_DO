@@ -373,9 +373,6 @@ X manage HUGE pages in store
 * DOC
 ****************************************************************************************************
 
-* improve job_execution page
-	- list all steps when a job is executed
-	- list keywords : done, steady, rerun, may_rerun, lost, lost_error, etc.
 * give an example of Rule using the paths attribute
 *! make a tutorial
 ? add hard limits
