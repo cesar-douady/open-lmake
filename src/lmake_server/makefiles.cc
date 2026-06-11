@@ -35,7 +35,6 @@ namespace Engine::Makefiles {
 	static constexpr const char* EnvironFile  = ADMIN_DIR_S "environ"   ; // provided to user, contains only variables used in Lmakefile.py
 	static constexpr const char* ManifestFile = ADMIN_DIR_S "manifest"  ; // provided to user, contains the list of source files
 
-	static ::string _g_tmp_dir_s    = cat(AdminDirS,"lmakefile_tmp/") ;
 	static ::string _g_user_env_str ;
 
 	::umap_ss clean_env(bool under_lmake_ok) {
@@ -181,15 +180,16 @@ namespace Engine::Makefiles {
 	static void _read_makefile( ::string&/*out*/ msg , Ptr<Dict>&/*out*/ py_info , Deps&/*out*/ deps , ::string const& action , ::string const& sub_repos ) {
 		Trace trace("_read_makefile",action,Pdate(New)) ;
 		//
-		::string data_file = cat(PrivateAdminDirS,action,"_data.py") ;
+		::string data_file = cat(PrivateAdminDirS,action,"_data.py")    ;
+		::string tmp_dir_s = cat(AdminDirS,"lmakefile_tmp/",action,'/') ;
 		Gather   gather    ;
-		::string tmp_dir_s = cat(_g_tmp_dir_s,action,'/')            ;
 		//
 		gather.method                     = AutodepMethod::DfltLd                                                                                                     ; // non-ld are not supported
 		gather.autodep_env                = Record::s_autodep_env()                                                                                                   ;
 		gather.autodep_env.fqdn           = fqdn()                                                                                                                    ;
 		gather.autodep_env.src_dirs_s     = {"/"}                                                                                                                     ;
 		gather.autodep_env.deps_in_system = true                                                                                                                      ; // we want all deps
+		gather.autodep_env.tmp_dir_s      = *g_repo_root_s+tmp_dir_s                                                                                                  ;
 		gather.cmd_line                   = { PYTHON , *g_lmake_root_s+"_lib/read_makefiles.py" , data_file , _g_user_env_str , cat('.',action,".top.") , sub_repos } ;
 		gather.lmake_root_s               = *g_lmake_root_s                                                                                                           ;
 		gather.child_stdin                = Child::NoneFd                                                                                                             ;
@@ -201,8 +201,8 @@ namespace Engine::Makefiles {
 				~SavTmpDir(                   ) { del_env( "TMPDIR"       ) ; }
 			} ;
 			SavPyLdLibraryPath spllp       ;
-			SavTmpDir          sav_tmp_dir { no_slash(*g_repo_root_s+tmp_dir_s) } ;
-			mk_dir_empty_s(tmp_dir_s) ;                                             // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
+			SavTmpDir          sav_tmp_dir { no_slash(gather.autodep_env.tmp_dir_s) } ;
+			mk_dir_empty_s(tmp_dir_s) ;                                                 // leave tmp dir after execution for debug purpose as we have no keep-tmp flags
 			//              vvvvvvvvvvvvvvvvvvv
 			Status status = gather.exec_child() ;
 			//              ^^^^^^^^^^^^^^^^^^^
@@ -217,7 +217,7 @@ namespace Engine::Makefiles {
 		::string   deps_str = AcFd(data_file).read() ;
 		::uset_s   dep_set  ;
 		try                       { py_info = py_eval(deps_str) ; }
-		catch (::string const& e) { FAIL_PROD(e) ;                }                 // NO_COV
+		catch (::string const& e) { FAIL_PROD(e) ;                }                     // NO_COV
 		while (+gather.accesses) {
 			auto                nh = gather.accesses.extract(gather.accesses.begin()) ;
 			::string&           d  = nh.key   ()                                      ;

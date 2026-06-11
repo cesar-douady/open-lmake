@@ -91,7 +91,7 @@ namespace Backends::Slurm::SlurmApi {
 			/**/                     j.het_job_offset  = het_job_offset++                                              ;               // seems to only work when 1
 			if (+r.licenses        ) j.licenses        = const_cast<char*>(r.licenses .data())                         ;
 			/**/                     j.max_cpus        = r.cpu                                                         ;               // by symmetry with min_cpus
-			/**/                     j.min_cpus        = r.cpu                                                         ;               // version 25.11 requires this (after gemini recommandation)
+			/**/                     j.min_cpus        = r.cpu                                                         ;               // version >25.05 requires this (after gemini recommandation)
 			/**/                     j.name            = const_cast<char*>(key_job_name.c_str())                       ;
 			/**/                     j.nice            = NICE_OFFSET+nice                                              ;
 			/**/                     j.num_tasks       = 1                                                             ;               // version 25.11 requires this (after gemini recommandation)

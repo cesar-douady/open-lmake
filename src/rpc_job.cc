@@ -1296,8 +1296,6 @@ void JobStartRpcReply::update_val( ::string&/*inout*/ v , ::string const& phy_re
 void JobStartRpcReply::update_env( ::vmap_ss&/*out*/ dyn_env , ::string const& phy_repo_root_s , ::string const& phy_tmp_dir_s , SeqId seq_id ) {
 	::uset_s to_erase ;
 	//
-	auto tmp_dir = [&] { return no_slash(job_space.tmp_view_s|phy_tmp_dir_s) ; } ;
-	//
 	for( auto& [k,v] : env ) {
 		if (v!=PassMrkr   ) { update_val( v , phy_repo_root_s , phy_tmp_dir_s , seq_id ) ; continue ; }
 		if (has_env(k)    ) { dyn_env.emplace_back( k , v=get_env(k) ) ;                   continue ; } // use value from environment (typically from slurm)
@@ -1305,7 +1303,7 @@ void JobStartRpcReply::update_env( ::vmap_ss&/*out*/ dyn_env , ::string const& p
 	}
 	if (+interpreter) update_val( interpreter[0] , phy_repo_root_s , phy_tmp_dir_s , seq_id )                 ;
 	if (+to_erase   ) ::erase_if( env , [&](::pair_ss const& k_v) { return to_erase.contains(k_v.first) ; } ) ;
-	/**/              env.emplace_back( "TMPDIR" , tmp_dir() )                                                ;
+	/**/              env.emplace_back( "TMPDIR" , no_slash(job_space.tmp_view_s|phy_tmp_dir_s) )             ;
 }
 
 void JobStartRpcReply::exit() {
