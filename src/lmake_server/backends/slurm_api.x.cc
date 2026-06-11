@@ -72,19 +72,21 @@ namespace Backends::Slurm::SlurmApi {
 		::vector_s               gress        ;                            if (rsrcs.size()>1) gress    .reserve(rsrcs.size()-1) ;   // .             , .
 		for( bool first=true ; RsrcsDataSingle const& r : rsrcs ) {
 			//                           first element other elements
-			job_desc_msg_t& j    = first ? job_desc0 : job_descs.emplace_back() ;                                                   // keep alive
-			::string      & gres = first ? gres0     : gress    .emplace_back() ;                                                   // .
+			job_desc_msg_t& j    = first ? job_desc0 : job_descs.emplace_back() ;                                                    // keep alive
+			::string      & gres = first ? gres0     : gress    .emplace_back() ;                                                    // .
 			//
 			gres = "gres:"+r.gres ;
 			//
 			_init_job_desc_msg(&j) ;
 			/**/                     j.comment         = const_cast<char*>(comment.c_str())                            ;
 			/**/                     j.cpus_per_task   = r.cpu                                                         ;
-			/**/                     j.environment     = const_cast<char**>(env)                                       ;            // terminated with an empty string
-			/**/                     j.env_size        = 1                                                             ;            // seems to only work when 1
+			/**/                     j.environment     = const_cast<char**>(env)                                       ;             // terminated with an empty string
+			/**/                     j.env_size        = 1                                                             ;             // seems to only work when 1
+			/**/                     j.max_cpus        = r.cpu                                                         ;             // by symmetry with min_cpus
+			/**/                     j.min_cpus        = r.cpu                                                         ;             // version >25.05 requires this (after gemini recommandation)
 			/**/                     j.name            = const_cast<char*>(key_job_name.c_str())                       ;
-			/**/                     j.pn_min_memory   = r.mem                                                         ;            //in MB
-			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;            //in MB
+			/**/                     j.pn_min_memory   = r.mem                                                         ;             //in MB
+			if (r.tmp!=uint32_t(-1)) j.pn_min_tmp_disk = r.tmp                                                         ;             //in MB
 			/**/                     j.std_err         = verbose ? stderr_file.data() : const_cast<char*>("/dev/null") ;
 			/**/                     j.std_out         =                                const_cast<char*>("/dev/null") ;
 			/**/                     j.work_dir        = repo_root.data()                                              ;
