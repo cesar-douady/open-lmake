@@ -700,6 +700,7 @@ struct SyncGuardDir {                                             // open/close 
 	void access      (FileRef path ) ;
 	void access_dir_s(FileRef dir_s) ;
 	void change      (FileRef path ) ;
+	void exec        (FileRef path ) ;
 	void flush       (             ) ;
 	// data
 	::uset<File> fetched_dirs_s  ;
@@ -712,6 +713,7 @@ struct SyncGuardReaddir {                                         // open/close 
 	void access      (FileRef path ) ;
 	void access_dir_s(FileRef dir_s) ;
 	void change      (FileRef path ) ;
+	void exec        (FileRef path ) ;
 	void flush       (             ) ;
 	// data
 	::uset<File> fetched_dirs_s  ;
@@ -757,6 +759,13 @@ struct SyncGuard : ::variant< ::monostate , SyncGuardDir , SyncGuardReaddir > {
 			case 2 : ::get<2>(self).change(path) ; break ;
 		DF}                                                       // NO_COV
 		return path ;
+	}
+	void exec(FileRef path) {
+		switch (index()) {                                        // PER_FILE_SYNC : add entry here
+			case 0 :                             break ;
+			case 1 : ::get<1>(self).exec(path) ; break ;
+			case 2 : ::get<2>(self).exec(path) ; break ;
+		DF}                                                       // NO_COV
 	}
 	FileRef update(FileRef path) {
 		access(path) ;

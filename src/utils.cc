@@ -380,6 +380,13 @@ void SyncGuardDir::change(FileRef path) {
 	access_dir_s(dir_s) ;
 	to_stamp_dirs_s.emplace(::move(dir_s)) ;
 }
+void SyncGuardDir::exec(FileRef path) {
+	int fd = ::openat( path.at , path.file.c_str() , O_RDONLY ) ;
+	if (fd>=0) {
+		::fdatasync(fd) ;                                                                                                   // force network filesystem cache invalidation to avoid error ETXTBSY
+		::close(fd)     ;
+	}
+}
 void SyncGuardDir::flush() {
 	for( auto const& d_s : to_stamp_dirs_s ) ::close( ::openat( d_s.at , d_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ;
 	to_stamp_dirs_s.clear() ;
@@ -405,6 +412,13 @@ void SyncGuardReaddir::change(FileRef path) {
 	File dir_s { path.at , dir_name_s(path.file) } ;
 	access_dir_s(dir_s) ;
 	to_stamp_dirs_s.emplace(::move(dir_s)) ;
+}
+void SyncGuardReaddir::exec(FileRef path) {
+	int fd = ::openat( path.at , path.file.c_str() , O_RDONLY ) ;
+	if (fd>=0) {
+		::fdatasync(fd) ;                                                                                              // force network filesystem cache invalidation to avoid error ETXTBSY
+		::close(fd)     ;
+	}
 }
 void SyncGuardReaddir::flush() {
 	for( auto const& d_s : to_stamp_dirs_s ) ::close( ::openat( d_s.at , d_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ; // after access closing the dir forces it to update server

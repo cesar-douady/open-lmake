@@ -369,8 +369,12 @@ public :
 			// if !SkipSimple => +real is always true hence no need to check
 			if ( !SkipSimple || +real )
 				try {
-					for( auto&& [file,a] : r._real_path.exec({.real=real,.file_accessed=No|accesses[Access::Lnk],.file_loc=file_loc}) )
+					SyncGuard sync_guard { s_autodep_env().file_sync } ;
+					if (file_loc==FileLoc::Repo) sync_guard.exec(real) ;                                                                  // avoid ETXTBSY errors
+					for( auto&& [file,a] : r._real_path.exec({.real=real,.file_accessed=No|accesses[Access::Lnk],.file_loc=file_loc}) ) {
+						sync_guard.exec(file) ;                                                                                           // avoid ETXTBSY errors
 						r.report_access( FileLoc::Dep , { .comment=c , .digest={.accesses=a} , .files={{::move(file),{}}} } ) ;
+					}
 				} catch (::string& e) { r.report_panic(::move(e)) ; }
 			if (Send) send_report(r) ;
 		}
@@ -420,7 +424,7 @@ public :
 		}
 	} ;
 	struct ReadDir //!     Send Writable SkipSimple
-	:	             Solve<true,false   ,Maybe    >                          // Maybe means empty is not simple
+	:	             Solve<true,false   ,Maybe    >       // Maybe means empty is not simple
 	{	using Base = Solve<true,false   ,Maybe    > ;
 		using Base::real     ;
 		using Base::file_loc ;
@@ -429,7 +433,7 @@ public :
 		ReadDir( Record& r , Path&& path , Comment c ) : Base{r,::move(path),false/*no_follow*/,false/*read*/,c} , comment{c} {}
 		// services
 		void operator()(Record& r) {
-			if ( +real && !s_autodep_env().readdir_ok ) {                    // readdir_ok may be false when ptrace as it is inaccessible upfront
+			if ( +real && !s_autodep_env().readdir_ok ) { // readdir_ok may be false when ptrace as it is inaccessible upfront
 				if (file_loc==FileLoc::RepoRoot) r.report_access( FileLoc::Repo , { .comment=comment , .digest={.read_dir=true} , .files={{"."         ,{}}} } ) ; // repo root must be analyzed ...
 				else                             r.report_access( file_loc      , { .comment=comment , .digest={.read_dir=true} , .files={{::move(real),{}}} } ) ; // ... when reading it
 			}
