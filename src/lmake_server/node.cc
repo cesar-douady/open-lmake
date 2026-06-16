@@ -713,8 +713,9 @@ namespace Engine {
 			} else {
 				set_conform_idx(prod_idx) ;
 				JobTgt const& jt = job_tgts[prod_idx] ;
-				if ( +actual_job && actual_job!=jt ) {  // this may occur in case of phony target (or star-target in error which is deemed phony) that is non-existent (but deemed produced)
-					actual_job = jt ;                   // we are actually produced non-existent by our official job
+				// this may occur in case of phony target (or star-target in error which is deemed phony) that is non-existent (but deemed produced)
+				if ( buildable!=Buildable::Codec && actual_job!=jt ) {                                                             // codec files may not have actual_job
+					actual_job = jt ;                                                                                              // we are actually produced non-existent by our official job
 					if (crc!=Crc::None) {
 						unlnk( name() ) ;
 						set_crc_date( Crc::None , {FileInfo()}/*sig*/ ) ;
