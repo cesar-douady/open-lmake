@@ -2,7 +2,7 @@
 namespace Version {
 	uint64_t    constexpr Cache = 50      ; // 4921c0c3bc0ca1fead479b589724182a
 	uint64_t    constexpr Codec = 3       ; // 7319fd9fdc817eb270477875338dd334
-	uint64_t    constexpr Repo  = 53      ; // 198c98089ae876d3600a7c327456538b
+	uint64_t    constexpr Repo  = 54      ; // a9f268a93c4d4c0a454688041ca73f51
 	uint64_t    constexpr Job   = 26      ; // 2925a8dbd72966061bac50e56e5bbcd5
 	const char* const     Major = "26.06" ;
 	uint64_t    constexpr Tag   = 0       ;
@@ -1116,7 +1116,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 198c98089ae876d3600a7c327456538b *
+// * Repo : a9f268a93c4d4c0a454688041ca73f51 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1234,6 +1234,7 @@ namespace Version {
 //					// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			::vmap_s<uint8_t> targets ;
+//			::vector_s        stem_match_info ; for( VarIdx i : iota(n_target_stems) ) stem_match_info.push_back(stems[i].second) ; // only need stem content as long as used for targets
 //			for( bool star : {false,true} )
 //				for( VarIdx mi : matches_iotas[star][+MatchKind::Target] ) { // targets (static and star) must be kept first in matches so RuleTgt is stable when match_crc is stable
 //					MatchEntry const& match = matches[mi].second ;
@@ -1243,9 +1244,9 @@ namespace Version {
 //					;
 //					targets.emplace_back( match.pattern , flags ) ;          // keys and flags have no influence on matching, except Optional
 //				}
-//			h += special ;                                                   // in addition to distinguishing special from other, ...
-//			h += stems   ;                                                   // ... this guarantees that shared rules have different crc's
-//			h += targets ;
+//			h += special         ;                                           // in addition to distinguishing special from other, this guarantees that shared rules have different crc's
+//			h += stem_match_info ;
+//			h += targets         ;
 //			deps_attrs.update_hash( /*inout*/h , rules ) ;                   // no deps for source & anti
 //			if (is_plain()) h += job_name  ;
 //			else            h += allow_ext ;                                 // only exists for special rules
@@ -1721,6 +1722,7 @@ namespace Version {
 //			::vector<uint32_t> stem_n_marks                           ;                // number of capturing groups within each stem
 //			RuleCrc            crc                                    ;
 //			VarIdx             n_static_stems                         = 0  ;
+//			VarIdx             n_target_stems                         = 0  ;
 //			Iota2<VarIdx>      matches_iotas[2/*star*/][N<MatchKind>] = {} ;           // range in matches for each kind of match
 //			// stats
 //			mutable Delay    cost_per_token = {} ;                                     // average cost per token
@@ -1802,6 +1804,7 @@ namespace Version {
 //			::serdes(s,stem_n_marks  ) ;
 //			::serdes(s,crc           ) ;
 //			::serdes(s,n_static_stems) ;
+//			::serdes(s,n_target_stems) ;
 //			::serdes(s,matches_iotas ) ;
 //		}
 //		inline Disk::FileNameIdx RuleData::job_sfx_len() const {

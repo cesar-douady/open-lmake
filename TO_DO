@@ -26,6 +26,7 @@ items (also used in XXX comments) :
 	- git add foo
 	- lmark -fd foo
 	- crash (but could not reproduce, cf TU misc28)
+* stems of side_deps and side_targets should not participate to rule match_crc
 
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)

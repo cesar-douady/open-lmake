@@ -114,7 +114,7 @@ HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibili
 # syntax for LMAKE_FLAGS : (O[01234])?g?d?T?l?(S[at])?P?C?
 # - O[0123] : compiler optimization level (4 means -O3 -flto), defaults to 1 if profiling else 3
 # - g       : dont ease debugging
-# - D       : dont define -DNDEBUG
+# - d       : define -DNDEBUG
 # - T       : -DTRACE
 # - l       : -static-libstdc++
 # - Sa      : -fsanitize address
@@ -139,7 +139,7 @@ EXTRA_CC_FLAGS   := $(if $(findstring O2,$(LMAKE_FLAGS) ) , -O2          , $(EXT
 EXTRA_CC_FLAGS   := $(if $(findstring O1,$(LMAKE_FLAGS) ) , -O1          , $(EXTRA_CC_FLAGS)       )
 EXTRA_CC_FLAGS   := $(if $(findstring O0,$(LMAKE_FLAGS) ) , -O0          , $(EXTRA_CC_FLAGS)       )
 EXTRA_CC_FLAGS   += $(if $(findstring g, $(LMAKE_FLAGS) ) ,              , -g                      )
-EXTRA_CC_FLAGS   += $(if $(findstring D, $(LMAKE_FLAGS) ) ,              , -DNDEBUG                )
+EXTRA_CC_FLAGS   += $(if $(findstring d, $(LMAKE_FLAGS) ) , -DNDEBUG                               )
 EXTRA_CC_FLAGS   += $(if $(findstring T, $(LMAKE_FLAGS) ) , -DTRACE                                )
 EXTRA_CC_FLAGS   += $(if $(findstring P, $(LMAKE_FLAGS) ) , -pg                                    )
 EXTRA_CC_FLAGS   += $(if $(findstring C, $(LMAKE_FLAGS) ) , --coverage                             )

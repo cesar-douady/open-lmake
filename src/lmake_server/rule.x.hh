@@ -604,6 +604,7 @@ namespace Engine {
 		::vector<uint32_t> stem_n_marks                           ;                // number of capturing groups within each stem
 		RuleCrc            crc                                    ;
 		VarIdx             n_static_stems                         = 0  ;
+		VarIdx             n_target_stems                         = 0  ;
 		Iota2<VarIdx>      matches_iotas[2/*star*/][N<MatchKind>] = {} ;           // range in matches for each kind of match
 		// stats
 		mutable Delay    cost_per_token = {} ;                                     // average cost per token
@@ -979,6 +980,7 @@ namespace Engine {
 		::serdes(s,stem_n_marks  ) ;
 		::serdes(s,crc           ) ;
 		::serdes(s,n_static_stems) ;
+		::serdes(s,n_target_stems) ;
 		::serdes(s,matches_iotas ) ;
 	}
 	inline Disk::FileNameIdx RuleData::job_sfx_len() const {

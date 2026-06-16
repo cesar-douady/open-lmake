@@ -145,14 +145,21 @@ namespace Engine {
 		ReqOptions const& ro = ecr.options ;
 		Trace trace("freeze",ecr) ;
 		if (_is_mark_glb(ro.key)) {
-			::vector<Job > jobs  = Job ::s_frozens()                                                      ;
-			::vector<Node> nodes = Node::s_frozens()                                                      ;
-			size_t         w     = ::max<size_t>( jobs , [&](Job j) { return j->rule()->name.size() ; } ) ;
+			::vector<Job > jobs    ;
+			::vector<Job > no_jobs ;
+			::vector<Node> nodes   = Node::s_frozens() ;
+			size_t         w       = 0                 ;
+			for( Job j : Job::s_frozens() ) {
+				if (+j->rule()) { jobs   .push_back(j) ; w = ::max( w , j->rule()->name.size() ) ; }
+				else              no_jobs.push_back(j) ;
+			}
 			if (ro.key==ReqKey::Clear) {
 				for( Job  j : jobs  ) j->status = Status::New ;
 				for( Node n : nodes ) n->mk_no_src() ;
 				Job ::s_clear_frozens() ;
 				Node::s_clear_frozens() ;
+			} else if (+no_jobs) {
+				Job::s_frozens(false/*add*/,no_jobs) ;                             // clean up old jobs
 			}
 			for( Job  j : jobs  ) audit( ecr.fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()              ) ) ;
 			for( Node n : nodes ) audit( ecr.fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(""             ,w)+' '+mk_file(n->name(),Yes/*exists*/) ) ;

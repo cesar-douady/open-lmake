@@ -144,23 +144,26 @@ namespace Engine {
 			//
 			Trace trace("_acquire_py",name,sub_repo_s,user_prio) ;
 			//
-			::umap_ss      stem_defs  ;
-			::map_s<Bool3> stem_stars ;                                                                          // ordered so that stems are ordered, Maybe means stem is used both as static and star
+			::umap_ss                        stem_defs  ;
+			::map_s<::pair<MatchKind,Bool3>> stem_infos ; // ordered so that stems are ordered, Maybe means stem is used both as static and star
 			field = "stems" ;
 			if (dct.contains(field))
 				for( auto const& [py_k,py_v] : dct[field].as_a<Dict>() )
 					stem_defs.emplace( ::string(py_k.as_a<Str>()) , ::string(py_v.as_a<Str>()) ) ;
 			//
 			// augment stems with definitions found in job_name and targets
-			size_t unnamed_star_idx = 1 ;                                                                        // free running while walking over job_name + targets
-			auto augment_stems = [&]( ::string const& k , bool star , ::string const* re , bool for_job_name ) {
+			size_t unnamed_star_idx = 1 ;                                                                                         // free running while walking over job_name + targets
+			auto augment_stems = [&]( ::string const& k , MatchKind kind , bool star , ::string const* re , bool for_job_name ) {
 				if (re) {
 					auto [it,inserted] = stem_defs.emplace(k,*re) ;
 					throw_unless( +inserted || *re==it->second , "2 different definitions for stem ",k," : ",it->second," and ",*re ) ;
 				}
 				if ( for_job_name || star ) {
-					auto [it,inserted] = stem_stars.emplace(k,No|star) ;
-					if ( !inserted && (No|star)!=it->second ) it->second = Maybe ;                               // stem is used both as static and star
+					auto [it,inserted] = stem_infos.emplace(k,::pair(kind,No|star)) ;
+					if (!inserted) {
+						if (kind     ==MatchKind::Target) it->second.first  = MatchKind::Target ;                                 // recall most important
+						if ((No|star)!=it->second.second) it->second.second = Maybe             ;                                 // stem is used both as static and star
+					}
 				}
 			} ;
 			field = "job_name" ;
@@ -168,7 +171,7 @@ namespace Engine {
 			job_name = dct[field].as_a<Str>() ;
 			parse_py( job_name , &unnamed_star_idx ,
 				[&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) {
-					augment_stems( k , star , re , true/*for_job_name*/ ) ;
+					augment_stems( k , MatchKind::Target , star , re , true/*for_job_name*/ ) ;
 				}
 			) ;
 			field = "matches" ;
@@ -177,14 +180,14 @@ namespace Engine {
 			MatchKind job_name_kind ;
 			for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {
 				field = py_k.as_a<Str>() ;
-				::string  target =                    py_tkfs.as_a<Sequence>()[0].as_a<Str>()  ;                 // .
-				MatchKind kind   = mk_enum<MatchKind>(py_tkfs.as_a<Sequence>()[1].as_a<Str>()) ;                 // targets are a tuple (target_pattern,kind,flags...)
+				::string  target =                    py_tkfs.as_a<Sequence>()[0].as_a<Str>()  ;                                  // .
+				MatchKind kind   = mk_enum<MatchKind>(py_tkfs.as_a<Sequence>()[1].as_a<Str>()) ;                                  // targets are a tuple (target_pattern,kind,flags...)
 				// avoid processing target if it is identical to job_name : this is not an optimization, it is to ensure unnamed_star_idx's match
 				if (target!=job_name) {
 					parse_py( target , &unnamed_star_idx ,
 						// static stems are declared in job_name, but error will be caught later on, when we can generate a sound message
 						[&]( ::string const& k , bool star , bool /*unnamed*/ , ::string const* re ) {
-							augment_stems( k , star , re , false/*for_job_name*/ ) ;
+							augment_stems( k , kind , star , re , false/*for_job_name*/ ) ;
 						}
 					) ;
 				} else if (!job_name_key) {
@@ -195,7 +198,7 @@ namespace Engine {
 			//
 			// gather job_name and targets
 			field            = "job_name" ;
-			unnamed_star_idx = 1          ;                                                                      // reset free running at each pass over job_name+targets
+			unnamed_star_idx = 1          ;                                                                                       // reset free running at each pass over job_name+targets
 			VarIdx n_static_unnamed_stems = 0     ;
 			bool   job_name_is_star       = false ;
 			auto   stem_words             = []( ::string const& k , bool star , bool unnamed ) -> ::string {
@@ -211,15 +214,15 @@ namespace Engine {
 			) ;
 			//
 			field = "matches" ;
-			{	::vmap_s<MatchEntry> star_matches  [N<MatchKind>] ;                                              // defer star matches so that static targets are put first
-				::vmap_s<MatchEntry> static_matches[N<MatchKind>] ;                                              // .
+			{	::vmap_s<MatchEntry> star_matches  [N<MatchKind>] ;                                                               // defer star matches so that static targets are put first
+				::vmap_s<MatchEntry> static_matches[N<MatchKind>] ;                                                               // .
 				bool                 seen_top                     = false ;
 				bool                 seen_target                  = false ;
-				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                    // targets are a tuple (target_pattern,flags...)
+				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                     // targets are a tuple (target_pattern,flags...)
 					field = py_k.as_a<Str>() ;
 					Sequence const& pyseq_tkfs    = py_tkfs.as_a<Sequence>()                      ;
-					::string        target        =                    pyseq_tkfs[0].as_a<Str>()  ;              // .
-					MatchKind       kind          = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;              // targets are a tuple (target_pattern,kind,flags...)
+					::string        target        =                    pyseq_tkfs[0].as_a<Str>()  ;                               // .
+					MatchKind       kind          = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                               // targets are a tuple (target_pattern,kind,flags...)
 					bool            is_star       = false                                         ;
 					::set_s         missing_stems ;
 					bool            is_stdout     = field=="target"                               ;
@@ -231,7 +234,7 @@ namespace Engine {
 					if (target==job_name) {
 						if (job_name_is_star) is_star = true ;
 					} else {
-						if (kind==MatchKind::Target) for( auto const& [k,s] : stem_stars ) if (s!=Yes) missing_stems.insert(k) ;
+						if (kind==MatchKind::Target) for( auto const& [k,ks] : stem_infos ) if (ks.second!=Yes) missing_stems.insert(k) ;
 						parse_py( target , &unnamed_star_idx ,
 							[&]( ::string const& k , bool star , bool unnamed , ::string const* /*re*/ ) {
 								if (!stem_defs.contains(k)) throw cat("found undefined ",stem_words(k,star,unnamed)," in ",kind) ;
@@ -240,8 +243,8 @@ namespace Engine {
 									is_star = true ;
 									return ;
 								}
-								auto it = stem_stars.find(k) ;
-								if ( it==stem_stars.end() || it->second==Yes ) {
+								auto it = stem_infos.find(k) ;
+								if ( it==stem_infos.end() || it->second.second==Yes ) {
 									if (+job_name_key) throw cat(stem_words(k,star,unnamed)," appears in some ",kind," but not in ",job_name_kind,' ',job_name_key,", consider using {",k,"*}") ;
 									else               throw cat(stem_words(k,star,unnamed)," appears in some ",kind," but not in job_name"                       ,", consider using {",k,"*}") ;
 								}
@@ -249,7 +252,7 @@ namespace Engine {
 							}
 						) ;
 					}
-					if ( !is_star && kind==MatchKind::Target ) flags.tflags       |= Tflag::Essential   ;        // static targets are essential by default
+					if ( !is_star && kind==MatchKind::Target ) flags.tflags       |= Tflag::Essential   ;                         // static targets are essential by default
 					if ( !is_star                            ) flags.extra_dflags |= ExtraDflag::NoStar ;
 					Rule::s_split_flags( snake_str(kind) , pyseq_tkfs , 2/*n_skip*/ , /*out*/flags , kind==MatchKind::SideDep ) ;
 					if (             kind==MatchKind::Target                   ) flags.tflags       |= Tflag::Target     ;
@@ -275,10 +278,10 @@ namespace Engine {
 					if (field==job_name_key) job_name = add_cwd( ::move(job_name) , is_top ) ;
 					(is_star?star_matches:static_matches)[+kind].emplace_back( field , MatchEntry{::move(target),flags} ) ;
 				}
-				SWEAR(+seen_target) ;                                                                            // we should not have come up to here without a target
+				SWEAR(+seen_target) ;                                                                                             // we should not have come up to here without a target
 				if (!job_name_key) job_name = add_cwd( ::move(job_name) , seen_top ) ;
-				static_assert(+MatchKind::Target==0) ;                                                           // targets (both static and star) must be first to ensure ...
-				for( MatchKind k : iota(All<MatchKind>) ) {                                                      // ... RuleTgt stability when Rule's change without crc.match modif
+				static_assert(+MatchKind::Target==0) ;                                                                            // targets (both static and star) must be first to ensure ...
+				for( MatchKind k : iota(All<MatchKind>) ) {                                                                       // ... RuleTgt stability when Rule's change without crc.match modif
 					//            star
 					matches_iotas[false][+k] = { VarIdx(matches.size()) , VarIdx(matches.size()+static_matches[+k].size()) } ; for( auto& st : static_matches[+k] ) matches.push_back(::move(st)) ;
 					matches_iotas[true ][+k] = { VarIdx(matches.size()) , VarIdx(matches.size()+star_matches  [+k].size()) } ; for( auto& st : star_matches  [+k] ) matches.push_back(::move(st)) ;
@@ -287,16 +290,21 @@ namespace Engine {
 			field.clear() ;
 			throw_unless( matches.size()<NoVar , "too many targets, side_targets and side_deps ",matches.size()," >= ",int(NoVar) ) ;
 			::umap_s<VarIdx> stem_idxs ;
-			for( bool star : {false,true} ) {                                                                    // keep only useful stems and order them : static first, then star
-				for( auto const& [k,v] : stem_stars ) {
-					if (v==(No|!star)) continue ;                                                                // stems that are both static and start appear twice
+			for( uint8_t pass : {1,2,3} ) {              // keep only useful stems and order them : static first, then star for targets, then other stars
+				for( auto const& [k,ks] : stem_infos ) {
+					switch (pass) {
+						case 1 : { if ( ks.second==Yes                                ) continue ; } break ; // pass 1 is for static stems
+						case 2 : { if ( ks.second==No  || ks.first!=MatchKind::Target ) continue ; } break ; // pass 2 is for star stems for targets
+						case 3 : { if ( ks.second==No  || ks.first==MatchKind::Target ) continue ; } break ; // pass 3 is for star stems solely for side_deps/side_targets
+					DF}
 					::string const& s = stem_defs.at(k) ;
-					stem_idxs.emplace     ( k+" *"[star] , VarIdx(stems.size()) ) ;
-					stems    .emplace_back( k            , s                    ) ;
+					stem_idxs.emplace     ( k+(pass==1?' ':'*') , VarIdx(stems.size()) ) ;
+					stems    .emplace_back( k                   , s                    ) ;
 					try         { stem_n_marks.push_back(Re::RegExpr(s,true/*cache*/).n_marks()) ; }
 					catch (...) { throw cat("bad regexpr for stem ",k," : ",s) ;                   }
 				}
-				if (!star) n_static_stems = stems.size() ;
+				if (pass==1) n_static_stems = stems.size() ;
+				if (pass==2) n_target_stems = stems.size() ;
 			}
 			::umap_s<CmdIdx> var_idxs ;
 			/**/                                   var_idxs["stems"       ] = {VarCmd::Stems,0} ;
@@ -326,8 +334,8 @@ namespace Engine {
 				field        = job_name_key  ;
 				ensure_canon = &job_name     ;
 				kind         = job_name_kind ;
-			}                                                                                                    // if job_name is a target, canon must be checked
-			unnamed_star_idx = 1 ;                                                                               // reset free running at each pass over job_name+targets
+			}                                                                                                // if job_name is a target, canon must be checked
+			unnamed_star_idx = 1 ;                                                                           // reset free running at each pass over job_name+targets
 			mk_tgt.clear() ;
 			parse_py( job_name , &unnamed_star_idx , mk_stem , mk_fixed ) ;
 			::string new_job_name = ::move(mk_tgt) ;
@@ -340,7 +348,7 @@ namespace Engine {
 					me.set_pattern(new_job_name,stems.size()) ;
 				} else {
 					ensure_canon = &me.pattern     ;
-					kind         = me.flags.kind() ;                                                             // providing . as side_deps may be useful to pass readdir_ok flag
+					kind         = me.flags.kind() ;                                                         // providing . as side_deps may be useful to pass readdir_ok flag
 					mk_tgt.clear() ;
 					parse_py( me.pattern , &unnamed_star_idx , mk_stem , mk_fixed ) ;
 					me.set_pattern(::move(mk_tgt),stems.size()) ;
@@ -350,7 +358,7 @@ namespace Engine {
 			job_name = ::move(new_job_name) ;
 			//
 			//vvvvvvvvvvvvvvvvvvvvv
-			if (!is_plain()) return ;                                                                            // if special, we have no dep, no execution, we only need essential info
+			if (!is_plain()) return ;                                                                        // if special, we have no dep, no execution, we only need essential info
 			//^^^^^^^^^^^^^^^^^^^^^
 			//
 			// acquire fields linked to job execution
@@ -362,7 +370,7 @@ namespace Engine {
 			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( /*out*/n_runs       , /*out*/::ref(bool()) , &dct[field]                                    ) ;
 			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( /*out*/n_submits    , /*out*/::ref(bool()) , &dct[field]                                    ) ;
 			field = "retried_errors"      ; if (dct.contains(field)) Attrs::acquire( /*out*/retried_errs , /*out*/::ref(bool()) , &dct[field] , DfltRetriedErrs , MaxRetriedErrs ) ;
-			if ( n_runs && n_submits ) n_submits = ::max( n_submits , n_runs ) ;                                 // n_submits<n_runs is meaningless
+			if ( n_runs && n_submits ) n_submits = ::max( n_submits , n_runs ) ;                             // n_submits<n_runs is meaningless
 			//
 			var_idxs["targets"] = { VarCmd::Targets , 0 } ;
 			for( bool star : {false,true} )
@@ -399,7 +407,7 @@ namespace Engine {
 			}
 			if (!deps_attrs.spec.dyn_deps.first)
 				for( VarIdx di : iota<VarIdx>(deps_attrs.spec.deps.size()) ) {
-					if (deps_attrs.spec.deps[di].first!="dep") continue ;                                        // dep is a reserved key that means stdin
+					if (deps_attrs.spec.deps[di].first!="dep") continue ;                                    // dep is a reserved key that means stdin
 					stdin_idx = di ;
 					break ;
 				}
@@ -872,10 +880,11 @@ namespace Engine {
 	// if the need arises, we will add an "id" artificial field entering in crc->match to distinguish them
 	void RuleData::_set_crcs(RulesBase const& rules) {
 		if (is_plain()) SWEAR(+rules) ;
-		Hash::Xxh h ;                                                    // each crc continues after the previous one, so they are standalone
+		Hash::Xxh h ;                                                                                                           // each crc continues after the previous one, so they are standalone
 		//
 		// START_OF_VERSIONING REPO
 		::vmap_s<uint8_t> targets ;
+		::vector_s        stem_match_info ; for( VarIdx i : iota(n_target_stems) ) stem_match_info.push_back(stems[i].second) ; // only need stem content as long as used for targets
 		for( bool star : {false,true} )
 			for( VarIdx mi : matches_iotas[star][+MatchKind::Target] ) { // targets (static and star) must be kept first in matches so RuleTgt is stable when match_crc is stable
 				MatchEntry const& match = matches[mi].second ;
@@ -885,9 +894,9 @@ namespace Engine {
 				;
 				targets.emplace_back( match.pattern , flags ) ;          // keys and flags have no influence on matching, except Optional
 			}
-		h += special ;                                                   // in addition to distinguishing special from other, ...
-		h += stems   ;                                                   // ... this guarantees that shared rules have different crc's
-		h += targets ;
+		h += special         ;                                           // in addition to distinguishing special from other, this guarantees that shared rules have different crc's
+		h += stem_match_info ;
+		h += targets         ;
 		deps_attrs.update_hash( /*inout*/h , rules ) ;                   // no deps for source & anti
 		if (is_plain()) h += job_name  ;
 		else            h += allow_ext ;                                 // only exists for special rules

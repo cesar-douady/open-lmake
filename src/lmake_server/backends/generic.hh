@@ -188,7 +188,7 @@ namespace Backends {
 				be.start_rsrcs(it->second.rounded_rsrcs) ;
 				it->second.started = true ;
 				#ifndef NDEBUG
-					it = _tab.end() ;                                                    // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
+					it = _tab.end() ;                                                    // not sure the compiler is able to optimize out this, and this guarantees it is not used any further
 				#endif
 			}
 			void end( GenericBackend const& be , iterator&& it ) {
@@ -199,7 +199,7 @@ namespace Backends {
 				if (!se.hold    )   _tab.erase(it)                   ;
 				else              { se.zombie = true ; _zombies.push_back(it->first) ; } // _launch may hold pointers with no lock, so dont physically erase entries
 				#ifndef NDEBUG
-					it = _tab.end() ;                                                    // not sure the compiler is able to optimize out this, and this guarantees the it is not used any further
+					it = _tab.end() ;                                                    // not sure the compiler is able to optimize out this, and this guarantees it is not used any further
 				#endif
 			} ;
 			void flush() {
