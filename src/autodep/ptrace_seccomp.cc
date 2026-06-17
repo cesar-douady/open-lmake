@@ -185,7 +185,11 @@ namespace AutodepPtrace {
 		int                   wstatus ;
 		pid_t                 pid     = ::wait(&wstatus)  ;                    // wait for child to stop
 		SWEAR( pid==child_pid      , pid,child_pid ) ;                         // job has not started yet, only a single child exists
-		SWEAR( WIFSTOPPED(wstatus) , pid,wstatus   ) ;
+		#if CAN_AUTODEP_SECCOMP
+			throw_unless( WIFSTOPPED(wstatus) , "cannot ptrace, consider using autodep='seccomp' instead" ) ;
+		#else
+			throw_unless( WIFSTOPPED(wstatus) , "cannot ptrace"                                         ) ;
+		#endif
 		{ long rc = ::ptrace(PTRACE_SETOPTIONS,pid,0/*addr*/,Options  ) ; swear_prod( rc==0 , cat("cannot set ptrace options (",StrErr(),") for process ",pid                        )) ; }
 		{ long rc = ::ptrace(PTRACE_CONT      ,pid,0/*.   */,0/*data*/) ; swear_prod( rc==0 , cat("cannot continue ("          ,StrErr(),") process "    ,pid," after setting ptrace")) ; }
 		//
