@@ -155,9 +155,9 @@ namespace AutodepPtrace {
 					SyscallDescr const& descr =                                               SyscallDescr::s_tab[syscall] ;
 				#endif
 				SWEAR_PROD( descr.exit , is_32,syscall ) ;
-				//          vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				rc_errno = descr.exit( ctx , record , proc_mem , old_rc ) ;
-				//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				ctx = nullptr ;
 				if (rc_errno.first<0   ) { SWEAR( rc_errno.first==-1 , syscall,rc_errno ) ; rc_errno.first = -rc_errno.second ; }
 				if (rc_errno.first!=res)
