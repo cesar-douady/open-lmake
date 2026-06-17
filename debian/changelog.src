@@ -2,14 +2,21 @@ open-lmake ($VERSION_TAG-$DEBIAN_RELEASE) $OS_CODENAME; urgency=low
 
   * General clean up release
 
-  * implement ConfigRule to handle configs in a lmake-friendly way
-  * handle $NO_COLOR
-  * improve regexpr matching perf
-  * improve lshow -i by providing more information
-  * improve slurm scheduling by passing it timeout info
-  * support ubuntu26.04 and gcc-15
-  * bug fixes
-  * improved error messages
-  * improve perf
+  * suppress unused and useless no_star dep flag
+  * support clang-21
+  * improve BeeGFS support
+  * improve version checking
+  * improve Python support in Rule (as opposed to PyRule) when python is
+    launched from within bash command
+  * improve job execution doc
+  * support booksworm distro
+  * improve NFS support when executing a dep (which sometimes appeared
+    as text-busy)
+  * perf : improve management of numerous regexpr-based side_deps/side_targets
+    with numerous deps/targets
+  * bug fix : avoid some cases of crashes linked to traces
+  * bug fix : improve some linux syscalls semantic interpretation
+  * bug fix : improve missing deps for reading Lmakefile.py when repo lies
+    within /tmp
 
  -- Cesar Douady <cesar.douady@doliam.fr>  $DATE
