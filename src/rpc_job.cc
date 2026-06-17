@@ -648,9 +648,9 @@ void JobSpace::enter(
 	//
 	bool creat = _force_creat!=No || +chroot_info ;
 	//
-	SWEAR( +phy_lmake_root_s ) ;
-	SWEAR( +phy_repo_root_s  ) ;
-	if (+tmp_view_s) throw_unless( +phy_tmp_dir_s , "no physical dir for tmp view ",no_slash(tmp_view_s) ) ;
+	SWEAR(+phy_lmake_root_s) ;
+	SWEAR(+phy_repo_root_s ) ;
+	SWEAR(+phy_tmp_dir_s   ) ;
 	//
 	FileNameIdx repo_depth    = ::count(repo_root_s,'/') - 1                                                              ; // account for initial and terminal /
 	FileNameIdx src_dir_depth = ::max<FileNameIdx>( src_dirs_s , [](::string const& sd_s) { return uphill_lvl(sd_s) ; } ) ;
@@ -778,7 +778,7 @@ void JobSpace::enter(
 	auto mk_entry = [&]( ::string const& dir_s , ::string const& abs_dir_s , bool path_is_lcl ) {
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
 		if (path_is_lcl) report.emplace_back(no_slash(dir_s)) ;
-		trace("mkdir8",abs_dir_s) ;
+		trace("mkdir",abs_dir_s) ;
 		mk_dir_s(abs_dir_s) ;
 	} ;
 	//
@@ -1218,13 +1218,16 @@ void JobStartRpcReply::enter(
 	//
 	autodep_env.repo_root_s = job_space.repo_view_s | phy_repo_root_s ;
 	autodep_env.tmp_dir_s   = job_space.tmp_view_s  | phy_tmp_dir_s   ;
-	if (+phy_tmp_dir_s) {
-		try                       { mk_dir_empty_s( phy_tmp_dir_s , {.abs_ok=true} ) ; }
-		catch (::string const& e) { throw "cannot create tmp dir : "+e ;               }
-	} else {
-		if (+job_space.tmp_view_s) throw cat("cannot map tmp dir ",job_space.tmp_view_s," to nowhere") ;
+	SWEAR(+phy_tmp_dir_s) ;
+	try                       { mk_dir_empty_s( phy_tmp_dir_s , {.abs_ok=true} ) ; }
+	catch (::string const& e) { throw "cannot create tmp dir : "+e ;               }
+	{	AcFd     fd   { phy_tmp_dir_s , {.flags=O_RDONLY|O_DIRECTORY} }   ;
+		::string rp_s = with_slash(read_lnk(cat("/proc/self/fd/",fd.fd))) ;
+		throw_unless( phy_tmp_dir_s==rp_s
+		,	"$TMPDIR computed as                      : ",phy_tmp_dir_s,rm_slash,'\n'
+		,	"must contain no symlinks but resolves as : ",rp_s         ,rm_slash
+		) ;
 	}
-	//
 	job_space.enter(
 		/*out*/  accesses
 	,	/*.  */  repo_root_s

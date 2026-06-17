@@ -31,6 +31,7 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* add LnkSupport::FullExt to support external links to repo
 ! before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
 ? make ignore_error transitive

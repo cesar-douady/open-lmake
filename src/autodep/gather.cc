@@ -46,7 +46,7 @@ Accesses Gather::AccessInfo::accesses() const {
 }
 
 bool Gather::AccessInfo::allow() const {
-	return _allow<_max_write() && ( _write<_write_ignore || ::min(_read,Pdate::Never)<_read_ignore ) ;
+	return _allow<_max_write() && ( flags.tflags[Tflag::Static] || _write<_write_ignore || ::min(_read,Pdate::Never)<_read_ignore ) ;
 }
 
 Pdate Gather::AccessInfo::first_read(bool with_readdir) const {
@@ -166,7 +166,7 @@ static void _update_flags_thread_func(
 	Trace trace("_update_flags_thread_func",id) ;
 	//
 	size_t                  t                    = 0 ;
-	::vector<RegExpr::Data> datass[2/*readdir*/] ;                                // need to use reentrant matching when multi-thread
+	::vector<RegExpr::Data> datass[2/*readdir*/] ;                                                                                                // need to use reentrant matching when multi-thread
 	if (id)
 		for( int readdir : iota(2/*readdir*/) )
 			for ( auto const& [re,_] : (*star_matchess)[readdir] )
@@ -176,7 +176,7 @@ static void _update_flags_thread_func(
 		size_t              i_      = (*i)++                                    ; if (i_>=accesses_.size()) break ;
 		::string const&     file    = accesses_[i_]->first                      ;
 		Gather::AccessInfo& ai      = accesses_[i_]->second                     ;
-		bool                no_star = ai.flags.extra_dflags[ExtraDflag::NoStar] ; // if no_star => still apply regexprs to find Target
+		bool                no_star = ai.flags.extra_dflags[ExtraDflag::NoStar] ;                                                                 // if no_star => still apply regexprs to find Target
 		//
 		stat->n_stars++ ;
 		for( int readdir : iota(1+ai.read_dir()) ) {
@@ -187,16 +187,16 @@ static void _update_flags_thread_func(
 				::pair<RegExpr,::pair<Pdate,MatchFlags>> const& star_match = star_matches[m]                                ;
 				bool                                            is_target  = star_match.second.second.tflags[Tflag::Target] ;
 				if ( no_star && !is_target ) break ;
-				if ( ++t>=(1<<16)          ) { t = 0 ; if (drain_heartbeat_) gather->drain_heartbeat() ; }                                              // regularly drain heartbeat
+				if ( ++t>=(1<<16)          ) { t = 0 ; if (drain_heartbeat_) gather->drain_heartbeat() ; }                                        // regularly drain heartbeat
 				stat->n_matches++ ;
 				if (
-					id ? star_match.first.can_match( file , datas[m] )                                                                                  // only use _datas in multi-thread
+					id ? star_match.first.can_match( file , datas[m] )                                                                            // only use _datas in multi-thread
 					:    star_match.first.can_match( file            )
 				) {
 					stat->n_matches_ok++ ;
 					trace(file,star_match.second) ;
 					if      (!no_star ) ai.update( star_match.second.first , {.flags=star_match.second.second                               } ) ;
-					else if (is_target) ai.update( star_match.second.first , {.flags={.tflags=Tflag::Target,.extra_tflags=ExtraTflag::Allow}} ) ;       // no_star's only get the Target flag
+					else if (is_target) ai.update( star_match.second.first , {.flags={.tflags=Tflag::Target,.extra_tflags=ExtraTflag::Allow}} ) ; // no_star's only get the Target flag
 				}
 			}
 		}
@@ -443,7 +443,7 @@ Gather::Digest Gather::analyze( Status status , bool do_upload ) {
 			}
 			if (unlnk) {
 				td.crc = Crc::None ;
-			} else if ( was_written || (fi.exists()&&st.st_nlink>1) || fi.tag()==FileTag::Empty ) {                                                 // file may change through another link if any
+			} else if ( was_written || st.st_nlink>1 || fi.tag()==FileTag::Empty ) {                                                                // file may change through another link if any
 				if ( fi.tag()==FileTag::Empty || status<=Status::Garbage || !td.tflags[Tflag::Target] ) td.crc = fi.tag() ;                         // no crc if meaningless
 				else                                                                                    res.crcs.emplace_back(res.targets.size()) ; // deferred (parallel) crc computation
 			} else if ( do_upload && td.tflags[Tflag::Target] ) {                                                                                   // if uploading cache, must have crc for all targets
@@ -522,11 +522,16 @@ void Gather::_trace_child( Fd report_fd , ::latch* ready ) {
 	_child.spawn() ;      // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
 	//^^^^^^^^^^^^
 	ready->count_down() ; // signal main thread that _child.pid is available
-	switch (method) {
-		/**/                    case AutodepMethod::Ptrace  : wstatus = AutodepPtrace ::process(_child.pid) ; break ;
-		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : wstatus = AutodepSeccomp::process(_child.pid) ; break ; )
-	DF}                                                                                                                 // NO_COV
-	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ;                                         // report child end
+	try {
+		switch (method) {
+			/**/                    case AutodepMethod::Ptrace  : wstatus = AutodepPtrace ::process(_child.pid) ; break ;
+			IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : wstatus = AutodepSeccomp::process(_child.pid) ; break ; )
+		DF}                                                                                                                 // NO_COV
+	} catch (::string const& e) {
+		wstatus = 255<<8 ;                                                                                                  // exit code 255
+		msg << add_nl<<e ;
+	}
+	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ;                                             // report child end
 	Record::s_close_reports() ;
 }
 

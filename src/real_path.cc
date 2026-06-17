@@ -141,8 +141,8 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 	_Dvg in_tmp  { tmp_dir_s         , real } ;                           // keep track of where we are w.r.t. tmp  , always track symlinks
 	_Dvg in_proc { "/proc/"          , real } ;                           // keep track of where we are w.r.t. /proc, always track symlinks
 	_Dvg in_dev  { "/dev/"           , real } ;                           // keep track of where we are w.r.t. /proc, always track symlinks
-	// loop INVARIANT : accessed file is real+'/'+file.substr(pos)
-	// when pos>file.size(), we are done and result is real
+	// loop INVARIANT : accessed file is real+'/'+file.file.substr(pos)
+	// when pos>file.file.size(), we are done and result is real
 	size_t   end      ;
 	int      n_lnks   = 0 ;
 	::string last_lnk ;
