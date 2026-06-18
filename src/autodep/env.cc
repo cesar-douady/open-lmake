@@ -124,9 +124,10 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			case 'l' :
 				pos++ ;
 				switch (env[pos]) {
-					case 'n' : lnk_support = LnkSupport::None ; break ;
-					case 'f' : lnk_support = LnkSupport::File ; break ;
-					case 'a' : lnk_support = LnkSupport::Full ; break ;
+					case 'n' : lnk_support = LnkSupport::None    ; break ;
+					case 'f' : lnk_support = LnkSupport::File    ; break ;
+					case 'a' : lnk_support = LnkSupport::Full    ; break ;
+					case 'x' : lnk_support = LnkSupport::FullExt ; break ;
 					default  : goto Fail ;
 				}
 			break ;
@@ -194,9 +195,10 @@ AutodepEnv::operator ::string() const {
 		case FileSync::Ocfs2   : res << "so" ; break ;
 	DF}                                                // NO_COV
 	switch (lnk_support) {
-		case LnkSupport::None : res << "ln" ; break ;
-		case LnkSupport::File : res << "lf" ; break ;
-		case LnkSupport::Full : res << "la" ; break ;
+		case LnkSupport::None    : res << "ln" ; break ;
+		case LnkSupport::File    : res << "lf" ; break ;
+		case LnkSupport::Full    : res << "la" ; break ;
+		case LnkSupport::FullExt : res << "lx" ; break ;
 	DF} //! NO_COV                                                   empty_ok
 	res <<':'<< '"'<<mk_printable<'"'>(                  fqdn               )<<'"' ;
 	res <<':'<< '"'<<mk_printable<'"'>(                  tmp_dir_s          )<<'"' ;

@@ -7,27 +7,35 @@ if __name__!='__main__' :
 
 	import os.path as osp
 
+	from step import step
+
 	import lmake
 	from lmake.rules import Rule
 
-	lmake.manifest = ('Lmakefile.py',)
+	lmake.manifest = (
+		'Lmakefile.py'
+	,	'step.py'
+	)
+
+	if step==2 : lmake.config.link_support = 'full_ext' # symlinks in $TMPDIR are then supported
 
 	for sfx in ('','_lnk') :
 		class Dut(Rule) :
 			name    = 'Dut'+sfx
 			targets = { 'DUT' : 'dut'+sfx }
-			environ = {
+			environ_resources = {
 				'REPO_ROOT' : '$REPO_ROOT'
 			,	'TMPDIR'    : osp.dirname(lmake.repo_root)+'/tmp'+sfx
 			}
 			cmd = '''
-				ln -s $REPO_ROOT/dut $TMPDIR/dut
+				ln -s $REPO_ROOT/{DUT} $TMPDIR/dut
 				echo >$TMPDIR/dut
 			'''
 
 else :
 
 	import os
+	import shutil
 
 	import ut
 
@@ -38,4 +46,12 @@ else :
 	open('repo/Lmakefile.py','w').write(open('Lmakefile.py').read())
 	os.chdir('repo')
 
+	print('step=1',file=open('step.py','w'))
 	ut.lmake( 'dut' , 'dut_lnk' , done=1 , failed=1 , rc=1 ) # tmp dir cannot contain symlinks
+
+	shutil.rmtree('LMAKE')
+	os.unlink('dut')
+	os.mkdir('LMAKE')
+
+	print('step=2',file=open('step.py','w'))
+	ut.lmake( 'dut' , 'dut_lnk' , done=2 )   # tmp dir can contain symlinks when link_support==full_ext

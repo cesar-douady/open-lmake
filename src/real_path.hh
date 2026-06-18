@@ -23,9 +23,10 @@ enum class FileLoc : uint8_t {
 
 // START_OF_VERSIONING CACHE JOB REPO
 enum class LnkSupport : uint8_t {
-	None
-,	File
-,	Full
+	None                          // symlinks may not appear in repo
+,	File                          // symlinks may only appear in repo as links to files, not to dir
+,	Full                          // symlinks may appear in repo, to files or dirs
+,	FullExt                       // symlinks may appear from external to (possibly indirectly) dir
 } ;
 // END_OF_VERSIONING
 

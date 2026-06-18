@@ -72,10 +72,10 @@ if __name__!='__main__' :
 	class Compile(Base) :
 		if use_cat : target  =            r'build/{File:.*}.o'
 		else       : targets = { 'OBJ' :  r'build/{File:.*}.o' }
-		deps      = { 'SRC'    :   'src/{File}.c'         }
-		side_deps = { 'GCH'    : (r'{*:.*}.gch','ignore') }
-		environ   = { 'TMPDIR' : ''                       }
-		cmd       = compile_cmd(False,False,'{OBJ}','{SRC}')
+		deps              = { 'SRC'    :   'src/{File}.c'         }
+		side_deps         = { 'GCH'    : (r'{*:.*}.gch','ignore') }
+		environ_resources = { 'TMPDIR' : ''                       }
+		cmd               = compile_cmd(False,False,'{OBJ}','{SRC}')
 
 	class Link(Base) :
 		if use_cat : target  =           r'build/exe_{N:\d+}.exe'

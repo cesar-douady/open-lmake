@@ -114,7 +114,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
         <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
             <span class="n">name</span>    <span class="o">=</span> <span class="s1">&#39;Dut&#39;</span><span class="o">+</span><span class="n">sfx</span>
             <span class="n">targets</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;DUT&#39;</span> <span class="p">:</span> <span class="s1">&#39;dut&#39;</span><span class="o">+</span><span class="n">sfx</span> <span class="p">}</span>
-            <span class="n">environ</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="n">environ_resources</span> <span class="o">=</span> <span class="p">{</span>
                 <span class="s1">&#39;REPO_ROOT&#39;</span> <span class="p">:</span> <span class="s1">&#39;$REPO_ROOT&#39;</span>
             <span class="p">,</span>   <span class="s1">&#39;TMPDIR&#39;</span>    <span class="p">:</span> <span class="n">osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;/tmp&#39;</span><span class="o">+</span><span class="n">sfx</span>
             <span class="p">}</span>

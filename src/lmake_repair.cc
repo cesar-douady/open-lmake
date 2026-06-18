@@ -147,7 +147,7 @@ int main( int argc , char* /*argv*/[] ) {
 	Record::s_static_report = true ;
 	//
 	try                       { rename( admin_dir/*src*/ , bck_admin_dir/*dst*/ ) ; }
-	catch (::string const& e) { fail_prod(e) ;                                      }
+	catch (::string const& e) { exit(Rc::System,e) ;                                }
 	//
 	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ;                // create marker
 	g_writable = true ;

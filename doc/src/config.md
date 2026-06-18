@@ -194,11 +194,16 @@ Open-lmake fully handle symbolic links (cf. [data model](data_model.html)).
 
 However, there is an associated cost which may be useless in some situations.
 
-| Value    | Support level                                          |
-|----------|--------------------------------------------------------|
-| `'full'` | symbolic links are fully supported                     |
-| `'file'` | symbolic links are only supported if pointing to files |
-| `'none'` | symbolic links are not supported                       |
+Unless set to `'full_ext`', it is assumed that there are not symbolic links from outside the repo and any source dir to (possibly indirectly, e.g. through `$TMPDIR`) to within repo.
+Suporting such links has an additional cost and correspond to hardly meaningful cases.
+Unless set to `'full_ext`', `$TMPDIR`, when specified, may not contain symbolic links.
+
+| Value        | Default | Support level                                                                                              |
+|--------------|---------|------------------------------------------------------------------------------------------------------------|
+| `'none'`     |         | symbolic links are not supported                                                                           |
+| `'file'`     |         | symbolic links are only supported if pointing to files                                                     |
+| `'full'`     | X       | symbolic links are fully supported                                                                         |
+| `'full_ext'` |         | symbolic links are fully supported, including links from outside repo to (possibly indirectly) within repo |
 
 ### [`local_admin_dir`](unit_tests/admin.html#:~:text=lmake%2Econfig%2Elocal%5Fadmin%5Fdir%20%3D%20%27LMAKE%5FLOCAL%27%20%23%20declared%20within%20repo%20for%20test%20ease%20of%20use%2C%20but%20goal%20is%20to%20make%20it%20absolute%20in%20a%20fast%20local%20disk) : Clean (-)
 

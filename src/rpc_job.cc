@@ -1221,7 +1221,8 @@ void JobStartRpcReply::enter(
 	SWEAR(+phy_tmp_dir_s) ;
 	try                       { mk_dir_empty_s( phy_tmp_dir_s , {.abs_ok=true} ) ; }
 	catch (::string const& e) { throw "cannot create tmp dir : "+e ;               }
-	{	AcFd     fd   { phy_tmp_dir_s , {.flags=O_RDONLY|O_DIRECTORY} }   ;
+	if (autodep_env.lnk_support!=LnkSupport::FullExt) {                              // else tmp dir with symlinks are supported as they are seen as external, which follows symlinks
+		AcFd     fd   { phy_tmp_dir_s , {.flags=O_RDONLY|O_DIRECTORY} }   ;
 		::string rp_s = with_slash(read_lnk(cat("/proc/self/fd/",fd.fd))) ;
 		throw_unless( phy_tmp_dir_s==rp_s
 		,	"$TMPDIR computed as                      : ",phy_tmp_dir_s,rm_slash,'\n'

@@ -280,10 +280,14 @@ If <code>None</code> (discouraged), it is equivalent to 0.</p>
 <h3 id="link_support--clean-full"><a class="header" href="#link_support--clean-full"><a href="unit_tests/depend.html#:~:text=lmake%2Econfig%2Elink%5Fsupport%20%3D%20step%2Elink%5Fsupport"><code>link_support</code></a> : Clean (<code>'full'</code>)</a></h3>
 <p>Open-lmake fully handle symbolic links (cf. <a href="data_model.html">data model</a>).</p>
 <p>However, there is an associated cost which may be useless in some situations.</p>
-<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Support level</th></tr></thead><tbody>
-<tr><td><code>'full'</code></td><td>symbolic links are fully supported</td></tr>
-<tr><td><code>'file'</code></td><td>symbolic links are only supported if pointing to files</td></tr>
-<tr><td><code>'none'</code></td><td>symbolic links are not supported</td></tr>
+<p>Unless set to <code>'full_ext</code>', it is assumed that there are not symbolic links from outside the repo and any source dir to (possibly indirectly, e.g. through <code>$TMPDIR</code>) to within repo.
+Suporting such links has an additional cost and correspond to hardly meaningful cases.
+Unless set to <code>'full_ext</code>', <code>$TMPDIR</code>, when specified, may not contain symbolic links.</p>
+<div class="table-wrapper"><table><thead><tr><th>Value</th><th>Default</th><th>Support level</th></tr></thead><tbody>
+<tr><td><code>'none'</code></td><td></td><td>symbolic links are not supported</td></tr>
+<tr><td><code>'file'</code></td><td></td><td>symbolic links are only supported if pointing to files</td></tr>
+<tr><td><code>'full'</code></td><td>X</td><td>symbolic links are fully supported</td></tr>
+<tr><td><code>'full_ext'</code></td><td></td><td>symbolic links are fully supported, including links from outside repo to (possibly indirectly) within repo</td></tr>
 </tbody></table>
 </div>
 <h3 id="local_admin_dir--clean--"><a class="header" href="#local_admin_dir--clean--"><a href="unit_tests/admin.html#:~:text=lmake%2Econfig%2Elocal%5Fadmin%5Fdir%20%3D%20%27LMAKE%5FLOCAL%27%20%23%20declared%20within%20repo%20for%20test%20ease%20of%20use%2C%20but%20goal%20is%20to%20make%20it%20absolute%20in%20a%20fast%20local%20disk"><code>local_admin_dir</code></a> : Clean (-)</a></h3>

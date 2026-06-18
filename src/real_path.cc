@@ -113,7 +113,7 @@ size_t RealPath::_find_src_idx(::string const& real) const {
 // - do not support links outside repo & tmp, except from /proc (which is meaningful)
 // - note that besides syscalls, this algo is very fast and caching intermediate results could degrade performances (checking the cache could take as long as doing the job)
 RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
-	static constexpr int NMaxLnks = MAXSYMLINKS ;                  // max number of links to follow before decreting it is a loop
+	static constexpr int NMaxLnks = MAXSYMLINKS ;                         // max number of links to follow before decreting it is a loop
 	//
 	::string_view tmp_dir_s = +_env->tmp_dir_s ? ::string_view(_env->tmp_dir_s) : ::string_view(P_tmpdir "/") ;
 	//
@@ -174,7 +174,7 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 		if ( +in_tmp || +in_proc || +in_dev ) goto HandleLnk ;            // note that tmp can lie within repo
 		if ( +in_repo                       ) {
 			if (real.size()<_repo_root_sz) continue ;                     // at repo root, no sym link to handle
-		} else {
+		} else if (_env->lnk_support!=LnkSupport::FullExt) {
 			src_idx = _find_src_idx(real) ;
 			if (src_idx==Npos) continue ;
 		}
@@ -194,16 +194,13 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 			// - d & d/e will be indrectly depended on through caller depending on d/e/f (the real accessed file returned as the result)
 			continue ;
 		}
-		if ( !in_tmp && !in_proc && !in_dev ) {
-			// if not in repo, real lie in a source dir
-			if      (!in_repo                                                    ) lnks.push_back( _env->src_dirs_s[src_idx] + substr_view(real,_abs_src_dirs_s[src_idx].size()) ) ;
-			else if (_lcl_file_loc(substr_view(real,_repo_root_sz))<=FileLoc::Dep) lnks.push_back( real.substr(_repo_root_sz)                                                    ) ;
-		}
-		if (n_lnks++>=NMaxLnks) return {{},::move(lnks)} ;                // link loop detected, same check as system
-		if (!last             )   nxt << '/'<<(file.file.data()+end+1) ;  // append unprocessed part, avoiding this copy would be very complex (would need a stack) and links to dir are uncommon
-		if (nxt[0]=='/'       ) { end =  0 ; prev_real_size = 0 ; }       // absolute link target : flush real
-		else                      end = -1 ;                              // end must point to the /, invent a virtual one before the string
-		real.resize(prev_real_size) ;                                     // links are relative to containing dir, suppress last component
+		if      ( +in_repo && !in_tmp ) lnks.push_back( real.substr(_repo_root_sz)                                                    ) ;
+		else if ( src_idx!=Npos       ) lnks.push_back( _env->src_dirs_s[src_idx] + substr_view(real,_abs_src_dirs_s[src_idx].size()) ) ;
+		if      ( n_lnks++>=NMaxLnks  ) return {{},::move(lnks)} ;                                                                        // link loop detected, same check as system
+		if      ( !last               )   nxt << '/'<<(file.file.data()+end+1) ; // append unprocessed part, avoiding copy would be very complex (would need a stack) and links to dir are rare
+		if      ( nxt[0]=='/'         ) { end =  0 ; prev_real_size = 0 ; }      // absolute link target : flush real
+		else                              end = -1 ;                             // end must point to the /, invent a virtual one before the string
+		real.resize(prev_real_size) ;                                            // links are relative to containing dir, suppress last component
 		ping      = !ping ;
 		file.file = nxt   ;
 	}
@@ -211,7 +208,7 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 	// tmp may be in_repo, repo root is in_repo
 	if      (+in_tmp ) res.file_loc = FileLoc::Tmp  ;
 	else if (+in_proc) res.file_loc = FileLoc::Proc ;
-	else if (+in_dev ) res.file_loc = FileLoc::Proc ;                     // /dev is like /proc (typically /dev/fd or /dev/stdin,stdout,stderr) or they have already been filtered-out as simple
+	else if (+in_dev ) res.file_loc = FileLoc::Proc ;                            // /dev is like /proc (typically /dev/fd or /dev/stdin,stdout,stderr) or they have already been filtered-out as simple
 	else if (+in_repo) {
 		if (real.size()<_repo_root_sz) {
 			res.file_loc = FileLoc::RepoRoot ;

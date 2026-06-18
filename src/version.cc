@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 50      ; // 4921c0c3bc0ca1fead479b589724182a
+	uint64_t    constexpr Cache = 51      ; // 9d27790ef49ea8b65b53719237102c70
 	uint64_t    constexpr Codec = 3       ; // 7319fd9fdc817eb270477875338dd334
-	uint64_t    constexpr Repo  = 54      ; // a9f268a93c4d4c0a454688041ca73f51
-	uint64_t    constexpr Job   = 26      ; // 2925a8dbd72966061bac50e56e5bbcd5
+	uint64_t    constexpr Repo  = 55      ; // 5e0d6d5628232ff0b7cb8e58a1ee9066
+	uint64_t    constexpr Job   = 27      ; // ca18f7fe16e63be4e49d3dd4bd94ba08
 	const char* const     Major = "26.07" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 4921c0c3bc0ca1fead479b589724182a *
+// * Cache : 9d27790ef49ea8b65b53719237102c70 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -34,9 +34,10 @@ namespace Version {
 //			case FileSync::Ocfs2   : res << "so" ; break ;
 //		DF}                                                // NO_COV
 //		switch (lnk_support) {
-//			case LnkSupport::None : res << "ln" ; break ;
-//			case LnkSupport::File : res << "lf" ; break ;
-//			case LnkSupport::Full : res << "la" ; break ;
+//			case LnkSupport::None    : res << "ln" ; break ;
+//			case LnkSupport::File    : res << "lf" ; break ;
+//			case LnkSupport::Full    : res << "la" ; break ;
+//			case LnkSupport::FullExt : res << "lx" ; break ;
 //		DF} //! NO_COV                                                   empty_ok
 //		res <<':'<< '"'<<mk_printable<'"'>(                  fqdn               )<<'"' ;
 //		res <<':'<< '"'<<mk_printable<'"'>(                  tmp_dir_s          )<<'"' ;
@@ -351,9 +352,10 @@ namespace Version {
 //			// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class LnkSupport : uint8_t {
-//		None
-//	,	File
-//	,	Full
+//		None                          // symlinks may not appear in repo
+//	,	File                          // symlinks may only appear in repo as links to files, not to dir
+//	,	Full                          // symlinks may appear in repo, to files or dirs
+//	,	FullExt                       // symlinks may appear from external to (possibly indirectly) dir
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
@@ -1116,7 +1118,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : a9f268a93c4d4c0a454688041ca73f51 *
+// * Repo : 5e0d6d5628232ff0b7cb8e58a1ee9066 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1141,9 +1143,10 @@ namespace Version {
 //			case FileSync::Ocfs2   : res << "so" ; break ;
 //		DF}                                                // NO_COV
 //		switch (lnk_support) {
-//			case LnkSupport::None : res << "ln" ; break ;
-//			case LnkSupport::File : res << "lf" ; break ;
-//			case LnkSupport::Full : res << "la" ; break ;
+//			case LnkSupport::None    : res << "ln" ; break ;
+//			case LnkSupport::File    : res << "lf" ; break ;
+//			case LnkSupport::Full    : res << "la" ; break ;
+//			case LnkSupport::FullExt : res << "lx" ; break ;
 //		DF} //! NO_COV                                                   empty_ok
 //		res <<':'<< '"'<<mk_printable<'"'>(                  fqdn               )<<'"' ;
 //		res <<':'<< '"'<<mk_printable<'"'>(                  tmp_dir_s          )<<'"' ;
@@ -1869,9 +1872,10 @@ namespace Version {
 //						// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class LnkSupport : uint8_t {
-//		None
-//	,	File
-//	,	Full
+//		None                          // symlinks may not appear in repo
+//	,	File                          // symlinks may only appear in repo as links to files, not to dir
+//	,	Full                          // symlinks may appear in repo, to files or dirs
+//	,	FullExt                       // symlinks may appear from external to (possibly indirectly) dir
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
@@ -2486,7 +2490,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 2925a8dbd72966061bac50e56e5bbcd5 *
+// * Job : ca18f7fe16e63be4e49d3dd4bd94ba08 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2511,9 +2515,10 @@ namespace Version {
 //			case FileSync::Ocfs2   : res << "so" ; break ;
 //		DF}                                                // NO_COV
 //		switch (lnk_support) {
-//			case LnkSupport::None : res << "ln" ; break ;
-//			case LnkSupport::File : res << "lf" ; break ;
-//			case LnkSupport::Full : res << "la" ; break ;
+//			case LnkSupport::None    : res << "ln" ; break ;
+//			case LnkSupport::File    : res << "lf" ; break ;
+//			case LnkSupport::Full    : res << "la" ; break ;
+//			case LnkSupport::FullExt : res << "lx" ; break ;
 //		DF} //! NO_COV                                                   empty_ok
 //		res <<':'<< '"'<<mk_printable<'"'>(                  fqdn               )<<'"' ;
 //		res <<':'<< '"'<<mk_printable<'"'>(                  tmp_dir_s          )<<'"' ;
@@ -2632,9 +2637,10 @@ namespace Version {
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class LnkSupport : uint8_t {
-//		None
-//	,	File
-//	,	Full
+//		None                          // symlinks may not appear in repo
+//	,	File                          // symlinks may only appear in repo as links to files, not to dir
+//	,	Full                          // symlinks may appear in repo, to files or dirs
+//	,	FullExt                       // symlinks may appear from external to (possibly indirectly) dir
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO

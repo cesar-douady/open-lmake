@@ -117,7 +117,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                         } }
 	,	{ CmdFlag::ExpandEnv     , { .short_name='E' , .has_arg=false , .doc="expand keys (e.g. $REPO_ROOT) in environment and first interpreter word"                                     } }
 	,	{ CmdFlag::KeepTmp       , { .short_name='k' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                          } }
-	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full), default=full"                                             } }
+	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full, full_ext), default=full"                                   } }
 	,	{ CmdFlag::LmakeView     , { .short_name='L' , .has_arg=true  , .doc="name under which open-lmake installation dir is seen"                                                        } }
 	,	{ CmdFlag::AutodepMethod , { .short_name='m' , .has_arg=true  , .doc=autodep_method_doc                                                                                            } }
 	,	{ CmdFlag::MountChrootOk , { .short_name='M' , .has_arg=false , .doc="allow mount and chroot"                                                                                      } }
