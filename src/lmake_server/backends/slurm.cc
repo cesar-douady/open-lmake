@@ -22,6 +22,7 @@ enum class SlurmFlag : uint8_t {
 ,	Partition
 ,	Qos
 ,	Reservation
+,	Wckey
 } ;
 
 namespace Backends::Slurm {
@@ -321,14 +322,15 @@ namespace Backends::Slurm {
 		/**/            os <<'('<< cpu       ;
 		if ( mem      ) os <<','<< mem<<"MB" ;
 		if ( tmp      ) os <<','<< tmp<<"MB" ;
-		if (+partition) os <<','<< partition ;
+		if (+excludes ) os <<','<< excludes  ;
+		if (+features ) os <<','<< features  ;
 		if (+gres     ) os <<','<< gres      ;
 		if (+licenses ) os <<','<< licenses  ;
-		if (+features ) os <<','<< features  ;
+		if (+nodes    ) os <<','<< nodes     ;
+		if (+partition) os <<','<< partition ;
 		if (+qos      ) os <<','<< qos       ;
 		if (+reserv   ) os <<','<< reserv    ;
-		if (+excludes ) os <<','<< excludes  ;
-		if (+nodes    ) os <<','<< nodes     ;
+		if (+wckey    ) os <<','<< wckey     ;
 		/**/            os <<')'             ;
 	}                                                      // END_OF_NO_COV
 
@@ -363,6 +365,7 @@ namespace Backends::Slurm {
 				case 'p' : if (k=="partition") {                          rsds.partition = ::move                                  (v) ; continue ; } break ;
 				case 'q' : if (k=="qos"      ) {                          rsds.qos       = ::move                                  (v) ; continue ; } break ;
 				case 'r' : if (k=="reserv"   ) {                          rsds.reserv    = ::move                                  (v) ; continue ; } break ;
+				case 'w' : if (k=="wckey"    ) {                          rsds.wckey     = ::move                                  (v) ; continue ; } break ;
 			DN}
 			if ( d.licenses.contains(k)) { chk_first() ; { if ( +rsds.licenses && rsds.licenses.back()!=',' ) rsds.licenses += ',' ; } rsds.licenses += k+':'+v+',' ; }
 			else                         {               { if ( +rsds.gres     && rsds.gres    .back()!=',' ) rsds.gres     += ',' ; } rsds.gres     += k+':'+v+',' ; }
@@ -399,6 +402,7 @@ namespace Backends::Slurm {
 				if (+force1.partition        ) rsrcs[i].partition = force1.partition ;
 				if (+force1.qos              ) rsrcs[i].qos       = force1.qos       ;
 				if (+force1.reserv           ) rsrcs[i].reserv    = force1.reserv    ;
+				if (+force1.wckey            ) rsrcs[i].wckey     = force1.wckey     ;
 			}
 		return ::move(rsrcs) ;
 	}
@@ -506,6 +510,7 @@ namespace Backends::Slurm {
 		,	{ SlurmFlag::Partition      , { .short_name='p' , .has_arg=true , .doc="partition"     } }
 		,	{ SlurmFlag::Qos            , { .short_name='q' , .has_arg=true , .doc="qos"           } }
 		,	{ SlurmFlag::Reservation    , {                   .has_arg=true , .doc="reservation"   } }
+		,	{ SlurmFlag::Wckey          , {                   .has_arg=true , .doc="wckey"         } }
 		}} ;
 		syntax.args_ok    = false       ;
 		syntax.sub_option = "--backend" ;
@@ -538,6 +543,7 @@ namespace Backends::Slurm {
 				if (opts.flags[SlurmFlag::Partition  ]) res1.partition =                                          opts.flag_args[+SlurmFlag::Partition  ]  ;
 				if (opts.flags[SlurmFlag::Qos        ]) res1.qos       =                                          opts.flag_args[+SlurmFlag::Qos        ]  ;
 				if (opts.flags[SlurmFlag::Reservation]) res1.reserv    =                                          opts.flag_args[+SlurmFlag::Reservation]  ;
+				if (opts.flags[SlurmFlag::Wckey      ]) res1.wckey     =                                          opts.flag_args[+SlurmFlag::Wckey      ]  ;
 			} catch (::string const& e) {
 				if (e.find('\n')==Npos) throw "error while parsing slurm options : " +e ;
 				else                    throw "error while parsing slurm options :\n"+e ;

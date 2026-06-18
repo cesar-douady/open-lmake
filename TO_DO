@@ -16,7 +16,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* bug Sylvain (cf whatsapp)
 ? bug Sylvain :
 	- foo a derived file needed by a job
 	- lmark -fa foo
@@ -98,7 +97,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- IORING_OP_SYMLINKAT
 	- IORING_OP_LINKAT
 	- IORING_OP_URING_CMD ?
-	= by default, forbid io_uring_setup, io_uring_enter and io_uring_register
+	- by default, forbid io_uring_setup, io_uring_enter and io_uring_register
 	- use ebpf to trigger on internal kernel function
 * ensure SGE job are actually removed from queue when job is done
 	- and call qdel if not
