@@ -186,8 +186,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- use it when cache upload is already cached : content must match
 		- consider a check cache mode that does not upload but check contents if it happens to already be cached
 	- when targets are reconstructed : crc must not change
-	- 3 levels : ok, warning or error
-	- default is warning with a consider to put ok or error
+	- in case of divergence :
+		- signal in summary and repeat info each time such a target is needed, even if not run
+		- signal in lshow -i
+		- provide a command line option to trigger and error in such a case
 	- once a reply is necessary at cache upload time, consider an asynchronous link
 		- and use it at download time to avoid waiting for the cache
 ? consider rules taking locks :

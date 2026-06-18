@@ -66,9 +66,9 @@ static constexpr Channels DfltChannels = ~Channels() ;
 	private :
 		static size_t                 _s_sz         ;                                                              // copy of s_sz to ensure it is not modified
 		static ::string               _s_trace_file ;
+		static Fd                     _s_fd         ;
 		static size_t                 _s_pos        ;                                                              // current line number
 		static bool                   _s_ping       ;                                                              // ping-pong to distinguish where trace stops in the middle of a trace
-		static Fd                     _s_fd         ;
 		static Atomic<bool>           _s_has_trace  ;
 		static uint8_t*               _s_data       ;                                                              // pointer to mmap'ped trace file
 		static size_t                 _s_cur_sz     ;                                                              // current size of trace file

@@ -18,9 +18,9 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 
 	size_t                 Trace::_s_sz         =  0      ;
 	::string               Trace::_s_trace_file ;
+	Fd                     Trace::_s_fd         ;
 	size_t                 Trace::_s_pos        =  0      ;
 	bool                   Trace::_s_ping       = false   ;
-	Fd                     Trace::_s_fd         ;
 	Atomic<bool>           Trace::_s_has_trace  ;
 	uint8_t*               Trace::_s_data       = nullptr ;
 	size_t                 Trace::_s_cur_sz     = 0       ;
@@ -71,7 +71,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		//
 		// initial size can be set with ftruncate because no mapping exists yet, so no race with page write-back
 		// re-open trace file after setting its initial size as mmap would not work with BeeGFS with tuneCoherentBuffers=0
-		try { AcFd(_s_trace_file,{.flags=O_RDWR|O_TRUNC|O_CREAT}) ; } catch (::string const& e) { exit(Rc::System,"cannot create trace file : ",e) ; }
+		try { _s_fd = {_s_trace_file,{.flags=O_RDWR|O_TRUNC|O_CREAT}} ; } catch (::string const& e) { exit(Rc::System,"cannot create trace file : ",e) ; }
 		_s_map(PAGE_SZ) ;
 		//
 		_s_pos = 0 ;
@@ -83,6 +83,7 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 		_s_has_trace = false ;
 		fence() ;
 		::mmap( _s_data , _s_cur_sz , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED , -1/*fd*/ , 0/*offset*/ ) ;
+		_s_fd.close() ;
 		_s_cur_sz = 0 ;
 		_s_pos    = 0 ; // avoid leaving stale useless info
 	}
@@ -109,11 +110,20 @@ Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace def
 	}
 
 	void Trace::_s_map(size_t sz) {
-		AcFd fd { _s_trace_file , {.flags=O_RDWR} } ;
-		if ( ::ftruncate(fd,sz)!=0 )
-			exit(Rc::System,"cannot extend trace file ",_s_trace_file," to size ",sz," : ",StrErr()) ;
-		fd = AcFd( _s_trace_file , {.flags=O_RDWR} ) ;                                                                               // re-open file to avoid race between ftruncate and mmap write-back
-		if ( ::mmap( _s_data+_s_cur_sz , sz-_s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED|MAP_FIXED , fd , _s_cur_sz )==MAP_FAILED )
+		try {
+			if (sz<=_s_cur_sz+(1<<20)) {            // fast path : only allocate necessary buf
+				::string buf ( sz-_s_cur_sz , 0 ) ;
+				_s_fd.write(buf) ;
+			} else {
+				::string buf ( 1<<20 , 0 ) ;        // write by chunks to avoid allocating giant buf
+				size_t   s   = _s_cur_sz   ;
+				for(; s+buf.size()<sz ; s+=buf.size() ) _s_fd.write(buf                    ) ;
+				/**/                                    _s_fd.write(substr_view(buf,0,sz-s)) ;
+			}
+		} catch (::string const& e) {
+			exit(Rc::System,"cannot extend trace file ",_s_trace_file," to size ",sz," : ",e) ;
+		}
+		if ( ::mmap( _s_data+_s_cur_sz , sz-_s_cur_sz , PROT_READ|PROT_WRITE , MAP_SHARED|MAP_FIXED , _s_fd , _s_cur_sz )==MAP_FAILED )
 			exit( Rc::System , "cannot map trace file ",_s_trace_file," : ",StrErr() ) ;
 		_s_cur_sz = sz ;
 	}
