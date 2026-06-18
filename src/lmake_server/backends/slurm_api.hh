@@ -32,17 +32,18 @@ namespace Backends::Slurm {
 			return res ;
 		}
 		// data
-		uint16_t cpu       = 0 ; // number of logical cpu  (sbatch    --cpus-per-task option)
-		uint32_t mem       = 0 ; // memory   in MB         (sbatch    --mem           option) default : illegal (memory reservation is mandatory)
-		uint32_t tmp       = 0 ; // tmp disk in MB         (sbatch    --tmp           option) default : dont manage tmp size (provide infinite storage, reserv none)
-		::string excludes  ;     // list of excludes nodes (sbatch -x,--exclude       option)
-		::string features  ;     // features/contraint     (sbatch -C,--constraint    option)
-		::string gres      ;     // generic resources      (sbatch    --gres          option)
-		::string licenses  ;     // licenses               (sbatch -L,--licenses      option)
-		::string nodes     ;     // list of required nodes (sbatch -w,--nodelist      option)
-		::string partition ;     // partition name         (sbatch -p,--partition     option)
-		::string qos       ;     // quality of service     (sbatch -q,--qos           option)
-		::string reserv    ;     // reservation            (sbatch -r,--reservation   option)
+		uint16_t cpu       = 0 ; // number of logical cpu         (sbatch    --cpus-per-task option)
+		uint32_t mem       = 0 ; // memory   in MB                (sbatch    --mem           option) default : illegal (memory reservation is mandatory)
+		uint32_t tmp       = 0 ; // tmp disk in MB                (sbatch    --tmp           option) default : dont manage tmp size (provide infinite storage, reserv none)
+		::string excludes  ;     // list of excludes nodes        (sbatch -x,--exclude       option)
+		::string features  ;     // features/contraint            (sbatch -C,--constraint    option)
+		::string gres      ;     // generic resources             (sbatch    --gres          option)
+		::string licenses  ;     // licenses                      (sbatch -L,--licenses      option)
+		::string nodes     ;     // list of required nodes        (sbatch -w,--nodelist      option)
+		::string partition ;     // partition name                (sbatch -p,--partition     option)
+		::string qos       ;     // quality of service            (sbatch -q,--qos           option)
+		::string reserv    ;     // reservation                   (sbatch -r,--reservation   option)
+		::string wckey     ;     // workload characterization key (sbatch    --wckey         option)
 	} ;
 
 	struct RsrcsData : ::vector<RsrcsDataSingle> {

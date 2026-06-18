@@ -106,6 +106,7 @@ namespace Backends::Slurm::SlurmApi {
 			/**/                     j.std_out         =                                const_cast<char*>("/dev/null") ;
 			if (+timeout           ) j.time_limit      = div_up<60>(::make_unsigned_t<Delay::Tick>(timeout.sec()))+1   ;               // take some margin so actual timeout occurs in job
 			if (+r.gres            ) j.tres_per_node   =                   gres       .data()                          ;
+			if (+r.wckey           ) j.wckey           = const_cast<char*>(r.wckey    .data())                         ;
 			/**/                     j.work_dir        = repo_root.data()                                              ;
 			first =false ;
 		}
