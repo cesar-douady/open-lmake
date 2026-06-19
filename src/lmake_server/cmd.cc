@@ -1385,8 +1385,6 @@ namespace Engine {
 							//
 							/**/         entries.push_back({ "special"  , {snake_str(::copy(target->buildable)),{}} }) ;
 							if (verbose) entries.push_back({ "checksum" , {_node_crc(target)                   ,c } }) ;
-						} else {
-							entries.push_back({"special",{}}) ;
 						}
 						size_t w = ::max<size_t>( entries , [](auto const& k_v) { return k_v.first.size() ; } ) ;
 						if (porcelaine) {
