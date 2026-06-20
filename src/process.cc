@@ -218,7 +218,7 @@ void AutoServerBase::start() {
 		bool ok = ::link(tmp.c_str(),server_mrkr.c_str())==0 ;
 		//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		unlnk(tmp) ;
-		if (!ok) { trace("no_unlnk") ; throw ::pair_s<Rc>( cat(server_mrkr," : ",StrErr()) , Rc::BadServer ) ; }
+		if (!ok) { trace("no_unlnk") ; throw ::pair_s<Rc>( cat(server_mrkr," : ",StrErr()) , Rc::Ok ) ; }
 		_g_server_mrkr = server_mrkr ;
 		//vvvvvvvvvvvvvvvvvvvvvvv
 		::atexit(_server_cleanup) ;
