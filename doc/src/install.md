@@ -67,14 +67,15 @@ It has been tested with the dockers listed in the docker dir.
 		- `$SLURM_ROOT` can be set to the root dir of the slurm installation (by default, `slurm/slurm.h` will be searched in the standard include path).
 		  For example, `slurm.h` will be found as `$SLURM_ROOT/include/slurm/slurm.h`
 		- `$LMAKE_FLAGS` can be defined as O[0123]g?d?t?S[AB]P?
-			- O[0123] controls the `-O option`                                      (default: 1 if profiling else 3            )
-			- g       controls the absence of `-g option`                           (default: debug                            )
-			- d       controls     `-DNDEBUG`                                       (default: asserts are enabled              )
-			- T       controls     `-DTRACE`                                        (default: traces are disabled              )
-			- Sa      controls the `-fsantize=address -fsanitize=undefined` options (exclusive with St                         )
-			- St      controls the `-fsantize=thread`                       option  (exclusive with Sa                         )
-			- P       controls the `-pg`                                    option  (profiling info is in gmon.out.<tool>.<pid>)
-			- C       controls the `--coverage`                             option  (profiling info is in gmon.out.<tool>.<pid>)
+			- O[0123] controls the `-O option`                                      (default: 1 if profiling else 3                                                )
+			- g       controls the absence of `-g option`                           (default: debug                                                                )
+			- d       controls     `-DNDEBUG`                                       (default: asserts are enabled                                                  )
+			- T       controls     `-DTRACE=1`                                      (default: traces are disabled                                                  )
+			- U       controls     `-DTRACE=2`                                      (for use when fast mmap based tracing is not supported by underlying filesystem)
+			- Sa      controls the `-fsantize=address -fsanitize=undefined` options (exclusive with St                                                             )
+			- St      controls the `-fsantize=thread`                       option  (exclusive with Sa                                                             )
+			- P       controls the `-pg`                                    option  (profiling info is in gmon.out.<tool>.<pid>                                    )
+			- C       controls the `--coverage`                             option  (profiling info is in gmon.out.<tool>.<pid>                                    )
 		- the `-j` flag of make is automatically set to the number of processors, you may want to override this, though
 	- this is true the first time you run make. After that, these values are remembered in the file `sys_config.env`.
 	- you can freely modify this file `sys_config.env`, though. It will be taken into account.

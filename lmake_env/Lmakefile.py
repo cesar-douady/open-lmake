@@ -200,15 +200,15 @@ class GenOpts(BaseRule,PyRule) :
 class Marker(DirRule) :
 	prio = 1            # avoid untar when in a tar dir
 
-basic_opts = ('-O0','-pedantic','-fno-strict-aliasing','-DNDEBUG','-DNO_TRACE','-Werror','-Wall','-Wextra') # minimize compilation time
+basic_opts = ('-O0','-pedantic','-fno-strict-aliasing','-DNDEBUG','-Werror','-Wall','-Wextra') # minimize compilation time
 basic_opts_tab = {
 	'c'   :   basic_opts
-,	'cc'  : (*basic_opts,'-Wno-type-limits','-Wno-cast-function-type')                                      # on some systems, there is a warning type-limits
-,	'cxx' : (*basic_opts,'-Wno-type-limits','-Wno-cast-function-type')                                      # .
+,	'cc'  : (*basic_opts,'-Wno-type-limits','-Wno-cast-function-type')                         # on some systems, there is a warning type-limits
+,	'cxx' : (*basic_opts,'-Wno-type-limits','-Wno-cast-function-type')                         # .
 }
 def run_gxx(target,*args) :
 		cmd_line = ( gxx , '-o' , target , '-fdiagnostics-color=always' , *args )
-		if '/' in gxx : os.environ['PATH'] = ':'.join((osp.dirname(gxx),os.environ['PATH']))                # gxx calls its subprograms (e.g. as) using PATH, ensure it points to gxx dir
+		if '/' in gxx : os.environ['PATH'] = ':'.join((osp.dirname(gxx),os.environ['PATH']))   # gxx calls its subprograms (e.g. as) using PATH, ensure it points to gxx dir
 		for k,v in os.environ.items() : print(f'{k}={v}')
 		print(' '.join(cmd_line))
 		run_cc(*cmd_line)
