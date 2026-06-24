@@ -976,7 +976,7 @@ void CacheRemoteSide::operator>>(::string& os) const {               // START_OF
 }                                                                    // END_OF_NO_COV
 
 CacheRemoteSide::UploadDigest CacheRemoteSide::upload( Delay exe_time , ::vmap_s<TargetDigest> const& targets , ::vector<FileInfo> const& target_fis , Zlvl zlvl ) const {
-	Trace trace(CacheChnl,"upload",targets.size(),zlvl) ;
+	Trace trace(CacheChnl,"upload",service,targets.size(),zlvl) ;
 	SWEAR( targets.size()==target_fis.size() , targets.size(),target_fis.size() ) ;
 	//
 	FileSync file_sync_ ;
