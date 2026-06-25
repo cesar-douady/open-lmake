@@ -52,7 +52,9 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static void _s_open  (::string const& trace_file) ;
 		static void _s_close (                          ) ;
 		static void _t_commit(                          ) ;
-		static void _s_map   (size_t          sz        ) ;
+		#if TRACE==1                                                                                               // 1 : mmap based, 2 : write based
+			static void _s_map(size_t sz) ;
+		#endif
 		//
 	public :
 		template<class T> static ::string s_str( T const& v , const char* s ) { return cat(s,"=",v)            ; }
@@ -64,15 +66,17 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static Atomic<size_t  > s_sz           ;                                                                   // max overall size of trace, beyond, trace wraps (cannot be modified after s_start)
 		static Atomic<Channels> s_channels     ;
 	private :
+		static Mutex<MutexLvl::Trace> _s_mutex      ;
 		static size_t                 _s_sz         ;                                                              // copy of s_sz to ensure it is not modified
 		static ::string               _s_trace_file ;
 		static Fd                     _s_fd         ;
 		static size_t                 _s_pos        ;                                                              // current line number
-		static bool                   _s_ping       ;                                                              // ping-pong to distinguish where trace stops in the middle of a trace
+		static Atomic<char>           _s_pfx        ;                                                              // ping-pong to distinguish where trace stops in the middle of a trace
 		static Atomic<bool>           _s_has_trace  ;
-		static uint8_t*               _s_data       ;                                                              // pointer to mmap'ped trace file
-		static size_t                 _s_cur_sz     ;                                                              // current size of trace file
-		static Mutex<MutexLvl::Trace> _s_mutex      ;
+		#if TRACE==1                                                                                               // 1 : mmap based, 2 : write based
+			static uint8_t* _s_data   ;                                                                            // pointer to mmap'ped trace file
+			static size_t   _s_cur_sz ;                                                                            // current size of trace file
+		#endif
 		//
 		static thread_local int       _t_lvl  ;
 		static thread_local bool      _t_hide ;                                                                    // if true <=> do not generate trace
@@ -110,7 +114,7 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static constexpr char Seps[] = ".,'\"`~-+^" ;
 		if (!_t_buf) _t_buf = new ::string ;
 		//
-		*_t_buf << (_s_ping?'"':'\'') << t_thread_key << Time::Pdate(New).str(6/*prec*/,true/*in_day*/) << '\t' ;
+		*_t_buf << _s_pfx.load()<<t_thread_key<<Time::Pdate(New).str(6/*prec*/,true/*in_day*/)<<'\t' ;
 		for( int i : iota(_t_lvl) ) {
 			if ( _first && i==_t_lvl-1 ) *_t_buf << '*'                          ;
 			else                         *_t_buf << Seps[ i % (sizeof(Seps)-1) ] ;

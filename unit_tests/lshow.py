@@ -89,7 +89,7 @@ else :
 
 	x,xp = lshow( ('-i','--info') , 'dut' )
 	assert 'consider' in x and 'dut' in x
-	assert xp['dut']=={None:{'special':None}}
+	assert xp['dut']=={None:{}}
 
 	proc = ut.lmake( 'dut' , wait=False , done=4 , new=3 )
 	ut.wait_sync(0)

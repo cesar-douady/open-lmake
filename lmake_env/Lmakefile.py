@@ -200,7 +200,7 @@ class GenOpts(BaseRule,PyRule) :
 class Marker(DirRule) :
 	prio = 1            # avoid untar when in a tar dir
 
-basic_opts = ('-O0','-pedantic','-fno-strict-aliasing','-DNDEBUG','-DNO_TRACE','-Werror','-Wall','-Wextra') # minimize compilation time
+basic_opts = ('-O0','-pedantic','-fno-strict-aliasing','-DNDEBUG','-Werror','-Wall','-Wextra') # minimize compilation time
 basic_opts_tab = {
 	'c'   :   basic_opts
 ,	'cc'  : (*basic_opts,'-Wno-type-limits','-Wno-cast-function-type')                                      # on some systems, there is a warning type-limits

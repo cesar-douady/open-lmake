@@ -628,8 +628,9 @@ namespace Engine {
 			throw_unless( targets.size()==1 , "can only debug a single target" ) ;
 			job = _job_from_target(ecr.fd,ro,targets[0]) ;
 		}
-		if (!job                             ) throw "no job found"s                                       ;
-		if (!job->is_plain(true/*frozen_ok*/)) throw cat("cannot debug ",job->rule()->user_name()," jobs") ;
+		/**/                   if (!job          ) throw cat("no job found"                        ) ;
+		Rule r = job->rule() ; if (!r            ) throw cat("no rule found"                       ) ;
+		/**/                   if (!r->is_plain()) throw cat("cannot debug ",r->user_name()," jobs") ;
 		//
 		JobInfo job_info = job.job_info() ;
 		if (!job_info.start.start) {
@@ -1385,8 +1386,6 @@ namespace Engine {
 							//
 							/**/         entries.push_back({ "special"  , {snake_str(::copy(target->buildable)),{}} }) ;
 							if (verbose) entries.push_back({ "checksum" , {_node_crc(target)                   ,c } }) ;
-						} else {
-							entries.push_back({"special",{}}) ;
 						}
 						size_t w = ::max<size_t>( entries , [](auto const& k_v) { return k_v.first.size() ; } ) ;
 						if (porcelaine) {

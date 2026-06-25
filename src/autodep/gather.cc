@@ -717,6 +717,7 @@ Status Gather::_exec_child() {
 			else                                  kill_msg << "been killed with SIGKILL"                                                 ;
 			kill_msg << '\n' ;
 			set_status( Status::Timeout , kill_msg ) ;
+			if (_wait[Kind::ChildEnd]) _child.mk_daemon() ;      // child did not die, we must leave anyway
 			break ;                                              // exit loop
 		}
 		if (now>=end_kill) {

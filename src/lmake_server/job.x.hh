@@ -478,8 +478,8 @@ namespace Engine {
 		::vector<Req>  running_reqs( bool with_zombies=true , bool hit_ok=false ) const ;
 		bool           running     ( bool with_zombies=true , bool hit_ok=false ) const ;                                         // fast implementation of +running_reqs(...)
 		//
-		bool cmd_ok  (                    ) const { return rule_crc()->state<=RuleCrcState::CmdOk             ; }
-		bool is_plain(bool frozen_ok=false) const { return rule()->is_plain() && (frozen_ok||!idx().frozen()) ; }
+		bool cmd_ok  (                    ) const { return rule_crc()->state<=RuleCrcState::CmdOk                                ; }
+		bool is_plain(bool frozen_ok=false) const { Rule r = rule() ; return +r && r->is_plain() && (frozen_ok||!idx().frozen()) ; }
 		bool has_req (Req                 ) const ;
 		bool rsrcs_ok(bool local_flag     ) const {
 			if ( is_ok(status)  !=No                                           ) return true  ;                                   // dont care about rsrcs if job went ok

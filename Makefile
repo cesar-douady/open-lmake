@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 26.06
-TAG            := 3
+TAG            := 4
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -140,7 +140,8 @@ EXTRA_CC_FLAGS   := $(if $(findstring O1,$(LMAKE_FLAGS) ) , -O1          , $(EXT
 EXTRA_CC_FLAGS   := $(if $(findstring O0,$(LMAKE_FLAGS) ) , -O0          , $(EXTRA_CC_FLAGS)       )
 EXTRA_CC_FLAGS   += $(if $(findstring g, $(LMAKE_FLAGS) ) ,              , -g                      )
 EXTRA_CC_FLAGS   += $(if $(findstring d, $(LMAKE_FLAGS) ) , -DNDEBUG                               )
-EXTRA_CC_FLAGS   += $(if $(findstring T, $(LMAKE_FLAGS) ) , -DTRACE                                )
+EXTRA_CC_FLAGS   += $(if $(findstring T, $(LMAKE_FLAGS) ) , -DTRACE=1                              ) # mmap based traces (fast but some filesystems do not support it)
+EXTRA_CC_FLAGS   += $(if $(findstring U, $(LMAKE_FLAGS) ) , -DTRACE=2                              ) # write based traces (slow but always supported)
 EXTRA_CC_FLAGS   += $(if $(findstring P, $(LMAKE_FLAGS) ) , -pg                                    )
 EXTRA_CC_FLAGS   += $(if $(findstring C, $(LMAKE_FLAGS) ) , --coverage                             )
 HIDDEN_CC_FLAGS  += $(if $(findstring g, $(LMAKE_FLAGS) ) ,              , -fno-omit-frame-pointer )
