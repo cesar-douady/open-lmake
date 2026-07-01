@@ -33,6 +33,7 @@ def _bin(f) : return _lmake_root+'/bin/'+f
 def depend( *args , **kwds ) :
 	assert not kwds.get('verbose',None),'verbose is not supported without dynamic python library'
 	cmd_line = [_bin('ldepend')]
+	#
 	if     kwds.get('critical'       ,False) : cmd_line.append('--critical'       )
 	if     kwds.get('essential'      ,False) : cmd_line.append('--essential'      )
 	if     kwds.get('ignore_error'   ,False) : cmd_line.append('--ignore-error'   )
@@ -44,6 +45,9 @@ def depend( *args , **kwds ) :
 	if     kwds.get('verbose'        ,False) : cmd_line.append('--verbose'        )
 	if     kwds.get('direct'         ,False) : cmd_line.append('--direct'         )
 	if     kwds.get('regexpr'        ,False) : cmd_line.append('--regexpr'        )
+	#
+	if len(args)==1 and isinstance(args[0],(list,tuple)) : args = args[0] # support both syntaxes depend(lst) and depend(*lst)
+	cmd_line.append('--')
 	cmd_line += args
 	_run(cmd_line)
 
@@ -55,6 +59,7 @@ def depend( *args , **kwds ) :
 #	)
 def target( *args , **kwds ) :
 	cmd_line = [_bin('ltarget')]
+	#
 	if kwds.get('essential'      ,False) : cmd_line.append('--essential'      )
 	if kwds.get('incremental'    ,False) : cmd_line.append('--incremental'    )
 	if kwds.get('no_warning'     ,False) : cmd_line.append('--no-warning'     )
@@ -64,6 +69,9 @@ def target( *args , **kwds ) :
 	if kwds.get('no_allow'       ,False) : cmd_line.append('--no-allow'       )
 	if kwds.get('follow_symlinks',False) : cmd_line.append('--follow-symlinks')
 	if kwds.get('write'          ,False) : cmd_line.append('--write'          )
+	#
+	if len(args)==1 and isinstance(args[0],(list,tuple)) : args = args[0] # support both syntaxes depend(lst) and depend(*lst)
+	cmd_line.append('--')
 	cmd_line += args
 	_run(cmd_line)
 

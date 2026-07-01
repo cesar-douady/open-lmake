@@ -637,7 +637,7 @@ Status Gather::_exec_child() {
 	//
 	auto set_status = [&]( Status status_ , ::string const& msg_={} ) {
 		if (status==Status::New) status = status_ ;                     // only record first status
-		if (+msg_              ) msg << add_nl << msg_ ;
+		if (+msg_              ) msg << add_nl<<msg_ ;
 	} ;
 	auto kill = [&]( Status status_=Status::Killed , ::string const& msg={} , bool next_step=false ) {
 		trace("kill",STR(next_step),kill_step,STR(as_session),_child.pid,_wait) ;

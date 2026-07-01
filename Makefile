@@ -1061,7 +1061,7 @@ $(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 	KEY=$$(echo $$(gpg --list-keys|grep -x ' *[0-9A-Z]\+') )                ; \
 	echo generate source package in $(DEBIAN_DIR)-$$RELEASE using key $$KEY ; \
 	( cd $(DEBIAN_DIR)-$$RELEASE ; MAKEFLAGS= MAKELEVEL= debuild -S -us -k$$KEY ) >$@.log
-	@echo upload command : dput ppa:cdouady/open-lmake $@
+	@echo upload command : dput my-ppa $@
 
 # ensure bin and src package constructions are serialized
 $(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)

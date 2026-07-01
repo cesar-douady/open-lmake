@@ -15,11 +15,11 @@ if __name__!='__main__' :
 
 	class Gen(Rule) :
 		targets = {
-			'SRC'   : ( 'src' , 'source_ok' )
-		,	'BUILT' : 'built'
+			'BUILT' : 'built'
 		}
 		cmd = '''
-			echo v1 > {SRC}
+			ltarget --source-ok src
+			echo v1 > src
 			echo v1 > {BUILT}
 		'''
 
