@@ -2663,8 +2663,7 @@ They have been implemented to have means to control interactions with jobs submi
 <p>The <code>resources</code> rule attributes is composed of:</p>
 <ul>
 <li>standard resources <code>cpu</code>, <code>mem</code> and <code>tmp</code>.</li>
-<li><code>excludes</code> <code>features</code>, <code>gres</code>, <code>licence</code>, <code>nodes</code>, <code>partition</code>, <code>qos</code>, <code>reserv</code> : these are passed as is to the slurm daemon.
-For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example <code>gres0</code>, <code>gres1</code>).
+<li><code>excludes</code> <code>features</code>, <code>gres</code>, <code>licence</code>, <code>nodes</code>, <code>partition</code>, <code>qos</code>, <code>reserv</code> , <code>wckey' : these are passed as is to the slurm daemon. For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example </code>gres0<code>, </code>gres1`).
 The absence of index is equivalent to index 0.</li>
 <li>any other resource passed to the slurm daemon as <code>licenses</code> if such licenses are declared in the slurm configuration, else as <code>gres</code>.</li>
 </ul>
@@ -2683,6 +2682,7 @@ The following table describes supported option, with a description when it does 
 <tr><td><code>-p</code></td><td>partition</td><td></td></tr>
 <tr><td><code>-q</code></td><td>qos</td><td></td></tr>
 <tr><td></td><td>reservation</td><td></td></tr>
+<tr><td></td><td>wckey</td><td></td></tr>
 <tr><td><code>-h</code></td><td>help</td><td>print usage         )</td></tr>
 </tbody></table>
 </div><div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->

@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 26.06
-TAG            := 4
+TAG            := 5
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -1061,7 +1061,7 @@ $(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 	KEY=$$(echo $$(gpg --list-keys|grep -x ' *[0-9A-Z]\+') )                ; \
 	echo generate source package in $(DEBIAN_DIR)-$$RELEASE using key $$KEY ; \
 	( cd $(DEBIAN_DIR)-$$RELEASE ; MAKEFLAGS= MAKELEVEL= debuild -S -us -k$$KEY ) >$@.log
-	@echo upload command : dput ppa:cdouady/open-lmake $@
+	@echo upload command : dput my-ppa $@
 
 # ensure bin and src package constructions are serialized
 $(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)

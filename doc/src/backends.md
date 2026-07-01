@@ -235,7 +235,7 @@ They have been implemented to have means to control interactions with jobs submi
 The `resources` rule attributes is composed of:
 
 - standard resources `cpu`, `mem` and `tmp`.
-- `excludes` `features`, `gres`, `licence`, `nodes`, `partition`, `qos`, `reserv` : these are passed as is to the slurm daemon.
+- `excludes` `features`, `gres`, `licence`, `nodes`, `partition`, `qos`, `reserv` , `wckey' : these are passed as is to the slurm daemon.
   For heterogeneous jobs, these attribute names may be followed by an index identifying the task (for example `gres0`, `gres1`).
   The absence of index is equivalent to index 0.
 - any other resource passed to the slurm daemon as `licenses` if such licenses are declared in the slurm configuration, else as `gres`.
@@ -258,4 +258,5 @@ The following table describes supported option, with a description when it does 
 | `-p`         | partition     |                     |
 | `-q`         | qos           |                     |
 |              | reservation   |                     |
+|              | wckey         |                     |
 | `-h`         | help          | print usage         )
