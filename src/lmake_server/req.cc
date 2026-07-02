@@ -465,8 +465,8 @@ namespace Engine {
 			::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ::string(Delay::ShortStrSz,' ') ;
 			audit_info( c , widen(snake_str(jr),wk)+" time : "+t+" ("+widen(cat(stats.ended[+jr]),wn,true/*right*/)+" jobs)" ) ;
 		}
-		/**/                                   audit_info( Color::Note , cat(widen("elapsed",wk)," time : ",(Pdate(New)-start_pdate).short_str()) ) ;
-		if (+options.startup_dir_s           ) audit_info( Color::Note , cat(widen("startup",wk)," dir  : ",options.startup_dir_s,rm_slash      ) ) ;
+		/**/                        audit_info( Color::Note , cat(widen("elapsed",wk)," time : ",(Pdate(New)-start_pdate).short_str()) ) ;
+		if (+options.startup_dir_s) audit_info( Color::Note , cat(widen("startup",wk)," dir  : ",options.startup_dir_s,rm_slash      ) ) ;
 		//
 		if (job_up_to_date) {
 			if (job->err()) audit_info( Color::Err  , "was already in error :"   , job->name() ) ;
@@ -503,17 +503,17 @@ namespace Engine {
 			::vmap<Node,::pair<Job,Job>> clash_nodes_sorted = clash_nodes ;
 			audit_info( Color::Warning , "These files have been written by several simultaneous jobs and lmake was unable to reliably recover\n" ) ;
 			for( auto [n,jj] : clash_nodes_sorted ) {
-				size_t w = ::max( jj.first->rule()->user_name().size() , jj.second->rule()->user_name().size() ) ;
-				audit_node( Color::Warning                             , {}                                      , n                 , 1/*lvl*/ ) ;
-				audit_info( jj.first ->err()?Color::Err:Color::Warning , widen(jj.first ->rule()->user_name(),w) , jj.first ->name() , 2/*lvl*/ ) ;
-				audit_info( jj.second->err()?Color::Err:Color::Warning , widen(jj.second->rule()->user_name(),w) , jj.second->name() , 2/*lvl*/ ) ;
+				size_t w = ::max( jj.first->rule()->user_name().size() , jj.second->rule()->user_name().size() ) ; //!                lvl
+				audit_node( Color::Warning                             , {}                                      , n                 , 1 ) ;
+				audit_info( jj.first ->err()?Color::Err:Color::Warning , widen(jj.first ->rule()->user_name(),w) , jj.first ->name() , 2 ) ;
+				audit_info( jj.second->err()?Color::Err:Color::Warning , widen(jj.second->rule()->user_name(),w) , jj.second->name() , 2 ) ;
 			}
 			if ( Rule r=job->rule() ; r->special!=Special::Req) {
 				audit_info( Color::Warning , "consider : lmake -R "+mk_shell_str(r->user_name())+" -J "+mk_file(job->name(),FileDisplay::Shell) ) ;
 			} else {
-				::string dl ;
-				for( Dep const& d : job->deps ) dl<<' '<<mk_file(d->name(),FileDisplay::Shell) ;
-				audit_info( Color::Warning , "consider : lmake"+dl ) ;
+				::string msg = "consider : lmake" ;
+				for( Dep const& d : job->deps ) msg << ' '<<mk_file(d->name(),FileDisplay::Shell) ;
+				audit_info( Color::Warning , msg ) ;
 			}
 		}
 	}

@@ -633,7 +633,7 @@ void JobSpace::enter(
 ) {
 	Trace trace("JobSpace::enter",self,small_id,phy_lmake_root_s,phy_repo_root_s,phy_tmp_dir_s,chroot_info,sub_repo_s,src_dirs_s,STR(kill_daemons),STR(may_mount_in_tmp)) ;
 	//
-	bool need_chroot = +self || +chroot_info.dir_s ;
+	bool need_chroot = +self || +chroot_info ;
 	repo_root_s = repo_view_s | phy_repo_root_s ;
 	if ( !need_chroot && !kill_daemons ) {
 		if (!keep_tmp) _tmp_dir_s = phy_tmp_dir_s ;

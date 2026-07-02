@@ -106,7 +106,7 @@ class Job (utils.Job) :
 		#
 		# generate vscode call line
 		#
-		call_line  = ['"$(type -p code)"','-n','-w','--password-store=basic']
+		call_line  = ['"$(type -p code)"','-n','-w','--password-store=basic','--no-sandbox']
 		call_line += ( '--user-data-dir'  , mk_shell_str(user_data_dir  )                           )
 		call_line += ( '--extensions-dir' , mk_shell_str(ext_dir        )                           )
 		call_line += (                      mk_shell_str(d              ) for d in self.static_deps )

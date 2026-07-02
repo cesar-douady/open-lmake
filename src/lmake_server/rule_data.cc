@@ -362,14 +362,14 @@ namespace Engine {
 			//^^^^^^^^^^^^^^^^^^^^^
 			//
 			// acquire fields linked to job execution
-			//
-			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( /*out*/exe_time     , /*out*/::ref(bool()) , &dct[field]                                    ) ;
-			field = "force"               ; if (dct.contains(field)) Attrs::acquire( /*out*/force        , /*out*/::ref(bool()) , &dct[field]                                    ) ;
-			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( /*out*/is_python    , /*out*/::ref(bool()) , &dct[field]                                    ) ;
-			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( /*out*/n_losts      , /*out*/::ref(bool()) , &dct[field]                                    ) ;
-			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( /*out*/n_runs       , /*out*/::ref(bool()) , &dct[field]                                    ) ;
-			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( /*out*/n_submits    , /*out*/::ref(bool()) , &dct[field]                                    ) ;
-			field = "retried_errors"      ; if (dct.contains(field)) Attrs::acquire( /*out*/retried_errs , /*out*/::ref(bool()) , &dct[field] , DfltRetriedErrs , MaxRetriedErrs ) ;
+			//                                                                       out            out is_dyn
+			field = "ete"                 ; if (dct.contains(field)) Attrs::acquire( exe_time     , ::ref(bool()) , &dct[field]                                    ) ;
+			field = "force"               ; if (dct.contains(field)) Attrs::acquire( force        , ::ref(bool()) , &dct[field]                                    ) ;
+			field = "is_python"           ; if (dct.contains(field)) Attrs::acquire( is_python    , ::ref(bool()) , &dct[field]                                    ) ;
+			field = "max_retries_on_lost" ; if (dct.contains(field)) Attrs::acquire( n_losts      , ::ref(bool()) , &dct[field]                                    ) ;
+			field = "max_runs"            ; if (dct.contains(field)) Attrs::acquire( n_runs       , ::ref(bool()) , &dct[field]                                    ) ;
+			field = "max_submits"         ; if (dct.contains(field)) Attrs::acquire( n_submits    , ::ref(bool()) , &dct[field]                                    ) ;
+			field = "retried_errors"      ; if (dct.contains(field)) Attrs::acquire( retried_errs , ::ref(bool()) , &dct[field] , DfltRetriedErrs , MaxRetriedErrs ) ;
 			if ( n_runs && n_submits ) n_submits = ::max( n_submits , n_runs ) ;                             // n_submits<n_runs is meaningless
 			//
 			var_idxs["targets"] = { VarCmd::Targets , 0 } ;

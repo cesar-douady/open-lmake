@@ -148,7 +148,7 @@ namespace Engine {
 				sure = false ;
 			}
 			if constexpr (WithDeps) {
-				Accesses a = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : FullAccesses ; // initially, static deps are deemed read, then actual accesses will be considered
+				Accesses a = ds.extra_dflags[ExtraDflag::Ignore] ? Accesses() : FullAccesses ; // initially, static deps are deemed read (unless ignored), then actual accesses will be considered
 				if ( auto [it,ok] = dis.emplace(d,deps.size()) ; ok )   deps.emplace_back( d , a , ds.dflags , true/*parallel*/ ) ;
 				else                                                  { deps[it->second].dflags |= ds.dflags ; deps[it->second].accesses_ |= +a ; } // uniquify deps by combining accesses and flags
 			}
@@ -725,7 +725,7 @@ namespace Engine {
 			}
 			//
 			bool      maybe_done = !ri.running() && jd.status>Status::Garbage && !end_digest.has_unstable_deps ;
-			::string  pfx        = !done && maybe_done ? "may_" : ""                                           ;
+			AuditPfx  pfx        = !done && maybe_done ? AuditPfx::May : AuditPfx::None                        ;
 			JobReport jr = audit_end(
 				ri
 			,	true/*with_stats*/
@@ -766,7 +766,7 @@ namespace Engine {
 		trace("done",self) ;
 	}
 
-	JobReport JobExec::audit_end( ReqInfo& ri , bool with_stats , ::string const& pfx , ::string const& chroot_tag , MsgStderr const& msg_stderr , Delay exe_time , bool retry ) const {
+	JobReport JobExec::audit_end( ReqInfo& ri , bool with_stats , AuditPfx pfx , ::string const& chroot_tag , MsgStderr const& msg_stderr , Delay exe_time , bool retry ) const {
 		using JR = JobReport ;
 		//
 		Req            req         = ri.req           ;
@@ -808,10 +808,13 @@ namespace Engine {
 		DN}
 		if (!step) step = snake(jr) ;
 		Trace trace("audit_end",color,pfx,step,self,ri,STR(with_stats),STR(retry),STR(with_stderr),STR(done),STR(speculate),jr,STR(+msg_stderr.msg),STR(+msg_stderr.stderr)) ;
-		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		req->audit_job   ( color , pfx+step , self , true/*at_end*/ , chroot_tag , exe_time                                  ) ;
-		req->audit_stderr(                    self , { msg_stderr.msg , with_stderr?msg_stderr.stderr:""s } , max_stderr_len ) ;
-		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		::string s        = +pfx ? cat(pfx,'_',step) : cat(step)                    ;
+		bool need_warning = pfx==AuditPfx::Was && with_stderr && +msg_stderr.stderr ;
+		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		/**/              req->audit_job   ( color , s , self , true/*at_end*/ , chroot_tag , exe_time                                                                        ) ;
+		if (need_warning) req->audit_stderr(             self , { cat(msg_stderr.msg,add_nl,"during last execution :") , with_stderr?msg_stderr.stderr:""s } , max_stderr_len ) ;
+		else              req->audit_stderr(             self , {     msg_stderr.msg                                   , with_stderr?msg_stderr.stderr:""s } , max_stderr_len ) ;
+		//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		ri.reported = true  ;
 		//
 		if ( speculate && done ) jr = JR::Speculative ;

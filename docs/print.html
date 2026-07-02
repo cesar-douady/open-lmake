@@ -1581,7 +1581,8 @@ If the compression method is not supported, no download occurs.</p>
 <tr><td>python</td><td><code>str</code> or <code>list</code> or <code>tuple</code></td><td>-</td><td>Simple</td><td></td></tr>
 </tbody></table>
 </div>
-<p>This attribute defines an unnamed static dep.</p>
+<p>This attribute defines an unnamed static dep.
+The value is identical to values in the <code>deps</code> dict.</p>
 <p>During execution, <code>cmd</code> stdin will be redirected to this dep, else it is <code>/dev/null</code>.</p>
 <h3 id="deps"><a class="header" href="#deps"><a href="unit_tests/chain.html#:~:text=deps%20%3D%20%7B%20%27FIRST%27%20%3A%20%27%7BFile1%7D%27%20%2C%20%27SECOND%27%20%3A%20%27%7BFile2%7D%27%20%7D"><code>deps</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
@@ -1597,11 +1598,11 @@ Hence they lack the initial <code>f</code> in front of the string.</p>
 <p>The flags may be any combination of the following flags, optionally preceded by - to turn it off.
 Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple</code>'s.</p>
 <div class="table-wrapper"><table><thead><tr><th>CamelCase</th><th>snake_case</th><th>Default</th><th>Description</th></tr></thead><tbody>
-<tr><td><code>Essential</code></td><td><code>essential</code></td><td>Yes</td><td>This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.</td></tr>
 <tr><td><code>Critical</code></td><td><a href="unit_tests/critical.html#:~:text=%27critical">critical</a></td><td>No</td><td>This dep is <a href="critical_deps.html">critical</a>.</td></tr>
+<tr><td><code>Essential</code></td><td><code>essential</code></td><td>Yes</td><td>This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.</td></tr>
+<tr><td><code>Ignore</code></td><td><code>ignore</code></td><td>No</td><td>Reads to this dep are ignored.</td></tr>
 <tr><td><code>IgnoreError</code></td><td><a href="unit_tests/ignore_err.html#:~:text=%27IgnoreError">ignore_error</a></td><td>No</td><td>This dep may be in error, job will be launched anyway.</td></tr>
 <tr><td><code>ReaddirOk</code></td><td><a href="unit_tests/wine.html#:~:text=%27readdir%5Fok">readdir_ok</a></td><td>No</td><td>This dep may be accessed as a dir (e.g. using <a href="https://man7.org/linux/man-pages/man3/readdir.3.html">readdir</a> without error.</td></tr>
-<tr><td><code>Required</code></td><td><code>required</code></td><td>No</td><td>This dep is deemed to be read, even if not actually read by the job.</td></tr>
 <tr><td><code>Top</code></td><td><code>top</code></td><td>No</td><td>Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. <a href="experimental_subrepos.html">subrepos</a>).</td></tr>
 </tbody></table>
 </div>
@@ -1912,8 +1913,7 @@ In the latter case, a file that contains the script is created and its name is p
 It does not declare any dep by itself.
 Syntactically, it follows the <code>side_targets</code> attribute except that:</p>
 <ul>
-<li>Specified flags are dep flags only where <code>side_targets</code> accept both target flags an dep flags.</li>
-<li>The flag <code>Ignore</code> or <code>ignore</code> only applies to reads to prevent such accessed files from becoming a dep where for <code>side_targets</code>, this flag prevents files from being deps or targets.</li>
+<li>Specified flags are dep flags only where <code>side_targets</code> accept both target flags an dep flags. In particular, the flag <code>Ignore</code> or <code>ignore</code> only applies to reads.</li>
 <li><code>.</code> may be specified as pattern (or pattern may include it as a possible match) which may be necessary when passing the <code>readdir_ok</code> flag.</li>
 </ul>
 <h3 id="side_targets"><a class="header" href="#side_targets"><a href="unit_tests/ignore.html#:~:text=side%5Ftargets%20%3D%20%7B%20%27BAD%27%20%3A%20%28%27bad%5Ftarget%27%2C%27ignore%27%29%20%7D"><code>side_targets</code></a></a></h3>
@@ -1986,6 +1986,7 @@ If a regular expression requires unbalanced <code>{}</code>, it must be put in a
 Flags may be arbitrarily nested into sub-<code>list</code>'s or sub-<code>tuple</code>'s.</p>
 <div class="table-wrapper"><table><thead><tr><th>CamelCase</th><th>snake_case</th><th>Default</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>Essential</code></td><td><code>essential</code></td><td>Yes</td><td>This target will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.</td></tr>
+<tr><td><code>Ignore</code></td><td><code>ignore</code></td><td>No</td><td>Reads and writes are ignored.</td></tr>
 <tr><td><code>Incremental</code></td><td><a href="unit_tests/incremental.html#:~:text=%27incremental"><code>incremental</code></a></td><td>No</td><td>Previous content may be used to produce these targets.  Cf note (1).</td></tr>
 <tr><td><code>Optional</code></td><td><code>optional</code></td><td>No</td><td>If this target is not generated, it is not deemed to be produced by the job. Cf note (2).</td></tr>
 <tr><td><code>Phony</code></td><td><a href="unit_tests/regression.html#:~:text=%27phony"><code>phony</code></a></td><td>No</td><td>Accept that this target is not generated, in which case it is deemed generated even not physically on disk. Cf note (3).</td></tr>

@@ -257,6 +257,7 @@ If the compression method is not supported, no download occurs.
 | python      | `str` or `list` or `tuple` | -       | Simple  |         |
 
 This attribute defines an unnamed static dep.
+The value is identical to values in the `deps` dict.
 
 During execution, `cmd` stdin will be redirected to this dep, else it is `/dev/null`.
 
@@ -280,11 +281,11 @@ Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
 
 | CamelCase     | snake\_case                                                       | Default | Description                                                                                           |
 |---------------|-------------------------------------------------------------------|---------|-------------------------------------------------------------------------------------------------------|
-| `Essential`   | `essential`                                                       | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.   |
 | `Critical`    | [critical](unit_tests/critical.html#:~:text=%27critical)          | No      | This dep is [critical](critical_deps.html).                                                           |
+| `Essential`   | `essential`                                                       | Yes     | This dep will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.   |
+| `Ignore`      | `ignore`                                                          | No      | Reads to this dep are ignored.                                                                        |
 | `IgnoreError` | [ignore_error](unit_tests/ignore_err.html#:~:text=%27IgnoreError) | No      | This dep may be in error, job will be launched anyway.                                                |
 | `ReaddirOk` | [readdir_ok](unit_tests/wine.html#:~:text=%27readdir%5Fok) | No | This dep may be accessed as a dir (e.g. using [readdir](https://man7.org/linux/man-pages/man3/readdir.3.html) without error. |
-| `Required`    | `required`                                                        | No      | This dep is deemed to be read, even if not actually read by the job.                                  |
 | `Top`         | `top`                                        | No | Dep pattern is interpreted relative to the top-level repo, else to the local repo (cf. [subrepos](experimental_subrepos.html)). |
 
 Flag order and dep order are not significative.
@@ -698,8 +699,7 @@ This attribute is used to define flags to deps when they are acquired during job
 It does not declare any dep by itself.
 Syntactically, it follows the `side_targets` attribute except that:
 
-- Specified flags are dep flags only where `side_targets` accept both target flags an dep flags.
-- The flag `Ignore` or `ignore` only applies to reads to prevent such accessed files from becoming a dep where for `side_targets`, this flag prevents files from being deps or targets.
+- Specified flags are dep flags only where `side_targets` accept both target flags an dep flags. In particular, the flag `Ignore` or `ignore` only applies to reads.
 - `.` may be specified as pattern (or pattern may include it as a possible match) which may be necessary when passing the `readdir_ok` flag.
 
 ### [`side_targets`](unit_tests/ignore.html#:~:text=side%5Ftargets%20%3D%20%7B%20%27BAD%27%20%3A%20%28%27bad%5Ftarget%27%2C%27ignore%27%29%20%7D)
@@ -791,6 +791,7 @@ Flags may be arbitrarily nested into sub-`list`'s or sub-`tuple`'s.
 | CamelCase   | snake\_case                                                 | Default | Description                                                                                                    |
 |-------------|-------------------------------------------------------------|---------|----------------------------------------------------------------------------------------------------------------|
 | `Essential` |   `essential`                                               | Yes     | This target will be shown in a future graphic tool to show the workflow, it has no algorithmic effect.         |
+| `Ignore`    | `ignore`                                                    | No      | Reads and writes are ignored.                                                                                  |
 | `Incremental` | [`incremental`](unit_tests/incremental.html#:~:text=%27incremental) | No | Previous content may be used to produce these targets.  Cf note (1).                                      |
 | `Optional`  |   `optional`                                                | No      | If this target is not generated, it is not deemed to be produced by the job. Cf note (2).                      |
 | `Phony`     | [`phony`](unit_tests/regression.html#:~:text=%27phony) | No | Accept that this target is not generated, in which case it is deemed generated even not physically on disk. Cf note (3). |

@@ -148,18 +148,18 @@ namespace Engine {
 
 	using IsDynVector = ::pair<bool,::vector<uint8_t>> ; // cannot use stupid std::vector<bool>
 	using IsDynMap    = ::pair<bool,::uset_s         > ;
-	namespace Attrs {
-		/**/                   void acquire( bool               &/*out*/ dst , bool&/*out*/ is_dyn , Py::Object const* py_src                                                       ) ;
-		/**/                   void acquire( Delay              &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src , Delay min=Delay::Lowest , Delay max=Delay::Highest  ) ;
-		/**/                   void acquire( JobSpace::ViewDescr&/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src                                                       ) ;
-		/**/                   void acquire( Zlvl               &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src                                                       ) ;
-		template<::integral I> void acquire( I                  &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>          ) ;
-		template<UEnum      E> void acquire( E                  &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src ,                     BitMap<E> accepted=~BitMap<E>() ) ;
-		template<UEnum      E> void acquire( BitMap<E>          &/*.  */ dst , bool&/*.  */ is_dyn , Py::Object const* py_src , BitMap<E> dflt={} , BitMap<E> accepted=~BitMap<E>() ) ;
-		//
-		template<        bool Env=false> void acquire( ::string   &/*out*/ dst , bool       &/*out*/ is_dyn , Py::Object const* py_src ) ;
-		template<class T               > void acquire( ::vector<T>&/*.  */ dst , IsDynVector&/*.  */ is_dyn , Py::Object const* py_src ) ;
-		template<class T,bool Env=false> void acquire( ::vmap_s<T>&/*.  */ dst , IsDynMap   &/*.  */ is_dyn , Py::Object const* py_src ) ;
+	namespace Attrs { //!                    out                        out
+		/**/                   void acquire( bool               & dst , bool& is_dyn , Py::Object const* py_src                                                       ) ;
+		/**/                   void acquire( Delay              & dst , bool& is_dyn , Py::Object const* py_src , Delay min=Delay::Lowest , Delay max=Delay::Highest  ) ;
+		/**/                   void acquire( JobSpace::ViewDescr& dst , bool& is_dyn , Py::Object const* py_src                                                       ) ;
+		/**/                   void acquire( Zlvl               & dst , bool& is_dyn , Py::Object const* py_src                                                       ) ;
+		template<::integral I> void acquire( I                  & dst , bool& is_dyn , Py::Object const* py_src , I     min=Min<I>        , I     max=Max<I>          ) ;
+		template<UEnum      E> void acquire( E                  & dst , bool& is_dyn , Py::Object const* py_src ,                     BitMap<E> accepted=~BitMap<E>() ) ;
+		template<UEnum      E> void acquire( BitMap<E>          & dst , bool& is_dyn , Py::Object const* py_src , BitMap<E> dflt={} , BitMap<E> accepted=~BitMap<E>() ) ;
+		//                                             out                out
+		template<        bool Env=false> void acquire( ::string   & dst , bool       & is_dyn , Py::Object const* py_src ) ;
+		template<class T               > void acquire( ::vector<T>& dst , IsDynVector& is_dyn , Py::Object const* py_src ) ;
+		template<class T,bool Env=false> void acquire( ::vmap_s<T>& dst , IsDynMap   & is_dyn , Py::Object const* py_src ) ;
 		//
 		template<class T,class D,class... A> void acquire_from_dct( T&/*out*/ dst , D&/*out*/ is_dyn , Py::Dict const& py_dct , ::string const& key , A const&... args ) {
 			if (py_dct.contains(key))

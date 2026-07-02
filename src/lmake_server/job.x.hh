@@ -14,6 +14,13 @@ enum class AncillaryTag : uint8_t {
 ,	KeepTmp
 } ;
 
+enum class AuditPfx : uint8_t {
+	None
+,	Hit
+,	May
+,	Was
+} ;
+
 // START_OF_VERSIONING REPO CACHE
 enum class JobInfoKind : uint8_t {
 	None
@@ -194,7 +201,7 @@ namespace Engine {
 		void            give_up    ( Req={} , bool report=true   )       ; // Req (all if 0) was killed and job was not killed (not started or continue)
 		//
 		// audit_end returns the report to do if job is finally not rerun
-		JobReport audit_end( ReqInfo& , bool with_stats , ::string const& pfx={} , ::string const& chroot_tag={} , MsgStderr const& ={} , Delay exe_time={} , bool retry=false ) const ;
+		JobReport audit_end( ReqInfo& , bool with_stats , AuditPfx pfx=AuditPfx::None , ::string const& chroot_tag={} , MsgStderr const& ={} , Delay exe_time={} , bool retry=false ) const ;
 		size_t hash() const {
 			Hash::Fnv fnv ;                                                // good enough
 			fnv += +Job(self)        ;
@@ -525,9 +532,9 @@ namespace Engine {
 			ReqInfo& ri = req_info(req) ; if (speculate>=ri.speculate) return ;
 			ri.speculate = speculate ;
 			if ( speculate==No && ri.reported && ri.done() ) {
-				if      (err()                ) { audit_end(ri,false/*with_stats*/,"was_") ; req->stats.move( JobReport::Speculative , JobReport::Failed , phy_exe_time() ) ; }
-				else if (ri.modified_speculate)                                              req->stats.move( JobReport::Speculative , JobReport::Done   , phy_exe_time() ) ;
-				else                                                                         req->stats.move( JobReport::Speculative , JobReport::Steady , phy_exe_time() ) ;
+				if      (err()                ) { audit_end(ri,false/*with_stats*/,AuditPfx::Was) ; req->stats.move( JobReport::Speculative , JobReport::Failed , phy_exe_time() ) ; }
+				else if (ri.modified_speculate)                                                     req->stats.move( JobReport::Speculative , JobReport::Done   , phy_exe_time() ) ;
+				else                                                                                req->stats.move( JobReport::Speculative , JobReport::Steady , phy_exe_time() ) ;
 			}
 			_propag_speculate(ri) ;
 		}

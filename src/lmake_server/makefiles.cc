@@ -127,8 +127,11 @@ namespace Engine::Makefiles {
 			::string d = line.substr(1) ;
 			if (is_abs(d)) continue ;                                                        // d is outside repo and cannot be dangling, whether it is in a src_dir or not
 			Node n { New , d } ;
-			n->set_buildable() ;                                                                                           // this is mandatory before is_src_anti() can be called
-			if ( !n->is_src_anti() ) throw cat("while reading ",action,", dangling makefile : ",mk_rel(d,startup_dir_s)) ;
+			n->set_buildable() ;                                                             // this is mandatory before is_src_anti() can be called
+			if ( !n->is_src_anti() ) {
+				::string f = mk_rel(d,startup_dir_s) ;
+				throw cat("while reading ",action,", dangling makefile : ",f,"\n  consider : git add ",f) ;
+			}
 		}
 		trace("ok") ;
 	}
