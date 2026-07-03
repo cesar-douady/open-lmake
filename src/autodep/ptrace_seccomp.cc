@@ -353,10 +353,14 @@ namespace AutodepPtrace {
 			Lock       lock { Record::s_mutex } ; // we have a single thread here, no need to lock record reporting, but Record code checks that lock is taken
 			//
 			int   wstatus ;
-			pid_t pid     = ::waitpid( child_pid , &wstatus , WUNTRACED ) ; SWEAR( pid==child_pid      , pid,child_pid ) ; // wait for child to stop
-			/**/                                                            SWEAR( WIFSTOPPED(wstatus) , pid,wstatus   ) ;
+			pid_t pid     = ::waitpid( child_pid , &wstatus , WUNTRACED ) ; SWEAR( pid==child_pid , pid,child_pid ) ; // wait for child to stop
+			if (!WIFSTOPPED(wstatus)) {                                                                               // if killed before starting
+				SWEAR( WIFSIGNALED(wstatus)            , pid,wstatus ) ;                                              // cannot be otherwise as we do not exit before entering job
+				SWEAR( !is_sig_sync(WTERMSIG(wstatus)) , pid,wstatus ) ;                                              // ensure not a bug such as a SWEAR or segmentation violation
+				return wstatus ;
+			}
 			//
-			#if HAS_PIDFD                                                                                                  // use libc provided wrappers if available
+			#if HAS_PIDFD                                                                                             // use libc provided wrappers if available
 				AcFd pid_fd    { pidfd_open (                     child_pid ,     0/*flags*/ )  } ;
 				AcFd notify_fd { pidfd_getfd(                     pid_fd.fd , 3 , 0/*flags*/ )  } ; throw_unless( +notify_fd , "cannot get (",StrErr(),") notify fd from pid ",child_pid) ;
 			#else
@@ -374,17 +378,17 @@ namespace AutodepPtrace {
 				for( Event const& event : epoll.wait() ) {
 					switch (event.data()) {
 						case Kind::Job : {
-							pid_t pid = ::waitpid( child_pid , &wstatus , WNOHANG ) ;                                      // epoll told us child_pid is dead
+							pid_t pid = ::waitpid( child_pid , &wstatus , WNOHANG ) ;                                 // epoll told us child_pid is dead
 							SWEAR( pid==child_pid , pid,child_pid ) ;
 							return wstatus ;
 						}
 						case Kind::Notif : {
 							if (!(event.events&EPOLLIN)) {
-								SWEAR( event.events==EPOLLHUP , event.events ) ;                                           // there are only 2 cases : notify_fd is ready or we are done
+								SWEAR( event.events==EPOLLHUP , event.events ) ;                                      // there are only 2 cases : notify_fd is ready or we are done
 								epoll.del(false/*write*/,notify_fd) ;
 								continue ;
 							}
-							recv_notif = {} ;                                                                              // recv_notif must be full 0 upon calling ioctl
+							recv_notif = {} ;                                                                         // recv_notif must be full 0 upon calling ioctl
 							if ( ::ioctl( notify_fd , SECCOMP_IOCTL_NOTIF_RECV , &recv_notif )!=0 ) FAIL() ;
 							//
 							bool     is_32   = NonPortable::is_32_from_audit_arch(recv_notif.data.arch) ;
@@ -442,8 +446,8 @@ namespace AutodepPtrace {
 									} else {
 										resp_notif = {
 											.id    = recv_notif.id
-										,	.val   = 0                                                                     // compulsery when continue
-										,	.error = 0                                                                     // .
+										,	.val   = 0                                                                // compulsery when continue
+										,	.error = 0                                                                // .
 										,	.flags = SECCOMP_USER_NOTIF_FLAG_CONTINUE
 										} ;
 										int rc = ::ioctl( notify_fd , SECCOMP_IOCTL_NOTIF_SEND , &resp_notif ) ;

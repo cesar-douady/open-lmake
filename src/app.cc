@@ -17,9 +17,12 @@ StaticUniqPtr<::string> g_repo_root_s   ;
 StaticUniqPtr<::string> g_startup_dir_s ; // relative to g_repo_root_s , dir from which command was launched
 StaticUniqPtr<::string> g_exe_name      ;
 
-void crash_handler( int sig , void* addr ) {
-	if (sig==SIGABRT) crash( 2/*n_hide*/ , sig , 0/*n_hdrs*/ , "aborted"                            ) ;
-	else              crash( 2/*.     */ , sig , 2/*.     */ , ::strsignal(sig)," at address ",addr ) ;
+[[noreturn]] static void _crash_handler( int sig , void* addr ) {
+	if      (sig==SIGABRT    ) crash( 2/*n_hide*/ , sig , 0/*n_hdrs*/ , "aborted"                            ) ;
+	else if (is_sig_sync(sig)) crash( 2/*.     */ , sig , 2/*.     */ , ::strsignal(sig)," at address ",addr ) ;
+	// it is an external signal, do not generate backtrace as this is not a bug
+	set_sig_handler<SIG_DFL>(sig    ) ; kill_self(sig) ; // mimic original signal
+	set_sig_handler<SIG_DFL>(SIGABRT) ; ::abort()      ; // in case previous line does not work
 }
 
 static void _terminate() {
@@ -88,7 +91,7 @@ bool/*read_only*/ app_init(AppInitAction const& action) {
 	t_thread_key = '=' ;                                                                                      // we are the main thread
 	//
 	::set_terminate(_terminate) ;
-	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<crash_handler>(sig) ;                 // catch all synchronous signals so as to generate a backtrace
+	for( int sig : iota(1,NSIG) ) if (is_sig_sync(sig)) set_sig_handler<_crash_handler>(sig) ;                // catch all synchronous signals so as to generate a backtrace
 	//
 	bool     read_only = false     ;                                                                          // unless proven read-only, assume we can write traces
 	::string exe_path  = get_exe() ;
