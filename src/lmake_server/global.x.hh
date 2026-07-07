@@ -68,7 +68,7 @@ namespace Engine {
 
 namespace Engine {
 
-	// sep is put before the last indent level, useful for porcelaine output
+	// sep is put before the last indent level, useful for porcelain output
 	/**/   void _audit( Fd out , Fd log , ReqOptions const& , Color , ::string const& txt , bool as_is , DepDepth , char sep , bool err ) ;
 	//                                                                                             as_is              lvl                                                          err
 	inline void audit( Fd out , Fd log , ReqOptions const& ro , Color c , ::string const& t , bool a=false , DepDepth l=0 , char sep=0 ) { _audit(out,log,ro,c          ,t,a,l,sep,false) ; }
@@ -395,13 +395,13 @@ namespace Engine {
 	}
 
 	inline ::string color_pfx( ReqOptions const& ro , Color color ) {
-		if ( color==Color::None || ro.dark_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
+		if ( color==Color::None || ro.dark_video==Maybe || ro.flags[ReqFlag::Porcelain] ) return {} ;
 		::array<uint8_t,3/*RGB*/> const& colors = g_config->colors[+color][ro.dark_video==Yes] ;
 		return cat( "\x1b[38;2;" , int(colors[0/*R*/]) ,';', int(colors[1/*G*/]) ,';', int(colors[2/*B*/]) , 'm' ) ;
 	}
 
 	inline ::string color_sfx(ReqOptions const& ro , Color color ) {
-		if ( color==Color::None || ro.dark_video==Maybe || ro.flags[ReqFlag::Porcelaine] ) return {} ;
+		if ( color==Color::None || ro.dark_video==Maybe || ro.flags[ReqFlag::Porcelain] ) return {} ;
 		return "\x1b[0m" ;
 	}
 

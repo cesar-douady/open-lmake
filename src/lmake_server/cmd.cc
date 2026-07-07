@@ -303,12 +303,12 @@ namespace Engine {
 	}
 
 	static void _audit_job( Fd fd , ReqOptions const& ro , bool hide , Job job , ::string pfx={} , ::string const& comment={} , ::string const& sfx={} , DepDepth lvl=0 ) {
-		Color    color      = _job_color( job , hide )      ;
-		Rule     rule       = job->rule()                   ;
-		bool     porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+		Color    color     = _job_color( job , hide )     ;
+		Rule     rule      = job->rule()                  ;
+		bool     porcelain = ro.flags[ReqFlag::Porcelain] ;
 		::string l          ;
 		if (+pfx) l << pfx<<' ' ;
-		if (porcelaine) {
+		if (porcelain) {
 			l << "( "<<mk_py_str(+rule?rule->name:""s)<<" , "<<mk_py_str(job->name())<<" , "<<mk_py_str(comment)<<" )" ;
 		} else {
 			if (+rule   ) l <<      rule->user_name()    <<' ' ;
@@ -316,31 +316,31 @@ namespace Engine {
 			if (+comment) l <<' '<< '('<<comment<<')'          ;
 		}
 		if (+sfx) l <<' '<< sfx ;
-		audit( fd , ro , color , l , porcelaine/*as_is*/ , lvl ) ;
+		audit( fd , ro , color , l , porcelain/*as_is*/ , lvl ) ;
 	}
 	static void _audit_deps( Fd fd , ReqOptions const& ro , bool hide , Job job , DepDepth lvl=0 ) {
 		using namespace Codec ;
 		//
-		Rule              rule         = job->rule()                   ;
-		bool              porcelaine   = ro.flags[ReqFlag::Porcelaine] ;
-		bool              verbose      = ro.flags[ReqFlag::Verbose   ] ;
-		size_t            w_crc        = 0                             ;
-		size_t            w_key        = 0                             ;
-		size_t            w_file       = 0                             ;
-		size_t            w_codec_file = 0                             ;
-		size_t            w_codec_ctx  = 0                             ;
-		size_t            w_codec_kind = 0                             ;
+		Rule              rule         = job->rule()                  ;
+		bool              porcelain    = ro.flags[ReqFlag::Porcelain] ;
+		bool              verbose      = ro.flags[ReqFlag::Verbose  ] ;
+		size_t            w_crc        = 0                            ;
+		size_t            w_key        = 0                            ;
+		size_t            w_file       = 0                            ;
+		size_t            w_codec_file = 0                            ;
+		size_t            w_codec_ctx  = 0                            ;
+		size_t            w_codec_kind = 0                            ;
 		::umap_ss         rev_map      ;
 		::vector<Color  > dep_colors   ;                                                                                               // indexed before filtering
 		::vector<NodeIdx> dep_groups   ;                                                                                               // indexed after  filtering, deps in given group are parallel
-		NodeIdx           dep_group    = 0                             ;
+		NodeIdx           dep_group    = 0                            ;
 		::vmap_s<RegExpr> res          ;
 		if (+rule) {
 			Rule::RuleMatch m = job->rule_match() ;
 			for( auto const& [k,d] : rule->deps_attrs.dep_specs(m) ) {                                                                 // this cannot fail as we already have the job
 				if (rev_map.try_emplace(d.txt,k).second) {                                                                             // in case of multiple matches, retain first
-					if (porcelaine) w_key = ::max( w_key , mk_py_str(k).size() ) ;
-					else            w_key = ::max( w_key ,           k .size() ) ;
+					if (porcelain) w_key = ::max( w_key , mk_py_str(k).size() ) ;
+					else           w_key = ::max( w_key ,           k .size() ) ;
 				}
 			}
 			::vector<Pattern> star_patterns = m.star_patterns() ;
@@ -360,20 +360,20 @@ namespace Engine {
 			if ( !d.parallel                      ) dep_group++ ;
 			if ( !verbose && c==Color::HiddenNote ) continue ;
 			dep_groups.push_back(dep_group) ;
-			if (porcelaine) w_crc  = ::max( w_crc  , mk_py_str(_dep_crc(d)).size() ) ;
-			else            w_crc  = ::max( w_crc  ,           _dep_crc(d) .size() ) ;
-			if (porcelaine) w_file = ::max( w_file , mk_py_str(d->name()  ).size() ) ;
-			::string        dn     = d->name()                                       ;
-			::string const* dk     = nullptr                                         ;
-			if (d.dflags[Dflag::Static])                                                          dk = &rev_map.at(dn) ;
-			else                           for ( auto const& [k,e] : res ) if (e.can_match(dn)) { dk = &k              ; break ; }
+			if (porcelain) w_crc  = ::max( w_crc  , mk_py_str(_dep_crc(d)).size() ) ;
+			else           w_crc  = ::max( w_crc  ,           _dep_crc(d) .size() ) ;
+			if (porcelain) w_file = ::max( w_file , mk_py_str(d->name()  ).size() ) ;
+			::string        dn = d->name() ;
+			::string const* dk = nullptr   ;
+			if (d.dflags[Dflag::Static])                                                        dk = &rev_map.at(dn) ;
+			else                         for ( auto const& [k,e] : res ) if (e.can_match(dn)) { dk = &k              ; break ; }
 			if (dk) {
-				if (porcelaine) w_key = ::max( w_key , mk_py_str(*dk).size() ) ;
-				else            w_key = ::max( w_key ,            dk->size() ) ;
+				if (porcelain) w_key = ::max( w_key , mk_py_str(*dk).size() ) ;
+				else           w_key = ::max( w_key ,            dk->size() ) ;
 			} else {
-				if (porcelaine) w_key = ::max( w_key , size_t(4/*None*/)     ) ;
+				if (porcelain) w_key = ::max( w_key , size_t(4/*None*/)     ) ;
 			}
-			if ( !porcelaine && d.dflags[Dflag::Codec] ) {
+			if ( !porcelain && d.dflags[Dflag::Codec] ) {
 				if (is_lcl(dn)) {
 					CodecFile const& cdf = codec_files.try_emplace( d , CodecFile(New,dn) ).first->second ;
 					w_codec_file = ::max( w_codec_file , cdf.file.size()                                      ) ;
@@ -385,7 +385,7 @@ namespace Engine {
 		NodeIdx di1          = 0 ;                                                                                                     // before filtering
 		NodeIdx di2          = 0 ;                                                                                                     // after  filtering
 		NodeIdx n_dep_groups = 0 ;
-		if (porcelaine) audit( fd , ro , "(" , true/*as_is*/ , lvl ) ;
+		if (porcelain) audit( fd , ro , "(" , true/*as_is*/ , lvl ) ;
 		for( Dep const& dep : job->deps ) {
 			Color c = dep_colors[di1++] ;
 			if ( !verbose && c==Color::HiddenNote ) continue ;
@@ -398,7 +398,7 @@ namespace Engine {
 			di2++ ;
 			if (dep.dflags[Dflag::Static])                                                              dep_key = &rev_map.at(dep_name) ;
 			else                           for ( auto const& [k,e] : res ) if (e.can_match(dep_name)) { dep_key = &k                    ; break ; }
-			if (porcelaine) {
+			if (porcelain) {
 				/**/         dep_str << "( " <<      mk_py_str(dep.dflags_str  ())         ;
 				/**/         dep_str << " , "<<      mk_py_str(dep.accesses_str())         ;
 				if (verbose) dep_str << " , "<<widen(mk_py_str(_dep_crc(dep)),w_crc ) ;
@@ -432,7 +432,7 @@ namespace Engine {
 			}
 			n_dep_groups += end_group ;
 		}
-		if (porcelaine) audit( fd , ro , n_dep_groups==1?",)":")" , true/*as_is*/ , lvl ) ;
+		if (porcelain) audit( fd , ro , n_dep_groups==1?",)":")" , true/*as_is*/ , lvl ) ;
 	}
 
 	static ::pair<::vmap_ss/*set*/,::vector_s/*keep*/> _mk_env( JobInfo const& job_info ) {
@@ -604,9 +604,9 @@ namespace Engine {
 		if (                                      target->status()>NodeStatus::Makable ) goto NoJob ;
 		if( JobTgt cj=target->conform_job_tgt() ; cj.is_plain()                        ) return cj  ;
 	NoJob :
-		bool porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+		bool porcelain = ro.flags[ReqFlag::Porcelain] ;
 		target->set_buildable() ;
-		if (porcelaine) {
+		if (porcelain) {
 			if (ro.key!=ReqKey::Info) audit( fd , ro , "None" , true/*as_is*/ , lvl ) ;
 		} else {
 			if ( target->buildable>Buildable::No && !target->is_src() ) { //!                                   as_is
@@ -708,24 +708,24 @@ namespace Engine {
 		static constexpr Color CW = Color::Warning    ;
 		// cxtors & casts
 		Show( Fd fd_ , ReqOptions const& ro_ , DepDepth lvl_=0 ) :
-			fd         { fd_                            }
-		,	ro         { ro_                            }
-		,	lvl        { lvl_                           }
-		,	quiet      { ro_.flags[ReqFlag::Quiet     ] }
-		,	verbose    { ro_.flags[ReqFlag::Verbose   ] }
-		,	porcelaine { ro_.flags[ReqFlag::Porcelaine] }
-		{         if (porcelaine) { audit( fd , ro , "{" , true/*as_is*/ , lvl ) ; firsts.emplace_back() ; } }
-		~Show() { if (porcelaine)   audit( fd , ro , "}" , true/*as_is*/ , lvl ) ;                           }
+			fd        { fd_                           }
+		,	ro        { ro_                           }
+		,	lvl       { lvl_                          }
+		,	quiet     { ro_.flags[ReqFlag::Quiet    ] }
+		,	verbose   { ro_.flags[ReqFlag::Verbose  ] }
+		,	porcelain { ro_.flags[ReqFlag::Porcelain] }
+		{         if (porcelain) { audit( fd , ro , "{" , true/*as_is*/ , lvl ) ; firsts.emplace_back() ; } }
+		~Show() { if (porcelain)   audit( fd , ro , "}" , true/*as_is*/ , lvl ) ;                           }
 		// data
-		Fd                fd         ;
-		ReqOptions const& ro         ;
-		DepDepth          lvl        = 0                ;
-		::uset<Job >      job_seen   = {}               ;
-		::uset<Node>      node_seen  = {}               ;
-		bool              quiet      = false/*garbage*/ ;
-		bool              verbose    = false/*.      */ ;
-		bool              porcelaine = false/*.      */ ;
-		::vector<First>   firsts     ;
+		Fd                fd        ;
+		ReqOptions const& ro        ;
+		DepDepth          lvl       = 0                ;
+		::uset<Job >      job_seen  = {}               ;
+		::uset<Node>      node_seen = {}               ;
+		bool              quiet     = false/*garbage*/ ;
+		bool              verbose   = false/*.      */ ;
+		bool              porcelain = false/*.      */ ;
+		::vector<First>   firsts    ;
 	} ;
 
 	struct ShowBom : Show {
@@ -745,20 +745,20 @@ namespace Engine {
 			if ( !verbose && !buildable ) return ;
 			//
 			if ( !node->is_src_anti() && buildable ) {
-				if (!quiet) { //!                                                                                          as_is
-					if (porcelaine) { audit( fd , ro ,      cat(firsts.back()("  ",", "),mk_py_str(node->name())," : {") , true  , lvl ) ; firsts.emplace_back() ; }
-					else              audit( fd , ro , CH ,                              mk_file  (node->name())         , false , lvl ) ;
+				if (!quiet) { //!                                                                                         as_is
+					if (porcelain) { audit( fd , ro ,      cat(firsts.back()("  ",", "),mk_py_str(node->name())," : {") , true  , lvl ) ; firsts.emplace_back() ; }
+					else             audit( fd , ro , CH ,                              mk_file  (node->name())         , false , lvl ) ;
 					lvl++ ;
 				}
 				for( Job j : node->candidate_job_tgts() ) show_job(j) ;
 				if (!quiet) {
 					lvl-- ;
-					if (porcelaine) { audit( fd , ro , "  }" , true/*as_is*/ , lvl ) ; firsts.pop_back() ; }
+					if (porcelain) { audit( fd , ro , "  }" , true/*as_is*/ , lvl ) ; firsts.pop_back() ; }
 				}
-			} else if ( verbose || node->status()<=NodeStatus::Makable ) { //!                                                                                            as_is
-				if      (porcelaine) audit( fd , ro ,                              cat(firsts.back()("  ",", "),mk_py_str(node->name())," : ",buildable?"True":"False") , true  , lvl ) ;
-				else if (verbose   ) audit( fd , ro , !buildable?CH:is_src?CN:CW , cat(buildable?'+':'!',' '   ,mk_file  (node->name())                               ) , false , lvl ) ;
-				else                 audit( fd , ro , !buildable?CH:is_src?CN:CW ,                              mk_file  (node->name())                                 , false , lvl ) ;
+			} else if ( verbose || node->status()<=NodeStatus::Makable ) { //!                                                                                           as_is
+				if      (porcelain) audit( fd , ro ,                              cat(firsts.back()("  ",", "),mk_py_str(node->name())," : ",buildable?"True":"False") , true  , lvl ) ;
+				else if (verbose  ) audit( fd , ro , !buildable?CH:is_src?CN:CW , cat(buildable?'+':'!',' '   ,mk_file  (node->name())                               ) , false , lvl ) ;
+				else                audit( fd , ro , !buildable?CH:is_src?CN:CW ,                              mk_file  (node->name())                                 , false , lvl ) ;
 			}
 		}
 	} ;
@@ -780,23 +780,23 @@ namespace Engine {
 			//
 			bool     running = step==JobStep::Exec ;
 			::string job_str =
-				porcelaine ? cat("( ",mk_py_str(job->rule()->user_name()                        )," , ",mk_py_str(job->name())," )")
-				:            cat(     widen    (job->rule()->user_name(),Rule::s_rules->name_sz) ,' '  ,mk_file  (job->name())     )
+				porcelain ? cat("( ",mk_py_str(job->rule()->user_name()                        )," , ",mk_py_str(job->name())," )")
+				:           cat(     widen    (job->rule()->user_name(),Rule::s_rules->name_sz) ,' '  ,mk_file  (job->name())     )
 			;
 			if (step==JobStep::Dep) {
 				if (!quiet) { //!                                                                          as_is
-					if (porcelaine) { audit( fd , ro ,      cat(firsts.back()("  ",", "),job_str," : {") , true  , lvl ) ; firsts.emplace_back() ; }
-					else              audit( fd , ro , CH , cat("W "                    ,job_str       ) , false , lvl ) ;
+					if (porcelain) { audit( fd , ro ,      cat(firsts.back()("  ",", "),job_str," : {") , true  , lvl ) ; firsts.emplace_back() ; }
+					else             audit( fd , ro , CH , cat("W "                    ,job_str       ) , false , lvl ) ;
 					lvl++ ;
 				}
 				for( Dep const& dep : job->deps ) show_node(dep) ;
 				if (!quiet) {
 					lvl-- ;
-					if (porcelaine) { audit( fd , ro , "  }" , true/*as_is*/ , lvl ) ; firsts.pop_back() ; }
+					if (porcelain) { audit( fd , ro , "  }" , true/*as_is*/ , lvl ) ; firsts.pop_back() ; }
 				}
-			} else { //!                                                                                                              as_is
-				if (porcelaine) audit( fd , ro ,                 cat(firsts.back()("  ",", "),job_str," : ",running?"True":"False") , true  , lvl ) ;
-				else            audit( fd , ro , running?CN:CH , cat(running?"R ":"Q "       ,job_str                             ) , false , lvl ) ;
+			} else { //!                                                                                                             as_is
+				if (porcelain) audit( fd , ro ,                 cat(firsts.back()("  ",", "),job_str," : ",running?"True":"False") , true  , lvl ) ;
+				else           audit( fd , ro , running?CN:CH , cat(running?"R ":"Q "       ,job_str                             ) , false , lvl ) ;
 			}
 		}
 		void show_node(Node node) {
@@ -812,14 +812,14 @@ namespace Engine {
 
 	static void _show_job( Fd fd , ReqOptions const& ro , Job job , Node target={} , DepDepth lvl=0 ) {
 		Trace trace("show_job",ro.key,job) ;
-		bool              verbose    = ro.flags[ReqFlag::Verbose]    ;
-		Rule              rule       = job->rule()                   ;
-		JobInfo           job_info   = job.job_info()                ;
-		JobStartRpcReq  & pre_start  = job_info.start.pre_start      ;
-		JobStartRpcReply& start      = job_info.start.start          ;
-		JobEndRpcReq    & end        = job_info.end                  ;
-		JobDigest<>     & digest     = end.digest                    ;
-		bool              porcelaine = ro.flags[ReqFlag::Porcelaine] ;
+		bool              verbose   = ro.flags[ReqFlag::Verbose]   ;
+		Rule              rule      = job->rule()                  ;
+		JobInfo           job_info  = job.job_info()               ;
+		JobStartRpcReq  & pre_start = job_info.start.pre_start     ;
+		JobStartRpcReply& start     = job_info.start.start         ;
+		JobEndRpcReq    & end       = job_info.end                 ;
+		JobDigest<>     & digest    = end.digest                   ;
+		bool              porcelain = ro.flags[ReqFlag::Porcelain] ;
 		switch (ro.key) {
 			case ReqKey::Cmd    :
 			case ReqKey::Env    :
@@ -832,7 +832,7 @@ namespace Engine {
 						case ReqKey::Info   :
 						case ReqKey::Stderr : {
 							MsgStderr msg_stderr = job->special_msg_stderr() ;
-							if (porcelaine) { //!                                           as_is
+							if (porcelain) { //!                                            as_is
 								if (verbose) audit( fd , ro , "None"                       , true , lvl+1 , '(' ) ;
 								if (verbose) audit( fd , ro , mk_py_str(msg_stderr.msg   ) , true , lvl+1 , ',' ) ;
 								if (verbose) audit( fd , ro , ","                          , true , lvl         ) ;
@@ -847,8 +847,8 @@ namespace Engine {
 						case ReqKey::Env    :
 						case ReqKey::Stdout :
 						case ReqKey::Trace  :
-							if (porcelaine) audit( fd , ro , "None" , true/*as_is*/ , lvl+1 ) ;
-							else            throw cat("cannot show ",ro.key," for special job ",mk_file(job->name())) ;
+							if (porcelain) audit( fd , ro , "None" , true/*as_is*/ , lvl+1 ) ;
+							else           throw cat("cannot show ",ro.key," for special job ",mk_file(job->name())) ;
 						break ;
 					DF}                             // END_OF_NO_COV
 				} else {
@@ -859,7 +859,7 @@ namespace Engine {
 						case ReqKey::Env : {
 							::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
 							size_t                                      w   = 0                 ;
-							if (porcelaine) {
+							if (porcelain) {
 								char sep = '{' ;
 								for( auto     const& [k,v] : env.first  ) w = ::max( w , mk_py_str(k).size() ) ;
 								for( ::string const&  k    : env.second ) w = ::max( w , mk_py_str(k).size() ) ; //!                   as_is
@@ -875,23 +875,23 @@ namespace Engine {
 								throw cat("no ",ro.key," available for job ",mk_file(job->name())) ;
 							}
 						} break ;
-						case ReqKey::Cmd : //!                                                        as_is
-							if      (porcelaine) audit( fd , ro ,               mk_py_str(start.cmd) , true                  ) ;
-							else if (+start    ) audit( fd , ro ,                         start.cmd  , true , bool(lvl),'\t' ) ;
-							else                 throw cat("no ",ro.key," available for job ",mk_file(job->name())) ;
+						case ReqKey::Cmd : //!                                                       as_is
+							if      (porcelain) audit( fd , ro ,               mk_py_str(start.cmd) , true                  ) ;
+							else if (+start   ) audit( fd , ro ,                         start.cmd  , true , bool(lvl),'\t' ) ;
+							else                throw cat("no ",ro.key," available for job ",mk_file(job->name())) ;
 						break ;
 						case ReqKey::Stdout :
 							if (+start.stdout) {
-								if (porcelaine) {
+								if (porcelain) {
 									audit( fd , ro , "None" , true/*as_is*/ , lvl+1 ) ;
 								} else {
 									audit( fd , ro , Color::Note , "consider : cat "+mk_file(start.stdout) , false/*as_is*/ , lvl ) ;
 									throw cat("stdout is redirected for job ",mk_file(job->name())) ;
 								}
 							} else {
-								//                                                            as_is
-								if      (porcelaine) audit( fd , ro , mk_py_str(end.stdout) , true                  ) ;
-								else if (+end      ) audit( fd , ro ,           end.stdout  , true , bool(lvl),'\t' ) ;
+								//                                                           as_is
+								if      (porcelain) audit( fd , ro , mk_py_str(end.stdout) , true                  ) ;
+								else if (+end     ) audit( fd , ro ,           end.stdout  , true , bool(lvl),'\t' ) ;
 								else {
 									if (+start) {
 										::string args ;
@@ -904,7 +904,7 @@ namespace Engine {
 							}
 						break ;
 						case ReqKey::Stderr :
-							if (porcelaine) { //!                                               as_is
+							if (porcelain) { //!                                                as_is
 								if (verbose) audit( fd , ro , mk_py_str(pre_start.msg        ) , true , lvl+1 , '(' ) ;
 								if (verbose) audit( fd , ro , mk_py_str(end.msg_stderr.msg   ) , true , lvl+1 , ',' ) ;
 								if (verbose) audit( fd , ro , ","                              , true , lvl         ) ;
@@ -921,7 +921,7 @@ namespace Engine {
 						case ReqKey::Trace : {
 							if (!end) { throw cat("no ",ro.key," available for job ",mk_file(job->name())) ; break ; }
 							::sort( end.user_trace , [](UserTraceEntry const& a , UserTraceEntry const& b )->bool { return ::pair(a.date,a.file)<::pair(b.date,b.file) ; } ) ;
-							if (porcelaine) {
+							if (porcelain) {
 								size_t wk  = ::max<size_t>( end.user_trace , [&](UserTraceEntry const& e) { return mk_py_str(e.step()).size() ; } ) ;
 								size_t wf  = ::max<size_t>( end.user_trace , [&](UserTraceEntry const& e) { return mk_py_str(e.file  ).size() ; } ) ;
 								char   sep = '('                                                                                                    ;
@@ -944,7 +944,7 @@ namespace Engine {
 								Color    color   = {}   ;
 								bool     protect = true ;
 							} ;
-							::string        su         = porcelaine ? ""s : ro.startup_dir_s ;
+							::string        su         = porcelain ? ""s : ro.startup_dir_s ;
 							::vmap_s<Entry> tab        ;
 							auto push_entry = [&]( const char* k , ::string const& v , Color c={} , bool protect=true ) {
 								tab.emplace_back( k , Entry{v,c,protect} ) ;
@@ -954,7 +954,7 @@ namespace Engine {
 							push_entry( "job"  , job->name()       ) ;
 							//
 							::string ids ;
-							if (porcelaine) {
+							if (porcelain) {
 								ids = cat("{ 'job':",+job) ;
 								if (+start) {
 									if (pre_start.seq_id==SeqId(-1)) {
@@ -1013,8 +1013,8 @@ namespace Engine {
 								if (pre_start.service.addr) push_entry( "host"   , SockFd::s_host(pre_start.service.addr) ) ;
 								//
 								if (+rs.eta) {
-									if (porcelaine) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(si.pressure))+" )"      , Color::None,false/*protect*/ ) ;
-									else            push_entry( "scheduling" ,                rs.eta.str() +" - "+                   si.pressure.short_str()                                ) ;
+									if (porcelain) push_entry( "scheduling" , "( "+mk_py_str(rs.eta.str())+" , "+::to_string(double(si.pressure))+" )"      , Color::None,false/*protect*/ ) ;
+									else           push_entry( "scheduling" ,                rs.eta.str() +" - "+                   si.pressure.short_str()                                ) ;
 								}
 								if (!std_interpreter) {
 									First    first           ;
@@ -1072,7 +1072,7 @@ namespace Engine {
 									else                             push_entry( "tmp dir"          , no_slash(end.phy_tmp_dir_s) ) ;
 								}
 								//
-								if (porcelaine) { //!                                                                                              color protect
+								if (porcelain) { //!                                                                                               color protect
 									if ( !lost                       ) push_entry( "rc"                    , wstatus_str(end.wstatus)             , {} , true  ) ;
 									if ( !lost                       ) push_entry( "cpu_time"              , ::to_string(double(end.stats.cpu  )) , {} , false ) ;
 									if ( !lost                       ) push_entry( "elapsed_in_job"        , ::to_string(double(end.stats.job  )) , {} , false ) ;
@@ -1107,7 +1107,7 @@ namespace Engine {
 							if (+pre_start.msg     ) push_entry( "start message" , localize(pre_start.msg     ,su) ) ;
 							if (+end.msg_stderr.msg) push_entry( "message"       , localize(end.msg_stderr.msg,su) ) ;
 							// generate output
-							if (porcelaine) {
+							if (porcelain) {
 								auto audit_map = [&]( ::string const& key , ::map_ss const& m , bool protect ) {
 									if (!m) return ;
 									size_t w   = ::max<size_t>( m , [&](auto const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
@@ -1240,11 +1240,11 @@ namespace Engine {
 					if (it!=rev_map.end())                                                        key = it->second ;
 					else                   for ( auto const& [k,e] : res ) if (e.can_match(tn)) { key = k          ; break ; }
 					keys.push_back(key) ;
-					if (porcelaine) wc = ::max( wc , mk_py_str(_node_crc(t)).size() ) ;
-					else            wc = ::max( wc ,           _node_crc(t) .size() ) ;
-					if (porcelaine) wk = ::max( wk , mk_py_str(key         ).size() ) ;
-					else            wk = ::max( wk ,           key          .size() ) ;
-					if (porcelaine) wt = ::max( wt , mk_py_str(tn          ).size() ) ;
+					if (porcelain) wc = ::max( wc , mk_py_str(_node_crc(t)).size() ) ;
+					else           wc = ::max( wc ,           _node_crc(t) .size() ) ;
+					if (porcelain) wk = ::max( wk , mk_py_str(key         ).size() ) ;
+					else           wk = ::max( wk ,           key          .size() ) ;
+					if (porcelain) wt = ::max( wt , mk_py_str(tn          ).size() ) ;
 				}
 				NodeIdx ti = 0 ;
 				for( Target t : job->targets() ) {
@@ -1259,7 +1259,7 @@ namespace Engine {
 					char     wr    = !exists?'U':+t->crc?'W':'-' ;
 					::string flags ;                               for( Tflag tf : iota(All<Tflag>) ) flags << (t.tflags[tf]?TflagChars[+tf].second:'-') ;
 					//                                                                                                                                                  as_is
-					if (porcelaine) {
+					if (porcelain) {
 						::string     target_str = first("{",",")                            ;
 						/**/         target_str <<" ( "<<       mk_py_str(wr          )     ;
 						/**/         target_str <<" , "<<       mk_py_str(flags       )     ;
@@ -1278,7 +1278,7 @@ namespace Engine {
 						audit( fd , ro , c , target_str , false/*as_is*/ , lvl ) ;
 					}
 				}
-				if (porcelaine) audit( fd , ro , first("{}","}") , true/*as_is*/ , lvl ) ;
+				if (porcelain) audit( fd , ro , first("{}","}") , true/*as_is*/ , lvl ) ;
 			} break ;
 			default :
 				throw cat("cannot show ",ro.key," for job ",mk_file(job->name())) ;
@@ -1294,10 +1294,10 @@ namespace Engine {
 			_show_job( fd , ro , ecr.job() ) ;
 			return true ;
 		}
-		bool           ok         = true                          ;
-		bool           porcelaine = ro.flags[ReqFlag::Porcelaine] ;
-		char           sep        = '{'                           ;                                                                                 // used with porcelaine
-		::vector<Node> nodes      ;
+		bool           ok        = true                         ;
+		bool           porcelain = ro.flags[ReqFlag::Porcelain] ;
+		char           sep       = '{'                          ;                                                                                   // used with porcelain
+		::vector<Node> nodes     ;
 		try {
 			switch (ro.key) {
 				case ReqKey::Info    :                                                                                                              // we may ask info on sources
@@ -1335,7 +1335,7 @@ namespace Engine {
 		for( Node target : nodes ) {
 			trace("target",target) ;
 			DepDepth lvl = 0 ;
-			if (porcelaine) {
+			if (porcelain) {
 				lvl++ ; //!                                      as_is
 				audit( fd , ro , cat(sep)                       , true       ) ;
 				audit( fd , ro , mk_py_str(target->name())+" :" , true , lvl ) ;
@@ -1366,7 +1366,7 @@ namespace Engine {
 				break ;
 				case ReqKey::Info :
 					target->set_buildable() ;
-					if ( target->status()==NodeStatus::Plain && !porcelaine ) {
+					if ( target->status()==NodeStatus::Plain && !porcelain ) {
 						Job    cj             = target->conform_job_tgt()                                                                    ;
 						size_t w              = ::max<size_t>( target->conform_job_tgts() , [ ](Job j) { return j->rule()->name.size() ; } ) ;
 						bool   seen_candidate = ::any_of     ( target->conform_job_tgts() , [&](Job j) { return j!=cj                  ; } ) ;
@@ -1380,16 +1380,16 @@ namespace Engine {
 					if (!job) {
 						Node                      n       = target ; while ( +n->last_asking && n->last_asking.is_a<Node>() ) n = Node(n->last_asking) ;
 						::vmap_s<::pair_s<Color>> entries ;
-						if      (+n->last_asking) entries.push_back({ porcelaine?"required_by":"required by" , {Job(n->last_asking)->name(),{}} }) ;
-						else if (n!=target      ) entries.push_back({ porcelaine?"required_by":"required by" , {    n         ->name(),{}} }) ;
+						if      (+n->last_asking) entries.push_back({ porcelain?"required_by":"required by" , {Job(n->last_asking)->name(),{}} }) ;
+						else if (n!=target      ) entries.push_back({ porcelain?"required_by":"required by" , {    n         ->name(),{}} }) ;
 						if (target->is_src_anti()) {
-							Color c = {} ; if ( !porcelaine && verbose && FileSig(target->name())!=target->sig.sig ) c = Color::Warning ;
+							Color c = {} ; if ( !porcelain && verbose && FileSig(target->name())!=target->sig.sig ) c = Color::Warning ;
 							//
 							/**/         entries.push_back({ "special"  , {snake_str(::copy(target->buildable)),{}} }) ;
 							if (verbose) entries.push_back({ "checksum" , {_node_crc(target)                   ,c } }) ;
 						}
 						size_t w = ::max<size_t>( entries , [](auto const& k_v) { return k_v.first.size() ; } ) ;
-						if (porcelaine) {
+						if (porcelain) {
 							First first ;
 							audit( fd , ro , "{None:{" , true/*as_is*/ , lvl ) ;
 							for( auto const& k_vc : entries ) {
@@ -1410,9 +1410,9 @@ namespace Engine {
 				case ReqKey::Deps : {
 					bool  seen_actual = false ;
 					First first       ;
-					if (porcelaine) audit( fd , ro , "{" , true/*as_is*/ , lvl ) ;
+					if (porcelain) audit( fd , ro , "{" , true/*as_is*/ , lvl ) ;
 					if (+target->dir) {
-						if (porcelaine) {
+						if (porcelain) {
 							if ( verbose || _node_color(target->dir)!=Color::HiddenNote ) { //!                              as_is
 								audit( fd , ro , "( '' , "+mk_py_str(target->name())+" , 'up_hill' ) : "                    , true , lvl+1 ) ;
 								audit( fd , ro , "( ( ( '----SF' , 'L-T' , '' , "+mk_py_str(target->dir->name())+" ) ,) ,)" , true , lvl+1 ) ;
@@ -1427,18 +1427,18 @@ namespace Engine {
 						bool     is_actual = !hide && jt==job              ;
 						::string comment   = is_actual ? "generating" : "" ;
 						seen_actual |= is_actual ;
-						_audit_job ( fd , ro , hide , jt , porcelaine?first(" ",","):"" , comment , porcelaine?":":"" , lvl   ) ;
-						_audit_deps( fd , ro , hide , jt                                                              , lvl+1 ) ;
+						_audit_job ( fd , ro , hide , jt , porcelain?first(" ",","):"" , comment , porcelain?":":"" , lvl   ) ;
+						_audit_deps( fd , ro , hide , jt                                                            , lvl+1 ) ;
 					}
 					if (!seen_actual) {
 						if (+job) { //!            hide
-							_audit_job ( fd , ro , false , job , porcelaine?first(" ",","):"" , "polluting" , porcelaine?":":"" , lvl   ) ;
-							_audit_deps( fd , ro , false , job                                                                  , lvl+1 ) ;
-						} else if (!porcelaine) {
-							audit      ( fd , ro , Color::Note , "no job found" , true/*as_is*/                                 , lvl+1 ) ;
+							_audit_job ( fd , ro , false , job , porcelain?first(" ",","):"" , "polluting" , porcelain?":":"" , lvl   ) ;
+							_audit_deps( fd , ro , false , job                                                                , lvl+1 ) ;
+						} else if (!porcelain) {
+							audit      ( fd , ro , Color::Note , "no job found" , true/*as_is*/                               , lvl+1 ) ;
 						}
 					}
-					if (porcelaine) audit( fd , ro , "}" , true/*as_is*/ , lvl ) ;
+					if (porcelain) audit( fd , ro , "}" , true/*as_is*/ , lvl ) ;
 				} break ;
 				case ReqKey::InvDeps    :
 				case ReqKey::InvTargets : {
@@ -1450,19 +1450,19 @@ namespace Engine {
 						else                         for( Target const& t : j->targets() ) { if (t==target) { jobs.push_back(j) ; break ; } }
 					}
 					First  first ;
-					size_t wr    = ::max<size_t>( jobs , [&](Job j) { Rule r = j->rule() ; return +r ? (porcelaine?mk_py_str(r->user_name()):r->user_name()    ).size() : 0 ; } ) ;
-					size_t wj    = ::max<size_t>( jobs , [&](Job j) {                      return      (porcelaine?mk_py_str(j->name()     ):mk_file(j->name())).size()     ; } ) ;
+					size_t wr    = ::max<size_t>( jobs , [&](Job j) { Rule r = j->rule() ; return +r ? (porcelain?mk_py_str(r->user_name()):r->user_name()    ).size() : 0 ; } ) ;
+					size_t wj    = ::max<size_t>( jobs , [&](Job j) {                      return      (porcelain?mk_py_str(j->name()     ):mk_file(j->name())).size()     ; } ) ;
 					for( Job j : jobs ) {
 						Rule r = j->rule() ;
-						::string run = +r ? r->user_name() : ""s ; //!                                                                                                 as_is
-						if (porcelaine) audit( fd , ro ,                 cat(first('{',',')," ( ",widen(mk_py_str(run),wr)," , ",widen(mk_py_str(j->name()),wj)," )") , true  , lvl ) ;
-						else            audit( fd , ro , _job_color(j) , cat(                     widen(          run ,wr),' '  ,widen(mk_file  (j->name()),wj)     ) , false , lvl ) ;
+						::string run = +r ? r->user_name() : ""s ; //!                                                                                                as_is
+						if (porcelain) audit( fd , ro ,                 cat(first('{',',')," ( ",widen(mk_py_str(run),wr)," , ",widen(mk_py_str(j->name()),wj)," )") , true  , lvl ) ;
+						else           audit( fd , ro , _job_color(j) , cat(                     widen(          run ,wr),' '  ,widen(mk_file  (j->name()),wj)     ) , false , lvl ) ;
 					}
-					if (porcelaine) audit( fd , ro , first("{}","}") , true/*as_is*/ , lvl ) ;
+					if (porcelain) audit( fd , ro , first("{}","}") , true/*as_is*/ , lvl ) ;
 				} break ;
 			DF}                                                                                                                                     // NO_COV
 		}
-		if (porcelaine) { //!                    as_is
+		if (porcelain) { //!                     as_is
 			if (sep=='{') audit( fd , ro , "{}" , true ) ;                                                                                          // opening { has not been written, do it now
 			else          audit( fd , ro , "}"  , true ) ;
 		}

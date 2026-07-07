@@ -68,15 +68,15 @@ else :
 	import sys
 
 	def lshow(key,*args) :
-		long_x       = sp.check_output(('lshow',key[-1],               *args),universal_newlines=True)
-		porcelaine_x = sp.check_output(('lshow',key[-1],'--porcelaine',*args),universal_newlines=True)
+		long_x       = sp.check_output(('lshow',key[-1],             *args),universal_newlines=True)
+		porcelain_x = sp.check_output(('lshow',key[-1],'--porcelain',*args),universal_newlines=True)
 		if len(key)>1 :
 			x = sp.check_output(('lshow',key[0],*args),universal_newlines=True)
 			assert x==long_x,('/'+x+'/','/'+long_x+'/')
 		try :
-			dict_x = eval(porcelaine_x)
+			dict_x = eval(porcelain_x)
 		except :
-			print(f'porcelaine_x = {porcelaine_x}',file=sys.stderr)
+			print(f'porcelain_x = {porcelain_x}',file=sys.stderr)
 			raise
 		return long_x,dict_x
 
@@ -108,7 +108,7 @@ else :
 		x      = sp.run(('lshow','-h'    ),stderr=sp.PIPE,universal_newlines=True).stderr
 		long_x = sp.run(('lshow','--help'),stderr=sp.PIPE,universal_newlines=True).stderr
 		assert x==long_x
-		assert x.startswith('lshow ') and '--porcelaine' in x and 'man lshow' in x
+		assert x.startswith('lshow ') and '--porcelain' in x and 'man lshow' in x
 
 		x = sp.run(('lshow','--version'),stderr=sp.PIPE,universal_newlines=True).stderr
 		assert x.startswith('version ')

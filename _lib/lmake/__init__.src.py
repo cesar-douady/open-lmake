@@ -37,11 +37,18 @@ def check_version(major,minor=0) :
 
 def _maybe_lcl(file) :
 	'fast check for local files, avoiding disk access'
-	if not file                             : return True
-	if file.startswith(top_repo_root)       : return True
-	if file[0]=='/'                         : return False
-	if file=='..' or file.startswith('../') : return False
-	else                                    : return True
+	if file :
+		if file[0]=='/' :
+			if not file.startswith(top_repo_root) : return False
+			trr_len = len(top_repo_root)
+			if len(file)==trr_len : return True  # repo root is local
+			if file[trr_len]!='/' : return False
+			lcl_file = file[trr_len+1:]
+		else :
+			if file=='..' or file.startswith('../') : return False
+			lcl_file = file
+		if lcl_file.startswith('LMAKE') and ( lcl_file=='LMAKE' or lcl_file[len('LMAKE')]=='/' ) : return False
+	return True
 
 #
 # config, manifest and _rules are meant to be overwritten when import Lmakefile

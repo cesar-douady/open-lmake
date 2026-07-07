@@ -109,11 +109,11 @@ def file_sync() :
 	time.sleep(0.1) # ensure file date granularity see order, may take as long as 30ms on WSL
 
 def lshow(key,*args) :
-	x            = sp.check_output(('lshow',key[0],               *args),universal_newlines=True)
-	long_x       = sp.check_output(('lshow',key[1],               *args),universal_newlines=True)
-	porcelaine_x = sp.check_output(('lshow',key[1],'--porcelaine',*args),universal_newlines=True)
+	x           = sp.check_output(('lshow',key[0],              *args),universal_newlines=True)
+	long_x      = sp.check_output(('lshow',key[1],              *args),universal_newlines=True)
+	porcelain_x = sp.check_output(('lshow',key[1],'--porcelain',*args),universal_newlines=True)
 	assert x==long_x,('/'+x+'/','/'+long_x+'/')
-	return x,eval(porcelaine_x)
+	return x,eval(porcelain_x)
 
 def mk_gxx_module(module) :
 	with open(f'{module}.py','w') as fp :

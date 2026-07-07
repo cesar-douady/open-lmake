@@ -32,9 +32,9 @@ using namespace Disk ;
 
 template<class T> static typename ::umap<pid_t,T>::const_iterator _get_ppid( pid_t pid , ::umap<pid_t,T> const& tab ) {
 	try {
-		/**/                          if (!Record::s_enable_was_modified) return tab.end()      ;
-		pid_t ppid = get_ppid(pid)  ; if (ppid<=1                       ) return tab.end()      ;
-		/**/                                                              return tab.find(ppid) ;
+		/**/                         if (!Record::s_enable_was_modified) return tab.end()      ;
+		pid_t ppid = get_ppid(pid) ; if (ppid<=1                       ) return tab.end()      ;
+		/**/                                                             return tab.find(ppid) ;
 	} catch (::string const&) {
 		return tab.end() ;
 	}

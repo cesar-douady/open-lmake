@@ -23,7 +23,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqKey::Targets    , { .short_name='t' , .doc="show targets of jobs leading to files"         } }
 	,	{ ReqKey::Trace      , { .short_name='u' , .doc="show execution trace of jobs leading to files" } }
 	},{
-		{ ReqFlag::Porcelaine , { .short_name='p' , .doc="generate output as an easy to parse python object" } }
+		{ ReqFlag::Porcelain , { .short_name='p' , .doc="generate output as an easy to parse python object" } }
 	}} ;
 	ReqCmdLine cmd_line { syntax , argc , argv } ;
 	//

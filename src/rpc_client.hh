@@ -103,7 +103,7 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	NoDeps                     // if proc==Make    , dont check deps
 ,	NoExec                     // if proc==Debug   , dont execute, just generate files
 ,	NoIncremental              // if proc==Make    , ignore incremental flag for targets
-,	Porcelaine                 //                    generate easy to parse output
+,	Porcelain                  //                    generate easy to parse output
 ,	Quiet                      //                    do not generate user oriented messages
 ,	RetryOnError               // if proc==Make    , retry jobs in error
 ,	Rule                       //                    rule name when interpreting arg as job name

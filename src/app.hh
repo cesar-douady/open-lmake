@@ -205,15 +205,15 @@ template<UEnum Flag,UEnum Key1,UEnum Key2> CmdLine<Flag,Key1,Key2>::CmdLine( Syn
 			throw_unless( arg[1] , "unexpected lonely -" ) ;
 			if (arg[1]=='-') {
 				// long option
-				if (arg[2]==0) { force_args = true ; continue ; }                                           // a lonely --, options are no more recognized
+				if (arg[2]==0) { force_args = true ; continue ; }                                 // a lonely --, options are no more recognized
 				::string    option ;
 				const char* p      ;
 				for( p=arg+2 ; *p && *p!='=' ; p++ ) switch (*p) {
 					case '_' :                         throw "use -, not _, to separate words"s ;
-					case '-' : option.push_back('_') ; break                                    ;           // make snake case to use mk_enum while usual convention for options is to use '-'
+					case '-' : option.push_back('_') ; break                                    ; // make snake case to use mk_enum while usual convention for options is to use '-'
 					default  : option.push_back(*p ) ;
 				}
-				::string_view key_str { arg+2 , size_t(p-(arg+2)) } ; SWEAR( key_str.size()>1 , key_str ) ; // ensure no confusion with short options
+				::string_view key_str { arg+2 , size_t(p-(arg+2)) } ;
 				if constexpr (!::is_same_v<Key1,NoKey>) if (can_mk_enum<Key1>(option)) {
 					Key1 k = mk_enum<Key1>(option) ;
 					if (+syntax.keys1[+k]) {
