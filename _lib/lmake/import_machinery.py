@@ -5,20 +5,21 @@
 
 import sys as _sys
 
-from . import report_import # from clmake
+from . import report_import,_maybe_lcl
 
-def _set_sys_path_mrkr() :
-	global _sys_path_0
-	_sys_path_0 = _sys.path[0]                      # sys.path cannot be empty
+_len_sys_path = len(_sys.path)
 def _fix_sys_path() :
-	global _sys_path_0
-	if not _sys_path_0           : return           # already done
-	if _sys.path[0]==_sys_path_0 : return           # not ready yet
-	idx              = _sys.path.index(_sys_path_0)
-	new_dirs         = _sys.path[:idx]
-	_sys.path[:idx]  = []
-	_sys.path       += new_dirs
-	_sys_path_0      = None                         # only fix once so user can freely manipulate sys.path after init
+	global _len_sys_path
+	if _len_sys_path is None         : return # already done
+	if _len_sys_path==len(_sys.path) : return # not ready yet : script dir (or '') has not been added to sys.path yet
+	# put local dirs in sys.path at the end so as to avoid to many deps for each system import (such as os, re, socket, ...)
+	lcl_sys_path = []
+	ext_sys_path = []
+	for d in _sys.path :
+		if _maybe_lcl(d) : lcl_sys_path.append(d)
+		else             : ext_sys_path.append(d)
+	_sys.path     = ext_sys_path+lcl_sys_path
+	_len_sys_path = None                      # only fix once (as prepared from PYTHONPATH and local dir) so user can freely manipulate sys.path after init
 
 if _sys.version_info.major==2 :
 
@@ -26,8 +27,7 @@ if _sys.version_info.major==2 :
 
 	# python accesses pyc files and merely stats the py file to check date
 	# Safer to explicitly depend on py file
-	class _Depend :       # this a special finder that explicitly depends on searched files, ...
-		sys_path_0 = None # ... but otherwise finds no module, so that system machinery is actually used to load module
+	class _Depend :   # this a special finder that explicitly depends on searched files, but otherwise finds no module, so that system machinery is actually used to load module
 		@staticmethod
 		def find_module(module_name,path=None) :
 			_fix_sys_path()
@@ -38,7 +38,6 @@ if _sys.version_info.major==2 :
 		if _Depend in _sys.meta_path : return                                                              # already called
 		#
 		_sys.meta_path.insert(0,_Depend)
-		_set_sys_path_mrkr()
 
 else :
 
@@ -52,8 +51,7 @@ else :
 	# - this may lead to a non-existing module without job rerun
 	# - or worse : a following file may be used
 	# To prevent that, deps are expclitly put on all candidate files before loading module
-	class _Depend :       # this a special finder that explicitly depends on searched files, ...
-		sys_path_0 = None # ... but otherwise finds no module, so that system machinery is actually used to load module
+	class _Depend :   # this a special finder that explicitly depends on searched files, but otherwise finds no module, so that system machinery is actually used to load module
 		@staticmethod
 		def find_spec(module_name,path,target=None) :
 			if path and not isinstance(path,(tuple,list)) : path = tuple(path)
@@ -67,7 +65,6 @@ else :
 		try    : _sys.meta_path.insert( _sys.meta_path.index(_machinery.PathFinder) , _Depend ) # put dependency checker before the first path based finder
 		except : _sys.meta_path.append(                                               _Depend ) # or at the end if none is found
 		# python3 optimizes imports by reading dirs in path and only access files found there, defeating autodep ability to discover dep to inexistent files
-		_set_sys_path_mrkr()
 		report_import()                                                                         # Python does some imports at start-up and read the dirs in sys.path
 
 	def load_module( name , file=None ) :

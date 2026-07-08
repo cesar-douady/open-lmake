@@ -33,6 +33,7 @@ class Job :
 	chroot_dir      = None
 	chroot_user     = None
 	cwd             = None
+	kill_daemons    = False
 	lmake_root      = None
 	lmake_view      = None
 	mount_chroot_ok = False
@@ -139,6 +140,7 @@ class Job :
 		if self.readdir_ok      :          res =         res+ ' -D'
 		if True                 :          res =         res+f' -e{mk_shell_str(repr(keep_env                  ))}'
 		if True                 :          res =         res+ ' -k'
+		if self.kill_daemons    : simple , res = False , res+ ' -K'
 		if True                 :          res =         res+f' -l{                  self.link_support           }'
 		if self.lmake_root      : simple , res = False , res+f' -r{mk_shell_str(     self.lmake_root            )}'
 		if self.lmake_view      : simple , res = False , res+f' -L{mk_shell_str(     self.lmake_view            )}'

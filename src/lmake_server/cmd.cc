@@ -507,6 +507,7 @@ namespace Engine {
 		/**/                                        res << ",\tjob                = " <<                    +job                                                   << '\n' ;
 		/**/                                        res << ",\tlink_support       = " << mk_py_str(snake   (ade.lnk_support                                     )) << '\n' ;
 		/**/                                        res << ",\tdefault_lmake_root = " << mk_py_str(no_slash(*g_lmake_root_s                                     )) << '\n' ;
+		if (jsrr.kill_daemons                     ) res << ",\tkill_daemons       = " << mk_py_str(         jsrr.kill_daemons                                    ) << '\n' ;
 		if (jsrr.phy_lmake_root_s!=*g_lmake_root_s) res << ",\tlmake_root         = " << mk_py_str(no_slash(jsrr.phy_lmake_root_s                               )) << '\n' ;
 		if (+job_space.lmake_view_s               ) res << ",\tlmake_view         = " << mk_py_str(no_slash(job_space.lmake_view_s                              )) << '\n' ;
 		/**/                                        res << ",\tname               = " << mk_py_str(         job->name()                                          ) << '\n' ;
