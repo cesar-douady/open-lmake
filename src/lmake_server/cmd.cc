@@ -1030,6 +1030,7 @@ namespace Engine {
 								if (+start.job_space.tmp_view_s       ) push_entry( "tmp_view"        , no_slash(start.job_space.tmp_view_s  ) ) ;
 								if (+start.autodep_env.sub_repo_s     ) push_entry( "sub_repo"        , no_slash(start.autodep_env.sub_repo_s) ) ;
 								if ( start.autodep_env.mount_chroot_ok) push_entry( "mount_chroot_ok" , "true"                                 ) ;
+								if ( start.kill_daemons               ) push_entry( "kill_daemons"    , "true"                                 ) ;
 								if ( start.autodep_env.readdir_ok     ) push_entry( "readdir_ok"      , "true"                                 ) ;
 								if ( start.autodep_env.auto_mkdir     ) push_entry( "auto_mkdir"      , "true"                                 ) ;
 								/**/                                    push_entry( "autodep"         , snake_str(start.method)                ) ;

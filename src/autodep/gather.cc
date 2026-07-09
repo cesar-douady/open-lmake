@@ -745,6 +745,7 @@ Status Gather::_exec_child() {
 		}
 		::vector<Event> events = epoll.wait(max_event_date) ;
 		if (!events) {
+			trace("no_events",max_event_date) ;
 			if (+delayed_jerrs) {                                // process delayed jerrs after all other events
 				while (+delayed_jerrs) {
 					auto  it           = delayed_jerrs.begin() ;
@@ -790,9 +791,7 @@ Status Gather::_exec_child() {
 				else                                       { epoll.add_pid (_child.pid   ,Kind::ChildEnd  ) ; _wait|=Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
 				/**/                                         epoll.add_read(job_master_fd,Kind::JobMaster ) ;                         trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
 				_wait &= ~Kind::ChildStart ;
-			} else if (must_wait) {
-				trace("no_events") ;
-			} else {
+			} else if (!must_wait) {
 				break ;                                          // we are done, exit loop
 			}
 		}

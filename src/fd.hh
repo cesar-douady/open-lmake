@@ -371,7 +371,7 @@ public :
 			SWEAR(_n_events<=Max<int>) ;
 			cnt_ = ::epoll_wait( _fd , events.data() , int(_n_events) , wait_ms ) ;
 			switch (cnt_) {
-				case 0 :                                                                                                       // timeout
+				case 0 :                                                                                                    // timeout
 					if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
 					else               return {} ;
 				break ;
@@ -380,23 +380,23 @@ public :
 				break ;
 				default :
 					events.resize(cnt_) ;
-					if (_n_sigs) {                                                                                             // fast path : avoid looping over events if not necessary
+					if (_n_sigs) {                                                                                          // fast path : avoid looping over events if not necessary
 						bool shorten = false ;
 						for( Event& e : events ) {
-							Fd                        fd        = e.fd()             ; SWEAR(+fd) ;                            // it is non-sense to have an event for non-existent fd
+							Fd                        fd        = e.fd()             ; SWEAR(+fd) ;                         // it is non-sense to have an event for non-existent fd
 							auto                      it        = _fd_infos.find(fd) ; if (it==_fd_infos.end() ) continue ;
 							auto                      [sig,pid] = it->second         ;
-							bool                      found     = false              ;                                         // if not waiting for a particular pid, event is always ok
+							bool                      found     = false              ;                                      // if not waiting for a particular pid, event is always ok
 							struct ::signalfd_siginfo si        ;
 							ssize_t                   n         ;
-							while ( (n=::read(fd,&si,sizeof(si)))==sizeof(si) ) {                                              // flush signal fd, including possibly left-over old sigs
+							while ( (n=::read(fd,&si,sizeof(si)))==sizeof(si) ) {                                           // flush signal fd, including possibly left-over old sigs
 								SWEAR( int(si.ssi_signo)==sig , si.ssi_signo,sig ) ;
-								if      (!pid                  ) found = true ;                                                // if no pid specified, expect all children
+								if      (!pid                  ) found = true ;                                             // if no pid specified, expect all children
 								else if (pid_t(si.ssi_pid)==pid) found = true ;
-								else                             ::waitpid( si.ssi_pid , nullptr/*wstatus*/ , 0/*options*/ ) ; // reap unexpected children
+								else                             ::waitpid( si.ssi_pid , nullptr/*wstatus*/ , WNOHANG ) ;   // reap unexpected children (best effort, dont wait)
 							}
-							SWEAR_PROD( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR) , n,fd,errno ) ;              // fd is non-blocking
-							if (!found) { e = {} ; shorten = true ; }                                                          // event is supposed to represent that pid is terminated
+							SWEAR_PROD( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR) , n,fd,errno ) ;           // fd is non-blocking
+							if (!found) { e = {} ; shorten = true ; }                                                       // event is supposed to represent that pid is terminated
 						}
 						if (shorten) ::erase_if( events , [](Event const& e) { return !e ; } ) ;
 					}

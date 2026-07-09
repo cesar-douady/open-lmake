@@ -52,7 +52,7 @@ if __name__!='__main__' :
 			cd $REPO_ROOT
 			readlink /tmp/a /tmp/b /tmp/c lnk_dut.tmp >>{DUT}
 			pwd
-			LMAKE_AUTODEP_ENV= ls -l . /tmp                         # for debug only, dont record deps
+			LMAKE_AUTODEP_ENV= ls -l . /tmp 2>&1                    # for debug only, dont record deps (may fail because of accessing unstable files from other jobs)
 			cat lnk_dut.tmp >>{DUT}
 		'''
 
