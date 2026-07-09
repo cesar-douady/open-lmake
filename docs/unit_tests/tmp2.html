@@ -150,7 +150,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="s1">            cd $REPO_ROOT</span>
 <span class="s1">            readlink /tmp/a /tmp/b /tmp/c lnk_dut.tmp &gt;&gt;</span><span class="si">{DUT}</span>
 <span class="s1">            pwd</span>
-<span class="s1">            LMAKE_AUTODEP_ENV= ls -l . /tmp                         # for debug only, dont record deps</span>
+<span class="s1">            LMAKE_AUTODEP_ENV= ls -l . /tmp 2&gt;&amp;1                    # for debug only, dont record deps (may fail because of accessing unstable files from other jobs)</span>
 <span class="s1">            cat lnk_dut.tmp &gt;&gt;</span><span class="si">{DUT}</span>
 <span class="s1">        &#39;&#39;&#39;</span>
 

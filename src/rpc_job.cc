@@ -708,8 +708,8 @@ void JobSpace::enter(
 		}
 	}
 	//
-	uid_t uid = ::geteuid() ;                                                                   // must be done before unshare that invents a new user
-	gid_t gid = ::getegid() ;                                                                   // .
+	uid_t uid = ::geteuid() ;                                                                // must be done before unshare that invents a new user
+	gid_t gid = ::getegid() ;                                                                // .
 	//
 	trace("creat1",STR(_force_creat),STR(bind_lmake),STR(bind_repo),STR(bind_tmp),STR(creat),STR(kill_daemons),uid,gid) ;
 	trace("creat2",lmake_root_s,repo_root_s,tmp_dir_s,repo_super_s                                                    ) ;
@@ -719,18 +719,15 @@ void JobSpace::enter(
 	//                  ^^^^^^^^^^^^^^^^^^^^^^^^
 	if (kill_daemons) {
 		trace("kill_daemons") ;
-		if ( pid_t pid=::fork() ; pid!=0 ) {                                                    // in parent, /!\ must be first fork() after unshare as this is process 1 in namespace
-			throw_unless( pid!=-1 , "cannot set up to wait (",StrErr(),") for job to finsh" ) ;
-			int   wstatus   ;
-			pid_t child_pid ;
-			do {
-				child_pid = ::wait(&wstatus) ;                                                  // reap orphan if child_pid!=pid
-				if (child_pid==-1) {
-					Fd::Stderr.write(cat("cannot wait (",StrErr(),") for job to finsh")) ;
-					::_exit(+Rc::System) ;                                                      // all the cleanup is done by the child, so nothing to do here
-				}
-			} while (child_pid!=pid) ;
-			::_exit(mimic_wstatus(wstatus)) ;                                                   // all the cleanup is done by the child, so nothing to do here
+		if ( pid_t child_pid=::fork() ; child_pid!=0 ) {                                     // in parent, /!\ must be first fork() after unshare as child is process 1 in namespace
+			// /!\ dont trace here, in parent, to avoid clash with tracing in child
+			throw_unless( child_pid!=-1 , "cannot set up to wait (",StrErr(),") for job to finsh" ) ;
+			int wstatus ;
+			if ( ::waitpid(child_pid,&wstatus,0/*options*/)<0 ) {
+				Fd::Stderr.write(cat("cannot wait (",StrErr(),") for job to finsh" )) ;
+				::_exit(+Rc::System) ;                                                       // all the cleanup is done by the child, so nothing to do here
+			}
+			::_exit(mimic_wstatus(wstatus)) ;                                                // all the cleanup is done by the child, so nothing to do here
 		}
 		_mount_proc( "/proc" , user_trace ) ;
 		// find a good starting pid
@@ -741,21 +738,21 @@ void JobSpace::enter(
 		// this way there is a conflict between job 1 and job 2 when (id2-id1)*phi is near an integer
 		// because phi is the irrational which is as far from rationals as possible, and id's are as small as possible, this probability is minimized
 		// note that this is over-quality : any more or less random number would do the job : motivation is mathematical beauty rather than practical efficiency
-		static constexpr uint32_t FirstPid = 300                                 ;              // apparently, pid's wrap around back to 300
-		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ;              // number of available pid's
-		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ;              // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
+		static constexpr uint32_t FirstPid = 300                                 ;           // apparently, pid's wrap around back to 300
+		static constexpr uint64_t NPids    = MAX_PID - FirstPid                  ;           // number of available pid's
+		static constexpr uint64_t DeltaPid = (1640531527*NPids) >> n_bits(NPids) ;           // use golden number to ensure best spacing (see above), 1640531527 = (2-(1+sqrt(5))/2)<<32
 		//
-		pid_t first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;          // DeltaPid on 64 bits to avoid rare overflow in multiplication
+		pid_t first_pid = FirstPid + ((small_id*DeltaPid)>>(32-n_bits(NPids)))%NPids ;       // DeltaPid on 64 bits to avoid rare overflow in multiplication
 		//
 		AcFd( "/proc/sys/kernel/ns_last_pid" , {.flags=O_WRONLY|O_TRUNC} ).write(cat(first_pid)) ;
 	}
 	// mapping uid/gid is necessary to manage overlayfs
-	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                         // necessary to be allowed to write to gid_map (cf man 7 user_namespaces)
-	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;                         // for each line, format is "id_in_namespace id_in_host size_of_range"
-	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;                         // .
+	_atomic_write( "/proc/self/setgroups" , "deny"                  ) ;                      // necessary to be allowed to write to gid_map (cf man 7 user_namespaces)
+	_atomic_write( "/proc/self/uid_map"   , cat(uid,' ',uid," 1\n") ) ;                      // for each line, format is "id_in_namespace id_in_host size_of_range"
+	_atomic_write( "/proc/self/gid_map"   , cat(gid,' ',gid," 1\n") ) ;                      // .
 	//
 	if (creat) {
-		created_files.chroot_dir = cat("/tmp/",uid,"/open-lmake",phy_repo_root_s,small_id) ;    // /run/user would be ideal instead of /tmp (certain to be usable as upper) but does not always exist
+		created_files.chroot_dir = cat("/tmp/",uid,"/open-lmake",phy_repo_root_s,small_id) ; // /run/user would be ideal instead of /tmp (certain to be usable as upper) but does not always exist
 		mk_dir_empty_s( with_slash(created_files.chroot_dir) , {.abs_ok=true} ) ;
 		if (+created_files.user_chroot_dir) created_files.prepare_user( chroot_info , uid , gid ) ;
 	} else {
@@ -807,8 +804,8 @@ void JobSpace::enter(
 			}
 			abs_phys_s.push_back(abs_phy_s) ;
 			if (i==0) {
-				if      (phy_is_ext    ) SWEAR(descr.phys_s.size()==1) ;                        // else dont know where to create the work dir which must be on the same filesystem as upper
-				else if (+descr.copy_up)                                                        // prepare copy up destination in upper
+				if      (phy_is_ext    ) SWEAR(descr.phys_s.size()==1) ;                     // else dont know where to create the work dir which must be on the same filesystem as upper
+				else if (+descr.copy_up)                                                     // prepare copy up destination in upper
 					for( ::string const& cu  : descr.copy_up ) {
 						if (is_dir_name(cu)) {                               mk_entry(phy_s+cu ,abs_phy_s+cu ,phy_is_lcl) ; abs_cu_dsts.push_back({}          ) ; } // for dirs, just create it
 						else                 { ::string cud=dir_name_s(cu) ; mk_entry(phy_s+cud,abs_phy_s+cud,phy_is_lcl) ; abs_cu_dsts.push_back(abs_phy_s+cu) ; }
