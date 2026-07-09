@@ -5,7 +5,7 @@
 
 import sys as _sys
 
-from . import report_import,_maybe_lcl,top_repo_root # from clmake
+from . import report_import,_maybe_lcl
 
 _len_sys_path = len(_sys.path)
 def _fix_sys_path() :

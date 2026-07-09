@@ -699,24 +699,18 @@ Status Gather::_exec_child() {
 		Pdate now = New ;
 		if (now>=end_child) {
 			_user_trace( now , Comment::StillAlive ) ;
-			::string dead  = ( (now-end_child) + network_delay + Delay(1) ).short_str() ;
-			if ( _wait[Kind::Stdout] || _wait[Kind::Stderr] ) {
-				First first ;
-				//
-				::string                 msg_                                                                                                            ;
-				if (_wait[Kind::Stdout]) msg_ << first(         )<<"stdout "                                                                             ;
-				if (_wait[Kind::Stderr]) msg_ << first("","and ")<<"stderr "                                                                             ;
-				/**/                     msg_ << "still open after job has terminated "<<dead<<" ago (network_delay is "<<network_delay.short_str()<<')' ;
-				set_status(Status::TerminationError,msg_) ;
-			}
-			::string kill_msg = "still alive after having " ;
-			if      (timeout_fired              ) kill_msg << "timed out and "                                                           ;
-			if      (!kill_step                 ) kill_msg << "exited "<<dead<<" ago (network_delay is "<<network_delay.short_str()<<')' ;
-			else if (kill_step<=kill_sigs.size()) kill_msg << "been killed "<<kill_step       <<" times"                                 ;
-			else if (+kill_sigs.size()          ) kill_msg << "been killed "<<kill_sigs.size()<<" times followed by SIGKILL"             ;
-			else                                  kill_msg << "been killed with SIGKILL"                                                 ;
-			kill_msg << '\n' ;
-			set_status( Status::Timeout , kill_msg ) ;
+			First    first ;
+			::string msg_  ;
+			if      (_wait[Kind::Stdout  ]      )                                msg_ << first(         )<<"stdout still open "                                                           ;
+			if      (_wait[Kind::Stderr  ]      )                                msg_ << first("","and ")<<"stderr still open "                                                           ;
+			if      (_wait[Kind::ChildEnd]      )                                msg_ << first("","and ")<<"still alive "                                                                 ;
+			/**/                                                                 msg_ << "after job "                                                                                     ;
+			if      (timeout_fired              )                                msg_ << "timed out and "                                                                                 ;
+			if      (!kill_step                 ) { SWEAR( +end_date , _wait ) ; msg_ << "exited "<<(now-end_date).short_str()<<" ago (network_delay is "<<network_delay.short_str()<<')' ; }
+			else if (kill_step<=kill_sigs.size())                                msg_ << "has been killed "<<kill_step       <<" times"                                                   ;
+			else if (+kill_sigs.size()          )                                msg_ << "has been killed "<<kill_sigs.size()<<" times followed by SIGKILL"                               ;
+			else                                                                 msg_ << "has been killed with SIGKILL"                                                                   ;
+			set_status(Status::TerminationError,msg_) ;
 			if (_wait[Kind::ChildEnd]) _child.mk_daemon() ;      // child did not die, we must leave anyway
 			break ;                                              // exit loop
 		}
@@ -796,13 +790,15 @@ Status Gather::_exec_child() {
 				else                                       { epoll.add_pid (_child.pid   ,Kind::ChildEnd  ) ; _wait|=Kind::ChildEnd ; trace("read_child_proc",               "wait",_wait,+epoll) ; }
 				/**/                                         epoll.add_read(job_master_fd,Kind::JobMaster ) ;                         trace("read_job_master",job_master_fd ,"wait",_wait,+epoll) ;
 				_wait &= ~Kind::ChildStart ;
-			} else if (!must_wait) {
+			} else if (must_wait) {
+				trace("no_events") ;
+			} else {
 				break ;                                          // we are done, exit loop
 			}
 		}
 		for( Event const& event : events ) {
 			Kind kind = event.data() ;
-			Fd   fd   ;                if (kind!=Kind::ChildEnd) fd = event.fd() ;                                              // no fd available for ChildEnd
+			Fd   fd   = event.fd  () ;
 			switch (kind) {
 				case Kind::Stdout :
 				case Kind::Stderr : {
