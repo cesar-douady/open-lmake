@@ -72,7 +72,7 @@ class Ut :
 			if seen_summary :
 				self.summary += l+'\n'
 				continue
-			m = re.fullmatch(rf"({Esc}\][^{Alert}]*{Alert})?({Esc}\[[0-9;]*m)?(\d\d:\d\d:\d\d(\.\d+)? )?{'.'*self.host_len+' ' if self.host_len else ''}(?P<key>\w+) .*",l) # suppress audit stats & color
+			m = re.fullmatch(rf"({Esc}\][^{Alert}]*{Alert})*({Esc}\[[0-9;]*m)?(\d\d:\d\d:\d\d(\.\d+)? )?{'.'*self.host_len+' ' if self.host_len else ''}(?P<key>\w+) .*",l) # suppress audit stats & color
 			if not m : continue
 			k = m.group('key')
 			if k in cnt : cnt[k] += 1
