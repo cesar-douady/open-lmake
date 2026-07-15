@@ -11,7 +11,8 @@ import subprocess as sp
 import sys
 import time
 
-Esc = '\x1b'
+Esc   = '\x1b'
+Alert = '\a'
 
 # make a simplified pdict instead of importing from lmake to avoid loading c code and depending on python version
 class pdict(dict) :
@@ -71,7 +72,7 @@ class Ut :
 			if seen_summary :
 				self.summary += l+'\n'
 				continue
-			m = re.fullmatch(rf"({Esc}\][^{Bell}]*{Bell})?({Esc}\[[0-9;]*m)?(\d\d:\d\d:\d\d(\.\d+)? )?{'.'*self.host_len+' ' if self.host_len else ''}(?P<key>\w+) .*",l) # suppress audit stats & color
+			m = re.fullmatch(rf"({Esc}\][^{Alert}]*{Alert})?({Esc}\[[0-9;]*m)?(\d\d:\d\d:\d\d(\.\d+)? )?{'.'*self.host_len+' ' if self.host_len else ''}(?P<key>\w+) .*",l) # suppress audit stats & color
 			if not m : continue
 			k = m.group('key')
 			if k in cnt : cnt[k] += 1
