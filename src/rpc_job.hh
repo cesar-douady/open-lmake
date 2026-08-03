@@ -610,8 +610,6 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	}
 	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {            // assumes ddb has been accessed after us
 		if constexpr (HasBase) SWEAR( Base::operator==(ddb) , self,ddb ) ;
-		/**/                   SWEAR( !sz                   , self     ) ;
-		/**/                   SWEAR( !ddb.sz               , ddb      ) ;
 		if (!accesses_) {
 			set_crc_sig(ddb) ;
 			parallel = ddb.parallel ;
