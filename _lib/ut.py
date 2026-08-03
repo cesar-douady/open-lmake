@@ -11,6 +11,7 @@ import subprocess as sp
 import sys
 import time
 
+Bel = '\a'
 Esc = '\x1b'
 
 # make a simplified pdict instead of importing from lmake to avoid loading c code and depending on python version
@@ -36,7 +37,7 @@ class Ut :
 		cmd = ('lmake',*args)
 		now = time.time()
 		print(                                                                  )
-		print( f'{time.ctime(now).rsplit(None,1)[0]}.{(str(now%1)+"000")[2:5]}' ) # generate date with ms precision
+		print( f'{time.ctime(now).rsplit(None,1)[0]}.{(str(now%1)+"000")[2:5]}' )                                             # generate date with ms precision
 		print( '+ ' + ' '.join(cmd)                                             )
 		self.proc = sp.Popen( cmd , universal_newlines=True , stdin=None , stdout=open(self.stdout,'w') )
 		sys.stdout.flush()
@@ -71,7 +72,9 @@ class Ut :
 			if seen_summary :
 				self.summary += l+'\n'
 				continue
-			m = re.fullmatch(rf"({Esc}\[[0-9;]*m)?(\d\d:\d\d:\d\d(\.\d+)? )?{'.'*self.host_len+' ' if self.host_len else ''}(?P<key>\w+) .*",l) # suppress color
+			l = re.sub(rf'{Esc}\]0;.*?{Bel}','',l)                                                                            # suppress title
+			l = re.sub(rf'{Esc}\[[0-9;]*?m' ,'',l)                                                                            # suppress color
+			m = re.fullmatch(rf"(\d\d:\d\d:\d\d(\.\d+)? )?{'.'*self.host_len+' ' if self.host_len else ''}(?P<key>\w+) .*",l)
 			if not m : continue
 			k = m.group('key')
 			if k in cnt : cnt[k] += 1
