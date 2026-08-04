@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 26.06
-TAG            := 7
+TAG            := 8
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -94,7 +94,7 @@ $(error file Manifest must exist with the sorted list of sources. If a fresh rep
 endif
 else
 Manifest : $(IDX_DIR)/index
-	@git ls-files | sort -u >$@.new
+	@git ls-files | LC_ALL=C sort -u >$@.new
 	@if cmp -s $@.new $@ ; then rm $@.new    ; echo steady Manifest ; \
 	else                        mv $@.new $@ ; echo new    Manifest ; \
 	fi
