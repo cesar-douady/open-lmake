@@ -60,6 +60,16 @@ namespace Engine {
 	// NodeData
 	//
 
+	static void _unlnk_dir_hier(::string const& n) {
+		::string d = n ;
+		for( size_t p ; (p=d.rfind('/'),p!=Npos) ;) {
+			d = d.substr(0,p) ;
+			if (JobData::s_target_dirs     .contains(d)) break ; // we hit a target dir of a running job : keep it
+			if (JobData::s_hier_target_dirs.contains(d)) break ; // idem for an uphill dir thereof
+			if (::rmdir(d.c_str())!=0                  ) break ; // if we do not actually remove the dir, no need to look uphill
+		}
+	}
+
 	void NodeData::operator>>(::string& os) const { // START_OF_NO_COV
 		/**/             os << '('<<crc<<','<<sig ;
 		if (!match_ok()) os << ",~job:"           ;
@@ -84,7 +94,8 @@ namespace Engine {
 					Trace trace("manual_wash",idx(),"unlnk") ;
 					::string n = name() ;
 					SWEAR( is_lcl(n) , n ) ;
-					unlnk(n) ;
+					unlnk          (n) ;
+					_unlnk_dir_hier(n) ;
 					req->audit_node( Color::Note , "unlinked (empty)" , idx() ) ;
 					res = Manual::Unlnked ;
 					break ;
@@ -100,7 +111,8 @@ namespace Engine {
 				} else {
 					::string n = name() ;
 					try {
-						quarantine(n) ;
+						quarantine     (n) ;
+						_unlnk_dir_hier(n) ;
 						res = Manual::Unlnked ;
 						req->audit_node( Color::Warning , "quarantined" , idx() ) ;
 					} catch (::string const& e) {
@@ -421,25 +433,25 @@ namespace Engine {
 	}
 
 	bool/*unlnked*/ NodeData::_set_no_job( ReqInfo& ri , bool query ) {
-		Manual manual  = manual_wash( ri , query , true/*dangling*/ ) ;             // always check manual if asking for disk
+		Manual manual  = manual_wash( ri , query , true/*dangling*/ ) ; // always check manual if asking for disk
 		bool   unlnked = false                                        ;
-		Trace trace("set_no_job",idx(),ri.goal,crc,manual,actual_job) ;
+		Trace trace("set_no_job",idx(),ri.goal,STR(query),crc,manual,actual_job) ;
 		if (crc==Crc::None) return unlnked ;
-		if (!manual) {                                                              // if already unlinked, no need to unlink it again
+		if (!manual) {                                                  // if already unlinked, no need to unlink it again
 			::string n = name() ; SWEAR( is_lcl(n) , n ) ;
 			unlnked = true ;
 			if (query) { trace("query","unlnk") ; return unlnked ; }
-			unlnk(n,{.dir_ok=true}) ;                                               // wash pollution if not manual
-			ri.req->audit_job( Color::Warning , "unlink" , Rule::NoRuleName , n ) ;
+			if (+actual_job) { unlnk     (n,{.dir_ok=true}) ; _unlnk_dir_hier(n) ; ri.req->audit_job( Color::Warning , "unlinked"    , Rule::NoRuleName , n ) ; }
+			else             { quarantine(n               ) ; _unlnk_dir_hier(n) ; ri.req->audit_job( Color::Warning , "quarantined" , Rule::NoRuleName , n ) ; }
 		}
-		set_crc_date(Crc::None) ;                                                   // if not physically unlinked, node will be manual
+		set_crc_date(Crc::None) ;                                       // if not physically unlinked, node will be manual
 		actual_job = {} ;
 		polluted   = {} ;
 		return unlnked ;
 	}
 
 	bool/*solved*/ NodeData::_make_pre( ReqInfo& ri , bool query ) {
-		Trace trace("Nmake_pre",idx(),buildable,ri) ;
+		Trace trace("Nmake_pre",idx(),buildable,ri,STR(query),crc) ;
 		Req              req   = ri.req ;
 		::string/*lazy*/ name_ ;
 		auto lazy_name = [&]->::string const& {
@@ -534,7 +546,7 @@ namespace Engine {
 		}
 		FAIL() ;                                                   // NO_COV
 	NoSrc :
-		{	if (ri.goal>=NodeGoal::Dsk) {
+		{	if ( true || ri.goal>=NodeGoal::Dsk ) {
 				bool unlnked = _set_no_job( ri , query ) ;
 				if ( query && unlnked ) return false/*done*/ ;
 				goto DoneDsk ;
@@ -582,7 +594,7 @@ namespace Engine {
 		RejectSet/*lazy*/  known_rejected { self }                             ;
 		::string/*lazy*/   name_          ;                                                                           // = name()
 		bool               triggered      = false                              ;
-		Trace trace("Nmake",idx(),ri,make_action) ;
+		Trace trace("Nmake",idx(),ri,make_action,crc) ;
 		ri.speculate &= speculate ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		set_buildable( req , /*lazy*/known_rejected ) ;
@@ -717,7 +729,9 @@ namespace Engine {
 				if ( buildable!=Buildable::Codec && actual_job!=jt ) {                                                             // codec files may not have actual_job
 					actual_job = jt ;                                                                                              // we are actually produced non-existent by our official job
 					if (crc!=Crc::None) {
-						unlnk( name() ) ;
+						::string n = name() ;
+						unlnk          (n) ;
+						_unlnk_dir_hier(n) ;
 						set_crc_date( Crc::None , {FileInfo()}/*sig*/ ) ;
 						req->audit_node( Color::Note , "unlinked" , idx() ) ;
 					}
@@ -775,13 +789,6 @@ namespace Engine {
 		rule_tgts .clear() ;
 		job_tgts  .clear() ; n_job_tgts = 0 ;
 		actual_job.clear() ;
-		FileSig sig { name() } ;
-		switch (manual(sig)) {
-			case Manual::Ok      :                                            break ;
-			case Manual::Unlnked : set_crc_date( Crc::None  , {{}/*sig*/} ) ; break ;
-			case Manual::Empty   : set_crc_date( Crc::Empty , sig         ) ; break ;
-			case Manual::Modif   : set_crc_date( {}         , sig         ) ; break ;
-		DF}                                                                           // NO_COV
 	}
 
 	void NodeData::mk_src( Buildable b , ::optional<Crc> crc ) {
@@ -858,7 +865,7 @@ namespace Engine {
 		Crc     crc_ { n , /*out*/sig_ } ; if (!crc_.match(crc,a)) return m ;               // real modif
 		set_crc_date( crc_ , sig_ ) ;
 		if ( crc_.match(crc) && +req ) req->audit_node(Color::Note,"manual_steady",idx()) ; // generate steady message only if really steady
-		/**/                           return {} ;
+		return {} ;
 	}
 
 	//

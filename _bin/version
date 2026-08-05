@@ -49,7 +49,7 @@ if action=='gen' :
 		#
 		for slot in slots :
 			lines    = '\n'.join( m[0] for m in re.findall(fr'(.*//.*START_OF_VERSIONING(.*{to_snake(slot).upper()}.*)\n[\s\S]*?END_OF_VERSIONING.*)',content) )
-			semantic = re.sub(r'//.*',''    ,lines   )
+			semantic = re.sub(r'//.*'    ,'',lines   )
 			semantic = re.sub(r'/\*.*\*/','',semantic)
 			semantic = re.sub(r'[ \t\n]' ,'',semantic)
 			#

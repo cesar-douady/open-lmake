@@ -15,6 +15,7 @@ if __name__!='__main__' :
 	lmake.manifest = [
 		'Lmakefile.py'
 	,	'step.py'
+	,	'trigger'
 	]
 	if step<=1 :
 		lmake.manifest += [
@@ -41,6 +42,7 @@ if __name__!='__main__' :
 
 	class Cpy(Rule) :
 		target = r'{File:.*}.cpy'
+		dep    = 'trigger'
 		cmd    = 'cat {File}'
 
 else :
@@ -63,6 +65,8 @@ else :
 
 	os.chdir('sub')
 
+	print('1',file=open('trigger','w'))
+
 	print('step=1',file=open('step.py','w'))
 	ut.lmake( 'local.lcl' , 'ext_rel.rel' , 'ext_abs.abs' , new=3 , done=3 )
 
@@ -72,11 +76,13 @@ else :
 	os.makedirs('LMAKE')
 	ut.lmake( 'local.lcl' , 'ext_rel.rel' , 'ext_abs.abs' , quarantined=3 , dangling=1 , dep_error=1 , done=2 , rc=1 ) # local.lcl is dangling
 
-	ut.lmake( 'src.cpy' , new=1 , done=1 )
+	ut.lmake( 'src.cpy' , new=2 , done=1 )
 
 	print('step=3',file=open('step.py','w'))
 
-	ut.lmake( 'src.cpy' , dangling=1 , rc=1 )
+	print('2',file=open('trigger','w'))
+#	os.system('rm src ; ln -s Lmakefile src')
+	ut.lmake( 'src.cpy' , changed=1 , quarantined=1 , failed=1 , rc=1 )
 
 	os.chdir('..')
 

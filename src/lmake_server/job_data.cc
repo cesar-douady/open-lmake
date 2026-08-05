@@ -239,15 +239,15 @@ namespace Engine {
 				case FileActionTag::None           :
 					actions.emplace_back(t,fa) ;
 					if ( Node td=t->dir ; +td ) {
-						Lock    lock  { _s_target_dirs_mutex } ;
-						NodeIdx depth = 0                      ;
+						Lock    lock  { s_target_dirs_mutex } ;
+						NodeIdx depth = 0                     ;
 						for( Node hd=td ; +hd ; (hd=hd->dir),depth++ )
-							if (_s_target_dirs.contains(hd)) goto NextTarget ; // everything under a protected dir is protected, dont even start walking from td
+							if (s_target_dirs.contains(hd)) goto NextTarget ;  // everything under a protected dir is protected, dont even start walking from td
 						for( Node hd=td ; +hd ; hd=hd->dir ) {
-							if (_s_hier_target_dirs.contains(hd)) break ;      // dir is protected
-							if (target_locked_dirs .contains(hd)) break ;      // dir contains a target => little hope and no desire to remove it
-							if (to_mkdirs          .contains(hd)) break ;      // dir must exist, it is silly to spend time to rmdir it, then again to mkdir it
-							if (to_mkdir_uphills   .contains(hd)) break ;      // .
+							if (s_hier_target_dirs.contains(hd)) break ;       // dir is protected
+							if (target_locked_dirs.contains(hd)) break ;       // dir contains a target => little hope and no desire to remove it
+							if (to_mkdirs         .contains(hd)) break ;       // dir must exist, it is silly to spend time to rmdir it, then again to mkdir it
+							if (to_mkdir_uphills  .contains(hd)) break ;       // .
 							//
 							if (!to_rmdirs.emplace(td,depth).second) break ;   // if it is already in to_rmdirs, so is all pertinent dirs uphill
 							depth-- ;
@@ -260,7 +260,7 @@ namespace Engine {
 		// make target dirs
 		for( Node d : to_mkdirs ) {
 			if (to_mkdir_uphills.contains(d)) continue ;                       // dir is a dir of another dir => it will be automatically created
-			actions.emplace_back( d , ::FileAction({FileActionTag::Mkdir}) ) ; // note that protected dirs (in _s_target_dirs and _s_hier_target_dirs) may not be created yet, so mkdir them to be sure
+			actions.emplace_back( d , ::FileAction({FileActionTag::Mkdir}) ) ; // note that protected dirs (in s_target_dirs and s_hier_target_dirs) may not be created yet, so mkdir them to be sure
 		}
 		// rm enclosing dirs of unlinked targets
 		::vmap<Node,NodeIdx/*depth*/> to_rmdir_vec ; for( auto [k,v] : to_rmdirs ) to_rmdir_vec.emplace_back(k,v) ;
@@ -270,9 +270,9 @@ namespace Engine {
 		// mark target dirs to protect from deletion by other jobs
 		// this must be perfectly predictible as this mark is undone in end_exec below
 		if (mark_target_dirs) {
-			Lock lock{_s_target_dirs_mutex} ;
-			for( Node d : to_mkdirs        ) { trace("protect_dir"     ,d) ; _s_target_dirs     [d]++ ; }
-			for( Node d : to_mkdir_uphills ) { trace("protect_hier_dir",d) ; _s_hier_target_dirs[d]++ ; }
+			Lock lock { s_target_dirs_mutex } ;
+			for( Node d : to_mkdirs        ) { trace("protect_dir"     ,d) ; s_target_dirs     [d]++ ; }
+			for( Node d : to_mkdir_uphills ) { trace("protect_hier_dir",d) ; s_hier_target_dirs[d]++ ; }
 		}
 		return actions ;
 	}
@@ -290,18 +290,18 @@ namespace Engine {
 			if (it->second==1) dirs.erase(it) ;
 			else               it->second--   ;
 		} ;
-		Lock lock(_s_target_dirs_mutex) ;
-		for( Node d : dirs        ) { trace("unprotect_dir"     ,d) ; dec(_s_target_dirs     ,d) ; }
-		for( Node d : dir_uphills ) { trace("unprotect_hier_dir",d) ; dec(_s_hier_target_dirs,d) ; }
+		Lock lock ( s_target_dirs_mutex ) ;
+		for( Node d : dirs        ) { trace("unprotect_dir"     ,d) ; dec(s_target_dirs     ,d) ; }
+		for( Node d : dir_uphills ) { trace("unprotect_hier_dir",d) ; dec(s_hier_target_dirs,d) ; }
 	}
 
 	//
 	// main thread
 	//
 
-	Mutex<MutexLvl::TargetDir      > JobData::_s_target_dirs_mutex ;
-	::umap<Node,JobData::Idx/*cnt*/> JobData::_s_target_dirs       ;
-	::umap<Node,JobData::Idx/*cnt*/> JobData::_s_hier_target_dirs  ;
+	Mutex<MutexLvl::TargetDir      > JobData::s_target_dirs_mutex ;
+	::umap<Node,JobData::Idx/*cnt*/> JobData::s_target_dirs       ;
+	::umap<Node,JobData::Idx/*cnt*/> JobData::s_hier_target_dirs  ;
 
 	::string JobData::unique_name() const {
 		Rule     r         = rule()                       ;
@@ -915,13 +915,13 @@ namespace Engine {
 		::string                                    new_codes_bck_dir_s ;
 		SyncGuard                                   sync_guard          { Engine::g_config->server_file_sync }                                                   ;
 		//
-		if (!codec_dir_exists) {                                                                    // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
+		if (!codec_dir_exists) {                                                                      // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
 			trace("fresh") ;
 			::string tmp_codec_dir_s = CodecFile::s_dir_s(filename,true/*tmp*/) ;
-			NodeIdx n_ctxs    = 0 ;                                                                 // for trace only // .
+			NodeIdx n_ctxs    = 0 ;                                                                   // for trace only // .
 			NodeIdx n_entries = 0 ;
-			SWEAR( !old_decode_tab , filename ) ;                                                   // cannot have old codes if not initialized
-			mk_dir_s(tmp_codec_dir_s) ;                                                             // we want a dir to appear initialized, even if empty
+			SWEAR( !old_decode_tab , filename ) ;                                                     // cannot have old codes if not initialized
+			mk_dir_s(tmp_codec_dir_s) ;                                                               // we want a dir to appear initialized, even if empty
 			decode_tab = _mk_decode_tab(encode_tab) ;
 			for( auto const& [ctx,d_entry] : decode_tab ) {
 				n_ctxs++ ;
@@ -935,23 +935,23 @@ namespace Engine {
 				}
 			}
 			mk_dir_s(tmp_codec_dir_s+"store/")                    ;
-			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                                 // global move
+			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                                   // global move
 			trace("done_fresh",n_ctxs,n_entries) ;
 		} else {
-			NodeIdx         n_ctxs    = 0 ;                                                         // for trace only // .
+			NodeIdx         n_ctxs    = 0 ;                                                           // for trace only // .
 			NodeIdx         n_entries = 0 ;
 			::vector<Entry> new_codes ;
 			new_codes_dir_s     = CodecFile::s_dir_s(filename)+"new_codes/"     ;
 			new_codes_bck_dir_s = CodecFile::s_dir_s(filename)+"new_codes.bck/" ;
 			trace("update",new_codes_dir_s) ;
 			//
-			if (FileInfo(new_codes_bck_dir_s).tag()==FileTag::Dir) {                                // in case of previous crash
+			if (FileInfo(new_codes_bck_dir_s).tag()==FileTag::Dir) {                                  // in case of previous crash
 				trace("from_bck",new_codes_bck_dir_s) ;
 				_read_new_codes( /*inout*/new_codes , new_codes_bck_dir_s , &sync_guard ) ;
 				unlnk( new_codes_bck_dir_s , {.dir_ok=true,.sync_guard=&sync_guard} ) ;
 			}
 			CodecLock lock { filename } ; lock.lock_excl() ;
-			if (FileInfo(new_codes_dir_s).tag()==FileTag::Dir) {                                    // in case of previous crash
+			if (FileInfo(new_codes_dir_s).tag()==FileTag::Dir) {                                      // in case of previous crash
 				rename( new_codes_dir_s , new_codes_bck_dir_s ) ;
 				_read_new_codes       ( /*inout*/new_codes , new_codes_bck_dir_s     , &sync_guard            ) ;
 				_update_old_decode_tab(          new_codes , /*inout*/old_decode_tab                          ) ;
@@ -983,7 +983,7 @@ namespace Engine {
 			trace("done_update",n_ctxs,n_entries) ;
 		}
 		trace(STR(has_new_codes)) ;
-		if (has_new_codes==No) {                                                                    // codes are strictly increasing and hence no code conflict
+		if (has_new_codes==No) {                                                                      // codes are strictly increasing and hence no code conflict
 			Dep dep { file , Access::Reg , FileInfo(filename) , false/*err*/ } ;
 			dep.acquire_crc()  ;
 			deps.assign({dep}) ;

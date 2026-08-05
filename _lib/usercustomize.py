@@ -32,10 +32,8 @@ def do_job() :
 	abs_file     =   osp.normpath(osp.join(cwd,file))
 	abs_sys_path = [ osp.normpath(osp.join(cwd,p   )) for p in sys.path ]
 
-	try:
-		my_idx  = abs_sys_path.index(osp.dirname(abs_file))
-	except ValueError:
-		my_idx = None
+	try               : my_idx = abs_sys_path.index(osp.dirname(abs_file))
+	except ValueError : my_idx = None
 	if my_idx != None :
 		prev_dirs = set(abs_sys_path[:my_idx+1])
 		for dir in abs_sys_path[my_idx+1:] :

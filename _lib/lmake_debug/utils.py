@@ -52,7 +52,6 @@ class Job :
 		self.expanded_environ = {}
 		self.keep_environ     = ()
 		for k,v in attrs.items() : setattr(self,k,v)
-		self.keep_environ = (*self.keep_environ,'DISPLAY','XAUTHORITY','XDG_RUNTIME_DIR')
 		#
 		assert not ( self.is_python and self.simple_cmd_line ) , "cannot handle simple cmd with python interpreter"
 
@@ -119,16 +118,21 @@ class Job :
 	def starter( self , *args , **kwds ) :
 		autodep = f'{osp.dirname(osp.dirname(osp.dirname(__file__)))}/bin/lautodep'
 		#
-		preamble = '#\n'
-		preamble += f'export LMAKE_DEBUG_KEY={mk_shell_str(self.key)}\n'
-		preamble +=  'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n'
+		keep_env = set(self.keep_environ)
 		#
-		keep_env = list(self.keep_environ)
+		preamble = '#\n'
+		None                                                                  ; keep_env.add('DISPLAY'        ) # keep existing value
+		None                                                                  ; keep_env.add('XDG_RUNTIME_DIR') # .
+		None                                                                  ; keep_env.add('XDG_SESSION_ID' ) # .
+		preamble += f'export LMAKE_DEBUG_KEY={mk_shell_str(self.key)}\n'      ; keep_env.add('LMAKE_DEBUG_KEY')
+		preamble +=  'export XAUTHORITY="${XAUTHORITY:-$HOME/.Xauthority}"\n' ; keep_env.add('XAUTHORITY'     ) # keep existing value if defined, else use usual default
+		#
 		if self.environ : preamble += '#\n'
 		for k,v in self.expanded_environ.items() :
 			if   k=='UID' : preamble += f'export {k}={mk_shell_str(v)} 2>/dev/null || :\n' # UID is read-only on some systems
 			else          : preamble += f'export {k}={mk_shell_str(v)}\n'
-			keep_env.append(k)
+			keep_env.add(k)
+		keep_env = sorted(keep_env)
 		#
 		simple = True
 		res    = ''
@@ -148,7 +152,7 @@ class Job :
 		if self.mount_chroot_ok :          res =         res+ ' -M'
 		if True                 :          res =         res+f" -o{mk_shell_str(     self.debug_dir+'/accesses' )}"
 		if self.repo_view       : simple , res = False , res+f' -R{mk_shell_str(     self.repo_view             )}'
-		if self.source_dirs     : simple , res = False , res+f' -s{mk_shell_str(repr(self.source_dirs          ))}'
+		if self.source_dirs     :          res =         res+f' -s{mk_shell_str(repr(self.source_dirs          ))}'
 		if self.tmp_dir         :          res =         res+f' -t{mk_shell_str(     self.tmp_dir               )}'
 		if self.tmp_view        : simple , res = False , res+f' -T{mk_shell_str(     self.tmp_view              )}'
 		if self.views           : simple , res = False , res+f' -V{mk_shell_str(repr(self.views                ))}'

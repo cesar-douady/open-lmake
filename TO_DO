@@ -178,6 +178,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* provide a config.dir_regexpr entry
+	- if auto_mkdir, create dirs each time a matching file name is seen
+	- allow using fuse as a autodep method
+	- more robust to history
 * provide an anti_manifest
 	- same as manifest, except that accessing such a file is an error
 	- goal is typically to ensure data in home dir (such as .foorc) is not read
@@ -194,6 +198,14 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 		- provide a command line option to trigger and error in such a case
 	- once a reply is necessary at cache upload time, consider an asynchronous link
 		- and use it at download time to avoid waiting for the cache
+* allow rule cmd's to be modified dynamically
+	- as of now, it is forbidden
+	- but it could be handled just like modified deps
+! implementent readdir as the list of files necessary to run job
+	- including indirect deps
+	- only to the point of call (i.e. deps acquired after calling readdir are not considered)
+	- hard to make that definition reasonable in terms of perf
+	- but provide a stable, doable and usable definition
 ? consider rules taking locks :
 	- provide a llock command
 		- llock A B C sub-cmd
@@ -319,6 +331,10 @@ M port to Darwin
 	- balance between parallism and pessimism :
 		- anticipate each actual run generates a new content
 		- anticipate that a cache hit (of a dep) leads to a cache hit (of the depending job)
+* in RealPath::solve, try reading link /proc/self/fd/<fd> after having opened file, in case this avoids numerous readlink calls
+	- only interesting if file is deep enough
+	- until now, readlinks have not been observed to be a perf bottleneck
+	- try to leverage the open call (to create an fd) in case this is what triggered RealPath
 * rm_target_tree, mv_target_tree an cp_target_tree can be thoroughly optimized
 * direct rebuild of deps
 	- pass known hidden deps to job_exec to avoid connection to server in that case

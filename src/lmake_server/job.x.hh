@@ -421,12 +421,10 @@ namespace Engine {
 		using ReqInfo    = JobReqInfo    ;
 		using MakeAction = JobMakeAction ;
 		// static data
-	private :
-		static Mutex<MutexLvl::TargetDir> _s_target_dirs_mutex ;
-		static ::umap<Node,Idx/*cnt*/>    _s_target_dirs       ; // dirs created for job execution that must not be deleted
-		static ::umap<Node,Idx/*cnt*/>    _s_hier_target_dirs  ; // uphill hierarchy of _s_target_dirs
+		static Mutex<MutexLvl::TargetDir> s_target_dirs_mutex ;
+		static ::umap<Node,Idx/*cnt*/>    s_target_dirs       ; // dirs created for job execution that must not be deleted
+		static ::umap<Node,Idx/*cnt*/>    s_hier_target_dirs  ; // uphill hierarchy of s_target_dirs
 		// cxtors etc
-	public :
 		JobData() = delete ;
 		JobData( JobName n , Special sp               , Deps all_deps={} , bool s=false ) : JobDataBase{n} , deps{all_deps   } , rule_crc_idx{+Rule(sp)->crc} , sure{s} {                     }
 		JobData( JobName n , Rule::RuleMatch const& m , Deps static_deps , bool s=false ) : JobDataBase{n} , deps{static_deps} , rule_crc_idx{+m.rule  ->crc} , sure{s} { _reset_targets(m) ; }

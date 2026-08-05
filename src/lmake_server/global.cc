@@ -102,6 +102,7 @@ namespace Engine {
 		size_t   depth       = 0       ;
 		bool     has_pfx     = false   ;
 		for( char c : str ) {
+			throw_unless( c , "cannot handle NUL char in ",str ) ;
 			bool with_re = false ;
 			switch (state) {
 				case Literal :

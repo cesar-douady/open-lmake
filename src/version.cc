@@ -4,7 +4,7 @@ namespace Version {
 	uint64_t    constexpr Codec = 3       ; // 7319fd9fdc817eb270477875338dd334
 	uint64_t    constexpr Repo  = 55      ; // 5e0d6d5628232ff0b7cb8e58a1ee9066
 	uint64_t    constexpr Job   = 27      ; // ca18f7fe16e63be4e49d3dd4bd94ba08
-	const char* const     Major = "26.07" ;
+	const char* const     Major = "26.08" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 

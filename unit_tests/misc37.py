@@ -8,29 +8,14 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
-	from step import step
+	lmake.manifest = ('Lmakefile.py',)
 
-	lmake.manifest = (
-		'Lmakefile.py'
-	,	'step.py'
-	)
-
-	class Test(Rule) :
-		target    = 'test'
-		stderr_ok = True
-		if step==1 : cmd = "cat a ; echo >a"
-		else       : cmd = "cat a ; :      "
+	class Dut(Rule) :
+		target = 'dut'
+		cmd    = "echo '\0'"
 
 else :
 
-	import os
-
 	import ut
 
-	os.environ['LMAKE_ARGS'] = 'test'
-
-	print('step=1',file=open('step.py','w'))
-	ut.lmake( unlinked=1 , failed=1 , new=0 , rc=1 ) # unexpected write to a
-
-	print('step=2',file=open('step.py','w'))
-	ut.lmake( steady=1 , new=0 , rc=0 )      # fixed
+	ut.lmake(rc=8) # cannot handle NUL char in cmd

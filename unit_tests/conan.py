@@ -29,4 +29,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'venv/bin/conan' , done=1 , unlink=... , failed=1 , rc=1 )
+	ut.lmake( 'venv/bin/conan' , done=1 , unlinked=... , failed=1 , rc=1 )

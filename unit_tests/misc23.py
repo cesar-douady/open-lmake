@@ -29,4 +29,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'b' , done=1 , unlink=1 , failed=1 , rc=1 )
+	ut.lmake( 'b' , done=1 , unlinked=1 , failed=1 , rc=1 )
