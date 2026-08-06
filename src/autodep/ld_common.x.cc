@@ -661,7 +661,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses(Access::Stat) )
 	//                                                                                    no_follow accesses
 	int access    (      CC* p,int m      ) NE { HDR1(access    ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::access    } ; return r(orig(  p,m  )) ; }
-	int eaccess   (      CC* p,int m      ) NE { HDR1(eaccess   ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::euidaccess} ; return r(orig(  p,m  )) ; }
+	int eaccess   (      CC* p,int m      ) NE { HDR1(eaccess   ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::eaccess   } ; return r(orig(  p,m  )) ; }
 	int euidaccess(      CC* p,int m      ) NE { HDR1(euidaccess,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::euidaccess} ; return r(orig(  p,m  )) ; }
 	int faccessat (int d,CC* p,int m,int f) NE { HDR1(faccessat ,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),Comment::faccessat } ; return r(orig(d,p,m,f)) ; }
 	#undef ACCESSES

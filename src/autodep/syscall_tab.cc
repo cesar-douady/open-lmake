@@ -39,6 +39,7 @@
 
 // return null terminated string pointed by src in process space
 [[maybe_unused]] static ::string _get_str( Fd proc_mem , uint64_t src ) {
+	if (!src     ) return {}                                   ;
 	if (!proc_mem) return {reinterpret_cast<const char*>(src)} ;
 	::string res                      ;
 	char     buf[::min(PAGE_SZ,1024)] ; // filenames longer than 1024 are really exceptional, no need to anticipate more than that
@@ -55,9 +56,10 @@
 
 template<bool At,bool KeepSimple=false> [[maybe_unused]] static Record::Path _path( Fd proc_mem , uint64_t const* args ) {
 	::string arg = _get_str(proc_mem,args[At]) ;
-	if ( !KeepSimple && Record::s_is_simple(arg) ) throw ""s                    ;
-	if ( At                                      ) return { Fd(args[0]) , arg } ;
-	else                                           return {               arg } ;
+	if (KeepSimple) throw_unless(arg.size()<PATH_MAX      ) ;
+	else            throw_unless(!Record::s_is_simple(arg)) ;
+	if (At        ) return { Fd(args[0]) , arg } ;
+	else            return {               arg } ;
 }
 
 static constexpr int FlagAlways = -1 ;
@@ -351,7 +353,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 [[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_sym_lnk( void* ctx , Record& r , Fd proc_mem , ::optional<int64_t> rc ) {
 	return _do_exit<SymlinkHelper>( ctx , rc
 	,	[&](SymlinkHelper& sl           )->int64_t { return ::symlink( _get_str(proc_mem,sl.target).c_str() , sl.lnk.real_write().c_str() ) ; }
-	,	[&](SymlinkHelper& sl,int64_t rc)          { sl.lnk( r , rc) ;                                                                        }
+	,	[&](SymlinkHelper& sl,int64_t rc)          { sl.lnk( r , rc ) ;                                                                       }
 	) ;
 }
 

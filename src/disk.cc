@@ -207,16 +207,18 @@ namespace Disk {
 		/**/                                              SWEAR_PROD( +file                           , action.abs_ok ) ; // do not unlink cwd
 		if ( !action.abs_ok                             ) SWEAR_PROD( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
 		if ( ::unlinkat(file.at,file.file.c_str(),0)==0 ) return true /*done*/ ;
-		if ( errno==ENOENT || errno==ENOTDIR            ) return false/*.   */ ;
-		if ( !action.dir_ok && errno==EISDIR            ) return false/*.   */ ;
-		//
-		if ( !action.dir_ok || errno!=EISDIR ) throw cat("cannot unlink file (",StrErr(),") ",file ) ;
-		//
-		unlnk_inside_s({file.at,with_slash(file.file)},action) ;
-		//
-		if (action.sync_guard) action.sync_guard->change(file) ;
-		if (::unlinkat(file.at,file.file.c_str(),AT_REMOVEDIR)!=0) throw cat("cannot unlink dir (",StrErr(),") ",file) ;
-		return true/*done*/ ;
+		switch (errno) {
+			case ENOENT       :
+			case ENOTDIR      :
+			case ENAMETOOLONG : return false/*done*/ ;                                                                    // file does not exist
+			case EISDIR       :
+				if (!action.dir_ok) return false/*done*/ ;                                                                // being a dir is as not existing, unless we expect a dir
+				unlnk_inside_s({file.at,with_slash(file.file)},action) ;
+				if (action.sync_guard) action.sync_guard->change(file) ;
+				throw_unless( ::unlinkat(file.at,file.file.c_str(),AT_REMOVEDIR)==0 , "cannot unlink dir (",StrErr(),") ",file ) ;
+				return true/*done*/ ;
+		DN}
+		throw cat("cannot unlink file (",StrErr(),") ",file ) ;
 	}
 
 	void rmdir_s( FileRef dir_s , _RmDirAction action ) {
