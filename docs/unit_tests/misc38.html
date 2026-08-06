@@ -101,37 +101,42 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1"># This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).</span>
 <span class="c1"># This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.</span>
 
+<span class="kn">import</span> <span class="nn">os</span>
+
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">lmake</span>
-    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
+    <span class="kn">import</span> <span class="nn">sys</span>
 
-    <span class="kn">from</span> <span class="nn">step</span> <span class="kn">import</span> <span class="n">step</span>
+    <span class="kn">import</span> <span class="nn">lmake</span>
+    <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span><span class="p">,</span><span class="n">PyRule</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;step.py&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;../codec_files/&#39;</span>
     <span class="p">)</span>
 
-    <span class="k">class</span> <span class="nc">Test</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span>    <span class="o">=</span> <span class="s1">&#39;test&#39;</span>
-        <span class="n">stderr_ok</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">1</span> <span class="p">:</span> <span class="n">cmd</span> <span class="o">=</span> <span class="s2">&quot;cat a ; echo &gt;a&quot;</span>
-        <span class="k">else</span>       <span class="p">:</span> <span class="n">cmd</span> <span class="o">=</span> <span class="s2">&quot;cat a ; :      &quot;</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">codecs</span><span class="o">.</span><span class="n">dir_codec</span> <span class="o">=</span> <span class="s1">&#39;../codec_files/&#39;</span>
+
+    <span class="k">class</span> <span class="nc">CodecSh</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut&#39;</span>
+        <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
+<span class="s1">            dir_code=$( echo dut | lencode -t dir_codec -x ctx )</span>
+<span class="s1">            echo $dir_code</span>
+<span class="s1">            ldecode -t dir_codec -x ctx -c $dir_code</span>
+<span class="s1">        &#39;&#39;&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">os</span>
-
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;LMAKE_ARGS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;codec_files/sub&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;repo/LMAKE&#39;</span>     <span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="s1">&#39;../Lmakefile.py&#39;</span><span class="p">,</span><span class="s1">&#39;repo/Lmakefile.py&#39;</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="s1">&#39;repo&#39;</span><span class="p">)</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=1&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="n">unlinked</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">0</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># unexpected write to a</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=2&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="n">steady</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">0</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">0</span> <span class="p">)</span>      <span class="c1"># fixed</span>
+    <span class="k">assert</span> <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s1">&#39;ldebug -kn dut&#39;</span><span class="p">)</span><span class="o">==</span><span class="mi">0</span> <span class="c1"># check does not hang</span>
 </pre></div>
 </body>
 </html>

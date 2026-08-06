@@ -55,9 +55,6 @@ namespace Codec {
 		CodecServerSide() = default ;
 		CodecServerSide( ::string const& tab   , FileSync dflt_file_sync ) ;
 		// services
-		template<IsStream S> void _serdes(S& s) {
-			::serdes( s , static_cast<CodecRemoteSide&>(self) ) ;
-		}
 		::vmap_ss descr() const ;
 	} ;
 

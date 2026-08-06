@@ -32,6 +32,7 @@ class Job :
 	auto_mkdir      = False
 	chroot_dir      = None
 	chroot_user     = None
+	codecs          = None
 	cwd             = None
 	kill_daemons    = False
 	lmake_root      = None
@@ -41,11 +42,13 @@ class Job :
 	repo_view       = None
 	simple_cmd_line = None
 	source_dirs     = None
+	static_deps     = ()
 	stdin           = None
 	stdout          = None
 	sub_repo        = None
 	tmp_dir         = '/tmp'
 	tmp_view        = None
+	views           = None
 
 	def __init__(self,attrs) :
 		self.environ          = {}
@@ -156,6 +159,7 @@ class Job :
 		if self.tmp_dir         :          res =         res+f' -t{mk_shell_str(     self.tmp_dir               )}'
 		if self.tmp_view        : simple , res = False , res+f' -T{mk_shell_str(     self.tmp_view              )}'
 		if self.views           : simple , res = False , res+f' -V{mk_shell_str(repr(self.views                ))}'
+		if self.codecs          : simple , res = False , res+f' -x{mk_shell_str(repr(self.codecs               ))}'
 		if True                 :          res =         res+ ' -- \\\n'
 		#
 		if True        : res += ' '.join(x for x in args)                                                 # must be before redirections to files if args contains redirections

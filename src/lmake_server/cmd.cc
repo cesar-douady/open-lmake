@@ -487,7 +487,7 @@ namespace Engine {
 			}
 		Tmp :
 			if      (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp/" ;
-			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ;                 // 0 is for small_id which does not exist for debug
+			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ;                  // 0 is for small_id which does not exist for debug
 		}
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;
@@ -496,32 +496,32 @@ namespace Engine {
 		//
 		::string res = "script = gen_script(\n" ;
 		//
-		/**/                                        res <<  "\tautodep_method     = " << mk_py_str(snake   (jsrr.method                                         )) << '\n' ;
-		if (ade.auto_mkdir                        ) res << ",\tauto_mkdir         = " << mk_py_str(         ade.auto_mkdir                                       ) << '\n' ;
-		if (+jsrr.chroot_info.dir_s               ) res << ",\tchroot_dir         = " << mk_py_str(no_slash(jsrr.chroot_info.dir_s                              )) << '\n' ;
-		if (+jsrr.chroot_info.actions             ) res << ",\tchroot_actions     = " << mk_py_str(cat     (jsrr.chroot_info.actions                            )) << '\n' ;
-		/**/                                        res << ",\tdebug_dir          = " << mk_py_str(no_slash(dbg_dir_s                                           )) << '\n' ;
-		/**/                                        res << ",\tdomain_name        = " << mk_py_str(         Backends::Backend::s_tab[+job->backend]->domain_name ) << '\n' ;
-		/**/                                        res << ",\tis_python          = " << mk_py_str(         job->rule()->is_python                               ) << '\n' ;
-		/**/                                        res << ",\tkey                = " << mk_py_str(         key                                                  ) << '\n' ;
-		/**/                                        res << ",\tjob                = " <<                    +job                                                   << '\n' ;
-		/**/                                        res << ",\tlink_support       = " << mk_py_str(snake   (ade.lnk_support                                     )) << '\n' ;
-		/**/                                        res << ",\tdefault_lmake_root = " << mk_py_str(no_slash(*g_lmake_root_s                                     )) << '\n' ;
-		if (jsrr.kill_daemons                     ) res << ",\tkill_daemons       = " << mk_py_str(         jsrr.kill_daemons                                    ) << '\n' ;
-		if (jsrr.phy_lmake_root_s!=*g_lmake_root_s) res << ",\tlmake_root         = " << mk_py_str(no_slash(jsrr.phy_lmake_root_s                               )) << '\n' ;
-		if (+job_space.lmake_view_s               ) res << ",\tlmake_view         = " << mk_py_str(no_slash(job_space.lmake_view_s                              )) << '\n' ;
-		/**/                                        res << ",\tname               = " << mk_py_str(         job->name()                                          ) << '\n' ;
-		if (ade.mount_chroot_ok                   ) res << ",\tmount_chroot_ok    = " << mk_py_str(         ade.mount_chroot_ok                                  ) << '\n' ;
-		if (ade.readdir_ok                        ) res << ",\treaddir_ok         = " << mk_py_str(         ade.readdir_ok                                       ) << '\n' ;
-		/**/                                        res << ",\trepo_root          = " << mk_py_str(no_slash(*g_repo_root_s                                      )) << '\n' ;
-		if (+job_space.repo_view_s                ) res << ",\trepo_view          = " << mk_py_str(no_slash(job_space.repo_view_s                               )) << '\n' ;
-		if (+jsrr.stdout                          ) res << ",\tstdin              = " << mk_py_str(         jsrr.stdin                                           ) << '\n' ;
-		if (+jsrr.stdin                           ) res << ",\tstdout             = " << mk_py_str(         jsrr.stdout                                          ) << '\n' ;
-		if (+ade.sub_repo_s                       ) res << ",\tsub_repo           = " << mk_py_str(no_slash(ade.sub_repo_s                                      )) << '\n' ;
-		/**/                                        res << ",\ttmp_dir            = " << mk_py_str(no_slash(tmp_dir_s                                           )) << '\n' ;
-		if (+job_space.tmp_view_s                 ) res << ",\ttmp_view           = " << mk_py_str(no_slash(job_space.tmp_view_s                                )) << '\n' ;
+		/**/                                        res <<  "\tautodep_method     = "<<mk_py_str(snake   (jsrr.method                                         ))<<'\n' ;
+		if (ade.auto_mkdir                        ) res << ",\tauto_mkdir         = "<<mk_py_str(         ade.auto_mkdir                                       )<<'\n' ;
+		if (+jsrr.chroot_info.dir_s               ) res << ",\tchroot_dir         = "<<mk_py_str(no_slash(jsrr.chroot_info.dir_s                              ))<<'\n' ;
+		if (+jsrr.chroot_info.actions             ) res << ",\tchroot_actions     = "<<mk_py_str(cat     (jsrr.chroot_info.actions                            ))<<'\n' ;
+		/**/                                        res << ",\tdebug_dir          = "<<mk_py_str(no_slash(dbg_dir_s                                           ))<<'\n' ;
+		/**/                                        res << ",\tdomain_name        = "<<mk_py_str(         Backends::Backend::s_tab[+job->backend]->domain_name )<<'\n' ;
+		/**/                                        res << ",\tis_python          = "<<mk_py_str(         job->rule()->is_python                               )<<'\n' ;
+		/**/                                        res << ",\tkey                = "<<mk_py_str(         key                                                  )<<'\n' ;
+		/**/                                        res << ",\tjob                = "<<                   +job                                                  <<'\n' ;
+		/**/                                        res << ",\tlink_support       = "<<mk_py_str(snake   (ade.lnk_support                                     ))<<'\n' ;
+		/**/                                        res << ",\tdefault_lmake_root = "<<mk_py_str(no_slash(*g_lmake_root_s                                     ))<<'\n' ;
+		if (jsrr.kill_daemons                     ) res << ",\tkill_daemons       = "<<mk_py_str(         jsrr.kill_daemons                                    )<<'\n' ;
+		if (jsrr.phy_lmake_root_s!=*g_lmake_root_s) res << ",\tlmake_root         = "<<mk_py_str(no_slash(jsrr.phy_lmake_root_s                               ))<<'\n' ;
+		if (+job_space.lmake_view_s               ) res << ",\tlmake_view         = "<<mk_py_str(no_slash(job_space.lmake_view_s                              ))<<'\n' ;
+		/**/                                        res << ",\tname               = "<<mk_py_str(         job->name()                                          )<<'\n' ;
+		if (ade.mount_chroot_ok                   ) res << ",\tmount_chroot_ok    = "<<mk_py_str(         ade.mount_chroot_ok                                  )<<'\n' ;
+		if (ade.readdir_ok                        ) res << ",\treaddir_ok         = "<<mk_py_str(         ade.readdir_ok                                       )<<'\n' ;
+		/**/                                        res << ",\trepo_root          = "<<mk_py_str(no_slash(*g_repo_root_s                                      ))<<'\n' ;
+		if (+job_space.repo_view_s                ) res << ",\trepo_view          = "<<mk_py_str(no_slash(job_space.repo_view_s                               ))<<'\n' ;
+		if (+jsrr.stdout                          ) res << ",\tstdin              = "<<mk_py_str(         jsrr.stdin                                           )<<'\n' ;
+		if (+jsrr.stdin                           ) res << ",\tstdout             = "<<mk_py_str(         jsrr.stdout                                          )<<'\n' ;
+		if (+ade.sub_repo_s                       ) res << ",\tsub_repo           = "<<mk_py_str(no_slash(ade.sub_repo_s                                      ))<<'\n' ;
+		/**/                                        res << ",\ttmp_dir            = "<<mk_py_str(no_slash(tmp_dir_s                                           ))<<'\n' ;
+		if (+job_space.tmp_view_s                 ) res << ",\ttmp_view           = "<<mk_py_str(no_slash(job_space.tmp_view_s                                ))<<'\n' ;
 		//
-		res << ",\tcmd =\n" << mk_py_str(jsrr.cmd) <<'\n' ;
+		res << ",\tcmd =\n"<<mk_py_str(jsrr.cmd)<<'\n' ;
 		//
 		jsrr.small_id = 0 ;
 		::pair<::vmap_ss/*set*/,::vector_s/*keep*/> env = _mk_env(job_info) ;
@@ -529,71 +529,80 @@ namespace Engine {
 		::vmap_ss expanded_env = _mk_env(job_info).first ;
 		//
 		if (+env.first) {
-			res << ",\tenviron = {" ;
 			size_t w     = ::max<size_t>( env.first , [](::pair_ss const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
 			First  first ;
+			/**/                                 res << ",\tenviron = {"                                                                               ;
 			for( auto const& [k,v] : env.first ) res << first("\n\t\t",",\t")<<widen(mk_py_str(k),w)<<" : "<<(v==PassMrkr?"..."s:mk_py_str(v))<<"\n\t" ;
-			res << "}\n" ;
+			/**/                                 res << "}\n"                                                                                          ;
 		}
 		if (+expanded_env) {
-			res << ",\texpanded_environ = {" ;
 			size_t w     = ::max<size_t>( expanded_env , [](::pair_ss const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
 			First  first ;
+			/**/                                    res << ",\texpanded_environ = {"                                                 ;
 			for( auto const& [k,v] : expanded_env ) res << first("\n\t\t",",\t")<<widen(mk_py_str(k),w)<<" : "<<mk_py_str(v)<<"\n\t" ;
-			res << "}\n" ;
+			/**/                                    res << "}\n"                                                                     ;
 		}
 		if (+g_user_env) {
-			res << ",\tuser_environ = {" ;
 			size_t w     = ::max<size_t>( g_user_env , [](::pair_ss const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
 			First  first ;
+			/**/                                  res << ",\tuser_environ = {"                                                     ;
 			for( auto const& [k,v] : g_user_env ) res << first("\n\t\t",",\t")<<widen(mk_py_str(k),w)<<" : "<<mk_py_str(v)<<"\n\t" ;
-			res << "}\n" ;
+			/**/                                  res << "}\n"                                                                     ;
 		}
 		if (+env.second) {
-			res << ",\tkeep_environ = (" ;
 			First first ;
-			for( ::string const& k : env.second ) res << first("",",") << mk_py_str(k) ;
-			res << first("",",","") << ")\n" ;
+			/**/                                  res << ",\tkeep_environ = ("          ;
+			for( ::string const& k : env.second ) res << first("",","   )<<mk_py_str(k) ;
+			/**/                                  res << first("",",","")<<")\n"        ;
 		}
-		{	res << ",\tinterpreter = (" ;
-			First first ;
-			for( ::string const& c : jsrr.interpreter ) res << first("",",") << mk_py_str(c) ;
-			res << first("",",","") << ")\n" ;
+		{	First first ;
+			/**/                                        res << ",\tinterpreter = ("           ;
+			for( ::string const& c : jsrr.interpreter ) res << first("",","   )<<mk_py_str(c) ;
+			/**/                                        res << first("",",","")<<")\n"        ;
 		}
-		if ( mk_simple_cmd_line( jsrr.interpreter , ::move(jsrr.cmd) , Bash , env.first ) ) {  // jsrr.interpreter is now the entire cmd line
-			res << ",\tsimple_cmd_line = (" ;
+		if ( mk_simple_cmd_line( jsrr.interpreter , ::move(jsrr.cmd) , Bash , env.first ) ) {   // jsrr.interpreter is now the entire cmd line
 			First first ;
-			for( ::string const& c : jsrr.interpreter ) res << first("",",") << mk_py_str(c) ; // .
-			res << first("",",","") << ")\n" ;
+			/**/                                        res << ",\tsimple_cmd_line = ("       ;
+			for( ::string const& c : jsrr.interpreter ) res << first("",","   )<<mk_py_str(c) ; // .
+			/**/                                        res << first("",",","")<<")\n"        ;
 		}
 		{	First first ;
 			res << ",\tpre_actions = {" ;
 			for( auto const& [t,a] : job->pre_actions(job->rule_match(),ro.flags[ReqFlag::NoIncremental]) )
-				res << first("\n\t\t",",\t") << mk_py_str(t->name()) <<" : "<< mk_py_str(snake(a.tag)) <<"\n\t" ;
+				res << first("\n\t\t",",\t")<<mk_py_str(t->name())<<" : "<< mk_py_str(snake(a.tag))<<"\n\t" ;
 			res << "}\n" ;
 		}
 		if (::vector_s const& sds_s=Record::s_autodep_env().src_dirs_s ; +sds_s ) {
-			res << ",\tsource_dirs = (" ;
 			First first ;
-			for( ::string const& sd_s : sds_s ) res << first("\n\t\t",",\t") << mk_py_str(no_slash(sd_s)) << "\n\t" ;
-			res << first("",",","") << ")\n" ;
+			/**/                                res << ",\tsource_dirs = ("                                        ;
+			for( ::string const& sd_s : sds_s ) res << first("\n\t\t",",\t"   )<<mk_py_str(no_slash(sd_s))<<"\n\t" ;
+			/**/                                res << first(""      ,","  ,"")<<")\n"                             ;
 		}
-		{	res << ",\tstatic_deps = (" ;
+		if (+job->deps) {
 			First first ;
-			for( Dep const& d : job->deps )
-				if (d.dflags[Dflag::Static]) res << first("\n\t\t",",\t") << mk_py_str(d->name()) << "\n\t" ;
-			res << first("",",","") << ")\n" ;
+			/**/                                                         res << ",\tstatic_deps = ("                                   ;
+			for( Dep const& d : job->deps ) if (d.dflags[Dflag::Static]) res << first("\n\t\t",",\t"   )<<mk_py_str(d->name())<<"\n\t" ;
+			/**/                                                         res << first(""      ,","  ,"")<<")\n"                        ;
 		}
-		{	res << ",\tstatic_targets = (" ;
+		if (+job->targets()) {
 			First first ;
-			for( Target const& t : job->targets() )
-				if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] ) res << first("\n\t\t",",\t") << mk_py_str(t->name()) << "\n\t" ;
-			res << first("",",","") << ")\n" ;
+			/**/                                                                                              res << ",\tstatic_targets = ("                                ;
+			for( Target const& t : job->targets() ) if ( t.tflags[Tflag::Target] && t.tflags[Tflag::Static] ) res << first("\n\t\t",",\t"   )<<mk_py_str(t->name())<<"\n\t" ;
+			/**/                                                                                              res << first(""      ,","  ,"")<<")\n"                        ;
 		}
-		{	res << ",\tviews = {" ;
+		if (+job_space.views) {
+			size_t w     = ::max<size_t>( job_space.views , [](::pair_s<JobSpace::ViewDescr> const& k_v) { return mk_py_str(no_slash(k_v.first)).size() ; } ) ;
 			First first1 ;
-			for( auto const& [view_s,vd] : job_space.views ) if (+vd) res << first1("\n\t\t",",\t") << mk_py_str(no_slash(view_s)) << " : " << _mk_py_str( vd , 2/*lvl*/ ) << "\n\t" ;
-			res << "}\n" ;
+			/**/                                                      res << ",\tviews = {"                                                                                       ;
+			for( auto const& [view_s,vd] : job_space.views ) if (+vd) res << first1("\n\t\t",",\t")<<widen(mk_py_str(no_slash(view_s)),w)<<" : "<<_mk_py_str(vd,2/*lvl*/)<<"\n\t" ;
+			/**/                                                      res << "}\n"                                                                                                ;
+		}
+		if (+ade.codecs) {
+			size_t w     = ::max<size_t>( ade.codecs , [](::pair_s<Codec::CodecRemoteSide> const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
+			First first1 ;
+			/**/                                    res << ",\tcodecs = {"                                                                                  ;
+			for( auto const& [key,c] : ade.codecs ) res << first1("\n\t\t",",\t")<<widen(mk_py_str(key),w)<<" : ("<<mk_py_str(c.tab)<<','<<c.umask<<")\n\t" ;
+			/**/                                    res << "}\n"                                                                                            ;
 		}
 		res << ")\n" ;
 		return res ;

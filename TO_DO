@@ -319,6 +319,7 @@ M port to Darwin
 
 * use ebpf in seccomp/ptrace to better filter files
 	- in particular, exclude system files which are very frequently accessed
+	- cf bpf.io/linux/concepts/token
 * use copy-ref when possible :
 	- cache upload/download when a single file and no compression
 	- when uniquify

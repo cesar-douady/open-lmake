@@ -101,37 +101,43 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="c1"># This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).</span>
 <span class="c1"># This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.</span>
 
+<span class="kn">import</span> <span class="nn">lmake</span>
+
 <span class="k">if</span> <span class="vm">__name__</span><span class="o">!=</span><span class="s1">&#39;__main__&#39;</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">lmake</span>
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
-
-    <span class="kn">from</span> <span class="nn">step</span> <span class="kn">import</span> <span class="n">step</span>
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;step.py&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;src&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;extra&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;trigger&#39;</span>
     <span class="p">)</span>
 
-    <span class="k">class</span> <span class="nc">Test</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span>    <span class="o">=</span> <span class="s1">&#39;test&#39;</span>
-        <span class="n">stderr_ok</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">1</span> <span class="p">:</span> <span class="n">cmd</span> <span class="o">=</span> <span class="s2">&quot;cat a ; echo &gt;a&quot;</span>
-        <span class="k">else</span>       <span class="p">:</span> <span class="n">cmd</span> <span class="o">=</span> <span class="s2">&quot;cat a ; :      &quot;</span>
+    <span class="k">def</span> <span class="nf">cpu</span><span class="p">()</span> <span class="p">:</span>
+        <span class="k">if</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;trigger&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">==</span><span class="s1">&#39;yes&#39;</span> <span class="p">:</span> <span class="c1"># false on 1st run, true on 2nd one</span>
+            <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;src&#39;</span>  <span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>                   <span class="c1"># src is also a dep of Dut, stored as a chunk header</span>
+            <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;extra&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span>                   <span class="c1"># extra has never been seen by Dut : force deps rebuild</span>
+        <span class="k">return</span> <span class="mi">1</span>
+
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span>    <span class="o">=</span> <span class="s1">&#39;dut&#39;</span>
+        <span class="n">resources</span> <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;cpu&#39;</span> <span class="p">:</span> <span class="n">cpu</span> <span class="p">}</span>
+        <span class="n">cmd</span>       <span class="o">=</span> <span class="s1">&#39;[ -f hole ] ; echo &quot;$(&lt;src)&quot;&#39;</span> <span class="c1"># access non-existing hole, then src, with no external process in between</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">os</span>
-
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;LMAKE_ARGS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;extra&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=1&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="n">unlinked</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">0</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># unexpected write to a</span>
+    <span class="nb">print</span><span class="p">(</span><span class="mi">1</span>   <span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;src&#39;</span>    <span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;no&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;trigger&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span>             <span class="n">new</span><span class="o">=</span><span class="mi">2</span> <span class="p">)</span> <span class="c1"># normal run, records deps hole (non-existing) then src</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=2&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="n">steady</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">0</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">0</span> <span class="p">)</span>      <span class="c1"># fixed</span>
+    <span class="nb">print</span><span class="p">(</span><span class="mi">2</span>    <span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;src&#39;</span>    <span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>          <span class="c1"># force Dut to rerun</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;yes&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;trigger&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>          <span class="c1"># from now on, cpu() reads src &amp; extra at submit time</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">changed</span><span class="o">=</span><span class="mi">2</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># check resources deps are merged into job deps w/o crash</span>
 </pre></div>
 </body>
 </html>

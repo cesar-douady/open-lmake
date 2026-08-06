@@ -106,32 +106,17 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="kn">import</span> <span class="nn">lmake</span>
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
 
-    <span class="kn">from</span> <span class="nn">step</span> <span class="kn">import</span> <span class="n">step</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,)</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
-        <span class="s1">&#39;Lmakefile.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;step.py&#39;</span>
-    <span class="p">)</span>
-
-    <span class="k">class</span> <span class="nc">Test</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span>    <span class="o">=</span> <span class="s1">&#39;test&#39;</span>
-        <span class="n">stderr_ok</span> <span class="o">=</span> <span class="kc">True</span>
-        <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">1</span> <span class="p">:</span> <span class="n">cmd</span> <span class="o">=</span> <span class="s2">&quot;cat a ; echo &gt;a&quot;</span>
-        <span class="k">else</span>       <span class="p">:</span> <span class="n">cmd</span> <span class="o">=</span> <span class="s2">&quot;cat a ; :      &quot;</span>
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s2">&quot;echo &#39;</span><span class="se">\0</span><span class="s2">&#39;&quot;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
-    <span class="kn">import</span> <span class="nn">os</span>
-
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s1">&#39;LMAKE_ARGS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;test&#39;</span>
-
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=1&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="n">unlinked</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">0</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># unexpected write to a</span>
-
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=2&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="n">steady</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">0</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">0</span> <span class="p">)</span>      <span class="c1"># fixed</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span><span class="n">rc</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span> <span class="c1"># cannot handle NUL char in cmd</span>
 </pre></div>
 </body>
 </html>

@@ -117,6 +117,11 @@ Item(B_(-V) I_(dict),B_(--views)=I_(dict))
 I_(dict) must be provided as a dict mapping str to view descriptions using the python syntax (which most probably requires shell quoting).
 Mimic setting the rule attribute B_(views)=I_(dict).
 
+Item(B_(-x) I_(dict),B_(--codec-table)=I_(dict))
+I_(dict) must be provided as a dict mapping str to codec dir description using the python syntax (which most probably requires shell quoting).
+Entries can be either a string providing the associated dir or a tuple I_((dir,umask)) where umask is provided numerically (default to I_(0o777)).
+Mimic setting the config attribute B_(codecs)=I_(dict) for entries representing external dirs.
+
 .SH "EXIT STATUS"
 .LP
 B_(lautodep) exits with a status of zero if the command was executed with no error.

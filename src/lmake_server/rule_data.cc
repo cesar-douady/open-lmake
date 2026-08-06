@@ -906,8 +906,9 @@ namespace Engine {
 			crc = {match_crc} ;
 			return ;
 		}
-		h += g_config->lnk_support  ;                                    // this has an influence on generated deps, hence is part of cmd def
-		h += g_config->os_info      ;                                    // this has an influence on job execution , hence is part of cmd def
+		h += g_config->lnk_support  ;                                    //                                 this has an influence on generated deps, hence is part of cmd def
+		h += g_config->os_info      ;                                    //                                 this has an influence on job execution , hence is part of cmd def
+		h += g_config->codecs       ;                                    // if decode or encode are called, this has an influence on job execution , hence is part of cmd def
 		h += sub_repo_s             ;
 		h += Node::s_src_dirs_crc() ;                                    // src_dirs influences deps recording
 		h += job_name               ;                                    // may be accessed by cmd,                         not always necessary but simpler to code
@@ -915,11 +916,11 @@ namespace Engine {
 		h += force                  ;
 		h += is_python              ;
 		start_cmd_attrs.update_hash( /*inout*/h , rules ) ;
-		cmd            .update_hash( /*inout*/h , rules ) ;
+		cmd            .update_hash( /*.    */h , rules ) ;
 		Crc cmd_crc = h.digest() ;
 		//
 		submit_rsrcs_attrs.update_hash( /*inout*/h , rules ) ;
-		start_rsrcs_attrs .update_hash( /*inout*/h , rules ) ;
+		start_rsrcs_attrs .update_hash( /*.    */h , rules ) ;
 		Crc rsrcs_crc = h.digest() ;
 		//
 		crc = { match_crc , cmd_crc , rsrcs_crc } ;
