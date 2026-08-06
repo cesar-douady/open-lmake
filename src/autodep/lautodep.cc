@@ -24,6 +24,7 @@ enum class CmdFlag : uint8_t {
 ,	AutodepMethod
 ,	ChrootDir
 ,	ChrootActions
+,	Codecs
 ,	DomainName
 ,	Cwd
 ,	Env
@@ -61,6 +62,26 @@ static ::vmap_s<JobSpace::ViewDescr> _mk_views(::string const& views) {
 				if (py_dct.contains("copy_up"))
 					for( Object const& py_cu : py_dct.get_item("copy_up").as_a<Sequence>() )
 						descr.copy_up.emplace_back(py_cu.as_a<Str>()) ;
+			}
+		}
+	}
+	return res ;
+}
+
+static ::umap_s<Codec::CodecRemoteSide> _mk_codecs(::string const& codecs) {
+	::umap_s<Codec::CodecRemoteSide> res ;
+	Gil                              gil ;
+	if (+codecs) {
+		Ptr<> py_codecs = py_eval(codecs) ;                        // hold objet in a Ptr
+		for( auto const& [py_k,py_v] : py_codecs->as_a<Dict>() ) {
+			Codec::CodecRemoteSide& descr = res.try_emplace( ::string(py_k.as_a<Str>()) ).first->second ;
+			if (py_v.is_a<Str>()) {
+				descr.tab = py_v.as_a<Str>() ;
+			} else if (py_v.is_a<Sequence>()) {
+				Sequence& py_seq = py_v.as_a<Sequence>() ;
+				throw_unless( py_seq.size()==2 , "entry for ",::string(py_k.as_a<Str>())," must be of length 2" ) ;
+				descr.tab   = ::string(py_seq[0].as_a<Str>()) ;
+				descr.umask = mode_t  (py_seq[1].as_a<Int>()) ;
 			}
 		}
 	}
@@ -131,6 +152,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::TmpDir        , { .short_name='t' , .has_arg=true  , .doc="physical tmp dir"                                                                                            } }
 	,	{ CmdFlag::TmpView       , { .short_name='T' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                            } }
 	,	{ CmdFlag::Views         , { .short_name='V' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}"   } }
+	,	{ CmdFlag::Codecs        , { .short_name='x' , .has_arg=true  , .doc="mapping providing codecs as dict mapping  key to str or 2-tuple (dir,umask)"                                 } }
 	}} ;
 	CmdLine<CmdFlag> cmd_line { syntax , argc , argv } ;
 	//
@@ -176,6 +198,7 @@ int main( int argc , char* argv[] ) {
 		try { jsrr.env               = _mk_env       (cmd_line.flag_args[+CmdFlag::Env       ]) ; } catch (::string const& e) { throw "bad env format : "        +e ; }
 		try { job_space.views        = _mk_views     (cmd_line.flag_args[+CmdFlag::Views     ]) ; } catch (::string const& e) { throw "bad views format : "      +e ; }
 		try { autodep_env.src_dirs_s = _mk_src_dirs_s(cmd_line.flag_args[+CmdFlag::SourceDirs]) ; } catch (::string const& e) { throw "bad source_dirs format : "+e ; }
+		try { autodep_env.codecs     = _mk_codecs    (cmd_line.flag_args[+CmdFlag::Codecs    ]) ; } catch (::string const& e) { throw "bad codecs format : "     +e ; }
 		//
 		if (cmd_line.flags[CmdFlag::ChrootActions])
 			for( ::string const& a : split(cmd_line.flag_args[+CmdFlag::ChrootActions],',') ) jsrr.chroot_info.actions |= mk_enum<ChrootAction>(a) ;

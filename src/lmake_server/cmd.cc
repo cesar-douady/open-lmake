@@ -595,6 +595,13 @@ namespace Engine {
 			for( auto const& [view_s,vd] : job_space.views ) if (+vd) res << first1("\n\t\t",",\t") << mk_py_str(no_slash(view_s)) << " : " << _mk_py_str( vd , 2/*lvl*/ ) << "\n\t" ;
 			res << "}\n" ;
 		}
+		if (+ade.codecs) {
+			size_t w     = ::max<size_t>( ade.codecs , [](::pair_s<Codec::CodecRemoteSide> const& k_v) { return mk_py_str(k_v.first).size() ; } ) ;
+			First first1 ;
+			/**/                                    res << ",\tcodecs = {"                                                                                  ;
+			for( auto const& [key,c] : ade.codecs ) res << first1("\n\t\t",",\t")<<widen(mk_py_str(key),w)<<" : ("<<mk_py_str(c.tab)<<','<<c.umask<<")\n\t" ;
+			/**/                                    res << "}\n"                                                                                            ;
+		}
 		res << ")\n" ;
 		return res ;
 	}

@@ -444,6 +444,7 @@ namespace Backdoor {
 		throw_unless( !version || version==Version::Codec , "unsupported version (",version,") : must be ",Version::Codec ) ;
 		//
 		try {
+			bool depended = false ;
 		Retry :
 			fi = { {rfd,node} , {.sync_guard=&sync_guard} } ;                                                                              // get date before access to be pessimistic
 			// START_OF_VERSIONING CODEC
@@ -452,7 +453,11 @@ namespace Backdoor {
 				throw_unless( res.ends_with(DecodeSfx) , "bad encode link" ) ;
 				res.resize( res.size() - DecodeSfxSz )                       ;
 			} else {
-				if (_retry_codec(r,crs,node,Comment::Encode)) goto Retry/*BACKWARD*/ ;
+				if (_retry_codec(r,crs,node,Comment::Encode)) {
+					throw_unless( !depended , "cannot use codec file ",cf.file ) ;
+					depended = true ;
+					goto Retry/*BACKWARD*/ ;
+				}
 				if ( !crs.is_dir() && !lock ) {
 					lock = {rfd,cf.file} ;
 					lock.lock_shared( cat(host(),'-',::getpid()) ) ;                                                                       // passed id is for debug only

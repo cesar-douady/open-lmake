@@ -908,6 +908,7 @@ namespace Engine {
 		}
 		h += g_config->lnk_support  ;                                    // this has an influence on generated deps, hence is part of cmd def
 		h += g_config->os_info      ;                                    // this has an influence on job execution , hence is part of cmd def
+		if (+g_config->codecs) h += g_config->codecs ;                   // normally, we should always include codecs, but this way, crc is compatible with prev versions when codecs are not used
 		h += sub_repo_s             ;
 		h += Node::s_src_dirs_crc() ;                                    // src_dirs influences deps recording
 		h += job_name               ;                                    // may be accessed by cmd,                         not always necessary but simpler to code

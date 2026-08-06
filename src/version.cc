@@ -1,11 +1,11 @@
 #include "version.hh"
 namespace Version {
 	uint64_t    constexpr Cache = 50      ; // 4921c0c3bc0ca1fead479b589724182a
-	uint64_t    constexpr Codec = 3       ; // 7319fd9fdc817eb270477875338dd334
-	uint64_t    constexpr Repo  = 54      ; // a9f268a93c4d4c0a454688041ca73f51
+	uint64_t    constexpr Codec = 3       ; // a8292529d18c82997024bc6317a1877a
+	uint64_t    constexpr Repo  = 55      ; // d341ba3de76dc03a58100ff29c3f26dc
 	uint64_t    constexpr Job   = 26      ; // 2925a8dbd72966061bac50e56e5bbcd5
 	const char* const     Major = "26.06" ;
-	uint64_t    constexpr Tag   = 9       ;
+	uint64_t    constexpr Tag   = 10      ;
 }
 
 // ********************************************
@@ -968,7 +968,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ********************************************
-// * Codec : 7319fd9fdc817eb270477875338dd334 *
+// * Codec : a8292529d18c82997024bc6317a1877a *
 // ********************************************
 //
 //			// START_OF_VERSIONING CODEC
@@ -980,7 +980,11 @@ namespace Version {
 //					throw_unless( res.ends_with(DecodeSfx) , "bad encode link" ) ;
 //					res.resize( res.size() - DecodeSfxSz )                       ;
 //				} else {
-//					if (_retry_codec(r,crs,node,Comment::Encode)) goto Retry/*BACKWARD*/ ;
+//					if (_retry_codec(r,crs,node,Comment::Encode)) {
+//						throw_unless( !depended , "cannot use codec file ",cf.file ) ;
+//						depended = true ;
+//						goto Retry/*BACKWARD*/ ;
+//					}
 //					if ( !crs.is_dir() && !lock ) {
 //						lock = {rfd,cf.file} ;
 //						lock.lock_shared( cat(host(),'-',::getpid()) ) ;                                                                       // passed id is for debug only
@@ -1116,7 +1120,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : a9f268a93c4d4c0a454688041ca73f51 *
+// * Repo : d341ba3de76dc03a58100ff29c3f26dc *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1258,6 +1262,7 @@ namespace Version {
 //			}
 //			h += g_config->lnk_support  ;                                    // this has an influence on generated deps, hence is part of cmd def
 //			h += g_config->os_info      ;                                    // this has an influence on job execution , hence is part of cmd def
+//			if (+g_config->codecs) h += g_config->codecs ;                   // normally, we should always include codecs, but this way, crc is compatible with prev versions when codecs are not used
 //			h += sub_repo_s             ;
 //			h += Node::s_src_dirs_crc() ;                                    // src_dirs influences deps recording
 //			h += job_name               ;                                    // may be accessed by cmd,                         not always necessary but simpler to code
