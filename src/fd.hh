@@ -169,11 +169,12 @@ inline sigset_t _mk_sigset(::vector<int> const& sigs) {
 }
 inline bool is_blocked_sig(int sig) {
 	sigset_t old_mask ;
-	swear( ::pthread_sigmask(0/*how*/,nullptr/*set*/,&old_mask)==0 , "cannot get sig ",sig ) ;
+	int      rc       = ::pthread_sigmask( 0/*how*/ , nullptr/*set*/ , &old_mask ) ;
+	SWEAR( rc==0 , "cannot get sig ",sig ) ;
 	return sigismember(&old_mask,sig) ;                                                        // sigismember can be a macro, hence no ::
 }
-inline void block_sigs  (::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_BLOCK   , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot block sigs "  ,sigs) ; }
-inline void unblock_sigs(::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_UNBLOCK , &::ref(_mk_sigset(sigs)) , nullptr )==0 , "cannot unblock sigs ",sigs) ; }
+inline void block_sigs  (::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_BLOCK   , &::ref(_mk_sigset(sigs)) , nullptr/*oldset*/ )==0 , "cannot block sigs "  ,sigs) ; }
+inline void unblock_sigs(::vector<int> const& sigs) { swear( ::pthread_sigmask( SIG_UNBLOCK , &::ref(_mk_sigset(sigs)) , nullptr/*.     */ )==0 , "cannot unblock sigs ",sigs) ; }
 struct BlockedSig {
 	BlockedSig (            ) = default ;
 	BlockedSig (BlockedSig&&) = default ;                                                      // copy is meaningless
@@ -371,7 +372,7 @@ public :
 			SWEAR(_n_events<=Max<int>) ;
 			cnt_ = ::epoll_wait( _fd , events.data() , int(_n_events) , wait_ms ) ;
 			switch (cnt_) {
-				case 0 :                                                                                                    // timeout
+				case 0 :                                                                                                           // timeout
 					if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
 					else               return {} ;
 				break ;
@@ -380,23 +381,28 @@ public :
 				break ;
 				default :
 					events.resize(cnt_) ;
-					if (_n_sigs) {                                                                                          // fast path : avoid looping over events if not necessary
+					if (_n_sigs) {                                                                                                 // fast path : avoid looping over events if not necessary
 						bool shorten = false ;
 						for( Event& e : events ) {
-							Fd                        fd        = e.fd()             ; SWEAR(+fd) ;                         // it is non-sense to have an event for non-existent fd
-							auto                      it        = _fd_infos.find(fd) ; if (it==_fd_infos.end() ) continue ;
-							auto                      [sig,pid] = it->second         ;
-							bool                      found     = false              ;                                      // if not waiting for a particular pid, event is always ok
+							Fd                        fd        = e.fd()                    ; SWEAR(+fd) ;                         // it is non-sense to have an event for non-existent fd
+							auto                      it        = _fd_infos.find(fd)        ; if (it==_fd_infos.end() ) continue ;
+							auto                      [sig,pid] = it->second                ;
 							struct ::signalfd_siginfo si        ;
-							ssize_t                   n         ;
-							while ( (n=::read(fd,&si,sizeof(si)))==sizeof(si) ) {                                           // flush signal fd, including possibly left-over old sigs
-								SWEAR( int(si.ssi_signo)==sig , si.ssi_signo,sig ) ;
-								if      (!pid                  ) found = true ;                                             // if no pid specified, expect all children
-								else if (pid_t(si.ssi_pid)==pid) found = true ;
-								else                             ::waitpid( si.ssi_pid , nullptr/*wstatus*/ , WNOHANG ) ;   // reap unexpected children (best effort, dont wait)
+							ssize_t                   n         = ::read(fd,&si,sizeof(si)) ;
+							SWEAR( n==sizeof(si) , n ) ;
+							SWEAR( int(si.ssi_signo)==sig , si.ssi_signo,sig ) ;
+							if ( pid && pid_t(si.ssi_pid)!=pid && sig==SIGCHLD ) {
+								siginfo_t info ; info.si_pid = 0 ;
+								/**/     ::waitpid(         si.ssi_pid , nullptr/*wstatus*/ , WNOHANG                 ) ;          // reap unexpected children (best effort, dont wait)
+								int rc = ::waitid ( P_PID , pid        , &info              , WNOHANG|WEXITED|WNOWAIT ) ;
+								// because signals are merged if several are waiting, it may be that the expected pid is dead while another one was queued
+								// suppress event if expected pid is either already waited for or still alive
+								bool expected_dead = rc==0 && info.si_pid==pid ;
+								if (!expected_dead) {
+									e = {} ;
+									shorten = true ;                                                                               // event is supposed to represent that pid is terminated
+								}
 							}
-							SWEAR_PROD( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR) , n,fd,errno ) ;           // fd is non-blocking
-							if (!found) { e = {} ; shorten = true ; }                                                       // event is supposed to represent that pid is terminated
 						}
 						if (shorten) ::erase_if( events , [](Event const& e) { return !e ; } ) ;
 					}

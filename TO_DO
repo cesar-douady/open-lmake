@@ -16,9 +16,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* when a file is unlinked because it is produced by no_rule, its dir hierarchy is not rmdir'ed.
-* when using kill_daemons, it happens that job is not properly waited for in job_exec
-	- cf mails with Nicolas
 ? bug Sylvain :
 	- foo a derived file needed by a job
 	- lmark -fa foo

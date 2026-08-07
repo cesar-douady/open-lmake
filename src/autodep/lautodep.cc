@@ -102,7 +102,7 @@ static ::umap_s<Codec::CodecRemoteSide> _mk_codecs(::string const& codecs) {
 	::umap_s<Codec::CodecRemoteSide> res ;
 	Gil                              gil ;
 	if (+codecs) {
-		Ptr<> py_codecs = py_eval(codecs) ;                         // hold objet in a Ptr
+		Ptr<> py_codecs = py_eval(codecs) ;                        // hold objet in a Ptr
 		for( auto const& [py_k,py_v] : py_codecs->as_a<Dict>() ) {
 			Codec::CodecRemoteSide& descr = res.try_emplace( ::string(py_k.as_a<Str>()) ).first->second ;
 			if (py_v.is_a<Str>()) {

@@ -37,7 +37,7 @@ inline int/*exit_code*/ mimic_wstatus(int wstatus) {                 // transfor
 ::string wstatus_str(int wstatus) ;
 
 /**/   bool/*done*/   kill_process ( pid_t pid , int sig , bool as_group=false ) ;
-inline bool/*exists*/ sense_process( pid_t pid                                 ) { return kill_process( pid , 0 ) ; }
+inline bool/*exists*/ sense_process( pid_t pid                                 ) { return kill_process( pid , 0/*sig*/ ) ; }
 
 pid_t  get_ppid(pid_t pid) ;
 
