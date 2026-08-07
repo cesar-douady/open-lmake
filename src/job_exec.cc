@@ -294,9 +294,9 @@ int main( int argc , char* argv[] ) {
 			}
 			g_start_info.update_env( /*out*/end_report.dyn_env , g_phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
 		}
-		end_report.os_info                        = get_os_info()                                                           ;            // get_os_info() must be called after enter()
-		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_start_info.small_id) ;            // fast_report_pipe is a pipe and only works locally
-		g_start_info.autodep_env.views_s          = g_start_info.job_space.flat_phys_s()                                    ;
+		end_report.os_info                        = get_os_info()                                              ;            // get_os_info() must be called after enter()
+		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_seq_id) ;            // fast_report_pipe is a pipe and only works locally
+		g_start_info.autodep_env.views_s          = g_start_info.job_space.flat_phys_s()                       ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//
 		::map_ss cmd_env = mk_map(g_start_info.env) ;

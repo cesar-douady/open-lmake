@@ -671,21 +671,26 @@ Status Gather::_exec_child() {
 			autodep_env.fast_report_pipe.clear() ;
 		}
 	} ;
+	struct ToUnlnk {
+		~ToUnlnk() { if (+file) unlnk( file , {.abs_ok=true} ) ; }
+		::string file ;
+	} ;
+	ToUnlnk to_unlnk ;
 	//
 	autodep_env.service = job_master_fd.service(server_master_fd.addr(false/*peer*/)) ; // local addr to which we can be contacted by running job
 	trace("autodep_env",::string(autodep_env)) ;
 	//
 	if (+autodep_env.fast_report_pipe) {
-		bool first = true ;
+		bool retried = false ;
+		to_unlnk.file = autodep_env.fast_report_pipe ;
 	Retry :
 		if ( ::mkfifo( autodep_env.fast_report_pipe.c_str() , 0600/*mode*/ )!=0 ) {     // there is no reason for any other user to read/write this fifo
-			if ( errno==ENOENT && first ) {
-				dir_guard(autodep_env.fast_report_pipe) ;
-				first = false ;                                                         // ensure at most one retry
-				goto Retry ;
-			} else if (errno!=EEXIST) {                                                 // if it already exists, assume it is already a fifo
-				autodep_env.fast_report_pipe.clear() ;                                  // we'll live with no fast report
-			}
+			if (!retried)
+				switch (errno) {
+					case ENOENT : dir_guard( autodep_env.fast_report_pipe                  ) ; retried = true ; goto Retry ;
+					case EEXIST : unlnk    ( autodep_env.fast_report_pipe , {.abs_ok=true} ) ; retried = true ; goto Retry ;
+				DN}
+			autodep_env.fast_report_pipe.clear() ;                                      // we'll live with no fast report
 		}
 		open_fast_report_fd() ;
 	}
@@ -845,9 +850,15 @@ Status Gather::_exec_child() {
 					end_child  = end_date + network_delay + Delay(1) ;                 // wait at most network_delay (+ 1s for our own processing) for reporting & stdout & stderr to settle down
 					_user_trace( end_date , Comment::EndJob , to_hex(uint16_t(ws)) ) ;
 					//
-					if      (WIFEXITED  (ws)) set_status(             WEXITSTATUS(ws)!=0 ? Status::JobError : Status::Ok       ) ;
-					else if (WIFSIGNALED(ws)) set_status( is_sig_sync(WTERMSIG   (ws))   ? Status::JobError : Status::LateLost ) ; // synchronous signals are actually errors
-					else                      FAIL_PROD("unexpected wstatus : ",ws) ;                                              // NO_COV defensive programming
+					if (WIFEXITED(ws)) {
+						set_status( WEXITSTATUS(ws)!=0 ? Status::JobError : Status::Ok ) ;
+					} else if (WIFSIGNALED(ws) ) {
+						int sig=WTERMSIG(ws) ;
+						if (is_sig_sync(sig)) set_status( Status::JobError                                                                ) ; // synchronous signals are actually errors
+						else                  set_status( Status::LateLost , cat("job killed with signal ",sig," (",::strsignal(sig),')') ) ;
+					} else {
+						FAIL_PROD("unexpected wstatus : ",ws) ;                  // NO_COV defensive programming
+					}
 					if (kind==Kind::ChildEnd) epoll.del_pid(_child.pid       ) ;
 					else                      epoll.del    (false/*write*/,fd) ;
 					_child.waited() ;                                            // _child has been waited without calling _child.wait()
