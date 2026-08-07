@@ -1,0 +1,6 @@
+{
+	"name"        : "lmakefile"
+,	"description" : "Write, review, and debug Lmakefiles for open-lmake. Loads guidance on the functional paradigm, rule authoring, dep/target flags, anti-patterns to avoid, stateful-tool (conan/pip/cargo) integration, and how to verify a flow with lmake/lshow."
+,	"version"     : "1.0.0"
+,	"author"      : { "name" : "open-lmake project" }
+}
