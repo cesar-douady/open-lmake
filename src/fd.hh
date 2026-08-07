@@ -102,7 +102,7 @@ protected :
 	SockFd( int fd , Key k                                                            ) : AcFd{fd} , key{k} {} // for Slave
 	// accesses
 public :
-	void operator>>(::string& os) const { append_to_str(os,"SockFd",cat(key)) ; } // NO_COV
+	void operator>>(::string& os) const { append_to_str(os,"SockFd",cat(key)) ; }                              // NO_COV
 	// services
 	// if timeout is 0, it means infinity (no timeout)
 	void set_receive_timeout(Time::Delay to={}) { Time::TimeVal to_tv(to) ; ::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &to_tv , sizeof(to_tv) ) ; }
@@ -249,7 +249,7 @@ private :
 	}
 	// accesses
 public :
-	void operator>>(::string& os) const { append_to_str(os,"SignalFd") ; } // NO_COV
+	void operator>>(::string& os) const { append_to_str(os,"SignalFd") ; }                                                      // NO_COV
 	// services
 	int/*sig*/ read() const {
 		struct ::signalfd_siginfo si ;
@@ -283,7 +283,7 @@ template<Enum E=NewType/*when_unused*/> struct Epoll {
 		for( auto [fd,sig_pid] : _fd_infos ) _s_epoll_sigs->erase(sig_pid.first) ;
 	}
 	// accesses
-	void operator>>(::string& os) const { os<<"Epoll("<<_fd.fd<<','<<_n_waits<<')' ; } // NO_COV
+	void operator>>(::string& os) const { os<<"Epoll("<<_fd.fd<<','<<_n_waits<<')' ; }                                        // NO_COV
 	uint operator+ (            ) const { return _n_waits ;                          }
 	void dec       (            )       { SWEAR(_n_waits>0) ; _n_waits-- ;           }
 	// services
@@ -368,7 +368,7 @@ public :
 			SWEAR(_n_events<=Max<int>) ;
 			cnt_ = ::epoll_wait( _fd , events.data() , int(_n_events) , wait_ms ) ;
 			switch (cnt_) {
-				case 0 :                                                                                                    // timeout
+				case 0 :                                                                                                           // timeout
 					if (wait_overflow) ::clock_gettime(CLOCK_MONOTONIC,&now) ;
 					else               return {} ;
 				break ;
@@ -377,21 +377,28 @@ public :
 				break ;
 				default :
 					events.resize(cnt_) ;
-					if (_n_sigs) {                                                                                          // fast path : avoid looping over events if not necessary
+					if (_n_sigs) {                                                                                                 // fast path : avoid looping over events if not necessary
 						bool shorten = false ;
 						for( Event& e : events ) {
-							Fd                        fd        = e.fd()             ; SWEAR(+fd) ;                         // it is non-sense to have an event for non-existent fd
-							auto                      it        = _fd_infos.find(fd) ; if (it==_fd_infos.end() ) continue ;
-							auto                      [sig,pid] = it->second         ;
-							bool                      found     = !pid               ;                                      // if not waiting for a particular pid, event is always ok
+							Fd                        fd        = e.fd()                    ; SWEAR(+fd) ;                         // it is non-sense to have an event for non-existent fd
+							auto                      it        = _fd_infos.find(fd)        ; if (it==_fd_infos.end() ) continue ;
+							auto                      [sig,pid] = it->second                ;
 							struct ::signalfd_siginfo si        ;
-							ssize_t                   n         ;                                                           // we are supposed to read at least once, so init with error case
-							while ( (n=::read(fd,&si,sizeof(si)))==sizeof(si) ) {                                           // flush signal fd, including possibly left-over old sigs
-								SWEAR( int(si.ssi_signo)==sig , si.ssi_signo,sig ) ;
-								found |= pid_t(si.ssi_pid)==pid ;
+							ssize_t                   n         = ::read(fd,&si,sizeof(si)) ;
+							SWEAR( n==sizeof(si) , n ) ;
+							SWEAR( int(si.ssi_signo)==sig , si.ssi_signo,sig ) ;
+							if ( pid && pid_t(si.ssi_pid)!=pid && sig==SIGCHLD ) {
+								siginfo_t info ; info.si_pid = 0 ;
+								/**/     ::waitpid(         si.ssi_pid , nullptr/*wstatus*/ , WNOHANG                 ) ;          // reap unexpected children (best effort, dont wait)
+								int rc = ::waitid ( P_PID , pid        , &info              , WNOHANG|WEXITED|WNOWAIT ) ;
+								// because signals are merged if several are waiting, it may be that the expected pid is dead while another one was queued
+								// suppress event if expected pid is either already waited for or still alive
+								bool expected_dead = rc==0 && info.si_pid==pid ;
+								if (!expected_dead) {
+									e = {} ;
+									shorten = true ;                                                                               // event is supposed to represent that pid is terminated
+								}
 							}
-							SWEAR_PROD( n<0 && (errno==EAGAIN||errno==EWOULDBLOCK||errno==EINTR) , n,fd,errno ) ;           // fd is non-blocking
-							if (!found) { e = {} ; shorten = true ; }                                                       // event is supposed to represent that pid is terminated
 						}
 						if (shorten) {
 							size_t j = 0 ;
