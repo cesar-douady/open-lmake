@@ -85,6 +85,7 @@ class Rule(_RuleBase) :
 #	dep                                               # syntactic sugar for deps = {'<stdin>':<value>} (except that it is allowed)
 #	ete                 = 0                           # Estimated Time Enroute, initial guess for job exec time (in s)
 #	force               = False                       # if set, jobs are never up-to-date, they are rebuilt every time they are needed
+#	io_uring_ok         = False                       # if set, calling io_uring* sys calls is not an errors (but deps produced by such calls are not recorded)
 #	keep_tmp            = False                       # keep tmp dir after job execution
 #	kill_daemons        = False                       # ensure no process survive after job end
 	kill_sigs           = ()                          # signals to use to kill jobs (send them in turn followed by SIGKILL), 1 second apart, until job dies

@@ -52,6 +52,7 @@ struct AutodepEnv : RealPathEnv {
 		/**/                        ::serdes(s,deps_in_system                 ) ;
 		/**/                        ::serdes(s,disabled                       ) ;
 		/**/                        ::serdes(s,ignore_stat                    ) ;
+		/**/                        ::serdes(s,io_uring_ok                    ) ;
 		/**/                        ::serdes(s,mount_chroot_ok                ) ;
 		/**/                        ::serdes(s,readdir_ok                     ) ;
 		/**/                        ::serdes(s,fast_report_pipe               ) ;
@@ -72,6 +73,7 @@ struct AutodepEnv : RealPathEnv {
 	bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 	bool                             disabled         = false ;                   // if false <=> no automatic report
 	bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
+	bool                             io_uring_ok      = false ;                   // if true  <=> allow calling io_uring* syscalls
 	bool                             mount_chroot_ok  = false ;
 	bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
 	::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies

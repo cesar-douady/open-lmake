@@ -89,6 +89,7 @@ void AutodepEnv::operator>>(::string& os) const {                               
 	if ( disabled        ) os << ",disabled"                                          ;
 	if ( auto_mkdir      ) os << ",auto_mkdir"                                        ;
 	if ( mount_chroot_ok ) os << ",mount_chroot_ok"                                   ;
+	if ( io_uring_ok     ) os << ",io_uring_ok"                                       ;
 	if ( readdir_ok      ) os << ",readdir_ok"                                        ;
 	if (+sub_repo_s      ) os << ','<<sub_repo_s                                      ;
 	if (+codecs          ) os << ','<<codecs                                          ;
@@ -100,6 +101,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
 		file_sync   = FileSync::None   ;
 		lnk_support = LnkSupport::Full ;
+		io_uring_ok = true             ;
 		readdir_ok  = true             ;
 		repo_root_s = cwd_s()          ;
 		return ;
@@ -118,6 +120,7 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			case 'd' : disabled        = true ; break ;
 			case 'D' : readdir_ok      = true ; break ;
 			case 'i' : ignore_stat     = true ; break ;
+			case 'I' : io_uring_ok     = true ; break ;
 			case 'm' : auto_mkdir      = true ; break ;
 			case 'M' : mount_chroot_ok = true ; break ;
 			case 'X' : deps_in_system  = true ; break ;
@@ -180,6 +183,7 @@ AutodepEnv::operator ::string() const {
 	if (disabled       ) res << 'd' ;
 	if (ignore_stat    ) res << 'i' ;
 	if (mount_chroot_ok) res << 'M' ;
+	if (io_uring_ok    ) res << 'I' ;
 	if (readdir_ok     ) res << 'D' ;
 	switch (file_sync) {
 		case FileSync::Auto    : res << "s?" ; break ;

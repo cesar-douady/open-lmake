@@ -431,14 +431,15 @@ namespace Backends {
 			steps |= StartStep::AncillaryAttrs ;                                                                                    // we may run job even with incomplete ancillary info
 		}
 		if (steps[StartStep::RsrcsAttrs]) {
-			reply.chk_abs_paths          =        start_rsrcs_attrs.chk_abs_paths   ;
-			reply.chroot_info.actions    =        start_rsrcs_attrs.chroot_actions  ;
-			reply.phy_lmake_root_s       = ::move(start_rsrcs_attrs.lmake_root_s  ) ;
-			reply.method                 =        start_rsrcs_attrs.method          ;
-			reply.stderr_ok              =        start_rsrcs_attrs.stderr_ok       ;
-			reply.timeout                =        submit_info.timeout               ;
-			reply.use_script             =        start_rsrcs_attrs.use_script      ;
-			reply.autodep_env.readdir_ok =        start_rsrcs_attrs.readdir_ok      ;
+			reply.chk_abs_paths           =        start_rsrcs_attrs.chk_abs_paths   ;
+			reply.chroot_info.actions     =        start_rsrcs_attrs.chroot_actions  ;
+			reply.phy_lmake_root_s        = ::move(start_rsrcs_attrs.lmake_root_s  ) ;
+			reply.method                  =        start_rsrcs_attrs.method          ;
+			reply.stderr_ok               =        start_rsrcs_attrs.stderr_ok       ;
+			reply.timeout                 =        submit_info.timeout               ;
+			reply.use_script              =        start_rsrcs_attrs.use_script      ;
+			reply.autodep_env.io_uring_ok =        start_rsrcs_attrs.io_uring_ok     ;
+			reply.autodep_env.readdir_ok  =        start_rsrcs_attrs.readdir_ok      ;
 			//
 			for( ::pair_ss& kv : start_rsrcs_attrs.env ) reply.env.push_back(::move(kv)) ;
 			//

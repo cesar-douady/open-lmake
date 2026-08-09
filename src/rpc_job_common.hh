@@ -168,7 +168,7 @@ struct MatchFlags {
 enum class Comment : uint8_t {
 	None
 // syscalls
-,	access                 , eaccess         , euidaccess
+,	access                 , eaccess           , euidaccess
 ,	canonicalize_file_name
 ,	chdir
 ,	chmod
@@ -177,60 +177,61 @@ enum class Comment : uint8_t {
 ,	dlmopen
 ,	dlopen
 ,	execv                  , execvDep
-,	execve                 , execveDep       , execveat          , execveatDep
+,	execve                 , execveDep         , execveat          , execveatDep
 ,	execvp                 , execvpDep
 ,	execvpe                , execvpeDep
 ,	exit                   , exit_group
-,	                                           faccessat         , faccessat2
+,	                                             faccessat         , faccessat2
 ,	fchdir
-,	                                           fchmodat
+,	                                             fchmodat
 ,	fopen                  , fopen64
 ,	freopen                , freopen64
-,	                                           fstatat           , fstatat64
-,	                                           futimesat
+,	                                             fstatat           , fstatat64
+,	                                             futimesat
 ,	getdents               , getdents64
 ,	getdirentries          , getdirentries64
 ,	glob                   , glob64
+,	io_uring_enter         , io_uring_register , io_uring_setup
 ,	la_objopen
 ,	la_objsearch
-,	link                                     , linkat
+,	link                                       , linkat
 ,	lstat                  , lstat64
 ,	lutimes
-,	mkdir                                    , mkdirat
+,	mkdir                                      , mkdirat
 ,	mkostemp               , mkostemp64
 ,	mkostemps              , mkostemps64
 ,	mkstemp                , mkstemp64
 ,	mkstemps               , mkstemps64
 ,	mount
-,	                                           name_to_handle_at , open_handle_at
-,	                                           newfstatat
+,	                                             name_to_handle_at , open_handle_at
+,	                                             newfstatat
 ,	oldlstat
 ,	oldstat
-,	open                   , open64          , openat            , openat64       , openat2
+,	open                   , open64            , openat            , openat64       , openat2
 ,	open_tree
 ,	opendir
 ,	posix_spawn            , posix_spawnp
-,	readdir                , readdir64       , readdir_r         , readdir64_r
-,	readlink                                 , readlinkat
+,	readdir                , readdir64         , readdir_r         , readdir64_r
+,	readlink                                   , readlinkat
 ,	realpath
-,	rename                                   , renameat          , renameat2
+,	rename                                     , renameat          , renameat2
 ,	rmdir
-,	scandir                , scandir64       , scandirat         , scandirat64
+,	scandir                , scandir64         , scandirat         , scandirat64
 ,	stat                   , stat64
 ,	statx
-,	symlink                                  , symlinkat
+,	symlink                                    , symlinkat
 ,	truncate               , truncate64
-,	unlink                                   , unlinkat
+,	unlink                                     , unlinkat
 ,	utime
-,	                                           utimensat
+,	                                             utimensat
 ,	utimes
-,	                                           __fxstatat        , __fxstatat64
-,	                                           __lxstat          , __lxstat64
+,	                                             __fxstatat        , __fxstatat64
+,	                                             __lxstat          , __lxstat64
 ,	__open                 , __open64
-,	__open_2               , __open64_2      , __openat_2        , __openat64_2
+,	__open_2               , __open64_2        , __openat_2        , __openat64_2
 ,	__open64_nocancel
 ,	__open_nocancel
-,	__readlink__chk                          , __readlinkat_chk
+,	__readlink__chk                            , __readlinkat_chk
 ,	__realpath_chk
 ,	__xstat                , __xstat64
 // lmake functions

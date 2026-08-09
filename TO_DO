@@ -86,7 +86,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
-* support io_uring :
+* support io_uring dep recording :
 	- IORING_OP_OPENAT
 	- IORING_OP_STATX
 	- IORING_OP_OPENAT2
@@ -96,7 +96,6 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- IORING_OP_SYMLINKAT
 	- IORING_OP_LINKAT
 	- IORING_OP_URING_CMD ?
-	- by default, forbid io_uring_setup, io_uring_enter and io_uring_register
 	- use ebpf to trigger on internal kernel function
 * ensure SGE job are actually removed from queue when job is done
 	- and call qdel if not
@@ -128,7 +127,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 ? check files are conformant to config.link_support
 	- can only reasonably be done for none, is it worth ?
 	- each time it is mostly free (objective of this config is improved perf)
-? clean up Crc
+? clean up struct Crc
 	- mimic Crc in cache
 	- accept 3 special flags (8 possibilities) : RegOk LnkOk, NoneOk in addition to valid Crc
 	- encode to maximize entropy ( reg >> lnk >> err cases )

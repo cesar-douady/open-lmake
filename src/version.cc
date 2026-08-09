@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 52      ; // 0b1a3279187672e33d9fcea830751ad5
+	uint64_t    constexpr Cache = 53      ; // c3c341fe376ea8579084d6215693705e
 	uint64_t    constexpr Codec = 3       ; // 084f97cd3cdfd24a126f49adeb731f3f
-	uint64_t    constexpr Repo  = 57      ; // b230a4dafcce64b5460eb87c3811cb81
-	uint64_t    constexpr Job   = 28      ; // 644d709daca83e95ebc9ce382e156669
+	uint64_t    constexpr Repo  = 58      ; // ba68ebdde7ddd183a7c8e269ba3f6bf9
+	uint64_t    constexpr Job   = 29      ; // 7fdf2b4423814be89ac5ddf063218370
 	const char* const     Major = "26.08" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 0b1a3279187672e33d9fcea830751ad5 *
+// * Cache : c3c341fe376ea8579084d6215693705e *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -19,6 +19,7 @@ namespace Version {
 //		if (disabled       ) res << 'd' ;
 //		if (ignore_stat    ) res << 'i' ;
 //		if (mount_chroot_ok) res << 'M' ;
+//		if (io_uring_ok    ) res << 'I' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
 //			case FileSync::Auto    : res << "s?" ; break ;
@@ -185,6 +186,7 @@ namespace Version {
 //		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		bool                             disabled         = false ;                   // if false <=> no automatic report
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
+//		bool                             io_uring_ok      = false ;                   // if true  <=> allow calling io_uring* syscalls
 //		bool                             mount_chroot_ok  = false ;
 //		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
 //		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
@@ -783,7 +785,7 @@ namespace Version {
 //	enum class Comment : uint8_t {
 //		None
 //	// syscalls
-//	,	access                 , eaccess         , euidaccess
+//	,	access                 , eaccess           , euidaccess
 //	,	canonicalize_file_name
 //	,	chdir
 //	,	chmod
@@ -792,60 +794,61 @@ namespace Version {
 //	,	dlmopen
 //	,	dlopen
 //	,	execv                  , execvDep
-//	,	execve                 , execveDep       , execveat          , execveatDep
+//	,	execve                 , execveDep         , execveat          , execveatDep
 //	,	execvp                 , execvpDep
 //	,	execvpe                , execvpeDep
 //	,	exit                   , exit_group
-//	,	                                           faccessat         , faccessat2
+//	,	                                             faccessat         , faccessat2
 //	,	fchdir
-//	,	                                           fchmodat
+//	,	                                             fchmodat
 //	,	fopen                  , fopen64
 //	,	freopen                , freopen64
-//	,	                                           fstatat           , fstatat64
-//	,	                                           futimesat
+//	,	                                             fstatat           , fstatat64
+//	,	                                             futimesat
 //	,	getdents               , getdents64
 //	,	getdirentries          , getdirentries64
 //	,	glob                   , glob64
+//	,	io_uring_enter         , io_uring_register , io_uring_setup
 //	,	la_objopen
 //	,	la_objsearch
-//	,	link                                     , linkat
+//	,	link                                       , linkat
 //	,	lstat                  , lstat64
 //	,	lutimes
-//	,	mkdir                                    , mkdirat
+//	,	mkdir                                      , mkdirat
 //	,	mkostemp               , mkostemp64
 //	,	mkostemps              , mkostemps64
 //	,	mkstemp                , mkstemp64
 //	,	mkstemps               , mkstemps64
 //	,	mount
-//	,	                                           name_to_handle_at , open_handle_at
-//	,	                                           newfstatat
+//	,	                                             name_to_handle_at , open_handle_at
+//	,	                                             newfstatat
 //	,	oldlstat
 //	,	oldstat
-//	,	open                   , open64          , openat            , openat64       , openat2
+//	,	open                   , open64            , openat            , openat64       , openat2
 //	,	open_tree
 //	,	opendir
 //	,	posix_spawn            , posix_spawnp
-//	,	readdir                , readdir64       , readdir_r         , readdir64_r
-//	,	readlink                                 , readlinkat
+//	,	readdir                , readdir64         , readdir_r         , readdir64_r
+//	,	readlink                                   , readlinkat
 //	,	realpath
-//	,	rename                                   , renameat          , renameat2
+//	,	rename                                     , renameat          , renameat2
 //	,	rmdir
-//	,	scandir                , scandir64       , scandirat         , scandirat64
+//	,	scandir                , scandir64         , scandirat         , scandirat64
 //	,	stat                   , stat64
 //	,	statx
-//	,	symlink                                  , symlinkat
+//	,	symlink                                    , symlinkat
 //	,	truncate               , truncate64
-//	,	unlink                                   , unlinkat
+//	,	unlink                                     , unlinkat
 //	,	utime
-//	,	                                           utimensat
+//	,	                                             utimensat
 //	,	utimes
-//	,	                                           __fxstatat        , __fxstatat64
-//	,	                                           __lxstat          , __lxstat64
+//	,	                                             __fxstatat        , __fxstatat64
+//	,	                                             __lxstat          , __lxstat64
 //	,	__open                 , __open64
-//	,	__open_2               , __open64_2      , __openat_2        , __openat64_2
+//	,	__open_2               , __open64_2        , __openat_2        , __openat64_2
 //	,	__open64_nocancel
 //	,	__open_nocancel
-//	,	__readlink__chk                          , __readlinkat_chk
+//	,	__readlink__chk                            , __readlinkat_chk
 //	,	__realpath_chk
 //	,	__xstat                , __xstat64
 //	// lmake functions
@@ -1123,7 +1126,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : b230a4dafcce64b5460eb87c3811cb81 *
+// * Repo : ba68ebdde7ddd183a7c8e269ba3f6bf9 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1133,6 +1136,7 @@ namespace Version {
 //		if (disabled       ) res << 'd' ;
 //		if (ignore_stat    ) res << 'i' ;
 //		if (mount_chroot_ok) res << 'M' ;
+//		if (io_uring_ok    ) res << 'I' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
 //			case FileSync::Auto    : res << "s?" ; break ;
@@ -1358,6 +1362,7 @@ namespace Version {
 //		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		bool                             disabled         = false ;                   // if false <=> no automatic report
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
+//		bool                             io_uring_ok      = false ;                   // if true  <=> allow calling io_uring* syscalls
 //		bool                             mount_chroot_ok  = false ;
 //		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
 //		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
@@ -1671,6 +1676,7 @@ namespace Version {
 //			bool          chk_abs_paths  = false               ; bool     dyn_chk_abs_paths  = false ;
 //			ChrootActions chroot_actions ;                       bool     dyn_chroot_actions = false ;
 //			::vmap_ss     env            ;                       IsDynMap dyn_env            = {}    ;
+//			bool          io_uring_ok    = false               ; bool     dyn_io_uring_ok    = false ;
 //			::string      lmake_root_s   ;                       bool     dyn_lmake_root_s   = false ;
 //			AutodepMethod method         = AutodepMethod::Dflt ; bool     dyn_method         = false ;
 //			bool          readdir_ok     = false               ; bool     dyn_readdir_ok     = false ;
@@ -2309,7 +2315,7 @@ namespace Version {
 //	enum class Comment : uint8_t {
 //		None
 //	// syscalls
-//	,	access                 , eaccess         , euidaccess
+//	,	access                 , eaccess           , euidaccess
 //	,	canonicalize_file_name
 //	,	chdir
 //	,	chmod
@@ -2318,60 +2324,61 @@ namespace Version {
 //	,	dlmopen
 //	,	dlopen
 //	,	execv                  , execvDep
-//	,	execve                 , execveDep       , execveat          , execveatDep
+//	,	execve                 , execveDep         , execveat          , execveatDep
 //	,	execvp                 , execvpDep
 //	,	execvpe                , execvpeDep
 //	,	exit                   , exit_group
-//	,	                                           faccessat         , faccessat2
+//	,	                                             faccessat         , faccessat2
 //	,	fchdir
-//	,	                                           fchmodat
+//	,	                                             fchmodat
 //	,	fopen                  , fopen64
 //	,	freopen                , freopen64
-//	,	                                           fstatat           , fstatat64
-//	,	                                           futimesat
+//	,	                                             fstatat           , fstatat64
+//	,	                                             futimesat
 //	,	getdents               , getdents64
 //	,	getdirentries          , getdirentries64
 //	,	glob                   , glob64
+//	,	io_uring_enter         , io_uring_register , io_uring_setup
 //	,	la_objopen
 //	,	la_objsearch
-//	,	link                                     , linkat
+//	,	link                                       , linkat
 //	,	lstat                  , lstat64
 //	,	lutimes
-//	,	mkdir                                    , mkdirat
+//	,	mkdir                                      , mkdirat
 //	,	mkostemp               , mkostemp64
 //	,	mkostemps              , mkostemps64
 //	,	mkstemp                , mkstemp64
 //	,	mkstemps               , mkstemps64
 //	,	mount
-//	,	                                           name_to_handle_at , open_handle_at
-//	,	                                           newfstatat
+//	,	                                             name_to_handle_at , open_handle_at
+//	,	                                             newfstatat
 //	,	oldlstat
 //	,	oldstat
-//	,	open                   , open64          , openat            , openat64       , openat2
+//	,	open                   , open64            , openat            , openat64       , openat2
 //	,	open_tree
 //	,	opendir
 //	,	posix_spawn            , posix_spawnp
-//	,	readdir                , readdir64       , readdir_r         , readdir64_r
-//	,	readlink                                 , readlinkat
+//	,	readdir                , readdir64         , readdir_r         , readdir64_r
+//	,	readlink                                   , readlinkat
 //	,	realpath
-//	,	rename                                   , renameat          , renameat2
+//	,	rename                                     , renameat          , renameat2
 //	,	rmdir
-//	,	scandir                , scandir64       , scandirat         , scandirat64
+//	,	scandir                , scandir64         , scandirat         , scandirat64
 //	,	stat                   , stat64
 //	,	statx
-//	,	symlink                                  , symlinkat
+//	,	symlink                                    , symlinkat
 //	,	truncate               , truncate64
-//	,	unlink                                   , unlinkat
+//	,	unlink                                     , unlinkat
 //	,	utime
-//	,	                                           utimensat
+//	,	                                             utimensat
 //	,	utimes
-//	,	                                           __fxstatat        , __fxstatat64
-//	,	                                           __lxstat          , __lxstat64
+//	,	                                             __fxstatat        , __fxstatat64
+//	,	                                             __lxstat          , __lxstat64
 //	,	__open                 , __open64
-//	,	__open_2               , __open64_2      , __openat_2        , __openat64_2
+//	,	__open_2               , __open64_2        , __openat_2        , __openat64_2
 //	,	__open64_nocancel
 //	,	__open_nocancel
-//	,	__readlink__chk                          , __readlinkat_chk
+//	,	__readlink__chk                            , __readlinkat_chk
 //	,	__realpath_chk
 //	,	__xstat                , __xstat64
 //	// lmake functions
@@ -2496,7 +2503,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 644d709daca83e95ebc9ce382e156669 *
+// * Job : 7fdf2b4423814be89ac5ddf063218370 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2506,6 +2513,7 @@ namespace Version {
 //		if (disabled       ) res << 'd' ;
 //		if (ignore_stat    ) res << 'i' ;
 //		if (mount_chroot_ok) res << 'M' ;
+//		if (io_uring_ok    ) res << 'I' ;
 //		if (readdir_ok     ) res << 'D' ;
 //		switch (file_sync) {
 //			case FileSync::Auto    : res << "s?" ; break ;
@@ -2622,6 +2630,7 @@ namespace Version {
 //		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		bool                             disabled         = false ;                   // if false <=> no automatic report
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
+//		bool                             io_uring_ok      = false ;                   // if true  <=> allow calling io_uring* syscalls
 //		bool                             mount_chroot_ok  = false ;
 //		bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs
 //		::string                         fast_report_pipe ;                           // pipe to report accesses, faster than sockets, but does not allow replies
@@ -2765,7 +2774,7 @@ namespace Version {
 //	enum class Comment : uint8_t {
 //		None
 //	// syscalls
-//	,	access                 , eaccess         , euidaccess
+//	,	access                 , eaccess           , euidaccess
 //	,	canonicalize_file_name
 //	,	chdir
 //	,	chmod
@@ -2774,60 +2783,61 @@ namespace Version {
 //	,	dlmopen
 //	,	dlopen
 //	,	execv                  , execvDep
-//	,	execve                 , execveDep       , execveat          , execveatDep
+//	,	execve                 , execveDep         , execveat          , execveatDep
 //	,	execvp                 , execvpDep
 //	,	execvpe                , execvpeDep
 //	,	exit                   , exit_group
-//	,	                                           faccessat         , faccessat2
+//	,	                                             faccessat         , faccessat2
 //	,	fchdir
-//	,	                                           fchmodat
+//	,	                                             fchmodat
 //	,	fopen                  , fopen64
 //	,	freopen                , freopen64
-//	,	                                           fstatat           , fstatat64
-//	,	                                           futimesat
+//	,	                                             fstatat           , fstatat64
+//	,	                                             futimesat
 //	,	getdents               , getdents64
 //	,	getdirentries          , getdirentries64
 //	,	glob                   , glob64
+//	,	io_uring_enter         , io_uring_register , io_uring_setup
 //	,	la_objopen
 //	,	la_objsearch
-//	,	link                                     , linkat
+//	,	link                                       , linkat
 //	,	lstat                  , lstat64
 //	,	lutimes
-//	,	mkdir                                    , mkdirat
+//	,	mkdir                                      , mkdirat
 //	,	mkostemp               , mkostemp64
 //	,	mkostemps              , mkostemps64
 //	,	mkstemp                , mkstemp64
 //	,	mkstemps               , mkstemps64
 //	,	mount
-//	,	                                           name_to_handle_at , open_handle_at
-//	,	                                           newfstatat
+//	,	                                             name_to_handle_at , open_handle_at
+//	,	                                             newfstatat
 //	,	oldlstat
 //	,	oldstat
-//	,	open                   , open64          , openat            , openat64       , openat2
+//	,	open                   , open64            , openat            , openat64       , openat2
 //	,	open_tree
 //	,	opendir
 //	,	posix_spawn            , posix_spawnp
-//	,	readdir                , readdir64       , readdir_r         , readdir64_r
-//	,	readlink                                 , readlinkat
+//	,	readdir                , readdir64         , readdir_r         , readdir64_r
+//	,	readlink                                   , readlinkat
 //	,	realpath
-//	,	rename                                   , renameat          , renameat2
+//	,	rename                                     , renameat          , renameat2
 //	,	rmdir
-//	,	scandir                , scandir64       , scandirat         , scandirat64
+//	,	scandir                , scandir64         , scandirat         , scandirat64
 //	,	stat                   , stat64
 //	,	statx
-//	,	symlink                                  , symlinkat
+//	,	symlink                                    , symlinkat
 //	,	truncate               , truncate64
-//	,	unlink                                   , unlinkat
+//	,	unlink                                     , unlinkat
 //	,	utime
-//	,	                                           utimensat
+//	,	                                             utimensat
 //	,	utimes
-//	,	                                           __fxstatat        , __fxstatat64
-//	,	                                           __lxstat          , __lxstat64
+//	,	                                             __fxstatat        , __fxstatat64
+//	,	                                             __lxstat          , __lxstat64
 //	,	__open                 , __open64
-//	,	__open_2               , __open64_2      , __openat_2        , __openat64_2
+//	,	__open_2               , __open64_2        , __openat_2        , __openat64_2
 //	,	__open64_nocancel
 //	,	__open_nocancel
-//	,	__readlink__chk                          , __readlinkat_chk
+//	,	__readlink__chk                            , __readlinkat_chk
 //	,	__realpath_chk
 //	,	__xstat                , __xstat64
 //	// lmake functions

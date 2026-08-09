@@ -76,6 +76,9 @@ Keys are:
 	Item(B_($TOP_REPO_ROOT))           The absolute dir of the top-level repo, as seen by the job
 	.RE
 
+Item(B_(-I),B_(--io-uring-ok))
+Mimic setting the rule attribute B_(io_uring_ok)=I_(True).
+
 Item(B_(-k),B_(--keep-tmp))
 Dont erase tmp dir after execution.
 

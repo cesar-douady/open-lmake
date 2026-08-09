@@ -109,7 +109,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_chmod( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_chmod( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<ChmodHelper>( ctx , rc
 	,	[ ](ChmodHelper& cm           )->int64_t { return ::chmod( cm.chmod.real_write().c_str() , cm.mod ) ; }
 	,	[&](ChmodHelper& cm,int64_t rc)          { cm.chmod( r , rc ) ;                                       }
@@ -124,7 +124,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_chroot( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_chroot( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::Chroot>( ctx , rc
 	,	[ ](Record::Chroot&              )->int64_t { FAIL() ;   }                                                                             // cannot emulate chroot
 	,	[&](Record::Chroot& cr,int64_t rc)          { cr(r,rc) ; }
@@ -144,7 +144,7 @@ struct CreatHelper {
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_creat( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_creat( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<CreatHelper>( ctx , rc
 	,	[ ](CreatHelper& c           )->int64_t { return ::creat( c.open.real_write().c_str() , c.mod ) ; }
 	,	[&](CreatHelper& c,int64_t rc)          { c.open( r , rc ) ;                                      }
@@ -162,15 +162,26 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 }
 
 // getdents
-[[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_getdents( Record& r , Fd , uint64_t args[6] , bool emulate , Comment c ) {
+[[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_getdents( Record& r , Fd /*proc_mem*/ , uint64_t args[6] , bool emulate , Comment c ) {
 	if (emulate) { Record::ReadDir  rd {                      r,Fd(args[0]),c} ; rd(r) ; return {                    } ; }                      // cannot emulate readdir, record access in all cases
 	else         { Record::ReadDir& rd = *new Record::ReadDir{r,Fd(args[0]),c} ;         return {&rd,false/*refresh*/} ; }
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_getdents( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_getdents( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::ReadDir>( ctx , rc
 	,	[ ](Record::ReadDir&              )->int64_t { FAIL() ;   }                                                                             // cannot emulate getdents
 	,	[&](Record::ReadDir& rd,int64_t rc)          { rd(r,rc) ; }
 	) ;
+}
+
+// io_uring
+[[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_io_uring( Record& , Fd /*proc_mem*/ , uint64_t /*args*/[6] , bool /*emulate*/ , Comment ) {
+	static bool s_mrkr ;                                                                                                                                         // unused : address used as marker
+	if (Record::s_autodep_env().io_uring_ok) return {}                             ;
+	else                                     return { &s_mrkr , false/*refresh*/ } ;                                                                             // any non-null pointer is ok
+}
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_io_uring( void* ctx , Record& , Fd /*proc_mem*/ , ::optional<int64_t> /*rc*/ ) {
+	SWEAR(ctx) ;                                                                                                                                                 // else we should not be called
+	return { -1 , ENOSYS } ; // io_uring* are not allowed, pretend they are not implemented
 }
 
 // hard link
@@ -182,7 +193,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_lnk( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_lnk( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::Lnk>( ctx , rc
 	,	[ ](Record::Lnk& l           )->int64_t { return ::link( l.src.real.c_str() , l.dst.real_write().c_str() ) ; }
 	,	[&](Record::Lnk& l,int64_t rc)          { l( r , rc ) ;                                                      }
@@ -205,7 +216,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_mount( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_mount( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::Mount>( ctx , rc
 	,	[ ](Record::Mount&             )->int64_t { FAIL() ;  }                                                                           // cannot emulate mount
 	,	[&](Record::Mount& m,int64_t rc)          { m(r,rc) ; }
@@ -234,7 +245,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_open( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_open( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<OpenHelper>( ctx , rc
 	,	[ ](OpenHelper& o           )->int64_t { return ::open( o.open.real_write().c_str() , o.flags , o.mod ) ; }
 	,	[&](OpenHelper& o,int64_t rc)          { o.open( r , rc ) ;                                               }
@@ -257,7 +268,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 		} catch (::string const&) {}
 		return {} ;
 	}
-	[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_open2( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+	[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_open2( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 		return _do_exit<Openat2Helper>( ctx , rc
 		,	[ ](Openat2Helper& o2           )->int64_t { return ::syscall( SYS_openat2 , Fd::Cwd , o2.open.real_write().c_str() , &o2.how , sizeof(o2.how) ) ; }
 		,	[&](Openat2Helper& o2,int64_t rc)          { o2.open( r , rc ) ;                                                                                   }
@@ -322,7 +333,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_rename( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_rename( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<RenameHelper>( ctx , rc
 	,	[ ](RenameHelper& rn)->int64_t {
 		#if HAS_RENAMEAT2                                                                                                                                     // prefer official libc if available
@@ -370,7 +381,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_unlnk( void* ctx , Record& r , Fd , ::optional<int64_t> rc ) {
+[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_unlnk( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::Unlnk>( ctx , rc
 	,	[ ](Record::Unlnk& u           )->int64_t { return ::unlink(u.real_write().c_str()) ; }
 	,	[&](Record::Unlnk& u,int64_t rc)          { u( r , rc ) ;                             }
@@ -422,7 +433,7 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 			tab[I] = SyscallDescr __VA_ARGS__ ;                                              \
 		}                                                                                    \
 	}
-	// entries marked filter (i.e. field is !=0) means that processing can be skipped if corresponding arg is a filename known to require no processing
+	// entries marked filter (i.e. field is !=-1) means that processing can be skipped if corresponding arg is a filename known to require no processing
 	//                                entry                   <At   ,FlagArg   > , exit           filter return_fd  comment
 	FILL_ENTRY( access            , { _entry_access           <false,FlagNever > , nullptr        ,  0  , false   , Comment::access            } ) ;
 	FILL_ENTRY( faccessat         , { _entry_access           <true ,3         > , nullptr        ,  1  , false   , Comment::faccessat         } ) ;
@@ -437,6 +448,9 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 	FILL_ENTRY( execveat          , { _entry_execve           <true ,4         > , nullptr        , -1  , false   , Comment::execveat          } ) ;
 	FILL_ENTRY( getdents          , { _entry_getdents                            , _exit_getdents , -1  , false   , Comment::getdents          } ) ;
 	FILL_ENTRY( getdents64        , { _entry_getdents                            , _exit_getdents , -1  , false   , Comment::getdents64        } ) ;
+	FILL_ENTRY( io_uring_enter    , { _entry_io_uring                            , _exit_io_uring , -1  , false   , Comment::io_uring_enter    } ) ;
+	FILL_ENTRY( io_uring_register , { _entry_io_uring                            , _exit_io_uring , -1  , false   , Comment::io_uring_register } ) ;
+	FILL_ENTRY( io_uring_setup    , { _entry_io_uring                            , _exit_io_uring , -1  , false   , Comment::io_uring_setup    } ) ;
 	FILL_ENTRY( link              , { _entry_lnk              <false,FlagNever > , _exit_lnk      ,  1  , false   , Comment::link              } ) ;
 	FILL_ENTRY( linkat            , { _entry_lnk              <true ,4         > , _exit_lnk      ,  3  , false   , Comment::linkat            } ) ;
 	FILL_ENTRY( mkdir             , { _entry_mkdir            <false           > , nullptr        ,  0  , false   , Comment::mkdir             } ) ;

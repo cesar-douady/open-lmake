@@ -28,6 +28,7 @@ enum class CmdFlag : uint8_t {
 ,	DomainName
 ,	Cwd
 ,	Env
+,	IoUringOk
 ,	KeepTmp
 ,	KillDaemons
 ,	LinkSupport
@@ -138,6 +139,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::ReaddirOk     , { .short_name='D' , .has_arg=false , .doc="allow reading local non-ignored dirs"                                                                        } }
 	,	{ CmdFlag::Env           , { .short_name='e' , .has_arg=true  , .doc="list of environment variables to keep, given as a python tuple/list"                                         } }
 	,	{ CmdFlag::ExpandEnv     , { .short_name='E' , .has_arg=false , .doc="expand keys (e.g. $REPO_ROOT) in environment and first interpreter word"                                     } }
+	,	{ CmdFlag::IoUringOk     , { .short_name='I' , .has_arg=false , .doc="allow calling io_uring* syscalls"                                                                            } }
 	,	{ CmdFlag::KeepTmp       , { .short_name='k' , .has_arg=false , .doc="dont clean tmp dir after execution"                                                                          } }
 	,	{ CmdFlag::KillDaemons   , { .short_name='K' , .has_arg=false , .doc="ensure all subprocesses are proprely killed at end of job"                                                   } }
 	,	{ CmdFlag::LinkSupport   , { .short_name='l' , .has_arg=true  , .doc="level of symbolic link support (none, file, full, full_ext), default=full"                                   } }
@@ -189,6 +191,7 @@ int main( int argc , char* argv[] ) {
 		if (cmd_line.flags[CmdFlag::RepoView     ]) job_space.repo_view_s       = with_slash            (cmd_line.flag_args[+CmdFlag::RepoView     ]) ;
 		if (cmd_line.flags[CmdFlag::TmpView      ]) job_space.tmp_view_s        = with_slash            (cmd_line.flag_args[+CmdFlag::TmpView      ]) ;
 		/**/                                        autodep_env.auto_mkdir      =                        cmd_line.flags    [ CmdFlag::AutoMkdir    ]  ;
+		/**/                                        autodep_env.io_uring_ok     =                        cmd_line.flags    [ CmdFlag::IoUringOk    ]  ;
 		/**/                                        autodep_env.mount_chroot_ok =                        cmd_line.flags    [ CmdFlag::MountChrootOk]  ;
 		/**/                                        autodep_env.readdir_ok      =                        cmd_line.flags    [ CmdFlag::ReaddirOk    ]  ;
 		if (cmd_line.flags[CmdFlag::Cwd          ]) autodep_env.sub_repo_s      = with_slash            (cmd_line.flag_args[+CmdFlag::Cwd          ]) ;

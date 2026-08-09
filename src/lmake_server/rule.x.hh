@@ -295,6 +295,7 @@ namespace Engine {
 			::serdes( s , chk_abs_paths  ) ;
 			::serdes( s , chroot_actions ) ;
 			::serdes( s , env            ) ;
+			::serdes( s , io_uring_ok    ) ;
 			::serdes( s , lmake_root_s   ) ;
 			::serdes( s , method         ) ;
 			::serdes( s , readdir_ok     ) ;
@@ -305,6 +306,7 @@ namespace Engine {
 			Attrs::acquire_from_dct( chk_abs_paths  , dyn_chk_abs_paths  , py_dct , "check_abs_paths" ) ;
 			Attrs::acquire_from_dct( chroot_actions , dyn_chroot_actions , py_dct , "chroot_actions"  ) ;
 			Attrs::acquire_env     ( env            , dyn_env            , py_dct , "env"             ) ;
+			Attrs::acquire_from_dct( io_uring_ok    , dyn_io_uring_ok    , py_dct , "io_uring_ok"     ) ;
 			Attrs::acquire_from_dct( lmake_root_s   , dyn_lmake_root_s   , py_dct , "lmake_root"      ) ; if (+lmake_root_s) add_slash(lmake_root_s) ;
 			Attrs::acquire_from_dct( method         , dyn_method         , py_dct , "autodep"         ) ;
 			Attrs::acquire_from_dct( readdir_ok     , dyn_readdir_ok     , py_dct , "readdir_ok"      ) ;
@@ -316,6 +318,7 @@ namespace Engine {
 		bool          chk_abs_paths  = false               ; bool     dyn_chk_abs_paths  = false ;
 		ChrootActions chroot_actions ;                       bool     dyn_chroot_actions = false ;
 		::vmap_ss     env            ;                       IsDynMap dyn_env            = {}    ;
+		bool          io_uring_ok    = false               ; bool     dyn_io_uring_ok    = false ;
 		::string      lmake_root_s   ;                       bool     dyn_lmake_root_s   = false ;
 		AutodepMethod method         = AutodepMethod::Dflt ; bool     dyn_method         = false ;
 		bool          readdir_ok     = false               ; bool     dyn_readdir_ok     = false ;

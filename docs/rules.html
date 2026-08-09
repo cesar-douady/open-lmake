@@ -503,6 +503,14 @@ This is typically used to access some environment variables set by <code>slurm</
 </div>
 <p>When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
 It is rarely necessary.</p>
+<h3 id="io_uring_ok"><a class="header" href="#io_uring_ok"><a href="unit_tests/io_uring.html#:~:text=io%5Furing%5Fok%20%3D%20sfx%3D%3D%27ok"><code>io_uring_ok</code></a></a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute has a false value, calling <code>io_uring*</code> sys calls is forbidden.
+This is because this allows to create deps and targets without any sys calls being made and thus prevent them from being tracked.</p>
+<p>If it is true, such sys calls are allowed and it is the user responsibility to ensure that accesses are adequately recorded by calling <code>depend()</code> and <code>target()</code>.</p>
 <h3 id="job_name"><a class="header" href="#job_name"><code>job_name</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>str</code></td><td>...</td><td>No</td><td></td></tr>

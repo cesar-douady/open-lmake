@@ -60,6 +60,7 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "lmake_view_s     : "<<jsrr.job_space.lmake_view_s     <<'\n' ;
 	g_out << "method           : "<<jsrr.method                     <<'\n' ;
 	g_out << "phy_lmake_root_s : "<<jsrr.phy_lmake_root_s           <<'\n' ;
+	g_out << "io_uring_ok      : "<<jsrr.autodep_env.io_uring_ok    <<'\n' ;
 	g_out << "mount_chroot_ok  : "<<jsrr.autodep_env.mount_chroot_ok<<'\n' ;
 	g_out << "readdir_ok       : "<<jsrr.autodep_env.readdir_ok     <<'\n' ;
 	g_out << "repo_view_s      : "<<jsrr.job_space.repo_view_s      <<'\n' ;

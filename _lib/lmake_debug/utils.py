@@ -34,6 +34,7 @@ class Job :
 	chroot_user     = None
 	codecs          = None
 	cwd             = None
+	io_uring_ok     = False
 	kill_daemons    = False
 	lmake_root      = None
 	lmake_view      = None
@@ -146,6 +147,7 @@ class Job :
 		if self.cwd             : simple , res = False , res+f' -d{mk_shell_str(     self.cwd                   )}'
 		if self.readdir_ok      :          res =         res+ ' -D'
 		if True                 :          res =         res+f' -e{mk_shell_str(repr(keep_env                  ))}'
+		if self.io_uring_ok     :          res =         res+ ' -I'
 		if True                 :          res =         res+ ' -k'
 		if self.kill_daemons    : simple , res = False , res+ ' -K'
 		if True                 :          res =         res+f' -l{                  self.link_support           }'

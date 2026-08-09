@@ -511,6 +511,7 @@ namespace Engine {
 		if (jsrr.phy_lmake_root_s!=*g_lmake_root_s) res << ",\tlmake_root         = "<<mk_py_str(no_slash(jsrr.phy_lmake_root_s                               ))<<'\n' ;
 		if (+job_space.lmake_view_s               ) res << ",\tlmake_view         = "<<mk_py_str(no_slash(job_space.lmake_view_s                              ))<<'\n' ;
 		/**/                                        res << ",\tname               = "<<mk_py_str(         job->name()                                          )<<'\n' ;
+		if (ade.io_uring_ok                       ) res << ",\tio_uring_ok        = "<<mk_py_str(         ade.io_uring_ok                                      )<<'\n' ;
 		if (ade.mount_chroot_ok                   ) res << ",\tmount_chroot_ok    = "<<mk_py_str(         ade.mount_chroot_ok                                  )<<'\n' ;
 		if (ade.readdir_ok                        ) res << ",\treaddir_ok         = "<<mk_py_str(         ade.readdir_ok                                       )<<'\n' ;
 		/**/                                        res << ",\trepo_root          = "<<mk_py_str(no_slash(*g_repo_root_s                                      ))<<'\n' ;
@@ -1040,6 +1041,7 @@ namespace Engine {
 								if (+start.autodep_env.sub_repo_s     ) push_entry( "sub_repo"        , no_slash(start.autodep_env.sub_repo_s) ) ;
 								if ( start.autodep_env.mount_chroot_ok) push_entry( "mount_chroot_ok" , "true"                                 ) ;
 								if ( start.kill_daemons               ) push_entry( "kill_daemons"    , "true"                                 ) ;
+								if ( start.autodep_env.io_uring_ok    ) push_entry( "io_uring_ok"     , "true"                                 ) ;
 								if ( start.autodep_env.readdir_ok     ) push_entry( "readdir_ok"      , "true"                                 ) ;
 								if ( start.autodep_env.auto_mkdir     ) push_entry( "auto_mkdir"      , "true"                                 ) ;
 								/**/                                    push_entry( "autodep"         , snake_str(start.method)                ) ;

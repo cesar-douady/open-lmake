@@ -411,6 +411,17 @@ Note that environment variables `$PATH`, `$LD_LIBRARY_PATH`, `$MANPATH` and `$PY
 When this attribute is set to a true value, jobs are always considered out-of-date and are systematically rerun if a target is needed.
 It is rarely necessary.
 
+### [`io_uring_ok`](unit_tests/io_uring.html#:~:text=io%5Furing%5Fok%20%3D%20sfx%3D%3D%27ok)
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a false value, calling `io_uring*` sys calls is forbidden.
+This is because this allows to create deps and targets without any sys calls being made and thus prevent them from being tracked.
+
+If it is true, such sys calls are allowed and it is the user responsibility to ensure that accesses are adequately recorded by calling `depend()` and `target()`.
+
 ### `job_name`
 
 | Inheritance | Type  | Default | Dynamic | Example |
