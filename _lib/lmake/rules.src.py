@@ -84,6 +84,8 @@ class Rule(_RuleBase) :
 	#                                                 #   IgnoreError |         | accept dep even if generated in error
 #	dep                                               # syntactic sugar for deps = {'<stdin>':<value>} (except that it is allowed)
 #	ete                 = 0                           # Estimated Time Enroute, initial guess for job exec time (in s)
+#	external_read_ok    = False                       # if set, reading outside repo and source dirs is allowed (but not tracked)
+#	external_write_ok   = False                       # if set, writing outside repo is allowed (but not tracked)
 #	force               = False                       # if set, jobs are never up-to-date, they are rebuilt every time they are needed
 #	io_uring_ok         = False                       # if set, calling io_uring* sys calls is not an errors (but deps produced by such calls are not recorded)
 #	keep_tmp            = False                       # keep tmp dir after job execution

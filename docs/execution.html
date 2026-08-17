@@ -254,7 +254,7 @@ A file cannot stop being a target: once it has become a target, this is until th
 <p>A file is a dep from the begining of the job execution if it listed as a <code>deps</code> in the rule.</p>
 <p>A file becomes a dep when it is read (with the meaning mentioned above) while not a target at that time.</p>
 <h3 id="errors"><a class="header" href="#errors">Errors</a></h3>
-<p>Some cases lead to errors, independently of the user script.</p>
+<p>Some cases lead to errors, independently of whether <code>cmd</code> returned with a non-zero return code (<code>bash</code> case) or an exception was raised (<code>python</code> case).</p>
 <p>The first case is when there is clash between static declarations.
 <code>targets</code>, <code>side_targets</code>, <code>side_deps</code> entries may or may not contain star stems.
 In the latter case, and including the static deps listed in <code>deps</code>, they are static entries.
@@ -277,6 +277,7 @@ In this latter case, the job will rerun if such dep-target is actually modified.
 <li>Executing <code>ltarget foo</code> in which the <code>-a</code> option is not passed.</li>
 </ul>
 <p>A target that is not declared is an error.</p>
+<p>The last case is when a file outside the repo was written. Note that for this detection, the ignore flag is not taken into account.</p>
 <h3 id="processing-a-target"><a class="header" href="#processing-a-target">Processing a target</a></h3>
 <p>Targets are normally erased before the start of the job execution, unless they are sources or flagged as <code>incremental</code>.
 In case a target is also a dep, it is automatically flagged as <code>incremental</code>, whether it is an error or not.</p>

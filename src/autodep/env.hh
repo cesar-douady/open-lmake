@@ -28,9 +28,9 @@ namespace Codec {
 			::serdes(s,umask    ) ;
 		}
 		// data
-		::string tab       ;                         // source file if is_lcl(tab), else external dir
-		FileSync file_sync = {} ;                    // valid if external dir
-		mode_t   umask     = -1 ;                    // .
+		::string tab       ;                                 // source file if is_lcl(tab), else external dir
+		FileSync file_sync = {} ;                            // valid if external dir
+		mode_t   umask     = -1 ;                            // .
 	} ;
 }
 
@@ -51,6 +51,7 @@ struct AutodepEnv : RealPathEnv {
 		/**/                        ::serdes(s,auto_mkdir                     ) ;
 		/**/                        ::serdes(s,deps_in_system                 ) ;
 		/**/                        ::serdes(s,disabled                       ) ;
+		/**/                        ::serdes(s,ext_read_ok,ext_write_ok       ) ;
 		/**/                        ::serdes(s,ignore_stat                    ) ;
 		/**/                        ::serdes(s,io_uring_ok                    ) ;
 		/**/                        ::serdes(s,mount_chroot_ok                ) ;
@@ -72,6 +73,8 @@ struct AutodepEnv : RealPathEnv {
 	bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
 	bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 	bool                             disabled         = false ;                   // if false <=> no automatic report
+	bool                             ext_read_ok      = false ;                   // if true  <=> allow reading outside repo and source dirs
+	bool                             ext_write_ok     = false ;                   // if true  <=> allow writing outside repo
 	bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 	bool                             io_uring_ok      = false ;                   // if true  <=> allow calling io_uring* syscalls
 	bool                             mount_chroot_ok  = false ;

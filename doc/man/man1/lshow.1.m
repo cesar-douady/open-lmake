@@ -141,8 +141,10 @@ Show various info about a job, as it last ran (unless stated otherwise):
 	Bullet B_(autodep)            : the autodep method used.
 	bullet B_(backend)            : the backend used to launch job.
 	bullet B_(check_abs_paths)    : true if absolute paths inside the repo are checked (generate and error if found in targets).
-	Bullet B_(mount_chroot_ok)    : true if C_(mount,2) and C_(chroot,2) are allowed.
+	Bullet B_(external_read_ok)   : true if reading outside repo and source dirs is allowed.
+	Bullet B_(external_write_ok)  : true if writing outside repo is allowed.
 	Bullet B_(io_uring_ok)        : true if io_uring* sys calls are allowed.
+	Bullet B_(mount_chroot_ok)    : true if C_(mount,2) and C_(chroot,2) are allowed.
 	Bullet B_(readdir_ok)         : true if C_(readdir,3) is allowed on local not B_(ignore)d nor B_(incremental) dirs.
 	Bullet B_(timeout)            : the timeout after which job would have/has been killed.
 	Bullet B_(use_script)         : true if a script was used to launch job (rather than directly using the I_(-c) option to the interpreter).

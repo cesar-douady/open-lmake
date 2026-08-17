@@ -181,9 +181,9 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * provide an anti_manifest
 	- same as manifest, except that accessing such a file is an error
 	- goal is typically to ensure data in home dir (such as .foorc) is not read
-* provide a external_write_ok flag to allow writing outside repo
-	- and forbid that by default
-	- mimic readdir_ok
+* provide external access control
+	- by default forbid all accesses unless to system dirs, source dirs or repo
+	- provide means for exceptions (e.g. mimic readdir_ok)
 * add a deterministic rule attribute
 	- use it when cache upload is already cached : content must match
 		- consider a check cache mode that does not upload but check contents if it happens to already be cached
@@ -197,7 +197,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * allow rule cmd's to be modified dynamically
 	- as of now, it is forbidden
 	- but it could be handled just like modified deps
-! implementent readdir as the list of files necessary to run job
+! implement readdir as the list of files necessary to run job
 	- including indirect deps
 	- only to the point of call (i.e. deps acquired after calling readdir are not considered)
 	- hard to make that definition reasonable in terms of perf
@@ -315,7 +315,10 @@ M port to Darwin
 
 * use ebpf in seccomp/ptrace to better filter files
 	- in particular, exclude system files which are very frequently accessed
-	- cf bpf.io/linux/concepts/token
+	- cf https:bpf.io/linux/concepts/token
+* implement ptrace/seccomp with a single thread within job_exec
+	- rather than 2 : on that transform ptrace events into socket messages and one that processes messages similarly to ld_preload/ld_audit
+	- particularly important when ebpf is implemented as ebpf then becomes the standard autodep method
 * use copy-ref when possible :
 	- cache upload/download when a single file and no compression
 	- when uniquify

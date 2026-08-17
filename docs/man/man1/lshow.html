@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sun Aug  9 16:16:13 2026 -->
+<!-- CreationDate: Mon Aug 17 13:32:07 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -951,8 +951,20 @@ targets).</p> </td></tr>
 <td width="73%">
 
 
-<p><b>mount_chroot_ok</b> : true if <b>mount</b>(2) and
-<b>chroot</b>(2) are allowed.</p></td></tr>
+<p><b>external_read_ok</b> : true if reading outside repo
+and source dirs is allowed.</p></td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>external_write_ok</b> : true if writing outside repo
+is allowed.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">
@@ -965,6 +977,18 @@ targets).</p> </td></tr>
 
 <p><b>io_uring_ok</b> : true if io_uring* sys calls are
 allowed.</p> </td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="1%">
+
+
+<p>&bull;</p></td>
+<td width="8%"></td>
+<td width="73%">
+
+
+<p><b>mount_chroot_ok</b> : true if <b>mount</b>(2) and
+<b>chroot</b>(2) are allowed.</p></td></tr>
 <tr valign="top" align="left">
 <td width="18%"></td>
 <td width="1%">

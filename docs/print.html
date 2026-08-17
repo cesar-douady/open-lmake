@@ -1693,6 +1693,20 @@ Hence, it is quite simple to copy some variables from the user environment altho
 This is typically used to access some environment variables set by <code>slurm</code>.</p>
 <p>Note that environment variables <code>$PATH</code>, <code>$LD_LIBRARY_PATH</code>, <code>$MANPATH</code> and <code>$PYTHONPATH</code> are subject to
 [<code>...</code> processing]writing_lmakefile.html#:~:text=paths,environ%2EPYTHONPATH%27%3A%27%3A%27%20%7D) to access value in super-class.</p>
+<h3 id="external_read_ok-not-implemented-yet"><a class="header" href="#external_read_ok-not-implemented-yet"><code>external_read_ok</code> (not implemented yet)</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute has a false value, reading outside the repo and source dirs is forbidden.</p>
+<p>If it is true, such reads are allowed and it is the user responsibility to ensure that such untracked reads are harmless.</p>
+<h3 id="external_write_ok-not-implemented-yet"><a class="header" href="#external_write_ok-not-implemented-yet"><code>external_write_ok</code> (not implemented yet)</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
+<tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
+</tbody></table>
+</div>
+<p>When this attribute has a false value, writing outside the repo is forbidden.</p>
+<p>If it is true, such writes are allowed and it is the user responsibility to ensure that such modifications are harmless.</p>
 <h3 id="force"><a class="header" href="#force"><a href="unit_tests/dyn.html#:~:text=force%20%3D%20True"><code>force</code></a></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
 <tr><td>python</td><td><code>bool</code></td><td><code>False</code></td><td>Full</td><td><code>True</code></td></tr>
@@ -1706,7 +1720,7 @@ It is rarely necessary.</p>
 </tbody></table>
 </div>
 <p>When this attribute has a false value, calling <code>io_uring*</code> sys calls is forbidden.
-This is because this allows to create deps and targets without any sys calls being made and thus prevent them from being tracked.</p>
+This is because this allows creating deps and targets without any sys calls being made and thus prevents them from being tracked.</p>
 <p>If it is true, such sys calls are allowed and it is the user responsibility to ensure that accesses are adequately recorded by calling <code>depend()</code> and <code>target()</code>.</p>
 <h3 id="job_name"><a class="header" href="#job_name"><code>job_name</code></a></h3>
 <div class="table-wrapper"><table><thead><tr><th>Inheritance</th><th>Type</th><th>Default</th><th>Dynamic</th><th>Example</th></tr></thead><tbody>
@@ -2180,7 +2194,7 @@ A file cannot stop being a target: once it has become a target, this is until th
 <p>A file is a dep from the begining of the job execution if it listed as a <code>deps</code> in the rule.</p>
 <p>A file becomes a dep when it is read (with the meaning mentioned above) while not a target at that time.</p>
 <h3 id="errors"><a class="header" href="#errors">Errors</a></h3>
-<p>Some cases lead to errors, independently of the user script.</p>
+<p>Some cases lead to errors, independently of whether <code>cmd</code> returned with a non-zero return code (<code>bash</code> case) or an exception was raised (<code>python</code> case).</p>
 <p>The first case is when there is clash between static declarations.
 <code>targets</code>, <code>side_targets</code>, <code>side_deps</code> entries may or may not contain star stems.
 In the latter case, and including the static deps listed in <code>deps</code>, they are static entries.
@@ -2203,6 +2217,7 @@ In this latter case, the job will rerun if such dep-target is actually modified.
 <li>Executing <code>ltarget foo</code> in which the <code>-a</code> option is not passed.</li>
 </ul>
 <p>A target that is not declared is an error.</p>
+<p>The last case is when a file outside the repo was written. Note that for this detection, the ignore flag is not taken into account.</p>
 <h3 id="processing-a-target"><a class="header" href="#processing-a-target">Processing a target</a></h3>
 <p>Targets are normally erased before the start of the job execution, unless they are sources or flagged as <code>incremental</code>.
 In case a target is also a dep, it is automatically flagged as <code>incremental</code>, whether it is an error or not.</p>

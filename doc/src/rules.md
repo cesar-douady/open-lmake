@@ -402,6 +402,26 @@ This is typically used to access some environment variables set by `slurm`.
 Note that environment variables `$PATH`, `$LD_LIBRARY_PATH`, `$MANPATH` and `$PYTHONPATH` are subject to
 [`...` processing]writing_lmakefile.html#:~:text=paths,environ%2EPYTHONPATH%27%3A%27%3A%27%20%7D) to access value in super-class.
 
+### `external_read_ok` (not implemented yet)
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a false value, reading outside the repo and source dirs is forbidden.
+
+If it is true, such reads are allowed and it is the user responsibility to ensure that such untracked reads are harmless.
+
+### `external_write_ok` (not implemented yet)
+
+| Inheritance | Type   | Default | Dynamic | Example |
+|-------------|--------|---------|---------|---------|
+| python      | `bool` | `False` | Full    | `True`  |
+
+When this attribute has a false value, writing outside the repo is forbidden.
+
+If it is true, such writes are allowed and it is the user responsibility to ensure that such modifications are harmless.
+
 ### [`force`](unit_tests/dyn.html#:~:text=force%20%3D%20True)
 
 | Inheritance | Type   | Default | Dynamic | Example |
@@ -418,7 +438,7 @@ It is rarely necessary.
 | python      | `bool` | `False` | Full    | `True`  |
 
 When this attribute has a false value, calling `io_uring*` sys calls is forbidden.
-This is because this allows to create deps and targets without any sys calls being made and thus prevent them from being tracked.
+This is because this allows creating deps and targets without any sys calls being made and thus prevents them from being tracked.
 
 If it is true, such sys calls are allowed and it is the user responsibility to ensure that accesses are adequately recorded by calling `depend()` and `target()`.
 

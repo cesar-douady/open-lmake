@@ -814,6 +814,8 @@ namespace Engine {
 			k="max_runs"            ;                                                     if ( n_runs                        ) EB(k,::to_string(n_runs                     )) ;
 			k="retried_errors"      ;                                                     if ( retried_errs!=DfltRetriedErrs ) EB(k,cat        (retried_errs               )) ;
 			k="max_submits"         ;                                                     if ( n_submits                     ) EB(k,::to_string(n_submits                  )) ;
+			k="external_read_ok"    ; if (srad&&sra.dyn_ext_read_ok      ) EB(k,n) ; else if ( sra.ext_read_ok               ) EB(k,cat        (sra.ext_read_ok            )) ;
+			k="external_write_ok"   ; if (srad&&sra.dyn_ext_write_ok     ) EB(k,n) ; else if ( sra.ext_write_ok              ) EB(k,cat        (sra.ext_write_ok           )) ;
 			k="io_uring_ok"         ; if (srad&&sra.dyn_io_uring_ok      ) EB(k,n) ; else if ( sra.io_uring_ok               ) EB(k,cat        (sra.io_uring_ok            )) ;
 			k="mount_chroot_ok"     ; if (scad&&sca.dyn_mount_chroot_ok  ) EB(k,n) ; else if ( sca.mount_chroot_ok           ) EB(k,cat        (sca.mount_chroot_ok        )) ;
 			k="readdir_ok"          ; if (srad&&sra.dyn_readdir_ok       ) EB(k,n) ; else if ( sra.readdir_ok                ) EB(k,cat        (sra.readdir_ok             )) ;

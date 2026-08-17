@@ -76,6 +76,12 @@ Keys are:
 	Item(B_($TOP_REPO_ROOT))           The absolute dir of the top-level repo, as seen by the job
 	.RE
 
+Item(B_(-X),B_(--external-read-ok))
+Mimic setting the rule attribute B_(external_read_ok)=I_(True).
+
+Item(B_(-W),B_(--external-write-ok))
+Mimic setting the rule attribute B_(external_write_ok)=I_(True).
+
 Item(B_(-I),B_(--io-uring-ok))
 Mimic setting the rule attribute B_(io_uring_ok)=I_(True).
 

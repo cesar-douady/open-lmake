@@ -80,7 +80,7 @@ namespace Codec {
 
 }
 
-void AutodepEnv::operator>>(::string& os) const {                                       // START_OF_NO_COV
+void AutodepEnv::operator>>(::string& os) const {                                         // START_OF_NO_COV
 	/**/                   os << "AutodepEnv("<<static_cast<RealPathEnv const&>(self) ;
 	if (+fast_mail       ) os << ','<<fast_mail                                       ;
 	if (+fast_report_pipe) os << ','<<fast_report_pipe                                ;
@@ -88,6 +88,8 @@ void AutodepEnv::operator>>(::string& os) const {                               
 	if (+fqdn            ) os << ','<<fqdn                                            ;
 	if ( disabled        ) os << ",disabled"                                          ;
 	if ( auto_mkdir      ) os << ",auto_mkdir"                                        ;
+	if ( ext_read_ok     ) os << ",external_read_ok"                                  ;
+	if ( ext_write_ok    ) os << ",external_write_ok"                                 ;
 	if ( mount_chroot_ok ) os << ",mount_chroot_ok"                                   ;
 	if ( io_uring_ok     ) os << ",io_uring_ok"                                       ;
 	if ( readdir_ok      ) os << ",readdir_ok"                                        ;
@@ -95,15 +97,18 @@ void AutodepEnv::operator>>(::string& os) const {                               
 	if (+codecs          ) os << ','<<codecs                                          ;
 	if (+views_s         ) os << ','<<views_s                                         ;
 	/**/                   os << ')'                                                  ;
-}                                                                                       // END_OF_NO_COV
+}                                                                                         // END_OF_NO_COV
 
 AutodepEnv::AutodepEnv( ::string const& env ) {
 	if (!env) {
-		file_sync   = FileSync::None   ;
-		lnk_support = LnkSupport::Full ;
-		io_uring_ok = true             ;
-		readdir_ok  = true             ;
-		repo_root_s = cwd_s()          ;
+		file_sync       = FileSync::None   ;
+		lnk_support     = LnkSupport::Full ;
+		ext_read_ok     = true             ;
+		ext_write_ok    = true             ;
+		io_uring_ok     = true             ;
+		mount_chroot_ok = true             ;
+		readdir_ok      = true             ;
+		repo_root_s     = cwd_s()          ;
 		return ;
 	}
 	size_t pos = env.find(':'           ) ; if (pos==Npos) goto Fail ;
@@ -123,7 +128,9 @@ AutodepEnv::AutodepEnv( ::string const& env ) {
 			case 'I' : io_uring_ok     = true ; break ;
 			case 'm' : auto_mkdir      = true ; break ;
 			case 'M' : mount_chroot_ok = true ; break ;
-			case 'X' : deps_in_system  = true ; break ;
+			case 'W' : ext_write_ok    = true ; break ;
+			case 'x' : deps_in_system  = true ; break ;
+			case 'X' : ext_read_ok     = true ; break ;
 			case 'l' :
 				pos++ ;
 				switch (env[pos]) {
@@ -179,12 +186,14 @@ AutodepEnv::operator ::string() const {
 	// START_OF_VERSIONING CACHE REPO JOB
 	res << ':' ;
 	if (auto_mkdir     ) res << 'm' ;
-	if (deps_in_system ) res << 'X' ;
 	if (disabled       ) res << 'd' ;
-	if (ignore_stat    ) res << 'i' ;
-	if (mount_chroot_ok) res << 'M' ;
-	if (io_uring_ok    ) res << 'I' ;
 	if (readdir_ok     ) res << 'D' ;
+	if (ignore_stat    ) res << 'i' ;
+	if (io_uring_ok    ) res << 'I' ;
+	if (mount_chroot_ok) res << 'M' ;
+	if (ext_write_ok   ) res << 'W' ;
+	if (deps_in_system ) res << 'x' ;
+	if (ext_read_ok    ) res << 'X' ;
 	switch (file_sync) {
 		case FileSync::Auto    : res << "s?" ; break ;
 		case FileSync::None    : res << "s-" ; break ;

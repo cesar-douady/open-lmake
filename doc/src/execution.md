@@ -131,7 +131,7 @@ A file becomes a dep when it is read (with the meaning mentioned above) while no
 
 ### Errors
 
-Some cases lead to errors, independently of the user script.
+Some cases lead to errors, independently of whether `cmd` returned with a non-zero return code (`bash` case) or an exception was raised (`python` case).
 
 The first case is when there is clash between static declarations.
 `targets`, `side_targets`, `side_deps` entries may or may not contain star stems.
@@ -156,6 +156,8 @@ The third case is when a target was not declared as such.
 - Executing `ltarget foo` in which the `-a` option is not passed.
 
 A target that is not declared is an error.
+
+The last case is when a file outside the repo was written. Note that for this detection, the ignore flag is not taken into account.
 
 ### Processing a target
 

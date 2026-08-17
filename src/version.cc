@@ -1,26 +1,28 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 53      ; // c3c341fe376ea8579084d6215693705e
+	uint64_t    constexpr Cache = 55      ; // dfd0e54a354bcdb87a6a61cdf074d3d5
 	uint64_t    constexpr Codec = 3       ; // 084f97cd3cdfd24a126f49adeb731f3f
-	uint64_t    constexpr Repo  = 58      ; // ba68ebdde7ddd183a7c8e269ba3f6bf9
-	uint64_t    constexpr Job   = 29      ; // 7fdf2b4423814be89ac5ddf063218370
+	uint64_t    constexpr Repo  = 60      ; // abdbad098ee172333089306c7ebd3eb6
+	uint64_t    constexpr Job   = 31      ; // 8aa5ce7e480d3350ab3314c129f8dc5c
 	const char* const     Major = "26.08" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : c3c341fe376ea8579084d6215693705e *
+// * Cache : dfd0e54a354bcdb87a6a61cdf074d3d5 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
 //		if (auto_mkdir     ) res << 'm' ;
-//		if (deps_in_system ) res << 'X' ;
 //		if (disabled       ) res << 'd' ;
-//		if (ignore_stat    ) res << 'i' ;
-//		if (mount_chroot_ok) res << 'M' ;
-//		if (io_uring_ok    ) res << 'I' ;
 //		if (readdir_ok     ) res << 'D' ;
+//		if (ignore_stat    ) res << 'i' ;
+//		if (io_uring_ok    ) res << 'I' ;
+//		if (mount_chroot_ok) res << 'M' ;
+//		if (ext_write_ok   ) res << 'W' ;
+//		if (deps_in_system ) res << 'x' ;
+//		if (ext_read_ok    ) res << 'X' ;
 //		switch (file_sync) {
 //			case FileSync::Auto    : res << "s?" ; break ;
 //			case FileSync::None    : res << "s-" ; break ;
@@ -185,6 +187,8 @@ namespace Version {
 //		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
 //		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		bool                             disabled         = false ;                   // if false <=> no automatic report
+//		bool                             ext_read_ok      = false ;                   // if true  <=> allow reading outside repo and source dirs
+//		bool                             ext_write_ok     = false ;                   // if true  <=> allow writing outside repo
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 //		bool                             io_uring_ok      = false ;                   // if true  <=> allow calling io_uring* syscalls
 //		bool                             mount_chroot_ok  = false ;
@@ -1126,18 +1130,20 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : ba68ebdde7ddd183a7c8e269ba3f6bf9 *
+// * Repo : abdbad098ee172333089306c7ebd3eb6 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
 //		if (auto_mkdir     ) res << 'm' ;
-//		if (deps_in_system ) res << 'X' ;
 //		if (disabled       ) res << 'd' ;
-//		if (ignore_stat    ) res << 'i' ;
-//		if (mount_chroot_ok) res << 'M' ;
-//		if (io_uring_ok    ) res << 'I' ;
 //		if (readdir_ok     ) res << 'D' ;
+//		if (ignore_stat    ) res << 'i' ;
+//		if (io_uring_ok    ) res << 'I' ;
+//		if (mount_chroot_ok) res << 'M' ;
+//		if (ext_write_ok   ) res << 'W' ;
+//		if (deps_in_system ) res << 'x' ;
+//		if (ext_read_ok    ) res << 'X' ;
 //		switch (file_sync) {
 //			case FileSync::Auto    : res << "s?" ; break ;
 //			case FileSync::None    : res << "s-" ; break ;
@@ -1361,6 +1367,8 @@ namespace Version {
 //		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
 //		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		bool                             disabled         = false ;                   // if false <=> no automatic report
+//		bool                             ext_read_ok      = false ;                   // if true  <=> allow reading outside repo and source dirs
+//		bool                             ext_write_ok     = false ;                   // if true  <=> allow writing outside repo
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 //		bool                             io_uring_ok      = false ;                   // if true  <=> allow calling io_uring* syscalls
 //		bool                             mount_chroot_ok  = false ;
@@ -1676,6 +1684,8 @@ namespace Version {
 //			bool          chk_abs_paths  = false               ; bool     dyn_chk_abs_paths  = false ;
 //			ChrootActions chroot_actions ;                       bool     dyn_chroot_actions = false ;
 //			::vmap_ss     env            ;                       IsDynMap dyn_env            = {}    ;
+//			bool          ext_read_ok    = false               ; bool     dyn_ext_read_ok    = false ;
+//			bool          ext_write_ok   = false               ; bool     dyn_ext_write_ok   = false ;
 //			bool          io_uring_ok    = false               ; bool     dyn_io_uring_ok    = false ;
 //			::string      lmake_root_s   ;                       bool     dyn_lmake_root_s   = false ;
 //			AutodepMethod method         = AutodepMethod::Dflt ; bool     dyn_method         = false ;
@@ -2503,18 +2513,20 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 7fdf2b4423814be89ac5ddf063218370 *
+// * Job : 8aa5ce7e480d3350ab3314c129f8dc5c *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
 //		res << ':' ;
 //		if (auto_mkdir     ) res << 'm' ;
-//		if (deps_in_system ) res << 'X' ;
 //		if (disabled       ) res << 'd' ;
-//		if (ignore_stat    ) res << 'i' ;
-//		if (mount_chroot_ok) res << 'M' ;
-//		if (io_uring_ok    ) res << 'I' ;
 //		if (readdir_ok     ) res << 'D' ;
+//		if (ignore_stat    ) res << 'i' ;
+//		if (io_uring_ok    ) res << 'I' ;
+//		if (mount_chroot_ok) res << 'M' ;
+//		if (ext_write_ok   ) res << 'W' ;
+//		if (deps_in_system ) res << 'x' ;
+//		if (ext_read_ok    ) res << 'X' ;
 //		switch (file_sync) {
 //			case FileSync::Auto    : res << "s?" ; break ;
 //			case FileSync::None    : res << "s-" ; break ;
@@ -2629,6 +2641,8 @@ namespace Version {
 //		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
 //		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
 //		bool                             disabled         = false ;                   // if false <=> no automatic report
+//		bool                             ext_read_ok      = false ;                   // if true  <=> allow reading outside repo and source dirs
+//		bool                             ext_write_ok     = false ;                   // if true  <=> allow writing outside repo
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 //		bool                             io_uring_ok      = false ;                   // if true  <=> allow calling io_uring* syscalls
 //		bool                             mount_chroot_ok  = false ;

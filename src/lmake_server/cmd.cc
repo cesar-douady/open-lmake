@@ -511,6 +511,8 @@ namespace Engine {
 		if (jsrr.phy_lmake_root_s!=*g_lmake_root_s) res << ",\tlmake_root         = "<<mk_py_str(no_slash(jsrr.phy_lmake_root_s                               ))<<'\n' ;
 		if (+job_space.lmake_view_s               ) res << ",\tlmake_view         = "<<mk_py_str(no_slash(job_space.lmake_view_s                              ))<<'\n' ;
 		/**/                                        res << ",\tname               = "<<mk_py_str(         job->name()                                          )<<'\n' ;
+		if (ade.ext_read_ok                       ) res << ",\texternal_read_ok   = "<<mk_py_str(         ade.ext_read_ok                                      )<<'\n' ;
+		if (ade.ext_write_ok                      ) res << ",\texternal_write_ok  = "<<mk_py_str(         ade.ext_write_ok                                     )<<'\n' ;
 		if (ade.io_uring_ok                       ) res << ",\tio_uring_ok        = "<<mk_py_str(         ade.io_uring_ok                                      )<<'\n' ;
 		if (ade.mount_chroot_ok                   ) res << ",\tmount_chroot_ok    = "<<mk_py_str(         ade.mount_chroot_ok                                  )<<'\n' ;
 		if (ade.readdir_ok                        ) res << ",\treaddir_ok         = "<<mk_py_str(         ade.readdir_ok                                       )<<'\n' ;
