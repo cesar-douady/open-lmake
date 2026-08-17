@@ -396,6 +396,7 @@ namespace Backdoor {
 		//
 		throw_unless( !version || version==Version::Codec , "unsupported version (",version,") : must be ",Version::Codec ) ;
 		//
+		bool retried = false ;
 	Retry :
 		try {
 			fi = { {rfd,node} } ; throw_unless( fi.tag()==FileTag::Lnk ) ;
@@ -403,7 +404,10 @@ namespace Backdoor {
 			res = AcFd({rfd,node},{.sync_guard=&sync_guard}).read() ;                                       // if node exists, it contains the reply
 			// END_OF_VERSIONING
 		} catch (::string const&) {                                                                         // if node does not exist, maybe the table is not initialized
-			if (_retry_codec(r,crs,node,Comment::Decode)) goto Retry/*BACKWARD*/ ;
+			if ( _retry_codec(r,crs,node,Comment::Decode) && !retried ) {
+				retried = true ;
+				goto Retry/*BACKWARD*/ ;
+			}
 		}
 		//
 		r.report_access( { .comment=Comment::Decode , .digest=ad , .files={{node,fi}} } , true/*force*/ ) ; // report access after possible update
