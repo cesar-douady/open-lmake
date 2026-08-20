@@ -34,56 +34,44 @@ static void _terminate() {
 }
 
 struct SearchRootResult {
-	// cxtors & casts
+	// cxtors & co
 	SearchRootResult(AppInitAction const& action={}) {
-		::string   from_dir_s   = cwd_s()    ;
+		::string   from_dir_s   = cwd_s() ; SWEAR( is_abs(from_dir_s) , from_dir_s ) ;
 		::vector_s candidates_s ;
 		//
-		auto has_mrkr = [&](::string const& mrkr) {
-			FileTag t = FileInfo(repo_root_s+mrkr).tag() ;
-			return is_dir_name(mrkr) ? t==FileTag::Dir : t>=FileTag::Target ;
-		} ;
-		//
-		repo_root_s = from_dir_s ; SWEAR_PROD( is_abs(repo_root_s) , repo_root_s ) ;
-		//
-		for(;; repo_root_s=dir_name_s(repo_root_s) ) {
-			if ( !action.root_mrkrs || ::any_of(action.root_mrkrs,has_mrkr) ) candidates_s.push_back(repo_root_s) ;
+		for( ::string cur_dir_s=from_dir_s ;; cur_dir_s=dir_name_s(cur_dir_s) ) {
+			auto has_mrkr = [&](::string const& mrkr) {
+				FileTag t = FileInfo(cur_dir_s+mrkr).tag() ;
+				return is_dir_name(mrkr) ? t==FileTag::Dir : t>=FileTag::Target ;
+			} ;
+			if ( !action.root_mrkrs || ::any_of(action.root_mrkrs,has_mrkr) ) candidates_s.push_back(cur_dir_s) ;
 			if ( !action.cd_root                                            ) break ;
-			if ( repo_root_s=="/"                                           ) break ;
+			if ( cur_dir_s=="/"                                             ) break ;
 		}
 		switch (candidates_s.size()) {
 			case 0 :
 				if (action.root_mrkrs.size()!=1) throw cat("cannot find any of ",action.root_mrkrs   ) ;
 				else                             throw cat("cannot find "       ,action.root_mrkrs[0]) ;
 			case 1 :
-				repo_root_s = candidates_s[0] ;
+				repo_root_s = ::move(candidates_s[0]) ;
 			break ;
-			default : {
-				::vector_s candidates2_s ;
-				for( ::string const& c_s : candidates_s ) if (FileInfo(c_s+AdminDirS).tag()==FileTag::Dir) candidates2_s.push_back(c_s) ;
-				switch (candidates2_s.size()) {
-					case 0 : {
-						::string msg = "ambiguous root dir, consider 1 of :\n" ;
-						for( ::string const& c_s : candidates_s ) msg <<"\tmkdir "<<c_s<<AdminDirS<<rm_slash <<'\n' ;
-						throw msg ;
+			default :
+				for( ::string& c_s : candidates_s )
+					if (FileInfo(c_s+AdminDirS).tag()==FileTag::Dir) {
+						repo_root_s = ::move(c_s) ;
+						goto Found ;
 					}
-					case 1 : repo_root_s = ::move(candidates2_s[0]) ; break ;
-					default : {
-						::string msg = cat("ambiguous root dir, consider ",candidates2_s.size()-1," of :\n") ;
-						for( ::string const& c_s : candidates2_s ) msg <<"\trm -r "<< c_s+AdminDirS<<rm_slash <<'\n' ;
-						throw msg ;
-					}
-				}
-			}
+				::string msg = "ambiguous root dir, consider one of :\n" ;
+				for( ::string const& c_s : candidates_s ) msg << "\tmkdir "<<c_s<<AdminDirS<<rm_slash<<'\n' ;
+				throw msg ;
 		}
-		sub_s     = candidates_s[0].substr(repo_root_s.size()) ;
-		startup_s = from_dir_s.substr(repo_root_s.size())      ;
+	Found :
+		startup_s = from_dir_s.substr(repo_root_s.size()) ;
 		//
 		if ( +startup_s && ::chdir(repo_root_s.c_str())!=0 ) exit( Rc::System , "cannot chdir to ",repo_root_s,rm_slash ) ;
 	}
 	// data
 	::string repo_root_s ;
-	::string sub_s       ;
 	::string startup_s   ;
 } ;
 

@@ -58,7 +58,7 @@ struct FlagSpec {
 template<UEnum Flag,UEnum Key1=NoKey,UEnum Key2=NoKey> struct Syntax {
 	static constexpr bool HasNone1 = requires() {Key1::None;} ;
 	static constexpr bool HasNone2 = requires() {Key2::None;} ;
-	// cxtors & casts
+	// cxtors & co
 	Syntax() = default ;
 	Syntax(                                                                     ::umap<Flag,FlagSpec> const& fs ) requires (::is_same_v<Key1,NoKey>&&::is_same_v<Key2,NoKey>) : Syntax{{} ,{},fs} {}
 	Syntax( ::umap<Key1,KeySpec> const& ks1 ,                                   ::umap<Flag,FlagSpec> const& fs ) requires (                         ::is_same_v<Key2,NoKey>) : Syntax{ks1,{},fs} {}
@@ -70,10 +70,10 @@ template<UEnum Flag,UEnum Key1=NoKey,UEnum Key2=NoKey> struct Syntax {
 		if constexpr (HasNone2) { static_assert( Key2::None==Key2() ) ; has_dflt_key2 = ks2.contains({}) ; SWEAR_PROD(!( has_dflt_key2 && ks1.at({}).short_name )) ; }
 		::uset<char> short_names ;
 		for( auto const& [k,s] : ks1 ) { keys1[+k] = s ; if (+s.short_name) SWEAR_PROD( short_names.insert(s.short_name).second , s.short_name ) ; } // ensure no short name conflicts
-		for( auto const& [k,s] : ks2 ) { keys2[+k] = s ; if (+s.short_name) SWEAR_PROD( short_names.insert(s.short_name).second , s.short_name ) ; } // ensure no short name conflicts
+		for( auto const& [k,s] : ks2 ) { keys2[+k] = s ; if (+s.short_name) SWEAR_PROD( short_names.insert(s.short_name).second , s.short_name ) ; } // .
 		for( auto const& [f,s] : fs  ) { flags[+f] = s ; if (+s.short_name) SWEAR_PROD( short_names.insert(s.short_name).second , s.short_name ) ; } // .
 	}
-	//
+	// services
 	void usage(::string const& msg={}) const ;
 	// data
 	bool                                  has_keys1     = false ;
@@ -89,7 +89,7 @@ template<UEnum Flag,UEnum Key1=NoKey,UEnum Key2=NoKey> struct Syntax {
 } ;
 
 template<UEnum Flag,UEnum Key1=NoKey,UEnum Key2=NoKey> struct CmdLine {
-	// cxtors & casts
+	// cxtors & co
 	CmdLine() = default ;
 	CmdLine( Syntax<Flag,Key1,Key2> const& , int argc , const char* const* argv ) ;
 	// services
