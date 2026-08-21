@@ -268,19 +268,21 @@ namespace Engine {
 		/**/                                 return {}                                         ;
 	}
 
-	static ::string _node_crc( Node n , Crc crc , size_t width=0 ) {
-		::string res { crc } ;
+	static ::string _node_crc( Node n , Crc crc , bool applicable , size_t width ) {
+		::string res ;
+		if (applicable             ) res << ::string(crc)      ;
+		else                         res << "N/A"              ;
 		if (width                  ) res =  widen(res,width-1) ;
 		if (+n->manual({n->name()})) res << '*'                ;
 		else                         res << ' '                ;
 		return res ;
 	}
 	static ::string _node_crc( Node n , size_t width=0 ) {
-		return _node_crc( n , n->crc , width ) ;
+		return _node_crc( n , n->crc , true/*applicable*/ , width ) ;
 	}
 	static ::string _dep_crc( Dep const& d , size_t width=0 ) {
-		if (d.is_crc) return _node_crc( d , d.crc() , width ) ;
-		else          return _node_crc( d , Crc()   , width ) ;
+		if (d.is_crc) return _node_crc( d , d.crc() , +d.accesses() , width ) ;
+		else          return _node_crc( d , Crc()   , +d.accesses() , width ) ;
 	}
 
 	static Color _job_color( Job j , bool hide=false ) {
@@ -388,7 +390,8 @@ namespace Engine {
 		if (porcelain) audit( fd , ro , "(" , true/*as_is*/ , lvl ) ;
 		for( Dep const& dep : job->deps ) {
 			Color c = dep_colors[di1++] ;
-			if ( !verbose && c==Color::HiddenNote ) continue ;
+			if ( !verbose        && c==Color::HiddenNote ) continue ;
+			if ( !dep.accesses() && c==Color::None       ) c = Color::HiddenNote ;
 			NodeIdx         dep_group   = dep_groups[di2]                                          ;
 			bool            start_group = di2  ==0                 || dep_group!=dep_groups[di2-1] ;
 			bool            end_group   = di2+1==dep_groups.size() || dep_group!=dep_groups[di2+1] ;
@@ -401,7 +404,7 @@ namespace Engine {
 			if (porcelain) {
 				/**/         dep_str << "( " <<      mk_py_str(dep.dflags_str  ())         ;
 				/**/         dep_str << " , "<<      mk_py_str(dep.accesses_str())         ;
-				if (verbose) dep_str << " , "<<widen(mk_py_str(_dep_crc(dep)),w_crc ) ;
+				if (verbose) dep_str << " , "<<widen(mk_py_str(_dep_crc(dep)     ),w_crc ) ;
 				if (dep_key) dep_str << " , "<<widen(mk_py_str(*dep_key          ),w_key ) ;
 				else         dep_str << " , "<<widen("None"                       ,w_key ) ;
 				/**/         dep_str << " , "<<widen(mk_py_str(dep_name          ),w_file) ;

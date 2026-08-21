@@ -57,8 +57,20 @@ namespace Engine {
 			if (ecr.options.flags[ReqFlag::Nice        ]) data.nice         = from_string<uint8_t>(ecr.options.flag_args[+ReqFlag::Nice        ]                 ) ;
 			if (ecr.options.flags[ReqFlag::CacheMethod ]) data.cache_method = mk_enum<CacheMethod>(ecr.options.flag_args[+ReqFlag::CacheMethod ]                 ) ;
 			JobIdx                                        n_jobs            = from_string<JobIdx >(ecr.options.flag_args[+ReqFlag::Jobs        ],true/*empty_ok*/) ;
-			if (ecr.is_job()) data.job = ecr.job()         ;
-			else              data.job = Job(Special::Req) ;
+			if (ecr.is_job()) {
+				data.job = ecr.job() ;
+				data.log_fd.write(cat("asked job from rule ",data.job->rule()->user_name()," : ",data.job->name(),'\n')) ;
+			} else {
+				data.job = Job(Special::Req) ;
+				switch (ecr.files.size()) {
+					case 0 :                                                               break ;
+					case 1 : data.log_fd.write(cat("asked target : ",ecr.files[0],'\n')) ; break ;
+					default :
+						::string msg = "asked targets :\n" ;
+						for( ::string const& t : ecr.files ) msg << "  "<<t<<'\n' ;
+						data.log_fd.write(msg) ;
+				}
+			}
 			Backend::s_open_req( +self , n_jobs ) ;
 			data.has_backend = true ;
 			trace("job",data.job) ;
