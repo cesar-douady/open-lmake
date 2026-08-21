@@ -636,7 +636,7 @@ void JobSpace::enter(
 	bool need_chroot = +self || +chroot_info.dir_s ;
 	repo_root_s = repo_view_s | phy_repo_root_s ;
 	if ( !need_chroot && !kill_daemons ) {
-		_tmp_dir_s = phy_tmp_dir_s ;
+		if (!keep_tmp) _tmp_dir_s = phy_tmp_dir_s ;
 		trace("not_done",repo_root_s) ;
 		return ;
 	}
@@ -690,7 +690,7 @@ void JobSpace::enter(
 	// if a dir (or a file) is mounted in tmp dir, we cannot directly clean it up as we should umount it beforehand to avoid unlinking the mounted info
 	// but umount is privileged, so what we do instead is forking
 	// in parent, we are outside the namespace where the mount is not seen and we can clean tmp dir safely
-	if ( !clean_tmp_dir_here && +phy_tmp_dir_s ) {
+	if ( !clean_tmp_dir_here && !keep_tmp && +phy_tmp_dir_s ) {
 		trace("clean_tmp_process",phy_tmp_dir_s) ;
 		if ( pid_t pid=::fork() ; pid!=0 ) {                                                                                // in parent
 			throw_unless( pid!=-1 , "cannot set up to wait (",StrErr(),") to clean tmp" ) ;
@@ -856,7 +856,7 @@ void JobSpace::enter(
 		user_trace.emplace_back( New/*date*/ , Comment::chdir , CommentExts() , no_slash(repo_root_s) ) ;
 	}
 	// only set _tmp_dir_s once tmp mount and chroot are done so as to ensure not to unlink in the underlying dir
-	if (clean_tmp_dir_here) _tmp_dir_s = tmp_dir_s ;                                                        // if we have mounted something in tmp, we cant clean it before unmount
+	if ( clean_tmp_dir_here && !keep_tmp ) _tmp_dir_s = tmp_dir_s ;                                         // if we have mounted something in tmp, we cant clean it before unmount
 	user_trace.emplace_back( New/*date*/ , Comment::EnteredNamespace ) ;
 	trace("done",report) ;
 }
@@ -1051,9 +1051,9 @@ void CacheRemoteSide::dismiss( CacheUploadKey upload_key , uint32_t conn_id ) co
 // JobStartRpcReq
 //
 
-void JobStartRpcReq::operator>>(::string& os) const {                             // START_OF_NO_COV
+void JobStartRpcReq::operator>>(::string& os) const {                        // START_OF_NO_COV
 	os << "JobStartRpcReq("<<seq_id<<','<<job<<','<<service<<','<<msg<<')' ;
-}                                                                                 // END_OF_NO_COV
+}                                                                            // END_OF_NO_COV
 
 void JobStartRpcReq::cache_cleanup() {
 	JobRpcReq::cache_cleanup() ;
