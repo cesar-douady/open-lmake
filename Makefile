@@ -952,7 +952,7 @@ docs/man/man1/%.html : man/man1/%.1
 	@mkdir -p $(@D)
 	@mkdir groff.tmp.$$$$ ; ( cd groff.tmp.$$$$ ; groff -Thtml -man ../$< >../$@ ) ; rm -rf groff.tmp.$$$$
 
-docs/index.html : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS))
+docs/index.html : _bin/mdbook doc/book.toml $(filter doc/src/%.md,$(SRCS)) $(filter skills/%.md,$(SRCS))
 	echo generate book to $@
 	mkdir -p $(@D)
 	rm -rf doc/book

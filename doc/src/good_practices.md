@@ -5,4 +5,4 @@
 
 <!-- This chapter is shared with the AI skill (cf. ai_assistants.md) : the content below is included from skills/lmakefile/references/ at book build time.-->
 
-{{#include ../../skills/lmakefile/references/faq.md}}
+{{#include ../../skills/lmakefile/references/good-practices.md}}
