@@ -1,0 +1,329 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Stateful tools - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2026 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- This chapter is shared with the AI skill (cf. ai_assistants.md) : the content below is included from skills/lmakefile/references/ at book build time.-->
+<h1 id="stateful-tools"><a class="header" href="#stateful-tools">Stateful tools</a></h1>
+<p>How to integrate conan, pip/venv, cargo, sbt, maven and similar tools into an open-lmake flow.</p>
+<p>open-lmake's model: a job's output is a pure function of the file contents it reads.
+Package managers and some build tools violate this by design: they keep internal databases (often sqlite),
+out-of-repo homes (<code>~/.conan2</code>, <code>~/.cargo</code>, <code>~/.ivy2</code>),
+and decide what exists by consulting that state instead of the filesystem.
+Autodep can trace file reads and writes, but it cannot assign meaning to "row updated inside a shared sqlite file" —
+so shared mutable homes are fundamentally at odds with tracking, caching and multi-user soundness.</p>
+<h2 id="first-answer-who-guarantees-what"><a class="header" href="#first-answer-who-guarantees-what">First, answer: who guarantees what?</a></h2>
+<p>Before picking a strategy, decide who owns each piece of tool state — the answer dictates everything:</p>
+<ul>
+<li><strong>The tool owns its state</strong>: you trust it unconditionally (its cache/DB is correct whatever happens around it, including concurrent use).
+Then <code>ignore</code> its whole state area and accept the consequences in full (level 3 below):
+open-lmake cannot help you inside that zone, and the shared cache must be off for every rule that reads it.</li>
+<li><strong>open-lmake owns the state</strong>: then every file in the zone is a job output like any other —
+it must be possible to <code>lmake</code> any file there unambiguously, with exactly one official producer per file.</li>
+</ul>
+<p>The unsound middle ground — half-declared state, rules stepping on each other's targets — is the only truly bad choice.
+A layered scheme (e.g. an install rule at higher prio and a build rule below it, both covering the same tree with star targets)
+is legitimate as long as no rule ever produces a file whose official producer is another rule.</p>
+<p>There is a ladder of integration strategies, from best to last-resort.
+Always start at the top.</p>
+<h2 id="level-0--do-not-run-the-tool-at-build-time"><a class="header" href="#level-0--do-not-run-the-tool-at-build-time">Level 0 — do not run the tool at build time</a></h2>
+<p>Vendor the dependency (submodule, subrepo) or fetch it with a plain rule:
+one artifact = one rule = one target, pinned by version + checksum verified in <code>cmd</code>.
+The package manager runs outside the build (to compute a lockfile, which is then a source);
+the build itself only consumes pinned artifacts.
+This is the only level with full cache soundness and zero caveats.
+Prefer it whenever the dependency count is manageable.</p>
+<h2 id="level-1--confine-the-tools-whole-state-inside-the-repo-one-rule-owns-it"><a class="header" href="#level-1--confine-the-tools-whole-state-inside-the-repo-one-rule-owns-it">Level 1 — confine the tool's whole state inside the repo, one rule owns it</a></h2>
+<p>Give the tool a home that is a target tree of exactly ONE rule.
+The <a href="https://cesar-douady.github.io/open-lmake/unit_tests/conan.html">conan unit test</a> is instructive precisely because it splits the tree across two rules
+and its driver asserts the resulting failure (<code>done=1, failed=1, rc=1</code>):</p>
+<pre><code class="language-python">class Pip(Rule) :                          # succeeds: owns the whole tree
+    targets    = { 'PIP' : 'venv/bin/pip' , 'VENV' : r'venv/{*:.*}' }
+    readdir_ok = True                      # pip insists on scanning dirs
+    cmd        = 'python3 -m venv venv'
+
+class Conan(Rule) :                        # FAILS, and the test asserts it:
+    targets    = { 'CONAN' : 'venv/bin/conan' }   # pip install writes throughout
+    deps       = { 'PIP'   : 'venv/bin/pip'   }   # venv/ (lib, bin, ...) — all
+    readdir_ok = True                             # undeclared here, and the tree
+    cmd        = 'venv/bin/python3 -m pip install conan'  # already belongs to VENV above
+</code></pre>
+<p>The working shape is one rule per tool venv, owning the whole tree — creation and install in the same job:</p>
+<pre><code class="language-python">class ConanVenv(Rule) :
+    targets    = { 'CONAN' : 'conan-venv/bin/conan'
+               ,   'VENV'  : r'conan-venv/{*:.*}'   }
+    environ    = { 'PIP_NO_CACHE_DIR' : '1' }
+    readdir_ok = True
+    cmd        = '''
+        python3 -m venv conan-venv
+        conan-venv/bin/pip install conan==&lt;version&gt;   # pin it (hardcoded, or read from a dep file)
+    '''
+</code></pre>
+<p>Key ingredients:</p>
+<ul>
+<li>the entire tree is a star target (<code>.../{*:.*}</code>) of exactly one job — no other job writes there, so <code>readdir_ok</code> on it is defensible;</li>
+<li>the tool's own cache is disabled (<code>PIP_NO_CACHE_DIR=1</code> — pip actually disables its cache for any value of this variable)
+or pointed into the tree or <code>$TMPDIR</code>, so no state escapes;</li>
+<li>downstream rules depend on concrete files in the tree (<code>.../bin/conan</code>).</li>
+</ul>
+<p>Cost: installing per-repo (not per-machine).
+That is the price of correctness, and the shared cache gives most of it back (the install job itself becomes a cache hit for every user).</p>
+<h2 id="level-2--declared-incremental-scratch-the-cargo-pattern"><a class="header" href="#level-2--declared-incremental-scratch-the-cargo-pattern">Level 2 — declared incremental scratch (the cargo pattern)</a></h2>
+<p>For tools with a valuable warm cache (incremental compilers), declare the tool's scratch tree as an <code>incremental</code> side/star target:
+it is not wiped between runs, the tool reuses it, and open-lmake still records everything.
+From the <a href="https://cesar-douady.github.io/open-lmake/unit_tests/cargo.html">cargo unit test</a>:</p>
+<pre><code class="language-python">class CompileRust(HomelessRule,RustRule) :                   # excerpt; test-harness lines omitted
+    targets      = { 'EXE'        :   r'{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'  }
+    side_targets = { 'SCRATCHPAD' : ( r'{Dir}{Module}/{*:.*}' , 'Incremental' )          }
+    deps         = { 'PKG' : '{Dir}{Module}/Cargo.toml' , 'SRC' : '{Dir}{Module}/src/main.rs' }
+    stderr_ok    = True
+    cmd          = 'cd {Dir}{Module} ; cargo build'
+</code></pre>
+<p>Constraints for this to be sound:</p>
+<ul>
+<li>one job owns the scratch tree (patterns must not overlap between jobs);</li>
+<li><code>incremental</code> is a promise: from ANY prior scratch state, the tool must produce a correct result
+(true for well-behaved incremental compilers, false for tools whose DB can go stale or corrupt — judge per tool);</li>
+<li>the home and env of the tool must still be confined (e.g. <code>RUSTUP_HOME</code> pointed at a controlled location, <code>HomelessRule</code> to shield <code>$HOME</code>).</li>
+</ul>
+<h2 id="level-3--shared-home--ignore-last-resort-document-the-debt"><a class="header" href="#level-3--shared-home--ignore-last-resort-document-the-debt">Level 3 — shared home + <code>ignore</code> (last resort, document the debt)</a></h2>
+<p>Pointing the tool at a shared home and flagging it <code>('home/{*:.*}', 'ignore')</code> as a side_dep/side_target makes the errors disappear — and with them, correctness:</p>
+<ul>
+<li>jobs read state open-lmake does not record → identical tracked inputs can yield different outputs;</li>
+<li>the multi-user / shared cache becomes unsound for every rule touching the home
+(a hit computed by user A may be wrong for user B) — disable <code>cache</code> on these rules;</li>
+<li>concurrent jobs race on the tool's internal DB → you must add manual locking
+(flock around every invocation; sqlite "database is locked" retries are the smell of this)
+because open-lmake cannot serialize accesses it does not see;</li>
+<li>rebuild-from-clean is no longer guaranteed to reproduce.</li>
+</ul>
+<p>If forced here (tool has no way to confine state, dependency set too large for level 0/1):
+keep the ignored zone as small as possible, wrap every tool invocation in a lock, disable the shared cache for affected rules,
+and leave a comment marking this as a known unsoundness with the intended exit
+(usually level 0: pre-materialize packages from a lockfile into tracked paths).</p>
+<h2 id="per-tool-quick-notes"><a class="header" href="#per-tool-quick-notes">Per-tool quick notes</a></h2>
+<ul>
+<li><strong>pip/venv</strong>: level 1 works well (venv-as-star-target).
+Disable the pip cache (<code>PIP_NO_CACHE_DIR=1</code>, or point <code>PIP_CACHE_DIR</code> into <code>$TMPDIR</code>),
+unset <code>PYTHONPATH</code>/<code>VIRTUAL_ENV</code> inherited assumptions, pin the interpreter.
+A venv cannot inherit another venv's packages (interpreters chain via symlinks, site-packages do not) — one venv per tool, each installed by one rule.
+Spell canonical names in deps: a venv may create a <code>lib64 -&gt; lib</code> symlink, and names spelled through it are non-buildable by the up-hill rule
+(see the <a href="https://cesar-douady.github.io/open-lmake/faq.html">FAQ</a>).</li>
+<li><strong>conan (v2)</strong>: internally sqlite-backed; a shared <code>CONAN_HOME</code> is level 3 with all its debt.
+Prefer level 0: resolve outside the build to a lockfile, then one rule per package materializing from the lock into tracked paths;
+or level 1 with a per-repo home built by a single rule chain (profiles → install → build), accepting the serialization through that chain.</li>
+<li><strong>cargo</strong>: level 2 is proven (see above). Confine <code>RUSTUP_HOME</code>/<code>CARGO_HOME</code>.</li>
+<li><strong>sbt/ivy/coursier, maven</strong>: default homes under <code>~</code>; run under <code>HomelessRule</code> and confine caches into the repo or <code>$TMPDIR</code>.
+Resolution is network-bound → push it to level 0 (fetch rules per artifact, checksummed) and keep compilation as plain rules.</li>
+<li><strong>Any tool with a daemon</strong> (gradle, sbt server, bazel): disable the daemon;
+a background process outliving the job is untracked state by definition (<code>kill_daemons</code> exists for the ill-behaved ones).</li>
+</ul>
+<h2 id="rule-of-thumb"><a class="header" href="#rule-of-thumb">Rule of thumb</a></h2>
+<p>If the tool decides what to do by consulting anything other than the files the job reads,
+either feed it a fresh, controlled state (levels 0-1), own its scratch explicitly (level 2), or accept and fence the unsoundness (level 3).
+Never level 3 by default, and never level 3 combined with a shared cache.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="from_other_build_systems.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="execution.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="from_other_build_systems.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="execution.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>

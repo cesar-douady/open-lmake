@@ -150,7 +150,7 @@ Most objects have a natural "empty" value, such as empty strings, empty vectors,
 	- `fast path`      means that the corresponding code can be suppressed without altering the semantic
 	- `.`              means same as above
 	- ` ...` at the end means comment continue on next line where `...` appears again
-	- `/*garbage*/`    means we dont care about the value, it is only there to be certain having no uninitialized values
+	- `/*garbage*/`    means we don't care about the value, it is only there to be certain having no uninitialized values
 
 ## Guideline
 we apply <https://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines> to the best extent.

@@ -27,8 +27,9 @@ MAKEFLAGS += $(if $(findstring C,$(LMAKE_FLAGS)),,-j$(N_PARALLEL_JOBS)) # no par
 
 REPO_ROOT := $(abspath .)
 
-.PHONY : FORCE
-FORCE : ;
+.SECONDARY :
+.PHONY     : FORCE
+FORCE      : ;
 
 sys_config.env : FORCE
 	@if [ ! -f $@ ] ; then                                           \

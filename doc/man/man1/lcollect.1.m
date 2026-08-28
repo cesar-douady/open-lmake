@@ -31,7 +31,7 @@ ClientGeneralities()
 ClientOptions(,color)
 
 SpecificOptions
-Item(B_(-n),B_(--dry-run)) report only, dont actually execute actions.
+Item(B_(-n),B_(--dry-run)) report only, don't actually execute actions.
 
 .SH "EXIT STATUS"
 .LP

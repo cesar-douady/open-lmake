@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Thu Jun 18 09:34:01 2026 -->
+<!-- CreationDate: Fri Aug 28 20:04:09 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -26,6 +26,7 @@
 <a href="#COMMON OPTIONS">COMMON OPTIONS</a><br>
 <a href="#SPECIFIC OPTIONS">SPECIFIC OPTIONS</a><br>
 <a href="#STANDARD METHODS">STANDARD METHODS</a><br>
+<a href="#NOTES">NOTES</a><br>
 <a href="#EXIT STATUS">EXIT STATUS</a><br>
 <a href="#EXAMPLES">EXAMPLES</a><br>
 <a href="#FILES">FILES</a><br>
@@ -234,13 +235,212 @@ forces the tmp dir for job execution to its value.</p>
 </h2>
 
 
-<p style="margin-left:9%; margin-top: 1em">Unless
+<p style="margin-left:9%; margin-top: 1em">To interpret the
+key provided with the <b>-k</b>/<b>--key</b> option, unless
 overridden in the configuration (through the <i>dict</i>
 <b>lmake.config.debug</b>), the following standard debug
-methods are provided :</p>
+methods are provided : <b><br>
+&lt;default&gt;</b> : <i>lmake_debug.default</i></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
 
 
-<p align="center"><img src="grohtml-98427-1.png" alt="Image grohtml-98427-1.png"></p>
+<p>Python job:</p></td>
+<td width="1%"></td>
+<td width="31%">
+
+
+<p>run under <b>pdb</b>(1) control</p></td>
+<td width="36%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Shell job:</p></td>
+<td width="1%"></td>
+<td width="31%">
+
+
+<p>run with the <b>-x</b> flag (1)</p></td>
+<td width="36%">
+</td></tr>
+</table>
+
+<p style="margin-left:9%;"><b>g</b> :
+<i>lmake_debug.gdb</i></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Python job:</p></td>
+<td width="1%"></td>
+<td width="50%">
+
+
+<p>interpreter is run under <b>gdb</b>(1) control</p></td>
+<td width="17%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Shell job:</p></td>
+<td width="1%"></td>
+<td width="50%">
+
+
+<p>idem (2)</p></td>
+<td width="17%">
+</td></tr>
+</table>
+
+<p style="margin-left:9%;"><b>u</b> :
+<i>lmake_debug.pudb</i></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Python job:</p></td>
+<td width="1%"></td>
+<td width="32%">
+
+
+<p>run under <b>pudb</b>(1) control</p></td>
+<td width="35%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Shell job:</p></td>
+<td width="1%"></td>
+<td width="32%">
+
+
+<p>Not supported (3)</p></td>
+<td width="35%">
+</td></tr>
+</table>
+
+<p style="margin-left:9%;"><b>e</b> :
+<i>lmake_debug.enter</i></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Python job:</p></td>
+<td width="1%"></td>
+<td width="12%">
+
+
+<p>don&rsquo;t run</p></td>
+<td width="55%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Shell job:</p></td>
+<td width="1%"></td>
+<td width="12%">
+
+
+<p>idem (4)</p></td>
+<td width="55%">
+</td></tr>
+</table>
+
+<p style="margin-left:9%;"><b>E</b> :
+<i>lmake_debug.enter_job</i></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Python job:</p></td>
+<td width="1%"></td>
+<td width="12%">
+
+
+<p>don&rsquo;t run</p></td>
+<td width="55%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Shell job:</p></td>
+<td width="1%"></td>
+<td width="12%">
+
+
+<p>idem (5)</p></td>
+<td width="55%">
+</td></tr>
+</table>
+
+<p style="margin-left:9%;"><b>n</b> :
+<i>lmake_debug.none</i></p>
+
+<table width="100%" border="0" rules="none" frame="void"
+       cellspacing="0" cellpadding="0">
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Python job:</p></td>
+<td width="1%"></td>
+<td width="44%">
+
+
+<p>run normally with no debug support</p></td>
+<td width="23%">
+</td></tr>
+<tr valign="top" align="left">
+<td width="18%"></td>
+<td width="14%">
+
+
+<p>Shell job:</p></td>
+<td width="1%"></td>
+<td width="44%">
+
+
+<p>idem</p></td>
+<td width="23%">
+</td></tr>
+</table>
+
+<h3>NOTES
+<a name="NOTES"></a>
+</h3>
+
 
 <table width="100%" border="0" rules="none" frame="void"
        cellspacing="0" cellpadding="0">
@@ -249,21 +449,21 @@ methods are provided :</p>
 <td width="4%">
 
 
-<p>(1)</p></td>
-<td width="5%"></td>
-<td width="82%">
+<p style="margin-top: 1em">(1)</p></td>
+<td width="1%"></td>
+<td width="86%">
 
 
-<p>Running with the <b>-x</b> flag usually produces a trace
-of executed commands.</p></td></tr>
+<p style="margin-top: 1em">Running with the <b>-x</b> flag
+usually produces a trace of executed commands.</p></td></tr>
 <tr valign="top" align="left">
 <td width="9%"></td>
 <td width="4%">
 
 
 <p>(2)</p></td>
-<td width="5%"></td>
-<td width="82%">
+<td width="1%"></td>
+<td width="86%">
 
 
 <p>Alias <b>r</b> is redefined to run with adequate
@@ -274,11 +474,11 @@ redirections.</p> </td></tr>
 
 
 <p>(3)</p></td>
-<td width="5%"></td>
-<td width="82%">
+<td width="1%"></td>
+<td width="86%">
 
 
-<p>Providing a working <b>pudb</b> with redirected
+<p>Providing a working <b>pudb</b>(1) with redirected
 stdin/stdout necessitated to patch it. This patch is
 dynamically applied as part of the job start up
 procedure.</p> </td></tr>
@@ -288,17 +488,33 @@ procedure.</p> </td></tr>
 
 
 <p>(4)</p></td>
-<td width="5%"></td>
-<td width="82%">
+<td width="1%"></td>
+<td width="86%">
 
 
 <p>An interactive shell (as provided by <b>$SHELL</b>,
 which defaults to <i>/bin/bash</i>) is open in the job
 environment (environment, cwd, namespace, chroot, mounts,
-tmp, ...).</p></td></tr>
+tmp, ...) with reasonable interactive support
+(<i>&#732;/.bashrc</i> is read).</p></td></tr>
+<tr valign="top" align="left">
+<td width="9%"></td>
+<td width="4%">
+
+
+<p>(5)</p></td>
+<td width="1%"></td>
+<td width="86%">
+
+
+<p>An interactive shell (as provided by <b>$SHELL</b>,
+which defaults to <i>/bin/bash</i>) is open in the job
+environment (environment, cwd, namespace, chroot, mounts,
+tmp, ...). with no interactive support (no startup file is
+read).</p> </td></tr>
 </table>
 
-<p style="margin-left:18%; margin-top: 1em"><b>$HOME</b>
+<p style="margin-left:14%; margin-top: 1em"><b>$HOME</b>
 and <b>$SHLVL</b> are kept from actual environment to ease
 interactive session. In particular <b>$SHLVL</b> can be used
 to provide a differentiated prompt if adequately defined in

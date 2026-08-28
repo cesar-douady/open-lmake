@@ -45,29 +45,76 @@ When this option is used, it forces the tmp dir for job execution to its value.
 
 .SH STANDARD METHODS
 .LP
-Unless overridden in the configuration (through the I_(dict) B_(lmake.config.debug)), the following standard debug methods are provided :
-.nr TW 0 Comment( prevent debian packaging tool from grumbling about TW not being defined )
-.TS
-tab(!) ;
-c           c                     l                                     l                           c
-_           _                     _                                     _                           _
-cB          cI                    l                                     l                           c
+To interpret the key provided with the B_(-k)/B_(--key) option, unless overridden in the configuration (through the I_(dict) B_(lmake.config.debug)),
+the following standard debug methods are provided :
 .
-Key       ! Module              ! python job                           ! shell job                ! Note
-<default> ! lmake_debug.default ! run under pdb control                ! run with the B_(-x) flag ! (1)
-g         ! lmake_debug.gdb     ! interpreter is run under gdb control ! idem                     ! (2)
-u         ! lmake_debug.pudb    ! run under pudb control               ! Not supported            ! (3)
-e         ! lmake_debug.enter   ! dont run                             ! idem                     ! (4)
-n         ! lmake_debug.none    ! run normally with no debug support   ! idem
-.TE
-.IP (1)
+.TP
+B_(<default>) : I_(lmake_debug.default)
+.RS
+.IP "Python job:" 12
+run under C_(pdb) control
+.IP "Shell job:" 12
+run with the B_(-x) flag (1)
+.RE
+.
+.TP
+B_(g) : I_(lmake_debug.gdb)
+.RS
+.IP "Python job:" 12
+interpreter is run under C_(gdb) control
+.IP "Shell job:" 12
+idem (2)
+.RE
+.
+.TP
+B_(u) : I_(lmake_debug.pudb)
+.RS
+.IP "Python job:" 12
+run under C_(pudb) control
+.IP "Shell job:" 12
+Not supported (3)
+.RE
+.
+.TP
+B_(e) : I_(lmake_debug.enter)
+.RS
+.IP "Python job:" 12
+don't run
+.IP "Shell job:" 12
+idem (4)
+.RE
+.
+.TP
+B_(E) : I_(lmake_debug.enter_job)
+.RS
+.IP "Python job:" 12
+don't run
+.IP "Shell job:" 12
+idem (5)
+.RE
+.
+.TP
+B_(n) : I_(lmake_debug.none)
+.RS
+.IP "Python job:" 12
+run normally with no debug support
+.IP "Shell job:" 12
+idem
+.RE
+.
+.SS NOTES
+.IP (1) 4
 Running with the B_(-x) flag usually produces a trace of executed commands.
-.IP (2)
+.IP (2) 4
 Alias B_(r) is redefined to run with adequate redirections.
-.IP (3)
-Providing a working B_(pudb) with redirected stdin/stdout necessitated to patch it. This patch is dynamically applied as part of the job start up procedure.
-.IP (4)
+.IP (3) 4
+Providing a working C_(pudb) with redirected stdin/stdout necessitated to patch it. This patch is dynamically applied as part of the job start up procedure.
+.IP (4) 4
+An interactive shell (as provided by B_($SHELL), which defaults to I_(/bin/bash)) is open in the job environment (environment, cwd, namespace, chroot, mounts, tmp, ...)
+with reasonable interactive support (I_(~/.bashrc) is read).
+.IP (5) 4
 An interactive shell (as provided by B_($SHELL), which defaults to I_(/bin/bash)) is open in the job environment (environment, cwd, namespace, chroot, mounts, tmp, ...).
+with no interactive support (no startup file is read).
 .IP
 B_($HOME) and B_($SHLVL) are kept from actual environment to ease interactive session.
 In particular B_($SHLVL) can be used to provide a differentiated prompt if adequately defined in the start up file (usually I_(~/.bashrc)).

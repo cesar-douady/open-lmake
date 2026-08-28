@@ -1,0 +1,351 @@
+<!DOCTYPE HTML>
+<html lang="en" class="light sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Good practices - open-lmake documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" href="highlight.css">
+        <link rel="stylesheet" href="tomorrow-night.css">
+        <link rel="stylesheet" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root to javascript -->
+        <script>
+            var path_to_root = "";
+            var default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "navy" : "light";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                var theme = localStorage.getItem('mdbook-theme');
+                var sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            var theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('light')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            var sidebar = null;
+            var sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+            }
+            sidebar_toggle.checked = sidebar === 'visible';
+            html.classList.remove('sidebar-visible');
+            html.classList.add("sidebar-" + sidebar);
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search. (Shortkey: s)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="S" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">open-lmake documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2026 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- This chapter is shared with the AI skill (cf. ai_assistants.md) : the content below is included from skills/lmakefile/references/ at book build time.-->
+<h1 id="good-practices"><a class="header" href="#good-practices">Good practices</a></h1>
+<p>open-lmake is not make/CMake/Bazel with a different syntax: it is a functional build system, and most reflexes learned from other build systems work against it
+(see <a href="https://cesar-douady.github.io/open-lmake/from_other_build_systems.html">coming from other build systems</a> for a reflex-by-reflex mapping).
+There are not many pitfalls to avoid here; there is mostly a habit to unlearn: working around pitfalls that do not exist.
+Simple things work very well; write the simple thing first.</p>
+<p>Design order: (1) what is my flow, (2) what depends on what, (3) how are my dirs and files organized, (4) how do I explain it to open-lmake — in that order.
+The Lmakefile transcribes a flow you already understand; it is not where you design it.</p>
+<p>A guiding principle: every parameter of a build should live in a file path or in a file content, never in an environment variable or in system state.
+To build variant X with seed S, encode X and S in the target's name and let a stem capture them.
+This is a design goal, not an enforced invariant: rules can smuggle inputs through <code>environ</code>, tool installs or host state —
+when debugging a build that behaves differently between users or machines, look precisely for the places where this principle is violated.</p>
+<h2 id="do"><a class="header" href="#do">Do</a></h2>
+<ul>
+<li><strong>Set the granularity at the finest level where things have natural inputs and outputs.</strong>
+One transformation per rule; let the scheduler exploit the parallelism.
+A rule that configures, compiles, links and tests in one <code>cmd</code> hides the graph from the scheduler and the cache.
+The inverse excess is equally wrong: do not fragment below the natural input/output boundaries.
+If one tool performs a whole coherent job, one rule running that tool is the right size.</li>
+<li><strong>Encode variants in target paths.</strong>
+Seed, build type, profile, tool version: stems in the target name (<code>{mode:release|debug}/{File}.o</code>), or content of a dep file.
+Asking for a different file is how you ask for a different build.</li>
+<li><strong>Derive file lists from the manifest, not from the filesystem.</strong>
+To enumerate sources (e.g. all <code>.cpp</code> under a dir), write a rule that greps <code>LMAKE/manifest</code> (a regular readable file listing all sources) and emits the list as its target.
+This replaces every <code>glob</code>/<code>find</code>/readdir and is fully tracked: adding a source flows through git → manifest → list → rebuild.</li>
+<li><strong>For alias or summary targets, prefer a small real target over <code>phony</code>.</strong>
+<code>lmake foo</code> guarantees exactly one thing: <code>foo</code> is up to date.
+A phony <code>all</code> does nothing after <code>rm -rf build</code> if no source changed — correct behavior (nothing observable would differ), and <code>lmake -a</code> is the tool that forces a whole dep tree up to date.
+A tiny real target (a report, a checksum line) gives an honest done/steady status; <code>AliasRule</code> covers pure aliases.</li>
+<li><strong>Use <code>critical</code> on deps that are themselves lists of deps</strong> (e.g. a test-suite manifest):
+when the list changes, open-lmake stops speculatively rebuilding the old list and rebuilds the new one in parallel
+(cf. <a href="https://cesar-douady.github.io/open-lmake/critical_deps.html">critical deps</a>).
+Pair with <code>lmake.check_deps()</code> / <code>lcheck_deps</code> inside long jobs to fail fast on out-of-date deps.</li>
+<li><strong>Choose the right environ dict.</strong>
+<code>environ</code> is part of the command (change → rerun);
+<code>environ_resources</code> is resource-like (change → rerun only failed jobs);
+<code>environ_ancillary</code> is traceability only (change → no rerun).
+The user's environment is deliberately ignored; importing values from <code>lmake.user_environ</code> is discouraged and, if unavoidable, must go through one of these dicts.</li>
+<li><strong>Use <code>lmake.depend()</code> / <code>lmake.target()</code></strong> (CLI: <code>ldepend</code> / <code>ltarget</code>) inside jobs for dynamic cases: promote a computed file list to deps, flag accesses.</li>
+<li><strong>Use <code>lmake.run_cc(...)</code></strong> for C/C++ compilers: it wraps the compiler's <code>-MMD</code>-style dep output so include deps are reported precisely.</li>
+<li><strong>Factor a stems vocabulary in a base class.</strong>
+Define the project's naming regexes (<code>stems = {...}</code>) once in a shared base rule; concrete rules inherit it (dict attributes merge along the MRO).</li>
+<li><strong>Opt into the shared cache per rule</strong> (<code>cache = '&lt;name&gt;'</code> + <code>lmake.config.caches</code>) for expensive deterministic jobs.
+Set <code>check_abs_paths</code> (or use <code>repo_view</code>) so the repo's absolute path never leaks into targets — otherwise cache entries are not portable across users and checkouts.</li>
+<li><strong>Declare resources honestly</strong> (<code>resources = {'cpu':.., 'mem':.., 'tmp':..}</code> plus scheduler-specific tokens such as license counts) and pick the backend per rule.
+Round mem values so the scheduler's job classes stay few.</li>
+</ul>
+<h2 id="anti-patterns"><a class="header" href="#anti-patterns">Anti-patterns</a></h2>
+<p>Each entry: the reflex → why it breaks open-lmake → what to do instead.
+These are the mistakes most often imported from other build systems or from scripting around the build.</p>
+<h3 id="1-sentinel--stamp-files"><a class="header" href="#1-sentinel--stamp-files">1. Sentinel / stamp files</a></h3>
+<p><strong>Reflex:</strong> <code>touch build.stamp</code> to mark "step X ran"; other rules depend on the stamp.</p>
+<p><strong>Why it breaks:</strong> open-lmake compares content, not dates — an empty or constant stamp carries no information, so nothing downstream can depend on what the job actually did.
+Stamps exist to fake dependency edges that open-lmake computes natively.</p>
+<p><strong>Instead:</strong> make the real output the target.
+If the job's value is "it checked something", make the check's report the target (a diff, a log, an <code>.ok</code> file whose content is meaningful).
+For pure aliases, use the <code>phony</code> flag or <code>AliasRule</code>.</p>
+<h3 id="2-reading-directories-glob--find--ls--wildcard"><a class="header" href="#2-reading-directories-glob--find--ls--wildcard">2. Reading directories (glob / find / ls / wildcard)</a></h3>
+<p><strong>Reflex:</strong> <code>SRCS = glob('src/**/*.cpp')</code> or <code>for f in *.c</code>.</p>
+<p><strong>Why it breaks:</strong> a directory listing depends on build history (which outputs happen to exist), so it cannot be made stable; open-lmake rejects readdir by default for this reason.
+With <code>readdir_ok</code> you silence the error but own the instability.</p>
+<p><strong>Instead:</strong> a small rule that greps <code>LMAKE/manifest</code> and emits the file list as its target; downstream rules depend on that list file.
+Reserve <code>readdir_ok</code> for trees provably owned by a single rule (a venv built by one job) or <code>$TMPDIR</code>.</p>
+<h3 id="3-network-or-filesystem-side-effects-at-lmakefile-evaluation-time"><a class="header" href="#3-network-or-filesystem-side-effects-at-lmakefile-evaluation-time">3. Network or filesystem side effects at Lmakefile-evaluation time</a></h3>
+<p><strong>Reflex:</strong> download a dependency, unpack a toolchain, or rewrite a directory while the Lmakefile is being imported ("bootstrap before the build").</p>
+<p><strong>Why it breaks:</strong> evaluating the build graph must be pure — it runs inside the lmake server, is not spied by autodep, is not a job, is not cached, and mutates state that rules then treat as sources.
+Two evaluations may disagree; the repo is no longer a function of git state.</p>
+<p><strong>Instead:</strong> downloads are jobs.
+Write a rule whose target is the downloaded artifact, pinned by version and checksum (both in the rule or in a config file that is a dep); verify the checksum in <code>cmd</code>.
+Better: vendor the dependency (git submodule, subrepo) so the manifest owns it.</p>
+<p>Special case: a shared rule library cannot be a job's output at all (rules must exist at Lmakefile-evaluation time).
+Vendor it when you can — it stays locally editable.
+When constraints force fetching it, keep the fetch out of Lmakefile evaluation: an explicit, idempotent, pinned and checksummed setup step,
+and accept that fetched rules cannot be patched without republishing or an override mechanism.</p>
+<h3 id="4-host-dependent-rule-definitions"><a class="header" href="#4-host-dependent-rule-definitions">4. Host-dependent rule definitions</a></h3>
+<p><strong>Reflex:</strong> at import time, probe the machine (<code>shutil.which('qsub')</code>, hostname, OS release) and define rules, backends or resources differently.</p>
+<p><strong>Why it breaks:</strong> two users get different build graphs from the same commit — the antithesis of a functional build.
+Combined with a shared cache it is unsound.</p>
+<p><strong>Instead:</strong> rule definitions are constant.
+Backend unavailability already degrades gracefully (missing daemon → local execution).
+If the OS genuinely changes the recipe, make it explicit data: an OS stem in the target path, or a config target whose content is produced by a rule.</p>
+<h3 id="5-environment-variable-driven-builds"><a class="header" href="#5-environment-variable-driven-builds">5. Environment-variable-driven builds</a></h3>
+<p><strong>Reflex:</strong> <code>CFLAGS</code>, <code>BUILD_ID</code>, <code>DEBUG=1 lmake ...</code> read via <code>os.environ</code> in rules.</p>
+<p><strong>Why it breaks:</strong> open-lmake deliberately ignores the user's environment — jobs see a controlled env.
+Sneaking values in via <code>lmake.user_environ</code> reintroduces untracked inputs: builds differ between users with no dep explaining why.</p>
+<p><strong>Instead:</strong> flags and modes are file content (config files as deps) or target-path stems.
+If an env value is truly needed (e.g. <code>DISPLAY</code> for a GUI test), route it through <code>environ_resources</code>/<code>environ_ancillary</code> so its tracking status is explicit.</p>
+<h3 id="6-monolithic-rules"><a class="header" href="#6-monolithic-rules">6. Monolithic rules</a></h3>
+<p><strong>Reflex:</strong> one rule that configures + compiles + links + tests, or a <code>cmd</code> that loops over all files.</p>
+<p><strong>Why it breaks:</strong> the scheduler, incrementality and the cache work at job granularity.
+A monolith serializes what could parallelize, reruns everything when one input changes, and produces cache entries too coarse to hit.
+It also hides the dependency structure autodep would otherwise map for free.</p>
+<p><strong>Instead:</strong> one transformation per rule, files as the interface between rules,
+star stems for scatter (one job per test, seed or variant), a gather rule with <code>ldepend</code> + <code>critical</code> for the fan-in.</p>
+<h3 id="7-ignore-flags-as-duct-tape"><a class="header" href="#7-ignore-flags-as-duct-tape">7. <code>ignore</code> flags as duct tape</a></h3>
+<p><strong>Reflex:</strong> a job writes somewhere unexpected → add <code>('...', 'ignore')</code> until the errors stop; put whole tool homes under <code>ignore</code>.</p>
+<p><strong>Why it breaks:</strong> <code>ignore</code> tells open-lmake to un-see reads and writes.
+Jobs stop being pure functions of their recorded deps: reruns may differ, the multi-user cache can return wrong hits,
+and you end up adding manual locks to serialize accesses open-lmake can no longer see.
+One <code>ignore</code> begets another.</p>
+<p><strong>Instead:</strong> declare the writes (<code>side_targets</code>, star targets), move scratch to <code>$TMPDIR</code>,
+or restructure so the tool's state lives inside the job's own target tree
+(see <a href="https://cesar-douady.github.io/open-lmake/stateful_tools.html">stateful tools</a>).
+Legitimate <code>ignore</code> uses are narrow and cosmetic (e.g. <code>.pyc</code> noise) — anything a rebuild could miss must stay tracked.</p>
+<h3 id="8-writes-outside-declared-targets"><a class="header" href="#8-writes-outside-declared-targets">8. Writes outside declared targets</a></h3>
+<p><strong>Reflex:</strong> scratch files next to sources, writing metadata into the source tree, uploading artifacts from inside a build rule — "it's just a temp file".</p>
+<p><strong>Why it breaks:</strong> undeclared writes are errors (or, if ignored, untracked state).
+Writes into the source tree make the repo dirty as a side effect of building.
+Uploads and publishes inside build rules make the build non-idempotent and non-cacheable.</p>
+<p><strong>Instead:</strong> <code>$TMPDIR</code> for scratch (private, wiped, untracked by design).
+All persistent outputs under a dedicated build prefix matched by target patterns.
+Publishing is a separate explicit rule (or outside the build), never bundled into producing an artifact.</p>
+<h3 id="9-reading-mutable-global-state-inside-rules"><a class="header" href="#9-reading-mutable-global-state-inside-rules">9. Reading mutable global state inside rules</a></h3>
+<p><strong>Reflex:</strong> embed <code>git describe</code>, the current date, <code>$BUILD_ID</code> or the hostname into built artifacts.</p>
+<p><strong>Why it breaks:</strong> the output is no longer a function of tracked inputs; identical deps yield different contents,
+defeating checksums, the propagation stop on <code>steady</code> jobs, and the cache.</p>
+<p><strong>Instead:</strong> if version info must be embedded, produce it as a target from tracked inputs where possible,
+and confine the volatile part to one tiny leaf rule so the non-reproducibility does not contaminate the graph.
+Keep artifacts bit-reproducible; attach volatile metadata outside the build.</p>
+<h3 id="10-in-place-updates"><a class="header" href="#10-in-place-updates">10. In-place updates</a></h3>
+<p><strong>Reflex:</strong> a job "updates" a file it also reads (append to a log, patch a config).</p>
+<p><strong>Why it breaks:</strong> the result depends on prior content — history, not sources.
+open-lmake flags read+write of the same file as an error unless <code>incremental</code> is claimed,
+and <code>incremental</code> is a promise (any prior state yields a correct result), not a waiver.</p>
+<p><strong>Instead:</strong> write a new file.
+If a tool insists on in-place state, isolate it per job or honor the <code>incremental</code> contract for real
+(see <a href="https://cesar-douady.github.io/open-lmake/stateful_tools.html">stateful tools</a>).</p>
+<h3 id="11-second-build-system-embedded-blindly"><a class="header" href="#11-second-build-system-embedded-blindly">11. Second build system embedded blindly</a></h3>
+<p><strong>Reflex:</strong> call cmake/sbt/cargo/ninja inside one big rule and let it manage its own graph and cache.</p>
+<p><strong>Why it breaks (partially):</strong> it can be sound — autodep still tracks reads and writes —
+but the inner tool's scratch must be declared, its own daemon and cache dirs confined, and the granularity collapses to one job.
+Inner tools with out-of-repo homes or background daemons leak state.</p>
+<p><strong>Instead:</strong> acceptable as a transition, with the inner scratch tree declared as an <code>incremental</code> star side target,
+tool caches disabled or confined to the repo or <code>$TMPDIR</code>, and <code>HomelessRule</code> to shield <code>$HOME</code>.
+Long-term, split the inner graph into open-lmake rules when the tool allows it.</p>
+<h3 id="12-force--true--manual-reruns-as-workflow"><a class="header" href="#12-force--true--manual-reruns-as-workflow">12. <code>force = True</code> / manual reruns as workflow</a></h3>
+<p><strong>Reflex:</strong> "this job must always run" (fetch latest, re-test flaky, poll something).</p>
+<p><strong>Why it breaks:</strong> always-run jobs poison incrementality upstream of everything they feed.
+Flakiness and freshness are inputs in disguise.</p>
+<p><strong>Instead:</strong> make the varying input explicit — a seed stem, a dated snapshot file produced outside the build, a pinned version bump.
+<code>force</code> is for debugging.</p>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="rules.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="from_other_build_systems.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="rules.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="from_other_build_systems.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+
+
+    </div>
+    </body>
+</html>
