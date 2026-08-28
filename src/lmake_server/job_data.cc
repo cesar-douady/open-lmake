@@ -915,13 +915,13 @@ namespace Engine {
 		::string                                    new_codes_bck_dir_s ;
 		SyncGuard                                   sync_guard          { Engine::g_config->server_file_sync }                                                   ;
 		//
-		if (!codec_dir_exists) {                                                                    // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
+		if (!codec_dir_exists) {                                                                      // if not initialized yet, we create the whole tree in tmp space so as to stay always correct
 			trace("fresh") ;
 			::string tmp_codec_dir_s = CodecFile::s_dir_s(filename,true/*tmp*/) ;
-			NodeIdx n_ctxs    = 0 ;                                                                 // for trace only // .
+			NodeIdx n_ctxs    = 0 ;                                                                   // for trace only // .
 			NodeIdx n_entries = 0 ;
-			SWEAR( !old_decode_tab , filename ) ;                                                   // cannot have old codes if not initialized
-			mk_dir_s(tmp_codec_dir_s) ;                                                             // we want a dir to appear initialized, even if empty
+			SWEAR( !old_decode_tab , filename ) ;                                                     // cannot have old codes if not initialized
+			mk_dir_s(tmp_codec_dir_s) ;                                                               // we want a dir to appear initialized, even if empty
 			decode_tab = _mk_decode_tab(encode_tab) ;
 			for( auto const& [ctx,d_entry] : decode_tab ) {
 				n_ctxs++ ;
@@ -935,23 +935,23 @@ namespace Engine {
 				}
 			}
 			mk_dir_s(tmp_codec_dir_s+"store/")                    ;
-			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                                 // global move
+			rename( tmp_codec_dir_s/*src*/ , codec_dir_s/*dst*/ ) ;                                   // global move
 			trace("done_fresh",n_ctxs,n_entries) ;
 		} else {
-			NodeIdx         n_ctxs    = 0 ;                                                         // for trace only // .
+			NodeIdx         n_ctxs    = 0 ;                                                           // for trace only // .
 			NodeIdx         n_entries = 0 ;
 			::vector<Entry> new_codes ;
 			new_codes_dir_s     = CodecFile::s_dir_s(filename)+"new_codes/"     ;
 			new_codes_bck_dir_s = CodecFile::s_dir_s(filename)+"new_codes.bck/" ;
 			trace("update",new_codes_dir_s) ;
 			//
-			if (FileInfo(new_codes_bck_dir_s).tag()==FileTag::Dir) {                                // in case of previous crash
+			if (FileInfo(new_codes_bck_dir_s).tag()==FileTag::Dir) {                                  // in case of previous crash
 				trace("from_bck",new_codes_bck_dir_s) ;
 				_read_new_codes( /*inout*/new_codes , new_codes_bck_dir_s , &sync_guard ) ;
 				unlnk( new_codes_bck_dir_s , {.dir_ok=true,.sync_guard=&sync_guard} ) ;
 			}
 			CodecLock lock { filename } ; lock.lock_excl() ;
-			if (FileInfo(new_codes_dir_s).tag()==FileTag::Dir) {                                    // in case of previous crash
+			if (FileInfo(new_codes_dir_s).tag()==FileTag::Dir) {                                      // in case of previous crash
 				rename( new_codes_dir_s , new_codes_bck_dir_s ) ;
 				_read_new_codes       ( /*inout*/new_codes , new_codes_bck_dir_s     , &sync_guard            ) ;
 				_update_old_decode_tab(          new_codes , /*inout*/old_decode_tab                          ) ;
@@ -983,7 +983,7 @@ namespace Engine {
 			trace("done_update",n_ctxs,n_entries) ;
 		}
 		trace(STR(has_new_codes)) ;
-		if (has_new_codes==No) {                                                                    // codes are strictly increasing and hence no code conflict
+		if (has_new_codes==No) {                                                                      // codes are strictly increasing and hence no code conflict
 			Dep dep { file , Access::Reg , FileInfo(filename) , false/*err*/ } ;
 			dep.acquire_crc()  ;
 			deps.assign({dep}) ;
@@ -1177,7 +1177,8 @@ namespace Engine {
 					status = Status::CacheMatch ;
 					ds.reserve(job_info.end.digest.deps.size()) ;
 					for( auto& [dn,dd] : job_info.end.digest.deps ) ds.emplace_back( Node(New,dn) , dd ) ;
-				}
+					for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job) ;                 // there are new deps and req_info is not reset spontaneously, ...
+				}                                                                                                       // ... so we have to ensure ri.iter is still a legal iterator
 				deps.assign(ds) ;
 				return { cache_hit_info!=CacheHitInfo::HitExhaustive/*maybe_new_deps*/ , cache_hit_info<=CacheHitInfo::Hit/*triggered*/ } ;
 			}
@@ -1221,7 +1222,8 @@ namespace Engine {
 							if ( it_inserted.second ) new_deps.push_back(d) ;
 							else                      new_deps[it_inserted.first->second] |= d ;
 						}
-					deps.assign(new_deps) ;
+					for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
+					deps.assign(new_deps) ;                                                                             // ... so we have to ensure ri.iter is still a legal iterator
 					status = Status::EarlyChkDeps ;
 					return { true/*maybe_new_deps*/ , false/*triggered*/ } ;
 				}
@@ -1300,14 +1302,15 @@ namespace Engine {
 
 	bool/*ok*/ JobData::forget( bool targets_ , bool deps_ ) {
 		Trace trace("Jforget",idx(),STR(targets_),STR(deps_)) ;
-		for( [[maybe_unused]] Req r : running_reqs() ) return false ; // ensure job is not running
+		for( [[maybe_unused]] Req r : running_reqs() ) return false ;                                       // ensure job is not running
 		status = Status::New ;
-		fence() ;                                                     // once status is New, we are sure target is not up-to-date, we can safely modify it
+		fence() ;                                                                                           // once status is New, we are sure target is not up-to-date, we can safely modify it
 		run_status = RunStatus::Ok ;
 		if (deps_) {
 			::vector<Dep> static_deps ;
-			for( Dep const& d : deps )  if (d.dflags[Dflag::Static]) static_deps.push_back(d) ;
-			deps.assign(static_deps) ;
+			for( Dep const& d : deps   ) if (d.dflags[Dflag::Static]           ) static_deps.push_back(d) ;
+			for( Req        r : reqs() ) if (c_req_info(r).step()==JobStep::Dep) req_info(r).reset(idx()) ; // there are new deps and req_info is not reset spontaneously, ...
+			deps.assign(static_deps) ;                                                                      // ... so we have to ensure ri.iter is still a legal iterator
 		}
 		if ( targets_ && is_plain(true/*frozen_ok*/)) _reset_targets() ;
 		trace("summary",deps) ;
