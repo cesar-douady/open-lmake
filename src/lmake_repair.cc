@@ -74,7 +74,7 @@ RepairDigest repair(::string const& from_dir) {
 			Job             job { ::move(m)                           } ; if ( !job                                     ) { trace("no_job_from_match",jd    ) ; goto NextJob ; }
 			//
 			job->targets().assign(targets) ;
-			job->deps     .assign(deps   ) ;
+			job->assign_deps(deps)         ;
 			job->status = job_info.end.digest.status ;
 			job->set_exec_ok() ;                                                                             // pretend job just ran
 			// set target actual_job's

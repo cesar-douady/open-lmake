@@ -249,15 +249,15 @@ namespace Engine {
 		Step step    (          ) const { return _step ; }
 		void set_step(Step s,Job)       ;
 		// services
-		void reset( Job j , bool has_run=false , bool mk_done=false ) {
-			if (has_run) {
-				force  = false ;                               // cmd has been executed, it is not new any more
-				reason = {}    ;                               // reasons were to trigger the ending job, there are none now
-			}
+		void reset( Job j , bool mk_done=false ) {
 			if      (mk_done         ) set_step(Step::Done,j) ;
 			else if (step()>Step::Dep) set_step(Step::Dep ,j) ;
 			iter  = {} ;
 			state = {} ;
+		}
+		void mk_has_run() {
+			force  = false ;                               // cmd has been executed, it is not new any more
+			reason = {}    ;                               // reasons were to trigger the ending job, there are none now
 		}
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) {
 			ReqInfo::add_watcher(watcher,watcher_req_info) ;
@@ -536,6 +536,7 @@ namespace Engine {
 			}
 			_propag_speculate(ri) ;
 		}
+		void assign_deps(::vector<Dep> const&) ;
 		//
 		::pair<JobReason,bool/*triggered*/> make( ReqInfo& , MakeAction , JobReason={} , Bool3 speculate=Yes , bool wakeup_watchers=true ) ;
 		//

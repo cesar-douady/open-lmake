@@ -641,7 +641,7 @@ namespace Engine {
 				else                   dep_crcs.emplace_back(Crc()    ,false        ) ;
 			}
 			//vvvvvvvvvvvvvvvvvv
-			jd.deps.assign(deps) ;
+			jd.assign_deps(deps) ;
 			//^^^^^^^^^^^^^^^^^^
 		}
 		//

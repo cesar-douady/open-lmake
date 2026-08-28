@@ -351,6 +351,12 @@ namespace Engine {
 		DN} //!                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 	}
 
+	void JobData::assign_deps(::vector<Dep> const& ds) {
+		for( Req r : reqs() )
+			if (c_req_info(r).step()==JobStep::Dep) req_info(r).reset(idx()) ; // req_info is not reset spontaneously, resetting ensures req_info(*).iter is still a legal iterator
+		deps.assign(ds) ;
+	}
+
 	static JobReason _mk_pre_reason( Status s , JobReason prev_reason , BitMap<Status> retried_errs ) {
 		static constexpr ::amap<Status,JobReasonTag,N<Status>> ReasonTab {{
 			{ Status::New              , JobReasonTag::New             }
@@ -450,9 +456,9 @@ namespace Engine {
 			SWEAR( !nrr , jrt,pre_reason,nrr ) ;
 		} ;
 		switch (make_action) {
-			case MakeAction::End    : ri.reset(job,true/*has_run*/) ; [[fallthrough]] ;              // deps have changed
-			case MakeAction::Wakeup : ri.dec_wait()                 ; break           ;
-			case MakeAction::GiveUp : ri.dec_wait()                 ; goto Done       ;
+			case MakeAction::End    : ri.mk_has_run() ; ri.reset(job) ; [[fallthrough]] ;
+			case MakeAction::Wakeup : ri.dec_wait()   ;                 break           ;
+			case MakeAction::GiveUp : ri.dec_wait()   ;                 goto Done       ;
 		DN}
 		if (+asked_reason) {
 			if (ri.state.missing_dsk) { trace("reset",asked_reason) ; ri.reset(job) ; }
@@ -701,7 +707,8 @@ namespace Engine {
 					trace("restart_full_analysis",ri) ;
 					goto RestartFullAnalysis/*BACKWARD*/ ;
 				}
-				ri.reset( job , true/*has_run*/ , true/*mk_done*/ ) ;
+				ri.mk_has_run() ;
+				ri.reset( job , true/*mk_done*/ ) ;
 				goto Wakeup ;
 			}
 		}
@@ -986,13 +993,13 @@ namespace Engine {
 		if (has_new_codes==No) {                                                                      // codes are strictly increasing and hence no code conflict
 			Dep dep { file , Access::Reg , FileInfo(filename) , false/*err*/ } ;
 			dep.acquire_crc()  ;
-			deps.assign({dep}) ;
+			assign_deps({dep}) ;
 		} else {
 			::string lines = _refresh_codec_file( decode_tab ) ;
 			Crc      crc   { New , lines , No/*is_lnk*/ }      ;
 			AcFd( filename , {O_WRONLY|O_TRUNC} ).write( lines ) ;
 			file->set_crc_date( crc , FileSig(filename) ) ;
-			deps.assign({Dep( file , Access::Reg , crc , false/*err*/ )}) ;
+			assign_deps({Dep( file , Access::Reg , crc , false/*err*/ )}) ;
 		}
 		switch (has_new_codes) {
 			case No    : req->audit_job( Color::Note , New , "expand"   , rule() , filename ) ; break ;
@@ -1034,7 +1041,7 @@ namespace Engine {
 			dep_vector.push_back(::move(d)) ;
 		}
 		append_move( lnk_vector , ::move(dep_vector) ) ;
-		deps.assign(lnk_vector)                        ;
+		assign_deps(lnk_vector)                        ;
 		if (status==Status::EarlyError) status = Status::Ok ;
 		trace("done") ;
 	}
@@ -1148,37 +1155,34 @@ namespace Engine {
 			cache_hit_info = cache_digest.hit_info ;
 			trace("hit",cache_hit_info) ;
 			if (cache_hit_info<CacheHitInfo::Miss) {
-				::vector<Dep> ds ;
 				if (cache_hit_info<=CacheHitInfo::Hit) {
 					if (+cache_digest.file_actions_msg) {
 						req->audit_info( Color::Note , cache_digest.file_actions_msg , 0/*lvl*/ ) ;
 						trace("hit_msg",cache_digest.file_actions_msg,ri) ;
 					}
 					//
-					job_info.start.pre_start.job      = +job      ;                                                     // repo dependent
-					job_info.start.submit_info.reason = ri.reason ;                                                     // context dependent
-					job_info.end  .end_date           = New       ;                                                     // execution dependnt
+					job_info.start.pre_start.job      = +job      ;                              // repo dependent
+					job_info.start.submit_info.reason = ri.reason ;                              // context dependent
+					job_info.end  .end_date           = New       ;                              // execution dependnt
 					//
-					JobDigest<Node> digest = job_info.end.digest ;                                                      // gather info before being moved
+					JobDigest<Node> digest = job_info.end.digest ;                               // gather info before being moved
 					Job::s_record_thread.emplace(job,::move(job_info.start)) ;
 					Job::s_record_thread.emplace(job,::move(job_info.end  )) ;
 					//
 					ri.set_step(Step::Hit,job) ;
-					JobExec je { job , New } ;                                                                          // job starts and ends, no host
-					je.max_stderr_len = job->rule()->start_ancillary_attrs.spec.max_stderr_len ;                        // in case it is not dynamic
+					JobExec je { job , New } ;                                                   // job starts and ends, no host
+					je.max_stderr_len = job->rule()->start_ancillary_attrs.spec.max_stderr_len ; // in case it is not dynamic
 					if (ri.live_out) je.live_out(ri,job_info.end.stdout) ;
 					je.end_analyze(/*inout*/digest) ;
 					req->stats.add(JobReport::Hit) ;
 					req->missing_audits[job] = { .report=JobReport::Hit , .has_msg_stderr=digest.has_msg_stderr , .has_chroot_tag=+digest.chroot_tag } ;
-					ds.reserve(digest.deps.size()) ;
-					for( auto& [d,dd] : digest.deps ) ds.emplace_back( d , dd ) ;
-					for( Req r : reqs() ) if (c_req_info(r).step()==Step::Dep) req_info(r).reset(job,true/*has_run*/) ; // there are new deps and req_info is not reset spontaneously, ...
-				} else {                                                                                                // ... so we have to ensure ri.iter is still a legal iterator
+					for( Req r : reqs() )
+						if (c_req_info(r).step()==Step::Dep) req_info(r).mk_has_run() ;
+				} else {
 					status = Status::CacheMatch ;
-					ds.reserve(job_info.end.digest.deps.size()) ;
-					for( auto& [dn,dd] : job_info.end.digest.deps ) ds.emplace_back( Node(New,dn) , dd ) ;
+					::vector<Dep> ds ; ds.reserve(job_info.end.digest.deps.size()) ; for( auto& [dn,dd] : job_info.end.digest.deps ) ds.emplace_back( Node(New,dn) , dd ) ;
+					assign_deps(ds) ;
 				}
-				deps.assign(ds) ;
 				return { cache_hit_info!=CacheHitInfo::HitExhaustive/*maybe_new_deps*/ , cache_hit_info<=CacheHitInfo::Hit/*triggered*/ } ;
 			}
 		}
@@ -1221,7 +1225,7 @@ namespace Engine {
 							if ( it_inserted.second ) new_deps.push_back(d) ;
 							else                      new_deps[it_inserted.first->second] |= d ;
 						}
-					deps.assign(new_deps) ;
+					assign_deps(new_deps) ;
 					status = Status::EarlyChkDeps ;
 					return { true/*maybe_new_deps*/ , false/*triggered*/ } ;
 				}
@@ -1307,7 +1311,7 @@ namespace Engine {
 		if (deps_) {
 			::vector<Dep> static_deps ;
 			for( Dep const& d : deps )  if (d.dflags[Dflag::Static]) static_deps.push_back(d) ;
-			deps.assign(static_deps) ;
+			assign_deps(static_deps) ;
 		}
 		if ( targets_ && is_plain(true/*frozen_ok*/)) _reset_targets() ;
 		trace("summary",deps) ;

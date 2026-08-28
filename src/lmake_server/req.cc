@@ -176,7 +176,7 @@ namespace Engine {
 		::uset<Rule>   to_raise  ;
 		::vector<Node> to_forget ;
 		First          first     ;
-		::string       cycle_str ;
+		::vector<Node> to_anti   ;
 		for( Node d=node ; seen.insert(d).second ;) {
 			NodeStatus dns = d->status() ;
 			::string   dr  ;
@@ -195,7 +195,7 @@ namespace Engine {
 					if (dd->done(self)) continue ;
 					d  = dd                     ;
 					dr = j->rule()->user_name() ;
-					if (!seen.contains(d)) cycle_str << first("(",",")<<mk_py_str(d->name()) ;
+					if (!seen.contains(d)) to_anti.push_back(d) ;
 					goto Next ;
 				}
 				fail_prod("not done but all deps are done :",j->name()) ;       // NO_COV
@@ -204,7 +204,6 @@ namespace Engine {
 		Next :
 			cycle.emplace_back(dr,d) ;
 		}
-		cycle_str += first("",",)",")") ;
 		self->audit_node( Color::Err , "cycle detected for",node ) ;
 		Node   deepest   = cycle.back().second                                                        ;
 		bool   seen_loop = deepest==node                                                              ;
@@ -219,19 +218,27 @@ namespace Engine {
 			else                                                 prefix = "    " ;
 			self->audit_node( Color::Note , prefix+widen(cycle[i].first,w),cycle[i].second , 1 ) ;
 		}
-		if ( +to_forget || +cycle_str ) {
-			/**/                      self->audit_info( Color::Note , "consider some of :\n"     ) ;
+		if ( +to_forget || +to_anti ) {
+			if (to_forget.size()+to_anti.size()+to_raise.size()>1) self->audit_info( Color::Note , "consider some of :\n" ) ;
+			else                                                   self->audit_info( Color::Note , "consider :\n"         ) ;
 			for( Node n : to_forget ) self->audit_node( Color::Note , "lforget -d" , n       , 1 ) ;
 			::set_s sub_repos_s ; for( Rule r : to_raise ) sub_repos_s.insert(r->sub_repo_s) ;
 			for( ::string const& sub_repo_s : sub_repos_s ) {
 				/**/                                                     self->audit_info( Color::Note , "add to "+sub_repo_s+"Lmakefile.py :"             , 1 ) ;
 				for( Rule r : to_raise  ) if (r->sub_repo_s==sub_repo_s) self->audit_info( Color::Note , r->name+".prio = "+::to_string(r->user_prio)+"+1" , 2 ) ;
 			}
-			if (+cycle_str) {
-				self->audit_info( Color::Note , "add to Lmakefile.py :"        , 1 ) ;
-				self->audit_info( Color::Note , "for t in "+cycle_str+" :"     , 2 ) ;
-				self->audit_info( Color::Note , "class MyAntiRule(AntiRule) :" , 3 ) ;
-				self->audit_info( Color::Note , "target = t"                   , 4 ) ;
+			if (+to_anti) {
+				self->audit_info( Color::Note , "add to Lmakefile.py :"      , 1 ) ;
+				self->audit_info( Color::Note , "from lmake import AntiRule" , 2 ) ;
+				if (to_anti.size()==1) {
+					self->audit_info( Color::Note , "class MyAntiRule(AntiRule) :"                 , 2 ) ;
+					self->audit_info( Color::Note , cat("target = ",mk_py_str(to_anti[0]->name())) , 3 ) ;
+				} else {
+					::string to_anti_str = "(" ; for( Node d : to_anti ) to_anti_str << first("",",")<<mk_py_str(d->name()) ; to_anti_str << first(")",",)",")") ;
+					self->audit_info( Color::Note , cat("for t in ",to_anti_str," :") , 2 ) ;
+					self->audit_info( Color::Note , "class MyAntiRule(AntiRule) :"    , 3 ) ;
+					self->audit_info( Color::Note , "target = t"                      , 4 ) ;
+				}
 			}
 		}
 	}

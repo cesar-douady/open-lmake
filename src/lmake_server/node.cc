@@ -411,6 +411,7 @@ namespace Engine {
 						case Buildable::SubSrc    : buildable = Buildable::SubSrc    ; goto Return ;
 						case Buildable::SrcDir    :
 						case Buildable::SubSrcDir : buildable = Buildable::SubSrcDir ; goto Return ;
+						case Buildable::Loop      :                                    goto Return ;
 					DF}                                                                              // NO_COV
 				}
 				if (!is_lcl(name_)) { buildable = Buildable::No ; goto Return ; }
