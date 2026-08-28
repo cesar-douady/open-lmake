@@ -18,6 +18,10 @@
 	- [Config fields](config.md)
 	- [Rules attributes](rules.md)
 
+- [Good practices](good_practices.md)
+	- [Coming from other build systems](from_other_build_systems.md)
+	- [Stateful tools](stateful_tools.md)
+
 - [Execution](execution.md)
 	- [Job execution](job_execution.md)
 	- [Data model](data_model.md)
@@ -39,6 +43,8 @@
 
 - [Experimental features](experimental.md)
 	- [Subrepos](experimental_subrepos.md)
+
+- [AI assistants](ai_assistants.md)
 
 [Glossary](glossary.md)
 [FAQ](faq.md)

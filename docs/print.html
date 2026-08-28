@@ -2096,6 +2096,310 @@ In that case, it is only used as a base class to define other rules.</p>
 <!-- Copyright (c) 2023-2026 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- This chapter is shared with the AI skill (cf. ai_assistants.md) : the content below is included from skills/lmakefile/references/ at book build time.-->
+<h1 id="good-practices"><a class="header" href="#good-practices">Good practices</a></h1>
+<p>open-lmake is not make/CMake/Bazel with a different syntax: it is a functional build system, and most reflexes learned from other build systems work against it
+(see <a href="https://cesar-douady.github.io/open-lmake/from_other_build_systems.html">coming from other build systems</a> for a reflex-by-reflex mapping).
+There are not many pitfalls to avoid here; there is mostly a habit to unlearn: working around pitfalls that do not exist.
+Simple things work very well; write the simple thing first.</p>
+<p>Design order: (1) what is my flow, (2) what depends on what, (3) how are my dirs and files organized, (4) how do I explain it to open-lmake — in that order.
+The Lmakefile transcribes a flow you already understand; it is not where you design it.</p>
+<p>A guiding principle: every parameter of a build should live in a file path or in a file content, never in an environment variable or in system state.
+To build variant X with seed S, encode X and S in the target's name and let a stem capture them.
+This is a design goal, not an enforced invariant: rules can smuggle inputs through <code>environ</code>, tool installs or host state —
+when debugging a build that behaves differently between users or machines, look precisely for the places where this principle is violated.</p>
+<h2 id="do"><a class="header" href="#do">Do</a></h2>
+<ul>
+<li><strong>Set the granularity at the finest level where things have natural inputs and outputs.</strong>
+One transformation per rule; let the scheduler exploit the parallelism.
+A rule that configures, compiles, links and tests in one <code>cmd</code> hides the graph from the scheduler and the cache.
+The inverse excess is equally wrong: do not fragment below the natural input/output boundaries.
+If one tool performs a whole coherent job, one rule running that tool is the right size.</li>
+<li><strong>Encode variants in target paths.</strong>
+Seed, build type, profile, tool version: stems in the target name (<code>{mode:release|debug}/{File}.o</code>), or content of a dep file.
+Asking for a different file is how you ask for a different build.</li>
+<li><strong>Derive file lists from the manifest, not from the filesystem.</strong>
+To enumerate sources (e.g. all <code>.cpp</code> under a dir), write a rule that greps <code>LMAKE/manifest</code> (a regular readable file listing all sources) and emits the list as its target.
+This replaces every <code>glob</code>/<code>find</code>/readdir and is fully tracked: adding a source flows through git → manifest → list → rebuild.</li>
+<li><strong>For alias or summary targets, prefer a small real target over <code>phony</code>.</strong>
+<code>lmake foo</code> guarantees exactly one thing: <code>foo</code> is up to date.
+A phony <code>all</code> does nothing after <code>rm -rf build</code> if no source changed — correct behavior (nothing observable would differ), and <code>lmake -a</code> is the tool that forces a whole dep tree up to date.
+A tiny real target (a report, a checksum line) gives an honest done/steady status; <code>AliasRule</code> covers pure aliases.</li>
+<li><strong>Use <code>critical</code> on deps that are themselves lists of deps</strong> (e.g. a test-suite manifest):
+when the list changes, open-lmake stops speculatively rebuilding the old list and rebuilds the new one in parallel
+(cf. <a href="https://cesar-douady.github.io/open-lmake/critical_deps.html">critical deps</a>).
+Pair with <code>lmake.check_deps()</code> / <code>lcheck_deps</code> inside long jobs to fail fast on out-of-date deps.</li>
+<li><strong>Choose the right environ dict.</strong>
+<code>environ</code> is part of the command (change → rerun);
+<code>environ_resources</code> is resource-like (change → rerun only failed jobs);
+<code>environ_ancillary</code> is traceability only (change → no rerun).
+The user's environment is deliberately ignored; importing values from <code>lmake.user_environ</code> is discouraged and, if unavoidable, must go through one of these dicts.</li>
+<li><strong>Use <code>lmake.depend()</code> / <code>lmake.target()</code></strong> (CLI: <code>ldepend</code> / <code>ltarget</code>) inside jobs for dynamic cases: promote a computed file list to deps, flag accesses.</li>
+<li><strong>Use <code>lmake.run_cc(...)</code></strong> for C/C++ compilers: it wraps the compiler's <code>-MMD</code>-style dep output so include deps are reported precisely.</li>
+<li><strong>Factor a stems vocabulary in a base class.</strong>
+Define the project's naming regexes (<code>stems = {...}</code>) once in a shared base rule; concrete rules inherit it (dict attributes merge along the MRO).</li>
+<li><strong>Opt into the shared cache per rule</strong> (<code>cache = '&lt;name&gt;'</code> + <code>lmake.config.caches</code>) for expensive deterministic jobs.
+Set <code>check_abs_paths</code> (or use <code>repo_view</code>) so the repo's absolute path never leaks into targets — otherwise cache entries are not portable across users and checkouts.</li>
+<li><strong>Declare resources honestly</strong> (<code>resources = {'cpu':.., 'mem':.., 'tmp':..}</code> plus scheduler-specific tokens such as license counts) and pick the backend per rule.
+Round mem values so the scheduler's job classes stay few.</li>
+</ul>
+<h2 id="anti-patterns"><a class="header" href="#anti-patterns">Anti-patterns</a></h2>
+<p>Each entry: the reflex → why it breaks open-lmake → what to do instead.
+These are the mistakes most often imported from other build systems or from scripting around the build.</p>
+<h3 id="1-sentinel--stamp-files"><a class="header" href="#1-sentinel--stamp-files">1. Sentinel / stamp files</a></h3>
+<p><strong>Reflex:</strong> <code>touch build.stamp</code> to mark "step X ran"; other rules depend on the stamp.</p>
+<p><strong>Why it breaks:</strong> open-lmake compares content, not dates — an empty or constant stamp carries no information, so nothing downstream can depend on what the job actually did.
+Stamps exist to fake dependency edges that open-lmake computes natively.</p>
+<p><strong>Instead:</strong> make the real output the target.
+If the job's value is "it checked something", make the check's report the target (a diff, a log, an <code>.ok</code> file whose content is meaningful).
+For pure aliases, use the <code>phony</code> flag or <code>AliasRule</code>.</p>
+<h3 id="2-reading-directories-glob--find--ls--wildcard"><a class="header" href="#2-reading-directories-glob--find--ls--wildcard">2. Reading directories (glob / find / ls / wildcard)</a></h3>
+<p><strong>Reflex:</strong> <code>SRCS = glob('src/**/*.cpp')</code> or <code>for f in *.c</code>.</p>
+<p><strong>Why it breaks:</strong> a directory listing depends on build history (which outputs happen to exist), so it cannot be made stable; open-lmake rejects readdir by default for this reason.
+With <code>readdir_ok</code> you silence the error but own the instability.</p>
+<p><strong>Instead:</strong> a small rule that greps <code>LMAKE/manifest</code> and emits the file list as its target; downstream rules depend on that list file.
+Reserve <code>readdir_ok</code> for trees provably owned by a single rule (a venv built by one job) or <code>$TMPDIR</code>.</p>
+<h3 id="3-network-or-filesystem-side-effects-at-lmakefile-evaluation-time"><a class="header" href="#3-network-or-filesystem-side-effects-at-lmakefile-evaluation-time">3. Network or filesystem side effects at Lmakefile-evaluation time</a></h3>
+<p><strong>Reflex:</strong> download a dependency, unpack a toolchain, or rewrite a directory while the Lmakefile is being imported ("bootstrap before the build").</p>
+<p><strong>Why it breaks:</strong> evaluating the build graph must be pure — it runs inside the lmake server, is not spied by autodep, is not a job, is not cached, and mutates state that rules then treat as sources.
+Two evaluations may disagree; the repo is no longer a function of git state.</p>
+<p><strong>Instead:</strong> downloads are jobs.
+Write a rule whose target is the downloaded artifact, pinned by version and checksum (both in the rule or in a config file that is a dep); verify the checksum in <code>cmd</code>.
+Better: vendor the dependency (git submodule, subrepo) so the manifest owns it.</p>
+<p>Special case: a shared rule library cannot be a job's output at all (rules must exist at Lmakefile-evaluation time).
+Vendor it when you can — it stays locally editable.
+When constraints force fetching it, keep the fetch out of Lmakefile evaluation: an explicit, idempotent, pinned and checksummed setup step,
+and accept that fetched rules cannot be patched without republishing or an override mechanism.</p>
+<h3 id="4-host-dependent-rule-definitions"><a class="header" href="#4-host-dependent-rule-definitions">4. Host-dependent rule definitions</a></h3>
+<p><strong>Reflex:</strong> at import time, probe the machine (<code>shutil.which('qsub')</code>, hostname, OS release) and define rules, backends or resources differently.</p>
+<p><strong>Why it breaks:</strong> two users get different build graphs from the same commit — the antithesis of a functional build.
+Combined with a shared cache it is unsound.</p>
+<p><strong>Instead:</strong> rule definitions are constant.
+Backend unavailability already degrades gracefully (missing daemon → local execution).
+If the OS genuinely changes the recipe, make it explicit data: an OS stem in the target path, or a config target whose content is produced by a rule.</p>
+<h3 id="5-environment-variable-driven-builds"><a class="header" href="#5-environment-variable-driven-builds">5. Environment-variable-driven builds</a></h3>
+<p><strong>Reflex:</strong> <code>CFLAGS</code>, <code>BUILD_ID</code>, <code>DEBUG=1 lmake ...</code> read via <code>os.environ</code> in rules.</p>
+<p><strong>Why it breaks:</strong> open-lmake deliberately ignores the user's environment — jobs see a controlled env.
+Sneaking values in via <code>lmake.user_environ</code> reintroduces untracked inputs: builds differ between users with no dep explaining why.</p>
+<p><strong>Instead:</strong> flags and modes are file content (config files as deps) or target-path stems.
+If an env value is truly needed (e.g. <code>DISPLAY</code> for a GUI test), route it through <code>environ_resources</code>/<code>environ_ancillary</code> so its tracking status is explicit.</p>
+<h3 id="6-monolithic-rules"><a class="header" href="#6-monolithic-rules">6. Monolithic rules</a></h3>
+<p><strong>Reflex:</strong> one rule that configures + compiles + links + tests, or a <code>cmd</code> that loops over all files.</p>
+<p><strong>Why it breaks:</strong> the scheduler, incrementality and the cache work at job granularity.
+A monolith serializes what could parallelize, reruns everything when one input changes, and produces cache entries too coarse to hit.
+It also hides the dependency structure autodep would otherwise map for free.</p>
+<p><strong>Instead:</strong> one transformation per rule, files as the interface between rules,
+star stems for scatter (one job per test, seed or variant), a gather rule with <code>ldepend</code> + <code>critical</code> for the fan-in.</p>
+<h3 id="7-ignore-flags-as-duct-tape"><a class="header" href="#7-ignore-flags-as-duct-tape">7. <code>ignore</code> flags as duct tape</a></h3>
+<p><strong>Reflex:</strong> a job writes somewhere unexpected → add <code>('...', 'ignore')</code> until the errors stop; put whole tool homes under <code>ignore</code>.</p>
+<p><strong>Why it breaks:</strong> <code>ignore</code> tells open-lmake to un-see reads and writes.
+Jobs stop being pure functions of their recorded deps: reruns may differ, the multi-user cache can return wrong hits,
+and you end up adding manual locks to serialize accesses open-lmake can no longer see.
+One <code>ignore</code> begets another.</p>
+<p><strong>Instead:</strong> declare the writes (<code>side_targets</code>, star targets), move scratch to <code>$TMPDIR</code>,
+or restructure so the tool's state lives inside the job's own target tree
+(see <a href="https://cesar-douady.github.io/open-lmake/stateful_tools.html">stateful tools</a>).
+Legitimate <code>ignore</code> uses are narrow and cosmetic (e.g. <code>.pyc</code> noise) — anything a rebuild could miss must stay tracked.</p>
+<h3 id="8-writes-outside-declared-targets"><a class="header" href="#8-writes-outside-declared-targets">8. Writes outside declared targets</a></h3>
+<p><strong>Reflex:</strong> scratch files next to sources, writing metadata into the source tree, uploading artifacts from inside a build rule — "it's just a temp file".</p>
+<p><strong>Why it breaks:</strong> undeclared writes are errors (or, if ignored, untracked state).
+Writes into the source tree make the repo dirty as a side effect of building.
+Uploads and publishes inside build rules make the build non-idempotent and non-cacheable.</p>
+<p><strong>Instead:</strong> <code>$TMPDIR</code> for scratch (private, wiped, untracked by design).
+All persistent outputs under a dedicated build prefix matched by target patterns.
+Publishing is a separate explicit rule (or outside the build), never bundled into producing an artifact.</p>
+<h3 id="9-reading-mutable-global-state-inside-rules"><a class="header" href="#9-reading-mutable-global-state-inside-rules">9. Reading mutable global state inside rules</a></h3>
+<p><strong>Reflex:</strong> embed <code>git describe</code>, the current date, <code>$BUILD_ID</code> or the hostname into built artifacts.</p>
+<p><strong>Why it breaks:</strong> the output is no longer a function of tracked inputs; identical deps yield different contents,
+defeating checksums, the propagation stop on <code>steady</code> jobs, and the cache.</p>
+<p><strong>Instead:</strong> if version info must be embedded, produce it as a target from tracked inputs where possible,
+and confine the volatile part to one tiny leaf rule so the non-reproducibility does not contaminate the graph.
+Keep artifacts bit-reproducible; attach volatile metadata outside the build.</p>
+<h3 id="10-in-place-updates"><a class="header" href="#10-in-place-updates">10. In-place updates</a></h3>
+<p><strong>Reflex:</strong> a job "updates" a file it also reads (append to a log, patch a config).</p>
+<p><strong>Why it breaks:</strong> the result depends on prior content — history, not sources.
+open-lmake flags read+write of the same file as an error unless <code>incremental</code> is claimed,
+and <code>incremental</code> is a promise (any prior state yields a correct result), not a waiver.</p>
+<p><strong>Instead:</strong> write a new file.
+If a tool insists on in-place state, isolate it per job or honor the <code>incremental</code> contract for real
+(see <a href="https://cesar-douady.github.io/open-lmake/stateful_tools.html">stateful tools</a>).</p>
+<h3 id="11-second-build-system-embedded-blindly"><a class="header" href="#11-second-build-system-embedded-blindly">11. Second build system embedded blindly</a></h3>
+<p><strong>Reflex:</strong> call cmake/sbt/cargo/ninja inside one big rule and let it manage its own graph and cache.</p>
+<p><strong>Why it breaks (partially):</strong> it can be sound — autodep still tracks reads and writes —
+but the inner tool's scratch must be declared, its own daemon and cache dirs confined, and the granularity collapses to one job.
+Inner tools with out-of-repo homes or background daemons leak state.</p>
+<p><strong>Instead:</strong> acceptable as a transition, with the inner scratch tree declared as an <code>incremental</code> star side target,
+tool caches disabled or confined to the repo or <code>$TMPDIR</code>, and <code>HomelessRule</code> to shield <code>$HOME</code>.
+Long-term, split the inner graph into open-lmake rules when the tool allows it.</p>
+<h3 id="12-force--true--manual-reruns-as-workflow"><a class="header" href="#12-force--true--manual-reruns-as-workflow">12. <code>force = True</code> / manual reruns as workflow</a></h3>
+<p><strong>Reflex:</strong> "this job must always run" (fetch latest, re-test flaky, poll something).</p>
+<p><strong>Why it breaks:</strong> always-run jobs poison incrementality upstream of everything they feed.
+Flakiness and freshness are inputs in disguise.</p>
+<p><strong>Instead:</strong> make the varying input explicit — a seed stem, a dated snapshot file produced outside the build, a pinned version bump.
+<code>force</code> is for debugging.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2026 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- This chapter is shared with the AI skill (cf. ai_assistants.md) : the content below is included from skills/lmakefile/references/ at book build time.-->
+<h1 id="coming-from-other-build-systems"><a class="header" href="#coming-from-other-build-systems">Coming from other build systems</a></h1>
+<p>Not a migration guide — a de-training table.
+Left column: the reflex you (or the codebase you are translating) bring along.
+Right column: what open-lmake actually wants.
+The numbered references point to the anti-pattern catalog in <a href="https://cesar-douady.github.io/open-lmake/good_practices.html">good practices</a>.</p>
+<div class="table-wrapper"><table><thead><tr><th>Your reflex</th><th>open-lmake idiom</th></tr></thead><tbody>
+<tr><td>List every dependency of a target by hand (<code>foo.o: foo.c foo.h bar.h</code>)</td><td>List only <em>static</em> deps (what is needed to select the rule, typically the primary input). Headers, includes, imports are discovered by autodep at run time.</td></tr>
+<tr><td>Generate dep files (<code>gcc -MMD</code> + <code>-include *.d</code>) and wire them back in</td><td><code>lmake.run_cc()</code> if you want compiler-precise reporting, but plain autodep already catches includes. No dep-file plumbing.</td></tr>
+<tr><td><code>.PHONY: all test clean</code></td><td><code>phony</code> target flag / <code>AliasRule</code> for <code>all</code>-style names. No <code>clean</code> at all: outputs are tracked, a fresh state is always reachable, and stale files are diagnosed (<code>dangling</code>), not scrubbed.</td></tr>
+<tr><td>Stamp/sentinel files to sequence steps</td><td>Real outputs as targets; content is the interface. Sequencing emerges from data deps (anti-pattern 1).</td></tr>
+<tr><td>Timestamps decide staleness; <code>touch</code> to force</td><td>Content checksums decide. <code>touch</code> causes a run that ends <code>steady</code> and stops there. To force a rerun, change an input; <code>lforget</code> for manual invalidation while debugging.</td></tr>
+<tr><td><code>make -j N</code>, ordering hacks, <code>.NOTPARALLEL</code></td><td>The scheduler owns parallelism; you declare <code>resources</code> (cpu/mem/tmp/licenses) per rule and it fills the machine or the grid. Never serialize via fake deps.</td></tr>
+<tr><td>Recursive make (<code>$(MAKE) -C subdir</code>)</td><td>One coherent graph. For nested projects, <code>lmake.config.sub_repos</code> (experimental) — each subrepo keeps its own Lmakefile but matching stays scoped.</td></tr>
+<tr><td>A "configure" step that snapshots the system (CMake configure, autoconf)</td><td>No global configure phase. Configuration is data: config files as deps, variants as stems in target paths, config-derived files produced by rules.</td></tr>
+<tr><td>Out-of-source build dirs chosen by the user (<code>build/</code>, <code>cmake -B</code>)</td><td>The repo IS the namespace: all outputs live in-repo under patterns your rules define (e.g. a <code>BUILD/...</code> prefix by convention, uppercase like open-lmake's own <code>LMAKE/</code> dir). Same name = same content, always.</td></tr>
+<tr><td>Toolchain found via <code>$PATH</code>/<code>$CC</code>/<code>CFLAGS</code> from the user's shell</td><td>The user env is ignored by design. Pin interpreters and tools in rules (<code>environ</code>, explicit paths, version-pinned install rules); flags come from dep files.</td></tr>
+<tr><td>Bazel: enumerate <code>srcs</code>/<code>deps</code> per package in BUILD files</td><td>No per-package enumeration: regex targets + static deps for selection; autodep does the fine grain. Sandbox-like hygiene comes from autodep spying, not from declaring everything.</td></tr>
+<tr><td>Bazel remote cache / ccache bolted on</td><td>Native: <code>lmake.config.caches</code> + per-rule <code>cache=</code>. Keep outputs free of absolute paths (<code>check_abs_paths</code>) so entries are portable across users.</td></tr>
+<tr><td>Hermeticity via containers per action</td><td>Jobs run under autodep spying; for stronger isolation open-lmake has <code>views</code>/<code>repo_view</code>/<code>tmp_view</code>/<code>chroot_dir</code> (namespace remapping), still fully tracked.</td></tr>
+<tr><td>Ninja/gyp/meson: a generator emits the real build graph</td><td>No generation step: rules are regex-parameterized classes, so one rule covers the whole family a generator would enumerate. If you are generating rules in a loop, you usually wanted a stem.</td></tr>
+<tr><td><code>$(shell ls src/*.c)</code> / <code>file(GLOB ...)</code></td><td>Never glob. Grep the manifest (<code>LMAKE/manifest</code>) in a small rule; depend on its output (anti-pattern 2).</td></tr>
+<tr><td>Order-only prerequisites (<code>| dir</code>) to create directories</td><td>Nothing to do: target directories are handled by open-lmake (<code>auto_mkdir</code> exists for legacy chdir-based flows).</td></tr>
+<tr><td><code>.DELETE_ON_ERROR</code>, partial-output paranoia</td><td>Built-in: targets are unlinked before run (unless <code>incremental</code>), failed jobs do not pollute, <code>manual</code>/<code>quarantine</code> protect user edits.</td></tr>
+<tr><td><code>install</code>/<code>deploy</code> bundled in the default target</td><td>Keep publishing out of the build graph (or as an explicit separate leaf rule). Build outputs must be reproducible artifacts (anti-patterns 8 and 9).</td></tr>
+<tr><td>Version/date/host stamped into binaries at every build</td><td>Anti-pattern here: it defeats content-based cutoff. Isolate volatile metadata in one leaf, keep artifacts bit-stable (anti-pattern 9).</td></tr>
+<tr><td>CI pipeline = bash scripts around the build system</td><td>Push logic INTO rules (they are tracked, cached, parallel, grid-dispatchable); CI just runs <code>lmake &lt;goal&gt;</code>. A target name is a complete, reproducible request.</td></tr>
+</tbody></table>
+</div>
+<p>Two habits transfer well and should be kept:
+writing small composable steps (make-style one-recipe-one-output discipline maps directly onto rules),
+and lockfile-based pinning of third-party deps (open-lmake wants the lockfile as a source and the fetches as checksummed rules).</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2026 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- This chapter is shared with the AI skill (cf. ai_assistants.md) : the content below is included from skills/lmakefile/references/ at book build time.-->
+<h1 id="stateful-tools"><a class="header" href="#stateful-tools">Stateful tools</a></h1>
+<p>How to integrate conan, pip/venv, cargo, sbt, maven and similar tools into an open-lmake flow.</p>
+<p>open-lmake's model: a job's output is a pure function of the file contents it reads.
+Package managers and some build tools violate this by design: they keep internal databases (often sqlite),
+out-of-repo homes (<code>~/.conan2</code>, <code>~/.cargo</code>, <code>~/.ivy2</code>),
+and decide what exists by consulting that state instead of the filesystem.
+Autodep can trace file reads and writes, but it cannot assign meaning to "row updated inside a shared sqlite file" —
+so shared mutable homes are fundamentally at odds with tracking, caching and multi-user soundness.</p>
+<h2 id="first-answer-who-guarantees-what"><a class="header" href="#first-answer-who-guarantees-what">First, answer: who guarantees what?</a></h2>
+<p>Before picking a strategy, decide who owns each piece of tool state — the answer dictates everything:</p>
+<ul>
+<li><strong>The tool owns its state</strong>: you trust it unconditionally (its cache/DB is correct whatever happens around it, including concurrent use).
+Then <code>ignore</code> its whole state area and accept the consequences in full (level 3 below):
+open-lmake cannot help you inside that zone, and the shared cache must be off for every rule that reads it.</li>
+<li><strong>open-lmake owns the state</strong>: then every file in the zone is a job output like any other —
+it must be possible to <code>lmake</code> any file there unambiguously, with exactly one official producer per file.</li>
+</ul>
+<p>The unsound middle ground — half-declared state, rules stepping on each other's targets — is the only truly bad choice.
+A layered scheme (e.g. an install rule at higher prio and a build rule below it, both covering the same tree with star targets)
+is legitimate as long as no rule ever produces a file whose official producer is another rule.</p>
+<p>There is a ladder of integration strategies, from best to last-resort.
+Always start at the top.</p>
+<h2 id="level-0--do-not-run-the-tool-at-build-time"><a class="header" href="#level-0--do-not-run-the-tool-at-build-time">Level 0 — do not run the tool at build time</a></h2>
+<p>Vendor the dependency (submodule, subrepo) or fetch it with a plain rule:
+one artifact = one rule = one target, pinned by version + checksum verified in <code>cmd</code>.
+The package manager runs outside the build (to compute a lockfile, which is then a source);
+the build itself only consumes pinned artifacts.
+This is the only level with full cache soundness and zero caveats.
+Prefer it whenever the dependency count is manageable.</p>
+<h2 id="level-1--confine-the-tools-whole-state-inside-the-repo-one-rule-owns-it"><a class="header" href="#level-1--confine-the-tools-whole-state-inside-the-repo-one-rule-owns-it">Level 1 — confine the tool's whole state inside the repo, one rule owns it</a></h2>
+<p>Give the tool a home that is a target tree of exactly ONE rule.
+The <a href="https://cesar-douady.github.io/open-lmake/unit_tests/conan.html">conan unit test</a> is instructive precisely because it splits the tree across two rules
+and its driver asserts the resulting failure (<code>done=1, failed=1, rc=1</code>):</p>
+<pre><code class="language-python">class Pip(Rule) :                          # succeeds: owns the whole tree
+    targets    = { 'PIP' : 'venv/bin/pip' , 'VENV' : r'venv/{*:.*}' }
+    readdir_ok = True                      # pip insists on scanning dirs
+    cmd        = 'python3 -m venv venv'
+
+class Conan(Rule) :                        # FAILS, and the test asserts it:
+    targets    = { 'CONAN' : 'venv/bin/conan' }   # pip install writes throughout
+    deps       = { 'PIP'   : 'venv/bin/pip'   }   # venv/ (lib, bin, ...) — all
+    readdir_ok = True                             # undeclared here, and the tree
+    cmd        = 'venv/bin/python3 -m pip install conan'  # already belongs to VENV above
+</code></pre>
+<p>The working shape is one rule per tool venv, owning the whole tree — creation and install in the same job:</p>
+<pre><code class="language-python">class ConanVenv(Rule) :
+    targets    = { 'CONAN' : 'conan-venv/bin/conan'
+               ,   'VENV'  : r'conan-venv/{*:.*}'   }
+    environ    = { 'PIP_NO_CACHE_DIR' : '1' }
+    readdir_ok = True
+    cmd        = '''
+        python3 -m venv conan-venv
+        conan-venv/bin/pip install conan==&lt;version&gt;   # pin it (hardcoded, or read from a dep file)
+    '''
+</code></pre>
+<p>Key ingredients:</p>
+<ul>
+<li>the entire tree is a star target (<code>.../{*:.*}</code>) of exactly one job — no other job writes there, so <code>readdir_ok</code> on it is defensible;</li>
+<li>the tool's own cache is disabled (<code>PIP_NO_CACHE_DIR=1</code> — pip actually disables its cache for any value of this variable)
+or pointed into the tree or <code>$TMPDIR</code>, so no state escapes;</li>
+<li>downstream rules depend on concrete files in the tree (<code>.../bin/conan</code>).</li>
+</ul>
+<p>Cost: installing per-repo (not per-machine).
+That is the price of correctness, and the shared cache gives most of it back (the install job itself becomes a cache hit for every user).</p>
+<h2 id="level-2--declared-incremental-scratch-the-cargo-pattern"><a class="header" href="#level-2--declared-incremental-scratch-the-cargo-pattern">Level 2 — declared incremental scratch (the cargo pattern)</a></h2>
+<p>For tools with a valuable warm cache (incremental compilers), declare the tool's scratch tree as an <code>incremental</code> side/star target:
+it is not wiped between runs, the tool reuses it, and open-lmake still records everything.
+From the <a href="https://cesar-douady.github.io/open-lmake/unit_tests/cargo.html">cargo unit test</a>:</p>
+<pre><code class="language-python">class CompileRust(HomelessRule,RustRule) :                   # excerpt; test-harness lines omitted
+    targets      = { 'EXE'        :   r'{Dir:.+/|}{Module:[^/]+}/target/debug/{Module}'  }
+    side_targets = { 'SCRATCHPAD' : ( r'{Dir}{Module}/{*:.*}' , 'Incremental' )          }
+    deps         = { 'PKG' : '{Dir}{Module}/Cargo.toml' , 'SRC' : '{Dir}{Module}/src/main.rs' }
+    stderr_ok    = True
+    cmd          = 'cd {Dir}{Module} ; cargo build'
+</code></pre>
+<p>Constraints for this to be sound:</p>
+<ul>
+<li>one job owns the scratch tree (patterns must not overlap between jobs);</li>
+<li><code>incremental</code> is a promise: from ANY prior scratch state, the tool must produce a correct result
+(true for well-behaved incremental compilers, false for tools whose DB can go stale or corrupt — judge per tool);</li>
+<li>the home and env of the tool must still be confined (e.g. <code>RUSTUP_HOME</code> pointed at a controlled location, <code>HomelessRule</code> to shield <code>$HOME</code>).</li>
+</ul>
+<h2 id="level-3--shared-home--ignore-last-resort-document-the-debt"><a class="header" href="#level-3--shared-home--ignore-last-resort-document-the-debt">Level 3 — shared home + <code>ignore</code> (last resort, document the debt)</a></h2>
+<p>Pointing the tool at a shared home and flagging it <code>('home/{*:.*}', 'ignore')</code> as a side_dep/side_target makes the errors disappear — and with them, correctness:</p>
+<ul>
+<li>jobs read state open-lmake does not record → identical tracked inputs can yield different outputs;</li>
+<li>the multi-user / shared cache becomes unsound for every rule touching the home
+(a hit computed by user A may be wrong for user B) — disable <code>cache</code> on these rules;</li>
+<li>concurrent jobs race on the tool's internal DB → you must add manual locking
+(flock around every invocation; sqlite "database is locked" retries are the smell of this)
+because open-lmake cannot serialize accesses it does not see;</li>
+<li>rebuild-from-clean is no longer guaranteed to reproduce.</li>
+</ul>
+<p>If forced here (tool has no way to confine state, dependency set too large for level 0/1):
+keep the ignored zone as small as possible, wrap every tool invocation in a lock, disable the shared cache for affected rules,
+and leave a comment marking this as a known unsoundness with the intended exit
+(usually level 0: pre-materialize packages from a lockfile into tracked paths).</p>
+<h2 id="per-tool-quick-notes"><a class="header" href="#per-tool-quick-notes">Per-tool quick notes</a></h2>
+<ul>
+<li><strong>pip/venv</strong>: level 1 works well (venv-as-star-target).
+Disable the pip cache (<code>PIP_NO_CACHE_DIR=1</code>, or point <code>PIP_CACHE_DIR</code> into <code>$TMPDIR</code>),
+unset <code>PYTHONPATH</code>/<code>VIRTUAL_ENV</code> inherited assumptions, pin the interpreter.
+A venv cannot inherit another venv's packages (interpreters chain via symlinks, site-packages do not) — one venv per tool, each installed by one rule.
+Spell canonical names in deps: a venv may create a <code>lib64 -&gt; lib</code> symlink, and names spelled through it are non-buildable by the up-hill rule
+(see the <a href="https://cesar-douady.github.io/open-lmake/faq.html">FAQ</a>).</li>
+<li><strong>conan (v2)</strong>: internally sqlite-backed; a shared <code>CONAN_HOME</code> is level 3 with all its debt.
+Prefer level 0: resolve outside the build to a lockfile, then one rule per package materializing from the lock into tracked paths;
+or level 1 with a per-repo home built by a single rule chain (profiles → install → build), accepting the serialization through that chain.</li>
+<li><strong>cargo</strong>: level 2 is proven (see above). Confine <code>RUSTUP_HOME</code>/<code>CARGO_HOME</code>.</li>
+<li><strong>sbt/ivy/coursier, maven</strong>: default homes under <code>~</code>; run under <code>HomelessRule</code> and confine caches into the repo or <code>$TMPDIR</code>.
+Resolution is network-bound → push it to level 0 (fetch rules per artifact, checksummed) and keep compilation as plain rules.</li>
+<li><strong>Any tool with a daemon</strong> (gradle, sbt server, bazel): disable the daemon;
+a background process outliving the job is untracked state by definition (<code>kill_daemons</code> exists for the ill-behaved ones).</li>
+</ul>
+<h2 id="rule-of-thumb"><a class="header" href="#rule-of-thumb">Rule of thumb</a></h2>
+<p>If the tool decides what to do by consulting anything other than the files the job reads,
+either feed it a fresh, controlled state (levels 0-1), own its scratch explicitly (level 2), or accept and fence the unsoundness (level 3).
+Never level 3 by default, and never level 3 combined with a shared cache.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2026 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="execution-1"><a class="header" href="#execution-1">Execution</a></h1>
 <h2 id="handling-an-access"><a class="header" href="#handling-an-access">Handling an access</a></h2>
 <p>At first glance, recognizing a target from a dep when a job runs seems pretty easy when the accesses to the disk can be traced: reading a file is a dep, writing to it is a target.
@@ -3293,6 +3597,49 @@ They are:</p>
 <!-- Copyright (c) 2023-2026 Doliam-->
 <!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
 <!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<h1 id="ai-assistants"><a class="header" href="#ai-assistants">AI assistants</a></h1>
+<p>Open-lmake has a <em>skill</em> that teaches AI coding assistants how to write good Lmakefiles:
+the <a href="https://github.com/cesar-douady/open-lmake/tree/main/skills/lmakefile">skills/lmakefile</a> directory of the repository.</p>
+<p>A skill is a directory of plain markdown files following the <a href="https://agentskills.io/">Agent Skills</a> format:
+an entry point <code>SKILL.md</code> (small, ~2k tokens) that the agent loads whenever the task involves an Lmakefile,
+plus reference files under <code>references/</code> that it loads on demand.
+It covers the open-lmake paradigm, rule authoring, the classic pitfalls LLMs fall into,
+integrating stateful tools (conan, pip, cargo, ...) and how to verify a flow with <code>lmake</code>/<code>lshow</code>.</p>
+<p>The skill is written for humans as much as for agents.</p>
+<h2 id="claude-code"><a class="header" href="#claude-code">Claude Code</a></h2>
+<p>The open-lmake repository is also a Claude Code plugin marketplace, so installation is 2 commands:</p>
+<pre><code>/plugin marketplace add cesar-douady/open-lmake
+/plugin install lmakefile@open-lmake
+</code></pre>
+<p>Alternatively, skip the plugin system and copy (or symlink) the skill directory:</p>
+<pre><code>cp -r skills/lmakefile ~/.claude/skills/           # available in all your projects
+cp -r skills/lmakefile &lt;project&gt;/.claude/skills/   # available in one project (and to your co-workers if committed)
+</code></pre>
+<p>Either way there is nothing to activate : Claude loads the skill by itself when the task touches an Lmakefile.</p>
+<h2 id="claudeai-and-the-claude-api"><a class="header" href="#claudeai-and-the-claude-api">claude.ai and the Claude API</a></h2>
+<p>On <a href="https://claude.ai">claude.ai</a>, custom skills are uploaded as a zip file in the settings (capabilities section):</p>
+<pre><code>cd skills ; zip -r lmakefile.zip lmakefile
+</code></pre>
+<p>With the Claude API, upload the same zip through the
+<a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview">Skills API</a> and attach it to your requests.</p>
+<h2 id="other-agents-codex-cursor-gemini-cli-"><a class="header" href="#other-agents-codex-cursor-gemini-cli-">Other agents (Codex, Cursor, Gemini CLI, ...)</a></h2>
+<p>Nothing in the skill is Claude-specific : it is plain markdown plus a YAML header.
+A growing number of tools understand the Agent Skills format natively;
+for those, copy <code>skills/lmakefile</code> into the tool's skill directory (check its documentation for the location) and you are done.</p>
+<p>For any other tool, reproduce manually what skill-aware tools do (a small entry in the permanent context, details on demand):</p>
+<ol>
+<li>Copy <code>skills/lmakefile/</code> into your project (or anywhere the agent can read).</li>
+<li>Add to the instructions file your tool always reads (<code>AGENTS.md</code>, <code>GEMINI.md</code>, <code>.cursor/rules</code>, a system prompt, ...):</li>
+</ol>
+<blockquote>
+<p>When writing, reviewing or debugging an Lmakefile, first read <code>skills/lmakefile/SKILL.md</code> and follow it.
+Load the files under <code>skills/lmakefile/references/</code> on demand, as <code>SKILL.md</code> directs.</p>
+</blockquote>
+<p>Only the entry point is paid for up front; the references are read when needed.</p>
+<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2026 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
 <h1 id="glossary"><a class="header" href="#glossary">Glossary</a></h1>
 <h2 id="acronyms"><a class="header" href="#acronyms">Acronyms</a></h2>
 <div class="table-wrapper"><table><thead><tr><th>Acronym</th><th>Definition</th><th>Comment</th></tr></thead><tbody>
@@ -3376,7 +3723,150 @@ But if such a target is incremental, it is not unlinked but a copy must be done 
 <p>It is extensively described <a href="https://docs.python.org/3.12/whatsnew/2.2.html#multiple-inheritance-the-diamond-rule">here</a>.</p>
 <p>This feature is a central point that makes python multiple inheritance easy to use and enables the class hierarchy shopping list style.</p>
 <p>python computes the MRO in such a way as to enforce the diamond rule.</p>
-<div style="break-before: page; page-break-before: always;"></div>
+<div style="break-before: page; page-break-before: always;"></div><!-- This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)-->
+<!-- Copyright (c) 2023-2026 Doliam-->
+<!-- This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).-->
+<!-- This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.-->
+<!-- This chapter is shared with the AI skill (cf. ai_assistants.md) : the content below is included from skills/lmakefile/references/ at book build time.-->
+<h1 id="faq"><a class="header" href="#faq">FAQ</a></h1>
+<p>Symptom → explanation → remedy, from real-world usage.</p>
+<h2 id="targets-and-rules"><a class="header" href="#targets-and-rules">Targets and rules</a></h2>
+<h3 id="my-output-is-empty-or-corrupted-and-i-use-the-singular-target"><a class="header" href="#my-output-is-empty-or-corrupted-and-i-use-the-singular-target">My output is empty or corrupted and I use the singular <code>target</code></a></h3>
+<p>Singular <code>target</code> redirects the job's stdout into the file —
+a stray print, a progress bar, a tool writing status to stdout all corrupt it.
+Default to <code>targets</code> (plural) + explicit writes;
+use singular <code>target</code> only when stdout-as-content is the point (then keep the cmd silent otherwise).</p>
+<h3 id="what-happens-when-an-optional-target-is-not-produced"><a class="header" href="#what-happens-when-an-optional-target-is-not-produced">What happens when an <code>optional</code> target is not produced?</a></h3>
+<p><code>optional</code> is syntactic sugar for a star target with no star stem: the job may or may not produce it.
+Depending on an absent optional is normal — a dep on a non-existent file is a real, useful dep
+(its <em>appearance</em> triggers rebuilds; a large share of recorded deps are non-existent files, e.g. all the include-path probes).
+Asking <code>lmake</code> for an unproduced optional yields <code>no rule ... does not produce it</code>, which means "everything was tried".</p>
+<h3 id="optional-vs-phony-which-one-do-i-want"><a class="header" href="#optional-vs-phony-which-one-do-i-want"><code>optional</code> vs <code>phony</code>: which one do I want?</a></h3>
+<p>They are two opposite answers to "not produced".
+With <code>optional</code>, a target the job does not generate is <em>not produced by this rule</em>:
+open-lmake goes looking for another rule to produce it, and if none does, the file is non-buildable —
+a rule having it as a static dep is then not selected.
+With <code>phony</code>, the target is <em>actively generated as absent</em>:
+it is deemed produced even with nothing on disk, open-lmake looks no further,
+and a rule having it as a static dep can be selected (the dep is satisfied, as an absent file).
+Pick <code>optional</code> for "this rule may or may not be the producer", <code>phony</code> for "absence is a valid produced state".</p>
+<h3 id="can-i-have-two-rules-with-the-same-targets"><a class="header" href="#can-i-have-two-rules-with-the-same-targets">Can I have two rules with the same targets?</a></h3>
+<p>A rule's identity is its target + dep patterns.
+Name, prio, cmd and other attributes are not part of it — you can tune them without losing job history.
+Two rules with identical targets+deps are rejected by design (it is almost always a bug).
+Prio <em>layering</em> over the same pattern space is legitimate and idiomatic —
+a generic fallback rule (often with an <code>optional</code> target) overridden by more specific higher-prio rules;
+what prio cannot do is disambiguate two rules whose targets+deps are strictly identical.</p>
+<h3 id="do-i-need-to-exclude-intermediate-dirs-from-a-tree-shaped-star-target-venv-install-dir"><a class="header" href="#do-i-need-to-exclude-intermediate-dirs-from-a-tree-shaped-star-target-venv-install-dir">Do I need to exclude intermediate dirs from a tree-shaped star target (venv, install dir)?</a></h3>
+<p>No.
+With <code>targets = {'VENV': r'venv/{*:.*}'}</code>, an intermediate path like <code>venv/bin</code> matches the star too,
+and the up-hill check ("to build <code>a/b</code>, first ask whether <code>a</code> is buildable") does consider it — but this settles by itself:
+the job creates <code>venv/bin</code> as a <em>dir</em>, a dir is "nothing", so <code>venv/bin</code> is not generated as a file, hence not buildable,
+and <code>venv/bin/pip</code> resolves through the same job.
+No first-level exclusion, no <code>AntiRule</code>
+(the <a href="https://cesar-douady.github.io/open-lmake/unit_tests/conan.html">conan</a> and
+<a href="https://cesar-douady.github.io/open-lmake/unit_tests/py_venv.html">py_venv</a> unit tests use exactly this shape).</p>
+<p>The trap is a <strong>symlink</strong> the job drops at an intermediate level — a venv creates <code>venv/lib64 -&gt; lib</code> on some distros.
+A symlink IS a file, so <code>venv/lib64</code> is buildable,
+and up-hill then makes any hand-spelled name through it (<code>venv/lib64/.../foo.py</code> as a static dep or on the <code>lmake</code> command line) non-buildable:
+"no rule to make it" while <code>ls</code> shows the file.
+Runtime accesses are unaffected (autodep resolves to the canonical name and records a dep on each traversed symlink).
+Remedy: spell canonical names (<code>venv/lib/...</code>) in deps and requests.</p>
+<h3 id="two-of-my-flows-produce-files-in-the-same-area"><a class="header" href="#two-of-my-flows-produce-files-in-the-same-area">Two of my flows produce files in the same area</a></h3>
+<p>Writing another rule's target is a non-sense: every buildable file has exactly one official producing job.
+If two flows legitimately produce files in the same area, split the areas (each rule its own responsibility) rather than sharing a target pattern.</p>
+<h2 id="jobs-and-cmd"><a class="header" href="#jobs-and-cmd">Jobs and cmd</a></h2>
+<h3 id="my-job-fails-and-the-only-output-is-on-stderr"><a class="header" href="#my-job-fails-and-the-only-output-is-on-stderr">My job fails and the only output is on stderr</a></h3>
+<p>By design, non-empty stderr = error.
+If the output is normal, redirect it (<code>2&gt;&amp;1</code>) so it lands in <code>lshow -o</code>;
+reserve <code>stderr_ok = True</code> for tools that genuinely cannot be silenced — it is the exception, not a default.</p>
+<h3 id="my-test-failures-are-silently-swallowed"><a class="header" href="#my-test-failures-are-silently-swallowed">My test failures are silently swallowed</a></h3>
+<p><code>cmd = '{BIN} ; report...'</code> discards <code>{BIN}</code>'s exit code.
+Use <code>{BIN} &amp;&amp; ...</code>, or <code>set -e</code> at the top, or <code>shell = ('/bin/bash','-e')</code> on the rule.</p>
+<h3 id="where-should-complex-logic-live--interpolations-dynamic-attributes-or-jobs"><a class="header" href="#where-should-complex-logic-live--interpolations-dynamic-attributes-or-jobs">Where should complex logic live: <code>{...}</code> interpolations, dynamic attributes, or jobs?</a></h3>
+<p>Interpolations and dynamic attributes run inside the engine, in a restricted environment.
+Two additions are fine; a fifteen-line procedure with indirections belongs in a job
+(a small extra rule producing an intermediate file) — even at the cost of a rerun.
+Readability rule of thumb: define tiny helpers as plain Lmakefile globals
+(<code>def read(f): return open(f).read().strip()</code>) and call them in the interpolation, rather than nesting <code>open()</code> three deep.</p>
+<h3 id="osenviron-is-empty-in-my-job"><a class="header" href="#osenviron-is-empty-in-my-job"><code>os.environ</code> is empty in my job</a></h3>
+<p>On purpose — that IS the no-env-dependence guarantee, both at Lmakefile evaluation and in jobs.
+Deliberate imports go through <code>lmake.user_environ</code>,
+routed into <code>environ</code> / <code>environ_resources</code> / <code>environ_ancillary</code> so their tracking status is explicit.</p>
+<h3 id="how-do-i-quote-things-in-cmds"><a class="header" href="#how-do-i-quote-things-in-cmds">How do I quote things in cmds?</a></h3>
+<p>Use <code>r'''...'''</code> triple-quoted commands for multi-line or regex-heavy scripts.
+To pass a computed value to the shell, prefer <code>environ = {'CXX': ...}</code> + <code>$CXX</code> in the script over fighting <code>{{}}</code> escapes.
+For escaping, use <code>shlex.quote</code> for the shell and <code>re.escape</code> for computed strings landing in a target/dep/stem regex — never a homemade function.</p>
+<h2 id="aggregating-many-files"><a class="header" href="#aggregating-many-files">Aggregating many files</a></h2>
+<h3 id="how-do-i-linkarchivereport-over-an-unknown-size-set-of-files"><a class="header" href="#how-do-i-linkarchivereport-over-an-unknown-size-set-of-files">How do I link/archive/report over an unknown-size set of files?</a></h3>
+<p>The list-file idiom, canonical form:</p>
+<ol>
+<li>A rule produces the <strong>list file</strong> (grep of <code>LMAKE/manifest</code> or <code>git ls-files</code>, transformed to output names).</li>
+<li>The consumer declares the list as a <strong>static dep with the <code>critical</code> flag</strong>.</li>
+<li>The consumer's cmd starts with <code>ldepend --read $(cat {LST})</code> then <code>lcheck_deps</code>, then runs the real command.</li>
+</ol>
+<p>Why each piece: tools like <code>ar</code> or linkers stop at the first missing input and would never report the full dep set themselves;
+<code>critical</code> prevents speculatively rebuilding items dropped from the list;
+<code>lcheck_deps</code> reruns <em>before</em> the expensive command if some list item is stale.
+Bonus: the same list file serves several consumers (<code>.a</code> and <code>.so</code>),
+and the consumer does not rerun when sources change without changing the list.</p>
+<p>Never approximate the list with a glob: a glob picks up strays, misses generated files, and is untracked.</p>
+<h2 id="statuses-reruns-debugging"><a class="header" href="#statuses-reruns-debugging">Statuses, reruns, debugging</a></h2>
+<h3 id="how-do-i-read-the-status-lines"><a class="header" href="#how-do-i-read-the-status-lines">How do I read the status lines?</a></h3>
+<p><code>done</code> is authoritative — it will not be retracted.
+<code>may_rerun</code> is the speculative status that can resolve into <code>was_dep_error</code>.
+In interactive (colored) output, a speculative failure shows orange, not red; a red <code>was_failed</code> line is what confirms it.
+Chronic <code>rerun</code> on a rule = deps discovered too late in the job —
+restructure with the list-file idiom / <code>critical</code> / <code>check_deps</code>.</p>
+<h3 id="what-are-the-debugging-tools"><a class="header" href="#what-are-the-debugging-tools">What are the debugging tools?</a></h3>
+<p><code>lshow -i &lt;file&gt;</code>: why it was built (forward reason) and which dep triggered it (backward).
+<code>lshow -dv</code>: deps <em>including non-existent ones</em> (often the explanation).
+<code>lshow -D &lt;file&gt;</code>: reverse deps — who depends on it.
+<code>ldebug -kE &lt;target&gt;</code>: a shell inside the exact execution environment of the job (<code>-ke</code> for a more comfortable, slightly less faithful one).
+These show autodep's ground truth — trust them over your reading of the cmd.</p>
+<h2 id="sources-1"><a class="header" href="#sources-1">Sources</a></h2>
+<h3 id="can-a-rule-produce-a-file-that-is-also-committed"><a class="header" href="#can-a-rule-produce-a-file-that-is-also-committed">Can a rule produce a file that is also committed?</a></h3>
+<p>No — sources are a contract.
+Declaring something a source is a promise, and open-lmake sanity-checks it.
+git owns sources; open-lmake derives files from them.
+Never write a rule that <em>creates</em> a source (e.g. compressing <code>x</code> into a committed <code>x.gz</code>): a file comes from git or from a rule, not both.</p>
+<h3 id="but-my-source-could-be-mechanically-refreshed-generated-tables-pinned-lists"><a class="header" href="#but-my-source-could-be-mechanically-refreshed-generated-tables-pinned-lists">But my source could be mechanically refreshed (generated tables, pinned lists)</a></h3>
+<p>The regenerable-source idiom: a rule produces <code>s.computed</code>;
+if it differs from <code>s</code>, the job prints (with <code>stderr_ok</code>) the exact message <code>cp s.computed s</code> and the human runs it.
+The flow stays clean — sources on one side, derived files on the other, and every change to a source is a deliberate act.</p>
+<h3 id="can-a-job-read-files-under-lmake"><a class="header" href="#can-a-job-read-files-under-lmake">Can a job read files under <code>LMAKE/</code>?</a></h3>
+<p>Never read the volatile ones (<code>LMAKE/last_output</code>, <code>LMAKE/outputs/...</code>):
+their content depends on the previous invocation — irreproducible by construction.
+<code>LMAKE/manifest</code> and the stable metadata files are fine (they are sources).</p>
+<h2 id="incremental-and-ignore-precisely"><a class="header" href="#incremental-and-ignore-precisely"><code>incremental</code> and <code>ignore</code>, precisely</a></h2>
+<h3 id="what-exactly-do-i-promise-with-incremental"><a class="header" href="#what-exactly-do-i-promise-with-incremental">What exactly do I promise with <code>incremental</code>?</a></h3>
+<p>Without <code>incremental</code>, open-lmake guarantees your job runs as if after <code>git clean</code> — that is what it fights for.
+With it, YOU accept any prior content/existence and must produce a correct result from it.
+Sharp edge: <strong>any access</strong> (even a pure read) to a file matching an incremental target pattern makes your job its producer —
+reading another rule's output through an incremental pattern "steals" ownership, and the official rule's next run will unlink and regenerate.
+Only declare <code>incremental</code> on patterns your rule genuinely owns.</p>
+<h3 id="is-an-ignore-target-still-a-target"><a class="header" href="#is-an-ignore-target-still-a-target">Is an <code>ignore</code> target still a target?</a></h3>
+<p>No.
+It is never erased, never checksummed, never tracked;
+<code>side_deps</code>/<code>side_targets</code> do not create deps or targets at all — they attach flags to whatever file accesses match their patterns.</p>
+<h2 id="nfs-and-locking-last-resort-territory"><a class="header" href="#nfs-and-locking-last-resort-territory">NFS and locking (last-resort territory)</a></h2>
+<h3 id="i-need-a-lock-around-a-stateful-tool-what-works-on-nfs"><a class="header" href="#i-need-a-lock-around-a-stateful-tool-what-works-on-nfs">I need a lock around a stateful tool; what works on NFS?</a></h3>
+<p>Restructure first (see <a href="https://cesar-douady.github.io/open-lmake/stateful_tools.html">stateful tools</a>).
+If a lock is truly needed: on NFS, <code>flock</code> and <code>mkdir</code>-based locks are <strong>not reliable</strong>;
+<code>open(O_CREAT|O_EXCL)</code>, <code>link</code> and <code>symlink</code> based locks work.
+Release with <code>trap release_lock 0</code> (fires on any exit, including under <code>set -e</code>) rather than a command suffix.
+Clean stale state at the <strong>start</strong> of the next run, not at the end: crash-proof, and leftover state stays inspectable for post-mortem.</p>
+<h2 id="cli"><a class="header" href="#cli">CLI</a></h2>
+<h3 id="does--j-16-make-my-build-faster"><a class="header" href="#does--j-16-make-my-build-faster">Does <code>-j 16</code> make my build faster?</a></h3>
+<p>No.
+<code>-j N</code> is a <em>cap</em> on simultaneous jobs per backend, never a boost —
+parallelism is already maximal, driven by <code>resources</code> and backend configuration.
+Adding <code>-j16</code> to go faster is a make reflex that does nothing good here.</p>
+<h3 id="lmake-foo-succeeded-but-other-files-are-stale"><a class="header" href="#lmake-foo-succeeded-but-other-files-are-stale"><code>lmake foo</code> succeeded but other files are stale</a></h3>
+<p><code>lmake foo</code> guarantees only that <code>foo</code> is up to date; <code>lmake -a</code> forces the whole dep tree up to date.</p>
+<h3 id="why-is-there-no-shell-completion-of-buildable-targets"><a class="header" href="#why-is-there-no-shell-completion-of-buildable-targets">Why is there no shell completion of buildable targets?</a></h3>
+<p>Targets are regexes; the buildable set is infinite by construction.</p>
+
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">

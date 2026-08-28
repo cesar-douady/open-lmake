@@ -64,6 +64,12 @@ However, the simplest way is to give it a try:
 
 Once you have understood what is going on with `hello_world`, you can repeat these steps with the second example [examples/cc.dir](examples/cc.dir).
 
+# AI assistants
+
+A skill teaching AI coding assistants to write good Lmakefiles can be found in [skills/lmakefile](skills/lmakefile).
+To install in Claude Code: `/plugin marketplace add cesar-douady/open-lmake` then `/plugin install lmakefile@open-lmake`.
+For other tools (claude.ai, Codex, Cursor, ...), see [AI assistants](doc/src/ai_assistants.md).
+
 # Brief overview
 
 Open-lmake does the following:

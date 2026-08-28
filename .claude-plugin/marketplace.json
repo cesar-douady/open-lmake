@@ -1,0 +1,12 @@
+{
+	"name"        : "open-lmake"
+,	"owner"       : { "name" : "open-lmake project" }
+,	"description" : "Plugins helping Claude work with open-lmake, notably writing good Lmakefiles."
+,	"plugins"     : [
+		{
+			"name"        : "lmakefile"
+		,	"source"      : "./"
+		,	"description" : "Teach Claude to write good Lmakefiles: the open-lmake paradigm, best practices, anti-patterns, stateful-tool integration, and a verification loop."
+		}
+	]
+}
