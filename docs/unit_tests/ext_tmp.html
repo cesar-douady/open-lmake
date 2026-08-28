@@ -105,10 +105,17 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="kn">import</span> <span class="nn">os.path</span> <span class="k">as</span> <span class="nn">osp</span>
 
+    <span class="kn">from</span> <span class="nn">step</span> <span class="kn">import</span> <span class="n">step</span>
+
     <span class="kn">import</span> <span class="nn">lmake</span>
     <span class="kn">from</span> <span class="nn">lmake.rules</span> <span class="kn">import</span> <span class="n">Rule</span>
 
-    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">,)</span>
+    <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s1">&#39;Lmakefile.py&#39;</span>
+    <span class="p">,</span>   <span class="s1">&#39;step.py&#39;</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">step</span><span class="o">==</span><span class="mi">2</span> <span class="p">:</span> <span class="n">lmake</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">link_support</span> <span class="o">=</span> <span class="s1">&#39;full_ext&#39;</span> <span class="c1"># symlinks in $TMPDIR are then supported</span>
 
     <span class="k">for</span> <span class="n">sfx</span> <span class="ow">in</span> <span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">,</span><span class="s1">&#39;_lnk&#39;</span><span class="p">)</span> <span class="p">:</span>
         <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
@@ -119,13 +126,14 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
             <span class="p">,</span>   <span class="s1">&#39;TMPDIR&#39;</span>    <span class="p">:</span> <span class="n">osp</span><span class="o">.</span><span class="n">dirname</span><span class="p">(</span><span class="n">lmake</span><span class="o">.</span><span class="n">repo_root</span><span class="p">)</span><span class="o">+</span><span class="s1">&#39;/tmp&#39;</span><span class="o">+</span><span class="n">sfx</span>
             <span class="p">}</span>
             <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">                ln -s $REPO_ROOT/dut $TMPDIR/dut</span>
+<span class="s1">                ln -s $REPO_ROOT/</span><span class="si">{DUT}</span><span class="s1"> $TMPDIR/dut</span>
 <span class="s1">                echo &gt;$TMPDIR/dut</span>
 <span class="s1">            &#39;&#39;&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
     <span class="kn">import</span> <span class="nn">os</span>
+    <span class="kn">import</span> <span class="nn">shutil</span>
 
     <span class="kn">import</span> <span class="nn">ut</span>
 
@@ -136,7 +144,15 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;repo/Lmakefile.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;Lmakefile.py&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
     <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="s1">&#39;repo&#39;</span><span class="p">)</span>
 
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=1&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
     <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="s1">&#39;dut_lnk&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># tmp dir cannot contain symlinks</span>
+
+    <span class="n">shutil</span><span class="o">.</span><span class="n">rmtree</span><span class="p">(</span><span class="s1">&#39;LMAKE&#39;</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">unlink</span><span class="p">(</span><span class="s1">&#39;dut&#39;</span><span class="p">)</span>
+    <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="s1">&#39;LMAKE&#39;</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;step=2&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;step.py&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
+    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="s1">&#39;dut_lnk&#39;</span> <span class="p">,</span> <span class="n">done</span><span class="o">=</span><span class="mi">2</span> <span class="p">)</span>   <span class="c1"># tmp dir can contain symlinks when link_support==full_ext</span>
 </pre></div>
 </body>
 </html>
