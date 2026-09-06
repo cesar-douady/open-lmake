@@ -116,8 +116,6 @@ namespace Engine {
 			{	::string& f0 = fields[0] ;                                                                     // has long as fields in not pushed/popped, we can store a ref into it
 				//
 				f0 = "disk_date_precision" ; if (py_map.contains(f0)) { ddate_prec             = Delay     (py_map[f0].as_a<Float>()) ; throw_unless( ddate_prec    >Delay() , "must be positive" ) ; }
-				f0 = "heartbeat"           ; if (py_map.contains(f0)) { heartbeat              = Delay     (py_map[f0].as_a<Float>()) ; throw_unless( heartbeat     >Delay() , "must be positive" ) ; }
-				f0 = "heartbeat_tick"      ; if (py_map.contains(f0)) { heartbeat_tick         = Delay     (py_map[f0].as_a<Float>()) ; throw_unless( heartbeat_tick>Delay() , "must be positive" ) ; }
 				f0 = "local_admin_dir"     ; if (py_map.contains(f0))   user_local_admin_dir_s = with_slash(py_map[f0].as_a<Str  >()) ;
 				f0 = "max_dep_depth"       ; if (py_map.contains(f0))   max_dep_depth          = size_t    (py_map[f0].as_a<Int  >()) ;
 				f0 = "max_error_lines"     ; if (py_map.contains(f0))   max_err_lines          = size_t    (py_map[f0].as_a<Int  >()) ;
@@ -134,11 +132,19 @@ namespace Engine {
 					Sequence const& py_extra_manifest = py_map[f0].as_a<Sequence>() ;
 					for( Object const& py_src : py_extra_manifest ) extra_manifest.push_back(py_src.as_a<Str>()) ;
 				}
-				f0 = "path_max" ;
+				f0 = "heartbeat" ;
 				if (py_map.contains(f0)) {
-					Object const& py_path_max = py_map[f0] ;
-					if (py_path_max==None) path_max = size_t(-1                     ) ;                        // deactivate
-					else                   path_max = size_t(py_path_max.as_a<Int>()) ;
+					Object const& py_heartbeat = py_map[f0] ;
+					if (!py_heartbeat) heartbeat = Delay()                           ;
+					else               heartbeat = Delay(py_heartbeat.as_a<Float>()) ;
+					throw_unless( heartbeat>Delay() , "must be positive" ) ;
+				}
+				f0 = "heartbeat_tick" ;
+				if (py_map.contains(f0)) {
+					Object const& py_heartbeat_tick = py_map[f0] ;
+					if (!py_heartbeat_tick) heartbeat_tick = Delay()                                ;
+					else                    heartbeat_tick = Delay(py_heartbeat_tick.as_a<Float>()) ;
+					throw_unless( heartbeat_tick>Delay() , "must be positive" ) ;
 				}
 				f0 = "link_support" ;
 				if (py_map.contains(f0)) {
@@ -146,6 +152,12 @@ namespace Engine {
 					if      (!py_lnk_support     ) lnk_support = LnkSupport::None                                ;
 					else if (py_lnk_support==True) lnk_support = LnkSupport::Full                                ;
 					else                           lnk_support = mk_enum<LnkSupport>(py_lnk_support.as_a<Str>()) ;
+				}
+				f0 = "path_max" ;
+				if (py_map.contains(f0)) {
+					Object const& py_path_max = py_map[f0] ;
+					if (py_path_max==None) path_max = size_t(-1                     ) ;                        // deactivate
+					else                   path_max = size_t(py_path_max.as_a<Int>()) ;
 				}
 				if (has_remote_backends) {
 					f0 = "file_sync" ;
@@ -297,6 +309,7 @@ namespace Engine {
 				if (py_console.contains(fields[1])) {
 					Object const& py_history_days = py_console[fields[1]] ;
 					if (+py_history_days) console.history_days = static_cast<uint32_t>(py_history_days.as_a<Int>()) ;
+					else                  console.history_days = 0                                                  ;
 				}
 				fields[1] = "host_len" ;
 				if (py_console.contains(fields[1])) {

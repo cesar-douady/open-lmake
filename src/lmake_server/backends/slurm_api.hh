@@ -33,7 +33,7 @@ namespace Backends::Slurm {
 		}
 		// data
 		uint16_t cpu       = 0 ; // number of logical cpu         (sbatch    --cpus-per-task option)
-		uint32_t mem       = 0 ; // memory   in MB                (sbatch    --mem           option) default : illegal (memory reservation is mandatory)
+		uint32_t mem       = 0 ; // memory   in MB                (sbatch    --mem           option) default : illegal (memory reservation is mandatory) if memory is managed
 		uint32_t tmp       = 0 ; // tmp disk in MB                (sbatch    --tmp           option) default : dont manage tmp size (provide infinite storage, reserv none)
 		::string excludes  ;     // list of excludes nodes        (sbatch -x,--exclude       option)
 		::string features  ;     // features/contraint            (sbatch -C,--constraint    option)
@@ -42,7 +42,7 @@ namespace Backends::Slurm {
 		::string nodes     ;     // list of required nodes        (sbatch -w,--nodelist      option)
 		::string partition ;     // partition name                (sbatch -p,--partition     option)
 		::string qos       ;     // quality of service            (sbatch -q,--qos           option)
-		::string reserv    ;     // reservation                   (sbatch -r,--reservation   option)
+		::string reserv    ;     // reservation                   (sbatch    --reservation   option)
 		::string wckey     ;     // workload characterization key (sbatch    --wckey         option)
 	} ;
 
@@ -73,7 +73,7 @@ namespace Backends::Slurm::SlurmApi {
 	using LoadCtlConfFunc = int  (*)( time_t update_time , void** /*out*/ slurm_conf ) ; // slurm_conf_t is not known yet
 	using FreeCtlConfFunc = void (*)( void* slurm_conf                               ) ;
 
-	extern void*                                            g_lib_handler      ; // handler for libslurm.so as returned by ::dlsym
+	extern void*                                            g_lib_handler      ; // handler for libslurm.so as returned by ::dlopen
 	extern ::umap<uint32_t,Daemon(*)(void const* /*conf*/)> g_sense_daemon_tab ;
 	//
 	extern SlurmId (*spawn_job_func)(

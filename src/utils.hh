@@ -88,7 +88,7 @@ enum class MutexLvl : uint8_t { // identify who is owning the current level to e
 // level 5
 ,	Gil                         // must follow ReqInfo
 ,	Job                         // must follow Backend, by symetry with Node
-,	Node                        // must follow NodeCrcDate and ReqInfo
+,	Node                        // must follow ReqInfo
 // level 6
 ,	Autodep                     // must follow Gil
 // inner (locks that take no other locks except very special locks below)
@@ -336,7 +336,7 @@ template<class M=Mutex<>> struct Lock {
 	void unlock() { SWEAR(+_lvl) ; _mutex->unlock(_lvl) ; }
 	// data
 	M*       _mutex = nullptr            ; // must be !=nullptr to lock
-	MutexLvl _lvl   = MutexLvl::Unlocked ; // valid when _locked
+	MutexLvl _lvl   = MutexLvl::Unlocked ;
 } ;
 template<class M=Mutex<>> struct SharedLock {
 	// cxtors & casts
@@ -348,7 +348,7 @@ template<class M=Mutex<>> struct SharedLock {
 	void unlock() { SWEAR(+_lvl) ; _mutex->unlock_shared(_lvl) ; }
 	// data
 	M*       _mutex = nullptr            ; // must be !=nullptr to lock
-	MutexLvl _lvl   = MutexLvl::Unlocked ; // valid when _locked
+	MutexLvl _lvl   = MutexLvl::Unlocked ;
 } ;
 
 #ifndef NDEBUG
@@ -548,7 +548,7 @@ struct _CreatAction {
 	mode_t mod1() const { return _action_mod1(mod,umask) ; }
 	mode_t mod2() const { return _action_mod2(mod,umask) ; }
 	// data
-	mode_t     mod        = 0666    ;                        // default to an invalid mod (0 may be usefully used to create a no-access file)
+	mode_t     mod        = 0666    ;                        // default is RW
 	bool       force      = false   ;                        // unlink any file on the path to dst
 	bool       mk_dir     = true    ;
 	SyncGuard* sync_guard = nullptr ;

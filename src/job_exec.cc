@@ -251,7 +251,7 @@ int main( int argc , char* argv[] ) {
 		else if ( has_env("TMPDIR",false/*empty_ok*/)       ) { from="environ" ; end_report.phy_tmp_dir_s << get_env("TMPDIR")<<add_slash<<g_start_info.key<<'/'<<g_seq_id<<'/' ; }
 		else                                                  { from="default" ; end_report.phy_tmp_dir_s << g_phy_repo_root_s<<AdminDirS<<"auto_tmp/"          <<g_seq_id<<'/' ; }
 		trace("tmp",from,end_report.phy_tmp_dir_s) ;
-		if (it!=g_start_info.env.end()) {                                                                                                // TMPDIR will be set in enter()
+		if (it!=g_start_info.env.end()) {                                                                                                // TMPDIR will be set in JobStartRpcReply::update_env()
 			for( auto prev_it=it++ ; it!=g_start_info.env.end() ; prev_it=it++ ) *prev_it = ::move(*it) ;
 			g_start_info.env.pop_back() ;
 		}
@@ -288,7 +288,7 @@ int main( int argc , char* argv[] ) {
 					g_gather.new_access( washed , ::move(l) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Link ) ;
 				}
 				if ( sr.file_loc<=FileLoc::Dep && sr.file_accessed==Yes ) {
-					FileInfo fi { sr.real } ;                                                                                            // capture before l is moved
+					FileInfo fi { sr.real } ;                                                                                            // capture before sr.real is moved
 					g_gather.new_access( washed , ::move(sr.real) , {.accesses=Access::Lnk} , fi , Comment::mount , CommentExt::Read ) ;
 				}
 			}

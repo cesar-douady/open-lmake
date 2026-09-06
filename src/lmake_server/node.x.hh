@@ -165,9 +165,6 @@ namespace Engine {
 	//
 
 	struct Target : Node {
-		static_assert(Node::NGuardBits>=1) ;                            // need 1 bit to store static_phony state
-		static constexpr uint8_t NGuardBits = Node::NGuardBits-1      ;
-		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
 		// cxtors & casts
 		Target() = default ;
 		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} { SWEAR(+self) ; }
@@ -197,7 +194,7 @@ namespace Engine {
 		bool up_to_date () const ;
 		void acquire_crc()       ;
 		//
-		void full_refresh( bool report_no_file , Job , ::vector<Req> const& ={} ) const ; // job is only used if create_encode, reqs are for reporting only
+		void full_refresh( bool report_no_file , Job , ::vector<Req> const& ={} ) const ; // job is only used if dflags[Codec], reqs are for reporting only
 	} ;
 	static_assert(sizeof(Dep)==16) ;                                                      // ensure size is a power of 2 for improved cache perf
 
@@ -371,7 +368,7 @@ namespace Engine {
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
 		// cxtors & casts
-		NodeData() = delete ;                                                                                                                 // if necessary, we must take care of the union
+		NodeData() = delete ;
 		NodeData( NodeName n             ) : NodeDataBase{n} {              }
 		NodeData( NodeName n , Node dir_ ) : NodeDataBase{n} { dir = dir_ ; }
 		~NodeData() {
@@ -509,16 +506,16 @@ namespace Engine {
 		RuleTgts  rule_tgts                  ;                      // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 		RuleTgts  rejected_rule_tgts         ;                      // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
 		Job       actual_job                 ;                      //  30   < 32 bits, shared,   job that generated node
-		Watcher   build_asking               ;                      //  30   < 32 bits,           polluting job when polluted was last set to Polluted::Job
+		Watcher   build_asking               ;                      //  30   < 32 bits,           last watcher needing this node that triggered a rebuild
 		Watcher   last_asking                ;                      //         32 bits,           last watcher needing this node
 		RuleIdx   n_job_tgts                 = 0                  ; //         16 bits,           number of actual meaningful JobTgt's in job_tgts
 		MatchGen  match_gen                  = 0                  ; //          8 bits,           if <Rule::s_match_gen => deem n_job_tgts==0 && !rule_tgts && !sure
-		Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
+		Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Unknown => not computed yet
 		Polluted  polluted :NBits<Polluted > = Polluted::Clean    ; //          2 bits,           reason for pollution
 		bool      busy     :1                = false              ; //          1 bit ,           a job is running with this node as target
 		Tflags    actual_tflags              ;                      //   6   <  8 bits,           tflags associated with actual_job
 	private :
-		RuleIdx _conform_idx = -+NodeStatus::Unknown ;              //         16 bits,            index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+		RuleIdx _conform_idx = -+NodeStatus::Unknown ;              //         16 bits,           index to job_tgts to job (or one of) at execut.ing.ed prio level, if >MaxRuleIdx <=> the node status
 		// END_OF_VERSIONING
 	} ;
 	static_assert(sizeof(NodeData)==64) ;                           // ensure size is a power of 2 to maximize cache perf

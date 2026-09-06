@@ -192,8 +192,8 @@ namespace Backends::Sge {
 			return cat("sge_id:",se.id.load()) ;
 		}
 		::pair_s<bool/*retry*/> end_job( Job j , SpawnedEntry const& se , Status ) const override {
-			if (!se.verbose) return { {}/*msg*/      , true/*retry*/ } ;                            // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
-			else             return { read_stderr(j) , true/*retry*/ } ;
+			if (!se.verbose) return { {}/*msg*/      , true/*retry*/ } ;                            // common case, must be fast (stderr not available if !se.verbose, even if there is an error)
+			else             return { read_stderr(j) , true/*.    */ } ;
 		}
 		::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const override {
 			if (sge_exec_client({"qstat","-j",::to_string(se.id)})) return { {}/*msg*/ , HeartbeatState::Alive } ;
@@ -415,6 +415,7 @@ namespace Backends::Sge {
 				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_unit<    uint32_t              >(v) ; continue ; } break ;
 				case 'h' : if (k=="hard") { hard = _split_rsrcs                                     (v) ; continue ; } break ;
 				case 'm' : if (k=="mem" ) { mem  = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
+				case 'p' : if (k=="prio") { prio = from_string<int16_t>                             (v) ; continue ; } break ;
 				case 's' : if (k=="soft") { soft = _split_rsrcs                                     (v) ; continue ; } break ;
 				case 't' : if (k=="tmp" ) { tmp  = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
 				case '-' : throw "resource cannot start with -:"+k ;

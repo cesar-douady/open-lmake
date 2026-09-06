@@ -193,7 +193,7 @@ static void _exec_chk_is_32([[maybe_unused]] ::string const& file) {
 }
 
 #if NEED_ELF
-	template<bool Send> struct _Exec : Record::Exec<false/*Send*/,false/*SkipSimple*/> {                              // even if path is simple, it may load non-simple libraries, so dont use ExecCS
+	template<bool Send> struct _Exec : Record::Exec<false/*Send*/,false/*SkipSimple*/> {                              // even if path is simple, it may load non-simple libraries, so dont skip them
 		using Base = Record::Exec<false/*Send*/,false/*SkipSimple*/> ;
 		_Exec() = default ;
 		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const envp[] , Comment c ) : Base{r,::move(path),no_follow,c} {
@@ -526,8 +526,8 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int linkat(int od,CC* op,int nd,CC* np,int f) NE { HDR2(linkat,op,np,(od,op,nd,np,f)) ; NO_SERVER(linkat) ; Lnk r{{od,op},{nd,np},ASLNF(f),Comment::linkat} ; return r(orig(od,op,nd,np,f)) ; }
 
 	// mkdir
-	int mkdir  (      CC* p,mode_t m) NE { HDR1(mkdir  ,p,(  p,m)) ; NO_SERVER(mkdir  ) ; Mkdir r{   p ,Comment::mkdirat} ; return r(orig(  p,m)) ; }
-	int mkdirat(int d,CC* p,mode_t m) NE { HDR1(mkdirat,p,(d,p,m)) ; NO_SERVER(mkdirat) ; Mkdir r{{d,p},Comment::mkdir  } ; return r(orig(d,p,m)) ; }
+	int mkdir  (      CC* p,mode_t m) NE { HDR1(mkdir  ,p,(  p,m)) ; NO_SERVER(mkdir  ) ; Mkdir r{   p ,Comment::mkdir  } ; return r(orig(  p,m)) ; }
+	int mkdirat(int d,CC* p,mode_t m) NE { HDR1(mkdirat,p,(d,p,m)) ; NO_SERVER(mkdirat) ; Mkdir r{{d,p},Comment::mkdirat} ; return r(orig(d,p,m)) ; }
 
 	// mkstemp
 	int mkstemp    (char* t             ) { HDR0(mkstemp    ,(t     )) ; Mkstemp r{t,   Comment::mkstemp    } ; return r(orig(t     )) ; }
@@ -778,9 +778,15 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		void* ctx = nullptr ;
 		if (descr.entry) {
 			LockRecordAndErrno lock ;
-			//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			ctx = descr.entry( auditor() , {}/*proc_mem*/ , args , false/*emulate*/ , descr.comment ).first ;
-		} //!     v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^v^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			try {
+				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				ctx = descr.entry( auditor() , {}/*proc_mem*/ , args , false/*emulate*/ , descr.comment ).first ;
+				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			} catch (::string const& e) {
+				Fd::Stderr.write(cat("autodep error : ",e,'\n')) ;
+				return ENOSYS ;
+			}
+		} //!     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		long rc = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
 		//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		if (ctx) {

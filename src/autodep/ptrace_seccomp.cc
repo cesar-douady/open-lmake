@@ -67,12 +67,20 @@ namespace AutodepPtrace {
 	// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 	int/*rc*/ prepare_child(void*) {
 		SyscallDescr::BpfProg const& bp = SyscallDescr::s_bpf_prog_ptrace ;
+		const char* reason = nullptr/*garbage*/ ;
 		// /!\ despite man page saying nothing, missing args must be 0 for prctl
-		if (::ptrace(PTRACE_TRACEME,0/*pid*/,0/*addr*/,0/*data*/                          )!=0) { Fd::Stderr.write(cat("cannot set up ptrace ("     ,StrErr(),") when launching job\n")) ; return 1 ; }
-		if (::prctl (PR_SET_NO_NEW_PRIVS,1                  ,0/*arg3*/,0/*arg4*/,0/*arg5*/)!=0) { Fd::Stderr.write(cat("cannot prevent privileges (",StrErr(),") when launching job\n")) ; return 1 ; }
-		if (::prctl (PR_SET_SECCOMP     ,SECCOMP_MODE_FILTER,&bp      ,0/*.   */,0/*.   */)!=0) { Fd::Stderr.write(cat("cannot set up seccomp ("    ,StrErr(),") when launching job\n")) ; return 1 ; }
-		::raise(SIGSTOP) ; // wait until released by supervisor
+		if (::ptrace(PTRACE_TRACEME,0/*pid*/,0/*addr*/,0/*data*/                          )!=0) { reason = "cannot set up ptrace"      ; goto Error ; }
+		if (::prctl (PR_SET_NO_NEW_PRIVS,1                  ,0/*arg3*/,0/*arg4*/,0/*arg5*/)!=0) { reason = "cannot prevent privileges" ; goto Error ; }
+		if (::prctl (PR_SET_SECCOMP     ,SECCOMP_MODE_FILTER,&bp      ,0/*.   */,0/*.   */)!=0) { reason = "cannot set up seccomp"     ; goto Error ; }
+		::raise(SIGSTOP) ;                                                                                                                              // wait until released by supervisor
 		return 0 ;
+	Error:
+		const char* msg = ::strerror(errno) ;
+		{ int rc = ::write( 2 , reason                   , ::strlen(reason                   ) ) ; (void)rc ; }
+		{ int rc = ::write( 2 , " ("                     , ::strlen(" ("                     ) ) ; (void)rc ; }
+		{ int rc = ::write( 2 , msg                      , ::strlen(msg                      ) ) ; (void)rc ; }
+		{ int rc = ::write( 2 , ") when launching job\n" , ::strlen(") when launching job\n" ) ) ; (void)rc ; }
+		return 1 ;
 	}
 
 	void PidInfo::event( pid_t pid , int wstatus ) {
@@ -110,8 +118,8 @@ namespace AutodepPtrace {
 						throw cat("bad arch 32-bit versus 64-bit") ;
 					}
 				#endif
-				#ifdef _X32_SYSCALL_BIT
-					syscall &= ~__X32_SYSCALL_BIT ;                                                     // we only look at char*, so mode x32 has no impact
+				#ifdef __X32_SYSCALL_BIT
+					syscall &= ~__X32_SYSCALL_BIT ;                                                     // we only look at char* args, so mode x32 has no impact
 				#endif
 				SWEAR_PROD( syscall>=0 && syscall<SyscallDescr::NSyscalls , syscall ) ;                 // bad syscall should have been filtered out by BPF
 				#if HAS_32
@@ -323,7 +331,10 @@ namespace AutodepPtrace {
 		// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 		int/*rc*/ prepare_child(void*) {
 			if (::prctl(PR_SET_NO_NEW_PRIVS,1,0/*arg3*/,0/*arg4*/,0/*arg5*/)!=0) {
-				Fd::Stderr.write(cat("cannot prevent privileges (",StrErr(),") when launching job\n")) ;
+				const char* msg = ::strerror(errno) ;
+				{ int rc = ::write( 2 , "cannot prevent privileges (" , ::strlen("cannot prevent privileges (") ) ; (void)rc ; }
+				{ int rc = ::write( 2 , msg                           , ::strlen(msg                          ) ) ; (void)rc ; }
+				{ int rc = ::write( 2 , ") when launching job\n"      , ::strlen(") when launching job\n"     ) ) ; (void)rc ; }
 				return 1 ;
 			}
 			//
@@ -331,11 +342,14 @@ namespace AutodepPtrace {
 			if (fd.fd==3)
 				fd.detach() ;
 			else
-				if (::dup2(fd,3)!=3) { // so fd does not have to be transfered to supervisor (job is not started yet, so 3 is available)
-					Fd::Stderr.write(cat("cannot prepare process (",StrErr(),") when launching job\n")) ;
+				if (::dup2(fd,3)!=3) {                    // so fd does not have to be transfered to supervisor (job is not started yet, so 3 is available)
+					const char* msg = ::strerror(errno) ;
+					{ int rc = ::write( 2 , "cannot prepare process (" , ::strlen("cannot prepare process (") ) ; (void)rc ; }
+					{ int rc = ::write( 2 , msg                        , ::strlen(msg                       ) ) ; (void)rc ; }
+					{ int rc = ::write( 2 , ") when launching job\n"   , ::strlen(") when launching job\n"  ) ) ; (void)rc ; }
 					return 1 ;
 				}
-			::raise(SIGSTOP) ;         // wait until released by supervisor
+			::raise(SIGSTOP) ;                            // wait until released by supervisor
 			::close(3) ;
 			return 0 ;
 		}
@@ -354,13 +368,12 @@ namespace AutodepPtrace {
 			//
 			int   wstatus ;
 			pid_t pid     = ::waitpid( child_pid , &wstatus , WUNTRACED ) ; SWEAR( pid==child_pid , pid,child_pid ) ; // wait for child to stop
-			if (!WIFSTOPPED(wstatus)) {                                                                               // if killed before starting
-				SWEAR( WIFSIGNALED(wstatus)            , pid,wstatus ) ;                                              // cannot be otherwise as we do not exit before entering job
-				SWEAR( !is_sig_sync(WTERMSIG(wstatus)) , pid,wstatus ) ;                                              // ensure not a bug such as a SWEAR or segmentation violation
+			if (!WIFSTOPPED(wstatus)) {                                                                               // if error/killed before starting
+				if (WIFEXITED(wstatus)) SWEAR( WEXITSTATUS(wstatus)!=0 ) ;                                            // if exiting before entering job, must be an error case
 				return wstatus ;
 			}
 			//
-			#if HAS_PIDFD                                                                                             // use libc provided wrappers if available
+			#if HAS_PIDFD                                                                           // use libc provided wrappers if available
 				AcFd pid_fd    { pidfd_open (                     child_pid ,     0/*flags*/ )  } ;
 				AcFd notify_fd { pidfd_getfd(                     pid_fd.fd , 3 , 0/*flags*/ )  } ; throw_unless( +notify_fd , "cannot get (",StrErr(),") notify fd from pid ",child_pid) ;
 			#else
@@ -378,18 +391,22 @@ namespace AutodepPtrace {
 				for( Event const& event : epoll.wait() ) {
 					switch (event.data()) {
 						case Kind::Job : {
-							pid_t pid = ::waitpid( child_pid , &wstatus , WNOHANG ) ;                                 // epoll told us child_pid is dead
+							pid_t pid = ::waitpid( child_pid , &wstatus , WNOHANG ) ;               // epoll told us child_pid is dead
 							SWEAR( pid==child_pid , pid,child_pid ) ;
 							return wstatus ;
 						}
 						case Kind::Notif : {
 							if (!(event.events&EPOLLIN)) {
-								SWEAR( event.events==EPOLLHUP , event.events ) ;                                      // there are only 2 cases : notify_fd is ready or we are done
+								SWEAR( event.events==EPOLLHUP , event.events ) ;                    // there are only 2 cases : notify_fd is ready or we are done
 								epoll.del(false/*write*/,notify_fd) ;
 								continue ;
 							}
-							recv_notif = {} ;                                                                         // recv_notif must be full 0 upon calling ioctl
-							if ( ::ioctl( notify_fd , SECCOMP_IOCTL_NOTIF_RECV , &recv_notif )!=0 ) FAIL() ;
+							recv_notif = {} ;                                                       // recv_notif must be full 0 upon calling ioctl
+							if ( ::ioctl( notify_fd , SECCOMP_IOCTL_NOTIF_RECV , &recv_notif )!=0 )
+								switch (errno) {
+									case ENOENT :                                                   // this can spuriously happen if process is killed at the time it sends notification
+									case EINTR  : continue ;                                        // .
+								DF}
 							//
 							bool     is_32   = NonPortable::is_32_from_audit_arch(recv_notif.data.arch) ;
 							pid_t    tid     = recv_notif.pid                                           ;
@@ -412,7 +429,7 @@ namespace AutodepPtrace {
 							#endif
 							//
 							try {
-								// ensure entry_info is actually an array of uint64_t although one is declared as unsigned long and the other is unsigned long long
+								// ensure recev_notif is actually an array of uint64_t
 								static_assert( sizeof(recv_notif.data.args[0])==sizeof(uint64_t) && ::is_unsigned_v<::remove_reference_t<decltype(recv_notif.data.args[0])>> ) ;
 								uint64_t* args = reinterpret_cast<uint64_t*>(recv_notif.data.args) ;
 								if (descr.entry) {
@@ -446,8 +463,8 @@ namespace AutodepPtrace {
 									} else {
 										resp_notif = {
 											.id    = recv_notif.id
-										,	.val   = 0                                                                // compulsery when continue
-										,	.error = 0                                                                // .
+										,	.val   = 0                                              // compulsery when continue
+										,	.error = 0                                              // .
 										,	.flags = SECCOMP_USER_NOTIF_FLAG_CONTINUE
 										} ;
 										int rc = ::ioctl( notify_fd , SECCOMP_IOCTL_NOTIF_SEND , &resp_notif ) ;

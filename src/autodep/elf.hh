@@ -77,7 +77,7 @@ struct Elf {
 	// data
 	Record*                   r               = nullptr/*garbage*/ ;
 	::string                  ld_library_path ;
-	::string                  rpath           ;                                             // DT_RPATH or DT_RUNPATH entry
+	::string                  rpath           ;                                             // from DT_RPATH
 	::umap_s<Bool3/*exists*/> seen            = {}                 ;
 	bool                      simple_llp      = false              ;                        // if true => ld_library_path contains no dir to the repo
 } ;

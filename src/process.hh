@@ -42,10 +42,9 @@ inline bool/*exists*/ sense_process( pid_t pid                                 )
 pid_t  get_ppid(pid_t pid) ;
 
 struct Child {
-	static constexpr size_t StackSz = 16<<10 ;        // stack size for sub-process : we just need s small stack before exec, experiment shows 8k is enough, take 16k
-	static constexpr Fd     NoneFd  { -1 }   ;
-	static constexpr Fd     PipeFd  { -2 }   ;
-	static constexpr Fd     JoinFd  { -3 }   ;        // used on sderr to join to stdout
+	static constexpr Fd NoneFd { -1 } ;
+	static constexpr Fd PipeFd { -2 } ;
+	static constexpr Fd JoinFd { -3 } ;               // used on sderr to join to stdout
 	// cxtors & casts
 	~Child() {
 		swear_prod(pid==0,"bad pid",pid) ;
@@ -85,7 +84,7 @@ public :
 	::string        cwd_s              = {}         ;
 	::map_ss const* env                = nullptr    ;
 	uint8_t         nice               = 0          ;
-	int/*rc*/       (*pre_exec)(void*) = nullptr    ; // if no cmd_line, this is the entire function exec'ed as child returning the exit status
+	int/*rc*/       (*pre_exec)(void*) = nullptr    ;
 	void*           pre_exec_arg       = nullptr    ;
 	Fd              stderr             = Fd::Stderr ;
 	Fd              stdin              = Fd::Stdin  ;
@@ -102,7 +101,7 @@ public :
 
 struct AutoServerBase {
 	struct SlaveEntry {
-		Atomic<Bool3> out_active = Maybe ;  // Maybe means both input and output are active, Yes means output is active, No means input is active
+		Atomic<Bool3> out_active = Maybe ; // Maybe means both input and output are active, Yes means output is active, No means input is active
 		SockFd::Key   key        = {}    ;
 		IMsgBuf       buf        = {}    ;
 	} ;
@@ -114,15 +113,15 @@ struct AutoServerBase {
 	// services
 	void start() ;
 	// data
-	bool         is_daemon   = false ;    // config
-	bool         writable    = false ;    // .
-	bool         rescue      = false ;    // report
+	bool         is_daemon   = false ;     // config
+	bool         writable    = false ;     // .
+	bool         rescue      = false ;     // report
 	::string     server_mrkr ;
 	ServerSockFd server_fd   ;
 	AcFd         watch_fd    ;
 protected :
 	Mutex<> mutable       _slaves_mutex ;
-	::umap<Fd,SlaveEntry> _slaves       ; // indexed by in_fd
+	::umap<Fd,SlaveEntry> _slaves       ;  // indexed by in_fd
 } ;
 
 template<class T> struct AutoServer : AutoServerBase {
@@ -172,11 +171,11 @@ template<class T> bool/*interrupted*/ AutoServer<T>::event_loop() {
 		static_cast<T&>(self).start_connection(fd) ;
 	} ;
 	//                                                                wait
-	if (+server_fd) { epoll.add_read( server_fd , EventKind::Master , is_daemon ) ; trace("read_master",server_fd) ; } // if read-only, we do not expect additional connections
+	if (+server_fd) { epoll.add_read( server_fd , EventKind::Master , is_daemon ) ; trace("read_master",server_fd) ; } // if !is_daemon, we do not expect additional connections
 	/**/              epoll.add_sig ( SIGHUP    , EventKind::Int    , false     ) ; trace("read_hup"             ) ;
 	/**/              epoll.add_sig ( SIGINT    , EventKind::Int    , false     ) ; trace("read_int"             ) ;
 	if (+watch_fd ) { epoll.add_read( watch_fd  , EventKind::Watch  , false     ) ; trace("read_watch" ,watch_fd ) ; }
-	if (!is_daemon) { epoll.add_read( Fd::Stdin , EventKind::Stdin  , true      ) ; trace("read_stdin" ,Fd::Stdin) ; } // if !daemon : stay alive until first connection
+	if (!is_daemon) { epoll.add_read( Fd::Stdin , EventKind::Stdin  , true      ) ; trace("read_stdin" ,Fd::Stdin) ; } // if !is_daemon, stay alive until first connection
 	//
 	while (+epoll) {
 		bool new_fd = false ;

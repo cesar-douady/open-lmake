@@ -152,6 +152,7 @@ enum class JobReasonTag : uint8_t {           // see explanations in table below
 ,	Force
 ,	Killed
 ,	Cmd
+,	Frozen
 ,	New
 //	with node
 ,	BusyTarget
@@ -198,6 +199,7 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::Force              , "job forced"                                 }
 ,	{ JobReasonTag::Killed             , "job was killed"                             }
 ,	{ JobReasonTag::Cmd                , "command changed"                            }
+,	{ JobReasonTag::Frozen             , "job is frozen"                              }
 ,	{ JobReasonTag::New                , "job was never run"                          }
 //	with node
 ,	{ JobReasonTag::BusyTarget         , "busy target"                                }
@@ -239,6 +241,7 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::Force              , 62 }
 ,	{ JobReasonTag::Killed             , 63 }
 ,	{ JobReasonTag::Cmd                , 64 }
+,	{ JobReasonTag::Frozen             , 65 }
 ,	{ JobReasonTag::New                , 90 }
 //	with node
 ,	{ JobReasonTag::BusyTarget         , 10 } // this should not occur as there is certainly another reason to be running
@@ -307,7 +310,6 @@ enum class Status : uint8_t { // result of job execution
 ,	Garbage = BadTarget       // <=Garbage means job has not run reliably
 ,	Err     = JobError        // >=Err     means job execution is in error
 } ;
-// /!\ DfltRetriedErrs must staty in sync with Rule.retried_errors in _lib/lmake/rules.src.py
 static constexpr BitMap<Status> DfltRetriedErrs {                      Status::JobError ,                                     Status::TerminationError , Status::Timeout } ;
 static constexpr BitMap<Status> MaxRetriedErrs  { Status::EarlyError , Status::JobError , Status::Forbidden , Status::Panic , Status::TerminationError , Status::Timeout } ;
 // END_OF_VERSIONING
@@ -801,7 +803,7 @@ struct JobSpace {
 	::string            lmake_view_s = {} ;    // absolute dir under which job sees open-lmake root dir (empty if unused)
 	::string            repo_view_s  = {} ;    // absolute dir under which job sees repo root dir       (empty if unused)
 	::string            tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir             (empty if unused)
-	::vmap_s<ViewDescr> views        = {} ;    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
+	::vmap_s<ViewDescr> views        = {} ;    // dir_s->descr, relative to sub_repo when _force_creat=Maybe, else relative to repo_root
 	// END_OF_VERSIONING
 private :
 	::string _tmp_dir_s   ;                    // to be unlinked upon exit
@@ -1031,7 +1033,7 @@ struct JobMngtRpcReq : JobRpcReq {
 	Fd                     fd      = {}         ;                                                              // fd to which reply must be forwarded
 	::vmap_s<TargetDigest> targets = {}         ;                                                              // proc==ChkDeps
 	::vmap_s<DepDigest   > deps    = {}         ;                                                              // proc==ChkDeps|DepDirect|DepVerbose
-	::string               txt     = {}         ;                                                              // proc==LiveOut
+	::string               txt     = {}         ;                                                              // proc==LiveOut|AddLiveOut
 } ;
 
 struct JobMngtRpcReply {
@@ -1057,8 +1059,8 @@ struct JobMngtRpcReply {
 	// data
 	Proc                  proc          = {}    ;
 	SeqId                 seq_id        = 0     ;
-	Fd                    fd            = {}    ;                                // proc == ChkDeps|DepDirect|DepVerbose , fd to which reply must be forwarded
-	::vector<VerboseInfo> verbose_infos = {}    ;                                // proc ==                   DepVerbose
-	::string              txt           = {}    ;                                // proc == ChkDeps|                     , reason for ChkDeps
-	Bool3                 ok            = Maybe ;                                // proc == ChkDeps|DepDirect            , if No <=> deps in error, if Maybe <=> deps not ready
+	Fd                    fd            = {}    ;                                // proc==ChkDeps|ChkTargets|DepDirect|DepVerbose , fd to which reply must be forwarded
+	::vector<VerboseInfo> verbose_infos = {}    ;                                // proc==                             DepVerbose
+	::string              txt           = {}    ;                                // proc==ChkDeps|ChkTargets                      , reason
+	Bool3                 ok            = Maybe ;                                // proc==ChkDeps|ChkTargets|DepDirect            , if No <=> deps in error, if Maybe <=> deps not ready
 } ;

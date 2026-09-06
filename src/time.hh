@@ -145,9 +145,7 @@ namespace Time {
 	constexpr Delay Delay::Forever { New , Max<Tick> } ;
 	template<class T> requires(::is_arithmetic_v<T>) constexpr Delay operator*( T f , Delay d ) { return d*f ; }
 
-	// short float representation of time (positive)
-	// when exp<=0, representation is linear after TicksPerSecond
-	// else       , it is floating point
+	// short logarithmic representation of time (positive)
 	struct CoarseDelay {
 		using Val = uint16_t ;
 		static constexpr int64_t  TicksPerSecond = 1000  ; // this may be freely modified
@@ -234,33 +232,22 @@ namespace Time {
 	} ;
 
 	//
-	// We implement a complete separation between wall-clock time (Pdate) a short for process date) and time seen from the disk (Ddate) which may be on a server with its own view of time.
-	// Care has been taken so that you cannot compare and more generally inter-operate between these 2 times.
-	// Getting current Pdate-time is very cheap (few ns), so no particular effort is made to cache or otherwise optimize it.
-	// But it is the contrary for Ddate current time : you must create or write to a file, very expensive (some fraction of ms).
-	// So we keep a lazy evaluated cached value that is refreshed once per loop (after we have waited) in each thread :
-	// - in terms of precision, this is enough, we just want correct relative order
-	// - in terms of cost, needing current disk time is quite rare (actually, we just need it to put a date on when a file is known to not exist, else we have a file date)
-	// - so in case of exceptional heavy use, cached value is used and in case of no use, we do not pay at all.
+	// We implement a complete separation between wall-clock time (Pdate, a short for process date) and time seen from the disk (Ddate) which may be on a server with its own view of time.
+	// Care has been taken so that you cannot compare and more generally inter-operate between these 2 times (except avail_at).
 	//
 
 	struct Pdate : Date {
 		friend Delay ;
-		static const Pdate Never  ;                         // highest date, used as infinity
-		static const Pdate Future ;                         // last date before Never
+		static const Pdate Never  ;                     // highest date, used as infinity
+		static const Pdate Future ;                     // last date before Never
 		// static data
 	private :
-		#if __cplusplus<202600L
-			static Mutex<MutexLvl::PdateNew> _s_mutex_new ; // ensure serialization to _s_last before c++26
-			static Tick                      _s_min_next  ; // time returned by last call, used to ensure strict monotonicity on systems that have unreliable clocks
-		#else
-			static Atomic<Tick> _s_min_next ;
-		#endif
-		// cxtors & casts
+		static Mutex<MutexLvl::PdateNew> _s_mutex_new ; // ensure serialization to _s_last
+		static Tick                      _s_last      ; // time returned by last call, used to ensure strict monotonicity on systems that have unreliable clocks
+		// cxtors & co
 	public :
 		using Date::Date ;
 		Pdate(NewType) ;
-		// accesses
 		void operator>>(::string&) const ;
 		// services
 		constexpr bool              operator== (Pdate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
@@ -287,8 +274,8 @@ namespace Time {
 	// we lose a few bits of precision, but real disk dates have around ms precision anyway, so we have around 20 bits of margin
 	struct Ddate : Date {
 		friend Delay ;
-		static const Ddate Never  ;                                                                      // highest date, used as infinity
-		static const Ddate Future ;                                                                      // last date before Never
+		static const Ddate Never  ;                                                                       // highest date, used as infinity
+		static const Ddate Future ;                                                                       // last date before Never
 	private :
 		static constexpr Tick _TagMsk = (1<<NBits<FileTag>)-1 ;
 		// cxtors & casts

@@ -43,7 +43,7 @@ struct StoreEntry {
 struct DryRunDigest {
 	::vmap_ss to_rm           ; // map files to reasons
 	::vmap_ss to_lnk          ; // map lnks  to targets
-	::vmap_ss to_rename       ; // map dsts  to srcs
+	::vmap_ss to_rename       ; // map srcs  to dsts
 	::set_s   to_rmdir_s      ;
 	size_t    n_ok            = 0 ;
 	size_t    n_reconstructed = 0 ;
@@ -211,7 +211,7 @@ static DryRunDigest _dry_run(bool from_decode) {
 			::pair_s<bool/*encoded*/>& prev_code   = it_inserted.first->second ;
 			::string                   crc_str     = entry.crc.hex()           ;
 			bool                       better_code =
-				//!     user_provided                        !encoded          size                  any stable order
+				//!     !user_provided                       !encoded          size                  any stable order
 				::tuple(crc_str.starts_with(code           ),true             ,code           .size(),code           )
 			<	::tuple(crc_str.starts_with(prev_code.first),!prev_code.second,prev_code.first.size(),prev_code.first)
 			;

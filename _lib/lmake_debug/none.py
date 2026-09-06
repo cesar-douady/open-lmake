@@ -11,4 +11,4 @@
 from .utils import Job
 
 def gen_script(**kwds) :
-	return Job(kwds).gen_script(trace=True)
+	return Job(kwds).gen_script()

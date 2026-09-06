@@ -705,7 +705,7 @@ namespace Py {
 	struct WithBuiltins {                              // set __builtins__ in dict and remove it at the end
 		// cxtors & casts
 		WithBuiltins (Dict& dct_) : dct{dct_} {
-			#ifndef NDEBUG                             // avoid executing glb.contains if not debugging
+			#ifndef NDEBUG                             // avoid executing dct.contains if not debugging
 				SWEAR(!dct.contains("__builtins__")) ;
 			#endif
 			dct.set_item( "__builtins__" , *Dict::s_builtins ) ;
@@ -721,7 +721,7 @@ namespace Py {
 		Dict& dct ;
 	} ;
 
-	struct WithSysPath { // set __builtins__ in dict and remove it at the end
+	struct WithSysPath { // set sys.path and remove it at the end
 		// cxtors & casts
 		WithSysPath (Sequence const* sys_path) {
 			if (!sys_path) return ;

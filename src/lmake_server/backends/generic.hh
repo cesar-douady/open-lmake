@@ -149,7 +149,7 @@ namespace Backends {
 		Rsrcs                                   rounded_rsrcs ;
 		Atomic<Time::Delay                    > timeout       ;
 		Atomic<SpawnId    ,MutexLvl::BackendId> id            = NoId  ;
-		Atomic<bool                           > started       ;         // if true <=> start() has been called for this job, for assert only
+		Atomic<bool                           > started       ;         // if true <=> start() has been called for this job
 		Atomic<bool                           > verbose       ;
 		Atomic<bool                           > zombie        ;         // if true <=> entry waiting for suppression
 		Atomic<bool                           > hold          ;         // when held, entry cannot be destroyed
@@ -169,7 +169,7 @@ namespace Backends {
 			using iterator       = typename Tab::iterator       ;
 			using const_iterator = typename Tab::const_iterator ;
 			// cxtor & co
-			bool   operator+ (            ) const { return _tab.size()                 ; }
+			bool   operator+ (            ) const { return size()                      ; }
 			size_t size      (            ) const { return _tab.size()-_zombies.size() ; }
 			void   operator>>(::string& os) const {        _tab>>os                    ; }
 			// accesses

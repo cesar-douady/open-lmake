@@ -432,10 +432,11 @@ namespace Backends::Slurm {
 		SlurmApi::ApiVersionFunc  api_version_func   = reinterpret_cast<SlurmApi::ApiVersionFunc >(::dlsym(SlurmApi::g_lib_handler,"slurm_api_version"  )) ;
 		SlurmApi::InitFunc        init_func          = reinterpret_cast<SlurmApi::InitFunc       >(::dlsym(SlurmApi::g_lib_handler,"slurm_init"         )) ;
 		SlurmApi::LoadCtlConfFunc load_ctl_conf_func = reinterpret_cast<SlurmApi::LoadCtlConfFunc>(::dlsym(SlurmApi::g_lib_handler,"slurm_load_ctl_conf")) ;
-		SlurmApi::FreeCtlConfFunc free_ctl_conf_func = reinterpret_cast<SlurmApi::FreeCtlConfFunc>(::dlsym(SlurmApi::g_lib_handler,"slurm_free_ctl_conf")) ;
-		throw_unless( init_func          , "cannot find function slurm_init in "         ,lib_slurm_ ) ;
-		throw_unless( load_ctl_conf_func , "cannot find function slurm_load_ctl_conf in ",lib_slurm_ ) ;
-		throw_unless( free_ctl_conf_func , "cannot find function slurm_free_ctl_conf in ",lib_slurm_ ) ;
+		SlurmApi::FreeCtlConfFunc free_conf_func     = reinterpret_cast<SlurmApi::FreeCtlConfFunc>(::dlsym(SlurmApi::g_lib_handler,"slurm_free_ctl_conf")) ; // up to v25.11
+		if (!free_conf_func)      free_conf_func     = reinterpret_cast<SlurmApi::FreeCtlConfFunc>(::dlsym(SlurmApi::g_lib_handler,"slurm_free_conf"    )) ; // since v26.05
+		throw_unless( init_func          , "cannot find function slurm_init in "                             ,lib_slurm_ ) ;
+		throw_unless( load_ctl_conf_func , "cannot find function slurm_load_ctl_conf in "                    ,lib_slurm_ ) ;
+		throw_unless( free_conf_func     , "cannot find function slurm_free_ctl_conf not slurm_free_conf in ",lib_slurm_ ) ;
 		if (!AcFd(config_file_,{.err_ok=true})) {
 			::string msg = "cannot find slurm config\n" ;
 			if (+config_file) msg << indent(cat("ensure lmake.config.backends.slurm.config is adequate : "   ,config_file_,'\n'            )) ;
@@ -476,7 +477,7 @@ namespace Backends::Slurm {
 			SlurmApi::FreeCtlConfFunc free_func = nullptr ;
 
 		} ;
-		ToFree to_free { .free_func=free_ctl_conf_func } ;
+		ToFree to_free { .free_func=free_conf_func } ;
 		// XXX? : remember last conf read so as to pass a real update_time param & optimize call (maybe not worthwhile)
 		{	Lock lock { slurm_mutex } ;
 			throw_unless( FileInfo(config_file_).exists()                       , "no slurm config file ",config_file_ ) ;

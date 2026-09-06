@@ -80,8 +80,8 @@ namespace Backends::Local {
 				for( auto const& [k,v] : dct ) { rsrc_idxs[k         ] = rsrc_keys.size() ; rsrc_keys.push_back   (k         ) ; seen_single |= k=="<single>" ; }
 				if (!seen_single)              { rsrc_idxs["<single>"] = rsrc_keys.size() ; rsrc_keys.emplace_back("<single>") ;                                }
 				occupied  = RsrcsData(rsrc_keys.size()) ;
-			} else {                                                                                                      // keep currently used resources
-				::set_s old_names = mk_set    (rsrc_keys) ;                                                               // use ordered set for reporting
+			} else {                                                                                                         // keep currently used resources
+				::set_s old_names = mk_set    (rsrc_keys) ;                                                                  // use ordered set for reporting
 				::set_s new_names = mk_key_set(dct      ) ;
 				seen_single = !new_names.insert("<single>").second ;
 				if (new_names!=old_names) throw cat("cannot change resource names from ",old_names," to ",new_names," while lmake is running") ;
@@ -89,19 +89,19 @@ namespace Backends::Local {
 			trace(BeChnl,"occupied_rsrcs",'=',occupied) ;
 			//
 			capacity_ = RsrcsData( dct , rsrc_idxs , false/*rnd_up*/ ) ;
-			if (!seen_single) capacity_.back()/*<single>*/ = 1 ;                                                          // if not mentioned in dct => force to 1 instead of default 0
+			if (!seen_single) capacity_.back()/*<single>*/ = 1 ;                                                             // if not mentioned in dct => force to 1 instead of default 0
 			//
 			SWEAR( rsrc_keys.size()==capacity_.size() , rsrc_keys.size() , capacity_.size() ) ;
 			for( size_t i : iota(capacity_.size()) ) public_capacity.emplace_back( rsrc_keys[i] , capacity_[i] ) ;
 			trace("capacity",capacity()) ;
 			_wait_queue.open( 'T' , _s_wait_job ) ; s_record_thread('T',_wait_queue.thread) ;
 			//
-			if ( first_time && rsrc_idxs.contains("cpu") ) {                                                              // ensure each job can compute CRC on all cpu's in parallel
+			if ( first_time && rsrc_idxs.contains("cpu") ) {                                                                 // ensure each job can compute CRC on all cpu's in parallel
 				struct rlimit rl ;
 				::getrlimit(RLIMIT_NPROC,&rl) ;
 				if ( rl.rlim_cur!=RLIM_INFINITY && rl.rlim_cur<rl.rlim_max ) {
 					::rlim_t new_limit = rl.rlim_cur + capacity_[rsrc_idxs["cpu"]]*thread::hardware_concurrency() ;
-					if ( rl.rlim_max!=RLIM_INFINITY && new_limit>rl.rlim_max ) new_limit = rl.rlim_max ;                  // hard limit overflow
+					if ( rl.rlim_max!=RLIM_INFINITY && new_limit>rl.rlim_max ) new_limit = rl.rlim_max ;                     // hard limit overflow
 					rl.rlim_cur = new_limit ;
 					::setrlimit(RLIMIT_NPROC,&rl) ;
 				}
@@ -120,9 +120,9 @@ namespace Backends::Local {
 		::vmap_s<size_t> const& capacity() const override {
 			return public_capacity ;
 		}
-		::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const override {            // START_OF_NO_COV defensive programming (cannot make local local)
+		::vmap_ss mk_lcl( ::vmap_ss&& rsrcs , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const override {               // START_OF_NO_COV defensive programming (cannot make local local)
 			return ::move(rsrcs) ;
-		}                                                                                                                 // END_OF_NO_COV
+		}                                                                                                                    // END_OF_NO_COV
 		//
 		::vmap_ss  export_   ( RsrcsData const& rs             ) const override { return rs.mk_vmap(rsrc_keys)           ; }
 		RsrcsData  import_   ( ::vmap_ss     && rs , Req , Job ) const override { return RsrcsData(::move(rs),rsrc_idxs) ; }
@@ -156,9 +156,9 @@ namespace Backends::Local {
 			return cat("pid:",se.id.load()) ;
 		}
 		::pair_s<bool/*retry*/> end_job( Job job , SpawnedEntry const& se , Status status ) const override {
-			_wait_queue.push(se.id) ;                                                                                     // defer wait in case job_exec process does some time consuming book-keeping
-			if (!se.verbose) return { {}/*msg*/        , true              /*retry*/ } ;                    // common case, must be fast, if job is in error, better to ask slurm why, e.g. could be OOM
-			else             return { read_stderr(job) , status==Status::Ok/*.    */ } ;                    // retry if garbage
+			_wait_queue.push(se.id) ;                                                                        // defer wait in case job_exec process does some time consuming book-keeping
+			if (!se.verbose) return { {}/*msg*/        , true              /*retry*/ } ; // common case, must be fast (stderr not available if !se.verbose, even if there is an error)
+			else             return { read_stderr(job) , status==Status::Ok/*.    */ } ; // retry if garbage
 		}
 		::pair_s<HeartbeatState> heartbeat_queued_job( Job job , SpawnedEntry const& se ) const override {  // called after job_exec has had time to start
 			SWEAR(se.id) ;

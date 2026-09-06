@@ -108,7 +108,7 @@ namespace Engine::Persistent {
 
 	void RuleBase::_s_update_crcs() {
 		Trace trace("_s_update_crcs") ;
-		::umap<Crc,Rule> rule_map ; if (+s_rules) rule_map.reserve(s_rules->size()) ; for( Rule r : rule_lst(true/*with_special*/) ) rule_map[r->crc->match] = r ;
+		::umap<Crc,Rule> rule_map ; if (+s_rules) rule_map.reserve(s_rules->size()) ; for( Rule r : rule_lst(true/*with_shared*/) ) rule_map[r->crc->match] = r ;
 		for( RuleCrc rc : rule_crc_lst() ) {
 			RuleCrcData& rcd = rc.data()                ;
 			auto         it  = rule_map.find(rcd.match) ;
@@ -128,7 +128,7 @@ namespace Engine::Persistent {
 			trace(rc,rcd) ;
 		}
 		#ifndef NDEBUG
-			for( Rule r : rule_lst(true/*with_special*/) ) SWEAR( r->crc->state==RuleCrcState::Ok && r->crc->rule==r , r,r->crc->rule ) ;
+			for( Rule r : rule_lst(true/*with_shared*/) ) SWEAR( r->crc->state==RuleCrcState::Ok && r->crc->rule==r , r,r->crc->rule ) ;
 		#endif
 	}
 
@@ -157,7 +157,7 @@ namespace Engine::Persistent {
 		::umap<Crc,RuleData*> rule_map ; rule_map.reserve(new_rules.size()) ; for( RuleData& rd : new_rules.rules ) rule_map.try_emplace( rd.crc->match , &rd ) ;
 		//
 		Rules* next_rules = new Rules{New} ; if (+s_rules) next_rules->rules.reserve(s_rules->size()) ;
-		for( Rule r : rule_lst() ) next_rules->rules.push_back(::move(*rule_map.at(r->crc->match))) ;           // crc->match's must be identical between old and new or we should be here
+		for( Rule r : rule_lst() ) next_rules->rules.push_back(::move(*rule_map.at(r->crc->match))) ;           // r->crc->match's must be identical between old and new or we should not be here
 		next_rules->dyn_vec      = ::move(new_rules.dyn_vec     ) ;
 		next_rules->py_sys_path  = ::move(new_rules.py_sys_path ) ;
 		next_rules->sys_path_crc =        new_rules.sys_path_crc  ;
@@ -287,7 +287,7 @@ namespace Engine::Persistent {
 		/**/                                    _g_node_file     .chk(                      ) ; // nodes
 		/**/                                    _g_node_name_file.chk(                      ) ; // .
 		/**/                                    _g_job_tgts_file .chk(                      ) ; // .
-		/**/                                    _g_rule_crc_file .chk(                      ) ; // .
+		/**/                                    _g_rule_crc_file .chk(                      ) ; // rules
 		/**/                                    _g_rule_tgts_file.chk(                      ) ; // .
 		/**/                                    _g_sfxs_file     .chk(                      ) ; // .
 		for( PsfxIdx idx : _g_sfxs_file.lst() ) _g_pfxs_file     .chk(_g_sfxs_file.c_at(idx)) ; // .
@@ -370,7 +370,7 @@ namespace Engine::Persistent {
 	} ;
 
 	template<bool IsSfx> static void _propag_to_longer( ::map_s<::uset<Rt>>& psfx_map , ::uset_s const& sub_repos_s={} ) {
-		for( auto& [long_psfx,long_entry] : psfx_map ) {                // entries order guarantees that if an entry is a prefix/suffix of another, it is processed first
+		for( auto& [long_psfx,long_entry] : psfx_map ) {                // entries order guarantees that more general rules (with a shorter psfx) are processed first, so propagation is recursive
 			if ( !IsSfx && sub_repos_s.contains(long_psfx) ) continue ; // dont propagate through sub_repos boundaries
 			for( size_t shorten_by : iota(1,long_psfx.size()+1) ) {
 				::string short_psfx = long_psfx.substr( IsSfx?shorten_by:0 , long_psfx.size()-shorten_by ) ;
@@ -523,8 +523,8 @@ namespace Engine::Persistent {
 		trace(STR(n_new_rules),STR(n_old_rules),STR(n_modified_prio),STR(n_modified_cmd),STR(n_modified_rsrcs),STR(modified_rule_order)) ;
 		// matching report
 		{	::map_s<::vector<RuleTgt>> match_report ;
-			size_t                     w_prio       = 4 ;                                                       // 4 to account for header : prio
-			size_t                     w_name       = 4 ;                                                       // 4 to account for header : name
+			size_t                     w_prio       = 4/*prio*/ ;                                               // provide room for header
+			size_t                     w_name       = 4/*rule*/ ;                                               // .
 			for( PsfxIdx sfx_idx : _g_sfxs_file.lst() ) {
 				::string sfx      = _g_sfxs_file.str_key(sfx_idx) ;
 				PsfxIdx  pfx_root = _g_sfxs_file.at     (sfx_idx) ;
@@ -644,8 +644,8 @@ namespace Engine::Persistent {
 				else                                             throw cat("codec table is not cannonical : ",val.tab                    ) ;
 			}
 			//
-			RealPath::SolveReport sr = real_path.solve(no_slash(val.tab),false/*no_follow*/) ;                                         // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
-			if (+sr.lnks) throw cat("codec table ",val.tab," has symbolic link ",sr.lnks[0]," in its path") ;
+			RealPath::SolveReport sr = real_path.solve(no_slash(val.tab),false/*no_follow*/) ;
+			if (+sr.lnks) throw cat("codec table ",val.tab," has symbolic link ",sr.lnks[0]," in its path") ;                          // cannot use throw_if as sr.lnks[0] is illegal if !sr.lnks
 			//
 			if (val.is_dir()) {
 				if (is_lcl(val.tab)) throw cat("codec table ",key," must not end with /, consider : lmake.config.codecs.",key," = ",mk_py_str(no_slash(val.tab))) ;

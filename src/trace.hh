@@ -70,7 +70,7 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static size_t                 _s_sz         ;                                                              // copy of s_sz to ensure it is not modified
 		static ::string               _s_trace_file ;
 		static Fd                     _s_fd         ;
-		static size_t                 _s_pos        ;                                                              // current line number
+		static size_t                 _s_pos        ;                                                              // current position offset in file
 		static Atomic<char>           _s_pfx        ;                                                              // ping-pong to distinguish where trace stops in the middle of a trace
 		static Atomic<bool>           _s_has_trace  ;
 		#if TRACE==1                                                                                               // 1 : mmap based, 2 : write based

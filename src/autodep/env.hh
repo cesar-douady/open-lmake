@@ -29,8 +29,8 @@ namespace Codec {
 		}
 		// data
 		::string tab       ;                                 // source file if is_lcl(tab), else external dir
-		FileSync file_sync = {} ;                            // valid if external dir
-		mode_t   umask     = -1 ;                            // .
+		FileSync file_sync = {} ;
+		mode_t   umask     = -1 ;                            // valid if external dir
 	} ;
 }
 
@@ -71,8 +71,8 @@ struct AutodepEnv : RealPathEnv {
 	// data
 	// START_OF_VERSIONING CACHE REPO JOB
 	bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
-	bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
-	bool                             disabled         = false ;                   // if false <=> no automatic report
+	bool                             deps_in_system   = false ;                   // if false <=> system files are simple and not considered as deps
+	bool                             disabled         = false ;                   // if true  <=> no automatic report
 	bool                             ext_read_ok      = false ;                   // if true  <=> allow reading outside repo and source dirs
 	bool                             ext_write_ok     = false ;                   // if true  <=> allow writing outside repo
 	bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies

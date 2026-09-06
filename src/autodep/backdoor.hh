@@ -64,8 +64,8 @@ namespace Backdoor {
 			buf.resize(size_t(cnt)) ;
 			auto reply = deserialize<Expected<_Reply<T>>>(buf) ;
 			if ( reply.ok                      ) return ::move(reply.data)                                           ;
-			if ( T::ReliableMaxReplySz || i>=7 ) throw cat("backdoor length error provided ",sz," needed ",reply.sz) ; // result may not be stable, so we may require more than 2 trials
-			sz = ::max( 2*sz , reply.sz ) ;                                                                            // ensure logarithmic behavior, limited to 256*hint size
+			if ( T::ReliableMaxReplySz || i>=7 ) throw cat("backdoor length error provided ",sz," needed ",reply.sz) ; // result may not be stable, >2 trials may be required (but limit size to 256x)
+			sz = ::max( 2*sz , reply.sz ) ;                                                                            // ensure logarithmic behavior
 		}
 	}
 

@@ -5,7 +5,7 @@
 
 '''
 	This module is meant to be used to generate debug scripts.
-	The generated script does not run jobs, but opens a shell in the same environment as the job.
+	The generated script does not run jobs, but opens the job interpreter in the same environment as the job.
 	This includes :
 	- environment variables
 	- chroot dir

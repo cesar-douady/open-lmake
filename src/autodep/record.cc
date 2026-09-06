@@ -151,7 +151,7 @@ void Record::_static_report(JobExecRpcReq&& jerr) const {
 	}
 }
 
-void Record::report_direct( JobExecRpcReq&& jerr , bool force ) {                             // dont touch jerr when returning false
+void Record::report_direct( JobExecRpcReq&& jerr , bool force ) {
 	jerr.chk() ;
 	//
 	if ( !force && !enable )                                  return ;
@@ -407,19 +407,17 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 	}
 }
 
-// flags is not used if exchange is not supported
 Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , bool no_replace , Comment c ) :
 	//                     no_follow read
 	src { r , ::move(src_) , true  , true     , c , CommentExt::Read  }
 ,	dst { r , ::move(dst_) , true  , exchange , c , CommentExt::Write }
 {	if (src.real==dst.real) return ;                                                                            // posix says in this case, it is nop
-	SWEAR( +src.real && +dst.real , src,dst ) ;                                                                 // should be absolute to denote repo root
 	// rename has not occurred yet so :
 	// - files are read and unlinked in the source dir
 	// - their coresponding files in the destination dir are written
 	::vmap_s<FileInfo>     reads     ;
 	::vmap_s<FileInfo>     stats     ;
-	::umap_s<bool/*read*/> unlnk_map ;                                                                          // files listed here are read and unlinked
+	::umap_s<bool/*read*/> unlnk_map ;                                                                          // files listed here are unlinked and read if value is true
 	::vmap_s<FileInfo>     unlnks    ;
 	::vmap_s<FileInfo>     writes    ;
 	auto do1 = [&]( Solve<> const& src , Solve<> const& dst ) {

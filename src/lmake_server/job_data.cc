@@ -89,8 +89,9 @@ namespace Codec {
 	static void _update_old_decode_tab( ::vector<Entry> const& new_entries , ::umap_s/*ctx*/<::umap_s/*code*/<CodecCrc>>&/*inout*/ old_decode_tab ) {
 		Trace trace(CodecChnl,"_update_old_decode_tab",new_entries.size(),old_decode_tab.size()) ;
 		for( Entry const& entry : new_entries ) {
-			bool inserted = old_decode_tab[entry.ctx].try_emplace( ::move(entry.code) , CodecCrc(New,entry.val) ).second ;
-			SWEAR( inserted , entry ) ;                                                                                    // there must be no internal conflict
+			CodecCrc crc { New , entry.val } ;
+			auto [it,inserted] = old_decode_tab[entry.ctx].try_emplace( ::move(entry.code) , crc ) ;
+			SWEAR( inserted || it->second==crc , entry ) ;                                           // there must be no internal conflict (perfect match ok as it may rarely appear in case of crash)
 		}
 		trace("done",old_decode_tab.size()) ;
 	}
@@ -249,7 +250,7 @@ namespace Engine {
 							if (to_mkdirs         .contains(hd)) break ;       // dir must exist, it is silly to spend time to rmdir it, then again to mkdir it
 							if (to_mkdir_uphills  .contains(hd)) break ;       // .
 							//
-							if (!to_rmdirs.emplace(td,depth).second) break ;   // if it is already in to_rmdirs, so is all pertinent dirs uphill
+							if (!to_rmdirs.emplace(hd,depth).second) break ;   // if it is already in to_rmdirs, so is all pertinent dirs uphill
 							depth-- ;
 						}
 					}
@@ -309,7 +310,7 @@ namespace Engine {
 		size_t   user_sz   = fn.size() - r->job_sfx_len() ;
 		::string res       = fn.substr(0,user_sz)         ; res.reserve(res.size()+1+r->n_static_stems*(2*(3+1))+16) ; // allocate 2x3 digits per stem, this is comfortable
 		//
-		for( char& c : res ) if (c==Rule::StarMrkr) c = '*' ;
+		for( char& c : res ) if (c==Rule::StemMrkr) c = '*' ;
 		res.push_back('/') ;
 		//
 		char* p = &fn[user_sz+1] ;                                                                                     // start of suffix
@@ -362,9 +363,9 @@ namespace Engine {
 			{ Status::New              , JobReasonTag::New             }
 		,	{ Status::EarlyChkDeps     , JobReasonTag::ChkDeps         }
 		,	{ Status::EarlyError       , JobReasonTag::Retry           }
-		,	{ Status::EarlyLost        , JobReasonTag::Lost            }                             // becomes WasLost if end
+		,	{ Status::EarlyLost        , JobReasonTag::Lost            }                             // becomes WasLost if !at_end
 		,	{ Status::EarlyLostErr     , JobReasonTag::LostRetry       }
-		,	{ Status::LateLost         , JobReasonTag::Lost            }                             // becomes WasLost if end
+		,	{ Status::LateLost         , JobReasonTag::Lost            }                             // becomes WasLost if !at_end
 		,	{ Status::LateLostErr      , JobReasonTag::LostRetry       }
 		,	{ Status::Killed           , JobReasonTag::Killed          }
 		,	{ Status::ChkDeps          , JobReasonTag::ChkDeps         }
@@ -992,6 +993,7 @@ namespace Engine {
 		trace(STR(has_new_codes)) ;
 		if (has_new_codes==No) {                                                                      // codes are strictly increasing and hence no code conflict
 			Dep dep { file , Access::Reg , FileInfo(filename) , false/*err*/ } ;
+			dep.full_refresh( false/*report_no_file*/ , job , {req} ) ;
 			dep.acquire_crc()  ;
 			assign_deps({dep}) ;
 		} else {
@@ -1018,9 +1020,10 @@ namespace Engine {
 
 	void JobData::_submit_req(Req req) {
 		Trace trace("_submit_req",req,req->files) ;
+		Job           job        = idx()                        ;
 		::vector<Dep> lnk_vector ;
-		::vector<Dep> dep_vector ; dep_vector.reserve(req->files.size()) ; // typically, all are deps
-		SyncGuard     sync_guard { g_config->server_file_sync }          ;
+		::vector<Dep> dep_vector ;                                dep_vector.reserve(req->files.size()) ; // typically, all are deps
+		SyncGuard     sync_guard { g_config->server_file_sync } ;
 		First         first      ;
 		//
 		status = Status::EarlyError ;                                      // defensive programming : only set status=Ok when deps are checked
@@ -1028,6 +1031,7 @@ namespace Engine {
 			RealPath::SolveReport rp  = Job::s_real_path->solve(file,true/*no_follow*/) ;
 			for( ::string& l : rp.lnks ) {
 				Dep d { {New,l} , Access::Lnk , FileInfo(l,{.sync_guard=&sync_guard}) } ;
+				d.full_refresh( false/*report_no_file*/ , job , {req} ) ;
 				d.acquire_crc() ;
 				lnk_vector.push_back(::move(d)) ;
 			}
@@ -1037,6 +1041,7 @@ namespace Engine {
 				continue ;
 			}
 			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real,{.sync_guard=&sync_guard}) , DflagsDflt|Dflag::Essential|Dflag::Required , first(false,true)/*parallel*/ } ;
+			d.full_refresh( false/*report_no_file*/ , job , {req} ) ;
 			d.acquire_crc() ;
 			dep_vector.push_back(::move(d)) ;
 		}
@@ -1046,14 +1051,15 @@ namespace Engine {
 		trace("done") ;
 	}
 
-	::pair<bool/*maybe_new_deps*/,bool/*triggered*/> JobData::_submit_special(ReqInfo& ri) { // never report new deps
-		Req     req            = ri.req         ;
-		Special special_       = special()      ;
-		bool    frozen_        = idx().frozen() ;
-		bool    maybe_new_deps = false          ;
-		Trace trace("_submit_special",idx(),special_,ri) ;
+	::pair<bool/*maybe_new_deps*/,bool/*triggered*/> JobData::_submit_special(ReqInfo& ri) {
+		Job     job            = idx()        ;
+		Req     req            = ri.req       ;
+		Special special_       = special()    ;
+		bool    frozen_        = job.frozen() ;
+		bool    maybe_new_deps = false        ;
+		Trace trace("_submit_special",job,special_,ri) ;
 		//
-		if (frozen_) req->frozen_jobs.push(idx()) ;                                          // record to repeat in summary
+		if (frozen_) req->frozen_jobs.push(job) ;                                          // record to repeat in summary
 		//
 		switch (special_) {
 			case Special::Dep          : status = Status::Ok ;                                                                       break ;
@@ -1084,7 +1090,8 @@ namespace Engine {
 					}
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
 				}
-				status = special_step==SpecialStep::Err ? Status::Forbidden : Status::Ok ;
+				run_status = RunStatus::Ok                                                   ;
+				status     = special_step==SpecialStep::Err ? Status::Forbidden : Status::Ok ;
 				audit_end_special( req , special_step , modified , worst_target ) ;
 			} break ;
 		DF}                                                                                                               // NO_COV

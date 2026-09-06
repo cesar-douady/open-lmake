@@ -29,7 +29,7 @@ namespace Cache {
 
 	// used for cache efficiency
 	// rate=0 means max_rate as per config
-	// +1 means job took 13.3% more time per byte of generated data
+	// each +1 means job took 6.45% more time per byte of generated data
 	using Rate = uint8_t ;
 
 	// can be tailored to fit needs

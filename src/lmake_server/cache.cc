@@ -167,7 +167,6 @@ namespace Cache {
 				throw ;
 			}
 			end.end_date = New ;                                                                   // date must be after files are copied
-			// ensure we take a single lock at a time to avoid deadlocks
 			trace("done") ;
 		}
 		return res ;

@@ -123,17 +123,17 @@ static ::umap_s<Codec::CodecRemoteSide> _mk_codecs(::string const& codecs) {
 
 int main( int argc , char* argv[] ) {
     block_sigs({SIGCHLD}) ;
-	//
+	// PER_AUTODEP_METHOD : complete list below
 	::string autodep_method_doc = "method used to detect deps (none, " ;
 	#if HAS_LD_AUDIT
 		autodep_method_doc << "ld_audit, " ;
 	#endif
-	autodep_method_doc << "ld_preload, ld_preload_jemalloc, ptrace)" ;
+	autodep_method_doc << "ld_preload, ld_preload_jemalloc, ptrace" ;
 	#if CAN_AUTODEP_SECCOMP
 		autodep_method_doc << ", seccomp" ;
 	#endif
+	autodep_method_doc << ')' ;
 	Syntax<CmdFlag> syntax {{
-		// PER_AUTODEP_METHOD : complete doc on line below
 		{ CmdFlag::AutoMkdir       , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                         } }
 	,	{ CmdFlag::ChrootDir       , { .short_name='c' , .has_arg=true  , .doc="dir which to chroot to before execution"                                                                     } }
 	,	{ CmdFlag::ChrootActions   , { .short_name='C' , .has_arg=true  , .doc="list of actions (comma separated) to carry out when chroot, actions are among 'user_name' and 'resolv_conf'" } }
@@ -169,6 +169,9 @@ int main( int argc , char* argv[] ) {
 	JobSpace  &      job_space   = jsrr.job_space   ;
 	AutodepEnv&      autodep_env = jsrr.autodep_env ;
 	Gather           gather      ;
+	//
+	autodep_env.file_sync = FileSync::None                                 ; // no parallel processing with lautodep
+	autodep_env.fqdn      = fqdn(cmd_line.flag_args[+CmdFlag::DomainName]) ; // call fqdn() before potential chroot in jsrr.enter()
 	//
 	try {
 		::string tmp_dir      = cmd_line.flags[CmdFlag::TmpDir] ? cmd_line.flag_args[+CmdFlag::TmpDir] : get_env("TMPDIR") ;
@@ -227,9 +230,6 @@ int main( int argc , char* argv[] ) {
 		) ;
 		if (cmd_line.flags[CmdFlag::ExpandEnv]) jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
-	//
-	autodep_env.file_sync = FileSync::None                                 ; // no parallel processing with lautodep
-	autodep_env.fqdn      = fqdn(cmd_line.flag_args[+CmdFlag::DomainName]) ; // call fqdn() before potential chroot in g_start_info.enter()
 	//
 	Status     status  ;
 	::map_ss   cmd_env = mk_map(jsrr.env) ;

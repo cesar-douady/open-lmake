@@ -39,8 +39,11 @@ namespace Codec {
 		/**/                                                      throw_unless( S_ISDIR(st.st_mode) , "not a dir : "                 ,dir_s,rm_slash ) ;
 		umask = ~st.st_mode & 0777 ; // ensure permissions on top-level dir are propagated to all underlying dirs and files
 		//
-		::string init_msg  = cat("echo <val> >",dir_s,AdminDirS,"file_sync # with <val> being one of none, dir or sync") ;
-		::string clean_msg = cat("rm -rf ",dir_s,rm_slash," ; mkdir ",dir_s,AdminDirS,rm_slash," ; ",init_msg          ) ;
+		::string init_msg ;
+		First    first    ;
+		init_msg << "echo <val> >"<<dir_s<<AdminDirS<<"file_sync # with <val> being one of " ;
+		for( FileSync fs : iota(All<FileSync>) ) init_msg << first("",", ")<<fs ;
+		::string clean_msg = cat("rm -rf ",dir_s,rm_slash," ; mkdir ",dir_s,AdminDirS,rm_slash," ; ",init_msg ) ;
 		chk_version( dir_s , { .chk=Maybe , .key="codec dir" , .init_msg=init_msg , .clean_msg=clean_msg , .umask=umask , .version=Version::Codec } ) ;
 		//
 		tab = dir_s ;

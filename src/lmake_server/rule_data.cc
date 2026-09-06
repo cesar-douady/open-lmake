@@ -218,11 +218,11 @@ namespace Engine {
 				::vmap_s<MatchEntry> static_matches[N<MatchKind>] ;                                                               // .
 				bool                 seen_top                     = false ;
 				bool                 seen_target                  = false ;
-				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                     // targets are a tuple (target_pattern,flags...)
+				for( auto const& [py_k,py_tkfs] : dct[field].as_a<Dict>() ) {                                                     // targets are a tuple (target_pattern,kind,flags...)
 					field = py_k.as_a<Str>() ;
 					Sequence const& pyseq_tkfs    = py_tkfs.as_a<Sequence>()                      ;
 					::string        target        =                    pyseq_tkfs[0].as_a<Str>()  ;                               // .
-					MatchKind       kind          = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                               // targets are a tuple (target_pattern,kind,flags...)
+					MatchKind       kind          = mk_enum<MatchKind>(pyseq_tkfs[1].as_a<Str>()) ;                               // .
 					bool            is_star       = false                                         ;
 					::set_s         missing_stems ;
 					bool            is_stdout     = field=="target"                               ;
@@ -460,11 +460,11 @@ namespace Engine {
 		return res ;
 	}
 
-	void RuleData::new_job_report( Delay exe_time , CoarseDelay cost , Tokens1 tokens1 ) const {
+	void RuleData::new_job_report( Delay exe_time_ , CoarseDelay cost , Tokens1 tokens1 ) const {
 		if (stats_weight<RuleWeight) stats_weight++ ;
 		//
 		Delay::Tick cost_per_token_delta = Delay(cost).val()/(tokens1+1) - cost_per_token.val() ;
-		Delay::Tick exe_time_delta       = exe_time   .val()             - exe_time      .val() ;
+		Delay::Tick exe_time_delta       = exe_time_  .val()             - exe_time      .val() ;
 		int64_t     tokens1_32_delta     = (uint64_t(tokens1)<<32)       - tokens1_32           ;
 		//
 		cost_per_token += Delay(New,cost_per_token_delta/stats_weight) ;
@@ -895,10 +895,11 @@ namespace Engine {
 					( match.flags.extra_tflags[ExtraTflag::Optional]      )
 				+	( match.flags.tflags      [Tflag     ::Phony   ] << 1 )
 				;
-				targets.emplace_back( match.pattern , flags ) ;          // keys and flags have no influence on matching, except Optional
+				targets.emplace_back( match.pattern , flags ) ;          // keys and flags have no influence on matching, except Optional and Phony
 			}
 		h += special         ;                                           // in addition to distinguishing special from other, this guarantees that shared rules have different crc's
 		h += stem_match_info ;
+		h += n_static_stems  ;
 		h += targets         ;
 		deps_attrs.update_hash( /*inout*/h , rules ) ;                   // no deps for source & anti
 		if (is_plain()) h += job_name  ;

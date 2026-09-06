@@ -381,7 +381,7 @@ namespace Engine {
 			} //!           vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			{	buildable = _gather_special_rule_tgts( name_ , known_rejected ) ;
 				//          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				if (has_job(false/*reliable*/)!=Yes) goto Return ;                                   // can ask for reliable has_job() as we are making it reliable
+				if (has_job(false/*reliable*/)!=Yes) goto Return ;                                   // ask for unreliable has_job() as we are precisely making it reliable
 				if (buildable==Buildable::Codec    ) {
 					dir = {} ;                                                                       // no dir analysis necessary as it may not be buildable
 					//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -679,6 +679,7 @@ namespace Engine {
 							} else if (ri.goal!=NodeGoal::Status) {                                                                // dont check disk if asked for Status
 								if (jt->running(true/*with_zombies*/))
 									/**/                                 reason = {JobReasonTag::BusyTarget    ,+idx()} ;
+								else if (jt.frozen())                    reason =  JobReasonTag::Frozen                 ;          // frozen job adopts disk content when run, dont wash it
 								else switch (manual_wash(ri,false/*query*/,false/*dangling*/)) {
 									case Manual::Ok         :                                                             break ;
 									case Manual::Unlnked    :            reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;

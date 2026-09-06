@@ -79,7 +79,7 @@ else :
 		open('slow_dep','w').write('slow-v2\n')
 
 		# ---- run 2 : while dut waits on 'slow', forget dut's deps (truncate to [st]) ----
-		p2 = ut.lmake('dut',changed=1,done=2,wait=False)
+		p2 = ut.lmake('dut',changed=1,done=2,rerun=...,wait=False)                    # dut may rerun if it has lost its deps too early
 		ut.wait_sync(0)                                                               # Slow restarted -> dut is parked waiting on slow
 		sp.run( ('lforget','-J','-d','dut') , universal_newlines=True , check=False )
 		ut.trigger_sync(1)                                                            # release Slow -> dut wakeup -> stale ri.iter -> BOOM

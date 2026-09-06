@@ -122,8 +122,8 @@ def top(new) :
 	return update(acc,new)
 
 def _qualify_key(kind,key,strong,is_python,seen) :
-	if not isinstance(key,str) : raise TypeError (f'{kind} key {key} is not a str'               )
-	if key in seen             : raise ValueError(f'{kind} key {key} already seen as {seen[key]}')
+	if not isinstance(key,str)  : raise TypeError (f'{kind} key {key} is not a str'               )
+	if kind!=seen.get(key,kind) : raise ValueError(f'{kind} key {key} already seen as {seen[key]}')
 	seen[key] = kind
 	if strong :
 		if not key.isidentifier() : raise ValueError(f'{kind} key {key} is not an identifier')
@@ -131,118 +131,6 @@ def _qualify_key(kind,key,strong,is_python,seen) :
 		if is_python :
 			try                : exec(f'{key}=None',{})
 			except SyntaxError : raise ValueError(f'{kind} key {key} is a python keyword')
-def qualify(attrs,is_python) :
-	seen = {}
-	for k in attrs.stems       .keys() : _qualify_key('stem'        ,k,True,is_python,seen)
-	for k in attrs.targets     .keys() : _qualify_key('target'      ,k,True,is_python,seen)
-	if attrs.__special__ : return
-	for k in attrs.side_targets.keys() : _qualify_key('side_targets',k,True,is_python,seen)
-	for k in attrs.side_deps   .keys() : _qualify_key('side_deps'   ,k,True,is_python,seen)
-	for key in ('dep','resource') :
-		dct = attrs[key+'s']
-		if callable(dct) : continue
-		for k in dct.keys() : _qualify_key(key,k,key=='dep',is_python,seen)
-
-def handle_inheritance(rule) :
-	# acquire rule properties by fusion of all info from base classes
-	combine = set()
-	paths   = {}
-	dct     = {'cmd':[]}                                                    # cmd is handled specially
-	# special case for cmd : it may be a function or a str, and base classes may want to provide 2 versions.
-	# in that case, the solution is to attach a shell attribute to the cmd function to contain the shell version
-	is_python = callable(getattr(rule,'cmd',None))                          # first determine if final objective is python or shell by searching the closest cmd definition
-	try :
-		for i,r in enumerate(reversed(rule.__mro__)) :
-			d = r.__dict__
-			if 'combine' in d :
-				for k in d['combine'] :
-					if k in dct and k not in combine : dct[k] = top(dct[k]) # if an existing value becomes combined, it must be uniquified as it may be modified by further combine's
-				combine = update(combine,d['combine'])                      # process combine first so we use the freshest value
-			if 'paths' in d : paths = update(paths,d['paths'])
-			for k,v in d.items() :
-				if k.startswith('__') and k.endswith('__') : continue       # do not process standard python attributes
-				if k=='combine'                            : continue
-				if k=='cmd' :                                               # special case cmd that has a very special behavior to provide base classes adapted to both python & shell cmd's
-					if is_python :
-						if not callable(v) : raise TypeError(f'{r.__name__}.cmd is not callable for python rule {rule.name}')
-					else :
-						if callable(v) and hasattr(v,'shell') : v = v.shell
-						if not isinstance(v,str)              : raise TypeError(f'{r.__name__}.cmd is not a str for shell rule {rule.name}')
-					dct[k].append(v)
-				elif k in combine :
-					if k in dct : dct[k] = update(dct[k],v,paths,k)
-					else        : dct[k] = top   (       v        )         # make a fresh copy as it may be modified by further combine's
-				else :
-					dct[k] = v
-	except Exception as e :
-		e.base  = r
-		e.field = k
-		raise
-	# reformat dct
-	attrs = pdict()
-	for k,v in dct.items() :
-		if k in StdAttrs :
-			if v is None : continue                                         # None is not transported
-			typ,dyn = StdAttrs[k]
-			if k=='cmd' :                                                   # special cases
-				attrs[k] = v
-			else :                                                          # generic cases
-				if typ and not ( dyn and callable(v) ) :
-					try :
-						if   callable(v)                                            : pass
-						elif typ in (tuple,list) and not isinstance(v,(tuple,list)) : v = typ((v,))
-						else                                                        : v = typ( v  )
-					except :
-						raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
-				attrs[k] = v
-		else :
-			attrs[k] = v
-	attrs.name        = rule.name
-	attrs.__special__ = rule.__special__
-	attrs.is_python   = is_python
-	qualify(attrs,is_python)
-	return attrs
-
-def find_static_stems(job_name) :
-	stems = set()
-	state = 'Literal'
-	key   = ''
-	depth = 0
-	for c in job_name :
-		with_re = False
-		if state=='Literal' :
-			if   c=='{' : state = 'SeenStart'
-			elif c=='}' : state = 'SeenStop'
-			continue
-		if state=='SeenStop' :
-			if c!='}' : break
-			state = 'Literal'
-			continue
-		if state=='SeenStart' :
-			if c=='{' :
-				state = 'Literal'
-				continue
-			state = 'Key'
-		if state=='Key' :
-			if c!='}' :
-				if c==':' : state  = 'Re'
-				else      : key   += c
-				continue
-		if state=='Re' :
-			if not( c=='}' and depth==0 ) :
-				if   c=='{' : depth += 1
-				elif c=='}' : depth -= 1
-				continue
-		key = key.strip()
-		if key and not key.endswith('*') :
-			if not key.isidentifier() : raise ValueError(f'key {key} must be an identifier')
-			stems.add(key)
-		key   = ''
-		state = 'Literal'
-	if state!='Literal'  :
-		if state=='SeenStop' : raise ValueError(f'spurious }} in job_name {job_name}')
-		else                 : raise ValueError(f'spurious {{ in job_name {job_name}')
-	return stems
 
 def finalize_dyn_expr( dyn_expr , for_cmd ) :
 	if not ( for_cmd or dyn_expr.dbg_info ) :
@@ -324,12 +212,14 @@ def lcl_mod_file(mod) :
 class Handle :
 	ThisPython = osp.realpath(sys.executable)
 	def __init__(self,rule) :
-		attrs         = handle_inheritance(rule)
-		module        = sys.modules[rule.__module__]
-		self.rule     = rule
-		self.attrs    = attrs
-		self.glbs     = (attrs,module.__dict__)
-		self.rule_rep = pdict(name=attrs.name)
+		self.seen_keys = {}
+		self._handle_inheritance(rule)
+		attrs = self.attrs
+		#
+		module         = sys.modules[rule.__module__]
+		self.rule      = rule
+		self.glbs      = (attrs,module.__dict__)
+		self.rule_rep  = pdict(name=attrs.name)
 		if attrs.get('stems') : self.rule_rep.stems = attrs.stems
 		if attrs.get('prio' ) : self.rule_rep.prio  = attrs.prio
 
@@ -343,9 +233,9 @@ class Handle :
 	def _fstring(self,x,mk_fstring=True,for_deps=False) :
 		if callable(x) : return True,x
 		if isinstance(x,(tuple,list,set)) :
-			res_is_dyn  = False
-			res_val = []
-			first = True
+			res_is_dyn = False
+			res_val    = []
+			first      = True
 			for c in x :
 				is_dyn,v    = self._fstring(c,mk_fstring,first and for_deps) # only transmit for_deps to first item of dep when it is a tuple
 				first       = False
@@ -368,6 +258,119 @@ class Handle :
 		else :
 			if SimpleStrRe.match(x)    : return False,static_fstring(x)      # v has no variable parts, can be interpreted statically as an f-string
 		return True,serialize.f_str(x)                                       # x is made an f-string
+
+	def _qualify(self) :
+		attrs = self.attrs
+		for k in attrs.stems       .keys() : _qualify_key('stem'        ,k,True,attrs.is_python,self.seen_keys)
+		for k in attrs.targets     .keys() : _qualify_key('target'      ,k,True,attrs.is_python,self.seen_keys)
+		if attrs.__special__ : return
+		for k in attrs.side_targets.keys() : _qualify_key('side_targets',k,True,attrs.is_python,self.seen_keys)
+		for k in attrs.side_deps   .keys() : _qualify_key('side_deps'   ,k,True,attrs.is_python,self.seen_keys)
+		for key in ('dep','resource') :
+			dct = attrs[key+'s']
+			if callable(dct) : continue
+			for k in dct.keys() : _qualify_key(key,k,key=='dep',attrs.is_python,self.seen_keys)
+
+	def _handle_inheritance(self,rule) :
+		# acquire rule properties by fusion of all info from base classes
+		combine = set()
+		paths   = {}
+		dct     = {'cmd':[]}                                                    # cmd is handled specially
+		# special case for cmd : it may be a function or a str, and base classes may want to provide 2 versions.
+		# in that case, the solution is to attach a shell attribute to the cmd function to contain the shell version
+		is_python = callable(getattr(rule,'cmd',None))                          # first determine if final objective is python or shell by searching the closest cmd definition
+		try :
+			for i,r in enumerate(reversed(rule.__mro__)) :
+				d = r.__dict__
+				if 'combine' in d :
+					for k in d['combine'] :
+						if k in dct and k not in combine : dct[k] = top(dct[k]) # if an existing value becomes combined, it must be uniquified as it may be modified by further combine's
+					combine = update(combine,d['combine'])                      # process combine first so we use the freshest value
+				if 'paths' in d : paths = update(paths,d['paths'])
+				for k,v in d.items() :
+					if k.startswith('__') and k.endswith('__') : continue       # do not process standard python attributes
+					if k=='combine'                            : continue
+					if k=='cmd' :                                               # special case cmd that has a very special behavior to provide base classes adapted to both python & shell cmd's
+						if is_python :
+							if not callable(v) : raise TypeError(f'{r.__name__}.cmd is not callable for python rule {rule.name}')
+						else :
+							if callable(v) and hasattr(v,'shell') : v = v.shell
+							if not isinstance(v,str)              : raise TypeError(f'{r.__name__}.cmd is not a str for shell rule {rule.name}')
+						dct[k].append(v)
+					elif k in combine :
+						if k in dct : dct[k] = update(dct[k],v,paths,k)
+						else        : dct[k] = top   (       v        )         # make a fresh copy as it may be modified by further combine's
+					else :
+						dct[k] = v
+		except Exception as e :
+			e.base  = r
+			e.field = k
+			raise
+		# reformat dct
+		attrs = pdict()
+		for k,v in dct.items() :
+			if k in StdAttrs :
+				if v is None : continue                                         # None is not transported
+				typ,dyn = StdAttrs[k]
+				if k=='cmd' :                                                   # special cases
+					attrs[k] = v
+				else :                                                          # generic cases
+					if typ and not ( dyn and callable(v) ) :
+						try :
+							if   callable(v)                                            : pass
+							elif typ in (tuple,list) and not isinstance(v,(tuple,list)) : v = typ((v,))
+							else                                                        : v = typ( v  )
+						except :
+							raise TypeError(f'bad format for {k} : cannot be converted to {typ.__name__}')
+					attrs[k] = v
+			else :
+				attrs[k] = v
+		attrs.name        = rule.name
+		attrs.__special__ = rule.__special__
+		attrs.is_python   = is_python
+		self.attrs = attrs
+		self._qualify()
+
+	def _set_static_stems(self) :
+		stems = set()
+		state = 'Literal'
+		key   = ''
+		depth = 0
+		for c in self.rule_rep.job_name :
+			with_re = False
+			if state=='Literal' :
+				if   c=='{' : state = 'SeenStart'
+				elif c=='}' : state = 'SeenStop'
+				continue
+			if state=='SeenStop' :
+				if c!='}' : break
+				state = 'Literal'
+				continue
+			if state=='SeenStart' :
+				if c=='{' :
+					state = 'Literal'
+					continue
+				state = 'Key'
+			if state=='Key' :
+				if c!='}' :
+					if c==':' : state  = 'Re'
+					else      : key   += c
+					continue
+			if state=='Re' :
+				if not( c=='}' and depth==0 ) :
+					if   c=='{' : depth += 1
+					elif c=='}' : depth -= 1
+					continue
+			key = key.strip()
+			if key and not key.endswith('*') :
+				_qualify_key('stem',key,True,self.attrs.is_python,self.seen_keys)
+				stems.add(key)
+			key   = ''
+			state = 'Literal'
+		if state!='Literal'  :
+			if state=='SeenStop' : raise ValueError(f'spurious }} in job_name {self.rule_rep.job_name}')
+			else                 : raise ValueError(f'spurious {{ in job_name {self.rule_rep.job_name}')
+		self.static_stems = stems
 
 	def _handle_val(self,key,rep_key=None,for_deps=False) :
 		if not rep_key               : rep_key = key
@@ -466,7 +469,7 @@ class Handle :
 			else : assert False,f'cannot find a suitable job_name for {self.rule_rep.name}'
 
 	def prepare(self) :
-		self.static_stems = find_static_stems(self.rule_rep.job_name)
+		self._set_static_stems()
 		self.aggregate_per_job = {'job_name','stems','target','targets'}
 		self.per_job = {
 			*self.static_stems
@@ -505,7 +508,7 @@ class Handle :
 		# once deps are evaluated, they are available for others
 		self.aggregate_per_job.add('deps')
 		if self.rule_rep.deps_attrs and self.rule_rep.deps_attrs.get('static') :
-			self.per_job.update(k for k in attrs.deps.keys() if k.isidentifier())    # special cases are not accessible from f-string's
+			self.per_job.update(k for k in attrs.deps.keys() if k.isidentifier())
 
 	def handle_submit_rsrcs(self) :
 		self._init()

@@ -94,7 +94,7 @@ in_addr_t SockFd::s_random_loopback() {
 ::string SockFd::s_addr_str(in_addr_t addr) {
 	if (!addr) return {} ;                    // no address available
 	//
-	::string res ; res.reserve(15) ;          // 3 digits per level + 5 digits for the port
+	::string res ; res.reserve(15) ;          // 3 digits per level + 3 "."
 	res <<      ((addr>>24)&0xff) ;           // dot notation is big endian
 	res <<'.'<< ((addr>>16)&0xff) ;
 	res <<'.'<< ((addr>> 8)&0xff) ;

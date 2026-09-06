@@ -55,15 +55,15 @@ namespace Backends {
 			// a workload is a sum of weighted exec times in ms, i.e. with 3 jobs for 4 tokens in parallel workload advances by 4 each ms
 			// all delays and dates are rounded to ms to avoid rounding errors
 			using Val    = uint64_t                  ;
-			using Tokens = Uint<sizeof(Tokens1)*8+1> ;                         // +1 to allow adding 1 without overflow
+			using Tokens = Uint<sizeof(Tokens1)*8+1> ;                   // +1 to allow adding 1 without overflow
 			// accesses
 			void operator>>(::string&) const ;
 			//services
-			void submit( Req r                   , Job ) ;                     // anticipate job execution
-			void add   ( Req r                   , Job ) ;                     // queue job if not already started
-			void kill  ( Req r                   , Job ) ;                     // finally decide not to execute it
-			Val  start ( ::vector<ReqIdx> const& , Job ) ;                     // start an anticipated job
-			Val  end   ( ::vector<ReqIdx> const& , Job ) ;                     // end a started job
+			void submit( Req r                   , Job ) ;               // anticipate job execution
+			void add   ( Req r                   , Job ) ;               // add a reason to anticipate job execution
+			void kill  ( Req r                   , Job ) ;               // finally decide not to execute it
+			Val  start ( ::vector<ReqIdx> const& , Job ) ;               // start an anticipated job
+			Val  end   ( ::vector<ReqIdx> const& , Job ) ;               // end a started job
 			//
 			void  open_req     ( Req r                                       )       { Trace trace("Workload::open_req" ,self,r) ; _queued_cost[+r] = 0 ; }
 			void  close_req    ( Req r                                       )       { Trace trace("Workload::close_req",self,r) ;                        }
@@ -73,15 +73,15 @@ namespace Backends {
 			void _refresh() ;
 			// data
 			Mutex<MutexLvl::Workload> mutable _mutex               ;
-			Val                               _ref_workload        = 0 ;       // total workload at ref_date
-			Pdate                             _ref_date            ;           // later than any job start date and end date, always rounded to ms
-			::umap<Job,Pdate>                 _eta_tab             ;           // jobs whose eta is post ref_date
-			::set<::pair<Pdate,Job>>          _eta_set             ;           // same info, but ordered by dates
-			Val                               _reasonable_workload = 0 ;       // sum of (eta-_ref_date) in _eta_tab
-			JobIdx                            _running_tokens      = 0 ;       // sum of tokens for all running jobs
-			JobIdx                            _reasonable_tokens   = 0 ;       // sum ok tokens in _eta_tab
+			Val                               _ref_workload        = 0 ; // total workload at ref_date
+			Pdate                             _ref_date            ;     // later than any job start date and end date, always rounded to ms
+			::umap<Job,Pdate>                 _eta_tab             ;     // jobs whose eta is post ref_date
+			::set<::pair<Pdate,Job>>          _eta_set             ;     // same info, but ordered by dates
+			Val                               _reasonable_workload = 0 ; // sum of (eta-_ref_date) in _eta_tab
+			JobIdx                            _running_tokens      = 0 ; // sum of tokens for all running jobs
+			JobIdx                            _reasonable_tokens   = 0 ; // sum ok tokens in _eta_tab
 			//
-			::array<Atomic<Delay::Tick>,size_t(1)<<NReqIdxBits> _queued_cost ; // use plain integer so as to use atomic inc/dec instructions because schedule/cancel are called w/o lock
+			::array<Delay::Tick,size_t(1)<<NReqIdxBits> _queued_cost ;
 		} ;
 
 		struct StartEntry {
@@ -133,7 +133,7 @@ namespace Backends {
 			static bool            s_ready     (Tag) ;
 			static ::string const& s_config_err(Tag) ;
 			//
-			static void s_config       ( Tag , Config::Backend const& ) ;                                        // send warnings on first time only
+			static void s_config       ( Tag , Config::Backend const& ) ;
 			static void s_record_thread( char thread_key , ::jthread& ) ;
 			static void s_finalize     (                              ) ;
 			// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
@@ -151,20 +151,21 @@ namespace Backends {
 			static void s_launch      (     ) ;
 			//
 			static Pdate s_submitted_eta(Req r) { return _s_workload.submitted_eta(r) ; }
-			// called by job_exec thread
-			static ::string/*msg*/          s_start            ( Tag , Job             ) ;                       // called by job_exec  thread, sub-backend lock must have been takend by caller
-			static ::pair_s<bool/*retry*/>  s_end              ( Tag , Job    , Status ) ;                       // .
-			static ::vector<Job>            s_kill_waiting_jobs( Tag , Req={}          ) ;                       // kill all waiting jobs for this req (all if 0), return killed jobs
-			static void                     s_kill_job         ( Tag , Job             ) ;                       // job must be spawned
-			static void                     s_heartbeat        ( Tag                   ) ;                       // called by heartbeat thread, sub-backend lock must have been takend by caller
-			static ::pair_s<HeartbeatState> s_heartbeat        ( Tag , Job             ) ;                       // called by heartbeat thread, sub-backend lock must have been takend by caller
+			// called by various threads
+			static ::string/*msg*/          s_start    ( Tag , Job          ) ;                                  // called by job_exec  thread, sub-backend lock must have been takend by caller
+			static ::pair_s<bool/*retry*/>  s_end      ( Tag , Job , Status ) ;                                  // .
+			static void                     s_heartbeat( Tag                ) ;                                  // called by heartbeat thread, sub-backend lock must have been takend by caller
+			static ::pair_s<HeartbeatState> s_heartbeat( Tag , Job          ) ;                                  // called by heartbeat thread, sub-backend lock must have been takend by caller
+			// called by main thread
+			static ::vector<Job> s_kill_waiting_jobs( Tag , Req={} ) ;                                           // kill all waiting jobs for this req (all if 0), return killed jobs
+			static void          s_kill_job         ( Tag , Job    ) ;                                           // job must be spawned
 			//
 		protected :
 			static void s_register( Tag t , Backend& be ) {
 				s_tab[+t] = &be ;
 			}
 		private :
-			static void _s_kill_req              ( Req={}                                                    ) ; // kill all if req==0
+			static void _s_kill_req              ( Req={}                                                    ) ; // kill all if !req
 			static void _s_wakeup_remote         ( Job , StartEntry::Conn const& , Pdate start , JobMngtProc ) ;
 			static void _s_heartbeat_thread_func ( ::stop_token                                              ) ;
 			static void _s_handle_job_start      ( JobStartRpcReq&& , Fd={}                                  ) ;
@@ -220,7 +221,7 @@ namespace Backends {
 			//
 			virtual ::vmap_ss mk_lcl( ::vmap_ss&& /*rsrcs*/ , ::vmap_s<size_t> const& /*capacity*/ , JobIdx ) const { return {} ; } // map resources for this backend to local resources
 		//
-		virtual ::vmap_s<size_t> const& capacity() const { FAIL_PROD("only for local backend") ; }                              // NO_COV
+		virtual ::vmap_s<size_t> const& capacity() const { FAIL_PROD("only for local backend") ; }                                  // NO_COV
 	protected :
 		::vector_s acquire_cmd_line( Tag , Job , ::vector<ReqIdx>&& , ::vmap_ss&& rsrcs , SubmitInfo&& ) ; // must be called once before job is launched, SubmitInfo must be the operator| of ...
 		/**/                                                                                               // ... the submit/add_pressure corresponding values for the job
@@ -242,6 +243,7 @@ namespace Backends {
 	inline void  Backend::Workload::add   ( Req r , Job j ) { Trace trace("Workload::add"   ,self,r,j) ; Lock lock{_mutex} ; if (!_eta_tab.contains(j)) _queued_cost[+r] += Delay(j->cost()).val() ; }
 	inline void  Backend::Workload::kill( Req r , Job j ) {
 		Trace trace("Workload::kill",self,r,j) ;
+		Lock lock{_mutex} ;
 		Delay::Tick dly = Delay(j->cost()).val() ;
 		SWEAR( _queued_cost[+r]>=dly , _queued_cost[+r] , dly ) ;
 		_queued_cost[+r] -= dly ;

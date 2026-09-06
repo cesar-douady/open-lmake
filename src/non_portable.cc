@@ -37,18 +37,18 @@ namespace NonPortable {
 	Bool3 is_32_from_elf(const char* elf_hdr) {
 		if (::strncmp(elf_hdr,"\177ELF",4)!=0) return  Maybe ; // not an elf
 		switch (elf_hdr[EI_CLASS]) {
-			case ELFCLASS64 : return Maybe&IS_32 ;             // 64-bit elf are not recognized in 64-bit hosts
+			case ELFCLASS64 : return Maybe&IS_32 ;             // 64-bit elf are only recognized in 64-bit hosts
 			case ELFCLASS32 : break              ;             // need to further analyze to manage -mx32 mode which appears as 32-bit elf with 64-bits architecture
 			default         : return Maybe       ;             // not an elf (or at least not reconizable)
 		}
 		if (reinterpret_cast<Elf32_Ehdr const*>(elf_hdr)->e_machine==EM_X86_64) return Maybe&IS_32 ; // -mx32, only recognized in 64-bit hosts
-		else                                                                    return No   &IS_64 ; // real 32-bit, only reported as 32-bit in 64-bit hosts
+		else                                                                    return Yes  &IS_64 ; // real 32-bit, only reported as 32-bit in 64-bit hosts
 	}
 
 	template<bool Set,bool Is32=false> static void _get_set( pid_t pid , UserRegsStruct<Is32>&/*inout*/ regs ) {
 		errno = 0 ;
 		#if __aarch64__ || __arm__
-			Iovec iov { .iov_base=&regs , .iov_len=sizeof(regs) }                                           ; // read/write n_words registers
+			Iovec iov { .iov_base=&regs , .iov_len=sizeof(regs) }                                           ;
 			long  rc  = ::ptrace( Set?PTRACE_SETREGSET:PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
 			SWEAR_PROD( iov.iov_len==sizeof(regs) , iov.iov_len ) ;                                           // check all asked regs have been handled
 		#else
@@ -56,8 +56,8 @@ namespace NonPortable {
 		#endif
 		throw_unless( rc==0 , "cannot ",Set?"set":"get"," (",StrErr(),") regs" ) ;
 	} //!                                                                                                                                              Set
-	template<bool Is32=false> static UserRegsStruct<Is32> _get(pid_t pid                           ) { UserRegsStruct<Is32> regs={/*zero*/} ; _get_set<false,Is32>(pid,       regs) ; return regs ; }
-	template<bool Is32=false> static void                 _set(pid_t pid,UserRegsStruct<Is32>& regs) {                                        _get_set<true ,Is32>(pid,/*out*/regs) ;               }
+	template<bool Is32=false> static UserRegsStruct<Is32> _get(pid_t pid                           ) { UserRegsStruct<Is32> regs={/*zero*/} ; _get_set<false,Is32>(pid,/*out*/regs) ; return regs ; }
+	template<bool Is32=false> static void                 _set(pid_t pid,UserRegsStruct<Is32>& regs) {                                        _get_set<true ,Is32>(pid,       regs) ;               }
 
 	// info from : https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/syscalls
 

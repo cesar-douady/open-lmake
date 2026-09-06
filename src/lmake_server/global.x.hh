@@ -189,7 +189,7 @@ namespace Engine {
 		// data
 	public :
 		ReqProc    proc    = ReqProc::None ;
-		Req        req     = {}            ;                                                                                                            // if proc==Close | Kill | Make
+		Req        req     = {}            ;                                                                                                            // if proc==Close | Kill | None | Make
 		Fd         fd      = {}            ;                                                                                                            // if proc!=Close
 		::vector_s files   = {}            ;                                                                                                            // if proc>=HasHargs
 		ReqOptions options = {}            ;                                                                                                            // .

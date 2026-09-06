@@ -289,7 +289,7 @@ void FileAction::operator>>(::string& os) const {               // START_OF_NO_C
 						msg << "quarantined "<<mk_file(f)<<'\n' ;
 					} else {
 						unlnk(f,{.dir_ok=true,.sync_guard=sync_guard}) ;
-						if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) {                                   // if a file has been unlinked, its dir necessarily exists
+						if ( a.tag==FileActionTag::None && !a.tflags[Tflag::NoWarning] ) {
 							/**/                              msg << "unlinked "      ;
 							if      (empty                  ) msg << "(empty) "       ;
 							else if (sig.tag()==FileTag::Dir) msg << "(dir) "         ;
@@ -614,7 +614,7 @@ struct ChrootFiles {
 	::string                  chroot_dir      = {}      ;
 	::string                  user_chroot_dir = {}      ;
 	::vector<UserTraceEntry>* user_trace      = nullptr ;
-	::umap_s<bool/*created*/> store           = {}      ;                                                                       // Maybe means dir, Yes means file, No means uphill of created dir/file
+	::umap_s<bool/*created*/> store           = {}      ;
 } ;
 
 void JobSpace::enter(
@@ -700,7 +700,7 @@ void JobSpace::enter(
 				int   wstatus   ;
 				pid_t child_pid = ::waitpid( pid , &wstatus , 0/*flags*/ ); throw_unless(child_pid!=-1 , "cannot wait (",StrErr(),") for job to finsh" ) ;
 				try { unlnk( phy_tmp_dir_s , {.abs_ok=true,.dir_ok=true} ) ; } catch (::string const&) {}                   // clean tmp from outside namespace when child is done
-				::_exit(mimic_wstatus(wstatus)) ;                                                                           // all the cleanup is done by the child, so nothing to do here
+				::_exit(mimic_wstatus(wstatus)) ;                                                                           // all other cleanups are done by the child, so nothing to do here
 			} catch (::string const& e) {
 				if (+e) Fd::Stderr.write(e+'\n') ;
 			} catch (...) {}
@@ -1033,7 +1033,7 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( Delay exe_time , ::vmap_s
 				case FileTag::Empty : trace("empty",tn,tag) ; break ;
 			DN}
 		}
-		data_fd.flush() ;                                                                                                              // update data_fd.sz
+		data_fd.flush() ;                                                                                                              // update data_fd.z_sz
 		trace("done",reply.upload_key,data_fd.z_sz) ;
 		return { .upload_key=reply.upload_key , .z_sz=data_fd.z_sz } ;
 	} catch (::string const& e) {

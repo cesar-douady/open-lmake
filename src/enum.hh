@@ -67,14 +67,16 @@ namespace EnumHelper {
 
 	// XXX? : support signed enum's if necessary
 
-	// search by dichotomy, assuming E(Start) has a value and E(Start+Cnt) does not
-	template<UEnum E,size_t Start=0,size_t Cnt=size_t(Max<EnumInt<E>>)+1> constexpr size_t search_enum_sz() { // ensure we resist to size_t based enums
-		if constexpr (Cnt==1) return Start+1 ;
-		//
-		constexpr size_t CntLeft  = Cnt/2         ;
-		constexpr size_t CntRight = Cnt - CntLeft ;
-		if constexpr (+EnumValNameView<E(Start+CntLeft)>) return search_enum_sz<E,Start+CntLeft,CntRight>() ;
-		else                                              return search_enum_sz<E,Start        ,CntLeft >() ;
+	// search by dichotomy, assuming E(Start) has a value and E(Start+Cnt1+1) does not
+	template<UEnum E,size_t Start=0,size_t Cnt1=size_t(Max<EnumInt<E>>)> constexpr size_t search_enum_sz() { // ensure we resist to size_t based enums
+		if constexpr (Cnt1==0) {
+			return Start+1 ;
+		} else {
+			constexpr size_t Cnt1Left  = (Cnt1-1)/2          ;
+			constexpr size_t Cnt1Right = Cnt1 - Cnt1Left - 1 ;
+			if constexpr (+EnumValNameView<E(Start+Cnt1Left+1)>) return search_enum_sz<E,Start+Cnt1Left+1,Cnt1Right>() ;
+			else                                                 return search_enum_sz<E,Start           ,Cnt1Left >() ;
+		}
 	}
 
 	template<UEnum E> constexpr size_t N   = search_enum_sz<E>() ;

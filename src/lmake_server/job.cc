@@ -499,7 +499,7 @@ namespace Engine {
 				} else {
 					if (td.written) {
 						// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
-						if ( +start_date && target->sig.date>start_date ) {                                    // if no start_date.p, job did not execute, it cannot generate a clash
+						if ( +start_date && target->sig.date>start_date ) {                                    // if no start_date, job did not execute, it cannot generate a clash
 							// /!\ This may be very annoying !
 							// A job was running in parallel with us and there was a clash on this target.
 							// There are 2 problems : for us and for them.

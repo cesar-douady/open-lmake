@@ -23,7 +23,7 @@ class f_str(str) :                                                              
 		if '"""' not in self and self[-1]!='"'                     : return  'fr"""'+self     +'"""'
 		if "'''" not in self and self[-1]=="'"                     : return "(fr'''"+self[:-1]+"'''+\"'\")" # put last quote outside f-string as \ protection is forbidden within fr-strings
 		if '"""' not in self and self[-1]=='"'                     : return '(fr"""'+self[:-1]+'""""\'"\')' # .
-		if (sys.version_info.major,sys.version_info.minor)>=(3.13) : return  'f'+str.__repr__(self)         # until python3.13, \'s are forbidden within {}
+		if (sys.version_info.major,sys.version_info.minor)>=(3.12) : return  'f'+str.__repr__(self)         # until python3.11, \'s are forbidden within {}
 		raise SyntaxError(f'string quotes are too complex : {self}')
 
 class based_dict :                # used to add entries to a dict provided as a callable
@@ -34,7 +34,7 @@ class based_dict :                # used to add entries to a dict provided as a 
 	def __call__(self,*args,**kwds) :
 		return { **base(*args,**kwds) , **inc }
 
-__all__ = ('get_src','f_str','based_dict') # everything else is private
+__all__ = ('get_expr','get_src','f_str','based_dict') # everything else is private
 
 comment_re = re.compile(r'^\s*(#.*)?$')
 

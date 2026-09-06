@@ -88,7 +88,7 @@ endif
 #
 # Manifest
 #
-IDX_DIR := $(wildcard .git)
+IDX_DIR := $(shell git rev-parse --git-dir 2>/dev/null)
 ifeq ($(IDX_DIR),)
 ifeq ($(wildcard Manifest),)
 $(error file Manifest must exist with the sorted list of sources. If a fresh repo, consider : find . -mindepth 1 -type d -o -print | sed `s:^\./::' | sort -u > Manifest)
@@ -112,16 +112,16 @@ TAB   := $()	$()
 
 # XXX! : add -fdebug_prefix-map=$(REPO_ROOT)=??? when we know a sound value (e.g. the dir in which sources will be installed)
 HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibility=hidden
-# syntax for LMAKE_FLAGS : (O[01234])?g?d?T?l?(S[at])?P?C?
-# - O[0123] : compiler optimization level (4 means -O3 -flto), defaults to 1 if profiling else 3
-# - g       : dont ease debugging
-# - d       : define -DNDEBUG
-# - T       : -DTRACE
-# - l       : -static-libstdc++
-# - Sa      : -fsanitize address
-# - St      : -fsanitize threads
-# - P       : -pg
-# - C       : coverage (not operational yet)
+# syntax for LMAKE_FLAGS : (O[01234])?g?d?[TU]?l?(S[at])?P?C?
+# - O[0-4] : compiler optimization level (4 means -O3 -flto), defaults to 0 if coverage, 1 if profiling else 3
+# - g      : dont ease debugging
+# - d      : define -DNDEBUG
+# - TU     : -DTRACE (fast mmap based if T, slower write based if U)
+# - l      : no -static-libstdc++
+# - Sa     : -fsanitize address
+# - St     : -fsanitize threads
+# - P      : -pg
+# - C      : coverage (not operational yet)
 LTO_FLAGS        := -O3 $(if $(findstring gcc,$(CXX_FLAVOR) ) , -flto=2 , -flto )
 EXTRA_LINK_FLAGS :=
 EXTRA_LINK_FLAGS := $(if $(findstring O4,$(LMAKE_FLAGS) ) , $(LTO_FLAGS) , $(EXTRA_LINK_FLAGS)     )
@@ -1064,7 +1064,6 @@ $(DEBIAN_TAG)-%_source.changes : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 	( cd $(DEBIAN_DIR)-$$RELEASE ; MAKEFLAGS= MAKELEVEL= debuild -S -us -k$$KEY ) >$@.log
 	@echo upload command : dput my-ppa $@
 
-# ensure bin and src package constructions are serialized
 $(DEBIAN_TAG).bin_stamp : $(DEBIAN_TAG).orig.tar.gz $(DEBIAN_DEBIAN)
 	@echo generate bin package in $(DEBIAN_DIR)-bin
 	@rm -rf $(DEBIAN_DIR)-bin

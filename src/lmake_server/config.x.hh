@@ -105,7 +105,7 @@ namespace Engine {
 	protected :
 		void _compile() ;
 		// data
-		// /!\ default values must stay in sync with _lib/lmake/config.src.py
+		// /!\ default values should stay in sync with _lib/lmake/config.src.py
 	public :
 		// START_OF_VERSIONING REPO
 		::vmap_s<::vmap_ss> caches            ;
@@ -215,7 +215,7 @@ namespace Engine {
 			if (IsIStream<S>) booted = true ;  // if config comes from disk, it is booted
 		}
 		::string pretty_str() const ;
-		void open() ;                          // send warnings on first time only
+		void open() ;
 		ConfigDiff diff(Config const& other) {
 			if (!(ConfigClean ::operator==(other))) return ConfigDiff::Clean  ;
 			if (!(ConfigStatic::operator==(other))) return ConfigDiff::Static ;

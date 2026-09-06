@@ -3408,7 +3408,13 @@ If 2 externally generated codes collide, a numerical suffix is appended or incre
 <p>Another scheme, much lighter but that requires more system level support, is to share a dir among repo's.
 In that case, all associations are stored as individual files within this dir.</p>
 <p>In cases where adequate precautions cannot be determined automatically (e.g. if the dir is mounted through overlay),
-such a dir may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code> or <code>sync</code> for choosing the method to ensure proper consistent operations.</p>
+such a dir may contain a file <code>LMAKE/file_sync</code> containing one of <code>auto</code>, <code>none</code>, <code>dir</code>, <code>readdir</code>, <code>afs</code>, <code>beegfs</code>, <code>ceph</code>, <code>gpfs</code>, <code>lustre</code>, <code>nfs</code>, <code>ocfs2</code>
+for choosing the method to ensure proper consistent operations.</p>
+<ul>
+<li><code>auto</code> determines automatically a suitable method if possible</li>
+<li><code>none</code>, <code>dir</code>, <code>readdir</code> are actual methods used to ensure synchronization</li>
+<li>file system names are methods suitable for named file systems and are mapped to one of the actual methods</li>
+</ul>
 <h2 id="format"><a class="header" href="#format">format</a></h2>
 <p>A dir containing an association table can be edited by hand to customize codes.
 Each assocation <code>code</code>&lt;-&gt;<code>value</code> is recorded as :</p>

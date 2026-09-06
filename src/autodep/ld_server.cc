@@ -19,7 +19,6 @@ inline bool started() { return AutodepLock::t_active ; } // no auto-start for se
 // - if a thread A calls dlsym and at the same time thread B does a fork
 // - then if the child calls dlsym before exec, it will dead-lock
 // - this happens if get_orig needs to call dlsym
-// note that when not in server, _g_mutex protects us (but it is not used in server when not spying accesses)
 // note also that we cannot put s_libcall_tab in a static outside get_orig as get_orig may be called from global init, before this static initialization
 static constexpr bool _get_orig_cmp_cstr( const char* a , const char* b ) {
 	// XXX/ : ::strcmp is not constexpr with gcc-11, so do it by hand

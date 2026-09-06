@@ -293,7 +293,7 @@ template<class T> requires( requires { typename T::key_type ; } ) struct Serdese
 	}
 	template<IsIStream S> static void s_serdes( S& is , T& x ) {
 		using KeyType   = ::remove_const_t<typename T::key_type>                                                                    ;
-		using ValueType = conditional_t<requires { typename T::value_type ; } , ::pair<KeyType,typename T::mapped_type> , KeyType > ;
+		using ValueType = conditional_t<requires { typename T::mapped_type ; } , ::pair<KeyType,typename T::mapped_type> , KeyType > ;
 		//
 		SerdesSz n = deserialize<SerdesSz>(is) ;
 		if constexpr ( requires (T t) { t.reserve(0) ; } ) if ( n<is.size() && n<1024 ) x.reserve(n) ;              // limit reallocation while avoiding memory crash in case of junk message

@@ -60,12 +60,13 @@ namespace Engine::Makefiles {
 	}
 
 	// dep file line format :
-	// - first dep is special, marked with *, and provide lmake_root
-	// - first char is file existence (+) or non-existence (!)
-	// - then file name
+	// - first char determines kind of line (existing dep, non-existing dep, env variable etc.)
+	// - then pertinent info (file name, dir name, env variable name and value, etc.)
 	// dep check is satisfied if each dep :
-	// - has a date before dep_file's date (if first char is +)
-	// - does not exist                    (if first char is !)
+	// - has a date before dep_file's date for existing dep
+	// - does not exist                    for non-existing dep
+	// - env variable has the correct value
+	// - etc
 	static ::string _chk_deps( Action action , ::umap_ss const& user_env , ::string const& startup_dir_s ) { // startup_dir_s for diagnostic purpose only
 		Trace trace("_chk_deps",action) ;
 		//
@@ -268,7 +269,7 @@ namespace Engine::Makefiles {
 	) {
 		::string const& config_action = A==Action::Rules ? g_config->rules_action : g_config->srcs_action ;
 		Trace trace("_refresh_rules_srcs",A,changed,config_action) ;
-		if ( !config_action && !py_info && changed==No ) return Maybe/*done*/ ;                                      // sources has not been read
+		if ( !config_action && !py_info && changed==No ) return Maybe/*done*/ ;                                      // rules/sources havee not been read
 		::string  reason      ;
 		Gil       gil         ;                                                                                      // ensure Gil is taken when py_new_info is destroyed
 		Ptr<Dict> py_new_info ;

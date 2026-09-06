@@ -60,21 +60,21 @@ namespace Disk {
 			if (c!='/') return ;
 			size_t      sz  = res.size()-1    ;
 			const char* end = res.data() + sz ;
-			//                                                                  // if test ok, else, res[:-1] is (x is single wildcard, u is not ., y is not /, z is not / nor .) :
-			if (sz==0       ) { if (!is_abs) res.resize(sz  ) ; return      ; } //                *x if not abs, it must have been preceded by ./ which has been suppressed, it is an empty component
-			if (end[-1]=='/') {              res.resize(sz  ) ; return      ; } //     */         *y suppress empty component
-			if (end[-1]!='.')                                   return      ;   //     *z         *.
-			if (sz==1       ) {              res.resize(sz-1) ; return      ; } //      .        *x. suppress leading ., if fragment => could be preceded by z, hence . must be kept
-			if (end[-2]=='/') {              res.resize(sz-1) ; return      ; } //    */.        *y. suppress internal .
-			if (end[-2]!='.')                                   return      ;   //    *z.        *..
-			if (sz==2       )                                   return      ;   //     ..       *x..
-			if (end[-3]!='/')                                   return      ;   //   *y..       */..
-			if (sz==3       ) {              res.resize(sz-2) ; return      ; } //    /..      *x/.. suppress absolute ..
-			if (end[-4]!='.')                                   goto DotDot ;   //  *y/..      *./..
-			if (sz==4       )                                   goto DotDot ;   //   ./..     *x./..
-			if (end[-5]!='.')                                   goto DotDot ;   // *u./..     *../..
-			if (sz==5       )                                   return      ;   //  ../..    *x../.. .. after .. is canon
-			if (end[-6]=='/')                                   return      ;   // y../..    */../.. .. after .. is canon
+			//                                                                  // if test ok, else,  res[:-1] is (x is single wildcard, u is not ., y is not /, z is not / nor .) :
+			if (sz==0       ) { if (!is_abs) res.resize(sz  ) ; return      ; } //                 *x if not abs, it must have been preceded by ./ which has been suppressed, it is an empty component
+			if (end[-1]=='/') {              res.resize(sz  ) ; return      ; } //      */         *y suppress empty component
+			if (end[-1]!='.')                                   return      ;   //      *z         *.
+			if (sz==1       ) {              res.resize(sz-1) ; return      ; } //       .        *x. suppress leading ., if fragment => could be preceded by z, hence . must be kept
+			if (end[-2]=='/') {              res.resize(sz-1) ; return      ; } //     */.        *y. suppress internal .
+			if (end[-2]!='.')                                   return      ;   //     *z.        *..
+			if (sz==2       )                                   return      ;   //      ..       *x..
+			if (end[-3]!='/')                                   return      ;   //    *y..       */..
+			if (sz==3       ) {              res.resize(sz-2) ; return      ; } //     /..      *x/.. suppress absolute ..
+			if (end[-4]!='.')                                   goto DotDot ;   //   *y/..      *./..
+			if (sz==4       )                                   goto DotDot ;   //    ./..     *x./..
+			if (end[-5]!='.')                                   goto DotDot ;   //  *u./..     *../..
+			if (sz==5       )                                   return      ;   //   ../..    *x../.. .. after .. is canon
+			if (end[-6]=='/')                                   return      ;   // */../..     y../.. .. after .. is canon
 		DotDot :
 			size_t pos = res.rfind('/',sz-4) ; if (pos==Npos) pos = 0 ; else pos += 1 ; // pos is char after / (or 0 if not found)
 			res.resize(pos) ;                                                           // parent dir is plain (not ..), suppress it
@@ -204,15 +204,15 @@ namespace Disk {
 	}
 
 	bool/*done*/ unlnk( FileRef file , _UnlnkAction action ) {
-		/**/                                              SWEAR_PROD( +file                           , action.abs_ok ) ; // do not unlink cwd
-		if ( !action.abs_ok                             ) SWEAR_PROD( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
-		if ( ::unlinkat(file.at,file.file.c_str(),0)==0 ) return true /*done*/ ;
+		/**/                                              SWEAR_PROD( +file.file        , action.abs_ok ) ; // do not unlink reference dir (usually cwd)
+		if ( !action.abs_ok                             ) SWEAR_PROD( is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
+		if ( ::unlinkat(file.at,file.file.c_str(),0)==0 ) return true/*done*/ ;
 		switch (errno) {
 			case ENOENT       :
 			case ENOTDIR      :
-			case ENAMETOOLONG : return false/*done*/ ;                                                                    // file does not exist
+			case ENAMETOOLONG : return false/*done*/ ;                                                      // file does not exist
 			case EISDIR       :
-				if (!action.dir_ok) return false/*done*/ ;                                                                // being a dir is as not existing, unless we expect a dir
+				if (!action.dir_ok) return false/*done*/ ;                                                  // being a dir is as not existing, unless we expect a dir
 				unlnk_inside_s({file.at,with_slash(file.file)},action) ;
 				if (action.sync_guard) action.sync_guard->change(file) ;
 				throw_unless( ::unlinkat(file.at,file.file.c_str(),AT_REMOVEDIR)==0 , "cannot unlink dir (",StrErr(),") ",file ) ;
@@ -250,7 +250,7 @@ namespace Disk {
 
 	void mk_dir_empty_s( FileRef dir_s , _UnlnkAction action ) {
 		try                     { unlnk_inside_s(dir_s,action                         ) ; }
-		catch (::string const&) { mk_dir_s      (dir_s,{.sync_guard=action.sync_guard}) ; } // ensure tmp dir exists
+		catch (::string const&) { mk_dir_s      (dir_s,{.sync_guard=action.sync_guard}) ; } // dir is created if necessary
 	}
 
 	void sym_lnk( FileRef file , ::string const& target , _CreatAction action ) {
@@ -299,42 +299,40 @@ namespace Disk {
 		return res ;
 	}
 
-	size_t/*pos*/ mk_dir_s( FileRef dir_s , _CreatAction action ) {
-		if (!dir_s.file) return Npos ;                                                                                    // nothing to create
+	size_t/*n_created*/ mk_dir_s( FileRef dir_s , _CreatAction action ) {
+		if (!dir_s.file) return 0/*n_created*/ ;                                                                        // nothing to create
 		//
-		action.mod = 0777 ;                                                                                               // generally speaking restring dirs is useless, use whatever umask says
+		action.mod = 0777 ;                                                                                             // generally speaking restring dirs is useless, use whatever umask says
 		//
-		::vector_s  to_mk_s { dir_s.file }              ;
-		const char* msg     = nullptr                   ;
-		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                                                 // return the pos of the / between existing and new components
+		::vector_s  to_mk_s { dir_s.file } ;
+		const char* msg     = nullptr      ;
+		size_t      res     = 0            ;
 		while (+to_mk_s) {
-			::string& d_s = to_mk_s.back() ;                                                                              // parents are after children in to_mk
+			::string& d_s = to_mk_s.back() ;                                                                            // parents are after children in to_mk
 			if (action.sync_guard                               ) action.sync_guard->change({dir_s.at,d_s}) ;
 			if (::mkdirat(dir_s.at,d_s.c_str(),action.mod1())==0) {
 				if ( mode_t mod2=action.mod2() ; +mod2 ) { [[maybe_unused]] int rc = ::fchmodat( dir_s.at , d_s.c_str() , mod2 , 0/*flags*/ ) ; }
-				pos++ ;
+				res++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                                             // done
+			}                                                                                                           // done
 			switch (errno) {
 				case EEXIST :
-					if ( action.force && FileInfo({dir_s.at,d_s},{.sync_guard=action.sync_guard}).tag()!=FileTag::Dir ) { // retry
+					if ( action.force && FileInfo({dir_s.at,d_s},{.sync_guard=action.sync_guard}).tag()!=FileTag::Dir ) // retry
 						unlnk({dir_s.at,d_s},{.abs_ok=true,.sync_guard=action.sync_guard} ) ;
-					} else {                                                                                              // done
-						pos = d_s.size()-1 ;
+					else                                                                                                // done
 						to_mk_s.pop_back() ;
-					}
 				break ;
 				case ENOENT :
-					if ( action.mk_dir && has_dir(d_s)) to_mk_s.push_back(dir_name_s(d_s)) ;                              // retry after parent is created
-					else                                msg = "cannot create top dir" ;                                   // if ENOTDIR, a parent is not a dir, it will not be fixed up
+					if ( action.mk_dir && has_dir(d_s)) to_mk_s.push_back(dir_name_s(d_s)) ;                            // retry after parent is created
+					else                                msg = "cannot create top dir" ;                                 // if ENOTDIR, a parent is not a dir, it will not be fixed up
 				break ;
 				default :
 					msg = "cannot create dir" ;
 			}
 			if (msg) throw cat(msg," (",StrErr(),") ",File(dir_s.at.fd,no_slash(::move(d_s)))) ;
 		}
-		return pos ;
+		return res ;
 	}
 
 	::string const& dir_guard( FileRef file , _CreatAction action ) {

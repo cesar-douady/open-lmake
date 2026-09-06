@@ -70,7 +70,7 @@ def target( *args , **kwds ) :
 	if kwds.get('follow_symlinks',False) : cmd_line.append('--follow-symlinks')
 	if kwds.get('write'          ,False) : cmd_line.append('--write'          )
 	#
-	if len(args)==1 and isinstance(args[0],(list,tuple)) : args = args[0] # support both syntaxes depend(lst) and depend(*lst)
+	if len(args)==1 and isinstance(args[0],(list,tuple)) : args = args[0] # support both syntaxes target(lst) and target(*lst)
 	cmd_line.append('--')
 	cmd_line += args
 	_run(cmd_line)
@@ -120,9 +120,9 @@ def report_import( module_name=None , path=None , module_suffixes=None ) :
 			if _osp.exists(base+sfx) : return
 
 if 'LMAKE_AUTODEP_ENV' in _os.environ :
-	ade           = _os.environ['LMAKE_AUTODEP_ENV'].split(':') # format : server:port:fast_host:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
-	top_repo_root =  ade[6][1:-2]                               # suppress " at start and /" at the end
-	repo_root     = (ade[6][1:-1]+ade[7][1:-1])[:-1]            # .
+	ade           = _os.environ['LMAKE_AUTODEP_ENV'].split(':') # format : server:port:fast_host:fast_report_pipe:options:fqdn:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:codecs:views
+	top_repo_root =  ade[7][1:-2]                               # suppress " at start and /" at the end
+	repo_root     = (ade[7][1:-1]+ade[8][1:-1])[:-1]            # .
 else :
 	top_repo_root = repo_root = _os.getcwd()
 

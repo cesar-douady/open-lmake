@@ -184,7 +184,8 @@ namespace Codec {
 		ctx  = parse_printable(line,pos) ; throw_unless( line[pos]=='\t' , "bad codec line format : ",line ) ; pos++ ;
 		val  = parse_printable(line,pos) ; throw_unless( line[pos]==0    , "bad codec line format : ",line ) ;
 		// END_OF_VERSIONING
-	}
+		throw_unless( code.size()<=PATH_MAX/2 , "code too long (code size ",code.size()," > ",PATH_MAX/2,") : ",line ) ; // huge codes (in case they are edited by hand) are meaningless ...
+	}                                                                                                                    // ... as the purpose of codes is to be short
 
 	::string Entry::line(bool with_nl_) const {
 		// START_OF_VERSIONING CODEC

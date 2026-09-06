@@ -48,11 +48,14 @@ pdict = lmake.pdict
 
 class UserEnvironDict(pdict) :
 	AccessedKeys = set()
-	def __getitem__(self,key) :
+	def _record(self,key) :
+		if not key : raise KeyError('cannot access empty environment variable')
 		self.__class__.AccessedKeys.add(key)
+	def __getitem__(self,key) :
+		self._record(key)
 		return super().__getitem__(key)
 	def get(self,key,default=None) :
-		self.__class__.AccessedKeys.add(key)
+		self._record(key)
 		return super().get(key,default)
 	def __setitem__(self,key,val) : raise TypeError('user_environ is read-only'           )
 	def __delitem__(self,key    ) : raise TypeError('user_environ is read-only'           )

@@ -71,7 +71,7 @@ void print_start(JobStartRpcReply const& jsrr) {
 	g_out << "stdout            : "<<jsrr.stdout                     <<'\n' ;
 	g_out << "sub_repo_s        : "<<jsrr.autodep_env.sub_repo_s     <<'\n' ;
 	g_out << "timeout           : "<<jsrr.timeout                    <<'\n' ;
-	g_out << "tmp_dir_s         : "<<jsrr.autodep_env.tmp_dir_s      <<'\n' ; // tmp directory on disk
+	g_out << "tmp_dir_s         : "<<jsrr.autodep_env.tmp_dir_s      <<'\n' ; // tmp directory as seen by job
 	g_out << "tmp_view_s        : "<<jsrr.job_space.tmp_view_s       <<'\n' ;
 	g_out << "use_script        : "<<jsrr.use_script                 <<'\n' ;
 	//

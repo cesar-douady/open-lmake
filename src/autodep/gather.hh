@@ -50,7 +50,7 @@ struct Gather {                                         // NOLINT(clang-analyzer
 	using Crc  = Hash::Crc     ;
 	using PD   = Time::Pdate   ;
 	using DI   = DepInfo       ;
-	static constexpr Time::Delay HeartbeatTick { 10 } ; // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 100s seems a good compromize
+	static constexpr Time::Delay HeartbeatTick { 10 } ; // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 10s seems a good compromize
 	struct AccessInfo {
 		// cxtors & casts
 		AccessInfo() = default ;
@@ -70,7 +70,7 @@ struct Gather {                                         // NOLINT(clang-analyzer
 		bool allow   () const ;                                                                 // if true <=> file has been declared target
 		bool seen    () const { return                        _seen    <_max_read(true) ; }     // if true <=> file has been observed existing, we want real info because this is to trigger rerun
 		bool read_dir() const { return _read_dir<PD::Never && _read_dir<_max_read(true) ; }     // if true <=> file has been read as a dir    , we want real info because this is to generate error, ...
-	private :                                                                                   // ... optimize by first testing existence of _read_as as this is almost always false
+	private :                                                                                   // ... optimize by first testing existence of _read_dir as this is almost always false
 		PD _max_write(         ) const { return _write_ignore ; }                               // max date for a write to be taken into account, always <Never
 		PD _max_read (bool phys) const ;                                                        // max date for a read  to be taken into account, always <Never
 		// services
@@ -138,7 +138,7 @@ public :
 	// services
 private :
 	void _send_to_server( JobMngtRpcReq const&                  ) ;
-	void _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                             // files are required for DepVerbose and forbidden for other
+	void _send_to_server( Fd , Jerr&& , JobSlaveEntry&/*inout*/ ) ;                             // files are required for DepVerbose and DepDirect, forbidden for other
 	//
 	void _new_accesses( Fd fd , Jerr&& jerr ) {
 		for( auto& [f,fi] : jerr.files ) new_access( fd , jerr.date , ::move(f) , jerr.digest , fi , Yes/*late*/, jerr.comment , jerr.comment_exts ) ;
@@ -197,7 +197,7 @@ public :
 	JobIdx                    job              = 0                   ;
 	::vector<uint8_t>         kill_sigs        ;                                                // signals used to kill job
 	bool                      live_out         = false               ;
-	::string                  lmake_root_s     ;                                                // contains error messages not from job
+	::string                  lmake_root_s     ;
 	AutodepMethod             method           = AutodepMethod::Dflt ;
 	::string                  msg              ;                                                // contains error messages not from job
 	Time::Delay               network_delay    = Time::Delay(1)      ;                          // 1s is reasonable when nothing is said

@@ -9,8 +9,8 @@
 
 namespace Store {
 
-	// free list sizes are linear until LinearSz, then logarithmic
-	// single allocation is LinearSz==0
+	// free list sizes are linear until 1<<Mantissa, then logarithmic
+	// single allocation is Mantissa==0
 	namespace Alloc {
 
 		// sz to bucket mapping

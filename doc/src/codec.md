@@ -94,7 +94,12 @@ Another scheme, much lighter but that requires more system level support, is to 
 In that case, all associations are stored as individual files within this dir.
 
 In cases where adequate precautions cannot be determined automatically (e.g. if the dir is mounted through overlay),
-such a dir may contain a file `LMAKE/file_sync` containing one of `auto`, `none`, `dir` or `sync` for choosing the method to ensure proper consistent operations.
+such a dir may contain a file `LMAKE/file_sync` containing one of `auto`, `none`, `dir`, `readdir`, `afs`, `beegfs`, `ceph`, `gpfs`, `lustre`, `nfs`, `ocfs2`
+for choosing the method to ensure proper consistent operations.
+
+- `auto` determines automatically a suitable method if possible
+- `none`, `dir`, `readdir` are actual methods used to ensure synchronization
+- file system names are methods suitable for named file systems and are mapped to one of the actual methods
 
 ## format
 

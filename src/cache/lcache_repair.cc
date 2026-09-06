@@ -38,7 +38,7 @@ struct RunEntry {
 
 struct DryRunDigest {
 	::umap<CkeyIdx,::string> keys        ;     // map keys to repo
-	::umap_s<RunEntry>       runs        ;     // repaired jobs
+	::umap_s<RunEntry>       runs        ;     // recognized runs
 	::vmap_ss                to_rm       ;     // map files to reasons
 	CrunIdx                  n_repaired  = 0 ;
 	CrunIdx                  n_processed = 0 ;

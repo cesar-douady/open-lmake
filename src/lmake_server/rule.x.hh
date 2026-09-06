@@ -60,9 +60,9 @@ enum class Special : uint8_t {
 ,	InfinitePath
 ,	Codec
 ,	Plain
-// ordered by decreasing matching priority within each prio
-,	Anti
+// ordered by increasing matching priority within each prio
 ,	GenericSrc
+,	Anti
 //
 // aliases
 ,	NUniq      = Plain         // < NUniq      means there is a single such rule
@@ -113,7 +113,6 @@ namespace Engine {
 	struct Rule : RuleBase {
 		struct RuleMatch ;
 		//
-		static constexpr char   StarMrkr =  0 ; // signal a star stem in job_name
 		static constexpr char   StemMrkr =  0 ; // signal a stem in job_name & targets & deps & cmd
 		static constexpr VarIdx NoVar    = -1 ;
 		// statics
@@ -211,9 +210,9 @@ namespace Engine {
 			::serdes( s , timeout ) ;
 		}
 		void update(Py::Dict const& py_dct) {
-			Attrs::acquire_from_dct( backend , dyn_backend , py_dct , "backend"                        ) ;
-			Attrs::acquire_from_dct( rsrcs   , dyn_rsrcs   , py_dct , "rsrcs"                          ) ;
-			Attrs::acquire_from_dct( timeout , dyn_timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( backend , dyn_backend , py_dct , "backend" , ~BitMap<BackendTag>(BackendTag::Unknown)/*accepted*/ ) ;
+			Attrs::acquire_from_dct( rsrcs   , dyn_rsrcs   , py_dct , "rsrcs"                                                          ) ;
+			Attrs::acquire_from_dct( timeout , dyn_timeout , py_dct , "timeout" , Time::Delay()                           /*min*/      ) ;
 		}
 		Tokens1 tokens1() const {
 			for( auto const& [k,v] : rsrcs ) if (k=="cpu")
@@ -522,7 +521,7 @@ namespace Engine {
 			// START_OF_VERSIONING REPO
 			::string       pattern  = {} ;
 			MatchFlags     flags    = {} ;
-			::vector<bool> captures = {} ;              // indexed by stem, true if stem is referenced
+			::vector<bool> captures = {} ;              // indexed by stem, true if stem is back referenced (i.e. appears a 2nd time in pattern)
 			// END_OF_VERSIONING
 		} ;
 		// cxtors & casts
@@ -584,17 +583,17 @@ namespace Engine {
 		// user data
 	public :
 		Special              special    = Special::None ;
-		Prio                 user_prio  = 0             ;                          // the priority of the rule as specified by user
-		RuleIdx              prio       = 0             ;                          // the relative priority of the rule
-		::string             name       ;                                          // the short message associated with the rule
-		::vmap_ss            stems      ;                                          // stems are ordered : statics then stars, stems used as both static and star appear twice
-		::string             sub_repo_s ;                                          // sub_repo which this rule belongs to
-		::string             job_name   ;                                          // used to show in user messages (not all fields are actually used)
-		::vmap_s<MatchEntry> matches    ;                                          // keep user within each star/MatchKind sequence, targets (static and star) are first to ensure RuleTgt stability
-		VarIdx               stdout_idx = NoVar         ;                          // index of target used as stdout
-		VarIdx               stdin_idx  = NoVar         ;                          // index of dep used as stdin
-		bool                 allow_ext  = false         ;                          // if true <=> rule may match outside repo
-		DynDepsAttrs         deps_attrs ;                                          // in match crc, evaluated at job creation time
+		Prio                 user_prio  = 0             ; // the priority of the rule as specified by user
+		RuleIdx              prio       = 0             ; // the relative priority of the rule
+		::string             name       ;                 // the short message associated with the rule
+		::vmap_ss            stems      ;                 // stems are ordered : statics then stars, stems used as both static and star appear twice
+		::string             sub_repo_s ;                 // sub_repo which this rule belongs to
+		::string             job_name   ;                 // the official name of the job, defaults to the first target
+		::vmap_s<MatchEntry> matches    ;                 // keep user order within each star/MatchKind sequence, targets (static and star) are first to ensure RuleTgt stability
+		VarIdx               stdout_idx = NoVar         ; // index of target used as stdout
+		VarIdx               stdin_idx  = NoVar         ; // index of dep used as stdin
+		bool                 allow_ext  = false         ; // if true <=> rule may match outside repo
+		DynDepsAttrs         deps_attrs ;                 // in match crc, evaluated at job creation time
 		// following is only if plain rules
 		Dyn<SubmitRsrcsAttrs    > submit_rsrcs_attrs     ;                         // in rsrcs crc, evaluated at submit time
 		Dyn<SubmitAncillaryAttrs> submit_ancillary_attrs ;                         // in no    crc, evaluated at submit time
@@ -642,9 +641,8 @@ namespace Engine {
 		// END_OF_VERSIONING
 	} ;
 
-	// RuleMatch does not call python and only provides services that can be served with this constraint
 	struct Rule::RuleMatch {
-		// cxtors & casts
+		// cxtors & co
 	public :
 		RuleMatch() = default ;
 		RuleMatch( Rule    r , ::vector_s const& ss                          ) : rule{r} , stems{ss} {}
@@ -653,11 +651,11 @@ namespace Engine {
 		RuleMatch( RuleTgt   , ::string const& target   , Bool3 chk_psfx=Yes ) ;                                                       // .
 	private :
 		RuleMatch( Rule , TargetPattern const& , ::string const& , Bool3 chk_psfx=Yes ) ;                                              // .
-		// accesses
 	public :
 		void operator>>(::string&          ) const ;
 		bool operator==(RuleMatch const& rm) const { return rule==rm.rule && stems==rm.stems ; }
 		bool operator+ (                   ) const { return +rule                            ; }
+		// accesses
 		::vector<Re::Pattern> star_patterns(         ) const ;
 		::vector_s            py_matches   (         ) const ; //!                 targets_only
 		::vector_s            matches      (bool star) const { return _matches(star,false     ) ; }

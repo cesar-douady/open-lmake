@@ -23,15 +23,16 @@ class pdict(dict) :
 class Ut :
 	idx      = 0
 	host_len = None
-	def __init__( self , *args , rc=0 , no_dump=False , fast_exit=False , host_len=None , **kwds ) :
+	def __init__( self , *args , rc=0 , no_dump=False , fast_exit=False , host_len=None , keep_stderr=False , **kwds ) :
 		self.__class__.idx += 1
 		self.stdout = f'tok.{self.idx}'
 		kwds.setdefault('start',...)
 		#
-		self.rc        = rc
-		self.no_dump   = no_dump
-		self.fast_exit = fast_exit
-		self.kwds      = kwds
+		self.rc          = rc
+		self.no_dump     = no_dump
+		self.fast_exit   = fast_exit
+		self.keep_stderr = keep_stderr
+		self.kwds        = kwds
 		if host_len is not None : self.host_len  = host_len
 		#
 		cmd = ('lmake',*args)
@@ -39,7 +40,8 @@ class Ut :
 		print(                                                                  )
 		print( f'{time.ctime(now).rsplit(None,1)[0]}.{(str(now%1)+"000")[2:5]}' )                                             # generate date with ms precision
 		print( '+ ' + ' '.join(cmd)                                             )
-		self.proc = sp.Popen( cmd , universal_newlines=True , stdin=None , stdout=open(self.stdout,'w') )
+		if self.keep_stderr : self.proc = sp.Popen( cmd , universal_newlines=True , stdin=None , stdout=open(self.stdout,'w') , stderr=sp.PIPE )
+		else                : self.proc = sp.Popen( cmd , universal_newlines=True , stdin=None , stdout=open(self.stdout,'w')                  )
 		sys.stdout.flush()
 	def __call__( self , rc=0 , no_dump=False , fast_exit=True , **kwds ) :
 		if rc        : self.rc        = rc
@@ -52,6 +54,7 @@ class Ut :
 		sys.stdout.write(stdout)
 		sys.stdout.flush(      )
 		#
+		if self.keep_stderr              : self.stderr = self.proc.stderr.read()
 		if self.proc.returncode!=self.rc : raise RuntimeError(f'bad return code {self.proc.returncode} != {self.rc}')
 		if not self.no_dump              : sp.run( ('lmake_dump',) , universal_newlines=True , stdin=None , stdout=sp.PIPE , check=True )
 		#

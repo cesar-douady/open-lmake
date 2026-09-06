@@ -52,7 +52,7 @@ struct RateCmp {
 	static float s_score(Rate r) {
 		return float(s_now-s_lrus[r].newer/*oldest*/->last_access) * s_rates[r] ;
 	}
-	static Pdate s_stable( Rate a , Rate b ) {                                                                                                 // date until which lru_cmp is stable
+	static Pdate s_stable( Rate a , Rate b ) {                                                                                                 // date until which RateCmp() is stable
 		float delta_score = s_score(a) - s_score(b) ; if (  delta_score==0                    ) return Pdate::Never                          ; // ordered by rates in that case
 		float delta_rate  = s_rates[a] - s_rates[b] ; if ( (delta_score> 0) == (delta_rate>0) ) return Pdate::Never                          ;
 		/**/                                                                                    return s_now - Delay(delta_score/delta_rate) ;
@@ -91,8 +91,8 @@ struct RateCmp {
 			}
 	}
 	// static data
-	static Pdate               s_now           ; // date at which _g_lru_tab is sorted, g_lru_tab must be refreshed when modified
-	static Pdate               s_limit         ; // date until which _g_lru_tab order is stable
+	static Pdate               s_now           ; // date at which s_tab is sorted, s_tab must be refreshed when modified
+	static Pdate               s_limit         ; // date until which s_tab order is stable
 	static Iota2<Rate>         s_iota          ; // range of rates that may have entries
 	static float               s_rates[NRates] ; // actual rates in B/s per bucket
 	static LruEntry*           s_lrus          ; // CrunData::s_hdr().lrus
@@ -112,6 +112,7 @@ LruEntry*           RateCmp::s_lrus          = nullptr ;
 void cache_chk() {
 	Trace trace("cache_chk") ;
 	//
+	_g_key_file      .chk() ;
 	_g_job_name_file .chk() ;
 	_g_node_name_file.chk() ;
 	_g_job_file      .chk() ;
@@ -669,7 +670,7 @@ CacheHitInfo CrunData::match( CompileDigest const& compile_digest , Cnode&/*out*
 			while ( j2<deps_.size() && +deps_[j2]< +n ) j2++ ;
 			if    ( j2<deps_.size() &&  deps_[j2]== n ) {
 				if (!crc_ok(dep_crcs_view[i],Crc::None)) { trace("miss3",i,j2,n,dep_crcs_view[i]) ; return CacheHitInfo::BadDeps ; }                 // found without crc while expecting one
-				j2++ ;                                                                                                                               // fast path : j1 is consumed
+				j2++ ;                                                                                                                               // fast path : j2 is consumed
 			} else if (res<=CacheHitInfo::Hit) { trace("match1",i,n,j1,j2) ; not_found = n ; res = CacheHitInfo::Match ; }                           // not found
 		}
 	}

@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 55      ; // dfd0e54a354bcdb87a6a61cdf074d3d5
+	uint64_t    constexpr Cache = 56      ; // 315909fc1cacd8a7ecfe2366ac6a1d7a
 	uint64_t    constexpr Codec = 3       ; // 084f97cd3cdfd24a126f49adeb731f3f
-	uint64_t    constexpr Repo  = 60      ; // abdbad098ee172333089306c7ebd3eb6
-	uint64_t    constexpr Job   = 31      ; // 8aa5ce7e480d3350ab3314c129f8dc5c
+	uint64_t    constexpr Repo  = 61      ; // a31e7e8f493dcdeac8270c1886c254da
+	uint64_t    constexpr Job   = 31      ; // d38fffbfa37c1b486914eec52c47c2a9
 	const char* const     Major = "26.08" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : dfd0e54a354bcdb87a6a61cdf074d3d5 *
+// * Cache : 315909fc1cacd8a7ecfe2366ac6a1d7a *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -185,8 +185,8 @@ namespace Version {
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO JOB
 //		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
-//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
-//		bool                             disabled         = false ;                   // if false <=> no automatic report
+//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and not considered as deps
+//		bool                             disabled         = false ;                   // if true  <=> no automatic report
 //		bool                             ext_read_ok      = false ;                   // if true  <=> allow reading outside repo and source dirs
 //		bool                             ext_write_ok     = false ;                   // if true  <=> allow writing outside repo
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
@@ -262,7 +262,7 @@ namespace Version {
 //
 //		// used for cache efficiency
 //		// rate=0 means max_rate as per config
-//		// +1 means job took 13.3% more time per byte of generated data
+//		// each +1 means job took 6.45% more time per byte of generated data
 //		using Rate = uint8_t ;
 //
 //		// can be tailored to fit needs
@@ -320,7 +320,7 @@ namespace Version {
 //	,	Err                                                                               // dep is sensitive to status (ok/err)
 //	//
 //	// aliases
-//	,	Data = Err                                                                        // <= Data means refer to file content
+//	,	Data = Stat                                                                       // <= Data means refer to file content
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO CACHE
@@ -530,6 +530,7 @@ namespace Version {
 //	,	Force
 //	,	Killed
 //	,	Cmd
+//	,	Frozen
 //	,	New
 //	//	with node
 //	,	BusyTarget
@@ -595,7 +596,6 @@ namespace Version {
 //	,	Garbage = BadTarget       // <=Garbage means job has not run reliably
 //	,	Err     = JobError        // >=Err     means job execution is in error
 //	} ;
-//	// /!\ DfltRetriedErrs must staty in sync with Rule.retried_errors in _lib/lmake/rules.src.py
 //	static constexpr BitMap<Status> DfltRetriedErrs {                      Status::JobError ,                                     Status::TerminationError , Status::Timeout } ;
 //	static constexpr BitMap<Status> MaxRetriedErrs  { Status::EarlyError , Status::JobError , Status::Forbidden , Status::Panic , Status::TerminationError , Status::Timeout } ;
 //	// END_OF_VERSIONING
@@ -667,7 +667,7 @@ namespace Version {
 //		::string            lmake_view_s = {} ;    // absolute dir under which job sees open-lmake root dir (empty if unused)
 //		::string            repo_view_s  = {} ;    // absolute dir under which job sees repo root dir       (empty if unused)
 //		::string            tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir             (empty if unused)
-//		::vmap_s<ViewDescr> views        = {} ;    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
+//		::vmap_s<ViewDescr> views        = {} ;    // dir_s->descr, relative to sub_repo when _force_creat=Maybe, else relative to repo_root
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
 //		SeqId  seq_id = 0 ;
@@ -748,14 +748,14 @@ namespace Version {
 //	,	NoHot                         // dep access is guarded and cannot be hot
 //	,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 //	// aliases
-//	,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
+//	,	NRule = CreateEncode          // number of ExtraDflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Tflag : uint8_t { // flags for targets, recorded in server book-keeping
 //		Essential                // show when generating user oriented graphs
 //	,	Incremental              // reads are allowed (before earliest write if any)
-//	,	NoWarning                // warn if target is either uniquified or unlinked and generated by another rule
+//	,	NoWarning                // dont warn if target is either uniquified or unlinked and generated by another rule
 //	,	Phony                    // accept that target is not generated
 //	,	Static                   // is static  , for internal use only, only if also a Target
 //	,	Target                   // is a target, for internal use only
@@ -776,14 +776,14 @@ namespace Version {
 //	,	Late                          // target was written for real, not during washing
 //	//
 //	// aliases
-//	,	NRule = Allow                 // number of Tflag's allowed in rule definition
+//	,	NRule = Allow                 // number of ExtraTflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		Tflags      tflags       = {} ;                            // if kind>=Target
-//		Dflags      dflags       = {} ;                            // if kind>=Dep
-//		ExtraTflags extra_tflags = {} ;                            // if kind>=Target
-//		ExtraDflags extra_dflags = {} ;                            // if kind>=Dep
+//		Tflags      tflags       = {} ;
+//		Dflags      dflags       = {} ;
+//		ExtraTflags extra_tflags = {} ;
+//		ExtraDflags extra_dflags = {} ;
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Comment : uint8_t {
@@ -924,6 +924,30 @@ namespace Version {
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
+//			// START_OF_VERSIONING REPO CACHE
+//			template<IsIdx Idx,class Char,class Data=void,bool Reverse=false> struct SaveItem {
+//				using Item_   = Item<Idx,Char,Data,Reverse> ;
+//				using Sz      = typename Item_::Sz          ;
+//				using ItemOfs = typename Item_::ItemOfs     ;
+//				//
+//				static constexpr uint8_t NSave     = 64                             ; // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
+//				static constexpr ItemOfs MaxSizeOf = Item_::ItemSizeOf*Item_::MaxSz ;
+//				//
+//				static_assert( ::is_trivially_copyable_v<NoVoid<Data>> ) ;            // items are saved and restored with memcpy
+//				// services
+//				void save(Item_ const& from) {
+//					_sz = from.sz() ;
+//					::memcpy( _data , reinterpret_cast<char const*>(&from) , _sz*Item_::ItemSizeOf ) ;
+//				}
+//				void restore(Item_& to) const {
+//					::memcpy( reinterpret_cast<char*>(&to) , _data , _sz*Item_::ItemSizeOf ) ;
+//				}
+//				// data
+//			private :
+//				Sz   _sz              = 0 /*garbage*/ ;
+//				char _data[MaxSizeOf] = {}/*.      */ ;
+//			} ;
+//			// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO CACHE
 //				constexpr size_t CacheLineSz = 64                                                               ; // hint only, defined independently of ::hardware_destructive_interference_size ...
 //				constexpr size_t Offset0     = round_up<CacheLineSz>( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ) ; // ... to ensure inter-operability
@@ -1130,7 +1154,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : abdbad098ee172333089306c7ebd3eb6 *
+// * Repo : a31e7e8f493dcdeac8270c1886c254da *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1260,10 +1284,11 @@ namespace Version {
 //						( match.flags.extra_tflags[ExtraTflag::Optional]      )
 //					+	( match.flags.tflags      [Tflag     ::Phony   ] << 1 )
 //					;
-//					targets.emplace_back( match.pattern , flags ) ;          // keys and flags have no influence on matching, except Optional
+//					targets.emplace_back( match.pattern , flags ) ;          // keys and flags have no influence on matching, except Optional and Phony
 //				}
 //			h += special         ;                                           // in addition to distinguishing special from other, this guarantees that shared rules have different crc's
 //			h += stem_match_info ;
+//			h += n_static_stems  ;
 //			h += targets         ;
 //			deps_attrs.update_hash( /*inout*/h , rules ) ;                   // no deps for source & anti
 //			if (is_plain()) h += job_name  ;
@@ -1365,8 +1390,8 @@ namespace Version {
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO JOB
 //		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
-//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
-//		bool                             disabled         = false ;                   // if false <=> no automatic report
+//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and not considered as deps
+//		bool                             disabled         = false ;                   // if true  <=> no automatic report
 //		bool                             ext_read_ok      = false ;                   // if true  <=> allow reading outside repo and source dirs
 //		bool                             ext_write_ok     = false ;                   // if true  <=> allow writing outside repo
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
@@ -1387,7 +1412,7 @@ namespace Version {
 //	,	Err                                                                               // dep is sensitive to status (ok/err)
 //	//
 //	// aliases
-//	,	Data = Err                                                                        // <= Data means refer to file content
+//	,	Data = Stat                                                                       // <= Data means refer to file content
 //	} ;
 //	// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
@@ -1513,16 +1538,16 @@ namespace Version {
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			struct IfPlain {
-//				Node        build_asking ;                                    //       32 bits,        node need this job that triggered rebuild
-//				Node        last_asking  ;                                    //       32 bits,        last node needing this job
-//				Targets     targets      ;                                    //       32 bits, owned, for plain jobs
-//				CoarseDelay exe_time     ;                                    //       16 bits,        for plain jobs
-//				CoarseDelay cost         ;                                    //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
+//				Node        build_asking ;                            //       32 bits,        node need this job that triggered rebuild
+//				Node        last_asking  ;                            //       32 bits,        last node needing this job
+//				Targets     targets      ;                            //       32 bits, owned, for plain jobs
+//				CoarseDelay exe_time     ;                            //       16 bits,        for plain jobs
+//				CoarseDelay cost         ;                            //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
 //			} ;
 //			struct IfDep {
-//				SeqId seq_id     = 0 ;                                        //       64 bits
-//				Fd    fd         ;                                            //       32 bits
-//				Job   asking_job ;                                            //       32 bits
+//				SeqId seq_id     = 0 ;                                //       64 bits
+//				Fd    fd         ;                                    //       32 bits
+//				Job   asking_job ;                                    //       32 bits
 //			} ;
 //		public :
 //		//	JobName      name                               ;         //       32 bits, inherited
@@ -1530,7 +1555,7 @@ namespace Version {
 //			RuleCrcIdx   rule_crc_idx  :NRuleCrcIdxBits     = 0     ; //       24 bits
 //			MatchGen     match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
 //			Tokens1      tokens1                            = 0     ; //        8 bits
-//			RunStatus    run_status    :NBits<RunStatus   > = {}    ; //        3 bits
+//			RunStatus    run_status    :NBits<RunStatus   > = {}    ; //        2 bits
 //			Status       status        :NBits<Status      > = {}    ; //        5 bits
 //			CacheHitInfo cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
 //			BackendTag   backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
@@ -1538,11 +1563,11 @@ namespace Version {
 //			bool         incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
 //			bool         sure          :1                   = false ; //        1 bit
 //		private :
-//			Bool3 _reliable_stats:2 = No ;                                    //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+//			Bool3 _reliable_stats:2 = No ;                            //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 //		public :
 //			union {
-//				IfPlain _if_plain = {} ;                                      // 104<=128 bits
-//				IfDep   _if_dep   ;                                           //      128 bits
+//				IfPlain _if_plain = {} ;                              //      128 bits
+//				IfDep   _if_dep   ;                                   //      128 bits
 //			} ;
 //			// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO
@@ -1581,16 +1606,16 @@ namespace Version {
 //			RuleTgts  rule_tgts                  ;                      // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 //			RuleTgts  rejected_rule_tgts         ;                      // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
 //			Job       actual_job                 ;                      //  30   < 32 bits, shared,   job that generated node
-//			Watcher   build_asking               ;                      //  30   < 32 bits,           polluting job when polluted was last set to Polluted::Job
+//			Watcher   build_asking               ;                      //  30   < 32 bits,           last watcher needing this node that triggered a rebuild
 //			Watcher   last_asking                ;                      //         32 bits,           last watcher needing this node
 //			RuleIdx   n_job_tgts                 = 0                  ; //         16 bits,           number of actual meaningful JobTgt's in job_tgts
 //			MatchGen  match_gen                  = 0                  ; //          8 bits,           if <Rule::s_match_gen => deem n_job_tgts==0 && !rule_tgts && !sure
-//			Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Plain => not yet computed
+//			Buildable buildable:NBits<Buildable> = Buildable::Unknown ; //          4 bits,           data independent, if Maybe => buildability is data dependent, if Unknown => not computed yet
 //			Polluted  polluted :NBits<Polluted > = Polluted::Clean    ; //          2 bits,           reason for pollution
 //			bool      busy     :1                = false              ; //          1 bit ,           a job is running with this node as target
 //			Tflags    actual_tflags              ;                      //   6   <  8 bits,           tflags associated with actual_job
 //		private :
-//			RuleIdx _conform_idx = -+NodeStatus::Unknown ;              //         16 bits,            index to job_tgts to first job with execut.ing.ed prio level, if NoIdx <=> uphill or no job found
+//			RuleIdx _conform_idx = -+NodeStatus::Unknown ;              //         16 bits,           index to job_tgts to job (or one of) at execut.ing.ed prio level, if >MaxRuleIdx <=> the node status
 //			// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO
 //
@@ -1635,9 +1660,9 @@ namespace Version {
 //	,	InfinitePath
 //	,	Codec
 //	,	Plain
-//	// ordered by decreasing matching priority within each prio
-//	,	Anti
+//	// ordered by increasing matching priority within each prio
 //	,	GenericSrc
+//	,	Anti
 //	//
 //	// aliases
 //	,	NUniq      = Plain         // < NUniq      means there is a single such rule
@@ -1713,23 +1738,23 @@ namespace Version {
 //				// START_OF_VERSIONING REPO
 //				::string       pattern  = {} ;
 //				MatchFlags     flags    = {} ;
-//				::vector<bool> captures = {} ;              // indexed by stem, true if stem is referenced
+//				::vector<bool> captures = {} ;              // indexed by stem, true if stem is back referenced (i.e. appears a 2nd time in pattern)
 //				// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
 //			// user data
 //		public :
 //			Special              special    = Special::None ;
-//			Prio                 user_prio  = 0             ;                          // the priority of the rule as specified by user
-//			RuleIdx              prio       = 0             ;                          // the relative priority of the rule
-//			::string             name       ;                                          // the short message associated with the rule
-//			::vmap_ss            stems      ;                                          // stems are ordered : statics then stars, stems used as both static and star appear twice
-//			::string             sub_repo_s ;                                          // sub_repo which this rule belongs to
-//			::string             job_name   ;                                          // used to show in user messages (not all fields are actually used)
-//			::vmap_s<MatchEntry> matches    ;                                          // keep user within each star/MatchKind sequence, targets (static and star) are first to ensure RuleTgt stability
-//			VarIdx               stdout_idx = NoVar         ;                          // index of target used as stdout
-//			VarIdx               stdin_idx  = NoVar         ;                          // index of dep used as stdin
-//			bool                 allow_ext  = false         ;                          // if true <=> rule may match outside repo
-//			DynDepsAttrs         deps_attrs ;                                          // in match crc, evaluated at job creation time
+//			Prio                 user_prio  = 0             ; // the priority of the rule as specified by user
+//			RuleIdx              prio       = 0             ; // the relative priority of the rule
+//			::string             name       ;                 // the short message associated with the rule
+//			::vmap_ss            stems      ;                 // stems are ordered : statics then stars, stems used as both static and star appear twice
+//			::string             sub_repo_s ;                 // sub_repo which this rule belongs to
+//			::string             job_name   ;                 // the official name of the job, defaults to the first target
+//			::vmap_s<MatchEntry> matches    ;                 // keep user order within each star/MatchKind sequence, targets (static and star) are first to ensure RuleTgt stability
+//			VarIdx               stdout_idx = NoVar         ; // index of target used as stdout
+//			VarIdx               stdin_idx  = NoVar         ; // index of dep used as stdin
+//			bool                 allow_ext  = false         ; // if true <=> rule may match outside repo
+//			DynDepsAttrs         deps_attrs ;                 // in match crc, evaluated at job creation time
 //			// following is only if plain rules
 //			Dyn<SubmitRsrcsAttrs    > submit_rsrcs_attrs     ;                         // in rsrcs crc, evaluated at submit time
 //			Dyn<SubmitAncillaryAttrs> submit_ancillary_attrs ;                         // in no    crc, evaluated at submit time
@@ -2066,6 +2091,7 @@ namespace Version {
 //	,	Force
 //	,	Killed
 //	,	Cmd
+//	,	Frozen
 //	,	New
 //	//	with node
 //	,	BusyTarget
@@ -2131,7 +2157,6 @@ namespace Version {
 //	,	Garbage = BadTarget       // <=Garbage means job has not run reliably
 //	,	Err     = JobError        // >=Err     means job execution is in error
 //	} ;
-//	// /!\ DfltRetriedErrs must staty in sync with Rule.retried_errors in _lib/lmake/rules.src.py
 //	static constexpr BitMap<Status> DfltRetriedErrs {                      Status::JobError ,                                     Status::TerminationError , Status::Timeout } ;
 //	static constexpr BitMap<Status> MaxRetriedErrs  { Status::EarlyError , Status::JobError , Status::Forbidden , Status::Panic , Status::TerminationError , Status::Timeout } ;
 //	// END_OF_VERSIONING
@@ -2203,7 +2228,7 @@ namespace Version {
 //		::string            lmake_view_s = {} ;    // absolute dir under which job sees open-lmake root dir (empty if unused)
 //		::string            repo_view_s  = {} ;    // absolute dir under which job sees repo root dir       (empty if unused)
 //		::string            tmp_view_s   = {} ;    // absolute dir under which job sees tmp dir             (empty if unused)
-//		::vmap_s<ViewDescr> views        = {} ;    // dir_s->descr, relative to sub_repo when _force_create=Maybe, else relative to repo_root
+//		::vmap_s<ViewDescr> views        = {} ;    // dir_s->descr, relative to sub_repo when _force_creat=Maybe, else relative to repo_root
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
 //		SeqId  seq_id = 0 ;
@@ -2284,14 +2309,14 @@ namespace Version {
 //	,	NoHot                         // dep access is guarded and cannot be hot
 //	,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 //	// aliases
-//	,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
+//	,	NRule = CreateEncode          // number of ExtraDflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Tflag : uint8_t { // flags for targets, recorded in server book-keeping
 //		Essential                // show when generating user oriented graphs
 //	,	Incremental              // reads are allowed (before earliest write if any)
-//	,	NoWarning                // warn if target is either uniquified or unlinked and generated by another rule
+//	,	NoWarning                // dont warn if target is either uniquified or unlinked and generated by another rule
 //	,	Phony                    // accept that target is not generated
 //	,	Static                   // is static  , for internal use only, only if also a Target
 //	,	Target                   // is a target, for internal use only
@@ -2312,14 +2337,14 @@ namespace Version {
 //	,	Late                          // target was written for real, not during washing
 //	//
 //	// aliases
-//	,	NRule = Allow                 // number of Tflag's allowed in rule definition
+//	,	NRule = Allow                 // number of ExtraTflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		Tflags      tflags       = {} ;                            // if kind>=Target
-//		Dflags      dflags       = {} ;                            // if kind>=Dep
-//		ExtraTflags extra_tflags = {} ;                            // if kind>=Target
-//		ExtraDflags extra_dflags = {} ;                            // if kind>=Dep
+//		Tflags      tflags       = {} ;
+//		Dflags      dflags       = {} ;
+//		ExtraTflags extra_tflags = {} ;
+//		ExtraDflags extra_dflags = {} ;
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Comment : uint8_t {
@@ -2460,6 +2485,30 @@ namespace Version {
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
+//			// START_OF_VERSIONING REPO CACHE
+//			template<IsIdx Idx,class Char,class Data=void,bool Reverse=false> struct SaveItem {
+//				using Item_   = Item<Idx,Char,Data,Reverse> ;
+//				using Sz      = typename Item_::Sz          ;
+//				using ItemOfs = typename Item_::ItemOfs     ;
+//				//
+//				static constexpr uint8_t NSave     = 64                             ; // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
+//				static constexpr ItemOfs MaxSizeOf = Item_::ItemSizeOf*Item_::MaxSz ;
+//				//
+//				static_assert( ::is_trivially_copyable_v<NoVoid<Data>> ) ;            // items are saved and restored with memcpy
+//				// services
+//				void save(Item_ const& from) {
+//					_sz = from.sz() ;
+//					::memcpy( _data , reinterpret_cast<char const*>(&from) , _sz*Item_::ItemSizeOf ) ;
+//				}
+//				void restore(Item_& to) const {
+//					::memcpy( reinterpret_cast<char*>(&to) , _data , _sz*Item_::ItemSizeOf ) ;
+//				}
+//				// data
+//			private :
+//				Sz   _sz              = 0 /*garbage*/ ;
+//				char _data[MaxSizeOf] = {}/*.      */ ;
+//			} ;
+//			// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO CACHE
 //				constexpr size_t CacheLineSz = 64                                                               ; // hint only, defined independently of ::hardware_destructive_interference_size ...
 //				constexpr size_t Offset0     = round_up<CacheLineSz>( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ) ; // ... to ensure inter-operability
@@ -2513,7 +2562,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 8aa5ce7e480d3350ab3314c129f8dc5c *
+// * Job : d38fffbfa37c1b486914eec52c47c2a9 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2639,8 +2688,8 @@ namespace Version {
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE REPO JOB
 //		bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
-//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
-//		bool                             disabled         = false ;                   // if false <=> no automatic report
+//		bool                             deps_in_system   = false ;                   // if false <=> system files are simple and not considered as deps
+//		bool                             disabled         = false ;                   // if true  <=> no automatic report
 //		bool                             ext_read_ok      = false ;                   // if true  <=> allow reading outside repo and source dirs
 //		bool                             ext_write_ok     = false ;                   // if true  <=> allow writing outside repo
 //		bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
@@ -2661,7 +2710,7 @@ namespace Version {
 //	,	Err                                                                               // dep is sensitive to status (ok/err)
 //	//
 //	// aliases
-//	,	Data = Err                                                                        // <= Data means refer to file content
+//	,	Data = Stat                                                                       // <= Data means refer to file content
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
@@ -2747,14 +2796,14 @@ namespace Version {
 //	,	NoHot                         // dep access is guarded and cannot be hot
 //	,	NoStar                        // exclude flags from star patterns (common info for dep and target)
 //	// aliases
-//	,	NRule = CreateEncode          // number of Dflag's allowed in rule definition
+//	,	NRule = CreateEncode          // number of ExtraDflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Tflag : uint8_t { // flags for targets, recorded in server book-keeping
 //		Essential                // show when generating user oriented graphs
 //	,	Incremental              // reads are allowed (before earliest write if any)
-//	,	NoWarning                // warn if target is either uniquified or unlinked and generated by another rule
+//	,	NoWarning                // dont warn if target is either uniquified or unlinked and generated by another rule
 //	,	Phony                    // accept that target is not generated
 //	,	Static                   // is static  , for internal use only, only if also a Target
 //	,	Target                   // is a target, for internal use only
@@ -2775,14 +2824,14 @@ namespace Version {
 //	,	Late                          // target was written for real, not during washing
 //	//
 //	// aliases
-//	,	NRule = Allow                 // number of Tflag's allowed in rule definition
+//	,	NRule = Allow                 // number of ExtraTflag's allowed in rule definition
 //	} ;
 //	// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		Tflags      tflags       = {} ;                            // if kind>=Target
-//		Dflags      dflags       = {} ;                            // if kind>=Dep
-//		ExtraTflags extra_tflags = {} ;                            // if kind>=Target
-//		ExtraDflags extra_dflags = {} ;                            // if kind>=Dep
+//		Tflags      tflags       = {} ;
+//		Dflags      dflags       = {} ;
+//		ExtraTflags extra_tflags = {} ;
+//		ExtraDflags extra_dflags = {} ;
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class Comment : uint8_t {

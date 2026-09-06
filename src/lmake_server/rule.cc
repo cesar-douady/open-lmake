@@ -280,7 +280,7 @@ namespace Engine {
 		if (!is_canon(dep) ) bad( "is not canonical" , mk_canon(dep) ) ;
 		if (dep.back()=='/') bad( "ends with /"      , no_slash(dep) ) ;
 		if (is_lcl(dep)    ) return true/*keep*/ ;
-		// dep is non-local, substitute relative/absolute if it lies within a source dirs
+		// dep is non-local, make a relative and absolute version to check against source dirs
 		::string rel_dep = mk_rel( dep , *g_repo_root_s ) ;
 		::string abs_dep = mk_glb( dep , *g_repo_root_s ) ;
 		if (is_lcl(rel_dep)) bad( "must be provided as local file" , rel_dep ) ;
@@ -336,7 +336,7 @@ namespace Engine {
 		Sequence const* py_seq ;
 		try                       { py_seq = &py.as_a<Sequence>() ; }
 		catch (::string const& e) { throw e+" nor a str" ;          }     // e is a type error
-		SWEAR( py_seq->size()>=n_skip   , key ) ;
+		throw_unless( py_seq->size()>=n_skip , "missing value" ) ;
 		(*py_seq)[0].as_a<Str>() ;                                        // check type
 		_mk_flags( key , *py_seq , n_skip , /*inout*/flags , dep_only ) ;
 		return (*py_seq)[0].as_a<Str>() ;
@@ -420,7 +420,7 @@ namespace Engine {
 					case 1 :
 						if (py_seq[0].is_a<Str>()) {
 							acquire( /*out*/dst.tag , /*out*/::ref(bool())/*is_dyn*/ , &py_seq[0] ) ;
-							dst.lvl = 0 ;
+							dst.lvl = 1 ;
 							return ;
 						}
 						else if (py_seq[0].is_a<Int>()) {
@@ -432,7 +432,7 @@ namespace Engine {
 					case 2 :
 						if ( py_seq[0].is_a<Str>() && py_seq[1].is_a<Int>() ) {
 							acquire( /*out*/dst.tag , /*out*/::ref(bool())/*is_dyn*/ , &py_seq[0] ) ;
-							acquire( /*out*/dst.lvl , /*out*/::ref(bool())/*is_dyn*/ , &py_seq[1] ) ;
+							acquire( /*.  */dst.lvl , /*.  */::ref(bool())/*.  dyn*/ , &py_seq[1] ) ;
 							return ;
 						}
 				DN}
@@ -556,7 +556,7 @@ namespace Engine {
 	}
 
 	::string DynCmd::eval( StartRsrcsAttrs&/*inout*/ sra , Rule::RuleMatch const& match , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* deps , StartCmdAttrs const& sca ) const {
-		Rule     r   = match.rule ; // if we have no job, we must have a match as job is there to lazy evaluate match if necessary
+		Rule     r   = match.rule ;
 		::string res ;
 		// if script is large (roughly >64k), force use_script to ensure reasonable debug experience and no Linux resources overrun (max 2M for script+env if not use_script)
 		if (!r->is_python) {

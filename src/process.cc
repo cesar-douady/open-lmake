@@ -76,7 +76,7 @@ void Child::spawn() {
 	if (stdout==PipeFd) { _c2po.open() ; _c2po.no_std() ; }
 	if (stderr==PipeFd) { _c2pe.open() ; _c2pe.no_std() ; }
 	//
-	// /!\ memory for environment must be allocated before calling clone
+	// /!\ memory for environment must be allocated before forking
 	::vector_s            env_str_vec ;                                                              // ensure actual env strings (of the form name=val) lifetime
 	::vector<const char*> env_vec     ;
 	if ( env || add_env ) {
@@ -98,7 +98,7 @@ void Child::spawn() {
 	} else {
 		_child_env = const_cast<const char**>(environ) ;
 	}
-	// /!\ memory for args must be allocated before calling clone
+	// /!\ memory for args must be allocated before forking
 	::vector<const char*> cmd_line_vec ; cmd_line_vec.reserve(cmd_line.size()+1) ;                   // account for sentinel
 	for( ::string const& c : cmd_line ) cmd_line_vec.push_back(c.c_str()) ;
 	/**/                                cmd_line_vec.push_back(nullptr  ) ;                          // sentinel
@@ -257,7 +257,7 @@ static int/*rc*/ _pre_exec(void* arg) {
 	//
 	for ( int i : iota(10) ) {
 		trace("try_old",i) ;
-		if (try_old) {                                                                         // try to connect to an existing server if we have a magic key to identify it
+		if (try_old) {
 			AcFd       server_mrkr_fd { dir_s+server_mrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
 			::vector_s lines          = server_mrkr_fd.read_lines()          ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
 			//
@@ -276,7 +276,7 @@ static int/*rc*/ _pre_exec(void* arg) {
 		}
 	LaunchServer :
 		// try to launch a new server
-		// server calls ::setpgid(0/*pid*/,0/*pgid*/) to create a new group by itself, after initialization, so during init, a ^C will propagate to server
+		// server calls ::setsid() to create a new session by itself after init, so during init, a ^C will propagate to server, we only have to propagate by hand after init
 		trace("try_new",i) ;
 		//
 		AcPipe pipe { New , 0/*flags*/ , true/*no_std*/ } ;

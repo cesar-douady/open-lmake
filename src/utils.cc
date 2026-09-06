@@ -199,11 +199,11 @@ mode_t _action_mod1( mode_t mod , mode_t umask ) {
 
 mode_t _action_mod2( mode_t mod , mode_t umask ) {
 	static mode_t s_umask = -1 ;
-	if ( !__libc_single_threaded && s_umask==mode_t(-1) ) s_umask = get_umask() ; // if single threaded, get umask as soon as possible as it is very cheap now and may be expensive later
-	if (                            umask  ==mode_t(-1) ) return 0 ;
-	if (                            s_umask==mode_t(-1) ) s_umask = get_umask() ;
-	if ( (mod&~umask) & ~(mod&~s_umask)                 ) return mod&~umask ;
-	/**/                                                  return 0          ;
+	if ( __libc_single_threaded && s_umask==mode_t(-1) ) s_umask = get_umask() ; // if single threaded, get umask as soon as possible as it is very cheap now and may be expensive later
+	if (                           umask  ==mode_t(-1) ) return 0 ;
+	if (                           s_umask==mode_t(-1) ) s_umask = get_umask() ;
+	if ( (mod&~umask) & ~(mod&~s_umask)                ) return mod&~umask ;
+	/**/                                                 return 0          ;
 }
 
 mode_t mod_from_str(::string const& s) {
@@ -307,7 +307,7 @@ void Fd::write(::string_view data) const {
 						case EAGAIN     :
 						case EINTR      : continue                                            ; // retry
 						case ECONNRESET : break                                               ; // process as eof as this appears with sockets when peer dies abruptly
-						default         : throw cat("cannot read (",StrErr(),") from fd ",fd) ; // consider ECONNRESET as eof as this appears with sockets when peer dies abruptly
+						default         : throw cat("cannot read (",StrErr(),") from fd ",fd) ;
 					}
 				}
 				res.resize(res_sz) ;                                                            // eof
@@ -398,7 +398,7 @@ void SyncGuardReaddir::access(FileRef path) {
 	access_dir_s({path.at,dir_name_s(path.file)}) ;
 }
 void SyncGuardReaddir::access_dir_s(FileRef dir_s) {
-	access(dir_s) ;                                                                                                    // we opened dir, we must ensure its dir is up-to-date w.r.t. BeeGFS
+	access(dir_s) ;                                                                                                    // we opened dir, we must ensure its dir is up-to-date
 	if (fetched_dirs_s.emplace(dir_s).second) {
 		Fd             fd     = ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ;
 		linux_dirent64 dirent ;
@@ -708,17 +708,17 @@ bool              _crash_busy  = false ;
 			SrcPoint& sp = src_points[n_sp] ;
 			for( size_t i=0 ;;) {                                                  // read first line to the end, even in case of sp.func overflows
 				char c ;
-				if (::read(c2p.read,&c,1)!=1) {                    goto Return ; } // if we cannot read a line, we are done
-				if (c=='\n'                 ) { sp.func[i] = 0   ; break       ; }
-				if (i<sizeof(sp.func)-1     ) { sp.func[i++] = c ;               }
+				if (::read(c2p.read,&c,1)!=1)                      goto Return ;   // if we cannot read a line, we are done
+				if (c=='\n'                 ) { sp.func[i  ] = 0 ; break       ; }
+				if (i<sizeof(sp.func)-1     )   sp.func[i++] = c ;
 			}
 			size_t col = -1 ;
-			for( size_t i=0 ;;) {                                                  // read first line to the end, even in case of sp.func overflows
+			for( size_t i=0 ;;) {                                                  // read second line to the end, even in case of sp.file overflows
 				char c ;
-				if (::read(c2p.read,&c,1)!=1) {                  goto Return ; }   // if we cannot read a line, we are done
-				if (c==':'                ) { col = i          ;               }
-				if (c=='\n'               ) { sp.file[i] = 0   ; break       ; }
-				if (i<sizeof(sp.file)-1   ) { sp.file[i++] = c ;               }
+				if (::read(c2p.read,&c,1)!=1)                      goto Return ;   // if we cannot read a line, we are done
+				if (c==':'                  )   col = i          ;
+				if (c=='\n'                 ) { sp.file[i  ] = 0 ; break       ; }
+				if (i<sizeof(sp.file)-1     )   sp.file[i++] = c ;
 			}
 			if (col<sizeof(sp.file)-1) {
 				/**/                        sp.file[col] = 0                                                   ;

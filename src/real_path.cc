@@ -110,7 +110,7 @@ size_t RealPath::_find_src_idx(::string const& real) const {
 
 // strong performance efforts have been made :
 // - avoid ::string copying as much as possible
-// - do not support links outside repo & tmp, except from /proc (which is meaningful)
+// - do not support links outside repo, source dirs and tmp (except with FullExt where they are always followed), except from /proc and /dev (which is meaningful)
 // - note that besides syscalls, this algo is very fast and caching intermediate results could degrade performances (checking the cache could take as long as doing the job)
 RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 	static constexpr int NMaxLnks = MAXSYMLINKS ;                         // max number of links to follow before decreting it is a loop
@@ -140,7 +140,7 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 	_Dvg in_repo { _env->repo_root_s , real } ;                           // keep track of where we are w.r.t. repo , track symlinks according to lnk_support policy
 	_Dvg in_tmp  { tmp_dir_s         , real } ;                           // keep track of where we are w.r.t. tmp  , always track symlinks
 	_Dvg in_proc { "/proc/"          , real } ;                           // keep track of where we are w.r.t. /proc, always track symlinks
-	_Dvg in_dev  { "/dev/"           , real } ;                           // keep track of where we are w.r.t. /proc, always track symlinks
+	_Dvg in_dev  { "/dev/"           , real } ;                           // keep track of where we are w.r.t. /dev , always track symlinks
 	// loop INVARIANT : accessed file is real+'/'+file.file.substr(pos)
 	// when pos>file.file.size(), we are done and result is real
 	size_t   end      ;

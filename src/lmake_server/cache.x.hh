@@ -17,7 +17,7 @@ namespace Cache {
 		struct DownloadDigest {
 			CacheHitInfo    hit_info         = {} ;
 			Engine::JobInfo job_info         = {} ;   // if hit_info< Miss
-			::string        file_actions_msg = {} ;   // if hit_info==Hit
+			::string        file_actions_msg = {} ;   // if hit_info<=Hit
 		} ;
 		// statics
 		static void s_config( ::vmap_s<::vmap_ss> const& caches ) ;

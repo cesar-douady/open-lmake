@@ -90,8 +90,9 @@ namespace Engine {
 	// cb_stem is called with :
 	// - the <identifier>
 	// - true if <identifier> is followed by a *
+	// - true if stem is unnamed
 	// - the regular expression that follows the : or nullptr for the first case
-	// /!\ : this function is also implemented in read_makefiles.py:add_stems, both must stay in sync
+	// /!\ : this function is also implemented in _lib/fmt_rule.py:add_static_stems, both must stay in sync
 	void parse_py( ::string const& str , size_t* unnamed_star_idx , ParsePyFuncStem const& cb_stem , ParsePyFuncFixed const& cb_fixed ) {
 		enum State { Literal , SeenStart , Key , Re , SeenStop } ;
 		State    state       = Literal ;
@@ -166,7 +167,7 @@ namespace Engine {
 		}
 	End :
 		switch (state) {
-			case Literal   : { if (+fixed) cb_fixed(fixed,has_pfx,false/*has_pfx*/) ; } break                      ; // trailing fixed
+			case Literal   : { if (+fixed) cb_fixed(fixed,has_pfx,false/*has_sfx*/) ; } break                      ; // trailing fixed
 			case SeenStop  :                                                            throw "spurious } in "+str ;
 			case SeenStart :
 			case Key       :

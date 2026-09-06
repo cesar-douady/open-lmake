@@ -11,7 +11,7 @@ using namespace Hash ;
 using namespace Time ;
 
 // check if cache_crc and repo_crc are compatible
-// cache_crc has undergone generalisation above, repo_crc may have undergone it (in case of commit, we first match to avoid double entries)
+// cache_crc has undergone generalisation in CompileDigest cxtor, repo_crc may have undergone it (in case of commit, we first match to avoid double entries)
 bool crc_ok( Crc cache_crc , Crc repo_crc ) {
 	Crc cc = +cache_crc & ~(CrcOrNone|CrcErr) ;
 	if ( cc.valid()                                ) return repo_crc==cache_crc ;                      // common case, other ones are exceptional

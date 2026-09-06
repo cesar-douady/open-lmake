@@ -600,7 +600,7 @@ Retry :
 		//^^^^^^^^^^^^
 	}
 	trace("child_pid",_child.pid) ;
-	return res ;                                                                  // used with fanotify and ptrace
+	return res ;                                                                  // used with seccomp and ptrace
 }
 
 Status Gather::exec_child() {
@@ -777,7 +777,7 @@ Status Gather::_exec_child() {
 				}
 			} else if (_wait[Kind::ChildStart]) {                // handle case where we are killed before starting : create child when we have processed waiting connections from server
 				try {
-					notify_fd = _spawn_child() ;                 // if method==ptrace, notify end of child, if method==fanotify, notify events
+					notify_fd = _spawn_child() ;                 // if method==ptrace|seccomp, notify end of child
 				} catch(::string const& e) {
 					trace("spawn_failed",e) ;
 					if (child_stderr==Child::PipeFd) stderr = with_nl(e) ;
@@ -914,8 +914,8 @@ Status Gather::_exec_child() {
 										if ( !(jse.jerr.digest.accesses&DataAccesses) ) {
 											vi.crc = {} ;
 										} else {
-											if      ( !jse.jerr.digest.accesses[Access::Lnk] && vi.crc.is_lnk() ) vi.crc = Crc::None ; // does not distinguish regular from no file
-											else if ( !jse.jerr.digest.accesses[Access::Reg] && vi.crc.is_reg() ) vi.crc = Crc::None ; // does not distinguish link    from no file
+											if      ( !jse.jerr.digest.accesses[Access::Lnk] && vi.crc.is_lnk() ) vi.crc = Crc::None ; // does not distinguish link    from no file
+											else if ( !jse.jerr.digest.accesses[Access::Reg] && vi.crc.is_reg() ) vi.crc = Crc::None ; // does not distinguish regular from no file
 											crc_str = ::string(vi.crc) ;
 										}
 										_user_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat( ok_str , +ok_str&&+crc_str?"/":"" , crc_str ) ) ;
@@ -968,8 +968,6 @@ Status Gather::_exec_child() {
 						} break ;
 					DF}                                                                                                        // NO_COV
 					if (+rfd) {
-						// for ChkDeps and DepDirect, jmrr.ok may be Maybe if job is now useless (due to ^C) and check was not performed
-						// in that case, dont reply and job will be killed
 						JobExecRpcReply jerr ;
 						switch (jmrr.proc) {
 							case JobMngtProc::None       :                                                                                                          break ;

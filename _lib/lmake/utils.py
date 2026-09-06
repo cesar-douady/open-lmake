@@ -19,8 +19,8 @@ class pdict(dict) :
 		Usage :
 		d = pdict(a=1,b=2)
 		d                  --> {'a':1,'b':2}
-		d['a']             --> 2
-		d.a                --> 2
+		d['a']             --> 1
+		d.a                --> 1
 		d.c = 3
 		d.c                --> 3
 	'''

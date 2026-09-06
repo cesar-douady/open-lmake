@@ -166,7 +166,7 @@ namespace Engine {
 			return true ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
-			size_t         w     = 3/*src*/            ;
+			size_t         w     = 0                   ;
 			::string       name  ;
 			::string       err   ;
 			::vector<Job > jobs  ;
@@ -490,7 +490,7 @@ namespace Engine {
 			}
 		Tmp :
 			if      (!tmp_dir_s) tmp_dir_s = *g_repo_root_s+dbg_dir_s+"tmp/" ;
-			else if (add_key   ) tmp_dir_s << g_config->key << "/0/"         ;                  // 0 is for small_id which does not exist for debug
+			else if (add_key   ) tmp_dir_s << g_config->key<<"/0/"           ;                  // 0 is for an inexistent seq_id which does not exist for normal job runs
 		}
 		ade.repo_root_s = job_space.repo_view_s | *g_repo_root_s ;
 		ade.tmp_dir_s   = job_space.tmp_view_s  | tmp_dir_s      ;

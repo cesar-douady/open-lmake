@@ -4,7 +4,6 @@
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 # /!\ must be python2/python3 compatible
-# /!\ this file must be able to accept that its own path is not in sys.path, it is read with exec, not with import
 
 from . import utils
 
@@ -19,10 +18,12 @@ def run_py(dbg_dir,deps,func,*args,**kwds) :
 			for elmt in data['launch']['configurations'] :
 				if elmt.get('type')=='by-gdb' and 'processId' in elmt : elmt['processId'] = os.getpid()
 			with open(workspace,'w') as out :
-				json.dump(data,out,indent='\t')
+				try              : json.dump(data,out,indent='\t')
+				except TypeError : json.dump(data,out,indent=4   ) # XXX> for python2 support
 				out.write('\n')
 		# call cmd
 		func(*args,**kwds)
 	except BaseException as e :
+		import sys
 		import traceback
-		traceback.print_exception(e)
+		traceback.print_exception(sys.exc_info(e))

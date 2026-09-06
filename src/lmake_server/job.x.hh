@@ -36,7 +36,7 @@ enum class JobMakeAction : uint8_t {
 ,	Status                           // target crcs are available
 ,	End                              // job has completed
 ,	GiveUp                           // job is abandonned, because of error or ^C
-,	Query                            // used for dep analysis : query only, no action is intiated (for DepsVerbose and ChkDeps)
+,	Query                            // used for dep analysis : query only, no action is intiated (for ChkDeps)
 } ;
 
 enum class JobStep : uint8_t { // must be in chronological order
@@ -185,11 +185,11 @@ namespace Engine {
 		void operator>>(::string&) const ;
 		// services
 		// called in main thread after start
-		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start and started
-		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} ) const ; // txts is {backend_msg,stderr}
-		bool/*reported*/ report_start( ReqInfo& ri                                                                          ) const ;
+		// /!\ clang does not support default initilization of report_unlks here, so we have to provide a 2nd version of report_start
+		bool/*reported*/ report_start( ReqInfo&    , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} ) const ;
+		bool/*.       */ report_start( ReqInfo&                                                                             ) const ;
 		void             report_start(                                                                                      ) const ;
-		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} )       ; // txts is {backend_msg,stderr}
+		void             started     ( bool report , ::vmap<Node,FileActionTag> const& report_unlnks , MsgStderr const& ={} )       ;
 		//
 		void live_out    ( ReqInfo& , ::string const& ) const ;
 		void live_out    (            ::string const& ) const ;
@@ -256,8 +256,8 @@ namespace Engine {
 			state = {} ;
 		}
 		void mk_has_run() {
-			force  = false ;                               // cmd has been executed, it is not new any more
-			reason = {}    ;                               // reasons were to trigger the ending job, there are none now
+			force  = false ;                                   // cmd has been executed, it is not new any more
+			reason = {}    ;                                   // reasons were to trigger the ending job, there are none now
 		}
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) {
 			ReqInfo::add_watcher(watcher,watcher_req_info) ;
@@ -292,8 +292,8 @@ namespace Engine {
 		State            state                ;                //  43  <= 96 bits, dep analysis state
 		DepsIter::Digest iter                 ;                // ~20+6<= 64 bits, deps up to this one statisfy required action
 		JobReason        reason               ;                //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
-		uint16_t         n_runs               = 0     ;        //         16 bits, number of times job has been rerun
-		uint16_t         n_submits            = 0     ;        //         16 bits, number of times job has been rerun
+		uint16_t         n_runs               = 0     ;        //         16 bits, number of times job has been run       (excluding cache hits)
+		uint16_t         n_submits            = 0     ;        //         16 bits, number of times job has been submitted (including cache hits)
 		uint8_t          n_losts              = 0     ;        //          8 bits, number of times job has been lost
 		uint8_t          n_retries            = 0     ;        //          8 bits, number of times job has been seen in error
 		bool             force             :1 = false ;        //          1 bit , if true <=> job must run because reason
@@ -315,7 +315,7 @@ namespace Engine {
 	struct SubmitInfo {
 		// services
 		SubmitInfo& operator|=(SubmitInfo const& si) {
-			// cache, deps and tag are independent of req but may not always be present
+			// cache and deps are independent of req but may not always be present
 			if (!cache_idx1) cache_idx1    =                    si.cache_idx1    ; else if (+si.cache_idx1) SWEAR( cache_idx1==si.cache_idx1 , cache_idx1,si.cache_idx1 ) ;
 			if (!deps      ) deps          =                    si.deps          ; else if (+si.deps      ) SWEAR( deps      ==si.deps       , deps      ,si.deps       ) ;
 			/**/             live_out     |=                    si.live_out      ;
@@ -435,8 +435,8 @@ namespace Engine {
 		bool     operator+(            ) const { return +rule() ;              }
 		void     clear    (            )       { _close() ; rule_crc_idx = 0 ; }
 	private :
-		JobData           (JobData const&) = default ;           // /!\ only used as convenience to move operators as this duplicates targets and deps that are owned
-		JobData& operator=(JobData const&) = default ;           // .
+		JobData           (JobData const&) = default ;          // /!\ only used as convenience to move operators as this duplicates targets and deps that are owned
+		JobData& operator=(JobData const&) = default ;          // .
 		void _close        (                      ) ;
 		// accesses
 	public :
@@ -565,16 +565,16 @@ namespace Engine {
 		// data
 		// START_OF_VERSIONING REPO
 		struct IfPlain {
-			Node        build_asking ;                                    //       32 bits,        node need this job that triggered rebuild
-			Node        last_asking  ;                                    //       32 bits,        last node needing this job
-			Targets     targets      ;                                    //       32 bits, owned, for plain jobs
-			CoarseDelay exe_time     ;                                    //       16 bits,        for plain jobs
-			CoarseDelay cost         ;                                    //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
+			Node        build_asking ;                            //       32 bits,        node need this job that triggered rebuild
+			Node        last_asking  ;                            //       32 bits,        last node needing this job
+			Targets     targets      ;                            //       32 bits, owned, for plain jobs
+			CoarseDelay exe_time     ;                            //       16 bits,        for plain jobs
+			CoarseDelay cost         ;                            //       16 bits,        exe_time / average number of parallel jobs during execution, /!\ must be stable during job execution
 		} ;
 		struct IfDep {
-			SeqId seq_id     = 0 ;                                        //       64 bits
-			Fd    fd         ;                                            //       32 bits
-			Job   asking_job ;                                            //       32 bits
+			SeqId seq_id     = 0 ;                                //       64 bits
+			Fd    fd         ;                                    //       32 bits
+			Job   asking_job ;                                    //       32 bits
 		} ;
 	public :
 	//	JobName      name                               ;         //       32 bits, inherited
@@ -582,7 +582,7 @@ namespace Engine {
 		RuleCrcIdx   rule_crc_idx  :NRuleCrcIdxBits     = 0     ; //       24 bits
 		MatchGen     match_gen                          = 0     ; //        8 bits,           if <Rule::s_match_gen => deemed !sure
 		Tokens1      tokens1                            = 0     ; //        8 bits
-		RunStatus    run_status    :NBits<RunStatus   > = {}    ; //        3 bits
+		RunStatus    run_status    :NBits<RunStatus   > = {}    ; //        2 bits
 		Status       status        :NBits<Status      > = {}    ; //        5 bits
 		CacheHitInfo cache_hit_info:NBits<CacheHitInfo> = {}    ; //        4 bits
 		BackendTag   backend       :NBits<BackendTag  > = {}    ; //        2 bits,           backend asked for last execution
@@ -590,15 +590,15 @@ namespace Engine {
 		bool         incremental   :1                   = false ; //        1 bit ,           job was last run with existing incremental targets
 		bool         sure          :1                   = false ; //        1 bit
 	private :
-		Bool3 _reliable_stats:2 = No ;                                    //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
+		Bool3 _reliable_stats:2 = No ;                            //        2 bits,           if No <=> no known info, if Maybe <=> guestimate only, if Yes <=> recorded info
 	public :
 		union {
-			IfPlain _if_plain = {} ;                                      // 104<=128 bits
-			IfDep   _if_dep   ;                                           //      128 bits
+			IfPlain _if_plain = {} ;                              //      128 bits
+			IfDep   _if_dep   ;                                   //      128 bits
 		} ;
 		// END_OF_VERSIONING
 	} ;
-	static_assert(sizeof(JobData)==32) ;                                  // ensure size is a power of 2 to maximize cache perf
+	static_assert(sizeof(JobData)==32) ;                          // ensure size is a power of 2 to maximize cache perf
 
 }
 
@@ -646,7 +646,7 @@ namespace Engine {
 	// JobExec
 	//
 
-	inline bool/*reported*/ JobExec::report_start( ReqInfo& ri ) const { return report_start(ri,{}) ; }
+	inline bool/*reported*/ JobExec::report_start(ReqInfo& ri) const { return report_start(ri,{}) ; }
 
 	//
 	// JobData

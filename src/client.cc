@@ -111,7 +111,7 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	bool       sync           = cmd_line.flags[ReqFlag::Sync] ;
 	::vector_s cmd_line_files ;                                 try { cmd_line_files = cmd_line.files() ; } catch (::string const& e) { syntax.usage(e) ; }
 	//
-	Bool3    dv     = Maybe/*garbage*/ ;
+	Bool3    dv     = Maybe                               ;
 	::string dv_str = cmd_line.flag_args[+ReqFlag::Video] ; if (!dv_str) dv_str = get_env("LMAKE_VIDEO") ;
 	trace("dv",dv_str) ;
 	switch (dv_str[0]) {

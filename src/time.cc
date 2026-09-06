@@ -126,10 +126,11 @@ namespace Time {
 			case Tick(-2) : return "Future" ;
 		DN}
 		time_t   s   = sec()                 ;
-		::string res ( (in_day?0:11)+8 , 0 ) ;                               // time in seconds : YYYY-MM-DD hh:mm:ss
+		::string res ( (in_day?0:11)+8+1/*null*/ , 0 ) ;                     // time in seconds : (YYYY-MM-DD )?hh:mm:ss
 		::tm     t   ;
 		::localtime_r(&s,&t) ;
-		::strftime( res.data() , res.size()+1 , in_day?"%T":"%F %T" , &t ) ; // +1 to account for terminating null
+		size_t n = ::strftime( res.data() , res.size() , in_day?"%T":"%F %T" , &t ) ;
+		res.resize(n) ; // suppress terminating null
 		_add_frac(res,nsec_in_s(),prec) ;                                    // then add sub-second part
 		return res ;
 	}
@@ -141,10 +142,11 @@ namespace Time {
 			case Tick(-2) : return "Future" ;
 		DN}
 		time_t   s   = sec()    ;
-		::string res ( 10 , 0 ) ;                             // time in seconds : YYYY-MM-DD hh:mm:ss
+		::string res ( 10+1/*null*/ , 0 ) ;                            // date : YYYY-MM-DD
 		::tm     t   ;
 		::localtime_r(&s,&t) ;
-		::strftime( res.data() , res.size()+1 , "%F" , &t ) ; // +1 to account for terminating null
+		size_t n = ::strftime( res.data() , res.size() , "%F" , &t ) ;
+		res.resize(n) ;                                                // suppress terminating null
 		return res ;
 	}
 
@@ -177,23 +179,15 @@ namespace Time {
 	// Pdate
 	//
 
-	#if __cplusplus<202600L
-		Mutex<MutexLvl::PdateNew> Pdate::_s_mutex_new ;
-		Pdate::Tick               Pdate::_s_min_next  ;
-	#else
-		Atomic<Pdate::Tick> Pdate::_s_min_next ;
-	#endif
+	Mutex<MutexLvl::PdateNew> Pdate::_s_mutex_new ;
+	Pdate::Tick               Pdate::_s_last      ;
 
 	Pdate::Pdate(NewType) {
-		TimeSpec now_ts ;            ::clock_gettime(CLOCK_REALTIME,&now_ts) ;
-		Pdate    now    { now_ts } ;
-		#if __cplusplus<202600L
-			Lock lock { _s_mutex_new } ;                     // ::atomic::fetch_max is not available, so use a mutex to ensure atomic fetch and max
-			_s_min_next = ::max( _s_min_next , now.val() ) ;
-		#else
-			_s_min_next.fetch_max(now.val()) ;
-		#endif
-		self = Pdate(New,_s_min_next++) ;
+		TimeSpec now_ts ;                  ::clock_gettime(CLOCK_REALTIME,&now_ts) ;
+		Pdate    now    { now_ts       } ;
+		Lock     lock   { _s_mutex_new } ;                     // ::atomic::fetch_max is not available, so use a mutex to ensure atomic fetch and max
+		_s_last = ::max( _s_last+1 , now.val() ) ;
+		self = Pdate(New,_s_last) ;
 	}
 
 	bool/*slept*/ Pdate::sleep_until( ::stop_token stkn , bool flush ) const { // if flush, consider we slept even if stop requested, as long as sleep is not necessary

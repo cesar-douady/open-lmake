@@ -227,12 +227,12 @@ template<bool Encode> static Ptr<> _codec( Tuple const& py_args , Dict const& py
 			else             cv = *a.str()                  ;
 	} ;
 	size_t i = 0 ;
-	if (           i<n_args ) file    =                  *py_args[i++].str()      ;
-	if (           i<n_args ) ctx     =                  *py_args[i++].str()      ;
-	if (           i<n_args ) get_cv(                     py_args[i++]          ) ;
-	if ( Encode && i<n_args ) min_len = _mk_int<uint8_t >(py_args[i++],"min_len") ;
-	if (           i<n_args ) version = _mk_int<uint64_t>(py_args[i++],"version") ;
-	if (           i<n_args ) throw cat("too many args : ",n_args,'>',i         ) ;
+	if (           i<n_args ) file    =                  *py_args[i++].str()            ;
+	if (           i<n_args ) ctx     =                  *py_args[i++].str()            ;
+	if (           i<n_args ) get_cv(                     py_args[i++]                ) ;
+	if ( Encode && i<n_args ) min_len = _mk_int<uint8_t >(py_args[i++],"min_length"   ) ;
+	if (           i<n_args ) version = _mk_int<uint64_t>(py_args[i++],"codec_version") ;
+	if (           i<n_args ) throw cat("too many args : ",n_args,'>',i               ) ;
 	for( auto const& [py_key,py_val] : py_kwds ) {
 		static constexpr const char* MsgEnd = " passed both as positional and keyword" ;
 		::string key = py_key.template as_a<Str>() ;
@@ -241,7 +241,7 @@ template<bool Encode> static Ptr<> _codec( Tuple const& py_args , Dict const& py
 			/**/       if (key==Cv             ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; get_cv(                     py_val      ) ; continue ; }
 			/**/       if (key=="codec_version") { throw_if(+version,"arg ",key,MsgEnd) ; version = _mk_int<uint64_t>(py_val,key)   ; continue ; } break ;
 			case 't' : if (key=="table"        ) { throw_if(+file   ,"arg ",key,MsgEnd) ; file    =                  *py_val.str()  ; continue ; } break ;
-			case 'm' : if (key=="min_len"      ) { throw_if(+min_len,"arg ",key,MsgEnd) ; min_len = _mk_int<uint8_t >(py_val,key)   ; continue ; } break ;
+			case 'm' : if (key=="min_length"   ) { throw_if(+min_len,"arg ",key,MsgEnd) ; min_len = _mk_int<uint8_t >(py_val,key)   ; continue ; } break ;
 			case 'v' : if (key==Cv             ) { throw_if(+cv     ,"arg ",key,MsgEnd) ; cv      =                  *py_val.str()  ; continue ; } break ;
 		DN}
 		throw "unexpected keyword arg "+key ;
@@ -440,13 +440,13 @@ PyMODINIT_FUNC
 			",\tfollow_symlinks=False\n"
 			",\tread           =False # pretend deps are read in addition to setting flags\n"
 			",\tregexpr        =False # deps are regexprs\n"
-			",\tverbose        =False # return a report as a dict { dep:(ok,checksum) for dep in deps} ok=True if dep ok, False if dep is in error, None if dep is out-of-date\n"
+			",\tverbose        =False # return a report as a dict { dep:{'ok':ok,'checksum':checksum} for dep in deps } ok=True if dep ok, False if dep is in error, absent if dep is out-of-date\n"
 			"# flags :\n"
 			",\tcritical       =False # if modified, ignore following deps\n"
 			",\tessential      =False # show when generating user oriented graphs\n"
 			",\tignore         =False # ignore deps, used to mask out further accesses\n"
 			",\tignore_error   =False # dont propagate error if dep is in error (Error instead of Err because name is visible from user)\n"
-			",\treaddir_ok     =True  # allow readdir on dep (implies required=False)\n"
+			",\treaddir_ok     =False # allow readdir on dep (implies required=False)\n"
 			",\trequired       =True  # dep must be buildable\n"
 			")\n"
 			"Pretend parallel read of deps (if read==True) and mark them with flags mentioned as True.\n"
@@ -468,17 +468,18 @@ PyMODINIT_FUNC
 			"# in case targets turn out to be deps, the depend flags are available as well :\n"
 			",\tcritical    =False # if modified, ignore following deps\n"
 			",\tignore_error=False # dont propagate error if dep is in error (Error instead of Err because name is visible from user)\n"
-			",\treaddir_ok  =True  # allow readdir on dep (implies required=False)\n"
-			",\trequired    =True  # dep must be buildable\n"
+			",\treaddir_ok  =False # allow readdir on dep (implies required=False)\n"
+			",\trequired    =False # if a dep, must be buildable\n"
 			")\n"
 			"Pretend write to targets (if write==True) and mark them with flags mentioned as True.\n"
 			"Flags accumulate and are never reset.\n"
 		)
 	,	F( "check_deps" , (_py_func<Object,_chk_deps>) ,
-			"check_deps(verbose=False)\n"
+			"check_deps(delay=0,sync=False)\n"
 			"Ensure that all previously seen deps are up-to-date.\n"
 			"Job will be killed in case some deps are not up-to-date.\n"
-			"If verbose, wait for server reply. Return value is False if at least a dep is in error.\n"
+			"If delay is provided, wait for that delay before check is performed.\n"
+			"If sync, wait for server reply. Return value is False if at least a dep is in error.\n"
 			"This is necessary, even without checking return value, to ensure that after this call,\n"
 			"the directories of previous deps actually exist if such deps are not read (such as with lmake.depend).\n"
 		)
@@ -503,17 +504,19 @@ PyMODINIT_FUNC
 			"Return passed dir as used as prefix in list_deps and list_targets.\n"
 		)
 	,	F( "decode" , (_py_func<Object,_codec<false/*Encode*/>>) ,
-			"decode(table,ctx,code)\n"
+			"decode(table,ctx,code,codec_version=None)\n"
 			"Return the associated (long) value passed by encode(table,ctx,val) when it returned (short) code.\n"
 			"This call to encode must have been done before calling decode.\n"
+			"If specified, codec table version is checked against codec_version.\n"
 		)
 	,	F( "encode" , (_py_func<Object,_codec<true/*Encode*/>>) ,
-			"encode(table,ctx,val,min_length=1)\n"
+			"encode(table,ctx,val,min_length=1,codec_version=None)\n"
 			"Return a (short) code associated with (long) val. If necessary create such a code of\n"
 			"length at least min_length based on a checksum computed from value.\n"
 			"val can be retrieve from code using decode(table,ctx,code),\n"
 			"even from another job (as long as it is called after the call to encode).\n"
 			"This means that decode(table,ctx,encode(table,ctx,val,min_length)) always return val for any min_length.\n"
+			"If specified, codec table version is checked against codec_version.\n"
 		)
 	,	F( "xxhsum_file" , (_py_func<Str,_xxhsum<true/*IsFile*/>>) ,
 			"xxhsum_file(file)\n"
@@ -530,9 +533,8 @@ PyMODINIT_FUNC
 			"xxhsum(text)\n"
 			"Return a checksum of provided text.\n"
 			"It is a 16-digit hex value with no suffix.\n"
-			"Note : the empty string lead to 0100000000000000 so as to be easily recognizable.\n"
-			"Note : this checksum is not the same as the checksum of a file with same content.\n"
-			"Note : this checksum is *not* crypto-robust.\n"
+			"Note : this checksum is *not* the same as the checksum of a file with same content.\n"
+			"Note : this checksum is high quality and fast but *not* crypto-robust.\n"
 			"Cf man xxhsum for a description of the algorithm.\n"
 		)
 	,	F( "report_import" , _py_func<_report_import> ,

@@ -138,7 +138,7 @@ struct CacheServer : AutoServer<CacheServer> {
 			case Proc::Download : OMsgBuf( _download(        crr            ) ).send( fd , {} ) ; return No  ; // from lmake_server
 			case Proc::Upload   : OMsgBuf( _upload  (conn_fd,crr.reserved_sz) ).send( fd , {} ) ; return Yes ; // from job_exec
 			case Proc::Commit   :          _commit  (conn_fd,crr            )                   ; return No  ; // from lmake_server
-			case Proc::Dismiss  :          _dismiss (conn_fd,crr.upload_key )                   ; return No  ; // .
+			case Proc::Dismiss  :          _dismiss (conn_fd,crr.upload_key )                   ; return No  ; // from lmake_server or job_exec
 		DF}                                                                                                    // NO_COV
 	}
 } ;

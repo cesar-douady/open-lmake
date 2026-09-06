@@ -163,12 +163,12 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 
 // getdents
 [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_getdents( Record& r , Fd /*proc_mem*/ , uint64_t args[6] , bool emulate , Comment c ) {
-	if (emulate) { Record::ReadDir  rd {                      r,Fd(args[0]),c} ; rd(r) ; return {                    } ; }                      // cannot emulate readdir, record access in all cases
+	if (emulate) { Record::ReadDir  rd {                      r,Fd(args[0]),c} ; rd(r) ; return {                    } ; } // cannot emulate readdir, record access in all cases
 	else         { Record::ReadDir& rd = *new Record::ReadDir{r,Fd(args[0]),c} ;         return {&rd,false/*refresh*/} ; }
 }
 [[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_getdents( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::ReadDir>( ctx , rc
-	,	[ ](Record::ReadDir&              )->int64_t { FAIL() ;   }                                                                             // cannot emulate getdents
+	,	[ ](Record::ReadDir&              )->int64_t { FAIL() ;   }                                                        // cannot emulate getdents
 	,	[&](Record::ReadDir& rd,int64_t rc)          { rd(r,rc) ; }
 	) ;
 }
@@ -226,7 +226,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 // name_to_handle_at (open_by_handle_at is priviledged, no need to handle it)
 [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_name_to_handle_at( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
 	try {
-		Record::Solve( r , _path<true/*At*/>(proc_mem,args+0) , !(args[4]&AT_SYMLINK_FOLLOW) , false/*create*/ , c ) ;
+		Record::Solve( r , _path<true/*At*/>(proc_mem,args+0) , !(args[4]&AT_SYMLINK_FOLLOW) , false/*read*/ , c ) ;
 	} catch (::string const&) {}
 	return {} ;
 }
@@ -260,7 +260,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 		struct ::open_how how ;
 		try                     { _peek( proc_mem , reinterpret_cast<char*>(&how) , args[2] , sizeof(how) ) ; }
 		catch (::string const&) { return {} ;                                                                 }
-		throw_if( how.flags&RESOLVE_BENEATH , "openat2 flag RESOLV_BENEATH not yet implemented" ) ;             // XXX! : implement
+		throw_if( how.resolve&RESOLVE_IN_ROOT , "openat2 flag RESOLVE_IN_ROOT not implemented yet" ) ;          // XXX! : implement
 		try {
 			Openat2Helper& o2 = *new Openat2Helper{ .open={r,_path<true/*At*/>(proc_mem,args+0),int(how.flags),c} , .how=how } ;
 			if (o2.open.confirm_id) return { &o2 , false/*refresh*/ } ;

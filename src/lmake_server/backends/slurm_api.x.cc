@@ -24,7 +24,11 @@ namespace Backends::Slurm::SlurmApi {
 	// ensure functions we call before knowing slurm version have a compatible prototype
 	static_assert( requires(                ) { slurm_init         (""                                             ) ; } ) ;
 	static_assert( requires(slurm_conf_t* sc) { slurm_load_ctl_conf(time_t(0),reinterpret_cast<slurm_conf_t**>(&sc)) ; } ) ;
-	static_assert( requires(slurm_conf_t* sc) { slurm_free_ctl_conf(          reinterpret_cast<slurm_conf_t* >( sc)) ; } ) ;
+	#if SLURM_VERSION_NUMBER>=SLURM_VERSION_NUM(26,5,0)
+		static_assert( requires(slurm_conf_t* sc) { slurm_free_conf    (reinterpret_cast<slurm_conf_t* >( sc)) ; } ) ;
+	#else
+		static_assert( requires(slurm_conf_t* sc) { slurm_free_ctl_conf(reinterpret_cast<slurm_conf_t* >( sc)) ; } ) ;
+	#endif
 
 	static decltype(slurm_free_job_info_msg                )* _free_job_info_msg                 = nullptr/*garbage*/ ;
 	static decltype(slurm_free_submit_response_response_msg)* _free_submit_response_response_msg = nullptr/*garbage*/ ;
@@ -37,6 +41,18 @@ namespace Backends::Slurm::SlurmApi {
 	static decltype(slurm_strerror                         )* _strerror                          = nullptr/*garbage*/ ;
 	static decltype(slurm_submit_batch_het_job             )* _submit_batch_het_job              = nullptr/*garbage*/ ;
 	static decltype(slurm_submit_batch_job                 )* _submit_batch_job                  = nullptr/*garbage*/ ;
+
+	#if SLURM_VERSION_NUMBER>=SLURM_VERSION_NUM(26,5,0)
+		static slurm_step_id_t _mk_ssi_arg(SlurmId slurm_id) { // some args have changed on v26.05, provide a generic helper
+			slurm_step_id_t res {} ;
+			res.job_id        = slurm_id ;
+			res.step_id       = NO_VAL   ;
+			res.step_het_comp = NO_VAL   ;
+			return res ;
+		}
+	#else
+		static SlurmId _mk_ssi_arg(SlurmId slurm_id) { return slurm_id ; }
+	#endif
 
 	static ::string _cmd_to_string(::vector_s const& cmd_line) {
 		::string res   = "#!/bin/sh" ;
@@ -88,7 +104,7 @@ namespace Backends::Slurm::SlurmApi {
 			/**/                     j.env_size        = 1                                                             ;               // seems to only work when 1
 			if (+r.excludes        ) j.exc_nodes       = const_cast<char*>(r.excludes .data())                         ;
 			if (+r.features        ) j.features        = const_cast<char*>(r.features .data())                         ;
-			/**/                     j.het_job_offset  = het_job_offset++                                              ;               // seems to only work when 1
+			/**/                     j.het_job_offset  = het_job_offset++                                              ;
 			if (+r.licenses        ) j.licenses        = const_cast<char*>(r.licenses .data())                         ;
 			/**/                     j.max_cpus        = r.cpu                                                         ;               // by symmetry with min_cpus
 			/**/                     j.min_cpus        = r.cpu                                                         ;               // version >25.05 requires this
@@ -142,10 +158,9 @@ namespace Backends::Slurm::SlurmApi {
 				#if EWOULDBLOCK!=EAGAIN
 					case EWOULDBLOCK :
 				#endif
-				case EAGAIN                              :
-				case EINTR                               :
-				case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY :
-				case ESLURM_NODES_BUSY                   : {
+				case EAGAIN            :
+				case EINTR             :
+				case ESLURM_NODES_BUSY : {
 					trace("retry",sav_errno,_strerror(sav_errno)) ;
 					bool zombie = true ;
 					for ( Req r : reqs ) if (!r.zombie()) { zombie = false ; continue ; }
@@ -187,16 +202,15 @@ namespace Backends::Slurm::SlurmApi {
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
 		for( [[maybe_unused]] int i : iota(NTrials) ) {
 			Lock lock { slurm_mutex } ;
-			if (_load_job(&resp,slurm_id,SHOW_LOCAL)==SLURM_SUCCESS) goto Report ;
+			if (_load_job( &resp , _mk_ssi_arg(slurm_id) , SHOW_LOCAL )==SLURM_SUCCESS) goto Report ;
 		}
 		switch (errno) {
 			#if EWOULDBLOCK!=EAGAIN
 				case EWOULDBLOCK :
 			#endif
-			case EAGAIN                              :
-			case ESLURM_ERROR_ON_DESC_TO_RECORD_COPY : //!                                                                                           job_ok
-			case ESLURM_NODES_BUSY                   : return { cat("slurm daemon busy ("   ,errno," after ",NTrials,"trials) : ",_strerror(errno)) , Maybe } ; // heartbeat will retry and ...
-			default                                  : return { cat("cannot load job info (",errno," after ",NTrials,"trials) : ",_strerror(errno)) , Yes   } ; // ... eventually cancel
+			case EAGAIN            : //!                                                                                           job_ok
+			case ESLURM_NODES_BUSY : return { cat("slurm daemon busy ("   ,errno," after ",NTrials,"trials) : ",_strerror(errno)) , Maybe } ; // heartbeat will retry and ...
+			default                : return { cat("cannot load job info (",errno," after ",NTrials,"trials) : ",_strerror(errno)) , Yes   } ; // ... eventually cancel
 		}
 	Report :
 		::string                msg ;
@@ -247,10 +261,10 @@ namespace Backends::Slurm::SlurmApi {
 		//Normally we kill mainly waiting jobs, but some "just started jobs" could be killed like that also
 		//Running jobs are killed by lmake/job_exec
 		Trace trace(BeChnl,"slurm_cancel",slurm_id) ;
-		int  i    = 0/*garbage*/   ;
+		int  i    = 0/*garbage*/  ;
 		Lock lock { slurm_mutex } ;
 		for( i=0 ; i<SlurmCancelTrials ; i++ ) {
-			if (_kill_job(slurm_id,SIGKILL,KILL_FULL_JOB)==SLURM_SUCCESS) { trace("done") ; return ; }
+			if (_kill_job( _mk_ssi_arg(slurm_id) , SIGKILL , KILL_FULL_JOB )==SLURM_SUCCESS) { trace("done") ; return ; }
 			switch (errno) {
 				case ESLURM_INVALID_JOB_ID             :
 				case ESLURM_ALREADY_DONE               : trace("already_dead",errno) ;                return ;

@@ -30,14 +30,17 @@ def fmt_callable( func , res='' ) :
 	)
 
 def stringify(x) :
-	if   x in (None,...)                    : return x
-	elif isinstance(x,(bool,float,int,str)) : return x
-	elif isinstance(x,list )                : return list (  (             stringify(v) for   v in x        ))
-	elif isinstance(x,set  )                : return set  (  (stringify(k)              for k   in x        ))
-	elif isinstance(x,tuple)                : return tuple(  (             stringify(v) for   v in x        ))
-	elif isinstance(x,dict )                : return dict (**{stringify(k):stringify(v) for k,v in x.items()})
-	else                                    : return str(x)
-
+	if   x is None           : return       x
+	elif x is ...            : return       x
+	elif isinstance(x,bool ) : return bool (x)                                                  # beware of x being a sub-instance with dedicated __str__ or __repr__
+	elif isinstance(x,float) : return float(x)                                                  # .
+	elif isinstance(x,int  ) : return int  (x)                                                  # .
+	elif isinstance(x,str  ) : return str  (x)                                                  # .
+	elif isinstance(x,list ) : return list (  (             stringify(v) for   v in x        ))
+	elif isinstance(x,set  ) : return set  (  (stringify(k)              for k   in x        ))
+	elif isinstance(x,tuple) : return tuple(  (             stringify(v) for   v in x        ))
+	elif isinstance(x,dict ) : return dict (**{stringify(k):stringify(v) for k,v in x.items()})
+	else                     : return str(x)
 
 StdAttrs = {
 	'disk_date_precision' : float

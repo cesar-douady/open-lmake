@@ -74,7 +74,7 @@ namespace Re {
 			::string            _sfx     ;                                                         // fixed suffix
 			::vector_s          _infxs   ;                                                         // internal fixed parts
 			Data                _data    ;
-			::pcre2_code const* _code    = nullptr                 ;                               // only contains code for infix part, shared and stored in s_store
+			::pcre2_code const* _code    = nullptr                 ;                               // only contains code for infix part, shared and stored in s_cache
 			bool                _own     = false                   ;                               // if true <=> _code is private and must be freed in dxtor
 			Special             _special = {}                      ;
 			thread::id          _tid     = ::this_thread::get_id() ;

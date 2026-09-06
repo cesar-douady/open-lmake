@@ -171,7 +171,7 @@ cat <<"EOF" >ld_so_probe.cc
 	int main( int argc , char** argv ) {
 		static constexpr char Pattern1     [] = ">>>/$LIB/<<<"                                  ;
 		static constexpr char Pattern2     [] = ">>><<<"                                        ;
-		static constexpr char* DummyCmdLine[] { (char*)"/proc/self/exe" , nullptr/*sentinel*/ } ;        // exec ourselves with an argument to distinguish from the original code
+		static constexpr char* DummyCmdLine[] { (char*)"/proc/self/exe" , nullptr/*sentinel*/ } ;        // exec ourselves without argument to distinguish from the original call
 		//
 		if (argc==1) return 0 ;                                                                          // we are the child which is exec'ed, just do nothing
 		//
@@ -457,7 +457,7 @@ cat <<"EOF" >pcre.cc
 		pcre2_compile(nullptr,0,PCRE2_ANCHORED|PCRE2_DOTALL|PCRE2_ENDANCHORED,nullptr,nullptr,nullptr) ;
 	}
 EOF
-HAS_PCRE_ENDANCHORED=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 ) # check if pcre2_compile is available in lib
+HAS_PCRE_ENDANCHORED=$(ok cc -std=$CXX_STD -o /dev/null pcre.cc -lpcre2-8 ) # check if PCRE2_ENDANCHORED is available in lib
 #
 [ $HAS_PCRE = 1 ] || echo "no pcre2 support, fall back to (slower) c++ STL regular expression library" >>$SUM_FILE
 

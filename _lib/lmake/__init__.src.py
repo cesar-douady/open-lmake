@@ -22,10 +22,10 @@ import sys as _sys
 import os  as _os
 
 if _sys.version_info.major>=3 :
-	try                        : from clmake     import * # if not in an lmake repo, top_repo_root is not set to current dir
+	try                        : from clmake     import *
 	except ModuleNotFoundError : from .py_clmake import *
 else :
-	try                        : from clmake2    import * # .
+	try                        : from clmake2    import *
 	except ImportError         : from .py_clmake import *
 
 from .utils import *
@@ -135,14 +135,14 @@ def run_cc(*cmd_line,**kwds) :
 	)
 
 try :
-	# python version >= 3.10 (simpler, more reliable as we do not need the exact order of arguments)
+	# when code.replace is available, it is simpler, more reliable as we do not need the exact order of arguments
 	(lambda:None).__code__.replace(co_filename='',co_firstlineno=1)
 	def _sourcify(func,module,qualname,filename,firstlineno) :
 		func.__code__     = func.__code__.replace( co_filename=filename , co_firstlineno=firstlineno )
 		func.__module__   = module
 		func.__qualname__ = qualname
 except :
-	# python version < 3.10 (fall back to more fragile code if we have no choice)
+	# else fall back to more fragile code if we have no choice
 	def _sourcify(func,module,qualname,filename,firstlineno) :
 		c    = func.__code__
 		args = [c.co_argcount]
@@ -216,7 +216,6 @@ def cp_target_tree( from_dir , to_dir , regexpr=None ) :
 	# copy files
 	for from_t in targets :
 		assert from_t.startswith(from_s) , 'listed target not in asked dir ('+from_dir+') : '+from_t
-		assert from_t[0]!='/'            , 'target should be relative : '                    +from_t # defensive programming : ensure no catastrophic unlink
 		to_t = to_s+from_t[len(from_s):]
 		to_d = osp.dirname(to_t)
 		if   to_d               : _os.makedirs(to_d,exist_ok=True)
@@ -254,5 +253,5 @@ def mv_target_tree( from_dir , to_dir , regexpr=None ) :
 	# remove dirs
 	dirs = sorted(dirs,reverse=True)                                                                 # sort dirs so that sub-dirs appear before parent
 	for d in dirs :
-		try    : _os.rmdir(pfx+d)
+		try    : _os.rmdir(from_s+d)
 		except : pass

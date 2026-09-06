@@ -14,7 +14,7 @@
 #include "store/idxed.hh"
 
 //
-// There are 13 files :
+// There are 12 files :
 // - 2 name files associate a name with a node and a job :
 //   - These are prefix-trees to share as much prefixes as possible since names tend to share a lot of prefixes
 //   - For jobs, a suffix containing the rule and the positions of the stems is added.
@@ -24,15 +24,12 @@
 // - 3 files for jobs :
 //   - A job data file containing its name (a pointer to the name file) and all the pertinent info for a job
 //   - A targets file containing vectors of star targets (static targets can be identified from the rule).
-//     A target is a node index and a marker saying if target has been updated, i.e. it was not unlinked before job execution.
 //     This file is sorted so that searching a node inside a vector can be done efficiently.
 //   - A deps file containing vectors of deps, ordered with static deps first, then critical deps then non-critical deps, in order in which they were opened.
-// - 6 files for rules :
+// - 5 files for rules :
 //   - A rule string file containing strings describing the rule.
-//   - A rule index file containing indexes in the rule string file.
-//     The reason for this indirection is to have a short (16 bits) index for rules while the index in the rule string file is 32 bits.
 //   - A rule crc file containing an history of rule crc's (match, cmd and rsrcs).
-//     Jobs store an index in this file rather than directly rule crc's as this index is 32 bits instead of 3x64 bit.
+//     Jobs store an index in this file rather than directly rule crc's as this index is 24 bits instead of 3x64 bit.
 //   - A rule-targets file containing vectors of rule-target's. A rule-target is a rule index and a target index within the rule.
 //     This file is for use by nodes to represent candidates to generate them.
 //     During the analysis process, rule-targets are transformed into job-target when possible (else they are dropped), so that the yet to analyse part which
@@ -223,7 +220,7 @@ namespace Engine::Persistent {
 		static StaticUniqPtr<Rules,MutexLvl::None> s_rules     ;          // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
 		// cxtors & casts
 		using Base::Base ;
-		constexpr RuleBase(Special s) : Base{RuleIdx(+s)} { SWEAR(+s) ; } // Special::0 is a marker that says not special
+		constexpr RuleBase(Special s) : Base{RuleIdx(+s)} { SWEAR(+s) ; } // Special::0 is a marker that says not initialized, so forbidden here
 		// accesses
 		RuleData      & data      ()       ;
 		RuleData const& operator* () const ;
@@ -474,7 +471,7 @@ namespace Engine::Persistent {
 	// RuleBase
 	//
 	inline Iota2<Rule> rule_lst(bool with_shared=false) {
-		if (+Rule::s_rules) return { with_shared?1:+Special::NUniq , Rule(Rule::s_rules->size()+1) } ;     // rules are numbered from 1 to _s_n_rules
+		if (+Rule::s_rules) return { with_shared?1:+Special::NUniq , Rule(Rule::s_rules->size()+1) } ;     // rules are numbered from 1
 		else                return { 0                             , 0                             } ;
 	}
 	// accesses

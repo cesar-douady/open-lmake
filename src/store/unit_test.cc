@@ -117,30 +117,30 @@ template<bool HasHdr,bool HasData,bool Reverse> struct TestPrefix {
 	}
 	void test_tree() {
 		::string f = Reverse ? "c" : "a" ;
-		Idx                idx1   = file.insert (f     ) ; SWEAR( idx1                                                   ) ; file.chk() ;
-		Idx                idx2   = file.insert ("abc"s) ; SWEAR( idx2                                                   ) ; file.chk() ;
-		Idx                idx3   = file.search (f     ) ; SWEAR( idx3==idx1                             , idx3   , idx1 ) ;
-		::string           n      = file.str_key(idx1  ) ; SWEAR( n==f                                   , n      , f    ) ;
-		Idx                idx4   = file.search ("abc"s) ; SWEAR( idx4==idx2                             , idx4   , idx2 ) ;
-		Idx                idx5   = file.search ("adc"s) ; SWEAR( !idx5                                  , idx5          ) ;
-		::pair<Idx,size_t> idx_sz = file.longest("adc"s) ; SWEAR( idx_sz.first==idx1 && idx_sz.second==1 , idx_sz , idx1 ) ;
-		Idx                idx6   = file.insert ("abe"s) ; SWEAR( idx6                                                   ) ; file.chk() ;
-		Idx                idx7   = file.search ("abe"s) ; SWEAR( idx7==idx6                             , idx7   , idx6 ) ;
-		/**/                        file.pop    (idx7  ) ;                                                                   file.chk() ;
-		Idx                idx8   = file.search ("abe"s) ; SWEAR( !idx8                                  , idx8          ) ;
+		Idx                idx1   = file.insert (f     ).first ; SWEAR( idx1                                                   ) ; file.chk() ;
+		Idx                idx2   = file.insert ("abc"s).first ; SWEAR( idx2                                                   ) ; file.chk() ;
+		Idx                idx3   = file.search (f     )       ; SWEAR( idx3==idx1                             , idx3   , idx1 ) ;
+		::string           n      = file.str_key(idx1  )       ; SWEAR( n==f                                   , n      , f    ) ;
+		Idx                idx4   = file.search ("abc"s)       ; SWEAR( idx4==idx2                             , idx4   , idx2 ) ;
+		Idx                idx5   = file.search ("adc"s)       ; SWEAR( !idx5                                  , idx5          ) ;
+		::pair<Idx,size_t> idx_sz = file.longest("adc"s)       ; SWEAR( idx_sz.first==idx1 && idx_sz.second==1 , idx_sz , idx1 ) ;
+		Idx                idx6   = file.insert ("abe"s).first ; SWEAR( idx6                                                   ) ; file.chk() ;
+		Idx                idx7   = file.search ("abe"s)       ; SWEAR( idx7==idx6                             , idx7   , idx6 ) ;
+		/**/                        file.pop    (idx7  )       ;                                                                   file.chk() ;
+		Idx                idx8   = file.search ("abe"s)       ; SWEAR( !idx8                                  , idx8          ) ;
 	}
 	void test_data() requires(!HasData) {}
 	void test_data() requires( HasData) {
 		::string f = Reverse ? "c" : "a" ;
-		Idx      idx1 = file.search    (f     )      ;
-		Idx      idx2 = file.insert    (f     )      ; SWEAR(idx2==idx1) ; file.chk() ;
-		/**/            file.at        (idx1  ) = 35 ;
-		Idx      idx3 = file.insert    ("adc"s)      ;                     file.chk() ;
-		/**/            file.at        (idx3  ) = 36 ;                     file.chk() ;
-		Idx      idx4 = file.search    (f     )      ; SWEAR(idx4==idx1) ;
-		int      v1   = file.at        (idx1  )      ; SWEAR(v1  ==35  ) ;
-		::string n1   = file.str_key   (idx1  )      ; SWEAR(n1  ==f   ) ;
-		int      v2   = *file.search_at("adc"s)      ; SWEAR(v2  ==36  ) ;
+		Idx      idx1 = file.search    (f     )            ;
+		Idx      idx2 = file.insert    (f     ).first      ; SWEAR(idx2==idx1) ; file.chk() ;
+		/**/            file.at        (idx1  )       = 35 ;
+		Idx      idx3 = file.insert    ("adc"s).first      ;                     file.chk() ;
+		/**/            file.at        (idx3  )       = 36 ;                     file.chk() ;
+		Idx      idx4 = file.search    (f     )            ; SWEAR(idx4==idx1) ;
+		int      v1   = file.at        (idx1  )            ; SWEAR(v1  ==35  ) ;
+		::string n1   = file.str_key   (idx1  )            ; SWEAR(n1  ==f   ) ;
+		int      v2   = *file.search_at("adc"s)            ; SWEAR(v2  ==36  ) ;
 	}
 	TestPrefix() : file(g_dir_s+"prefix"+(HasHdr?"_hdr":"")+(HasData?"_data":"")+(Reverse?"_reverse":""),true/*writable*/) {
 		::string out = "check prefix" ;

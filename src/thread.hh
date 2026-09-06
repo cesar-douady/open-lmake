@@ -282,7 +282,7 @@ private :
 						trace("stop",mk_key_vector(slaves)) ;
 						for( auto const& [sfd,_] : slaves ) epoll.close(false/*write*/,sfd) ;
 						trace("done") ;
-						if (Flush) epoll.dec() ;                                                 // dont wait for new incoming connections, but finish on going connections and process what comes
+						if (Flush) epoll.dec() ;                                                 // dont wait for new incoming connections, but finish already received items
 						else       return ;                                                      // stop immediately
 					} break ;
 					case EventKind::Slave : {

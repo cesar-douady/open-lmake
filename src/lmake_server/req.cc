@@ -36,7 +36,7 @@ namespace Engine {
 		//
 		data.eta          = data.start_pdate ;
 		data.idx_by_start = s_n_reqs()       ;
-		data.idx_by_eta   = s_n_reqs()       ;    // initially, eta is far future
+		data.idx_by_eta   = s_n_reqs()       ;    // pessimistic, adjusted by _adjust_eta below
 		data.options      = ecr.options      ;
 		data.audit_fd     = ecr.fd           ;
 		data.files        = ecr.files        ;
@@ -379,7 +379,6 @@ namespace Engine {
 
 	void ReqInfo::wakeup_watchers() {
 		SWEAR(!waiting()) ;                                                          // dont wake up watchers if we are not ready
-		::vector<Watcher> watchers ;                                                 // copy watchers aside before calling them as during a call, we could become not done and be waited for again
 		auto go = [&]( Watcher* start , WatcherIdx n ) {
 			// we are done for a given RunAction, but calling make on a dependent may raise the RunAciton and we can become waiting() again
 			for( Watcher* p=start ; p<start+n ; p++ )
@@ -433,7 +432,7 @@ namespace Engine {
 			trace(log_file) ;
 			//
 			::string log_dir_s = AdminDirS+lcl_log_dir_s ;
-			if (mk_dir_s(log_dir_s)<log_dir_s.size()-1) {                                        // dir was created, check if we must unlink old ones, this is slow but happens at most once a day
+			if (mk_dir_s(log_dir_s)) {                                                           // dir was created, check if we must unlink old ones, this is slow but happens at most once a day
 				::string   outputs_dir_s = cat(AdminDirS,"outputs/") ;
 				::vector_s entries       = lst_dir_s(outputs_dir_s)  ;
 				trace(hd,entries.size()) ;

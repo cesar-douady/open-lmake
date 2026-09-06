@@ -473,7 +473,7 @@ class LinkLmakeServerExe(LinkAutodep,LinkAppExe) :
 	targets = { 'TARGET' : 'bin/lmake_server' }
 	deps = {
 		'RPC_CLIENT' : 'src/rpc_client.o'
-	,	'RPC_JOB'    : 'src/rpc_job.o'                     # lmake_repair must be aware of existing backends
+	,	'RPC_JOB'    : 'src/rpc_job.o'
 	,	'ZFD'        : 'src/zfd.o'
 	,	'LD'         : 'src/autodep/ld_server.o'
 	,	'RPC_CACHE'  : 'src/cache/rpc_cache.o'

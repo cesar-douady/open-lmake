@@ -51,7 +51,7 @@ struct RealPath {
 		// accesses
 		void operator>>(::string&) const ;
 		// data
-		::string   real          = {}           ;                     // real path relative to root if in_repo or in a relative src_dir or absolute if in an absolute src_dir, else empty
+		::string   real          = {}           ;                     // real path relative to root if in_repo or in a relative src_dir, else absolute
 		::vector_s lnks          = {}           ;                     // links followed to get to real
 		Bool3      file_accessed = No           ;                     // if True, file was accessed as sym link, if Maybe file dir was accessed as sym link
 		FileLoc    file_loc      = FileLoc::Ext ;                     // do not process awkard files

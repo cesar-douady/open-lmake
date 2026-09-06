@@ -26,15 +26,17 @@ else :
 def _system_tag() :             # by default re-read Lmakefile as soon as the executing host changes
 	return _os.uname().nodename
 
-# /!\ default values must stay in sync with src/lmake_server/config.hh
+# /!\ default values must stay in sync with src/lmake_server/config.x.hh
 config = pdict(
 	disk_date_precision = 0.010                             # in seconds, precisions of dates on disk, must account for date granularity and date discrepancy between executing hosts and disk servers
-,	file_sync           = 'dir'                             # method used to ensure real close-to-open file synchronization :
-#	                                                        # - 'none' or None : none
-#	                                                        # - 'dir'          : close dir after write, open dir before read
-#	                                                        # - 'sync'         : call fsync after write
-,	heartbeat           = 10                                # in seconds, minimum interval between 2 heartbeat checks (and before first one) for the same job (no heartbeat if None)
-,	heartbeat_tick      = 0.1                               # in seconds, minimum internval between 2 heartbeat checks (globally)                             (no heartbeat if None)
+#,	file_sync           = 'auto'                            # method used to ensure real close-to-open file synchronization :
+#	                                                        # - 'auto'               : auto-determine an adequate actual method from filesystem
+#	                                                        # - 'none' or None       : none
+#	                                                        # - 'dir'                : close dir after write, open dir before read
+#	                                                        # - 'readdir'            : readdir after write and before read
+#	                                                        # - 'beegfs','ceph',etc. : method suitable for each supported filesystem (maps to one of the above actual method)
+#,	heartbeat           = 10                                # in seconds, minimum interval between 2 heartbeat checks (and before first one) for the same job (no heartbeat if None)
+#,	heartbeat_tick      = 0.01                              # in seconds, minimum internval between 2 heartbeat checks (globally)                             (no heartbeat if None)
 ,	link_support        = 'Full'                            # symlinks are supported. Other values are 'None' (no symlink support) or 'File' (symlink to file only support)
 #,	local_admin_dir     = '/path/to/local/disk/LMAKE_LOCAL' # directory in which to store data that are private to the server (not accessed by remote executing hosts) (default is within LMAKE dir)
 #	                                                        # open-lmake ensures unicity between repos, so a hard-coded value is ok
@@ -64,7 +66,7 @@ config = pdict(
 	#	,	cluster           = 'p6444'                           # cluster used for SGE job submission, by default, SGE automatically determines it
 	#	,	default_prio      = 0                                 # default priority to use if none is specified on the lmake command line (this is the default)
 	#	,	n_max_queued_jobs = 10                                # max number of queued jobs for a given set of asked resources
-	#	,	repo_key          = _osp.basename(_os.getcwd())       # prefix used before job name to name slurm jobs (this is the default if not specified)
+	#	,	repo_key          = _osp.basename(_os.getcwd())       # prefix used before job name to name SGE jobs (this is the default if not specified)
 	#	,	root              = '/opt/sge'                        # root directory of the SGE installation
 	#	,	cpu_resource      = 'cpu'                             # resource used to require cpus                 (e.g. qsub -l cpu=1   to require 1 cpu), not managed if not specified
 	#	,	mem_resource      = 'mem'                             # resource used to require memory         in MB (e.g. qsub -l mem=10  to require 10 MB), not managed if not specified
@@ -107,15 +109,15 @@ config = pdict(
 	,	ok            = [ [  0,128,  0] , [128,255,128] ]         # green
 	,	warning       = [ [155,  0,255] , [255,  0,255] ]         # magenta
 	,	err           = [ [180,  0,  0] , [255, 60, 60] ]         # red
-	,	speculate_err = [ [220, 80,  0] , [255,128, 50] ]         # red
+	,	speculate_err = [ [220, 80,  0] , [255,128, 50] ]         # orange
 	)
 ,	console = pdict(                                              # tailor output lines
 		date_precision = 0                                        # number of second decimals in the timestamp field (None means no timestamp field)
 	,	has_exec_time  = True                                     # if True, output the exec_time field
-	,	history_days   = 7                                        # number of days during which output logs are kept in LMAKE/outputs (0 or None means no history)
+#	,	history_days   = 7                                        # number of days during which output logs are kept in LMAKE/outputs (0 or None means no history)
 #	,	host_len       = 10                                       # length of the host field (lines will be misaligned if a host is longer) (0 or None means no host field)
-	,	show_eta       = False
-	,	show_ete       = True                                     # if True, the title includes the ETA of the lmake command
+	,	show_eta       = False                                    # if True, the title includes the ETA of the lmake command
+	,	show_ete       = True                                     # if True, the title includes the ETE of the lmake command
 	)
 ,	debug = pdict({
 		''  : 'lmake_debug.default   (pdb for python, set -x for bash)'             # use pdb  as the default debugger

@@ -17,7 +17,7 @@ namespace Re {
 
 	static constexpr ::array<bool,256> _EscapeIsSpecial = [] {
 		::array<bool,256> res = {} ;
-		for( char const* p = "()[].*+?|\\{}^$" ; *p ; p++ ) res[*p] = true ; // ] and } is necessary to analyze suffix in split_pattern
+		for( char const* p = "()[].*+?|\\{}^$" ; *p ; p++ ) res[*p] = true ; // ] and } is necessary to analyze suffix in _mk_pattern
 		return res ;
 	}() ;
 

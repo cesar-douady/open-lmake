@@ -217,7 +217,7 @@ namespace Engine {
 		Req         req        ;                                    //       8 bits
 		bool        live_out:1 = false ;                            //       1 bit , if true <=> generate live output
 	private :
-		uint8_t _n_watchers:7 = 0 ; static_assert(VectorMrkr<128) ; //   2<= 7 bits, number of watchers, if NWatcher <=> watchers is a vector
+		uint8_t _n_watchers:7 = 0 ; static_assert(VectorMrkr<128) ; //   2<= 7 bits, number of watchers, if VectorMrkr <=> watchers is a vector
 		union {
 			::unique_ptr<::vector<Watcher>> _watchers_v ;           //      64 bits, if _n_watchers==VectorMrkr
 			::array <Watcher,NWatchers>     _watchers_a ;           //      64 bits, if _n_watchers< VectorMrkr
@@ -357,9 +357,8 @@ namespace Engine {
 		ReqOptions           options        ;
 		Pdate                start_pdate    ;
 		Ddate                start_ddate    ;
-		Atomic<Pdate>        eta            {} ;                       // Estimated Time of Arrival
+		Atomic<Pdate>        eta            {} ;                    // Estimated Time of Arrival
 		Delay                ete            ;                       // Estimated Time Enroute
-		::umap<Rule,JobIdx>  ete_n_rules    ;                       // number of jobs participating to stats.ete with exec_time from rule
 		::set_s              refresh_codecs ;                       // codec files that must be refreshed at end of execution
 		JobIdx               n_running      = 0                 ;   // number of currently queued and running jobs
 		uint16_t             n_runs         = 0                 ;

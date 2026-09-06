@@ -57,7 +57,7 @@ for f in file_tab.keys() :
 	try :
 		gcov_fd = open(gcov_f)
 	except FileNotFoundError :
-		file_tab[f] = (len(open(f)),0) # if not executed, consider all lines as uncovered
+		file_tab[f] = (len(open(f).readlines()),0) # if not executed, consider all lines as uncovered
 		continue
 	with open(out_f,'w') as file_fd :
 		seen_dashes = False
