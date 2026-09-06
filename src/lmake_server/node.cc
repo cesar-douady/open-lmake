@@ -667,6 +667,7 @@ namespace Engine {
 							} else if (ri.goal!=NodeGoal::Status) {                                                                // dont check disk if asked for Status
 								if (jt->running(true/*with_zombies*/))
 									/**/                                 reason = {JobReasonTag::BusyTarget    ,+idx()} ;
+								else if (jt.frozen())                    reason =  JobReasonTag::Cmd                    ;          // frozen job adopts disk content when run, dont wash it
 								else switch (manual_wash(ri,false/*query*/,false/*dangling*/)) {
 									case Manual::Ok         :                                                             break ;
 									case Manual::Unlnked    :            reason = {JobReasonTag::NoTarget      ,+idx()} ; break ;

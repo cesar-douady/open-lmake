@@ -254,5 +254,5 @@ def mv_target_tree( from_dir , to_dir , regexpr=None ) :
 	# remove dirs
 	dirs = sorted(dirs,reverse=True)                                                                 # sort dirs so that sub-dirs appear before parent
 	for d in dirs :
-		try    : _os.rmdir(pfx+d)
+		try    : _os.rmdir(from_s+d)
 		except : pass

@@ -43,7 +43,7 @@ struct StoreEntry {
 struct DryRunDigest {
 	::vmap_ss to_rm           ; // map files to reasons
 	::vmap_ss to_lnk          ; // map lnks  to targets
-	::vmap_ss to_rename       ; // map dsts  to srcs
+	::vmap_ss to_rename       ; // map srcs  to dsts
 	::set_s   to_rmdir_s      ;
 	size_t    n_ok            = 0 ;
 	size_t    n_reconstructed = 0 ;

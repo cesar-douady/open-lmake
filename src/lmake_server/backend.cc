@@ -422,7 +422,7 @@ namespace Backends {
 		if (steps[StartStep::AncillaryAttrs]) {
 			reply.keep_tmp     |= start_ancillary_attrs.keep_tmp     ;
 			reply.kill_daemons  = start_ancillary_attrs.kill_daemons ;
-			#if HAS_ZSTD
+			#if HAS_SLIB || HAS_ZSTD
 				reply.zlvl = start_ancillary_attrs.zlvl ;                                                                           // if zlib is not available, dont compress
 			#endif
 			//
@@ -731,7 +731,7 @@ namespace Backends {
 	void Backend::_s_kill_req(Req req) {
 		Trace trace(BeChnl,"s_kill_req",req) ;
 		::vmap<Job,::pair<StartEntry::Conn,Pdate>> to_kill ;
-		{	TraceLock lock { _s_mutex , BeChnl,"_s_kill_req" } ;                                                 // lock for minimal time
+		{	TraceLock lock { _s_mutex , BeChnl,"_s_kill_req" } ;                                               // lock for minimal time
 			for( Tag t : iota(All<Tag>) ) if (s_ready(t))
 				for( Job j : s_kill_waiting_jobs(t,req) ) {
 					//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -739,30 +739,30 @@ namespace Backends {
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					trace("queued_in_backend",j) ;
 				}
-			for( auto jit=_s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                    // /!\ we erase entries while iterating
-				auto        cur_jit    = jit++           ;                                                       // increment before erasing entry but process current entry
+			for( auto jit=_s_start_tab.begin() ; jit!=_s_start_tab.end() ;) {                                  // /!\ we erase entries while iterating
+				auto        cur_jit    = jit++           ;                                                     // increment before erasing entry but process current entry
 				StartEntry& e          = cur_jit->second ; if (!e) continue ;
 				Job         j          = cur_jit->first  ;
-				Pdate       start_date = e.start_date    ;                                                       // sample before it is erased
-				SWEAR(+e.reqs) ;                                                                                 // a job for nobody should have been suppressed from _s_start_tab
-				if ( !req || (e.reqs.size()==1&&e.reqs[0]==+req) ) {                                             // kill all Req's or req is the only Req for this entry : kill job
-					if (+e.start_date) {
+				Pdate       start_date = e.start_date    ;                                                     // sample before it is erased
+				SWEAR(+e.reqs) ;                                                                               // a job for nobody should have been suppressed from _s_start_tab
+				if ( !req || (e.reqs.size()==1&&e.reqs[0]==+req) ) {                                           // kill all Req's or req is the only Req for this entry : kill job
+					if (+start_date) {
 						trace("kill",j) ;
-						to_kill.emplace_back(j,::pair(e.conn,e.start_date)) ;
+						to_kill.emplace_back(j,::pair(e.conn,start_date)) ;
 						continue ;
 					}
 					trace("queued",j) ;
 					s_kill_job(e.tag,j) ;
 					_s_start_tab_erase(cur_jit) ;
-				} else {                                                                                         // job is also for other Req's : keep job
-					auto it = e.reqs.begin() ; while ( it!=e.reqs.end() && *it!=req ) it++ ;                     // e.reqs is a non-sorted vector, we must search req by hand
+				} else {                                                                                       // job is also for other Req's : keep job
+					auto it = e.reqs.begin() ; while ( it!=e.reqs.end() && *it!=req ) it++ ;                   // e.reqs is a non-sorted vector, we must search req by hand
 					if (it==e.reqs.end()) { trace("keep",j) ; continue ; }
 					e.reqs.erase(it) ;
 					trace("give_up",j) ;
 				}
-				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				g_engine_queue.emplace( Proc::GiveUp , JobExec(j,start_date) , req , +e.start_date/*report*/ ) ; // job is useful for some other Req
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				g_engine_queue.emplace( Proc::GiveUp , JobExec(j,start_date) , req , +start_date/*report*/ ) ; // job is useful for some other Req
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			}
 		}
 		//                                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv

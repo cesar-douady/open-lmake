@@ -42,7 +42,7 @@ namespace Backends::Slurm {
 		::string nodes     ;     // list of required nodes        (sbatch -w,--nodelist      option)
 		::string partition ;     // partition name                (sbatch -p,--partition     option)
 		::string qos       ;     // quality of service            (sbatch -q,--qos           option)
-		::string reserv    ;     // reservation                   (sbatch -r,--reservation   option)
+		::string reserv    ;     // reservation                   (sbatch    --reservation   option)
 		::string wckey     ;     // workload characterization key (sbatch    --wckey         option)
 	} ;
 

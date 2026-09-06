@@ -70,7 +70,7 @@ struct AutodepEnv : RealPathEnv {
 	// START_OF_VERSIONING CACHE REPO JOB
 	bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir
 	bool                             deps_in_system   = false ;                   // if false <=> system files are simple and considered as deps
-	bool                             disabled         = false ;                   // if false <=> no automatic report
+	bool                             disabled         = false ;                   // if true  <=> no automatic report
 	bool                             ignore_stat      = false ;                   // if true  <=> stat-like syscalls do not trigger dependencies
 	bool                             mount_chroot_ok  = false ;
 	bool                             readdir_ok       = false ;                   // if true  <=> allow reading local non-ignored dirs

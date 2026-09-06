@@ -415,6 +415,7 @@ namespace Backends::Sge {
 				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_unit<    uint32_t              >(v) ; continue ; } break ;
 				case 'h' : if (k=="hard") { hard = _split_rsrcs                                     (v) ; continue ; } break ;
 				case 'm' : if (k=="mem" ) { mem  = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
+				case 'p' : if (k=="prio") { prio = from_string<int16_t>                             (v) ; continue ; } break ;
 				case 's' : if (k=="soft") { soft = _split_rsrcs                                     (v) ; continue ; } break ;
 				case 't' : if (k=="tmp" ) { tmp  = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
 				case '-' : throw "resource cannot start with -:"+k ;

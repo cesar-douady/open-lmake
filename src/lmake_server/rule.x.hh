@@ -211,9 +211,9 @@ namespace Engine {
 			::serdes( s , timeout ) ;
 		}
 		void update(Py::Dict const& py_dct) {
-			Attrs::acquire_from_dct( backend , dyn_backend , py_dct , "backend"                        ) ;
-			Attrs::acquire_from_dct( rsrcs   , dyn_rsrcs   , py_dct , "rsrcs"                          ) ;
-			Attrs::acquire_from_dct( timeout , dyn_timeout , py_dct , "timeout" , Time::Delay()/*min*/ ) ;
+			Attrs::acquire_from_dct( backend , dyn_backend , py_dct , "backend" , ~BitMap<BackendTag>(BackendTag::Unknown)/*accepted*/ ) ;
+			Attrs::acquire_from_dct( rsrcs   , dyn_rsrcs   , py_dct , "rsrcs"                                                          ) ;
+			Attrs::acquire_from_dct( timeout , dyn_timeout , py_dct , "timeout" , Time::Delay()/*min*/                                 ) ;
 		}
 		Tokens1 tokens1() const {
 			for( auto const& [k,v] : rsrcs ) if (k=="cpu")

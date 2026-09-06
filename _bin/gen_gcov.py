@@ -57,17 +57,17 @@ for f in file_tab.keys() :
 	try :
 		gcov_fd = open(gcov_f)
 	except FileNotFoundError :
-		file_tab[f] = (len(open(f)),0) # if not executed, consider all lines as uncovered
+		file_tab[f] = (len(open(f).readlines()),0) # if not executed, consider all lines as uncovered
 		continue
 	with open(out_f,'w') as file_fd :
 		seen_dashes = False
 		skip        = False
 		first       = True
 		no_cov      = 0
-		for l in gcov_fd :             # suppress lines refering to instantiated templates : lines starting with a label: surrounded by dashes
+		for l in gcov_fd :                         # suppress lines refering to instantiated templates : lines starting with a label: surrounded by dashes
 			if first :
 				first = False
-				continue               # skip first line providing useless source info so that line numbers correspond
+				continue                           # skip first line providing useless source info so that line numbers correspond
 			if seen_dashes :
 				skip = skip_re.match(l)
 			seen_dashes = dashes_re.match(l)

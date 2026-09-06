@@ -460,11 +460,11 @@ namespace Engine {
 		return res ;
 	}
 
-	void RuleData::new_job_report( Delay exe_time , CoarseDelay cost , Tokens1 tokens1 ) const {
+	void RuleData::new_job_report( Delay exe_time_ , CoarseDelay cost , Tokens1 tokens1 ) const {
 		if (stats_weight<RuleWeight) stats_weight++ ;
 		//
 		Delay::Tick cost_per_token_delta = Delay(cost).val()/(tokens1+1) - cost_per_token.val() ;
-		Delay::Tick exe_time_delta       = exe_time   .val()             - exe_time      .val() ;
+		Delay::Tick exe_time_delta       = exe_time_  .val()             - exe_time      .val() ;
 		int64_t     tokens1_32_delta     = (uint64_t(tokens1)<<32)       - tokens1_32           ;
 		//
 		cost_per_token += Delay(New,cost_per_token_delta/stats_weight) ;

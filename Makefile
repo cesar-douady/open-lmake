@@ -6,7 +6,7 @@
 include sys_config.mk
 
 VERSION        := 26.06
-TAG            := 14
+TAG            := 15
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
 DISTROS        := jammy noble
@@ -87,7 +87,7 @@ endif
 #
 # Manifest
 #
-IDX_DIR := $(wildcard .git)
+IDX_DIR := $(shell git rev-parse --git-dir 2>/dev/null)
 ifeq ($(IDX_DIR),)
 ifeq ($(wildcard Manifest),)
 $(error file Manifest must exist with the sorted list of sources. If a fresh repo, consider : find . -mindepth 1 -type d -o -print | sed `s:^\./::' | sort -u > Manifest)

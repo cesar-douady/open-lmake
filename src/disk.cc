@@ -204,10 +204,10 @@ namespace Disk {
 	}
 
 	bool/*done*/ unlnk( FileRef file , _UnlnkAction action ) {
-		/**/                                                          SWEAR_PROD( +file                           , action.abs_ok ) ; // do not unlink cwd
-		if ( !action.abs_ok                                         ) SWEAR_PROD( !file.file || is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
+		/**/                                                          SWEAR_PROD( +file.file        , action.abs_ok ) ; // do not unlink cwd
+		if ( !action.abs_ok                                         ) SWEAR_PROD( is_lcl(file.file) , file          ) ; // unless certain, prevent accidental non-local unlinks
 		if ( ::unlinkat(file.at,file.file.c_str(),0)==0             ) return true /*done*/ ;
-		if ( errno==ENOENT || errno==ENOTDIR || errno==ENAMETOOLONG ) return false/*.   */ ;                                          // file does not exist
+		if ( errno==ENOENT || errno==ENOTDIR || errno==ENAMETOOLONG ) return false/*.   */ ;                            // file does not exist
 		if ( !action.dir_ok && errno==EISDIR                        ) return false/*.   */ ;
 		//
 		if ( !action.dir_ok || errno!=EISDIR ) throw cat("cannot unlink file (",StrErr(),") ",file ) ;
@@ -297,20 +297,20 @@ namespace Disk {
 		return res ;
 	}
 
-	size_t/*pos*/ mk_dir_s( FileRef dir_s , _CreatAction action ) {
-		if (!dir_s.file) return Npos ;                                                                                    // nothing to create
+	size_t/*n_created*/ mk_dir_s( FileRef dir_s , _CreatAction action ) {
+		if (!dir_s.file) return 0 ;                                                                                       // nothing to create
 		//
 		action.mod = 0777 ;                                                                                               // generally speaking restring dirs is useless, use whatever umask says
 		//
-		::vector_s  to_mk_s { dir_s.file }              ;
-		const char* msg     = nullptr                   ;
-		size_t      pos     = dir_s.file[0]=='/'?0:Npos ;                                                                 // return the pos of the / between existing and new components
+		::vector_s  to_mk_s { dir_s.file } ;
+		const char* msg     = nullptr      ;
+		size_t      res     = 0            ;
 		while (+to_mk_s) {
 			::string& d_s = to_mk_s.back() ;                                                                              // parents are after children in to_mk
 			if (action.sync_guard                               ) action.sync_guard->change({dir_s.at,d_s}) ;
 			if (::mkdirat(dir_s.at,d_s.c_str(),action.mod1())==0) {
 				if ( mode_t mod2=action.mod2() ; +mod2 ) { [[maybe_unused]] int rc = ::fchmodat( dir_s.at , d_s.c_str() , mod2 , 0/*flags*/ ) ; }
-				pos++ ;
+				res++ ;
 				to_mk_s.pop_back() ;
 				continue ;
 			}                                                                                                             // done
@@ -319,7 +319,6 @@ namespace Disk {
 					if ( action.force && FileInfo({dir_s.at,d_s},{.sync_guard=action.sync_guard}).tag()!=FileTag::Dir ) { // retry
 						unlnk({dir_s.at,d_s},{.abs_ok=true,.sync_guard=action.sync_guard} ) ;
 					} else {                                                                                              // done
-						pos = d_s.size()-1 ;
 						to_mk_s.pop_back() ;
 					}
 				break ;
@@ -332,7 +331,7 @@ namespace Disk {
 			}
 			if (msg) throw cat(msg," (",StrErr(),") ",File(dir_s.at.fd,no_slash(::move(d_s)))) ;
 		}
-		return pos ;
+		return res ;
 	}
 
 	::string const& dir_guard( FileRef file , _CreatAction action ) {

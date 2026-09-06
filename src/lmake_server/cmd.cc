@@ -166,7 +166,7 @@ namespace Engine {
 			return true ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
-			size_t         w     = 3/*src*/            ;
+			size_t         w     = 0                   ;
 			::string       name  ;
 			::string       err   ;
 			::vector<Job > jobs  ;

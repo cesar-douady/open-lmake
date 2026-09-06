@@ -112,6 +112,7 @@ LruEntry*           RateCmp::s_lrus          = nullptr ;
 void cache_chk() {
 	Trace trace("cache_chk") ;
 	//
+	_g_key_file      .chk() ;
 	_g_job_name_file .chk() ;
 	_g_node_name_file.chk() ;
 	_g_job_file      .chk() ;

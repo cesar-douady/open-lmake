@@ -213,7 +213,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 // name_to_handle_at (open_by_handle_at is priviledged, no need to handle it)
 [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_name_to_handle_at( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
 	try {
-		Record::Solve( r , _path<true/*At*/>(proc_mem,args+0) , !(args[4]&AT_SYMLINK_FOLLOW) , false/*create*/ , c ) ;
+		Record::Solve( r , _path<true/*At*/>(proc_mem,args+0) , !(args[4]&AT_SYMLINK_FOLLOW) , false/*read*/ , c ) ;
 	} catch (::string const&) {}
 	return {} ;
 }
@@ -247,7 +247,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 		struct ::open_how how ;
 		try                     { _peek( proc_mem , reinterpret_cast<char*>(&how) , args[2] , sizeof(how) ) ; }
 		catch (::string const&) { return {} ;                                                                 }
-		throw_if( how.flags&RESOLVE_BENEATH , "openat2 flag RESOLV_BENEATH not yet implemented" ) ;             // XXX! : implement
+		throw_if( how.resolve&RESOLVE_IN_ROOT , "openat2 flag RESOLV_IN_ROOT not yet implemented" ) ;           // XXX! : implement
 		try {
 			Openat2Helper& o2 = *new Openat2Helper{ .open={r,_path<true/*At*/>(proc_mem,args+0),int(how.flags),c} , .how=how } ;
 			if (o2.open.confirm_id) return { &o2 , false/*refresh*/ } ;

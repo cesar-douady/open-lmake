@@ -80,7 +80,7 @@ namespace Disk {
 	//
 	inline bool has_dir(::string const& file) {
 		if (file.size()<3) return false                          ;                                                  // we must have at least 2 components and a / to have a dir component
-		else               return file.find('/',1)<file.size()-2 ;                                                  // search a / at neither ends of file
+		else               return file.find('/',1)<file.size()-1 ;                                                  // search a / at neither ends of file
 	}
 	//
 	inline bool is_dir_name(::string const& file) { return !file || file.back()=='/' ; }
@@ -229,9 +229,9 @@ namespace Disk {
 		Time::Pdate date ;
 	} ;
 
-	::vector_s      lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , SyncGuard*  =nullptr ) ; // list files within dir with pfx in front of each entry
-	size_t/*pos*/   mk_dir_s ( FileRef dir_s         ,                          _CreatAction={}      ) ;
-	::string const& dir_guard( FileRef file          ,                          _CreatAction={}      ) ;
+	::vector_s          lst_dir_s( FileRef dir_s=Fd::Cwd , ::string const& pfx={} , SyncGuard*  =nullptr ) ; // list files within dir with pfx in front of each entry
+	size_t/*n_created*/ mk_dir_s ( FileRef dir_s         ,                          _CreatAction={}      ) ;
+	::string const&     dir_guard( FileRef file          ,                          _CreatAction={}      ) ;
 
 	struct _UnlnkAction {
 		bool       abs_ok     = false   ; // unless abs_ok, absolute paths are not accepted to avoid catastrophic unlinks when dir_ok

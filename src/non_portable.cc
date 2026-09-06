@@ -42,7 +42,7 @@ namespace NonPortable {
 			default         : return Maybe       ;             // not an elf (or at least not reconizable)
 		}
 		if (reinterpret_cast<Elf32_Ehdr const*>(elf_hdr)->e_machine==EM_X86_64) return Maybe&IS_32 ; // -mx32, only recognized in 64-bit hosts
-		else                                                                    return No   &IS_64 ; // real 32-bit, only reported as 32-bit in 64-bit hosts
+		else                                                                    return Yes  &IS_64 ; // real 32-bit, only reported as 32-bit in 64-bit hosts
 	}
 
 	template<bool Set,bool Is32=false> static void _get_set( pid_t pid , UserRegsStruct<Is32>&/*inout*/ regs ) {

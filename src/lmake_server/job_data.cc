@@ -249,7 +249,7 @@ namespace Engine {
 							if (to_mkdirs          .contains(hd)) break ;      // dir must exist, it is silly to spend time to rmdir it, then again to mkdir it
 							if (to_mkdir_uphills   .contains(hd)) break ;      // .
 							//
-							if (!to_rmdirs.emplace(td,depth).second) break ;   // if it is already in to_rmdirs, so is all pertinent dirs uphill
+							if (!to_rmdirs.emplace(hd,depth).second) break ;   // if it is already in to_rmdirs, so is all pertinent dirs uphill
 							depth-- ;
 						}
 					}
@@ -985,6 +985,7 @@ namespace Engine {
 		trace(STR(has_new_codes)) ;
 		if (has_new_codes==No) {                                                                      // codes are strictly increasing and hence no code conflict
 			Dep dep { file , Access::Reg , FileInfo(filename) , false/*err*/ } ;
+			dep.full_refresh( false/*report_no_file*/ , job , {req} ) ;
 			dep.acquire_crc()  ;
 			deps.assign({dep}) ;
 		} else {
@@ -1021,6 +1022,7 @@ namespace Engine {
 			RealPath::SolveReport rp  = Job::s_real_path->solve(file,true/*no_follow*/) ;
 			for( ::string& l : rp.lnks ) {
 				Dep d { {New,l} , Access::Lnk , FileInfo(l,{.sync_guard=&sync_guard}) } ;
+				d.full_refresh( false/*report_no_file*/ , idx() , {req} ) ;
 				d.acquire_crc() ;
 				lnk_vector.push_back(::move(d)) ;
 			}
@@ -1030,6 +1032,7 @@ namespace Engine {
 				continue ;
 			}
 			Dep d { {New,rp.real} , FullAccesses , FileInfo(rp.real,{.sync_guard=&sync_guard}) , DflagsDflt|Dflag::Essential|Dflag::Required , first(false,true)/*parallel*/ } ;
+			d.full_refresh( false/*report_no_file*/ , idx() , {req} ) ;
 			d.acquire_crc() ;
 			dep_vector.push_back(::move(d)) ;
 		}
@@ -1077,7 +1080,8 @@ namespace Engine {
 					}
 					if (ss>special_step) { special_step = ss ; worst_target = t ; }
 				}
-				status = special_step==SpecialStep::Err ? Status::Forbidden : Status::Ok ;
+				run_status = RunStatus::Ok                                                   ;
+				status     = special_step==SpecialStep::Err ? Status::Forbidden : Status::Ok ;
 				audit_end_special( req , special_step , modified , worst_target ) ;
 			} break ;
 		DF}                                                                                                               // NO_COV

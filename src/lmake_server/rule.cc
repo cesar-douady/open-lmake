@@ -336,7 +336,7 @@ namespace Engine {
 		Sequence const* py_seq ;
 		try                       { py_seq = &py.as_a<Sequence>() ; }
 		catch (::string const& e) { throw e+" nor a str" ;          }     // e is a type error
-		SWEAR( py_seq->size()>=n_skip   , key ) ;
+		throw_unless( py_seq->size()>=n_skip , "missing value" ) ;
 		(*py_seq)[0].as_a<Str>() ;                                        // check type
 		_mk_flags( key , *py_seq , n_skip , /*inout*/flags , dep_only ) ;
 		return (*py_seq)[0].as_a<Str>() ;
@@ -420,7 +420,7 @@ namespace Engine {
 					case 1 :
 						if (py_seq[0].is_a<Str>()) {
 							acquire( /*out*/dst.tag , /*out*/::ref(bool())/*is_dyn*/ , &py_seq[0] ) ;
-							dst.lvl = 0 ;
+							dst.lvl = 1 ;
 							return ;
 						}
 						else if (py_seq[0].is_a<Int>()) {

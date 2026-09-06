@@ -214,7 +214,7 @@ namespace Hash {
 
 	template<uint8_t Sz> Accesses _Crc<Sz>::diff_accesses(_Crc<Sz> crc) const {
 		if ( valid() && crc.valid() ) {                                         // if either does not represent a precise content, assume contents are different
-			uint64_t diff = _val ^ crc._val ;
+			Val diff = _val ^ crc._val ;
 			if (! diff                                     ) return {} ;                                                                  // crc's are identical, cannot perceive difference
 			if (!(diff&ChkMsk) && (_plain()||crc._plain()) ) fail_prod("near checksum clash, must increase CRC size",self,"versus",crc) ;
 		}

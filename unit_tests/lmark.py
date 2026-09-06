@@ -41,9 +41,9 @@ else :
 	sp.run(('lmark','-f','-a','test.cpy'),check=True)                ; print(3,file=open('test','w'))    ; ut.lmake( 'test.cpy' , frozen =1                 ) # check frozen
 	x = sp.check_output(('lmark','-f','-l'),universal_newlines=True) ; assert 'test' in x and 'test.cpy' in x
 
-	None                                              ; None                              ; ut.lmake( 'src.cpy2' , new           =1 , done=2 )
-	sp.run(('lmark','-f','-a','src.cpy' ),check=True) ; print(4,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2' , changed_frozen=1 , done=1 )
-	sp.run(('lmark','-f','-c'           ),check=True) ; None                              ; ut.lmake( 'src.cpy2' ,                    done=2 )
+	None                                              ; None                              ; ut.lmake( 'src.cpy2' , new           =1 ,            done=2 )
+	sp.run(('lmark','-f','-a','src.cpy' ),check=True) ; print(4,file=open('src.cpy','w')) ; ut.lmake( 'src.cpy2' , changed_frozen=1 , frozen=1 , done=1 )
+	sp.run(('lmark','-f','-c'           ),check=True) ; None                              ; ut.lmake( 'src.cpy2' ,                               done=2 )
 
 	# no-trigger
 	None                                                             ; print(5,file=open('src','w')) ; ut.lmake( 'src.cpy' , changed=1 , done=1 ) # check out-of-date

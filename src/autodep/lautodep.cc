@@ -164,6 +164,9 @@ int main( int argc , char* argv[] ) {
 	AutodepEnv&      autodep_env = jsrr.autodep_env ;
 	Gather           gather      ;
 	//
+	autodep_env.file_sync = FileSync::None                                 ;                                      // no parallel processing with lautodep
+	autodep_env.fqdn      = fqdn(cmd_line.flag_args[+CmdFlag::DomainName]) ;                                      // call fqdn() before potential chroot in g_start_info.enter()
+	//
 	try {
 		::string tmp_dir      = cmd_line.flags[CmdFlag::TmpDir] ? cmd_line.flag_args[+CmdFlag::TmpDir] : get_env("TMPDIR") ;
 		::string lmake_root_s = *g_lmake_root_s                                                                            ;
@@ -218,9 +221,6 @@ int main( int argc , char* argv[] ) {
 		) ;
 		if (cmd_line.flags[CmdFlag::ExpandEnv]) jsrr.update_env( /*out*/::ref(::vmap_ss())/*dyn_env*/ , *g_repo_root_s , with_slash(tmp_dir) ) ;
 	} catch (::string const& e) { syntax.usage(e) ; }
-	//
-	autodep_env.file_sync = FileSync::None                                 ;                                      // no parallel processing with lautodep
-	autodep_env.fqdn      = fqdn(cmd_line.flag_args[+CmdFlag::DomainName]) ;                                      // call fqdn() before potential chroot in g_start_info.enter()
 	//
 	Status     status  ;
 	::map_ss   cmd_env = mk_map(jsrr.env) ;

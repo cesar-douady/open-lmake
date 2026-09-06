@@ -509,7 +509,7 @@ namespace Engine {
 		RuleTgts  rule_tgts                  ;                      // ~20   < 32 bits, shared,   matching rule_tgts issued from suffix on top of job_tgts, valid if match_ok
 		RuleTgts  rejected_rule_tgts         ;                      // ~20   < 32 bits, shared,   rule_tgts known not to match, independent of match_ok
 		Job       actual_job                 ;                      //  30   < 32 bits, shared,   job that generated node
-		Watcher   build_asking               ;                      //  30   < 32 bits,           polluting job when polluted was last set to Polluted::Job
+		Watcher   build_asking               ;                      //  30   < 32 bits,
 		Watcher   last_asking                ;                      //         32 bits,           last watcher needing this node
 		RuleIdx   n_job_tgts                 = 0                  ; //         16 bits,           number of actual meaningful JobTgt's in job_tgts
 		MatchGen  match_gen                  = 0                  ; //          8 bits,           if <Rule::s_match_gen => deem n_job_tgts==0 && !rule_tgts && !sure

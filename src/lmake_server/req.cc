@@ -414,7 +414,7 @@ namespace Engine {
 			trace(log_file) ;
 			//
 			::string log_dir_s = AdminDirS+lcl_log_dir_s ;
-			if (mk_dir_s(log_dir_s)<log_dir_s.size()-1) {                                        // dir was created, check if we must unlink old ones, this is slow but happens at most once a day
+			if (mk_dir_s(log_dir_s)) {                                        // dir was created, check if we must unlink old ones, this is slow but happens at most once a day
 				::string   outputs_dir_s = cat(AdminDirS,"outputs/") ;
 				::vector_s entries       = lst_dir_s(outputs_dir_s)  ;
 				trace(hd,entries.size()) ;

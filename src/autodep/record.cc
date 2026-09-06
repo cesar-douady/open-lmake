@@ -407,13 +407,11 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 	}
 }
 
-// flags is not used if exchange is not supported
 Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , bool no_replace , Comment c ) :
 	//                     no_follow read
 	src { r , ::move(src_) , true  , true     , c , CommentExt::Read  }
 ,	dst { r , ::move(dst_) , true  , exchange , c , CommentExt::Write }
 {	if (src.real==dst.real) return ;                                                                            // posix says in this case, it is nop
-	SWEAR( +src.real && +dst.real , src,dst ) ;                                                                 // should be absolute to denote repo root
 	// rename has not occurred yet so :
 	// - files are read and unlinked in the source dir
 	// - their coresponding files in the destination dir are written

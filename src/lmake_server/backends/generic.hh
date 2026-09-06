@@ -169,7 +169,7 @@ namespace Backends {
 			using iterator       = typename Tab::iterator       ;
 			using const_iterator = typename Tab::const_iterator ;
 			// cxtor & co
-			bool   operator+ (            ) const { return _tab.size()                 ; }
+			bool   operator+ (            ) const { return size()                      ; }
 			size_t size      (            ) const { return _tab.size()-_zombies.size() ; }
 			void   operator>>(::string& os) const {        _tab>>os                    ; }
 			// accesses

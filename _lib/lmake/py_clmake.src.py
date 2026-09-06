@@ -121,8 +121,8 @@ def report_import( module_name=None , path=None , module_suffixes=None ) :
 
 if 'LMAKE_AUTODEP_ENV' in _os.environ :
 	ade           = _os.environ['LMAKE_AUTODEP_ENV'].split(':') # format : server:port:fast_host:fast_report_pipe:options:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:views
-	top_repo_root =  ade[6][1:-2]                               # suppress " at start and /" at the end
-	repo_root     = (ade[6][1:-1]+ade[7][1:-1])[:-1]            # .
+	top_repo_root =  ade[7][1:-2]                               # suppress " at start and /" at the end
+	repo_root     = (ade[7][1:-1]+ade[8][1:-1])[:-1]            # .
 else :
 	top_repo_root = repo_root = _os.getcwd()
 

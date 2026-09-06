@@ -99,7 +99,7 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	Local                      // if proc==Make    , lauch all jobs locally
 ,	MaxRuns                    // if proc==Make    , max run    count, on top of rule prescription
 ,	MaxSubmits                 // if proc==Make    , max submit count, on top of rule prescription
-,	Nice                       // if proc==Make    , dont execute, just generate files
+,	Nice                       // if proc==Make
 ,	NoDeps                     // if proc==Make    , dont check deps
 ,	NoExec                     // if proc==Debug   , dont execute, just generate files
 ,	NoIncremental              // if proc==Make    , ignore incremental flag for targets
@@ -113,7 +113,7 @@ enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may shar
 ,	Targets                    // if proc==Forget  , forget targets
 ,	TmpDir                     // if proc==Debug   , tmp dir to use in case TMPDIR is specified as ... in job
 ,	Verbose                    //                    generate generous output
-,	Video                      //                  , assume output video : n(ormal), r(everse) or f(ile)
+,	Video                      //                  , assume output video : l(ight), d(ark) or f(ile)
 } ;
 using ReqFlags = BitMap<ReqFlag> ;
 

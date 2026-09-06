@@ -165,7 +165,7 @@ namespace Engine {
 		}
 	End :
 		switch (state) {
-			case Literal   : { if (+fixed) cb_fixed(fixed,has_pfx,false/*has_pfx*/) ; } break                      ; // trailing fixed
+			case Literal   : { if (+fixed) cb_fixed(fixed,has_pfx,false/*has_sfx*/) ; } break                      ; // trailing fixed
 			case SeenStop  :                                                            throw "spurious } in "+str ;
 			case SeenStart :
 			case Key       :
