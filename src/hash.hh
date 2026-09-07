@@ -21,11 +21,14 @@ enum class CrcSpecial : uint8_t { // use non-abbreviated names as it is used for
 ,	Lnk                           // file is a link pointing to an unknown location
 ,	Reg                           // file is regular with unknown content
 ,	None                          // file does not exist or is a dir
-,	Empty                         // file is the regular empty file
+,	LnkUnreadable                 // file denied read permission
+,	RegUnreadable                 // .
+,	Empty                         // file is the non-executable regular empty file
 ,	Plain
 //
 // alises
-,	Valid = None                  // >=Valid means value represent file content, >Val means that in addition, file exists
+,	Valid    = None               // >=Valid means value represent file content, >Val means that in addition, file exists
+,	Readable = Empty              // >=Reable means file can be read or readlink'ed
 } ;
 
 namespace Hash {
@@ -106,11 +109,13 @@ namespace Hash {
 		//
 		static constexpr Val ChkMsk = Msk>>NChkBits ;                                             // lsb's are used for various manipulations
 		//
-		static const _Crc Unknown ;
-		static const _Crc Lnk     ;
-		static const _Crc Reg     ;
-		static const _Crc None    ;
-		static const _Crc Empty   ;
+		static const _Crc Unknown       ;
+		static const _Crc Lnk           ;
+		static const _Crc Reg           ;
+		static const _Crc None          ;
+		static const _Crc LnkUnreadable ;
+		static const _Crc RegUnreadable ;
+		static const _Crc Empty         ;
 		// statics
 		static _Crc s_from_hex   (::string_view sv) ;                                             // inverse of hex   ()
 		static _Crc s_from_base64(::string_view sv) ;                                             // inverse of base64()
@@ -134,14 +139,8 @@ namespace Hash {
 				case FileTag::Empty : self = _Crc::Empty ; break ;
 			DF}                                                                                   // NO_COV
 		}
-		explicit _Crc( ::string const& filename                             ) ;
-		explicit _Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
-			for(;;) {                                                                                             // restart if file was moving
-				fi   = Disk::FileInfo(filename) ; if (fi.tag()==FileTag::Empty) { self = _Crc::Empty ; return ; } // fast path : minimize stat syscall's
-				self = _Crc(filename)           ;
-				if (fi.sig()==Disk::FileSig(filename)) return ;                                                   // file was stable, we can return result
-			}
-		}
+		explicit _Crc( ::string const& filename , Disk::FileInfo&/*out*/    ) ;
+		explicit _Crc( ::string const& filename                             ) : _Crc{filename,/*out*/::ref(Disk::FileInfo())} {}
 		explicit _Crc( ::string const& filename , Disk::FileSig&/*out*/ sig ) {
 			Disk::FileInfo fi ;
 			self = _Crc(filename,/*out*/fi) ;
@@ -161,12 +160,12 @@ namespace Hash {
 		//
 		constexpr bool              operator== (_Crc const&) const = default ;
 		constexpr ::strong_ordering operator<=>(_Crc const&) const = default ;
-		constexpr Val               operator+  (           ) const { return  _val                                           ; }
-		constexpr bool              valid      (           ) const { return _val>=+CrcSpecial::Valid                        ; }
-		constexpr bool              exists     (           ) const { return +self && self!=None                             ; }
-		/**/      void              clear      (           )       { self = {}                                              ; }
-		constexpr bool              is_lnk     (           ) const { return _plain() ?   _val&0x1  : self==Lnk              ; }
-		constexpr bool              is_reg     (           ) const { return _plain() ? !(_val&0x1) : self==Reg||self==Empty ; }
+		constexpr Val               operator+  (           ) const { return  _val                                                                ; }
+		constexpr bool              valid      (           ) const { return _val>=+CrcSpecial::Valid                                             ; }
+		constexpr bool              exists     (           ) const { return +self && self!=None                                                  ; }
+		/**/      void              clear      (           )       { self = {}                                                                   ; }
+		constexpr bool              is_lnk     (           ) const { return _plain() ?   _val&0x1  : self==Lnk||self==LnkUnreadable              ; }
+		constexpr bool              is_reg     (           ) const { return _plain() ? !(_val&0x1) : self==Reg||self==RegUnreadable||self==Empty ; }
 	private :
 		constexpr bool _plain() const { return _val>=N<CrcSpecial> ; }
 		//
@@ -188,7 +187,7 @@ namespace Hash {
 		Val _val = +CrcSpecial::Unknown ;
 	} ;
 	using Crc   = _Crc<64> ;
-	using Crc96 = _Crc<96> ;                                                                                      // revert to 64 bits is 128 bits is not supported
+	using Crc96 = _Crc<96> ;                                                                      // revert to 64 bits is 128 bits is not supported
 
 	// easy, fast and good enough in some situations
 	// cf https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
@@ -204,11 +203,13 @@ namespace Hash {
 	// implementation
 	//
 
-	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Unknown{CrcSpecial::Unknown} ;
-	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Lnk    {CrcSpecial::Lnk    } ;
-	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Reg    {CrcSpecial::Reg    } ;
-	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::None   {CrcSpecial::None   } ;
-	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Empty  {CrcSpecial::Empty  } ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Unknown      {CrcSpecial::Unknown      } ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Lnk          {CrcSpecial::Lnk          } ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Reg          {CrcSpecial::Reg          } ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::None         {CrcSpecial::None         } ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::LnkUnreadable{CrcSpecial::LnkUnreadable} ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::RegUnreadable{CrcSpecial::RegUnreadable} ;
+	template<uint8_t Sz> constexpr _Crc<Sz> _Crc<Sz>::Empty        {CrcSpecial::Empty        } ;
 
 	template<uint8_t Sz> template<class T> _Crc<Sz>::_Crc( NewType , T const& x , Bool3 is_lnk ) : _Crc{_Xxh<Sz>(New,x).digest()} {
 		_set_is_lnk(is_lnk) ;

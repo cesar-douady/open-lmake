@@ -74,7 +74,7 @@ namespace AutodepPtrace {
 		if (::prctl (PR_SET_SECCOMP     ,SECCOMP_MODE_FILTER,&bp      ,0/*.   */,0/*.   */)!=0) { reason = "cannot set up seccomp"     ; goto Error ; }
 		::raise(SIGSTOP) ;                                                                                                                              // wait until released by supervisor
 		return 0 ;
-	Error:
+	Error :
 		const char* msg = ::strerror(errno) ;
 		{ int rc = ::write( 2 , reason                   , ::strlen(reason                   ) ) ; (void)rc ; }
 		{ int rc = ::write( 2 , " ("                     , ::strlen(" ("                     ) ) ; (void)rc ; }

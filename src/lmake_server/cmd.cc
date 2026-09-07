@@ -1265,7 +1265,7 @@ namespace Engine {
 				}
 				NodeIdx ti = 0 ;
 				for( Target t : job->targets() ) {
-					bool            exists = t->crc!=Crc::None                        ;
+					bool            exists = t->crc.exists()                          ;
 					Bool3           hide   = Maybe|!(exists||t.tflags[Tflag::Target]) ;
 					Color           c      = _node_color( t , hide )                  ;
 					::string const& k      = keys[ti++]                               ;

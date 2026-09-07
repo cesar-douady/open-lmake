@@ -19,9 +19,6 @@ if __name__!='__main__' :
 
 else :
 
-	print('denied file permission not yet implemented',file=open('skipped','w'))
-	exit()
-
 	import ut
 
 	import os

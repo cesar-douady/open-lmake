@@ -412,7 +412,7 @@ namespace Backdoor {
 		//
 		r.report_access( { .comment=Comment::Decode , .digest=ad , .files={{node,fi}} } , true/*force*/ ) ; // report access after possible update
 		r.send_report() ;
-		throw_unless( +res , "code not found" ) ;
+		throw_unless( +res , "code ",code," not found in context ",ctx ) ;
 		return *res ;
 	}
 

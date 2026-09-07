@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 56      ; // 315909fc1cacd8a7ecfe2366ac6a1d7a
+	uint64_t    constexpr Cache = 57      ; // 17741efe3f0bed2aab47c027dd1626d5
 	uint64_t    constexpr Codec = 3       ; // 084f97cd3cdfd24a126f49adeb731f3f
-	uint64_t    constexpr Repo  = 61      ; // a31e7e8f493dcdeac8270c1886c254da
-	uint64_t    constexpr Job   = 31      ; // d38fffbfa37c1b486914eec52c47c2a9
+	uint64_t    constexpr Repo  = 62      ; // d7e2e124933b05c77c6acfbaeefa8078
+	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
 	const char* const     Major = "26.08" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 315909fc1cacd8a7ecfe2366ac6a1d7a *
+// * Cache : 17741efe3f0bed2aab47c027dd1626d5 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -78,41 +78,50 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		template<uint8_t Sz> _Crc<Sz>::_Crc(::string const& filename) {
+//		template<uint8_t Sz> _Crc<Sz>::_Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
-//			self = None ;
-//			if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
-//				FileInfo fi { fd } ;
+//			for(;;) {
+//				fi = Disk::FileInfo(filename) ;
 //				switch (fi.tag()) {
-//					case FileTag::Empty :
-//						self = Empty ;
-//					break ;
-//					case FileTag::Reg :
-//					case FileTag::Exe : {
-//						_Xxh<Sz> ctx { fi.tag() }                   ;
-//						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
-//						for( size_t sz=fi.sz ;;) {
-//							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
-//							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
-//							else if (cnt==0) break ;                                // file could change while crc is being computed
-//							else switch (errno) {
-//								#if EWOULDBLOCK!=EAGAIN
-//									case EWOULDBLOCK :
-//								#endif
-//								case EAGAIN :
-//								case EINTR  : continue                                       ;
-//								default     : throw "I/O error while reading file "+filename ;
-//							}
-//							if (size_t(cnt)>=sz) break ;
-//							sz -= cnt ;
+//					case FileTag::None  :
+//					case FileTag::Dir   : self = _Crc::None  ; return ;
+//					case FileTag::Empty : self = _Crc::Empty ; return ;
+//					case FileTag::Lnk   :
+//						if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
+//							_Xxh<Sz> ctx { FileTag::Lnk } ;
+//							ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ; // no need to compute crc on size as would be the case with ctx += lnk_target
+//							self = ctx.digest() ;
+//						} else {
+//							self = _Crc::LnkUnreadable ;
 //						}
-//						self = ctx.digest() ;
-//					} break ;
-//				DN}
-//			} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-//				_Xxh<Sz> ctx { FileTag::Lnk } ;
-//				ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
-//				self = ctx.digest() ;
+//					break ;
+//					case FileTag::Reg   :
+//					case FileTag::Exe   :
+//						if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
+//							_Xxh<Sz> ctx { fi.tag() }                   ;
+//							::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+//							for( size_t sz=fi.sz ;;) {
+//								ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
+//								if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
+//								else if (cnt==0) break ;                                    // file could change while crc is being computed
+//								else switch (errno) {
+//									#if EWOULDBLOCK!=EAGAIN
+//										case EWOULDBLOCK :
+//									#endif
+//									case EAGAIN :
+//									case EINTR  : continue                                       ;
+//									default     : throw "I/O error while reading file "+filename ;
+//								}
+//								if (size_t(cnt)>=sz) break ;
+//								sz -= cnt ;
+//							}
+//							self = ctx.digest() ;
+//						} else {
+//							self = _Crc::RegUnreadable ;                                    // an unreadable regular file
+//						}
+//					break ;
+//				DF}                                                                         // NO_COV
+//				if (fi.sig()==Disk::FileSig(filename)) return ;                             // only return if file was stable, else retry
 //			}
 //		}
 //		// END_OF_VERSIONING
@@ -1154,7 +1163,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : a31e7e8f493dcdeac8270c1886c254da *
+// * Repo : d7e2e124933b05c77c6acfbaeefa8078 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1213,41 +1222,50 @@ namespace Version {
 //		}
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		template<uint8_t Sz> _Crc<Sz>::_Crc(::string const& filename) {
+//		template<uint8_t Sz> _Crc<Sz>::_Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
-//			self = None ;
-//			if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
-//				FileInfo fi { fd } ;
+//			for(;;) {
+//				fi = Disk::FileInfo(filename) ;
 //				switch (fi.tag()) {
-//					case FileTag::Empty :
-//						self = Empty ;
-//					break ;
-//					case FileTag::Reg :
-//					case FileTag::Exe : {
-//						_Xxh<Sz> ctx { fi.tag() }                   ;
-//						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
-//						for( size_t sz=fi.sz ;;) {
-//							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
-//							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
-//							else if (cnt==0) break ;                                // file could change while crc is being computed
-//							else switch (errno) {
-//								#if EWOULDBLOCK!=EAGAIN
-//									case EWOULDBLOCK :
-//								#endif
-//								case EAGAIN :
-//								case EINTR  : continue                                       ;
-//								default     : throw "I/O error while reading file "+filename ;
-//							}
-//							if (size_t(cnt)>=sz) break ;
-//							sz -= cnt ;
+//					case FileTag::None  :
+//					case FileTag::Dir   : self = _Crc::None  ; return ;
+//					case FileTag::Empty : self = _Crc::Empty ; return ;
+//					case FileTag::Lnk   :
+//						if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
+//							_Xxh<Sz> ctx { FileTag::Lnk } ;
+//							ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ; // no need to compute crc on size as would be the case with ctx += lnk_target
+//							self = ctx.digest() ;
+//						} else {
+//							self = _Crc::LnkUnreadable ;
 //						}
-//						self = ctx.digest() ;
-//					} break ;
-//				DN}
-//			} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-//				_Xxh<Sz> ctx { FileTag::Lnk } ;
-//				ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
-//				self = ctx.digest() ;
+//					break ;
+//					case FileTag::Reg   :
+//					case FileTag::Exe   :
+//						if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
+//							_Xxh<Sz> ctx { fi.tag() }                   ;
+//							::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+//							for( size_t sz=fi.sz ;;) {
+//								ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
+//								if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
+//								else if (cnt==0) break ;                                    // file could change while crc is being computed
+//								else switch (errno) {
+//									#if EWOULDBLOCK!=EAGAIN
+//										case EWOULDBLOCK :
+//									#endif
+//									case EAGAIN :
+//									case EINTR  : continue                                       ;
+//									default     : throw "I/O error while reading file "+filename ;
+//								}
+//								if (size_t(cnt)>=sz) break ;
+//								sz -= cnt ;
+//							}
+//							self = ctx.digest() ;
+//						} else {
+//							self = _Crc::RegUnreadable ;                                    // an unreadable regular file
+//						}
+//					break ;
+//				DF}                                                                         // NO_COV
+//				if (fi.sig()==Disk::FileSig(filename)) return ;                             // only return if file was stable, else retry
 //			}
 //		}
 //		// END_OF_VERSIONING
@@ -2562,7 +2580,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : d38fffbfa37c1b486914eec52c47c2a9 *
+// * Job : 3a3873998f246a1fa262a5941279de1d *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2604,41 +2622,50 @@ namespace Version {
 //		res <<':'<<      mk_printable     (                  views_s     ,false )      ;
 //		// END_OF_VERSIONING
 //		// START_OF_VERSIONING CACHE JOB REPO
-//		template<uint8_t Sz> _Crc<Sz>::_Crc(::string const& filename) {
+//		template<uint8_t Sz> _Crc<Sz>::_Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
 //			// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
-//			self = None ;
-//			if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
-//				FileInfo fi { fd } ;
+//			for(;;) {
+//				fi = Disk::FileInfo(filename) ;
 //				switch (fi.tag()) {
-//					case FileTag::Empty :
-//						self = Empty ;
-//					break ;
-//					case FileTag::Reg :
-//					case FileTag::Exe : {
-//						_Xxh<Sz> ctx { fi.tag() }                   ;
-//						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
-//						for( size_t sz=fi.sz ;;) {
-//							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
-//							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
-//							else if (cnt==0) break ;                                // file could change while crc is being computed
-//							else switch (errno) {
-//								#if EWOULDBLOCK!=EAGAIN
-//									case EWOULDBLOCK :
-//								#endif
-//								case EAGAIN :
-//								case EINTR  : continue                                       ;
-//								default     : throw "I/O error while reading file "+filename ;
-//							}
-//							if (size_t(cnt)>=sz) break ;
-//							sz -= cnt ;
+//					case FileTag::None  :
+//					case FileTag::Dir   : self = _Crc::None  ; return ;
+//					case FileTag::Empty : self = _Crc::Empty ; return ;
+//					case FileTag::Lnk   :
+//						if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
+//							_Xxh<Sz> ctx { FileTag::Lnk } ;
+//							ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ; // no need to compute crc on size as would be the case with ctx += lnk_target
+//							self = ctx.digest() ;
+//						} else {
+//							self = _Crc::LnkUnreadable ;
 //						}
-//						self = ctx.digest() ;
-//					} break ;
-//				DN}
-//			} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-//				_Xxh<Sz> ctx { FileTag::Lnk } ;
-//				ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
-//				self = ctx.digest() ;
+//					break ;
+//					case FileTag::Reg   :
+//					case FileTag::Exe   :
+//						if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
+//							_Xxh<Sz> ctx { fi.tag() }                   ;
+//							::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+//							for( size_t sz=fi.sz ;;) {
+//								ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
+//								if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
+//								else if (cnt==0) break ;                                    // file could change while crc is being computed
+//								else switch (errno) {
+//									#if EWOULDBLOCK!=EAGAIN
+//										case EWOULDBLOCK :
+//									#endif
+//									case EAGAIN :
+//									case EINTR  : continue                                       ;
+//									default     : throw "I/O error while reading file "+filename ;
+//								}
+//								if (size_t(cnt)>=sz) break ;
+//								sz -= cnt ;
+//							}
+//							self = ctx.digest() ;
+//						} else {
+//							self = _Crc::RegUnreadable ;                                    // an unreadable regular file
+//						}
+//					break ;
+//				DF}                                                                         // NO_COV
+//				if (fi.sig()==Disk::FileSig(filename)) return ;                             // only return if file was stable, else retry
 //			}
 //		}
 //		// END_OF_VERSIONING

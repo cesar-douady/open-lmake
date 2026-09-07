@@ -155,7 +155,7 @@ else :
 
 		x,px = lshow( ('-d','--deps') , 'dut' )
 		e    = px['dut'][('Dut','dut','generating')]
-		assert all( w in x for w in ('/','\\','SH','hello+world_sh','PY','hello+world_py') )
+		assert all( w in x for w in ('/','\\','SH','hello+world_sh','PY','hello+world_py') ),x
 		print(px)
 		assert len(e)==2 and len(e[0])==2,e
 

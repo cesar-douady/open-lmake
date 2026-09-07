@@ -196,9 +196,9 @@ void cache_init( bool rescue , bool read_only ) {
 	{ ::string file=g_store_dir_s+"crcs"      ; sync_guard.access(file) ; _g_crcs_file     .init( file , !read_only ) ; }
 	// END_OF_VERSIONING
 	if (rescue) {
-		Fd::Stderr.write(cat("crash detected, check and rescueing cache ",cwd_s(),rm_slash,'\n')) ;
-		CjobData ::s_rescue()                                                                     ;
-		CnodeData::s_rescue()                                                                     ;
+		Fd::Stderr.write(cat("crash detected in ",*g_exe_name,", checking and rescuing cache ",cwd_s(),rm_slash,'\n')) ;
+		CjobData ::s_rescue()                                                                                          ;
+		CnodeData::s_rescue()                                                                                          ;
 	}
 	RateCmp::s_init() ;
 	if (rescue) {

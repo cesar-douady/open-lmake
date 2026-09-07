@@ -231,8 +231,8 @@ namespace Engine {
 			//
 			trace("wash_target",t,fa) ;
 			switch (fat) {
-				case FileActionTag::Src      : if ( +t->dir && t->crc!=Crc::None ) target_locked_dirs.insert(t->dir) ;                              break ; // no action, not even integrity check
-				case FileActionTag::Uniquify : if ( +t->dir                      ) target_locked_dirs.insert(t->dir) ; actions.emplace_back(t,fa) ; break ;
+				case FileActionTag::Src      : if ( +t->dir && t->crc.exists() ) target_locked_dirs.insert(t->dir) ;                              break ; // no action, not even integrity check
+				case FileActionTag::Uniquify : if ( +t->dir                    ) target_locked_dirs.insert(t->dir) ; actions.emplace_back(t,fa) ; break ;
 				case FileActionTag::Unlink :
 					if ( !t->has_actual_job(idx()) && t->has_actual_job() && !t.tflags[Tflag::NoWarning] ) fa.tag = FileActionTag::UnlinkWarning ;
 				[[fallthrough]] ;

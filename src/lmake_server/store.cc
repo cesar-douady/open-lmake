@@ -266,7 +266,7 @@ namespace Engine::Persistent {
 		//
 		if (rescue) {
 			trace("rescue") ;
-			Fd::Stderr.write("previous crash detected, checking & rescuing\n") ;
+			Fd::Stderr.write(cat("crash detected in ",*g_exe_name,", checking & rescuing\n")) ;
 			try {
 				chk()                                    ; // first verify we have a coherent store
 				invalidate_match(true/*force_physical*/) ; // then rely only on essential data that should be crash-safe

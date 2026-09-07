@@ -89,60 +89,71 @@ namespace Hash {
 	template void _Crc<96>::operator>>(::string&) const ;                // .
 
 	// START_OF_VERSIONING CACHE JOB REPO
-	template<uint8_t Sz> _Crc<Sz>::_Crc(::string const& filename) {
+	template<uint8_t Sz> _Crc<Sz>::_Crc( ::string const& filename , Disk::FileInfo&/*out*/ fi ) {
 		// use low level operations to ensure no time-of-check-to time-of-use hasards as crc may be computed on moving files
-		self = None ;
-		if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
-			FileInfo fi { fd } ;
+		for(;;) {
+			fi = Disk::FileInfo(filename) ;
 			switch (fi.tag()) {
-				case FileTag::Empty :
-					self = Empty ;
-				break ;
-				case FileTag::Reg :
-				case FileTag::Exe : {
-					_Xxh<Sz> ctx { fi.tag() }                   ;
-					::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
-					for( size_t sz=fi.sz ;;) {
-						ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
-						if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
-						else if (cnt==0) break ;                                // file could change while crc is being computed
-						else switch (errno) {
-							#if EWOULDBLOCK!=EAGAIN
-								case EWOULDBLOCK :
-							#endif
-							case EAGAIN :
-							case EINTR  : continue                                       ;
-							default     : throw "I/O error while reading file "+filename ;
-						}
-						if (size_t(cnt)>=sz) break ;
-						sz -= cnt ;
+				case FileTag::None  :
+				case FileTag::Dir   : self = _Crc::None  ; return ;
+				case FileTag::Empty : self = _Crc::Empty ; return ;
+				case FileTag::Lnk   :
+					if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
+						_Xxh<Sz> ctx { FileTag::Lnk } ;
+						ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ; // no need to compute crc on size as would be the case with ctx += lnk_target
+						self = ctx.digest() ;
+					} else {
+						self = _Crc::LnkUnreadable ;
 					}
-					self = ctx.digest() ;
-				} break ;
-			DN}
-		} else if ( ::string lnk_target=read_lnk(filename) ; +lnk_target ) {
-			_Xxh<Sz> ctx { FileTag::Lnk } ;
-			ctx += ::string_view( lnk_target.data() , lnk_target.size() ) ;     // no need to compute crc on size as would be the case with ctx += lnk_target
-			self = ctx.digest() ;
+				break ;
+				case FileTag::Reg   :
+				case FileTag::Exe   :
+					if ( AcFd fd{filename,{.flags=O_RDONLY|O_NOFOLLOW,.err_ok=true}} ; +fd ) {
+						_Xxh<Sz> ctx { fi.tag() }                   ;
+						::string buf ( ::min(DiskBufSz,fi.sz) , 0 ) ;
+						for( size_t sz=fi.sz ;;) {
+							ssize_t cnt = ::read( fd , buf.data() , buf.size() ) ;
+							if      (cnt> 0) ctx += ::string_view(buf.data(),cnt) ;
+							else if (cnt==0) break ;                                    // file could change while crc is being computed
+							else switch (errno) {
+								#if EWOULDBLOCK!=EAGAIN
+									case EWOULDBLOCK :
+								#endif
+								case EAGAIN :
+								case EINTR  : continue                                       ;
+								default     : throw "I/O error while reading file "+filename ;
+							}
+							if (size_t(cnt)>=sz) break ;
+							sz -= cnt ;
+						}
+						self = ctx.digest() ;
+					} else {
+						self = _Crc::RegUnreadable ;                                    // an unreadable regular file
+					}
+				break ;
+			DF}                                                                         // NO_COV
+			if (fi.sig()==Disk::FileSig(filename)) return ;                             // only return if file was stable, else retry
 		}
 	}
 	// END_OF_VERSIONING
 	//            Sz
-	template _Crc<64>::_Crc(::string const& filename) ;                         // explicit instanciation
-	template _Crc<96>::_Crc(::string const& filename) ;                         // .
+	template _Crc<64>::_Crc(::string const& filename,Disk::FileInfo&/*out*/) ;          // explicit instanciation
+	template _Crc<96>::_Crc(::string const& filename,Disk::FileInfo&/*out*/) ;          // .
 
 	template<uint8_t Sz> _Crc<Sz>::operator ::string() const {
 		switch (CrcSpecial(self)) {
-			case CrcSpecial::Unknown : return "unknown"                  ;
-			case CrcSpecial::Lnk     : return "unknown-L"                ;
-			case CrcSpecial::Reg     : return "unknown-R"                ;
-			case CrcSpecial::None    : return "none"                     ;
-			case CrcSpecial::Empty   : return "empty-R"                  ;
-			case CrcSpecial::Plain   : return hex()+(is_lnk()?"-L":"-R") ;
-		DF}                                                                // NO_COV
+			case CrcSpecial::Unknown       : return "unknown"                  ;
+			case CrcSpecial::Lnk           : return "unknown-L"                ;
+			case CrcSpecial::Reg           : return "unknown-R"                ;
+			case CrcSpecial::None          : return "none"                     ;
+			case CrcSpecial::LnkUnreadable : return "unreadable-L"             ;
+			case CrcSpecial::RegUnreadable : return "unreadable-R"             ;
+			case CrcSpecial::Empty         : return "empty-R"                  ;
+			case CrcSpecial::Plain         : return hex()+(is_lnk()?"-L":"-R") ;
+		DF}                                                                      // NO_COV
 	} //!         Sz
-	template _Crc<64>::operator ::string() const ;                         // explicit instanciation
-	template _Crc<96>::operator ::string() const ;                         // .
+	template _Crc<64>::operator ::string() const ;                               // explicit instanciation
+	template _Crc<96>::operator ::string() const ;                               // .
 
 	template<uint8_t Sz> ::string _Crc<Sz>::hex() const {
 		static_assert( HexSz%2==0 ) ;                     // else handle last digit
@@ -221,16 +232,16 @@ namespace Hash {
 		// qualify the accesses that can perceive the difference
 		Accesses res = FullAccesses ;
 		if (is_reg()) {
-			if      (crc.is_reg()   ) res =  Access::Reg  ;     // regular accesses see modifications of regular files
-			else if (crc.is_lnk()   ) res = ~Access::Stat ;     // both exist, Stat does not see the difference
-			else if (crc==_Crc::None) res = ~Access::Lnk  ;     // readlink accesses cannot see the difference between no file and a regular file
+			if      (crc.is_reg()) res =  Access::Reg  ;        // regular accesses see modifications of regular files
+			else if (crc.is_lnk()) res = ~Access::Stat ;        // both exist, Stat does not see the difference
+			else if (+crc        ) res = ~Access::Lnk  ;        // no file : readlink accesses cannot see the difference with a regular file
 		} else if (is_lnk()) {
-			if      (crc.is_reg()   ) res = ~Access::Stat ;     // both exist, Stat does not see the difference
-			else if (crc.is_lnk()   ) res =  Access::Lnk  ;     // only readlink accesses see modifications of links
-			else if (crc==_Crc::None) res = ~Access::Reg  ;     // regular accesses cannot see the difference between no file and a link
-		} else if (self==_Crc::None) {
-			if      (crc.is_reg()   ) res = ~Access::Lnk  ;     // readlink accesses cannot see the difference between no file and a regular file
-			else if (crc.is_lnk()   ) res = ~Access::Reg  ;     // regular  accesses cannot see the difference between no file and a link
+			if      (crc.is_reg()) res = ~Access::Stat ;        // both exist, Stat does not see the difference
+			else if (crc.is_lnk()) res =  Access::Lnk  ;        // only readlink accesses see modifications of links
+			else if (+crc        ) res = ~Access::Reg  ;        // no file : regular accesses cannot see the difference with a link
+		} else if (+self) {                                     // no file
+			if      (crc.is_reg()) res = ~Access::Lnk  ;        // readlink accesses cannot see the difference between no file and a regular file
+			else if (crc.is_lnk()) res = ~Access::Reg  ;        // regular  accesses cannot see the difference between no file and a link
 		}
 		return res ;
 	} //!                  Sz                      Sz
