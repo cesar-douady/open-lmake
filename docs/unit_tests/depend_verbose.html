@@ -136,7 +136,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
             <span class="n">target</span>  <span class="o">=</span> <span class="sa">f</span><span class="s1">&#39;</span><span class="se">{{</span><span class="s1">File</span><span class="se">}}</span><span class="s1">.sh.</span><span class="si">{</span><span class="n">ad</span><span class="si">}</span><span class="s1">.</span><span class="si">{</span><span class="n">step</span><span class="o">.</span><span class="n">link_support</span><span class="si">}</span><span class="s1">.cpy&#39;</span>
             <span class="n">autodep</span> <span class="o">=</span> <span class="n">ad</span>
             <span class="n">cmd</span> <span class="o">=</span> <span class="s1">&#39;&#39;&#39;</span>
-<span class="s1">                from_server=$(ldepend -v -R </span><span class="si">{File}</span><span class="s1"> | awk &#39;{{print $2}}&#39;)</span>
+<span class="s1">                from_server=$(ldepend -v -R </span><span class="si">{File}</span><span class="s1"> | awk &#39;{{print $1}}&#39;)</span>
 <span class="s1">                expected=$(   xxhsum        </span><span class="si">{File}</span><span class="s1">                     )</span>
 <span class="s1">                echo $from_server</span>
 <span class="s1">                [ &quot;$from_server&quot; = &quot;$expected&quot; ] || echo expected $expected got $from_server &gt;&amp;2</span>

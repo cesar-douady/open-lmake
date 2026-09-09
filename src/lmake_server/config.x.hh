@@ -171,8 +171,8 @@ namespace Engine {
 			// START_OF_VERSIONING REPO
 			uint8_t  date_prec    = 0     ;                                                                   // -1 means no date at all in console output
 			uint8_t  host_len     = 10    ;                                                                   //  0 means no host at all in console output
-			uint32_t history_days = 7     ;                                                                   // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
-			bool     has_exe_time = true  ;
+			uint32_t history_days = 7     ;                                                                   // number of different days in which output log history is kept in LMAKE/outputs, ...
+			bool     has_exe_time = true  ;                                                                   // ... 0 means no log
 			bool     show_eta     = false ;
 			bool     show_ete     = true  ;
 			// END_OF_VERSIONING

@@ -99,17 +99,17 @@ int main( int argc , char* argv[]) {
 				if (+crc) return ::string(crc) ;
 				else      return "-"           ;                                                       // ensure easy analysis
 			} ;
-			size_t w_ok  = ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return ok_str (vi.ok ).size() ; } ) ;
-			size_t w_crc = ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return crc_str(vi.crc).size() ; } ) ;
+			bool   ignore_err = ad.flags.dflags[Dflag::IgnoreError]                                                                         ;
+			size_t w_ok       = ignore_err ? ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return ok_str (vi.ok ).size() ; } ) : 0 ;
+			size_t w_crc      =              ::max<size_t>( dep_infos.first , [&](VerboseInfo vi) { return crc_str(vi.crc).size() ; } )     ;
 			for( size_t i : iota(dep_infos.first.size()) ) {
 				VerboseInfo vi = dep_infos.first[i] ;
-				if (vi.ok==No) rc = Rc::Fail ;
-				out <<      widen(ok_str (vi.ok ),w_ok ) ;
-				out <<' '<< widen(crc_str(vi.crc),w_crc) ;
-				out <<' '<< cmd_line.args[i]             ;
-				out <<'\n'                               ;
+				if (ignore_err) {
+					if (vi.ok==No) rc = Rc::Fail ;
+					out << widen(ok_str (vi.ok ),w_ok )<<' ' ;
+				}
+				out << widen(crc_str(vi.crc),w_crc)<<' '<<cmd_line.args[i]<<'\n' ;
 			}
-			if (flags[Flag::IgnoreError]) rc = Rc::Ok ;
 		}
 	}
 	if (+out) Fd::Stdout.write(out) ;

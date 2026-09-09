@@ -300,32 +300,35 @@ namespace Disk {
 	}
 
 	size_t/*n_created*/ mk_dir_s( FileRef dir_s , _CreatAction action ) {
-		if (!dir_s.file) return 0/*n_created*/ ;                                                                        // nothing to create
+		if (!dir_s.file) return 0/*n_created*/ ;                                                              // nothing to create
 		//
-		action.mod = 0777 ;                                                                                             // generally speaking restring dirs is useless, use whatever umask says
+		action.mod = 0777 ;                                                                                   // generally speaking restring dirs is useless, use whatever umask says
 		//
 		::vector_s  to_mk_s { dir_s.file } ;
 		const char* msg     = nullptr      ;
 		size_t      res     = 0            ;
 		while (+to_mk_s) {
-			::string& d_s = to_mk_s.back() ;                                                                            // parents are after children in to_mk
+			::string& d_s = to_mk_s.back() ;                                                                  // parents are after children in to_mk
 			if (action.sync_guard                               ) action.sync_guard->change({dir_s.at,d_s}) ;
 			if (::mkdirat(dir_s.at,d_s.c_str(),action.mod1())==0) {
 				if ( mode_t mod2=action.mod2() ; +mod2 ) { [[maybe_unused]] int rc = ::fchmodat( dir_s.at , d_s.c_str() , mod2 , 0/*flags*/ ) ; }
 				res++ ;
 				to_mk_s.pop_back() ;
 				continue ;
-			}                                                                                                           // done
+			}                                                                                                 // done
 			switch (errno) {
 				case EEXIST :
-					if ( action.force && FileInfo({dir_s.at,d_s},{.sync_guard=action.sync_guard}).tag()!=FileTag::Dir ) // retry
-						unlnk({dir_s.at,d_s},{.abs_ok=true,.sync_guard=action.sync_guard} ) ;
-					else                                                                                                // done
-						to_mk_s.pop_back() ;
+					if      (FileInfo({dir_s.at,d_s},{.sync_guard=action.sync_guard}).tag()==FileTag::Dir) to_mk_s.pop_back()                                                  ; // done
+					else if (action.force                                                                ) unlnk({dir_s.at,d_s},{.abs_ok=true,.sync_guard=action.sync_guard} ) ; // retry
+					else                                                                                   msg = "cannot create dir" ;
+				break ;
+				case ENOTDIR :
+					if ( action.force && action.mk_dir ) to_mk_s.push_back(dir_name_s(d_s)) ; // retry after parent is created (which will require force)
+					else                                 msg = "cannot create dir" ;
 				break ;
 				case ENOENT :
-					if ( action.mk_dir && has_dir(d_s)) to_mk_s.push_back(dir_name_s(d_s)) ;                            // retry after parent is created
-					else                                msg = "cannot create top dir" ;                                 // if ENOTDIR, a parent is not a dir, it will not be fixed up
+					if (action.mk_dir) to_mk_s.push_back(dir_name_s(d_s)) ;                   // retry after parent is created
+					else               msg = "cannot create top dir" ;
 				break ;
 				default :
 					msg = "cannot create dir" ;
@@ -368,8 +371,11 @@ namespace Disk {
 				/**/                   a.flags  = O_WRONLY|O_TRUNC|O_CREAT|O_NOFOLLOW ;
 				if (tag==FileTag::Exe) a.mod   |= a.mod>>2                            ; // copy read access to exec access
 				AcFd wfd { dst , a } ;
-				int rc = ::sendfile( wfd , rfd , nullptr/*offset*/ , fi.sz )                                                                                                                 ;
-				if (rc!=0) throw cat("cannot copy (",StrErr(),") ",src," to ",dst) ;
+				for( size_t sz=fi.sz ; sz ;) {
+					ssize_t n = ::sendfile( wfd , rfd , nullptr/*offset*/ , sz ) ;
+					if (n<0) throw cat("cannot copy (",StrErr(),") ",src," to ",dst) ;
+					sz -= n ;
+				}
 			} break ;
 			case FileTag::Lnk :
 				sym_lnk( dst , read_lnk(src,action.sync_guard) , action ) ;

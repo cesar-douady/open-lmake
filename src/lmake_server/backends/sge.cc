@@ -39,17 +39,15 @@ namespace Backends::Sge {
 		RsrcsData round(Backend const&) const {
 			// rounding is only used to avoid too many waiting queues, only criteria to take into account are those that decide launch/not launch
 			RsrcsData res ;
-			//                         prio is not significant for launching/not launching, not pertinent
-			/**/                       res.cpu  = round_rsrc(cpu) ;
-			/**/                       res.mem  = round_rsrc(mem) ;
-			/**/                       res.tmp  = round_rsrc(tmp) ;
-			/**/                       res.hard = hard            ;            // cannot round as syntax is not managed
-			//                         soft are not signficant for launching/not launching, not pertinent
+			res.cpu  = round_rsrc(cpu) ;
+			res.mem  = round_rsrc(mem) ;
+			res.tmp  = round_rsrc(tmp) ;
+			res.hard = hard            ;            // cannot round as syntax is not managed
+			// soft are not signficant for launching/not launching, not pertinent
 			for( auto const& [k,t] : tokens ) res.tokens.emplace_back(k,round_rsrc(t)) ;
 			return res ;
 		}
 		// data
-		int16_t            prio   = 0 ; // priority              : qsub -p <prio>     (prio comes from lmake -b               )
 		uint32_t           cpu    = 0 ; // number of logical cpu : qsub -l <cpu_rsrc> (cpu_rsrc comes from config, always hard)
 		uint32_t           mem    = 0 ; // memory   in MB        : qsub -l <mem_rsrc> (mem_rsrc comes from config, always hard)
 		uint32_t           tmp    = 0 ; // tmp disk in MB        : qsub -l <tmp_rsrc> (tmp_rsrc comes from config, always hard) default : dont manage tmp size (provide infinite storage, reserve none)
@@ -60,7 +58,6 @@ namespace Backends::Sge {
 		::vmap_ss mk_vmap() const ;
 		size_t hash() const {
 			Hash::Xxh h ;
-			h += prio   ;
 			h += cpu    ;
 			h += mem    ;
 			h += tmp    ;
@@ -226,7 +223,7 @@ namespace Backends::Sge {
 			int16_t prio = ::max<int16_t>( reqs , [&](ReqIdx r) { return req_prios[r] ; } , Min<int16_t> ) ;
 			//
 			Rsrcs const& rs = se.rsrcs ;
-			if ( prio                 )           { sge_cmd_line.emplace_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ;   }
+			if ( prio!=dflt_prio      )           { sge_cmd_line.emplace_back("-p"   ) ; sge_cmd_line.push_back(               to_string(prio     )) ;   }
 			if ( +cpu_rsrc && rs->cpu )           { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(cpu_rsrc+'='+::to_string(rs->cpu  )) ;   }
 			if ( +mem_rsrc && rs->mem )           { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(mem_rsrc+'='+::to_string(rs->mem  )) ;   }
 			if ( +tmp_rsrc && rs->tmp )           { sge_cmd_line.emplace_back("-l"   ) ; sge_cmd_line.push_back(tmp_rsrc+'='+::to_string(rs->tmp  )) ;   }
@@ -415,7 +412,6 @@ namespace Backends::Sge {
 				case 'c' : if (k=="cpu" ) { cpu  = from_string_with_unit<    uint32_t              >(v) ; continue ; } break ;
 				case 'h' : if (k=="hard") { hard = _split_rsrcs                                     (v) ; continue ; } break ;
 				case 'm' : if (k=="mem" ) { mem  = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
-				case 'p' : if (k=="prio") { prio = from_string<int16_t>                             (v) ; continue ; } break ;
 				case 's' : if (k=="soft") { soft = _split_rsrcs                                     (v) ; continue ; } break ;
 				case 't' : if (k=="tmp" ) { tmp  = from_string_with_unit<'M',uint32_t,true/*RndUp*/>(v) ; continue ; } break ;
 				case '-' : throw "resource cannot start with -:"+k ;

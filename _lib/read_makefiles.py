@@ -57,9 +57,32 @@ class UserEnvironDict(pdict) :
 	def get(self,key,default=None) :
 		self._record(key)
 		return super().get(key,default)
-	def __setitem__(self,key,val) : raise TypeError('user_environ is read-only'           )
-	def __delitem__(self,key    ) : raise TypeError('user_environ is read-only'           )
-	def __iter__   (self        ) : raise TypeError('user_environ cannot be iterated over') # record all keys if it turns out to be necessary
+	def __delitem__ (self,key          ) : raise TypeError('user_environ is read-only'                 )
+	def __setitem__ (self,key,val      ) : raise TypeError('user_environ is read-only'                 )
+	def clear       (self              ) : raise TypeError('user_environ is read-only'                 )
+	def pop         (self,key,dflt=None) : raise TypeError('user_environ is read-only'                 )
+	def popitem     (self              ) : raise TypeError('user_environ is read-only'                 )
+	def setdefault  (self,key,dflt=None) : raise TypeError('user_environ is read-only'                 )
+	def update      (self,src={},**kwds) : raise TypeError('user_environ is read-only'                 )
+	def __ior__     (self,other        ) : raise TypeError('user_environ is read-only'                 )
+	def __iter__    (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # record all keys if it turns out to be necessary
+	def __len__     (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def __or__      (self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def __repr__    (self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def __reversed__(self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def __ror__     (self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def __str__     (self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def items       (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def keys        (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def values      (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def __contains__(self,key          ) : raise TypeError('user_environ cannot be probed'             )
+	def __eq__      (self,other        ) : raise TypeError('user_environ cannot be compared'           )
+	def __ge__      (self,other        ) : raise TypeError('user_environ cannot be compared'           )
+	def __gt__      (self,other        ) : raise TypeError('user_environ cannot be compared'           )
+	def __le__      (self,other        ) : raise TypeError('user_environ cannot be compared'           )
+	def __lt__      (self,other        ) : raise TypeError('user_environ cannot be compared'           )
+	def copy        (self              ) : raise TypeError('user_environ is not copiable'              )
+	def fromkeys    (self,it,value=None) : raise TypeError('building a new user_environ is meaningless')
 
 def report_user_err(e) :
 	# remove part of the traceback which is internal to open-lmake to avoid message pollution when reporting a user error

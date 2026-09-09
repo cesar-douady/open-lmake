@@ -624,7 +624,9 @@ namespace Py {
 	template<> struct Ptr<Module> : PtrBase<Module> {
 		using Base = PtrBase<Module> ;
 		using Base::Base ;
-		Ptr(::string const& name) ; // import
+		Ptr( ::string const& name ) : Ptr<Module>{PyImport_ImportModule(name.c_str())} { // import
+			Gil::s_swear_locked() ;
+		}
 	} ;
 
 	//

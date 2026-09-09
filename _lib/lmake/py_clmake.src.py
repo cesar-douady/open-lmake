@@ -18,9 +18,8 @@ import sys     as _sys
 # XXX! : for now, it is best effort (e.g. $LMAKE_AUTODEP_ENV is not fully resistant to pathalogical cases), provide support for get_autodep() and set_autodep()
 
 import subprocess as _sp
-def _run( cmd_line , input=None , with_output=False ) :
-	if not with_output :        _sp.check_output(cmd_line,                        input=input) # fast path : dont pass universal_newlines if not necessary
-	else               : return _sp.check_output(cmd_line,universal_newlines=True,input=input)
+def _run( cmd_line , input=None ) :
+	return _sp.check_output(cmd_line,universal_newlines=True,input=input)
 _lmake_root = _osp.dirname(_osp.dirname(_osp.dirname(__file__)))
 def _bin(f) : return _lmake_root+'/bin/'+f
 
@@ -54,7 +53,7 @@ def depend( *args , **kwds ) :
 # python3 prototype would be (but not available with python2) : XXX> : restore better prototype when python2 is no longer supported
 #	def target(
 #		*args
-#	,	essential=False , incremental=False , no_uniquify=False , no_warning=False , phony=False , ignore=False , no_allow=False , source_ok=False
+#	,	essential=False , incremental=False , no_warning=False , phony=False , ignore=False , no_allow=False , source_ok=False
 #	,	follow_symlinks=False , write=False
 #	)
 def target( *args , **kwds ) :

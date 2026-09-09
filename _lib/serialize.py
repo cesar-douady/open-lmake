@@ -58,7 +58,7 @@ def get_src(*args,no_imports=None,ctx=(),force=False,root=None) :
 	s = Serialize(no_imports,ctx,root)
 	for a in args :
 		if isinstance(a,dict) :
-			for k,v in a.items() : s.val_src(k,v,force)
+			for k,v in a.items() : s.val_src(k,v,force=force)
 		else :
 			s.val_src(None,a,force=force)
 	return s.get_src()
@@ -236,7 +236,7 @@ class Serialize :
 				self.modules[val.__module__] = (val.__module__,None)
 				return f'{val.__module__}.{val.__qualname__}{sfx}'
 		if isinstance(val,types.FunctionType) :
-			self.val_src(val.__name__,val)
+			self.val_src(val.__name__,val,force=force)
 			return f'{val.__name__}{sfx}'
 		if self.has_repr(val) :
 			return repr(val)
@@ -300,7 +300,7 @@ class Serialize :
 		if   first_line[-1]==':'                                : core = ''                                  # if line ends with :, it is a multi-line func and signature is the entire first line
 		elif first_line.count(':')==1                           : core = first_line[first_line.find(':')+1:] # if there is a single :, there is not choice
 		elif not func.__defaults__ and not func.__annotations__ : core = first_line[first_line.find(':')+1:] # if not default nor annotations, the first : is necessarily correct
-		else                                                    : raise ValueError('core for func {func.__qualname__} is too difficult to analyze')
+		else                                                    : raise ValueError(f'core for func {func.__qualname__} is too difficult to analyze')
 		#
 		return f'def {name}{inspect.signature(func)} :{core}'
 

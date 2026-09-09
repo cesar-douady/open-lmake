@@ -94,7 +94,7 @@ namespace Disk {
 		}
 		if (!file) goto Bad ;
 		{	size_t slash = file.size()-is_dir ;
-			for(; n ; n-- ) {
+			for( [[maybe_unused]] FileNameIdx _ : iota(n) ) {
 				if (slash==Npos)                  goto Bad ;
 				if (slash==0   ) { slash = Npos ; continue ; }
 				size_t prev_slash = slash ;

@@ -77,7 +77,7 @@ namespace Backends {
 			Pdate                             _ref_date            ;     // later than any job start date and end date, always rounded to ms
 			::umap<Job,Pdate>                 _eta_tab             ;     // jobs whose eta is post ref_date
 			::set<::pair<Pdate,Job>>          _eta_set             ;     // same info, but ordered by dates
-			Val                               _reasonable_workload = 0 ; // sum of (eta-_ref_date) in _eta_tab
+			Val                               _reasonable_workload = 0 ; // sum of (eta-_ref_date) in _eta_tab scaled with tokens
 			JobIdx                            _running_tokens      = 0 ; // sum of tokens for all running jobs
 			JobIdx                            _reasonable_tokens   = 0 ; // sum ok tokens in _eta_tab
 			//

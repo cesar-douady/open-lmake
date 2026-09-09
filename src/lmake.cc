@@ -105,7 +105,7 @@ int main( int argc , char* argv[] ) {
 	catch (::string const& e) { syntax.usage("cannot understand max-runs count ("+e+") : "+cmd_line.flag_args[+ReqFlag::MaxRuns]) ;                                }
 	//
 	try                       { uint8_t n = from_string<uint8_t>(cmd_line.flag_args[+ReqFlag::Nice],true/*empty_ok*/) ; throw_unless(n<=20,"must be at most 20") ; }
-	catch (::string const& e) { syntax.usage("cannot understand nice value ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                               }
+	catch (::string const& e) { syntax.usage("cannot understand nice value ("+e+") : "+cmd_line.flag_args[+ReqFlag::Nice]) ;                                       }
 	//
 	try                       { from_string<uint8_t>(cmd_line.flag_args[+ReqFlag::RetryOnError],true/*empty_ok*/) ;                                                }
 	catch (::string const& e) { syntax.usage("cannot understand retry-on-error count ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                     }

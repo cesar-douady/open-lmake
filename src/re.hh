@@ -249,20 +249,20 @@ namespace Re {
 			size_t n_marks() const {
 				return mark_count() ;
 			}
-			Match match( ::string const& subject , Data& , Bool3 /*chk_psfx*/=Yes ) const {                                                       // chk_psfx=Maybe means check size only
+			Match match( ::string const& subject , Data& , Bool3 /*chk_psfx*/=Yes ) const {    // chk_psfx=Maybe means check size only (perf optim, ignored here)
 				::smatch m ; ::regex_match( subject , m , self ) ;
 				if (m.empty()) return {} ;
 				//
 				size_t n   = mark_count()              ;
 				Match  res = ::vector<::string_view>() ; res->reserve(n+1) ;
-				for( size_t i : iota(n+1) ) {                                                                                                     // res[0] is the whole subject
+				for( size_t i : iota(n+1) ) {                                                  // res[0] is the whole subject
 					::sub_match sm = m[i] ;
 					if (sm.matched) res->emplace_back( sm.first , sm.second ) ;
 					else            res->emplace_back(                      ) ;
 				}
 				return res ;
 			}
-			bool can_match( ::string const& subject , Data& , Bool3 /*chk_psfx*/=Yes ) const {                                                    // chk_psfx=Maybe means check size only
+			bool can_match( ::string const& subject , Data& , Bool3 /*chk_psfx*/=Yes ) const { // chk_psfx=Maybe means check size only (perf optim, ignored here)
 				::smatch m ; ::regex_match( subject , m , self ) ;
 				return !m.empty() ;
 			}

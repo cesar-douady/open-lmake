@@ -422,7 +422,7 @@ namespace Backends {
 			reply.keep_tmp     |= start_ancillary_attrs.keep_tmp     ;
 			reply.kill_daemons  = start_ancillary_attrs.kill_daemons ;
 			#if HAS_ZLIB || HAS_ZSTD
-				reply.zlvl = start_ancillary_attrs.zlvl ;                                                                           // if zstd is not available, dont compress
+				reply.zlvl = start_ancillary_attrs.zlvl ;                                                                           // if no compression lib is available, dont compress
 			#endif
 			//
 			for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;

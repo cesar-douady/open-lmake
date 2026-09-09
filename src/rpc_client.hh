@@ -75,7 +75,7 @@ inline bool is_mark_glb(ReqKey key) {
 	DF}                                      // NO_COV
 }
 
-enum class ReqMark : uint8_t { // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
+enum class ReqMark : uint8_t { // PER_CMD : add mark as necessary
 	Freeze                     // if proc==Mark    , prevent job rebuild
 ,	NoTrigger                  // if proc==Mark    , prevent lmake from rebuilding dependent jobs
 } ;

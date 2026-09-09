@@ -11,7 +11,7 @@ if __name__!='__main__' :
 
 	from step import numpy_home
 
-	sys.path.append(numpy_home) # keep local repo as last entry to avoid spurious deps
+	sys.path.append(numpy_home)
 
 	import numpy # check we can import numpy
 

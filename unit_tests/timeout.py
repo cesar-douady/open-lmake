@@ -19,4 +19,4 @@ else :
 
 	import ut
 
-	ut.lmake( 'dut.1' , 'dut.5' , done=1 , failed=1 , rc=1 ) # dut.7 times out
+	ut.lmake( 'dut.1' , 'dut.5' , done=1 , failed=1 , rc=1 ) # dut.5 times out

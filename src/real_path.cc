@@ -39,6 +39,7 @@ FileLoc RealPathEnv::file_loc(::string const& real) const {
 	else            { if (abs_real.starts_with(P_tmpdir "/")) return FileLoc::Tmp  ; }
 	//
 	if (abs_real.starts_with("/proc/")) return FileLoc::Proc ;
+	if (abs_real.starts_with("/dev/" )) return FileLoc::Proc ; // cf. RealPath::solve
 	//
 	if (abs_real.starts_with(substr_view(repo_root_s,0,repo_root_s.size()-1)))
 		switch (abs_real[repo_root_s.size()-1]) {

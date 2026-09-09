@@ -447,8 +447,8 @@ class Handle :
 			elif isinstance(val,(list,tuple)) : return (val[0],kind,val[1:])
 			e = TypeError(f'bad {kind} {k} is a {val.__class__.__name__}, must be a str or list/tuple')
 			if kind=='target' and k=='target' and isinstance(val,dict) :
-				try                   : e.consider = f'{self.rule.name    }.targets = {val}'
-				except AttributeError : e.consider = f'{self.rule.__name__}.targets = {val}'
+				try                   : e.consider = f'{self.rule.name    }.targets = {val}\n'
+				except AttributeError : e.consider = f'{self.rule.__name__}.targets = {val}\n'
 			raise e
 		#
 		d = {

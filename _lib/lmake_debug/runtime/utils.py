@@ -56,6 +56,7 @@ def load_modules(func,deps) :
 		d = osp.abspath(d)
 		if     d.endswith('.pyc') : d = source_from_cache(d)
 		if not d.endswith('.py' ) : continue                                       # not an importable module
+		d = d[:-3]                                                                 # suppress .py suffix
 		for p in path :
 			if not d.startswith(p) : continue
 			m = d[len(p):].split('/')

@@ -45,4 +45,4 @@ else :
 	sp.run( ('lmark','-f','-a','static_dep') , check=True ) # and freezes the job that produced it
 	print(1,file=open('src','w'))
 
-	ut.lmake( 'dut' , changed=1 , changed_frozen=1 , done=1 ) # top.sp must be kept (not quarantined)
+	ut.lmake( 'dut' , changed=1 , changed_frozen=1 , done=1 ) # star_dep.top must be kept (not quarantined)

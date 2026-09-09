@@ -62,8 +62,8 @@ struct Elf {
 		bool start = true ;
 		for( const char* p=llp ; *p ; p++ ) {
 			if (start) {
-				if ( *p!='/'                                                     ) return ; // found a relative entry, most probably inside the repo
-				if ( ::strncmp(p,root_s.c_str(),sz)==0 && (p[sz]==':'||p[sz]==0) ) return ; // found an absolute entry pointing inside the repo
+				if ( *p!='/'                                                                 ) return ; // found a relative entry, most probably inside the repo
+				if ( ::strncmp(p,root_s.c_str(),sz)==0 && (p[sz]==':'||p[sz]=='/'||p[sz]==0) ) return ; // found an absolute entry pointing inside the repo
 				start = false ;
 			} else {
 				if (*p==':') start = true ;

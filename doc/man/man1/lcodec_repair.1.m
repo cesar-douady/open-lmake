@@ -34,14 +34,14 @@ In that case, only a single code is kept, which is chosen by giving preference t
 
 .SH "EXIT STATUS"
 .LP
-B_(lcache_repair) exits with a status of zero if the cache was successfully repaired.
+B_(lcodec_repair) exits with a status of zero if the codec dir was successfully repaired.
 Else it exits with a non-zero status:
 .LP
 Item(B_(2))  internal error, should not occur
 Item(B_(7))  adequate permissions were missing, typically write access
 Item(B_(10)) some syscall failed
 Item(B_(11)) bad usage : command line options and arguments coul not be parsed
-Item(B_(12)) bad cache version, cache needs to be cleaned
+Item(B_(12)) bad codec version, codec dir needs to be cleaned
 
 .SH OPTIONS
 .LP

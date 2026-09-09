@@ -103,17 +103,17 @@ static void _out_thread_func(ReqRpcReply const& rrr) {
 }
 
 Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool refresh , ReqSyntax const& syntax , ReqCmdLine const& cmd_line , OutProcCb const& cb ) {
-	Trace trace("_out_proc") ;
+	Trace trace("_out_proc",proc,STR(read_only),STR(refresh)) ;
 	//
 	if (  cmd_line.flags[ReqFlag::Job] && cmd_line.args.size()!=1       ) syntax.usage("can process several files, but a single job"        ) ;
 	if ( !cmd_line.flags[ReqFlag::Job] && cmd_line.flags[ReqFlag::Rule] ) syntax.usage("can only force a rule to identify a job, not a file") ;
 	//
-	bool       sync           = cmd_line.flags[ReqFlag::Sync] ;
-	::vector_s cmd_line_files ;                                 try { cmd_line_files = cmd_line.files() ; } catch (::string const& e) { syntax.usage(e) ; }
-	//
-	Bool3    dv     = Maybe                               ;
-	::string dv_str = cmd_line.flag_args[+ReqFlag::Video] ; if (!dv_str) dv_str = get_env("LMAKE_VIDEO") ;
-	trace("dv",dv_str) ;
+	::vector_s cmd_line_files ;                                       try { cmd_line_files = cmd_line.files() ; } catch (::string const& e) { syntax.usage(e) ; }
+	bool       sync           = cmd_line.flags[ReqFlag::Sync]       ;
+	::string   dv_str         = cmd_line.flag_args[+ReqFlag::Video] ; if (!dv_str) dv_str = get_env("LMAKE_VIDEO") ;
+	Rc         rc             = Rc::ServerCrash                     ;                                                                    // until we are reported a real rc
+	pid_t      server_pid     = 0                                   ;
+	Bool3      dv             = Maybe                               ;
 	switch (dv_str[0]) {
 		case 'd' : case 'D' : dv = Yes   ;                                                                                       break ; // dark mode
 		case 'l' : case 'L' : dv = No    ;                                                                                       break ; // light mode
@@ -123,25 +123,23 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 		default  :
 			if (!get_env("NO_COLOR")) dv = is_dark_video(Fd::Stdin,Fd::Stdout) ;
 	}
-	trace("dark_video",dv) ;
+	trace("dark_video",dv_str,dv,STR(sync)) ;
 	//
-	ReqRpcReq rrr        { proc , cmd_line_files , { dv , cmd_line } } ;
-	Rc        rc         = Rc::ServerCrash                             ;
-	pid_t     server_pid = 0                                           ;
+	ReqRpcReq rrr { proc , cmd_line_files , { dv , cmd_line } } ;
 	//
 	::vector_s server_cmd_line = { *g_lmake_root_s+"bin/lmake_server" , "-d"/*no_daemon*/ , "-c"+*g_startup_dir_s } ;
-	if (!refresh ) server_cmd_line.emplace_back("-r") ;                                                               // -r means no refresh
-	if (read_only) server_cmd_line.emplace_back("-R") ;                                                               // -R means read-only
+	if (!refresh ) server_cmd_line.emplace_back("-r") ;                                                                                  // -r means no refresh
+	if (read_only) server_cmd_line.emplace_back("-R") ;                                                                                  // -R means read-only
 	// if read-only and we connect to an old server, it could write for us but should not
-	try                           { tie(g_server_fd,server_pid) = connect_to_server( !read_only , LmakeServerMagic , ::move(server_cmd_line) , ServerMrkr ) ; }
-	catch (::pair_s<Rc> const& e) { exit( e.second   , e.first ) ;                                                                                            }
-	catch (::string     const& e) { exit( Rc::System , e       ) ;                                                                                            }
+	try                           { tie(g_server_fd,server_pid) = connect_to_server( !(read_only||sync) , LmakeServerMagic , ::move(server_cmd_line) , ServerMrkr ) ; }
+	catch (::pair_s<Rc> const& e) { exit( e.second   , e.first ) ;                                                                                                    }
+	catch (::string     const& e) { exit( Rc::System , e       ) ;                                                                                                    }
 	trace("starting",g_server_fd,rrr) ;
-	cb(true/*start*/) ;                                                                                               // block INT once server is initialized so as to be interruptible at all time
-	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ;                                    // /!\ must be after call to cb so INT can be blocked before creating threads
+	cb(true/*start*/) ;                                                            // block INT once server is initialized so as to be interruptible at all time
+	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ; // /!\ must be after call to cb so INT can be blocked before creating threads
 	OMsgBuf(rrr).send(g_server_fd) ;
 	trace("started") ;
-	bool    received = false/*garbage*/ ;                                                                             // for trace only
+	bool    received = false/*garbage*/ ;                                          // for trace only
 	IMsgBuf buf      ;
 	try {
 		for(;;) {

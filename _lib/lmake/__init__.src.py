@@ -175,7 +175,7 @@ def _find_cc_ld_library_path(cc) :
 def rm_target_tree( dir , regexpr=None ) :
 	'''
 		Remove targets generated in dir and matching regexpr.
-		Enclosing dirs that become empty are removed as well if they are dir (if `top`) or below it.
+		Enclosing dirs that become empty are removed as well if they are dir or below it.
 	'''
 	import os.path as osp
 	assert dir and not (dir+'/').startswith('../') and dir[0]!='/' , 'dir must be a sub-dir, not '+dir

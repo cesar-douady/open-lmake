@@ -24,7 +24,7 @@ namespace Store {
 	// A used bit is set for items corresponding to inserted prefixes, which implies :
 	// - it can be returned by at
 	// - it is frozen, it cannot be moved
-	// - it must have a non empty chunk
+	// - it must have a non empty chunk (unless root which may store the empty key)
 	// Chunks of data stored in items are stored in reversed order as this significantly reduces the numbers of copies
 	// invariants can be found in the chk() method
 
@@ -71,7 +71,6 @@ namespace Store {
 		template<class Char> concept HasPlus = requires(Char c) { {+c} -> ::integral ; } ;
 		template<class Char> requires( !Case1<Char> && !Case2<Char> && HasPlus<Char> ) struct CharRep<Char> {
 			using CharUint = ::make_unsigned_t<decltype(+Char())> ;
-			static_assert(sizeof(CharUint)==sizeof(Char)) ;
 			static CharUint s_rep(Char c) { return CharUint(+c) ; }
 		} ;
 		template<class Char> using CharUint = typename CharRep<Char>::CharUint ;
@@ -98,7 +97,7 @@ namespace Store {
 
 		template<IsIdx Idx,class Char> struct ItemBase {
 			static_assert(IsTrivial<Char>) ;
-			using CharUint = Prefix::CharUint<Char> ;
+			using CharUint = Prefix::CharUint<Char> ; static_assert( sizeof(CharUint)==sizeof(Char)) ;
 			using ChunkIdx = uint8_t                ;
 			using ItemOfs  = uint32_t               ;
 			using ChunkBit = uint8_t                ;
@@ -188,9 +187,9 @@ namespace Store {
 			static_assert( ItemSizeOf>sizeof(Base) ) ; // this is not a constraint, it must always hold
 			static_assert( DataSizeOf<=(1<<31)     ) ; // this is pretty comfortable, else, we must define ItemOfs as uint64_t
 
-			static ChunkBit s_cmp_bit ( CharUint cmp_val , CharUint dvg_val )       { return ::countl_zero(CharUint(cmp_val^dvg_val))                                ; }
-			/**/   bool     dvg_before(                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) & (msb_msk(NBits<CharUint>-1-cmp_bit)<<1)   ; }
-			/**/   bool     dvg_at    (                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) &  CharUint(1<<(NBits<CharUint>-1-cmp_bit)) ; }
+			static ChunkBit s_cmp_bit ( CharUint cmp_val , CharUint dvg_val )       { return ::countl_zero(CharUint(cmp_val^dvg_val))                                          ; }
+			/**/   bool     dvg_before(                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) & (msb_msk(NBits<CharUint>-1-cmp_bit)<<1)             ; }
+			/**/   bool     dvg_at    (                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) &  CharUint(CharUint(1)<<(NBits<CharUint>-1-cmp_bit)) ; }
 
 			// data
 		private :
@@ -270,7 +269,7 @@ namespace Store {
 			static Sz s_min_sz( Kind k , bool used , ChunkIdx chunk_sz ) {
 				ChunkIdx max_chunk_sz = s_max_chunk_sz(k,used) ;
 				SWEAR( max_chunk_sz>=chunk_sz , max_chunk_sz , chunk_sz ) ;
-				Sz min_sz = MaxSz - (max_chunk_sz-chunk_sz)/ItemSizeOf ;
+				Sz min_sz = MaxSz - (max_chunk_sz-chunk_sz)*CharSizeOf/ItemSizeOf ;
 				if ( used && min_sz<MinUsedSz ) return MinUsedSz ;
 				else                            return min_sz    ;
 			}
@@ -349,9 +348,9 @@ namespace Store {
 				_del_data() ;
 				CharUint cmp_val_ {} ;
 				if (kind()==Kind::Split) cmp_val_ = cmp_val() ;
-				if (BigData) {                                                                                                                              // data is after nxt
-					if ( kind()==Kind::Split && used ) for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(sz(),true/*used*/,!is_eq)) = nxt_if(!is_eq) ; // walk backward if moving forward
-					else                               for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(sz(),true/*used*/, is_eq)) = nxt_if( is_eq) ; // and vice versa
+				if (BigData) {                                                                                                                       // data is after nxt
+					if ( kind()==Kind::Split && used ) for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(sz(),used_,!is_eq)) = nxt_if(!is_eq) ; // walk backward if moving forward
+					else                               for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(sz(),used_, is_eq)) = nxt_if( is_eq) ; // and vice versa
 				}
 				//vvvvvvvvvv
 				used = used_ ;
@@ -445,6 +444,7 @@ namespace Store {
 				save[n_saved].second.save(item) ;
 				fence() ;                                       // ensure n_saved is incremented only once item is actually saved
 				n_saved++ ;
+				fence() ;                                       // ensure backup is effective before doing any modif
 			}
 			// data
 			NoVoid<H>           hdr         ;
@@ -589,10 +589,14 @@ namespace Store {
 		template<class... A> void init( NewType , A&&... hdr_args ) {
 			Base::init(New,::forward<A>(hdr_args)...) ;
 		}
-		template<class... A> void init( ::string const&   name , bool writable_ , A&&... hdr_args ) {
+		template<class... A> void init( ::string const& name , bool writable_ , A&&... hdr_args ) {
 			Base::init( name , writable_ , ::forward<A>(hdr_args)... ) ;
 			// fix in case of crash during an operation
-			if (!writable_) { SWEAR(!_n_saved(),_n_saved()) ; return ; } // cannot fix if not writable
+			if (!_n_saved()) return ;
+			if (!writable_) {
+				Fd::Stderr.write(cat(name," has been damaged and needs recovery but this cannot be done while read-only")) ;
+				exit(Rc::BadState) ;
+			}
 			for( uint8_t i1=_n_saved() ; i1>0 ; i1-- ) {                 // restore backward as some items may be saved several times
 				auto const& [idx,save_item] = _save()[i1-1] ;
 				save_item.restore(_at(idx)) ;
@@ -1077,10 +1081,10 @@ namespace Store {
 				//                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				// try compression forward & backward, so use | instead of ||
 				bool compressed ;
-				/**/             ::tie(compressed,idx) = _compress_after <                true /*BuPrev*/,false/*BuI*/,false/*BuNxt*/>(idx) ; // idx & nxt  already backed up
-				if ( compressed)                         _compress_before<true/*BuPrev2*/,false/*.     */,false/*.  */               >(idx) ; // prev already backed up by _compress_after above
-				else                   compressed      = _compress_before<true/*.      */,true /*.     */,false/*.  */               >(idx) ;
-				if (!compressed)                         _minimize_sz    <                                false/*Bu */               >(idx) ; // idx already backed up
+				/**/             ::tie(compressed,idx) = _compress_after <                true /*BuPrev*/,false/*BuI*/,true/*BuNxt*/>(idx) ; // idx already backed up
+				if ( compressed)                         _compress_before<true/*BuPrev2*/,false/*.     */,false/*.  */              >(idx) ; // prev already backed up by _compress_after above
+				else                   compressed      = _compress_before<true/*.      */,true /*.     */,false/*.  */              >(idx) ;
+				if (!compressed)                         _minimize_sz    <                                false/*Bu */              >(idx) ; // idx already backed up
 				_commit() ;
 				for(;;) {   // now that branch is out of the tree, walk forward to actually collect the items
 					//    vvvvvvvv
@@ -1273,7 +1277,7 @@ namespace Store {
 		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::erase( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
 			chk_thread() ;
 			DvgDigest dvg { root , self , name , psfx } ;
-			if (!dvg.dvg==Dvg::Match) return Idx() ;
+			if (dvg.dvg!=Dvg::Match) return Idx() ;
 			_pop(dvg.idx) ;
 			return dvg.idx ;
 		}
@@ -1343,9 +1347,9 @@ namespace Store {
 				if (!item.prev) throw_unless( !item.chunk_sz             , "root(",idx,") must have an empty chunk"                            ) ;
 				for( bool is_eq : Nxt(item.kind()) ) {
 					Idx         nxt      = item.nxt_if(is_eq) ;
+					throw_unless( +nxt       , "item(",idx,").nxt(",is_eq,") is null"                      ) ;
+					throw_unless( nxt<size() , "item(",idx,").nxt(",is_eq,") is out of range (",size(),')' ) ;
 					Item const& nxt_item = _at(nxt) ;
-					throw_unless( +nxt                       , "item(",idx,").nxt(",is_eq,") is null"                           ) ;
-					throw_unless( nxt<size()                 , "item(",idx,").nxt(",is_eq,") is out of range (",size(),')'      ) ;
 					throw_unless( nxt_item.prev==idx         , "item(",idx,").nxt(",is_eq,").prev is "     ,nxt_item.prev       ) ;
 					throw_unless( nxt_item.prev_is_eq==is_eq , "item(",idx,").nxt(",is_eq,").prev_is_eq is",nxt_item.prev_is_eq ) ;
 					if (item.kind()==Kind::Split) {
@@ -1379,7 +1383,7 @@ namespace Store {
 								// should have been compressed, (as not root)
 								throw_unless(
 									item.chunk_sz+nxt.chunk_sz>nxt.max_chunk_sz()
-								,	"item(",idx,").chunk_sz (",item.chunk_sz,") makes it mergeable with .nxt.chunk_sz (",nxt.max_chunk_sz(),')'
+								,	"item(",idx,").chunk_sz (",item.chunk_sz,") makes it mergeable with its .nxt (",item.nxt(),"), .nxt.chunk_sz (",nxt.chunk_sz,')'
 								) ;
 							}
 						break ;

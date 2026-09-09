@@ -43,9 +43,19 @@ namespace Time {
 		bool    first        = true  ;
 		bool    dot_seen     = false ;
 		bool    neg          = false ; // value is (-1)^neg*val_mantissa/(10^val_exp)
+		bool    is_before    = true  ; // true as long as we have only seen spaces
+		bool    is_after     = false ; // true as soon as we have seen a fully formed delay
 		uint8_t val_exp      = 0     ; // .
 		int64_t val_mantissa = 0     ; // .
 		for( char c : s ) {
+			if (is_before) {
+				if (c==' ') continue ;
+				is_before = false ;
+			}
+			if (is_after) {
+				throw_unless( c==' ' , "spurious chars after well formed delay : ",s ) ;
+				continue ;
+			}
 			switch (c) {
 				case '-' : throw_unless( first     , "internal - : "  ,s ) ; neg      = true ; break ;
 				case '.' : throw_unless( !dot_seen , "several dots : ",s ) ; dot_seen = true ; break ;
@@ -60,6 +70,7 @@ namespace Time {
 					dot_seen     = false ;
 					val_exp      = 0     ;
 					val_mantissa = 0     ;
+					is_after     = true  ;
 				} break ;
 				default :
 					throw_unless( '0'<=c && c <='9' , "unrecognized char (",c,") : ",s ) ;
@@ -158,7 +169,7 @@ namespace Time {
 			if (*end=='.') {
 				end++ ;
 				uint64_t ns = 0 ;
-				for( uint32_t m=1'000'000'000 ; *end>='0'&&*end<='9' ; m/=10,end++ ) ns += (*end-'0')*m ;
+				for( uint32_t m=100'000'000 ; *end>='0'&&*end<='9' ; m/=10,end++ ) ns += (*end-'0')*m ;
 				_val += ns*TicksPerSecond/1'000'000'000 ;
 			}
 			switch (*end) {

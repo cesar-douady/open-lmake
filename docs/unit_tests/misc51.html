@@ -108,29 +108,35 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="n">lmake</span><span class="o">.</span><span class="n">manifest</span> <span class="o">=</span> <span class="p">(</span>
         <span class="s1">&#39;Lmakefile.py&#39;</span>
-    <span class="p">,</span>   <span class="s1">&#39;../shared/&#39;</span>   <span class="c1"># external dir containing a plain source</span>
+    <span class="p">,</span>   <span class="s1">&#39;dep_ok&#39;</span>
     <span class="p">)</span>
 
-    <span class="k">class</span> <span class="nc">Plain</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
-        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;plain&#39;</span>
-        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;cat ../shared/plain.txt&#39;</span>
+    <span class="k">class</span> <span class="nc">Dep</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dep&#39;</span>
+        <span class="n">dep</span>    <span class="o">=</span> <span class="s1">&#39;dep_ok&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;grep -qx ok &amp;&amp; echo dep_content&#39;</span> <span class="c1"># fails unless dep_ok contains ok</span>
+
+    <span class="k">class</span> <span class="nc">Dut</span><span class="p">(</span><span class="n">Rule</span><span class="p">)</span> <span class="p">:</span>
+        <span class="n">target</span> <span class="o">=</span> <span class="s1">&#39;dut&#39;</span>
+        <span class="n">dep</span>    <span class="o">=</span> <span class="s1">&#39;dep&#39;</span>
+        <span class="n">cmd</span>    <span class="o">=</span> <span class="s1">&#39;cat&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
 
+    <span class="kn">import</span> <span class="nn">subprocess</span> <span class="k">as</span> <span class="nn">sp</span>
+
     <span class="kn">import</span> <span class="nn">ut</span>
 
-    <span class="kn">import</span> <span class="nn">os</span>
+    <span class="nb">print</span><span class="p">(</span> <span class="s1">&#39;ok&#39;</span> <span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;dep_ok&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="p">)</span> <span class="p">;</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">new</span>    <span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">done</span>  <span class="o">=</span><span class="mi">2</span>        <span class="p">)</span> <span class="c1"># Dut runs once, so that it can be frozen</span>
+    <span class="nb">print</span><span class="p">(</span> <span class="s1">&#39;ko&#39;</span> <span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;dep_ok&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="p">)</span> <span class="p">;</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">changed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># Dep fails, Dut is in dep_error</span>
 
-    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;shared&#39;</span>    <span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;repo/LMAKE&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-    <span class="n">os</span><span class="o">.</span><span class="n">symlink</span><span class="p">(</span><span class="s1">&#39;../Lmakefile.py&#39;</span><span class="p">,</span><span class="s1">&#39;repo/Lmakefile.py&#39;</span><span class="p">)</span>
+    <span class="n">sp</span><span class="o">.</span><span class="n">run</span><span class="p">((</span><span class="s1">&#39;lmark&#39;</span><span class="p">,</span><span class="s1">&#39;-f&#39;</span><span class="p">,</span><span class="s1">&#39;-a&#39;</span><span class="p">,</span><span class="s1">&#39;dut&#39;</span><span class="p">),</span><span class="n">check</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="c1"># freeze Dut while it is in dep_error</span>
 
-    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;unreadable&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;shared/plain.txt&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>
-    <span class="n">os</span><span class="o">.</span><span class="n">chmod</span><span class="p">(</span><span class="s1">&#39;shared/plain.txt&#39;</span><span class="p">,</span><span class="mo">0o000</span><span class="p">)</span>                    <span class="c1"># pretend the table was filled by another user not giving access to us</span>
+    <span class="nb">print</span><span class="p">(</span> <span class="s1">&#39;ok&#39;</span> <span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;dep_ok&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="p">)</span> <span class="p">;</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dep&#39;</span> <span class="p">,</span> <span class="n">changed</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">done</span>  <span class="o">=</span><span class="mi">1</span> <span class="p">)</span> <span class="c1"># repair Dep</span>
+    <span class="kc">None</span>                                    <span class="p">;</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dep&#39;</span>                        <span class="p">)</span> <span class="c1"># dep is up-to-date</span>
+    <span class="kc">None</span>                                    <span class="p">;</span> <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;dut&#39;</span> <span class="p">,</span> <span class="n">frozen</span> <span class="o">=</span><span class="mi">1</span>            <span class="p">)</span> <span class="c1"># Dut is frozen, it must not fail because of its old dep_error state</span>
 
-    <span class="n">os</span><span class="o">.</span><span class="n">chdir</span><span class="p">(</span><span class="s1">&#39;repo&#39;</span><span class="p">)</span>
-
-    <span class="n">ut</span><span class="o">.</span><span class="n">lmake</span><span class="p">(</span> <span class="s1">&#39;plain&#39;</span> <span class="p">,</span> <span class="n">rc</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">new</span><span class="o">=</span><span class="mi">1</span> <span class="p">,</span> <span class="n">failed</span><span class="o">=</span><span class="mi">1</span> <span class="p">)</span>
+    <span class="k">assert</span> <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;dut&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">read</span><span class="p">()</span><span class="o">==</span><span class="s1">&#39;dep_content</span><span class="se">\n</span><span class="s1">&#39;</span> <span class="c1"># frozen target is untouched</span>
 </pre></div>
 </body>
 </html>

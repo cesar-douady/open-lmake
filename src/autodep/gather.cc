@@ -907,18 +907,13 @@ Status Gather::_exec_child() {
 								//
 								if (verbose) {
 									for( VerboseInfo& vi : jmrr.verbose_infos ) {
-										::string ok_str  ;
+										::string ok_str  = vi.ok==Yes ? "ok" : vi.ok==No ? "error" : "" ;
 										::string crc_str ;
-										if (!jse.jerr.digest.flags.dflags[Dflag::IgnoreError]) vi.ok  = Maybe                                         ;
-										else                                                   ok_str = vi.ok==Yes ? "ok" : vi.ok==No ? "error" : "-" ;
-										if ( !(jse.jerr.digest.accesses&DataAccesses) ) {
-											vi.crc = {} ;
-										} else {
-											if      ( !jse.jerr.digest.accesses[Access::Lnk] && vi.crc.is_lnk() ) vi.crc = Crc::None ; // does not distinguish link    from no file
-											else if ( !jse.jerr.digest.accesses[Access::Reg] && vi.crc.is_reg() ) vi.crc = Crc::None ; // does not distinguish regular from no file
-											crc_str = ::string(vi.crc) ;
-										}
-										_user_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat( ok_str , +ok_str&&+crc_str?"/":"" , crc_str ) ) ;
+										if      ( !(jse.jerr.digest.accesses&DataAccesses)                  ) vi.crc = {}        ;
+										else if ( !jse.jerr.digest.accesses[Access::Lnk] && vi.crc.is_lnk() ) vi.crc = Crc::None ; // does not distinguish link    from no file
+										else if ( !jse.jerr.digest.accesses[Access::Reg] && vi.crc.is_reg() ) vi.crc = Crc::None ; // does not distinguish regular from no file
+										if (+vi.crc) crc_str = ::string(vi.crc) ;
+										_user_trace( now , Comment::Depend , {CommentExt::Verbose,CommentExt::Reply} , cat(ok_str,+ok_str&&+crc_str?"/":"",crc_str) ) ;
 									}
 								} else {
 									SyncGuard sync_guard { autodep_env.file_sync } ;
@@ -1038,9 +1033,9 @@ Status Gather::_exec_child() {
 										static constexpr char Pfx[] = "  consider a reliable alternative to " ;
 										::string d = no_slash(dst) ;
 										switch (jerr.files[0].second.tag()) {
-											case FileTag::Dir : msg << Pfx<<"mount source_dir as " <<dst<<" :\n  - "<<rule<<".views = { "<<mk_py_str   (d+'/')<<" : 'source_dir/' }"<<'\n' ; break ;
-											case FileTag::Lnk : msg << Pfx<<"copy source_link to " <<dst<<" :\n  - cp -P source_lnk "    <<mk_shell_str(d    )                      <<'\n' ; break ;
-											case FileTag::Reg : msg << Pfx<<"mount source_file as "<<dst<<" :\n  - "<<rule<<".views = { "<<mk_py_str   (d    )<<" : 'source_file' }"<<'\n' ; break ;
+											case FileTag::Dir : msg << Pfx<<"mount source_dir as "<<dst<<" :\n  - "<<rule<<".views = { "<<mk_py_str   (d+'/')<<" : 'source_dir/' }"<<'\n' ; break ;
+											case FileTag::Lnk :
+											case FileTag::Reg : msg << Pfx<<"copy source to "     <<dst<<" :\n  - cp -P source "        <<mk_shell_str(d    )                      <<'\n' ; break ;
 										DN}
 									}
 									msg << "  consider, if you are certain you want to proceed with "<<jerr.comment<<" :"<<'\n' ;

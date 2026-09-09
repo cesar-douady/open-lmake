@@ -132,7 +132,7 @@ namespace Engine {
 
 	void Req::new_eta() {
 		if (self->options.flags[ReqFlag::Ete]) {
-			self->ete = ::min( Delay() , self->eta.load()-Pdate(New) ) ;
+			self->ete = ::max( Delay() , self->eta.load()-Pdate(New) ) ;
 			return ;
 		}
 		Pdate now       = New                                                       ;
@@ -145,7 +145,7 @@ namespace Engine {
 			_adjust_eta(new_eta) ;
 			Backend::s_new_req_etas() ;                                               // tell backends that etas changed significatively
 		}
-		self->ete = new_eta-now ;
+		self->ete = ::max( Delay() , new_eta-now ) ;
 	}
 
 	void Req::_adjust_eta( Pdate eta , bool push_self ) {
@@ -612,7 +612,7 @@ namespace Engine {
 		//
 		if (node->buildable==Buildable::PathTooLong) {
 			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
-			audit_info( Color::Note    , cat("consider : lmake.config.max_path = ",name.size()," # or larger") , lvl+1 ) ;
+			audit_info( Color::Note    , cat("consider : lmake.config.path_max = ",name.size()," # or larger") , lvl+1 ) ;
 			return ;
 		}
 		//

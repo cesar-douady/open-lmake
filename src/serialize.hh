@@ -282,7 +282,7 @@ template<class T> struct Serdeser<::vector<T>> {
 	template<IsIStream S> static void s_serdes( S& is , ::vector<T>& v ) {
 		SerdesSz n = deserialize<SerdesSz>(is) ;
 		if ( n<is.size() && n<1024 ) v.reserve(n) ;                                  // limit reallocation while avoiding memory crash in case of junk message
-		for( [[maybe_unused]] size_t i : iota(n) ) v.push_back(deserialize<T>(is)) ;
+		for( [[maybe_unused]] size_t _ : iota(n) ) v.push_back(deserialize<T>(is)) ;
 	}
 } ;
 
@@ -297,6 +297,6 @@ template<class T> requires( requires { typename T::key_type ; } ) struct Serdese
 		//
 		SerdesSz n = deserialize<SerdesSz>(is) ;
 		if constexpr ( requires (T t) { t.reserve(0) ; } ) if ( n<is.size() && n<1024 ) x.reserve(n) ;              // limit reallocation while avoiding memory crash in case of junk message
-		for( [[maybe_unused]] size_t i : iota(n) ) x.insert(deserialize<ValueType>(is)) ;
+		for( [[maybe_unused]] size_t _ : iota(n) ) x.insert(deserialize<ValueType>(is)) ;
 	}
 } ;

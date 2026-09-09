@@ -70,7 +70,7 @@ namespace Store {
 			//
 			sz = round_up<PAGE_SZ>(sz) ; SWEAR( sz<=Capacity , sz,Capacity ) ;
 			//
-			::mmap( base , size , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS , -1/*fd*/  , 0/*offfset*/ ) ; // reset old mapping
+			_chk_rc( ::mmap( base , size , PROT_NONE , MAP_NORESERVE|MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED , -1/*fd*/  , 0/*offfset*/ ) , "clear" ) ; // reset old mapping
 			size = 0 ;
 			_map( sz , true/*truncate*/ ) ;
 		}

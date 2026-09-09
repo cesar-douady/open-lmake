@@ -292,8 +292,8 @@ namespace Engine {
 		State            state                ;                //  43  <= 96 bits, dep analysis state
 		DepsIter::Digest iter                 ;                // ~20+6<= 64 bits, deps up to this one statisfy required action
 		JobReason        reason               ;                //  36  <= 64 bits, reason to run job when deps are ready, forced (before deps) or asked by caller (after deps)
-		uint16_t         n_runs               = 0     ;        //         16 bits, number of times job has been run       (excluding cache hits)
-		uint16_t         n_submits            = 0     ;        //         16 bits, number of times job has been submitted (including cache hits)
+		uint16_t         n_runs               = 0     ;        //         16 bits, number of times job has been run       (excluding losts/retries,excluding cache hits)
+		uint16_t         n_submits            = 0     ;        //         16 bits, number of times job has been submitted (excluding losts/retries,including cache hits)
 		uint8_t          n_losts              = 0     ;        //          8 bits, number of times job has been lost
 		uint8_t          n_retries            = 0     ;        //          8 bits, number of times job has been seen in error
 		bool             force             :1 = false ;        //          1 bit , if true <=> job must run because reason

@@ -23,7 +23,7 @@ enum class ZlvlTag : uint8_t {
 ,	Zstd
 // aliases
 ,	Dflt =
-		#if HAS_STD
+		#if HAS_ZSTD
 			Zstd
 		#elif HAS_ZLIB
 			Zlib

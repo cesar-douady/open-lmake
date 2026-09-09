@@ -99,7 +99,14 @@ static DryRunDigest _dry_run(bool from_decode) {
 			::string crc_base64 = pfx  +crc_sfx        ;
 			FileTag  tag        = FileInfo(file).tag() ;
 			CodecCrc crc        ;
-			if (tag!=FileTag::Reg)    { if (tag==FileTag::Dir) add_slash(file) ; res.to_rm.emplace_back( ::move(file) , "not a regular file" ) ; continue ; }
+			switch (tag) {
+				case FileTag::None  :                   res.to_rm.emplace_back( ::move(file) , "cannot be stat'ed"  ) ; continue ;
+				case FileTag::Dir   : add_slash(file) ; res.to_rm.emplace_back( ::move(file) , "is a dir"           ) ; continue ;
+				case FileTag::Lnk   :                   res.to_rm.emplace_back( ::move(file) , "is a symbolic link" ) ; continue ;
+				case FileTag::Reg   :
+				case FileTag::Empty :                                                                                   break    ;
+				case FileTag::Exe   :                   res.to_rm.emplace_back( ::move(file) , "is executable"      ) ; continue ;
+			}
 			try                       {                                          crc = CodecCrc::s_from_base64(crc_base64) ;                                }
 			catch (::string const& e) {                                          res.to_rm.emplace_back( ::move(file) , cat("bad name : ",e) ) ; continue ; }
 			//
@@ -244,10 +251,10 @@ static DryRunDigest _dry_run(bool from_decode) {
 static ::string _codec_clean_msg() {
 	::string cwd_s_ = Disk::cwd_s() ;
 	return cat(
-		"file_sync=$(cat ",cwd_s_,AdminDirS,"file_sync)",'\n'
-	,	"rm -rf          ",cwd_s_,rm_slash              ,'\n'
-	,	"mkdir -p        ",cwd_s_,AdminDirS,rm_slash    ,'\n'
-	,	"echo \"$cfg\"  >",cwd_s_,AdminDirS,"file_sync"
+		"file_sync=$(cat    "  ,cwd_s_,AdminDirS,"file_sync)",'\n'
+	,	"rm -rf             "  ,cwd_s_,rm_slash              ,'\n'
+	,	"mkdir -p           "  ,cwd_s_,AdminDirS,rm_slash    ,'\n'
+	,	"echo \"$file_sync\" >",cwd_s_,AdminDirS,"file_sync"
 	) ;
 }
 
@@ -258,8 +265,8 @@ int main( int argc , char* argv[] ) {
 	,	{ Flag::Reconstruct , { .short_name='r' , .doc="reconstruct from decode files"        } }
 	}} ;
 	CmdLine<Flag> cmd_line { syntax,argc,argv } ;
-	if (cmd_line.args.size()<1) syntax.usage("must provide a cache dir to repair") ;
-	if (cmd_line.args.size()>1) syntax.usage("cannot repair several cache dirs"  ) ;
+	if (cmd_line.args.size()<1) syntax.usage("must provide a codec dir to repair") ;
+	if (cmd_line.args.size()>1) syntax.usage("cannot repair several codec dirs"  ) ;
 	//
 	::string const& top_dir_s = with_slash(cmd_line.args[0]) ;
 	if (::chdir(top_dir_s.c_str())!=0) exit( Rc::System  , "cannot chdir (",StrErr(),") to ",top_dir_s,rm_slash ) ;

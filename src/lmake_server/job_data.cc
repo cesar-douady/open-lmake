@@ -1311,7 +1311,7 @@ namespace Engine {
 
 	bool/*ok*/ JobData::forget( bool targets_ , bool deps_ ) {
 		Trace trace("Jforget",idx(),STR(targets_),STR(deps_)) ;
-		for( [[maybe_unused]] Req r : running_reqs() ) return false ; // ensure job is not running
+		for( [[maybe_unused]] Req _ : running_reqs() ) return false ; // ensure job is not running
 		status = Status::New ;
 		fence() ;                                                     // once status is New, we are sure target is not up-to-date, we can safely modify it
 		run_status = RunStatus::Ok ;

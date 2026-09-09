@@ -299,7 +299,7 @@ enum class Status : uint8_t { // result of job execution
 ,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 ,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
 ,	JobError                  // job execution ended in error
-,	Forbidden                 // job did a forbidden syscall
+,	Forbidden                 // job did a forbidden action (such as a forbidden syscall, writing to stderr while not allowed, etc.)
 ,	Panic                     // job access panic'ed
 ,	TerminationError          // job termination was problematic
 ,	Timeout                   // job execution timed out
@@ -794,7 +794,7 @@ struct JobSpace {
 	) ;
 	void exit() ;
 	//
-	::vmap_s<::vector_s> flat_phys_s() const ; // view phys after dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
+	::vmap_s<::vector_s> flat_phys_s() const ; // view phys, XXX! : implement dereferencing indirections (i.e. if a/->b/ and b/->c/, returns a/->c/ and b/->c/)
 	//
 	void mk_canon( ::string const& phy_repo_root_s , ::string const& sub_repo_s , bool has_chroot )       ;
 	void chk     (                                                                                ) const ;

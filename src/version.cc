@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 57      ; // 17741efe3f0bed2aab47c027dd1626d5
+	uint64_t    constexpr Cache = 57      ; // b625f98d3120dc390607f7343a8479a4
 	uint64_t    constexpr Codec = 3       ; // 084f97cd3cdfd24a126f49adeb731f3f
-	uint64_t    constexpr Repo  = 62      ; // d7e2e124933b05c77c6acfbaeefa8078
+	uint64_t    constexpr Repo  = 62      ; // 23f13a812b7ae2d843a24f01c03ff061
 	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
 	const char* const     Major = "26.08" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 17741efe3f0bed2aab47c027dd1626d5 *
+// * Cache : b625f98d3120dc390607f7343a8479a4 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -594,7 +594,7 @@ namespace Version {
 //	,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 //	,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
 //	,	JobError                  // job execution ended in error
-//	,	Forbidden                 // job did a forbidden syscall
+//	,	Forbidden                 // job did a forbidden action (such as a forbidden syscall, writing to stderr while not allowed, etc.)
 //	,	Panic                     // job access panic'ed
 //	,	TerminationError          // job termination was problematic
 //	,	Timeout                   // job execution timed out
@@ -999,7 +999,7 @@ namespace Version {
 //	,	Zstd
 //	// aliases
 //	,	Dflt =
-//			#if HAS_STD
+//			#if HAS_ZSTD
 //				Zstd
 //			#elif HAS_ZLIB
 //				Zlib
@@ -1163,7 +1163,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : d7e2e124933b05c77c6acfbaeefa8078 *
+// * Repo : 23f13a812b7ae2d843a24f01c03ff061 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1489,8 +1489,8 @@ namespace Version {
 //				// START_OF_VERSIONING REPO
 //				uint8_t  date_prec    = 0     ;                                                                   // -1 means no date at all in console output
 //				uint8_t  host_len     = 10    ;                                                                   //  0 means no host at all in console output
-//				uint32_t history_days = 7     ;                                                                   // number of days during which output log history is kept in LMAKE/outputs, 0 means no log
-//				bool     has_exe_time = true  ;
+//				uint32_t history_days = 7     ;                                                                   // number of different days in which output log history is kept in LMAKE/outputs, ...
+//				bool     has_exe_time = true  ;                                                                   // ... 0 means no log
 //				bool     show_eta     = false ;
 //				bool     show_ete     = true  ;
 //				// END_OF_VERSIONING
@@ -1782,8 +1782,8 @@ namespace Version {
 //			DynCmd                    cmd                    ;                         // in cmd   crc, evaluated before execution
 //			bool                      is_python              = false           ;
 //			bool                      force                  = false           ;
-//			uint8_t                   n_losts                = 0               ;       // max number of times a job can be lost
-//			uint16_t                  n_runs                 = 0               ;       // max number of times a job can be run                               , 0 = infinity
+//			uint8_t                   n_losts                = 0               ;       // max number of times a job can be lost/retried
+//			uint16_t                  n_runs                 = 0               ;       // max number of times a job can be run       (except losts & retries), 0 = infinity
 //			uint16_t                  n_submits              = 0               ;       // max number of times a job can be submitted (except losts & retries), 0 = infinity
 //			BitMap<Status>            retried_errs           = DfltRetriedErrs ;       // retried errors when RetryOnError option is passed to lmake
 //			// derived data
@@ -2164,7 +2164,7 @@ namespace Version {
 //	,	RunLoop                   // job needs to be rerun but we have already run       it too many times
 //	,	SubmitLoop                // job needs to be rerun but we have already submitted it too many times
 //	,	JobError                  // job execution ended in error
-//	,	Forbidden                 // job did a forbidden syscall
+//	,	Forbidden                 // job did a forbidden action (such as a forbidden syscall, writing to stderr while not allowed, etc.)
 //	,	Panic                     // job access panic'ed
 //	,	TerminationError          // job termination was problematic
 //	,	Timeout                   // job execution timed out
@@ -2569,7 +2569,7 @@ namespace Version {
 //	,	Zstd
 //	// aliases
 //	,	Dflt =
-//			#if HAS_STD
+//			#if HAS_ZSTD
 //				Zstd
 //			#elif HAS_ZLIB
 //				Zlib

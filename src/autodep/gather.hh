@@ -18,12 +18,6 @@
 
 #include "env.hh"
 
-// When several sockets are opened to send depend & target data, we are not sure of the order between these reports because of system buffers.
-// We could have decided to synchronize each report, which may be expensive in performance.
-// We chose to lose some errors, i.e. Update's may be seen as Write's, as each ambiguity is resolved by considering the Write is earliest and read latest possible.
-// This way, we do not generate spurious errors.
-// To do so, we maintain, for each access entry (i.e. a file), a list of sockets that are unordered, i.e. for which a following Write could actually have been done before by the user.
-
 enum class GatherKind : uint8_t { // epoll events
 	Stdout
 ,	Stderr
@@ -67,7 +61,7 @@ struct Gather {                                         // NOLINT(clang-analyzer
 		void clear_lnk     () {                      _read[+Access::Lnk] = PD::Never ; }
 		void clear_readdir () {                      _read_dir           = PD::Never ; }
 		//                                                                        phys
-		bool allow   () const ;                                                                 // if true <=> file has been declared target
+		bool allow   () const ;                                                                 // if true <=> file has been declared target, either static or effectively accessed while allowed
 		bool seen    () const { return                        _seen    <_max_read(true) ; }     // if true <=> file has been observed existing, we want real info because this is to trigger rerun
 		bool read_dir() const { return _read_dir<PD::Never && _read_dir<_max_read(true) ; }     // if true <=> file has been read as a dir    , we want real info because this is to generate error, ...
 	private :                                                                                   // ... optimize by first testing existence of _read_dir as this is almost always false

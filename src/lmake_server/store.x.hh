@@ -20,12 +20,12 @@
 //   - For jobs, a suffix containing the rule and the positions of the stems is added.
 // - 2 files for nodes :
 //   - A node data file provides its name (a pointer to the name file) and all pertinent info about a node.
-//   - A job-star file containing vectors of job-star, a job-star is a job index and a marker saying if we refer to a static or a star target
+//   - A job-star file containing vectors of job-star, a job-star is a job index and a marker saying if we refer to a static or a star target.
 // - 3 files for jobs :
-//   - A job data file containing its name (a pointer to the name file) and all the pertinent info for a job
-//   - A targets file containing vectors of star targets (static targets can be identified from the rule).
+//   - A job data file containing its name (a pointer to the name file) and all the pertinent info for a job.
+//   - A targets file containing vectors of targets.
 //     This file is sorted so that searching a node inside a vector can be done efficiently.
-//   - A deps file containing vectors of deps, ordered with static deps first, then critical deps then non-critical deps, in order in which they were opened.
+//   - A deps file containing vectors of deps, in chronological access order
 // - 5 files for rules :
 //   - A rule string file containing strings describing the rule.
 //   - A rule crc file containing an history of rule crc's (match, cmd and rsrcs).

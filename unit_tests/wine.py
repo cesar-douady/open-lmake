@@ -109,5 +109,5 @@ else :
 	ut.lmake( *(f'test64.{m}' for m in lmake.autodeps)                                               ) # ensure nothing needs to be remade
 	if os.environ['HAS_32'] and shutil.which('wine') :
 		autodeps_wine = tuple(m for m in lmake.autodeps if not m.startswith('ld_preload'))             # XXX : fix wine with ld_preload
-		ut.lmake( *(f'test.{m}' for m in autodeps_wine) , done=2*len(autodeps_wine) , new=0 , rc=0 )   # ptrace is not supported in 32 bits
+		ut.lmake( *(f'test.{m}' for m in autodeps_wine) , done=2*len(autodeps_wine) , new=0 , rc=0 )
 		ut.lmake( *(f'test.{m}' for m in autodeps_wine)                                            )   # ensure nothing needs to be remade

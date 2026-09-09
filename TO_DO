@@ -21,7 +21,6 @@ items (also used in XXX comments) :
 	- generally speaking, workload tracking is fusy and must be thoroughly reviewed with AI
 * if LMAKE/lmake/x becomes a dep, it may be constructed
 	- there should be no rule to make such a file
-* TU misc50 fails
 ? bug Sylvain :
 	- foo a derived file needed by a job
 	- lmark -fa foo

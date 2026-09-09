@@ -73,7 +73,7 @@ StdAttrs = {
 def fmt_config( config , is_top ) :
 	for k,v in config.items() :
 		if k not in StdAttrs : raise KeyError("unexpected key ",k)
-		config[k] = StdAttrs[k](v)
+		if v is not None : config[k] = StdAttrs[k](v)
 	if is_top :
 		git = '$GIT'                                                                                                               # substitued at build time
 		if 'caches' in config :

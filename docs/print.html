@@ -687,8 +687,9 @@ To simulate a plain access, you need to pass <code>read=True</code> to associate
 <li>The key is the dep name.</li>
 <li>The value is a <code>dict</code> composed of:
 <ul>
-<li><code>ok</code>      : if <code>ignore_error=True</code> was also passed, <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not built.</li>
-<li><code>checksum</code>: if <code>read=True</code>         was also passed, the checksum <a href="man/man1/xxhsum.html">computed</a> after the dep (unless <code>ok</code> is <code>None</code>).</li>
+<li><code>ok</code>      : if <code>ignore_error=True</code> was also passed, <code>True</code> if the dep is built with no error, <code>False</code> if the dep is built in error, <code>None</code> if the was not up-to-date.</li>
+<li><code>checksum</code>: if <code>read=True</code>         was also passed, a checksum identifying dep content unless dep was out-of-date.
+Note that if the dep was in error, the checksum is different, which may occur if <code>ignore_error=True</code> was also passed.</li>
 </ul>
 </li>
 </ul>
@@ -753,7 +754,8 @@ In that case, it is most probably wise to use the <code>critical</code> flag sim
 </ul>
 <h3 id="encode-table--ctx--val--min_length1--codec_version0-"><a class="header" href="#encode-table--ctx--val--min_length1--codec_version0-"><a href="unit_tests/codec.html#:~:text=code%20%3D%20lmake%2Eencode%28%20f%27%7Bos%2Egetcwd%28%29%7D%2Fcodec%5Ffile%27%20%2C%20%27ctx%27%20%2C%20File%2B%27%5Fpy%5Cn%27%20%2C%203%20%29"><code>encode( table , ctx , val , min_length=1 , codec_version=0 )</code></a></a></h3>
 <p>If a code is associated to <code>val</code> within <code>table</code> and context <code>ctx</code>, return it.
-Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.</p>
+Else a code is created, of length at least <code>min_length</code>, is associated to <code>val</code> and is return.
+The value for <code>min_length</code> cannot be larger than 24.</p>
 <p><code>table</code> may be:</p>
 <ul>
 <li>a key found in <code>lmake.config.codecs</code> in which case it is a local source file or an external dir</li>

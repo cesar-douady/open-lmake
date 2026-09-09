@@ -46,7 +46,7 @@ config = pdict(
 	#                                                       # too low, there may be spurious lost jobs and there may be messages about date discrepancies between hosts
 	#                                                       # too high, tool reactivity may rarely suffer
 #,	nice                = 0                                 # nice value to apply to all jobs
-,	path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)
+#,	path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)
 ,	sub_repos           = []                                # list of sub_repos
 #,	req_start_proc      = my_proc                           # executed at start of each lmake command
 #,	req_end_proc        = my_proc                           # executed at end   of each lmake command

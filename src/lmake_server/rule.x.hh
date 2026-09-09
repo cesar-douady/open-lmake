@@ -603,8 +603,8 @@ namespace Engine {
 		DynCmd                    cmd                    ;                         // in cmd   crc, evaluated before execution
 		bool                      is_python              = false           ;
 		bool                      force                  = false           ;
-		uint8_t                   n_losts                = 0               ;       // max number of times a job can be lost
-		uint16_t                  n_runs                 = 0               ;       // max number of times a job can be run                               , 0 = infinity
+		uint8_t                   n_losts                = 0               ;       // max number of times a job can be lost/retried
+		uint16_t                  n_runs                 = 0               ;       // max number of times a job can be run       (except losts & retries), 0 = infinity
 		uint16_t                  n_submits              = 0               ;       // max number of times a job can be submitted (except losts & retries), 0 = infinity
 		BitMap<Status>            retried_errs           = DfltRetriedErrs ;       // retried errors when RetryOnError option is passed to lmake
 		// derived data

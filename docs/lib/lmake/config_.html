@@ -144,7 +144,7 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
     <span class="c1">#                                                       # too low, there may be spurious lost jobs and there may be messages about date discrepancies between hosts</span>
     <span class="c1">#                                                       # too high, tool reactivity may rarely suffer</span>
 <span class="c1">#,  nice                = 0                                 # nice value to apply to all jobs</span>
-<span class="p">,</span>   <span class="n">path_max</span>            <span class="o">=</span> <span class="mi">200</span>                               <span class="c1"># max path length, smaller values make debugging easier (if None, not activated)</span>
+<span class="c1">#,  path_max            = 200                               # max path length, smaller values make debugging easier (if None, not activated)</span>
 <span class="p">,</span>   <span class="n">sub_repos</span>           <span class="o">=</span> <span class="p">[]</span>                                <span class="c1"># list of sub_repos</span>
 <span class="c1">#,  req_start_proc      = my_proc                           # executed at start of each lmake command</span>
 <span class="c1">#,  req_end_proc        = my_proc                           # executed at end   of each lmake command</span>

@@ -47,9 +47,11 @@ for choosing the method to ensure consistent operations.
 In absence of such a file, file_sync is determined automatically if possible from the filesystem type.
 
 .LP
-Item(B_(-l) I_(min_len),B_(--min-len)=I_(min_len)) specifies the minimum code length to use to encode value
+Item(B_(-l) I_(min_length),B_(--min-len)=I_(min_length)) specifies the minimum code length to use to encode value
 .LP
-The dir must read/write/execute access to any user needing to use the codec service, and if such accsses are at group level (but not other), it must have its setgid bit set.
+The dir must read/write/execute access to any user needing to use the codec service, and if such accesses are at group level (but not other), it must have its setgid bit set.
+.LP
+The maximum value is 24.
 
 .LP
 Item(B_(-v) I_(code),B_(--codec-version)=I_(version)) specifies the version to use for external tables.

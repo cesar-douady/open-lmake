@@ -124,7 +124,7 @@ void DeflateFd::send_from( Fd fd_ , size_t sz ) {
 		SWEAR(!_flushed) ;
 		while (sz) {
 			size_t   cnt = ::min( sz , DiskBufSz ) ;
-			::string s   = fd_.read(cnt)           ; throw_unless( s.size()==cnt , "missing ",cnt-s.size()," bytes from ",fd ) ;
+			::string s   = fd_.read(cnt)           ; throw_unless( s.size()==cnt , "missing ",cnt-s.size()," bytes from ",fd_ ) ;
 			write(s) ;
 			sz -= cnt ;
 		}
@@ -194,14 +194,14 @@ InflateFd::InflateFd( AcFd&& fd , Zlvl zl ) : AcFd{::move(fd)} , zlvl{zl} {
 			#if HAS_ZLIB
 				int rc = ::inflateInit(&_zlib_state) ; SWEAR_PROD(rc==Z_OK,self) ;
 			#else
-				throw "cannot compress without zlib"s ;
+				throw "cannot decompress without zlib"s ;
 			#endif
 		} break ;
 		case ZlvlTag::Zstd :
 			#if HAS_ZSTD
 				_zstd_state = ::ZSTD_createDCtx() ; SWEAR_PROD(_zstd_state,self) ;
 			#else
-				throw "cannot compress without zstd"s ;
+				throw "cannot decompress without zstd"s ;
 			#endif
 		break ;
 	DF}         // NO_COV

@@ -188,11 +188,12 @@ namespace Backends::Slurm::SlurmApi {
 				break ;
 			DN}
 			trace("spawn_error" ,sav_errno) ;
-			if (+err_msg) throw cat("slurm spawn job error after ",SlurmSpawnTrials," trials : ",_strerror(sav_errno)," (",err_msg,")") ;
-			else          throw cat("slurm spawn job error after ",SlurmSpawnTrials," trials : ",_strerror(sav_errno)                 ) ;
+			const char* th = i==0 ? "st" : i==1 ? "nd" : "th" ;
+			if (+err_msg) throw cat("slurm spawn job error on ",i+1,th," trial : ",_strerror(sav_errno)," (",err_msg,")") ;
+			else          throw cat("slurm spawn job error on ",i+1,th," trial : ",_strerror(sav_errno)                 ) ;
 		}
 		trace("cannot_spawn") ;
-		throw "cannot connect to slurm daemon"s ;
+		throw cat("cannot connect to slurm daemon after",SlurmSpawnTrials," trials") ;
 	}
 
 	static ::pair_s<Bool3/*job_ok*/> _job_state(SlurmId slurm_id) {                                                                                             // Maybe means job has not completed
@@ -200,7 +201,7 @@ namespace Backends::Slurm::SlurmApi {
 		Trace trace(BeChnl,"slurm_job_state",slurm_id) ;
 		SWEAR(slurm_id) ;
 		job_info_msg_t* resp = nullptr/*garbage*/ ;
-		for( [[maybe_unused]] int i : iota(NTrials) ) {
+		for( [[maybe_unused]] int _ : iota(NTrials) ) {
 			Lock lock { slurm_mutex } ;
 			if (_load_job( &resp , _mk_ssi_arg(slurm_id) , SHOW_LOCAL )==SLURM_SUCCESS) goto Report ;
 		}

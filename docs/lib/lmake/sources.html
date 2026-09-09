@@ -118,14 +118,14 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="k">def</span> <span class="nf">manifest_sources</span><span class="p">(</span><span class="n">manifest</span><span class="o">=</span><span class="s1">&#39;Manifest&#39;</span><span class="p">,</span><span class="o">**</span><span class="n">kwds</span><span class="p">)</span> <span class="p">:</span>
 <span class="w">    </span><span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">        read manifest, filtering out comments :</span>
-<span class="sd">        - comments start with                   # and must be separated from file with spaces</span>
-<span class="sd">        - files may be indented at will</span>
+<span class="sd">        - comments start with                       # and must be separated from file with spaces</span>
+<span class="sd">        - files may be indented at will with spaces</span>
 <span class="sd">        - files must start with a non-space, non-# char and end with a non-space char</span>
 <span class="sd">        - files must not contain a space-# sequence</span>
 <span class="sd">        kwds are ignored which simplifies the usage of auto_sources</span>
 <span class="sd">    &#39;&#39;&#39;</span>
     <span class="kn">import</span> <span class="nn">re</span>
-    <span class="n">line_re</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\s*(?P&lt;file&gt;.*?)((^|\s)\s*#.*)?\n?&#39;</span><span class="p">)</span>
+    <span class="n">line_re</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;\s*(?P&lt;file&gt;.*?)\s*((^|\s)#.*)?\n?&#39;</span><span class="p">)</span>
     <span class="k">try</span>                      <span class="p">:</span> <span class="n">stream</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">manifest</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">FileNotFoundError</span> <span class="p">:</span> <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="sa">f</span><span class="s1">&#39;cannot find </span><span class="si">{</span><span class="n">manifest</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
     <span class="n">srcs</span> <span class="o">=</span> <span class="p">[</span> <span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="p">(</span> <span class="n">line_re</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="n">l</span><span class="p">)</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="s1">&#39;file&#39;</span><span class="p">)</span> <span class="k">for</span> <span class="n">l</span> <span class="ow">in</span> <span class="n">stream</span> <span class="p">)</span> <span class="k">if</span> <span class="n">f</span> <span class="p">]</span>

@@ -268,7 +268,7 @@ namespace Backends {
 				auto   it = capa.find(k) ;
 				size_t v1 = 0 ; try { v1=from_string_rsrc(k,v) ; } catch (::string const&) {}              // ignore non-numeric resource
 				if (v1) {                                                                                  // ignore resource if 0 is asked or not numeric
-					if (it==capa.end()) { single = true ; continue ;        }                              // unrecognized resource : fall back to single job by reserving the full capacity
+					if (it==capa.end()) { single = true ; continue ;        }                              // unrecognized resource : fall back to single remote job by reserving a unique token
 					if (v1>it->second ) { v1 = it->second ; single = true ; }
 					res.emplace_back( ::move(k) , to_string_rsrc(k,v1) ) ;                                 // recognized resource : allow local execution by limiting resource to capacity
 				}
@@ -308,7 +308,7 @@ namespace Backends {
 		// do not launch immediately to have a better view of which job should be launched first
 		void submit( Job job , Req req , SubmitInfo const& submit_info , ::vmap_ss&& rsrcs ) override {
 			// Round required resources to ensure number of queues is limited even when there is a large variability in resources.
-			// The important point is to be in log, so only the 4 msb of the resources are considered to choose a queue.
+			// The important point is to be in log, so only the 3 msb of the resources are considered to choose a queue.
 			SWEAR( !waiting_jobs.contains(job) , job,waiting_jobs ) ;                                           // job must be a new one
 			RsrcsData   rd       = import_(::move(rsrcs),req,job) ;
 			Rsrcs       rs       { New , rd }                     ;

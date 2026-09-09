@@ -152,7 +152,7 @@ int main( int argc , char* argv[] ) {
 	,	{ CmdFlag::Out             , { .short_name='o' , .has_arg=true  , .doc="output accesses file"                                                                                        } }
 	,	{ CmdFlag::LmakeRoot       , { .short_name='r' , .has_arg=true  , .doc="open-lmake installation dir to use"                                                                          } }
 	,	{ CmdFlag::RepoView        , { .short_name='R' , .has_arg=true  , .doc="name under which repo top-level dir is seen"                                                                 } }
-	,	{ CmdFlag::SourceDirs      , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list, all elements must end with /"                                      } }
+	,	{ CmdFlag::SourceDirs      , { .short_name='s' , .has_arg=true  , .doc="source dirs given as a python tuple/list"                                                                    } }
 	,	{ CmdFlag::TmpDir          , { .short_name='t' , .has_arg=true  , .doc="physical tmp dir"                                                                                            } }
 	,	{ CmdFlag::TmpView         , { .short_name='T' , .has_arg=true  , .doc="name under which tmp dir is seen"                                                                            } }
 	,	{ CmdFlag::Views           , { .short_name='V' , .has_arg=true  , .doc="view mapping given as a python dict mapping views to dict {'upper':upper,'lower':lower,'copy_up':copy_up}"   } }

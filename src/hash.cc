@@ -159,7 +159,7 @@ namespace Hash {
 		static_assert( HexSz%2==0 ) ;                     // else handle last digit
 		::string res ;        res.reserve(HexSz) ;
 		Val      v   = _val ;
-		for( [[maybe_unused]] uint8_t i : iota(HexSz/2) ) {
+		for( [[maybe_unused]] uint8_t _ : iota(HexSz/2) ) {
 			{ uint8_t d = (v>>4)&0xf ; res << char( d<10 ? '0'+d : 'a'+d-10 ) ; }
 			{ uint8_t d =  v    &0xf ; res << char( d<10 ? '0'+d : 'a'+d-10 ) ; }
 			v >>= 8 ;
@@ -191,7 +191,7 @@ namespace Hash {
 	template<uint8_t Sz> ::string _Crc<Sz>::base64() const {
 		::string res ;        res.reserve(Base64Sz) ;
 		Val      v   = _val ;
-		for( [[maybe_unused]] uint8_t i : iota(Base64Sz) ) {
+		for( [[maybe_unused]] uint8_t _ : iota(Base64Sz) ) {
 			uint8_t d = v&0x3f ;
 			if      (d< 26) res << char('A'+d   ) ;
 			else if (d< 52) res << char('a'+d-26) ;

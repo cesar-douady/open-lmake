@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Sat Sep  5 13:59:43 2026 -->
+<!-- CreationDate: Tue Sep  8 19:47:36 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -171,15 +171,19 @@ containing one of <b>auto</b> (default), <b>none</b>,
 operations. In absence of such a file, file_sync is
 determined automatically if possible from the filesystem
 type. <b><br>
--l</b> <i>min_len</i>, <b>--min-len</b>=<i>min_len</i></p>
+-l</b> <i>min_length</i>,
+<b>--min-len</b>=<i>min_length</i></p>
 
 <p style="margin-left:18%;">specifies the minimum code
 length to use to encode value</p>
 
 <p style="margin-left:9%; margin-top: 1em">The dir must
 read/write/execute access to any user needing to use the
-codec service, and if such accsses are at group level (but
-not other), it must have its setgid bit set. <b><br>
+codec service, and if such accesses are at group level (but
+not other), it must have its setgid bit set.</p>
+
+<p style="margin-left:9%; margin-top: 1em">The maximum
+value is 24. <b><br>
 -v</b> <i>code</i>,
 <b>--codec-version</b>=<i>version</i></p>
 

@@ -178,18 +178,6 @@ namespace Py {
 	Dict* Dict::s_builtins = nullptr ;
 
 	//
-	// Module
-	//
-
-	Ptr<Module>::Ptr( ::string const& name ) {
-		Gil::s_swear_locked() ;
-		// XXX> : use PyImport_ImportModuleEx with a non-empy from_list when python2 is no longer suported
-		Ptr<Module> py_top = PyImport_ImportModule(name.c_str()) ;            // in case of module in a package, PyImport_ImportModule returns the top level package
-		if (name.find('.')==Npos) self = py_top                             ;
-		else                      self = &py_get_sys<Dict>("modules")[name] ; // it is a much more natural API to return the asked module, get it from sys.modules
-	}
-
-	//
 	// Code
 	//
 

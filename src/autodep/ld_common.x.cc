@@ -52,7 +52,7 @@ using namespace Disk ;
 struct LockRecord {                             // ensure no reporting clash
 	// statics
 	static void s_unlock() { Record::s_mutex.unlock(::ref(MutexLvl::None)) ; }
-	// cxtors & casts
+	// cxtors & co
 	LockRecord() : _lock{Record::s_mutex} {}
 	// data
 	Lock<Mutex<MutexLvl::Record>> _lock ;
@@ -61,7 +61,7 @@ struct LockRecord {                             // ensure no reporting clash
 	struct LockRecordAndErrno : LockRecord {} ; // our errno is not the same as user errno, so nothing to do
 #else
 	struct LockRecordAndErrno : LockRecord {
-		// cxtors & casts
+		// cxtors & co
 		LockRecordAndErrno () { errno_ = errno  ; }
 		~LockRecordAndErrno() { errno  = errno_ ; }
 		// data
@@ -130,7 +130,7 @@ Record& auditor() {
 }
 
 template<class Action,int NPaths> struct AuditAction : Action {
-	// cxtors & casts
+	// cxtors & co
 	// errno must be protected from our auditing actions in cxtor and operator()
 	// more specifically, errno must be the original one before the actual call to libc
 	// and must be the one after the actual call to libc when auditing code finally leaves
@@ -140,7 +140,7 @@ template<class Action,int NPaths> struct AuditAction : Action {
 	template<class... A> AuditAction(Record::Path&& p ,                  A&&... args) requires(NPaths==1) : Action{(LockRecordAndErrno(),auditor()),::move(p )           ,::forward<A>(args)... } {}
 	template<class... A> AuditAction(Record::Path&& p1,Record::Path&& p2,A&&... args) requires(NPaths==2) : Action{(LockRecordAndErrno(),auditor()),::move(p1),::move(p2),::forward<A>(args)... } {}
 	// services
-	template<class T> T operator()(T res) { LockRecordAndErrno lock ; return Action::operator()(auditor(),res) ; }
+	template<class T> auto operator()(T res) { LockRecordAndErrno lock ; return Action::operator()(auditor(),res) ; }
 } ;
 //                                                      NPaths
 using Chdir    = AuditAction<Record::Chdir              ,1   > ;
@@ -168,10 +168,9 @@ using Unlnk    = AuditAction<Record::Unlnk              ,1   > ;
 
 	struct _Dlopen : Record::Read<true/*Send*/> {
 		using Base = Record::Read<true/*Send*/> ;
-		// cxtors & casts
+		// cxtors & co
 		_Dlopen() = default ;
 		_Dlopen( Record& r , const char* file , Comment c ) : Base{search_elf(r,file,c)} {}
-		// services
 	} ;
 	using Dlopen = AuditAction<_Dlopen,0/*NP*/> ;
 
@@ -375,8 +374,8 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	// chdir
 	// chdir must be tracked as we must tell Record of the new cwd
 	// /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int chdir (CC* p ) NE { HDR0(chdir ,(p )) ; NO_SERVER(chdir ) ; Chdir r{p ,Comment::chdir } ; return r(orig(p )) ; }
-	int fchdir(int fd) NE { HDR0(fchdir,(fd)) ; NO_SERVER(fchdir) ; Chdir r{fd,Comment::fchdir} ; return r(orig(fd)) ; }
+	int chdir (CC* p ) NE { HDR0(chdir ,(p )) ; NO_SERVER(chdir ) ; Chdir r{p ,Comment::chdir } ; return r(::pair(orig,p )) ; }
+	int fchdir(int fd) NE { HDR0(fchdir,(fd)) ; NO_SERVER(fchdir) ; Chdir r{fd,Comment::fchdir} ; return r(::pair(orig,fd)) ; }
 
 	// chmod
 	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy

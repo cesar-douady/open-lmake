@@ -659,7 +659,7 @@ private :
 	static F _s_dflt_file() requires(IsStr ) {                         return {}    ; }
 	static F _s_dflt_file() requires(IsRef ) { static ::string s_str ; return s_str ; } // although documented as constexpr constructible, ::string constants may not be available before main started
 	static F _s_dflt_file() requires(IsView) { static ::string s_str ; return s_str ; } // .
-	// cxtors & casts
+	// cxtors & co
 public :
 	_File( Fd at_ , F        const& file_=_s_dflt_file() )                   : at{at_    } , file{       file_ } {}
 	_File(          F        const& file_=_s_dflt_file() )                   : at{Fd::Cwd} , file{       file_ } {}
@@ -678,7 +678,6 @@ public :
 	template<class F2> _File& operator=(F2 const& f2)                 { at = f2.at ; file =        f2.file  ; return self ; }
 	template<class F2> _File& operator=(F2     && f2) requires(IsStr) { at = f2.at ; file = ::move(f2.file) ; return self ; }
 	//
-	// accesses
 	void operator>>(::string& os) const {                                                                           // START_OF_NO_COV
 		if      (at==Fd::Cwd) {}
 		else if (+at        ) os << '<'<<at.fd<<">/" ;

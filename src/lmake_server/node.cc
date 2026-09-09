@@ -992,7 +992,7 @@ namespace Engine {
 	// END_OF_NO_COV
 
 	Deps::Deps( ::vector<Node> const& deps , Accesses accesses , Dflags dflags , bool parallel ) {
-		::vector<GenericDep> ds   ;        ds.reserve(deps.size()) ;                               // reserving deps.size() is comfortable and guarantees no reallocaiton
+		::vector<GenericDep> ds   ;        ds.reserve(deps.size()+1/*tmp*/) ;                      // reserving deps.size() is comfortable and guarantees no reallocaiton
 		size_t               hole = Npos ;
 		for( auto const& d : deps ) _append_dep( ds , {d,accesses,dflags,parallel} , hole ) ;
 		_fill_hole(ds,hole) ;
@@ -1000,7 +1000,7 @@ namespace Engine {
 	}
 
 	void Deps::assign(::vector<Dep> const& deps) {
-		::vector<GenericDep> ds   ;        ds.reserve(deps.size()) ; // reserving deps.size() is comfortable and guarantees no reallocaiton
+		::vector<GenericDep> ds   ;        ds.reserve(deps.size()+1/*tmp*/) ; // reserving deps.size() is comfortable and guarantees no reallocaiton
 		size_t               hole = Npos ;
 		for( auto const& d : deps ) _append_dep( ds , d , hole ) ;
 		_fill_hole(ds,hole) ;

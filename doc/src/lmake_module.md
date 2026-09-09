@@ -160,8 +160,9 @@ If `verbose`, (at least one of `read` or `ignore_error` must also be true) retur
 
 - The key is the dep name.
 - The value is a `dict` composed of:
-  - `ok`      : if `ignore_error=True` was also passed, `True` if the dep is built with no error, `False` if the dep is built in error, `None` if the was not built.
-  - `checksum`: if `read=True`         was also passed, the checksum [computed](man/man1/xxhsum.html) after the dep (unless `ok` is `None`).
+  - `ok`      : if `ignore_error=True` was also passed, `True` if the dep is built with no error, `False` if the dep is built in error, `None` if the was not up-to-date.
+  - `checksum`: if `read=True`         was also passed, a checksum identifying dep content unless dep was out-of-date. 
+    Note that if the dep was in error, the checksum is different, which may occur if `ignore_error=True` was also passed.
 
 If `read`, report an actual read of `deps`. Default is just to alter associated flags.
 
@@ -217,6 +218,7 @@ Notes:
 
 If a code is associated to `val` within `table` and context `ctx`, return it.
 Else a code is created, of length at least `min_length`, is associated to `val` and is return.
+The value for `min_length` cannot be larger than 24.
 
 `table` may be:
 

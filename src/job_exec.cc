@@ -182,7 +182,7 @@ int main( int argc , char* argv[] ) {
 	uint64_t upload_key     = 0            ; // key used to identify temporary data uploaded to the cache
 	Crc      targets_crc    ;
 	//
-	swear_prod(argc==9,argc) ;               // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ domain_name repo_root seq_id job_idx trace_file
+	swear_prod(argc==9,argc) ;               // syntax is : job_exec server:port/*start*/ server:port/*mngt*/ server:port/*end*/ domain_name repo_root seq_id job_idx trace_id
 	//
 	try { g_service_start   = {                   argv[1],true/*name_ok*/} ; } catch (::string const& e) { exit(Rc::Fail,"cannot connect to server : ",e) ; }
 	/**/  g_service_mngt    = {                   argv[2]                } ;

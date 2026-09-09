@@ -115,7 +115,7 @@ private :
 	static SockFd::Key               _s_report_key[2/*fast*/] ;                     // if not 0, key to send before first message, only useful for slow
 	static Fd                        _s_report_fd [2/*fast*/] ;                     // indexed by Fast, fast one is open to a pipe, faster than a socket, but short messages and local only
 	static pid_t                     _s_report_pid[2/*fast*/] ;                     // pid in which corresponding _s_report_fd is valid
-	// cxtors & casts
+	// cxtors & co
 public :
 	Record() = default ;
 	Record( NewType ,            pid_t pid=0 ) : Record( New , Maybe , pid ) {}
@@ -164,7 +164,7 @@ public :
 	//
 	template<bool Writable=false> struct _Path {                                                                // if !Writable <=> file is is read-only
 		using Char = ::conditional_t<Writable,char,const char> ;
-		// cxtors & casts
+		// cxtors & co
 		_Path(                           )                           {                       }
 		_Path( Fd  a                     ) :                   at{a} {                       }
 		_Path( int a                     ) :                   at{a} {                       }                  // avoid confusion with Char*
@@ -184,7 +184,7 @@ public :
 			return self ;
 		}
 		~_Path() { _deallocate() ; }
-		// accesses
+		//
 		void operator>>(::string& os) const {                                                                   // START_OF_NO_COV
 			const char* sep = "" ;
 			/**/                   os << "Path("   ;
@@ -218,7 +218,7 @@ public :
 		using Base::at   ;
 		using Base::file ;
 		static const size_t MaxSz ;
-		// cxtors & casts
+		// cxtors & co
 		Solve()= default ;
 		Solve( Record& r , Base&& path , bool no_follow , bool read , Comment c , CommentExts ces={} ) : Base{::move(path)} {
 			using namespace Disk ;
@@ -268,20 +268,20 @@ public :
 			//
 			if (Send) r.send_report() ;
 		}
-		// accesses
 		void operator>>(::string& os) const {                                // START_OF_NO_COV
 			/**/        os << "Solve("<<real<<','<<file_loc<<','<<accesses ;
 			if (+real0) os << ','<<real0<<','<<file_loc0                   ;
 			/**/        os << ')'                                          ;
 		}                                                                    // END_OF_NO_COV
-		::string const& real_write() const { return real0 | real ; }
-		::string      & real_write()       { return real0 | real ; }
-		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , real    ,real0     ) ;
 			::serdes( s , accesses           ) ;
 			::serdes( s , file_loc,file_loc0 ) ;
 		}
+		// accesses
+		::string const& real_write() const { return real0 | real ; }
+		::string      & real_write()       { return real0 | real ; }
+		// services
 		template<class T> T operator()( Record& , T rc ) { return rc ; }
 		template<bool Keep=false> void report_dep( Record& r , Accesses a , Comment c , CommentExts ces={} , Time::Pdate date={} ) {
 			if (Keep) r.report_access( file_loc , { .comment=c , .comment_exts=ces , .digest={.accesses=accesses|a} , .date{date} , .files={{       real ,{}}} } ) ;
@@ -297,14 +297,14 @@ public :
 	} ;
 	using Mkstemp = Solve<true/*Send*/,true/*Writable*/> ;
 	struct SolveModify : Solve<> {
-		// cxtors & casts
+		// cxtors & co
 		using Solve<>::Solve ;
-		// services
 		template<IsStream S> void serdes(S& s) {
 			/**/             Solve<>::serdes(s           ) ;
 			/**/                    ::serdes(s,confirm_fd) ;
 			if (+confirm_fd)        ::serdes(s,confirm_id) ;
 		}
+		// services
 		void report_update( Record& r , Accesses a , Comment c , CommentExts ces={} , Time::Pdate date={} ) {
 			// real and real0 cant be moved as we may need them to emulate when method=seccomp
 			JobExecRpcReq     jerr { .comment=c , .comment_exts=ces , .digest={.write=Maybe,.accesses=accesses|a} , .id=confirm_id , .date{date} , .files={{real,{}}} } ;
@@ -325,17 +325,17 @@ public :
 		JobExecRpcReq::Id confirm_id = 0  ;
 	} ;
 	struct Chdir : Solve<> {
-		// cxtors & casts
+		// cxtors & co
 		Chdir() = default ;
 		Chdir( Record& , Path&& , Comment ) ;
 		// services
-		int operator()( Record& r , int rc=0 ) {                             // calling r.chdir may be done conservatively, it does not record new cwd, just that it may have changed
-			if (rc==0) r.chdir() ;
-			return rc ;
-		}
+		// calling r.chdir may be done conservatively, it does not record new cwd, just that it may have changed
+		int operator()( Record& r , ::pair<int (*)(const char*) noexcept,const char*> info ) { int rc = info.first(info.second) ; if (rc==0) r.chdir() ; return rc ; }
+		int operator()( Record& r , ::pair<int (*)(int        ) noexcept,int        > info ) { int rc = info.first(info.second) ; if (rc==0) r.chdir() ; return rc ; }
+		int operator()( Record& r , int rc=0                                               ) {                                    if (rc==0) r.chdir() ; return rc ; }
 	} ;
 	struct Chmod : SolveModify {
-		// cxtors & casts
+		// cxtors & co
 		Chmod() = default ;
 		Chmod( Record& , Path&& , bool exe , bool no_follow , Comment ) ;
 	} ;
@@ -363,7 +363,7 @@ public :
 		using Base::file_loc    ;
 		using Base::real        ;
 		using Base::send_report ;
-		// cxtors & casts
+		// cxtors & co
 		Exec() = default ;
 		Exec( Record& r , Path&& path , bool no_follow , Comment c ) : Base{r,::move(path),no_follow,true/*read*/,c} {
 			// if !SkipSimple => +real is always true hence no need to check
@@ -385,7 +385,7 @@ public :
 		int operator()( Record& , int rc ) { return rc ; }
 	} ;
 	struct Lnk {
-		// cxtors & casts
+		// cxtors & co
 		Lnk() = default ;
 		Lnk( Record& , Path&& src , Path&& dst , bool no_follow , Comment ) ;
 		// services
@@ -404,7 +404,7 @@ public :
 		int operator()( Record& , int rc=0 ) ;
 	} ;
 	struct Open : SolveModify {
-		// cxtors & casts
+		// cxtors & co
 		Open() = default ;
 		Open( Record& , Path&& , int flags , Comment ) ;
 	} ;
@@ -428,7 +428,7 @@ public :
 	{	using Base = Solve<true,false   ,Maybe    > ;
 		using Base::real     ;
 		using Base::file_loc ;
-		// cxtors & casts
+		// cxtors & co
 		ReadDir() = default ;
 		ReadDir( Record& r , Path&& path , Comment c ) : Base{r,::move(path),false/*no_follow*/,false/*read*/,c} , comment{c} {}
 		// services
@@ -449,19 +449,18 @@ public :
 		Comment comment = {} ;
 	} ;
 	struct Readlink : Solve<> {
-		// cxtors & casts
+		// cxtors & co
 		Readlink() = default ;
-		// buf and sz are only used when mapping tmp
 		Readlink( Record& , Path&& , char* buf , size_t sz , Comment ) ;
 		// services
 		ssize_t operator() ( Record& , ssize_t len=0 ) ;
 		// data
-		char*  buf   = nullptr ;
-		size_t sz    = 0       ;
+		char*  buf   = nullptr ;                                                           // for backdoor usage
+		size_t sz    = 0       ;                                                           // .
 		bool   magic = false   ;                                                           // if true <=> backdoor was used
 	} ;
 	struct Rename {
-		// cxtors & casts
+		// cxtors & co
 		Rename() = default ;
 		Rename( Record& , Path&& src , Path&& dst , bool exchange , bool no_replace , Comment ) ;
 		// services
@@ -477,7 +476,7 @@ public :
 		JobExecRpcReq::Id confirm_id = 0  ;
 	} ;
 	struct Stat : Solve<> {
-		// cxtors & casts
+		// cxtors & co
 		Stat() = default ;
 		Stat( Record& , Path&& , bool no_follow , Accesses , Comment ) ;
 		// services
@@ -485,12 +484,12 @@ public :
 		template<class T> T    operator()( Record& , T&& res ) { return ::forward<T>(res) ; }
 	} ;
 	struct Symlink : SolveModify {
-		// cxtors & casts
+		// cxtors & co
 		Symlink() = default ;
 		Symlink( Record& r , Path&& p , Comment ) ;
 	} ;
 	struct Unlnk : SolveModify {
-		// cxtors & casts
+		// cxtors & co
 		Unlnk() = default ;
 		Unlnk( Record& , Path&& , bool remove_dir , Comment ) ;
 	} ;

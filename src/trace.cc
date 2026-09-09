@@ -12,7 +12,7 @@ using namespace Time ;
 
 Atomic<bool    > Trace::s_backup_trace ;
 Atomic<size_t  > Trace::s_sz           = 100<<20      ; // limit to reasonable value until overridden
-Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace default channels (including Channel::Dflt)
+Atomic<Channels> Trace::s_channels     = DfltChannels ; // by default, trace default channels (including Channel::Default)
 
 #ifdef TRACE
 

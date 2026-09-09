@@ -69,7 +69,7 @@ namespace Backends::Local {
 		// services
 
 		void sub_config( ::vmap_ss const& dct , ::vmap_ss const& env_ ) override {
-			// add an implicit resource <single> to manage jobs localized from remote backends
+			// add an implicit resource <single> to manage jobs localized from remote backends with unknown resources : a single such job can be active
 			Trace trace(BeChnl,"Local::config",dct) ;
 			static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
 			//

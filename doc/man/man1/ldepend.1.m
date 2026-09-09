@@ -45,11 +45,10 @@ Bullet
 Item(B_(-L),B_(--follow-symlinks)) Follow the last level symbolic link, default is not to follow.
 Item(B_(-d),B_(--direct))          Build deps before command completion (cf. note (5)).
 Item(B_(-v),B_(--verbose))
-	B_(--read)/B_(-r) or B_(--ignore-error)/B_(-e) must be provided when using this option.
 	Write lines composed of:
 	.RS
-	Item(I_(status))   If B_(--ignore_error) was also passed, B_(ok) if dep is built ok, B_(error) if dep is built in error. In all other cases, B_(-).
-	Item(I_(checksum)) If B_(--read)         was also passed, the checksum of the dep (cf C_(xxhsum,1)) if it was built.    In all other cases, B_(-).
+	Item(I_(status))   If B_(--ignore_error) was also passed, B_(ok) if dep is built ok, B_(error) if dep is built in error, B_(-) if dep was not up-to-date.
+	Item(I_(checksum)) If B_(--read)         was also passed, a checksum identifying dep content unless dep was out-of-date, or B_(-) (cf. note (8)).
 	Item(I_(file))     The filename
 	.RE
 	.IP
@@ -132,5 +131,7 @@ Item((7))
 	and OpenLmake anticipates this by building these deps speculatively.
 	But in some situations, it is almost certain that there will be an influence and it is preferable not to anticipate.
 	this is what critical deps are made for: in case of modifications, following deps are not built speculatively.
+Item((8))
+    If the dep was in error, the checksum is different, which may occur if I_(--ignore_error) was also passed.
 
 Footer

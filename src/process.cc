@@ -135,6 +135,7 @@ void Child::spawn() {
 		switch (stderr.fd) {
 			case NoneFd.fd     : ::close(Fd::Stderr) ;                                                         break ;
 			case PipeFd.fd     : ::close(_c2pe.read) ; ::dup2(_c2pe.write,Fd::Stderr) ; ::close(_c2pe.write) ; break ;
+			case JoinFd.fd     :                       ::dup2(Fd::Stdout ,Fd::Stderr) ;                        break ;
 			case Fd::Stderr.fd :                                                                               break ;
 			default            :                       ::dup2(stderr     ,Fd::Stderr) ;
 		}
@@ -276,7 +277,7 @@ static int/*rc*/ _pre_exec(void* arg) {
 		}
 	LaunchServer :
 		// try to launch a new server
-		// server calls ::setsid() to create a new session by itself after init, so during init, a ^C will propagate to server, we only have to propagate by hand after init
+		// server calls ::setsid() to create a new session by itself so as to not be directly affected by ^C (ending is handled when last connection is over)
 		trace("try_new",i) ;
 		//
 		AcPipe pipe { New , 0/*flags*/ , true/*no_std*/ } ;
