@@ -84,6 +84,8 @@ namespace AutodepPtrace {
 	}
 
 	void PidInfo::event( pid_t pid , int wstatus ) {
+		static bool ctx_force_inval = false ;                                                           // unused, just a marker for ctx
+		static bool ctx_force_nosys = false ;                                                           // unused, just a marker for ctx
 		int sig   = WSTOPSIG(wstatus) ;
 		int event = wstatus>>16       ;
 		if (sig!=(SIGTRAP|0x80))
@@ -139,37 +141,53 @@ namespace AutodepPtrace {
 				#endif
 				if (!proc_mem) proc_mem = AcFd( cat("/proc/",pid,"/mem") , {O_RDWR} ) ;
 				bool refresh = false ;
-				//                 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				tie(ctx,refresh) = descr.entry( record , proc_mem , args , false/*emulate*/ , descr.comment ) ;
-				//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				try { //!              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					tie(ctx,refresh) = descr.entry( record , proc_mem , args , false/*emulate*/ , descr.comment ) ;
+					//                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					if (!descr.exit) SWEAR_PROD( !ctx , syscall ) ;                                     // no need for a context if we are not called at exit
+				} catch(::string const& msg) {
+					if (+msg) ctx = &ctx_force_inval ;
+					else      ctx = &ctx_force_nosys ;
+					NonPortable::ptrace_set_nr( pid , -1/*illegal syscall*/ ) ;                         // prevent execution of asked syscall
+				}
 				if (refresh) {
 					proc_mem.close() ;
 					is_32 = Maybe ;
 				}
-				if (!descr.exit) SWEAR_PROD( !ctx , syscall ) ;                                         // no need for a context if we are not called at exit
 			} else {
 				// syscall exit
-				#if HAS_PTRACE_GET_SYSCALL_INFO
-					SWEAR_PROD( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) ;
-					int64_t res = syscall_info.exit.rval ;
-				#else
-					int64_t res = NonPortable::ptrace_get_res(pid) ;                                    // use non-portable calls if portable accesses are not implemented
-				#endif
-				int64_t old_rc = res ; if (res<0) { old_rc = -1 ; errno = -res ; }                      // we do not emulate, handling errno is only for magic readlink
-				::pair<int64_t,int> rc_errno ;
-				#if HAS_32
-					SyscallDescr const& descr = is_32==Yes ? SyscallDescr::s_tab32[syscall] : SyscallDescr::s_tab[syscall] ;
-				#else
-					SyscallDescr const& descr =                                               SyscallDescr::s_tab[syscall] ;
-				#endif
-				SWEAR_PROD( descr.exit , is_32,syscall ) ;
-				//         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				rc_errno = descr.exit( ctx , record , proc_mem , old_rc ) ;
-				//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				int64_t       res = 0 ;
+				int64_t/*rc*/ rc  ;
+				if      (ctx==&ctx_force_inval) rc = -EINVAL ;
+				else if (ctx==&ctx_force_nosys) rc = -ENOSYS ;
+				else {
+					#if HAS_PTRACE_GET_SYSCALL_INFO
+						SWEAR_PROD( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) ;
+						res = syscall_info.exit.rval ;
+					#else
+						res = NonPortable::ptrace_get_res(pid) ;                                        // use non-portable calls if portable accesses are not implemented
+					#endif
+					#if HAS_32
+						SyscallDescr const& descr = is_32==Yes ? SyscallDescr::s_tab32[syscall] : SyscallDescr::s_tab[syscall] ;
+					#else
+						SyscallDescr const& descr =                                               SyscallDescr::s_tab[syscall] ;
+					#endif
+					int64_t old_rc = res ;
+					if (res<0) {
+						old_rc = -1   ;
+ 						errno  = -res ;
+					}
+					SWEAR_PROD( descr.exit , is_32,syscall ) ;
+					//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					rc = descr.exit( ctx , record , proc_mem , old_rc ) ;
+					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					if (rc<0) {
+						SWEAR( rc==-1 && errno>0 , syscall,rc,errno ) ;
+						rc = -errno ;
+					}
+				}
+				if (rc!=res) NonPortable::ptrace_set_res( pid , rc ) ;
 				ctx = nullptr ;
-				if (rc_errno.first<0   ) { SWEAR( rc_errno.first==-1 , syscall,rc_errno ) ; rc_errno.first = -rc_errno.second ; }
-				if (rc_errno.first!=res)
-				NonPortable::ptrace_set_res( pid , rc_errno.first ) ;
 			}
 		} catch (::string const& e) {
 			Trace("event","process_is_dead",e) ;
@@ -434,17 +452,25 @@ namespace AutodepPtrace {
 								uint64_t* args = reinterpret_cast<uint64_t*>(recv_notif.data.args) ;
 								if (descr.entry) {
 									// XXX : call SECCOMP_IOCTL_NOTIF_ID_VALID to validate if tid is still the right one, cf man 2 seccomp_unotify
+									::pair<void* /*ctx*/,bool/*refresh*/> ctx_refresh ;
 									if (!info.proc_mem) info.proc_mem = AcFd( cat("/proc/",tid,"/mem") , {O_RDWR} ) ;
-									//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-									auto [ctx,refresh] = descr.entry( info.record , info.proc_mem , args , true/*emulate*/ , descr.comment ) ;
-									//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-									if (ctx) {
+									try { //!         vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+										ctx_refresh = descr.entry( info.record , info.proc_mem , args , true/*emulate*/ , descr.comment ) ;
+										//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+									} catch(::string const& msg) {
+										int errno_ = +msg ? EINVAL : ENOSYS ;
+											resp_notif = { .id=recv_notif.id , .val=-1 , .error=-errno_ , .flags=0 } ;
+										int rc = ::ioctl( notify_fd , SECCOMP_IOCTL_NOTIF_SEND , &resp_notif ) ;
+										throw_unless( rc==0 , "cannot reply to syscall (",StrErr(),") to tid ",tid ) ;
+										continue ;
+									}
+									if (ctx_refresh.first) {
 										// because descr.entry is careful at not generating emulation context when operating outside repo,
 										// there is no need to take care of /proc/self and /dev/std{in,out,err} not being interpreted identically in tracee and tracer
-										//                      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-										auto [val,e/*errno*/] = descr.exit( ctx , info.record , info.proc_mem , {}/*rc*/ ) ;
-										//                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-										if ( descr.return_fd && val>=0 ) {
+										//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+										int64_t val = descr.exit( ctx_refresh.first , info.record , info.proc_mem , {}/*rc*/ ) ;
+										//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+										if ( descr.convention==SyscallConvention::Fd && val>=0 ) {
 											addfd_notif = {
 												.id          = recv_notif.id
 											,	.flags       = SECCOMP_ADDFD_FLAG_SEND
@@ -456,7 +482,7 @@ namespace AutodepPtrace {
 											::close(val) ;
 											throw_unless( rc>=0 , "cannot inject syscall result (",StrErr(),") to tid ",tid ) ;
 										} else {
-											resp_notif = { .id=recv_notif.id , .val=val , .error=-e , .flags=0 } ;
+											resp_notif = { .id=recv_notif.id , .val=val , .error=-errno , .flags=0 } ;
 											int rc = ::ioctl( notify_fd , SECCOMP_IOCTL_NOTIF_SEND , &resp_notif ) ;
 											throw_unless( rc==0 , "cannot reply to syscall (",StrErr(),") to tid ",tid ) ;
 										}
@@ -470,7 +496,7 @@ namespace AutodepPtrace {
 										int rc = ::ioctl( notify_fd , SECCOMP_IOCTL_NOTIF_SEND , &resp_notif ) ;
 										throw_unless( rc==0 , "cannot reply to syscall (",StrErr(),") to tid ",tid ) ;
 									}
-									if (refresh) info.proc_mem.close() ;
+									if (ctx_refresh.second) info.proc_mem.close() ;
 								}
 							} catch (::string const& e) {
 								info.record.report_trace( cat("unexpected syscall tracing error : ",e) ) ;

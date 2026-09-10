@@ -165,6 +165,11 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 
     <span class="kn">import</span> <span class="nn">ut</span>
 
+    <span class="nb">open</span><span class="p">(</span><span class="s1">&#39;test_overlay&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">system</span><span class="p">(</span><span class="s1">&#39;setfattr -n user.test -v 1 test_overlay&#39;</span><span class="p">)</span><span class="o">!=</span><span class="mi">0</span> <span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;cannot overlay&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;skipped&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>         <span class="c1"># overlays need xattr to work</span>
+        <span class="n">exit</span><span class="p">()</span>
+
     <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="s1">&#39;/tmp/open-lmake_tu&#39;</span><span class="p">,</span><span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
     <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;lower</span><span class="se">\n</span><span class="s1">upper&#39;</span><span class="p">,</span><span class="n">file</span><span class="o">=</span><span class="nb">open</span><span class="p">(</span><span class="s1">&#39;tmp_map_ref&#39;</span><span class="p">,</span><span class="s1">&#39;w&#39;</span><span class="p">))</span>

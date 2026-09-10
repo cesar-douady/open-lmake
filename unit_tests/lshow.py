@@ -151,7 +151,13 @@ else :
 		_,e  = lshow( ('-d','--deps') , '-v' , '-J' , 'hello+world_py' )
 		assert e == px['hello+world_py'][('CatPy','hello+world_py','generating')]
 		assert all( w in x for w in ('site-packages','FIRST','hello','SECOND','world') )
-		assert len(e)==3 and 'site-package' in tuple(e[0])[0][-1] and tuple(e[1])[0][-2:]==('FIRST','hello') and tuple(e[2])[0][-2:]==('SECOND','world')
+		assert (
+				( len(e)==3 or len(e)==4                       )
+			and ( len(e)==3 or tuple(e[0])[0][-1]=='pyenv.cfg' ) # some versions of python read pyenv.cfg
+			and	'site-package' in tuple(e[-3])[0][-1]
+			and	tuple(e[-2])[0][-2:]==('FIRST','hello')
+			and	tuple(e[-1])[0][-2:]==('SECOND','world')
+		),e
 
 		x,px = lshow( ('-d','--deps') , 'dut' )
 		e    = px['dut'][('Dut','dut','generating')]

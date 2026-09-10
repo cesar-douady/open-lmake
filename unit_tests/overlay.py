@@ -56,6 +56,11 @@ else :
 
 	import ut
 
+	open('test_overlay','w')
+	if os.system('setfattr -n user.test -v 1 test_overlay')!=0 :
+		print('cannot overlay',file=open('skipped','w'))         # overlays need xattr to work
+		exit()
+
 	os.makedirs('read' ,exist_ok=True)
 	os.makedirs('write',exist_ok=True)
 

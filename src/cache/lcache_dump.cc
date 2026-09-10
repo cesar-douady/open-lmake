@@ -40,7 +40,8 @@ int main( int argc , char* argv[]) {
 	}) ;
 	Py::init(*g_lmake_root_s) ;
 	cache_init( false/*rescue*/ , true/*read_only*/ ) ;
-	cache_chk (                                     ) ;
+	try                       { cache_chk() ;                                                                                                      }
+	catch (::string const& e) { exit( Rc::BadState , "cache is corrupted : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())) ) ; }
 	//
 	Fd::Stdout.write(cat("total_sz : ",CrunData ::s_hdr().total_sz,'\n')) ;
 	//

@@ -255,4 +255,39 @@ namespace NonPortable {
 		_set(pid,regs) ;
 	}
 
+	void ptrace_set_nr( pid_t pid , int64_t val , bool is_32 ) {
+		#if HAS_32
+			if (is_32) {
+				UserRegsStruct<true/*Is32*/> regs = _get<true/*Is32*/>(pid) ;
+				#if __x86_64__
+					regs.orig_eax = int32_t(val) ;
+				#elif __aarch64__
+					regs.r7       = int32_t(val) ;
+				#elif __s390x__
+					regs.gprs[1]  = int32_t(val) ;
+				#else
+					#error "cannot has HAS_32 within 32-bit hosts"
+				#endif
+				_set<true/*Is32*/>(pid,regs) ;
+				return ;
+			}
+		#endif
+		SWEAR_PROD(!is_32) ;
+		UserRegsStruct<> regs = _get(pid) ;
+		#if __x86_64__
+			regs.orig_rax = val ;
+		#elif __i386__
+			regs.orig_eax = val ;
+		#elif __aarch64__
+			regs.regs[8]  = val ;
+		#elif __arm__
+			regs.r7       = val ;
+		#elif __s390x__ || __s390__
+			regs.gprs[1]  = val ;
+		#else
+			#error "unrecognized architecture"
+		#endif
+		_set(pid,regs) ;
+	}
+
 }

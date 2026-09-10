@@ -202,7 +202,8 @@ void cache_init( bool rescue , bool read_only ) {
 	}
 	RateCmp::s_init() ;
 	if (rescue) {
-		cache_chk()                               ;
+		try                       { cache_chk() ;                                                                                                      }
+		catch (::string const& e) { exit( Rc::BadState , "cache is corrupted : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())) ) ; }
 		Fd::Stderr.write("everything seems ok\n") ;
 	}
 	trace("done") ;
@@ -485,25 +486,34 @@ bool/*done*/ CjobData::insert(
 ,	::string const& reserved_file , SyncGuard* sync_guard
 ) {
 	Trace trace("insert",idx(),key,key_is_last,last_access,sz,rate,compile_digest,g_file_sync) ;
-	::array<Crun,2> found_runs ;                                                     // first and last with same key
-	for( Crun r=lru.older/*newest*/ ; +r ; r = r->job_lru.older ) {
+	::array<Crun,2> found_runs ;                                                                 // first and last with same key
+	for( Crun r=lru.older/*newest*/ ; +r ;) {
 		CrunData&    rd        = *r                                            ;
+		Crun         nxt       = rd.job_lru.older                              ; // fetch next before rd is victimized (which resets its lru links)
 		Cnode        not_found ;
 		CacheHitInfo hit_info  = rd.match( compile_digest , /*out*/not_found ) ;
-		if (hit_info<CacheHitInfo::Miss) {
-			// if hit_info==Match => it is surprising to need more deps, new run seems better
-			if ( hit_info>CacheHitInfo::Hit           ) Fd::Stderr.write(cat("while uploading ",name()," old entry had dep which new job has not : ",not_found->name())) ;
-			if ( force && targets_crc!=rd.targets_crc ) Fd::Stderr.write(cat("while uploading ",name()," old and new contents differ"                                 )) ;
-			else {
-				trace(r,hit_info) ;
-				if (+reserved_file) unlnk_run( reserved_file , sync_guard ) ;
-				return false/*done*/ ;
+		if (hit_info<CacheHitInfo::Miss) {                                       // entry has been populated while job was running or cache was not consulted for download : exceptional, can be slow
+			::string rn  = rd.name() ;
+			::string msg ;
+			if (!( FileInfo(rn+"-data").exists() && FileInfo(rn+"-info").exists() )) { // phantom entry (files have disappeared) it can never be downloaded, replace it
+				trace("phantom",r) ;
+				msg << "old entry had no data/info on disk, replacing it" ;
+			} else {
+				if      ( hit_info>CacheHitInfo::Hit           ) msg << "old entry had dep which new job has not : "<<not_found->name() ; // if hit_info==Match => surprising to need more deps, ...
+				else if ( force && targets_crc!=rd.targets_crc ) msg << "old and new contents differ"                                   ; // ... new run seems better
+				else {
+					trace(r,hit_info) ;
+					if (+reserved_file) unlnk_run( reserved_file , sync_guard ) ;
+					return false/*done*/ ;
+				}
 			}
+			if (+msg) Fd::Stderr.write(cat("while uploading ",name()," : ",msg,'\n')) ;
 			rd.victimize( false/*victimize_job*/ , sync_guard ) ;
 		} else if (rd.key==key) {
 			SWEAR( !found_runs[rd.key_is_last] , r,found_runs[rd.key_is_last] ) ;
 			found_runs[rd.key_is_last] = r ;
 		}
+		r = nxt ;
 	}
 	bool last     = false ;
 	bool mk_first = false ;
@@ -516,7 +526,11 @@ bool/*done*/ CjobData::insert(
 	if (+found_runs[last]) {
 		if ( mk_first && last && !found_runs[false/*last*/] ) {
 			::string last_name  = found_runs[last]->name() ; found_runs[last]->key_is_last = false ;
-			::string first_name = found_runs[last]->name() ; rename_run( last_name , first_name , &::ref(SyncGuard(g_file_sync)) ) ;
+			::string first_name = found_runs[last]->name() ;
+			if ( !rename_run( last_name , first_name , &::ref(SyncGuard(g_file_sync)) ) ) {
+				found_runs[last]->key_is_last = true ;                                                            // restore name so that files (if any) are unlinked
+				found_runs[last]->victimize( false/*victimize_job*/ , sync_guard ) ;
+			}
 		} else {
 			found_runs[last]->victimize( false/*victimize_job*/ , sync_guard ) ;
 		}
@@ -525,7 +539,11 @@ bool/*done*/ CjobData::insert(
 	mk_room( sz , idx() ) ;
 	Crun run { New , key , last , idx() , targets_crc , last_access , sz , rate , compile_digest } ;
 	trace("miss",run,found_runs,STR(last)) ;
-	if (+reserved_file) rename_run( reserved_file , run->name() , sync_guard ) ;
+	if ( +reserved_file && !rename_run( reserved_file , run->name() , sync_guard ) ) {
+		run->victimize( false/*victimize_job*/ , sync_guard ) ;                                                   // could not rename, try to unlink
+		unlnk_run( reserved_file , sync_guard ) ;                                                                 // best effort
+		return false/*done*/ ;
+	}
 	return true/*done*/ ;
 }
 
@@ -535,11 +553,11 @@ void CjobData::victimize(SyncGuard* sync_guard) {
 	::string n = with_slash(name()) ;
 	try {
 		rmdir_s( n , {.uphill=true,.sync_guard=sync_guard} ) ;
+		trace("rmdir",n) ;
 	} catch (::string const& e) {
-		Trace trace("cannot_rmdir",n,e) ;
-		exit( Rc::System , "cache error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())) ) ;
+		trace("cannot_rmdir",n,e) ;
+		Fd::Stderr.write(cat("cache non-fatal error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())),'\n')) ;
 	}
-	trace("rmdir",n) ;
 }
 
 //

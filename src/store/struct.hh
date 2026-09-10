@@ -133,8 +133,12 @@ namespace Store {
 		}
 		void chk() const {
 			Base::chk() ;
-			throw_unless( size()                        , "incoherent size info"                      ) ; // size is 1 for an empty file
-			throw_unless( _s_offset(size())<=Base::size , "logical size is larger than physical size" ) ;
+			try {
+				throw_unless( size()                        , "incoherent size info"                                               ) ; // size is 1 for an empty file
+				throw_unless( _s_offset(size())<=Base::size , "logical size (",size(),") overflows physical size (",Base::size,')' ) ;
+			} catch (::string const& e) {
+				throw cat(e," in persistent file ",name) ;
+			}
 		}
 	protected :
 		/**/                 void _pop    ( Idx idx               ) { chk_writable() ; if (+idx) at(idx).~Data() ;                 }

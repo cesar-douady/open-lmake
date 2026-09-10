@@ -58,9 +58,9 @@ struct LockRecord {                             // ensure no reporting clash
 	Lock<Mutex<MutexLvl::Record>> _lock ;
 } ;
 #if LD_AUDIT
-	struct LockRecordAndErrno : LockRecord {} ; // our errno is not the same as user errno, so nothing to do
+	struct LockRecordAndErrno : LockRecord {} ; // our errno is not the same as user errno
 #else
-	struct LockRecordAndErrno : LockRecord {
+	struct LockRecordAndErrno : LockRecord {    // our errno is shared with user errno
 		// cxtors & co
 		LockRecordAndErrno () { errno_ = errno  ; }
 		~LockRecordAndErrno() { errno  = errno_ ; }
@@ -374,8 +374,8 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	// chdir
 	// chdir must be tracked as we must tell Record of the new cwd
 	// /!\ chdir manipulates cwd, which mandates an exclusive lock
-	int chdir (CC* p ) NE { HDR0(chdir ,(p )) ; NO_SERVER(chdir ) ; Chdir r{p ,Comment::chdir } ; return r(::pair(orig,p )) ; }
-	int fchdir(int fd) NE { HDR0(fchdir,(fd)) ; NO_SERVER(fchdir) ; Chdir r{fd,Comment::fchdir} ; return r(::pair(orig,fd)) ; }
+	int chdir (CC* p ) NE { HDR0(chdir ,(p )) ; NO_SERVER(chdir ) ; Chdir r{p ,Comment::chdir } ; Chdir::Digest d = r(::pair(orig,p )) ; errno=d.errno_ ; return d.rc ; }
+	int fchdir(int fd) NE { HDR0(fchdir,(fd)) ; NO_SERVER(fchdir) ; Chdir r{fd,Comment::fchdir} ; Chdir::Digest d = r(::pair(orig,fd)) ; errno=d.errno_ ; return d.rc ; }
 
 	// chmod
 	// although file is not modified, resulting file after chmod depends on its previous content, much like a copy
@@ -776,14 +776,18 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		) ;
 		void* ctx = nullptr ;
 		if (descr.entry) {
-			LockRecordAndErrno lock ;
 			try {
+				LockRecordAndErrno lock ;
 				//    vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				ctx = descr.entry( auditor() , {}/*proc_mem*/ , args , false/*emulate*/ , descr.comment ).first ;
 				//    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-			} catch (::string const& e) {
-				Fd::Stderr.write(cat("autodep error : ",e,'\n')) ;
-				return ENOSYS ;
+			} catch (::string const& msg) {
+				if (+msg) {
+					Fd::Stderr.write(cat("autodep error : ",msg,'\n')) ;
+					n = SYS_close ; args[0] = -1 ;                                                              // generate EINVAL
+				} else {
+					n = -1 ;                                                                                    // generate ENOSYS
+				}
 			}
 		} //!     vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 		long rc = orig(n,args[0],args[1],args[2],args[3],args[4],args[5]) ;
@@ -791,9 +795,9 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		if (ctx) {
 			SWEAR( descr.exit , syscall ) ;
 			LockRecordAndErrno lock ;
-			//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			tie(rc,errno) = descr.exit( ctx , auditor() , {}/*proc_mem*/ ,  rc ) ;                             // we do not emulate, setting res and errno is only for magic readlink
-			//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			rc = descr.exit( ctx , auditor() , {}/*proc_mem*/ ,  rc ) ;                                         // we do not emulate, setting res and errno is only for magic readlink
+			//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 		}
 		return rc ;
 	}

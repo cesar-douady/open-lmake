@@ -40,5 +40,6 @@ namespace NonPortable {
 	int64_t             ptrace_get_res ( pid_t pid ,               bool is_32=false ) ;
 	long                ptrace_get_nr  ( pid_t pid ,               bool is_32=false ) ;
 	void                ptrace_set_res ( pid_t pid , int64_t val , bool is_32=false ) ;
+	void                ptrace_set_nr  ( pid_t pid , int64_t val , bool is_32=false ) ;
 
 }

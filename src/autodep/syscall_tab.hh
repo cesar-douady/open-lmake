@@ -23,9 +23,14 @@
 	#define IF_HAS_32(...)
 #endif
 
+enum class SyscallConvention : uint8_t { // if ok                               , if error
+	Plain                                // return result (usually non-negative), return -1 and errno in errno
+,	Fd                                   // return fd                           , return -1 and errno in errno
+} ;
+
 struct SyscallDescr {
-	static constexpr long NSyscalls = 440 ;           // must larger than higher syscall number
-	using Tab     = ::array<SyscallDescr,NSyscalls> ; // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
+	static constexpr long NSyscalls = 440 ;                // must larger than higher syscall number
+	using Tab     = ::array<SyscallDescr,NSyscalls> ;      // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
 	using BpfProg = struct ::sock_fprog             ;
 	// static data
 	/**/       static Tab const& s_tab   ;
@@ -36,11 +41,11 @@ struct SyscallDescr {
 	constexpr bool operator+() const { return +comment ; } // entry or exit seem to be non-constexpr when compiling with sanitizer
 	// data
 	// /!\ there must be no memory allocation nor cxtor/dxtor as this must be statically allocated when malloc is not available
-	::pair<void*  /*ctx*/,bool/*refresh_mem*/> (*entry)(      Record&,Fd proc_mem,uint64_t args[6],bool emulate,Comment) = nullptr       ; // emulate in exit if emulate=true
-	::pair<int64_t/*rc */,int /*errno      */> (*exit )(void*,Record&,Fd proc_mem,::optional<int64_t> rc               ) = nullptr       ; // emulate if no rc available
-	int                                        filter                                                                    = -1            ; // argument to filter out when known to require no processing
-	bool                                       return_fd                                                                 = false         ; // if true <=> return val is a fd
-	Comment                                    comment                                                                   = Comment::None ;
+	::pair<void* /*ctx*/,bool/*refresh_mem*/> (*entry)(      Record&,Fd proc_mem,uint64_t args[6],bool emulate,Comment) = nullptr       ; // emulate in exit if emulate=true
+	int64_t/*rc*/                             (*exit )(void*,Record&,Fd proc_mem,::optional<int64_t> rc               ) = nullptr       ; // emulate if no rc available
+	int                                       filter                                                                    = -1            ; // argument to filter out when known to require no processing
+	SyscallConvention                         convention                                                                = {}            ;
+	Comment                                   comment                                                                   = Comment::None ;
 } ;
 
 #ifdef LD_PRELOAD

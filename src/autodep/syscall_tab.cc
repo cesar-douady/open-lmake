@@ -72,19 +72,18 @@ template<int FlagArg> [[maybe_unused]] static bool _flag( uint64_t args[6] , int
 	}
 }
 
-template<class T> ::pair<int64_t/*rc*/,int/*errno*/> _do_exit( void* ctx_ , ::optional<int64_t> rc
+template<class T> int64_t/*rc*/ _do_exit( void* ctx_ , ::optional<int64_t> rc
 ,	::function<int64_t(T&              )> emulate_proc
 ,	::function<void   (T&,int64_t/*rc*/)> record_proc =[](T&,int64_t){}
 ) {
 	T& ctx = *static_cast<T*>(ctx_) ;
-	if (!rc) {
+	if (!rc) {                        // if no rc available, compute it by emulating syscall
 		errno = 0                 ;
 		rc    = emulate_proc(ctx) ;
 	}
-	int e = errno ;
 	record_proc(ctx,*rc) ;
 	delete &ctx ;
-	return {*rc,e} ;
+	return *rc ;
 }
 
 // chdir
@@ -109,7 +108,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_chmod( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_chmod( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<ChmodHelper>( ctx , rc
 	,	[ ](ChmodHelper& cm           )->int64_t { return ::chmod( cm.chmod.real_write().c_str() , cm.mod ) ; }
 	,	[&](ChmodHelper& cm,int64_t rc)          { cm.chmod( r , rc ) ;                                       }
@@ -124,7 +123,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_chroot( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_chroot( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::Chroot>( ctx , rc
 	,	[ ](Record::Chroot&              )->int64_t { FAIL() ;   }                                                                             // cannot emulate chroot
 	,	[&](Record::Chroot& cr,int64_t rc)          { cr(r,rc) ; }
@@ -144,7 +143,7 @@ struct CreatHelper {
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_creat( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_creat( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<CreatHelper>( ctx , rc
 	,	[ ](CreatHelper& c           )->int64_t { return ::creat( c.open.real_write().c_str() , c.mod ) ; }
 	,	[&](CreatHelper& c,int64_t rc)          { c.open( r , rc ) ;                                      }
@@ -166,7 +165,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	if (emulate) { Record::ReadDir  rd {                      r,Fd(args[0]),c} ; rd(r) ; return {                    } ; } // cannot emulate readdir, record access in all cases
 	else         { Record::ReadDir& rd = *new Record::ReadDir{r,Fd(args[0]),c} ;         return {&rd,false/*refresh*/} ; }
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_getdents( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_getdents( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::ReadDir>( ctx , rc
 	,	[ ](Record::ReadDir&              )->int64_t { FAIL() ;   }                                                        // cannot emulate getdents
 	,	[&](Record::ReadDir& rd,int64_t rc)          { rd(r,rc) ; }
@@ -175,13 +174,8 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 
 // io_uring
 [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_io_uring( Record& , Fd /*proc_mem*/ , uint64_t /*args*/[6] , bool /*emulate*/ , Comment ) {
-	static bool s_mrkr ;                                                                                                                                         // unused : address used as marker
-	if (Record::s_autodep_env().io_uring_ok) return {}                             ;
-	else                                     return { &s_mrkr , false/*refresh*/ } ;                                                                             // any non-null pointer is ok
-}
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_io_uring( void* ctx , Record& , Fd /*proc_mem*/ , ::optional<int64_t> /*rc*/ ) {
-	SWEAR(ctx) ;                                                                                                                                                 // else we should not be called
-	return { -1 , ENOSYS } ; // io_uring* are not allowed, pretend they are not implemented
+	if (Record::s_autodep_env().io_uring_ok) return {} ;
+	else                                     throw ""s ; // throwing empty string means ENOSYS
 }
 
 // hard link
@@ -193,7 +187,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_lnk( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_lnk( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::Lnk>( ctx , rc
 	,	[ ](Record::Lnk& l           )->int64_t { return ::link( l.src.real.c_str() , l.dst.real_write().c_str() ) ; }
 	,	[&](Record::Lnk& l,int64_t rc)          { l( r , rc ) ;                                                      }
@@ -216,7 +210,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_mount( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_mount( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::Mount>( ctx , rc
 	,	[ ](Record::Mount&             )->int64_t { FAIL() ;  }                                                                           // cannot emulate mount
 	,	[&](Record::Mount& m,int64_t rc)          { m(r,rc) ; }
@@ -245,7 +239,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_open( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_open( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<OpenHelper>( ctx , rc
 	,	[ ](OpenHelper& o           )->int64_t { return ::open( o.open.real_write().c_str() , o.flags , o.mod ) ; }
 	,	[&](OpenHelper& o,int64_t rc)          { o.open( r , rc ) ;                                               }
@@ -268,7 +262,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 		} catch (::string const&) {}
 		return {} ;
 	}
-	[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_open2( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+	[[maybe_unused]] static int64_t/*rc*/ _exit_open2( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 		return _do_exit<Openat2Helper>( ctx , rc
 		,	[ ](Openat2Helper& o2           )->int64_t { return ::syscall( SYS_openat2 , Fd::Cwd , o2.open.real_write().c_str() , &o2.how , sizeof(o2.how) ) ; }
 		,	[&](Openat2Helper& o2,int64_t rc)          { o2.open( r , rc ) ;                                                                                   }
@@ -290,7 +284,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_read_lnk( void* ctx , Record& r , Fd proc_mem , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_read_lnk( void* ctx , Record& r , Fd proc_mem , ::optional<int64_t> rc ) {
 	if (!rc) rc = 0 ;
 	return _do_exit<ReadlinkHelper>( ctx , {}/*rc*/
 	,	[&](ReadlinkHelper& rl)->int64_t {
@@ -333,7 +327,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_rename( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_rename( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<RenameHelper>( ctx , rc
 	,	[ ](RenameHelper& rn)->int64_t {
 		#if HAS_RENAMEAT2                                                                                                                                     // prefer official libc if available
@@ -361,7 +355,7 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_sym_lnk( void* ctx , Record& r , Fd proc_mem , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_sym_lnk( void* ctx , Record& r , Fd proc_mem , ::optional<int64_t> rc ) {
 	return _do_exit<SymlinkHelper>( ctx , rc
 	,	[&](SymlinkHelper& sl           )->int64_t { return ::symlink( _get_str(proc_mem,sl.target).c_str() , sl.lnk.real_write().c_str() ) ; }
 	,	[&](SymlinkHelper& sl,int64_t rc)          { sl.lnk( r , rc ) ;                                                                       }
@@ -381,7 +375,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	} catch (::string const&) {}
 	return {} ;
 }
-[[maybe_unused]] static ::pair<int64_t/*rc*/,int/*errno*/> _exit_unlnk( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+[[maybe_unused]] static int64_t/*rc*/ _exit_unlnk( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
 	return _do_exit<Record::Unlnk>( ctx , rc
 	,	[ ](Record::Unlnk& u           )->int64_t { return ::unlink(u.real_write().c_str()) ; }
 	,	[&](Record::Unlnk& u,int64_t rc)          { u( r , rc ) ;                             }
@@ -434,54 +428,54 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 		}                                                                                    \
 	}
 	// entries marked filter (i.e. field is !=-1) means that processing can be skipped if corresponding arg is a filename known to require no processing
-	//                                entry                   <At   ,FlagArg   > , exit           filter return_fd  comment
-	FILL_ENTRY( access            , { _entry_access           <false,FlagNever > , nullptr        ,  0  , false   , Comment::access            } ) ;
-	FILL_ENTRY( faccessat         , { _entry_access           <true ,3         > , nullptr        ,  1  , false   , Comment::faccessat         } ) ;
-	FILL_ENTRY( faccessat2        , { _entry_access           <true ,3         > , nullptr        ,  1  , false   , Comment::faccessat2        } ) ;
-	FILL_ENTRY( chdir             , { _entry_chdir            <false           > , nullptr        , -1  , false   , Comment::chdir             } ) ;
-	FILL_ENTRY( fchdir            , { _entry_chdir            <true            > , nullptr        , -1  , false   , Comment::fchdir            } ) ;
-	FILL_ENTRY( chmod             , { _entry_chmod            <false,FlagNever > , _exit_chmod    ,  0  , false   , Comment::chmod             } ) ;
-	FILL_ENTRY( fchmodat          , { _entry_chmod            <true ,3         > , _exit_chmod    ,  1  , false   , Comment::fchmodat          } ) ;
-	FILL_ENTRY( chroot            , { _entry_chroot                              , _exit_chroot   , -1  , false   , Comment::chroot            } ) ;
-	FILL_ENTRY( creat             , { _entry_creat                               , _exit_creat    ,  0  , true    , Comment::creat             } ) ;
-	FILL_ENTRY( execve            , { _entry_execve           <false,FlagNever > , nullptr        , -1  , false   , Comment::execve            } ) ;
-	FILL_ENTRY( execveat          , { _entry_execve           <true ,4         > , nullptr        , -1  , false   , Comment::execveat          } ) ;
-	FILL_ENTRY( getdents          , { _entry_getdents                            , _exit_getdents , -1  , false   , Comment::getdents          } ) ;
-	FILL_ENTRY( getdents64        , { _entry_getdents                            , _exit_getdents , -1  , false   , Comment::getdents64        } ) ;
-	FILL_ENTRY( io_uring_enter    , { _entry_io_uring                            , _exit_io_uring , -1  , false   , Comment::io_uring_enter    } ) ;
-	FILL_ENTRY( io_uring_register , { _entry_io_uring                            , _exit_io_uring , -1  , false   , Comment::io_uring_register } ) ;
-	FILL_ENTRY( io_uring_setup    , { _entry_io_uring                            , _exit_io_uring , -1  , false   , Comment::io_uring_setup    } ) ;
-	FILL_ENTRY( link              , { _entry_lnk              <false,FlagNever > , _exit_lnk      ,  1  , false   , Comment::link              } ) ;
-	FILL_ENTRY( linkat            , { _entry_lnk              <true ,4         > , _exit_lnk      ,  3  , false   , Comment::linkat            } ) ;
-	FILL_ENTRY( mkdir             , { _entry_mkdir            <false           > , nullptr        ,  0  , false   , Comment::mkdir             } ) ;
-	FILL_ENTRY( mkdirat           , { _entry_mkdir            <true            > , nullptr        ,  1  , false   , Comment::mkdirat           } ) ;
-	FILL_ENTRY( mount             , { _entry_mount                               , _exit_mount    , -1  , false   , Comment::mount             } ) ;
-	FILL_ENTRY( name_to_handle_at , { _entry_name_to_handle_at                   , nullptr        ,  1  , false   , Comment::name_to_handle_at } ) ;
-	FILL_ENTRY( open              , { _entry_open             <false           > , _exit_open     ,  0  , true    , Comment::open              } ) ;
-	FILL_ENTRY( openat            , { _entry_open             <true            > , _exit_open     ,  1  , true    , Comment::openat            } ) ;
-	FILL_ENTRY( open_tree         , { _entry_open_tree        <true ,2         > , nullptr        ,  1  , false   , Comment::open_tree         } ) ;
-	FILL_ENTRY( readdir           , { _entry_getdents                            , _exit_getdents , -1  , false   , Comment::readdir           } ) ;
-	FILL_ENTRY( readlink          , { _entry_read_lnk         <false           > , _exit_read_lnk ,  0  , false   , Comment::readlink          } ) ;
-	FILL_ENTRY( readlinkat        , { _entry_read_lnk         <true            > , _exit_read_lnk ,  1  , false   , Comment::readlinkat        } ) ;
-	FILL_ENTRY( rename            , { _entry_rename           <false,FlagNever > , _exit_rename   ,  1  , false   , Comment::rename            } ) ;
-	FILL_ENTRY( renameat          , { _entry_rename           <true ,FlagNever > , _exit_rename   ,  3  , false   , Comment::renameat          } ) ;
-	FILL_ENTRY( renameat2         , { _entry_rename           <true ,4         > , _exit_rename   ,  3  , false   , Comment::renameat2         } ) ;
-	FILL_ENTRY( rmdir             , { _entry_unlink           <false,FlagAlways> , nullptr        ,  0  , false   , Comment::rmdir             } ) ;
-	FILL_ENTRY( stat              , { _entry_stat             <false,FlagNever > , nullptr        ,  0  , false   , Comment::stat              } ) ;
-	FILL_ENTRY( stat64            , { _entry_stat             <false,FlagNever > , nullptr        ,  0  , false   , Comment::stat64            } ) ;
-	FILL_ENTRY( fstatat64         , { _entry_stat             <true ,3         > , nullptr        ,  1  , false   , Comment::fstatat64         } ) ;
-	FILL_ENTRY( lstat             , { _entry_stat             <false,FlagAlways> , nullptr        ,  0  , false   , Comment::lstat             } ) ;
-	FILL_ENTRY( lstat64           , { _entry_stat             <false,FlagAlways> , nullptr        ,  0  , false   , Comment::lstat64           } ) ;
-	FILL_ENTRY( statx             , { _entry_statx                               , nullptr        ,  1  , false   , Comment::statx             } ) ;
-	FILL_ENTRY( newfstatat        , { _entry_stat             <true ,3         > , nullptr        ,  1  , false   , Comment::newfstatat        } ) ;
-	FILL_ENTRY( oldstat           , { _entry_stat             <false,FlagNever > , nullptr        ,  0  , false   , Comment::oldstat           } ) ;
-	FILL_ENTRY( oldlstat          , { _entry_stat             <false,FlagAlways> , nullptr        ,  0  , false   , Comment::oldlstat          } ) ;
-	FILL_ENTRY( symlink           , { _entry_symlink          <false           > , _exit_sym_lnk  ,  1  , false   , Comment::symlink           } ) ;
-	FILL_ENTRY( symlinkat         , { _entry_symlink          <true            > , _exit_sym_lnk  ,  2  , false   , Comment::symlinkat         } ) ;
-	FILL_ENTRY( unlink            , { _entry_unlink           <false,FlagNever > , _exit_unlnk    ,  0  , false   , Comment::unlink            } ) ;
-	FILL_ENTRY( unlinkat          , { _entry_unlink           <true ,2         > , _exit_unlnk    ,  1  , false   , Comment::unlinkat          } ) ;
+	//                                entry                   <At   ,FlagArg   > , exit           filter  syscall convention           comment
+	FILL_ENTRY( access            , { _entry_access           <false,FlagNever > , nullptr        ,  0  , SyscallConvention::Plain   , Comment::access            } ) ;
+	FILL_ENTRY( faccessat         , { _entry_access           <true ,3         > , nullptr        ,  1  , SyscallConvention::Plain   , Comment::faccessat         } ) ;
+	FILL_ENTRY( faccessat2        , { _entry_access           <true ,3         > , nullptr        ,  1  , SyscallConvention::Plain   , Comment::faccessat2        } ) ;
+	FILL_ENTRY( chdir             , { _entry_chdir            <false           > , nullptr        , -1  , SyscallConvention::Plain   , Comment::chdir             } ) ;
+	FILL_ENTRY( fchdir            , { _entry_chdir            <true            > , nullptr        , -1  , SyscallConvention::Plain   , Comment::fchdir            } ) ;
+	FILL_ENTRY( chmod             , { _entry_chmod            <false,FlagNever > , _exit_chmod    ,  0  , SyscallConvention::Plain   , Comment::chmod             } ) ;
+	FILL_ENTRY( fchmodat          , { _entry_chmod            <true ,3         > , _exit_chmod    ,  1  , SyscallConvention::Plain   , Comment::fchmodat          } ) ;
+	FILL_ENTRY( chroot            , { _entry_chroot                              , _exit_chroot   , -1  , SyscallConvention::Plain   , Comment::chroot            } ) ;
+	FILL_ENTRY( creat             , { _entry_creat                               , _exit_creat    ,  0  , SyscallConvention::Fd      , Comment::creat             } ) ;
+	FILL_ENTRY( execve            , { _entry_execve           <false,FlagNever > , nullptr        , -1  , SyscallConvention::Plain   , Comment::execve            } ) ;
+	FILL_ENTRY( execveat          , { _entry_execve           <true ,4         > , nullptr        , -1  , SyscallConvention::Plain   , Comment::execveat          } ) ;
+	FILL_ENTRY( getdents          , { _entry_getdents                            , _exit_getdents , -1  , SyscallConvention::Plain   , Comment::getdents          } ) ;
+	FILL_ENTRY( getdents64        , { _entry_getdents                            , _exit_getdents , -1  , SyscallConvention::Plain   , Comment::getdents64        } ) ;
+	FILL_ENTRY( io_uring_enter    , { _entry_io_uring                            , nullptr        , -1  , SyscallConvention::Plain   , Comment::io_uring_enter    } ) ;
+	FILL_ENTRY( io_uring_register , { _entry_io_uring                            , nullptr        , -1  , SyscallConvention::Plain   , Comment::io_uring_register } ) ;
+	FILL_ENTRY( io_uring_setup    , { _entry_io_uring                            , nullptr        , -1  , SyscallConvention::Plain   , Comment::io_uring_setup    } ) ;
+	FILL_ENTRY( link              , { _entry_lnk              <false,FlagNever > , _exit_lnk      ,  1  , SyscallConvention::Plain   , Comment::link              } ) ;
+	FILL_ENTRY( linkat            , { _entry_lnk              <true ,4         > , _exit_lnk      ,  3  , SyscallConvention::Plain   , Comment::linkat            } ) ;
+	FILL_ENTRY( mkdir             , { _entry_mkdir            <false           > , nullptr        ,  0  , SyscallConvention::Plain   , Comment::mkdir             } ) ;
+	FILL_ENTRY( mkdirat           , { _entry_mkdir            <true            > , nullptr        ,  1  , SyscallConvention::Plain   , Comment::mkdirat           } ) ;
+	FILL_ENTRY( mount             , { _entry_mount                               , _exit_mount    , -1  , SyscallConvention::Plain   , Comment::mount             } ) ;
+	FILL_ENTRY( name_to_handle_at , { _entry_name_to_handle_at                   , nullptr        ,  1  , SyscallConvention::Plain   , Comment::name_to_handle_at } ) ;
+	FILL_ENTRY( open              , { _entry_open             <false           > , _exit_open     ,  0  , SyscallConvention::Fd      , Comment::open              } ) ;
+	FILL_ENTRY( openat            , { _entry_open             <true            > , _exit_open     ,  1  , SyscallConvention::Fd      , Comment::openat            } ) ;
+	FILL_ENTRY( open_tree         , { _entry_open_tree        <true ,2         > , nullptr        ,  1  , SyscallConvention::Plain   , Comment::open_tree         } ) ;
+	FILL_ENTRY( readdir           , { _entry_getdents                            , _exit_getdents , -1  , SyscallConvention::Plain   , Comment::readdir           } ) ;
+	FILL_ENTRY( readlink          , { _entry_read_lnk         <false           > , _exit_read_lnk ,  0  , SyscallConvention::Plain   , Comment::readlink          } ) ;
+	FILL_ENTRY( readlinkat        , { _entry_read_lnk         <true            > , _exit_read_lnk ,  1  , SyscallConvention::Plain   , Comment::readlinkat        } ) ;
+	FILL_ENTRY( rename            , { _entry_rename           <false,FlagNever > , _exit_rename   ,  1  , SyscallConvention::Plain   , Comment::rename            } ) ;
+	FILL_ENTRY( renameat          , { _entry_rename           <true ,FlagNever > , _exit_rename   ,  3  , SyscallConvention::Plain   , Comment::renameat          } ) ;
+	FILL_ENTRY( renameat2         , { _entry_rename           <true ,4         > , _exit_rename   ,  3  , SyscallConvention::Plain   , Comment::renameat2         } ) ;
+	FILL_ENTRY( rmdir             , { _entry_unlink           <false,FlagAlways> , nullptr        ,  0  , SyscallConvention::Plain   , Comment::rmdir             } ) ;
+	FILL_ENTRY( stat              , { _entry_stat             <false,FlagNever > , nullptr        ,  0  , SyscallConvention::Plain   , Comment::stat              } ) ;
+	FILL_ENTRY( stat64            , { _entry_stat             <false,FlagNever > , nullptr        ,  0  , SyscallConvention::Plain   , Comment::stat64            } ) ;
+	FILL_ENTRY( fstatat64         , { _entry_stat             <true ,3         > , nullptr        ,  1  , SyscallConvention::Plain   , Comment::fstatat64         } ) ;
+	FILL_ENTRY( lstat             , { _entry_stat             <false,FlagAlways> , nullptr        ,  0  , SyscallConvention::Plain   , Comment::lstat             } ) ;
+	FILL_ENTRY( lstat64           , { _entry_stat             <false,FlagAlways> , nullptr        ,  0  , SyscallConvention::Plain   , Comment::lstat64           } ) ;
+	FILL_ENTRY( statx             , { _entry_statx                               , nullptr        ,  1  , SyscallConvention::Plain   , Comment::statx             } ) ;
+	FILL_ENTRY( newfstatat        , { _entry_stat             <true ,3         > , nullptr        ,  1  , SyscallConvention::Plain   , Comment::newfstatat        } ) ;
+	FILL_ENTRY( oldstat           , { _entry_stat             <false,FlagNever > , nullptr        ,  0  , SyscallConvention::Plain   , Comment::oldstat           } ) ;
+	FILL_ENTRY( oldlstat          , { _entry_stat             <false,FlagAlways> , nullptr        ,  0  , SyscallConvention::Plain   , Comment::oldlstat          } ) ;
+	FILL_ENTRY( symlink           , { _entry_symlink          <false           > , _exit_sym_lnk  ,  1  , SyscallConvention::Plain   , Comment::symlink           } ) ;
+	FILL_ENTRY( symlinkat         , { _entry_symlink          <true            > , _exit_sym_lnk  ,  2  , SyscallConvention::Plain   , Comment::symlinkat         } ) ;
+	FILL_ENTRY( unlink            , { _entry_unlink           <false,FlagNever > , _exit_unlnk    ,  0  , SyscallConvention::Plain   , Comment::unlink            } ) ;
+	FILL_ENTRY( unlinkat          , { _entry_unlink           <true ,2         > , _exit_unlnk    ,  1  , SyscallConvention::Plain   , Comment::unlinkat          } ) ;
 	#ifdef SYS_openat2
-		FILL_ENTRY( openat2 , { _entry_open2 , _exit_open2 ,  1/*filter*/ , true/*return_fd*/ , Comment::openat2 } ) ;
+		FILL_ENTRY( openat2 , { _entry_open2 , _exit_open2 ,  1/*filter*/ , SyscallConvention::Fd , Comment::openat2 } ) ;
 	#endif
 	#undef FILL_ENTRY
 	return tab ;

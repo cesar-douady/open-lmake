@@ -499,6 +499,7 @@ namespace Store {
 		using Base::chk_thread   ;
 		using Base::chk_writable ;
 		using Base::size         ;
+		using Base::name         ;
 
 		struct Lst {
 			using value_type = Idx ;
@@ -646,12 +647,14 @@ namespace Store {
 		Lst  lst         (Idx root) const { return Lst(self,root)                                                      ; }
 		void chk         (Idx root) const {
 			Base::chk() ;
-			if (+root) _chk(root,false/*recurse_backward*/,true/*recurse_forward*/) ;
+			if (+root)
+				try                       { _chk( root , false/*recurse_backward*/ , true/*recurse_forward*/ , ::ref(::uset<Idx>()) ) ; }
+				catch (::string const& e) { throw cat(e," in persistent file ",name) ;                                                  }
 		}
 		// per item
 	private :
-		void  _append_lst( ::vector<Idx>&/*out*/ idx_lst , Idx                                                ) const ;
-		IdxSz _chk       (                                 Idx , bool recurse_backward , bool recurse_forward ) const ;
+		void  _append_lst( ::vector<Idx>&/*out*/ idx_lst , Idx                                                                    ) const ;
+		IdxSz _chk       (                                 Idx , bool recurse_backward , bool recurse_forward , ::uset<Idx>& seen ) const ;
 	public :
 		Idx                          search   ( Idx root , VecView const& n , VecView const& psfx={} ) const ;
 		DataNv      *                search_at( Idx root , VecView const& n , VecView const& psfx={} )       requires(HasData) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
@@ -1336,11 +1339,13 @@ namespace Store {
 
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
 		typename MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::IdxSz
-			MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_chk( Idx idx , bool recurse_backward , bool recurse_forward ) const {
-				throw_unless( +idx        , "idx ",idx," is null"                      ) ;
-				throw_unless( idx<size( ) , "idx ",idx," is out of range (",size(),')' ) ;
+			MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::_chk( Idx idx , bool recurse_backward , bool recurse_forward , ::uset<Idx>& seen ) const {
+				throw_unless( +idx                    , "idx ",idx," is null"                                        ) ;
+				throw_unless( +idx<size()             , "idx ",idx," is out of range (",size(),')'                   ) ;
+				throw_unless( seen.insert(idx).second , "item(",idx,") found within a loop of ",seen.size()," items" ) ;
 				Item const& item = _at(idx)  ;
 				IdxSz       res  = item.used ;
+				throw_unless( +idx+item.sz()<=size() , "idx ",idx," of size ",item.sz()," is out of range (",size(),')' ) ;
 				// root may not be minimized as it must stay prepared to hold its info w/o moving
 				if (+item.prev) throw_unless( item.sz()==item.min_sz()   , "item(",idx,").sz is non-minimum : ",item.sz(),"!=",item.min_sz()   ) ;
 				else            throw_unless( item.sz()==Item::MinUsedSz , "root(",idx,").sz is non-minimum : ",item.sz(),"!=",Item::MinUsedSz ) ;
@@ -1363,7 +1368,7 @@ namespace Store {
 						if (is_eq) throw_unless( Item::s_cmp_bit(item.cmp_val() , nxt_first)> item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(true).chunk(0) (" ,nxt_first,')' ) ;
 						else       throw_unless( Item::s_cmp_bit(item.cmp_val() , nxt_first)==item.cmp_bit,"item(",idx,").cmp_val is incompatible with .nxt(false).chunk(0) (",nxt_first,')' ) ;
 					}
-					if (recurse_forward) res += _chk(nxt,false/*recurse_backward*/,true/*recurse_forward*/) ;
+					if (recurse_forward) res += _chk( nxt , false/*recurse_backward*/ , true/*recurse_forward*/ , seen ) ;
 				}
 				if (+item.prev) {
 					Idx         prev      = item.prev ;
@@ -1400,10 +1405,11 @@ namespace Store {
 						if (item.prev_is_eq) throw_unless( Item::s_cmp_bit(prev_item.cmp_val() , first)> prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')' ) ;
 						else                 throw_unless( Item::s_cmp_bit(prev_item.cmp_val() , first)==prev_item.cmp_bit,"item(",idx,").prev.cmp_val is incompatible with .chunk(0) (",first,')' ) ;
 					}
-					if (recurse_backward) res += _chk(prev,true/*recurse_backward*/,false/*recurse_forward*/) ;
+					if (recurse_backward) res += _chk( prev , true/*recurse_backward*/ , false/*recurse_forward*/ , seen ) ;
 				} else {
 					throw_unless( item.prev_is_eq , "item(",idx,") is root with !prev_is_eq" ) ;
 				}
+				seen.erase(idx) ;
 				return res ;
 			}
 

@@ -325,14 +325,18 @@ public :
 		JobExecRpcReq::Id confirm_id = 0  ;
 	} ;
 	struct Chdir : Solve<> {
+		struct Digest {
+			int rc     = 0 ;
+			int errno_ = 0 ;
+		} ;
 		// cxtors & co
 		Chdir() = default ;
 		Chdir( Record& , Path&& , Comment ) ;
 		// services
 		// calling r.chdir may be done conservatively, it does not record new cwd, just that it may have changed
-		int operator()( Record& r , ::pair<int (*)(const char*) noexcept,const char*> info ) { int rc = info.first(info.second) ; if (rc==0) r.chdir() ; return rc ; }
-		int operator()( Record& r , ::pair<int (*)(int        ) noexcept,int        > info ) { int rc = info.first(info.second) ; if (rc==0) r.chdir() ; return rc ; }
-		int operator()( Record& r , int rc=0                                               ) {                                    if (rc==0) r.chdir() ; return rc ; }
+		Digest    operator()( Record& r , ::pair<int (*)(const char*) noexcept,const char*> info ) { int rc = info.first(info.second) ; if (rc==0) r.chdir() ; return {.rc=rc,.errno_=errno} ; }
+		Digest    operator()( Record& r , ::pair<int (*)(int        ) noexcept,int        > info ) { int rc = info.first(info.second) ; if (rc==0) r.chdir() ; return {.rc=rc,.errno_=errno} ; }
+		int/*rc*/ operator()( Record& r , int rc=0                                               ) {                                    if (rc==0) r.chdir() ; return      rc                ; }
 	} ;
 	struct Chmod : SolveModify {
 		// cxtors & co

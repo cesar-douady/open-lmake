@@ -42,7 +42,7 @@ namespace Store {
 			if (bucket<(1<<Mantissa)) return bucket+1 ;
 			// logarithmic range
 			constexpr uint8_t Mantissa1 = Mantissa ? Mantissa-1 : 0 ; // actually Mantissa-1, with a protection to avoid compilation error when Mantissa==0
-			uint8_t exp      = ((bucket+1)>>Mantissa1) - 1                                      ; SWEAR(exp<NBits<size_t>) ;
+			uint8_t exp      = ((bucket+1)>>Mantissa1) - 1                                      ; SWEAR( exp<NBits<size_t> , exp,NBits<size_t> ) ;
 			size_t  mantissa = (size_t(1)<<Mantissa1) + bucket - (size_t(exp+1)<<Mantissa1) + 1 ;
 			return mantissa<<exp ;
 		}
@@ -236,16 +236,21 @@ namespace Store {
 		//
 		::vector<Sz/*bucket+1*/> free_map ; free_map.resize(size()) ; // record the bucket in which each entry appears in the free list of
 		//
-		for( Sz bucket : iota<Sz>(BaseHdr::NFree) ) {
-			Sz  sz   = _s_sz(bucket) ;
-			Idx head = _free(bucket) ;
-			for( Idx idx=head ; +idx ; idx=Base::at(idx).nxt ) {
-				SWEAR( static_cast<Sz>(+idx+sz)<=size() , idx,sz ) ;
-				for( Sz i : iota(sz) ) {
-					Sz& b1 = free_map[+idx+i] ; SWEAR( !b1 , idx,i,bucket,b1-1 ) ;
-					b1 = bucket+1 ;
+		try {
+			for( Sz bucket : iota<Sz>(BaseHdr::NFree) ) {
+				Sz  sz   = _s_sz(bucket) ;
+				Idx head = _free(bucket) ;
+				for( Idx idx=head ; +idx ; idx=Base::at(idx).nxt ) {
+					throw_unless( +idx+sz<=size() , "idx ",idx," in free list for size ",sz," is out of range (",size(),')' ) ;
+					for( Sz i : iota(sz) ) {
+						Sz& b1 = free_map[+idx+i] ;
+						if (b1) throw cat("idx ",idx," in free lists of sizes ",sz," and ",_s_sz(b1-1)) ;
+						b1 = bucket+1 ;
+					}
 				}
 			}
+		} catch (::string const& e) {
+			throw cat(e," in persistent file ",name) ;
 		}
 	}
 

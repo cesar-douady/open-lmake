@@ -33,5 +33,5 @@ inline Rate to_rate( CacheConfig const& config , Disk::DiskSz sz , Time::Delay e
 	return to_rate( config , sz/float(exe_time) ) ;
 }
 
-void rename_run( ::string const& old_name , ::string const& new_name , SyncGuard* =nullptr ) ;
-void unlnk_run ( ::string const& name     ,                            SyncGuard* =nullptr ) ;
+bool/*ok*/ rename_run( ::string const& old_name , ::string const& new_name , SyncGuard* =nullptr ) ; // generate stderr msg if !ok
+bool/*ok*/ unlnk_run ( ::string const& name     ,                            SyncGuard* =nullptr ) ; // .

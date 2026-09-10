@@ -58,24 +58,28 @@ Rate to_rate( CacheConfig const& config , float rate ) {
 	return res ;
 }
 
-void rename_run( ::string const& old_name , ::string const& new_name , SyncGuard* sync_guard ) {
+bool/*ok*/ rename_run( ::string const& old_name , ::string const& new_name , SyncGuard* sync_guard ) {
 	Trace trace("rename_run",old_name,new_name);
 	try {
 		rename( old_name+"-data" , new_name+"-data" , {.sync_guard=sync_guard} ) ;
 		rename( old_name+"-info" , new_name+"-info" , {.sync_guard=sync_guard} ) ;
 	} catch(::string const& e) {
 		Trace trace("cannot_move",old_name,new_name,e) ;
-		exit( Rc::System , "cache error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())) ) ;
+		Fd::Stderr.write(cat("cache non-fatal error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())))) ;
+		return false/*ok*/ ;
 	}
+	return true/*ok*/ ;
 }
 
-void unlnk_run( ::string const& name , SyncGuard* sync_guard ) {
+bool/*ok*/ unlnk_run( ::string const& name , SyncGuard* sync_guard ) {
 	try {
 		unlnk( name+"-data" , {.sync_guard=sync_guard} ) ;
 		unlnk( name+"-info" , {.sync_guard=sync_guard} ) ;
 		Trace trace("unlnked",name);
 	} catch(::string const& e) {
 		Trace trace("cannot_unlnk",name,e) ;
-		exit( Rc::System , "cache error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())) ) ;
+		Fd::Stderr.write(cat("cache non-fatal error : ",e,"\n  consider : lcache_repair ",mk_shell_str(no_slash(cwd_s())))) ;
+		return false/*ok*/ ;
 	}
+	return true/*ok*/ ;
 }
