@@ -867,7 +867,9 @@ namespace Engine {
 				creat_store( dir_s , val_crc , code_val , -1/*umask*/ , sync_guard ) ;
 			}
 			sym_lnk( disk_node_name , target , {.sync_guard=sync_guard} ) ;
-			nd.set_crc_date( Crc(New,target,Yes/*is_lnk*/) , FileSig(disk_node_name) ) ;
+			FileSig sig ;
+			Crc     crc { disk_node_name , /*out*/sig } ;
+			nd.set_crc_date( crc , sig ) ;
 		} catch (::string const&) {
 			if (retried) throw ;
 			unlnk(disk_node_name) ;                              // in case an old file is there

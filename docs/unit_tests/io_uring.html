@@ -132,7 +132,6 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
                 <span class="n">environ</span>     <span class="o">=</span> <span class="p">{</span> <span class="s1">&#39;LD_LIBRARY_PATH&#39;</span> <span class="p">:</span> <span class="n">ld_library_path</span> <span class="p">}</span>
                 <span class="n">io_uring_ok</span> <span class="o">=</span> <span class="n">sfx</span><span class="o">==</span><span class="s1">&#39;ok&#39;</span>
                 <span class="n">autodep</span>     <span class="o">=</span> <span class="n">ad</span>
-                <span class="n">stderr_ok</span> <span class="o">=</span> <span class="kc">True</span> <span class="p">;</span>
                 <span class="n">cmd</span>         <span class="o">=</span> <span class="s1">&#39;./</span><span class="si">{EXE}</span><span class="s1">&#39;</span>
 
 <span class="k">else</span> <span class="p">:</span>
@@ -152,12 +151,9 @@ body .il { color: #666666 } /* Literal.Number.Integer.Long */
 <span class="s1">        #include &lt;iostream&gt;</span>
 <span class="s1">        using namespace std ;</span>
 
-<span class="s1">#define ERR_NO err##no</span>
 <span class="s1">        int main(void) {</span>
 <span class="s1">            struct ::io_uring_params params  = </span><span class="si">{}</span><span class="s1">                                            ;</span>
-<span class="s1">::cerr &lt;&lt; &quot;before&quot;&lt;&lt;&#39; &#39;&lt;&lt;&quot;x&quot;&lt;&lt;&#39; &#39;&lt;&lt;errno&lt;&lt;&#39; &#39;&lt;&lt;(&amp;errno)&lt;&lt;&#39; &#39;&lt;&lt;(&amp;ERR_NO)&lt;&lt;::endl ;</span>
 <span class="s1">            int                      ring_fd = ::syscall( SYS_io_uring_setup , 8 , &amp;params ) ;</span>
-<span class="s1">::cerr &lt;&lt; &quot;after&quot;&lt;&lt;&#39; &#39;&lt;&lt;ring_fd&lt;&lt;&#39; &#39;&lt;&lt;errno&lt;&lt;&#39; &#39;&lt;&lt;::endl ;</span>
 <span class="s1">            //</span>
 <span class="s1">            if      (ring_fd&gt;=0   ) return 0 ;</span>
 <span class="s1">            else if (errno!=ENOSYS) return 0 ; // io_uring is disabled</span>

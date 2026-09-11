@@ -22,6 +22,9 @@ This process is pretty long, the goal being to avoid having to restart from a fr
 Once B_(lmake_repair) is done, it generates some suggestions about what to do with the freshly repaired repo, including step back and forget about the repair.
 .LP
 While repairing B_(lmake_repair) generates a file I_(LMAKE/repaired_jobs) that contains the list of successfully repaired jobs.
++.LP
++Only jobs that completed successfully are repaired : jobs in error, jobs that were interrupted and jobs whose rule has changed are rerun by the next B_(lmake).
++Marks set with B_(lmark) (frozen jobs and no-trigger files) are not preserved : list them with B_(lmark -lf) and B_(lmark -lt) before repairing and set them again afterwards.
 
 ClientGeneralities()
 

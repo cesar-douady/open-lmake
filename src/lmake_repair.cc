@@ -28,6 +28,7 @@ RepairDigest repair(::string const& from_dir) {
 	for( Rule r : Persistent::rule_lst() ) { trace("rule",r->crc->cmd,r->name) ; rule_tab[r->crc->cmd] = r ; }
 	SWEAR_PROD(rule_tab.size()==Persistent::rule_lst().size()) ;
 	//
+	::uset<Job> seen ;                                                                                                     // avoid restoring the same job twice (duplicate/stale job_data files)
 	for( auto const& [jd,_] : walk(from_dir,TargetTags,from_dir) ) {
 		{	JobInfo job_info { jd } ;
 			try                       { job_info.chk() ;                        }
@@ -44,7 +45,7 @@ RepairDigest repair(::string const& from_dir) {
 				if ( !td.crc.exists() && !static_phony(td.tflags) )   continue ;                                           // not a target
 				FileSig sig { tn } ;
 				if ( (td.crc.exists()) != sig.exists()           ) { trace("disk_mismatch_none" ,jd,tn) ; goto NextJob ; } // do not agree on file existence
-				if ( td.sig              !=  sig                 ) { trace("disk_mismatch"      ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
+				if (  td.sig           != sig                    ) { trace("disk_mismatch"      ,jd,tn) ; goto NextJob ; } // if dates do not match, we will rerun the job anyway
 				if ( !td.crc.valid() && td.tflags[Tflag::Target] ) { trace("no_vadid_target_crc",jd,tn) ; goto NextJob ; }
 				if ( !td.crc                                     ) { trace("no_crc"             ,jd,tn) ; goto NextJob ; }
 				//
@@ -72,11 +73,13 @@ RepairDigest repair(::string const& from_dir) {
 			// set job
 			Rule::RuleMatch m   { rule , ::move(job_info.start.stems) } ; if ( ::string msg=m.reject_msg().first ; +msg ) { trace("rejected"         ,jd,msg) ; goto NextJob ; }
 			Job             job { ::move(m)                           } ; if ( !job                                     ) { trace("no_job_from_match",jd    ) ; goto NextJob ; }
+			/**/                                                          if ( !seen.insert(job).second                 ) { trace("already_restored" ,jd,job) ; goto NextJob ; } // keep first one
 			//
 			job->targets().assign(targets) ;
 			job->assign_deps(deps)         ;
-			job->status = job_info.end.digest.status ;
-			job->set_exec_ok() ;                                                                             // pretend job just ran
+			job->status         = job_info.end.digest.status ;
+			job->cache_hit_info = CacheHitInfo::NoCache      ; // default value (0) means HitExhaustive, which is wrong and reported by lshow -i
+			job->set_exec_ok() ;                               // pretend job just ran
 			// set target actual_job's
 			for( Target t : targets ) {
 				t->actual_job    = job      ;
@@ -84,7 +87,7 @@ RepairDigest repair(::string const& from_dir) {
 			}
 			// adjust job_info
 			job_info.start.pre_start.job           = +job ;
-			job_info.start.submit_info.reason.node = 0    ;                                                  // reason node is stored as a idx, not a name, cannot restore it
+			job_info.start.submit_info.reason.node = 0    ;    // reason node is stored as a idx, not a name, cannot restore it
 			// restore job_data
 			job.record(job_info) ;
 			::string jn = job->name() ;
@@ -121,13 +124,8 @@ int main( int argc , char* /*argv*/[] ) {
 		if ( +phy_lad && +bck_phy_lad ) SWEAR( phy_lad!=bck_phy_lad , phy_lad , bck_phy_lad ) ;
 	} ;
 	//
-	app_init({ .read_only_ok=false , .py_version=Py::Version }) ;
-	Record::s_autodep_env(New) ;
-	//
-	if (argc!=1                            ) exit(Rc::Usage   ,"must be called without arg"                                                      ) ;
-	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
-	if (FileInfo(File(ServerMrkr)).exists()) exit(Rc::BadState,"after having ensured no lmake_server is running, consider : rm ",ServerMrkr      ) ;
-	//
+	// this must be done before app_init as, if last lmake_repair was interrupted, admin_dir may be a fresh dir not yet initialized (no version file) and app_init would refuse it
+	// lmake_repair must be started from repo root (checked below), so relative paths are meaningful here
 	if (FileInfo(bck_admin_dir_s).tag()==FileTag::Dir) {
 		if (FileInfo(repair_mrkr).tag()>=FileTag::Reg) {
 			unlnk( admin_dir , {.dir_ok=true} ) ;                        // if last lmake_repair was interrupted, admin_dir contains no useful information
@@ -138,6 +136,14 @@ int main( int argc , char* /*argv*/[] ) {
 		try                       { rename( bck_admin_dir/*src*/ , admin_dir/*dst*/ ) ; }
 		catch (::string const& e) { fail_prod(e) ;                                      }
 	}
+	//
+	app_init({ .read_only_ok=false , .py_version=Py::Version }) ;
+	Record::s_autodep_env(New) ;
+	//
+	if (argc!=1                            ) exit(Rc::Usage   ,"must be called without arg"                                                      ) ;
+	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
+	if (FileInfo(File(ServerMrkr)).exists()) exit(Rc::BadState,"after having ensured no lmake_server is running, consider : rm ",ServerMrkr      ) ;
+	//
 	if (FileInfo(cat(PrivateAdminDirS,"local_admin/job_data/")).tag()!=FileTag::Dir) exit(Rc::Fail,"nothing to repair") ;
 	//
 	Trace::s_new_trace_file({}) ;
@@ -149,19 +155,25 @@ int main( int argc , char* /*argv*/[] ) {
 	try                       { rename( admin_dir/*src*/ , bck_admin_dir/*dst*/ ) ; }
 	catch (::string const& e) { exit(Rc::System,e) ;                                }
 	//
-	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ;                // create marker
+	if ( !AcFd( repair_mrkr , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.err_ok=true} ) ) exit(Rc::System,"cannot create ",repair_mrkr) ; // create marker
 	g_writable = true ;
+	// mark repo as initialized right away : if this process is interrupted, app_init() of the next lmake_repair (or lmake_dump) would otherwise refuse the fresh
+	// admin dir ("repo not initialized") before reaching the marker logic above, and the suggested restart would be impossible
+	chk_version( {}/*dir_s*/ , { .chk=Maybe , .key="repo" , .clean_msg=git_clean_msg() , .version=Version::Repo , .py_version=Py::Version } ) ;
 	//
 	Trace::s_new_trace_file(cat(PrivateAdminDirS,"trace/",*g_exe_name)) ;
 	//
 	// make a fresh local admin dir
+	//
 	{	::string msg ;
 		try {
-			Makefiles::refresh(/*out*/msg,nullptr/*options*/,user_env,false/*rescue*/,true/*refresh*/,*g_startup_dir_s) ;
+			try {
+				Makefiles::refresh( /*out*/msg , nullptr/*options*/ , user_env , false/*rescue*/ , true/*refresh*/ , *g_startup_dir_s ) ;
+				if (+msg) Fd::Stderr.write(with_nl(msg)) ;
+			} catch(::string const& e) { throw ::pair(e,Rc::BadState) ; }
+		} catch (::pair_s<Rc> const& e) {
 			if (+msg) Fd::Stderr.write(with_nl(msg)) ;
-		} catch (::string const& e) {
-			if (+msg) Fd::Stderr.write(with_nl(msg)) ;
-			exit(Rc::BadState,e) ;
+			exit(e.second,e.first) ;
 		}
 	}
 	//

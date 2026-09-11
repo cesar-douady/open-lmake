@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Tue Sep  8 18:21:05 2026 -->
+<!-- CreationDate: Fri Sep 11 19:12:48 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -81,7 +81,13 @@ step back and forget about the repair.</p>
 <p style="margin-left:9%; margin-top: 1em">While repairing
 <b>lmake_repair</b> generates a file
 <i>LMAKE/repaired_jobs</i> that contains the list of
-successfully repaired jobs.</p>
+successfully repaired jobs. +.LP +Only jobs that completed
+successfully are repaired : jobs in error, jobs that were
+interrupted and jobs whose rule has changed are rerun by the
+next <b>lmake</b>. +Marks set with <b>lmark</b> (frozen jobs
+and no-trigger files) are not preserved : list them with
+<b>lmark -lf</b> and <b>lmark -lt</b> before repairing and
+set them again afterwards.</p>
 
 
 <p style="margin-left:9%; margin-top: 1em"><b>lmake_repair</b>
