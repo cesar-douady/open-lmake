@@ -243,7 +243,7 @@ static int/*rc*/ _pre_exec(void* arg) {
 ::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir_s , Channel chnl ) {
 	Trace trace(chnl,"connect_to_server",magic,cmd_line) ;
 	::string file_service_str ;
-	Bool3    server_is_local  = Maybe                                                          ;
+	bool     server_is_local  = false/*garbage*/                                               ;
 	pid_t    server_pid       = 0                                                              ;
 	Pdate    now              = New                                                            ;
 	Child    server           { .as_session=true , .cmd_line=::move(cmd_line) , .cwd_s=dir_s } ;
@@ -262,13 +262,18 @@ static int/*rc*/ _pre_exec(void* arg) {
 			AcFd       server_mrkr_fd { dir_s+server_mrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
 			::vector_s lines          = server_mrkr_fd.read_lines()          ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
 			//
-			file_service_str = ::move            (lines[0]) ;
-			server_pid       = from_string<pid_t>(lines[1]) ;
-			server_is_local  = No                           ;
+			file_service_str = ::move            (lines[0])             ;
+			server_pid       = from_string<pid_t>(lines[1])             ;
+			server_is_local  = fqdn()==SockFd::s_host(file_service_str) ;
+			if ( server_is_local && !sense_process(server_pid) ) {
+				trace("remove marker",server_pid,server_mrkr) ;
+				Fd::Stderr.write(cat("server (pid=",server_pid,") has vanished, removing marker file ",server_mrkr,'\n')) ;
+				unlnk(server_mrkr) ;
+				goto LaunchServer ;
+			}
 			try {
 				KeyedService service { file_service_str , true/*name_ok*/ } ;
-				server_is_local |= fqdn()==SockFd::s_host(file_service_str) ;
-				if (server_is_local==Yes) service.addr = 0 ;                                   // dont use network if not necessary
+				if (server_is_local) service.addr = 0 ;                                   // dont use network if not necessary
 				//
 				try                     { return { mk_client(service) , server_pid } ; }
 				catch (::string const&) { goto LaunchServer                          ; }
@@ -302,13 +307,13 @@ static int/*rc*/ _pre_exec(void* arg) {
 		}
 	}
 	::string msg = "cannot connect to nor launch "+base_name(server.cmd_line[0]) ;
-	if (server_is_local!=Maybe) {
+	if (try_old) {
 		msg << ", consider :\n" ;
-		if ( server_pid && (server_is_local==No||sense_process(server_pid)) ) {
-			/**/                     msg << '\t'                                         ;
-			if (server_is_local==No) msg << "ssh "<<SockFd::s_host(file_service_str)+' ' ;
-			/**/                     msg << "kill "<<server_pid                          ;
-			/**/                     msg << '\n'                                         ;
+		if ( server_pid && (!server_is_local||sense_process(server_pid)) ) {
+			/**/                  msg << '\t'                                         ;
+			if (!server_is_local) msg << "ssh "<<SockFd::s_host(file_service_str)+' ' ;
+			/**/                  msg << "kill "<<server_pid                          ;
+			/**/                  msg << '\n'                                         ;
 		}
 		msg << "\trm "<<dir_s<<server_mrkr ;
 	}

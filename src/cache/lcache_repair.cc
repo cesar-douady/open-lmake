@@ -31,15 +31,17 @@ enum class FileKind : uint8_t {
 } ;
 
 struct RunEntry {
+	// cxtors & co
+	bool operator+() const { return +run ; }
 	// services
-	bool operator<(RunEntry const& other) const { return ::tuple(job,last_access,name) < ::tuple(other.job,other.last_access,other.name) ; } // oldest first within a job so as to rebuild LRU
+	bool operator<(RunEntry const& other) const { return ::tuple(job,last_access,run) < ::tuple(other.job,other.last_access,other.run) ; } // oldest first within a job so as to rebuild LRU
 	// data
-	::string         name        ;                    // <job>/<key>-first or <job>/<key>-last
+	::string         run         ;                    // <job>/<key>-(first|last)
 	::string         job         ;
-	BitMap<FileKind> files       ;
+	BitMap<FileKind> files       = {}               ;
 	bool             is_last     = false/*garbage*/ ;
 	CkeyIdx          key         = 0    /*.      */ ; // key idx as found on disk, may be different from the one in the rebuilt store
-	Pdate            last_access ;
+	Pdate            last_access = {}               ;
 } ;
 
 struct DryRunDigest {
@@ -65,19 +67,21 @@ static DryRunDigest _dry_run() {
 	::string reserved_s = cat(PrivateAdminDirS,"reserved/") ;
 	if (FileInfo(reserved_s).exists()) res.to_rm.emplace_back(reserved_s,"reserved dir") ;
 	//
-	::string           admin_dir = cat("./",AdminDirS,rm_slash)                                                                                 ;
+	::string           admin_dir = cat("./",AdminDirS,rm_slash)                                                                             ;
 	::vmap_s<FileTag>  files     = walk( Fd::Cwd , ~FileTags() , {}/*pfx*/ , [&](::string const& f) { return f.starts_with(admin_dir) ; } ) ; ::sort(files) ;
 	::umap_s<RunEntry> runs      ;
-	::vector_s         dirs      ;                                                                                                           // all dirs, sorted
-	::vmap_ss          bad_files ;                                                                                                           // map files to reasons
+	::vector_s         dirs_s    ;                                                                    // all dirs, sorted
 	for( auto& [file,tag] : files ) {
-		if (!file) continue ;                                                                                                                // top-level dir
+		if (!file) continue ;                                                                         // top-level dir
 		SWEAR(file[0]=='/') ; file = file.substr(1/* / */) ;
-		if ( with_slash(file)==AdminDirS ) continue ;                                                                                        // admin dir is pruned, but is listed itself
-		if ( tag==FileTag::Dir           ) { dirs.push_back(with_slash(file)) ; continue ; }
+		if (tag==FileTag::Dir) {
+			::string f_s = with_slash(file) ;
+			if (f_s!=AdminDirS) dirs_s.push_back(::move(f_s)) ;
+			continue ;
+		}
 		try {
 			throw_unless( tag>=FileTag::Reg , "not a regular file" ) ;
-			::string run = file    ;
+			::string run = file ;
 			FileKind fk  ;
 			if      (run.ends_with("-data") ) { run.resize(run.size()-5/*-data*/) ; fk = FileKind::Data ; }
 			else if (run.ends_with("-info") ) { run.resize(run.size()-5/*-info*/) ; fk = FileKind::Info ; }
@@ -87,25 +91,30 @@ static DryRunDigest _dry_run() {
 			if      (run.ends_with("-first")) { is_last = false ; dash = run.size()-6/*-first*/ ; }
 			else if (run.ends_with("-last" )) { is_last = true  ; dash = run.size()-5/*-last */ ; }
 			else                                throw "unrecognized first/last suffix"s ;
-			size_t  slash  = run.rfind('/',dash-1) ; throw_unless( slash!=Npos && slash>0 , "no job dir" ) ;
-			CkeyIdx key    ;
+			size_t  slash = run.rfind('/',dash-1) ; throw_unless( slash!=Npos && slash>0 , "no job dir" ) ;
+			CkeyIdx key   ;
 			try                     { key = from_string<CkeyIdx>(substr_view(run,slash+1,dash-slash-1)) ; }
 			catch (::string const&) { throw "unrecognized key"s ;                                         }
 			if (!res.keys.contains(key)) throw "unrecognized repo"s ;
-			RunEntry& entry = runs[run] ;
-			entry.name     = run                 ;
-			entry.job      = run.substr(0,slash) ;
-			entry.files   |= fk                  ;
-			entry.is_last  = is_last             ;
-			entry.key      = key                 ;
+			if ( +res.runs && res.runs.back().run==run ) {
+				res.runs.back().files |= fk ;
+			} else {
+				res.runs.push_back({
+					.run     = run
+				,	.job     = run.substr(0,slash)
+				,	.files   = fk
+				,	.is_last = is_last
+				,	.key     = key
+				}) ;
+			}
 		} catch (::string const& e) {
-			bad_files.emplace_back(file,e) ;
+			res.to_rm.emplace_back(file,e) ;
 		}
 	}
-	::sort(dirs) ;
-	for( auto& [run,entry] : runs ) {
-		::string info_file = run+"-info" ;
-		::string data_file = run+"-data" ;
+	::sort(dirs_s) ;
+	for( RunEntry& entry : res.runs ) {
+		::string info_file = entry.run+"-info" ;
+		::string data_file = entry.run+"-data" ;
 		res.n_processed++ ;
 		try {
 			throw_unless( entry.files[FileKind::Data] , "no accompanying data" ) ;
@@ -118,63 +127,62 @@ static DryRunDigest _dry_run() {
 			throw_unless( ::lstat(data_file.c_str(),&data_stat)==0           , "cannot stat data" ) ;
 			throw_unless( DiskSz(data_stat.st_size)>=job_info.end.total_z_sz , "truncated data"   ) ; // data file contains target sizes + compressed targets
 			entry.last_access = Pdate(data_stat.st_atim) ;
+			res.n_repaired++ ;
 		} catch (::string const& e) {
-			if (entry.files[FileKind::Info]) bad_files.emplace_back(info_file,e) ;
-			if (entry.files[FileKind::Data]) bad_files.emplace_back(data_file,e) ;
-			continue ;
+			if (entry.files[FileKind::Info]) res.to_rm.emplace_back(info_file,e) ;
+			if (entry.files[FileKind::Data]) res.to_rm.emplace_back(data_file,e) ;
+			entry.run = {} ;                                                                          // cancel entry
 		}
-		res.n_repaired++ ;
-		res.runs.push_back(::move(entry)) ;
 	}
+	::erase_if( res.runs , [](RunEntry const& re) { return !re ; } ) ;                                // erase canceled entries
 	::sort(res.runs) ;
-	// dirs containing no kept run (recursively) are useless, and would prevent job dir removal upon victimization
+	// dirs_s containing no kept run (recursively) are useless, and would prevent job dir removal upon victimization
 	::uset_s keep_dirs_s ;
 	for( RunEntry const& entry : res.runs )
-		for( ::string d_s=dir_name_s(entry.name) ; +d_s ; d_s=dir_name_s(d_s) )
+		for( ::string d_s=dir_name_s(entry.run) ; +d_s ; d_s=dir_name_s(d_s) )
 			if (!keep_dirs_s.insert(d_s).second) break ;
 	::string last_rm_dir_s ;
-	for( ::string const& d_s : dirs ) {
+	for( ::string const& d_s : dirs_s ) {
 		if ( keep_dirs_s.contains(d_s)                        ) continue ;
-		if ( +last_rm_dir_s && d_s.starts_with(last_rm_dir_s) ) continue ; // already removed as part of last_rm_dir_s
+		if ( +last_rm_dir_s && d_s.starts_with(last_rm_dir_s) ) continue ;                            // already removed as part of last_rm_dir_s
 		res.to_rm.emplace_back( d_s , "no run" ) ;
 		last_rm_dir_s = d_s ;
 	}
-	for( auto& [file,reason] : bad_files ) res.to_rm.emplace_back(file,reason) ; // report all files with their reason, even if already removed as part of a dir
 	return res ;
 }
 
 static CrunIdx/*n_conflicts*/ _repair(DryRunDigest const& dry_run) {
 	Trace trace("_repair") ;
-	SyncGuard          sync_guard  { g_file_sync }                          ;
-	::string           reserved_s  = cat(PrivateAdminDirS,"reserved/")      ;
-	::umap<CkeyIdx,Ckey> keys      ;                                          // map old keys to new keys
-	::string           keys_str    ;
-	CacheUploadKey     n_reserved  = 0                                      ;
-	CrunIdx            n_conflicts = 0                                      ;
+	SyncGuard            sync_guard  { g_file_sync }                     ;
+	::string             reserved_s  = cat(PrivateAdminDirS,"reserved/") ;
+	::umap<CkeyIdx,Ckey> keys        ;                                     // map old keys to new keys
+	::string             keys_str    ;
+	CacheUploadKey       n_reserved  = 0                                 ;
+	CrunIdx              n_conflicts = 0                                 ;
 	//
 	mk_dir_s(reserved_s) ;
-	for( RunEntry const& entry : dry_run.runs )                               // create keys in a deterministic order (sorted runs), as new key idx's may differ from old ones
+	for( RunEntry const& entry : dry_run.runs )                            // create keys in a deterministic order (sorted runs), as new key idx's may differ from old ones
 		if (keys.try_emplace( entry.key , New , dry_run.keys.at(entry.key) ).second) keys_str << +keys.at(entry.key)<<' '<<dry_run.keys.at(entry.key)<<'\n' ;
 	//
 	for( size_t i=0 ; i<dry_run.runs.size() ;) {
-		size_t   start = i                    ;
-		::string job   = dry_run.runs[i].job  ;
+		size_t          start = i                   ;
+		::string const& job   = dry_run.runs[i].job ;
 		// move all runs of a job whose name changes out of the way before inserting any of them, as their new names may collide with old names of other runs
-		::vector<::pair_ss> reserved_files ;                                  // (new_name,reserved_file) for each run of job
+		::vector<::pair_ss> reserved_files ;                               // (new_name,reserved_file) for each run of job
 		for( ; i<dry_run.runs.size() && dry_run.runs[i].job==job ; i++ ) {
-			RunEntry const& entry    = dry_run.runs[i]                                    ;
-			::string        new_name = run_file( job , +keys.at(entry.key) , entry.is_last ) ;
+			RunEntry const& entry    = dry_run.runs[i]                                       ;
+			::string        new_run  = run_file( job , +keys.at(entry.key) , entry.is_last ) ;
 			::string        reserved ;
-			if (new_name!=entry.name) {
+			if (new_run!=entry.run) {
 				reserved = reserved_file(++n_reserved) ;
-				rename_run( entry.name , reserved , &sync_guard ) ;
+				rename_run( entry.run , reserved , &sync_guard ) ;
 			}
-			reserved_files.emplace_back( ::move(new_name) , ::move(reserved) ) ;
+			reserved_files.emplace_back( ::move(new_run) , ::move(reserved) ) ;
 		}
 		for( size_t j : iota(start,i) ) {
-			RunEntry const& entry    = dry_run.runs[j]          ;
-			::string const& reserved = reserved_files[j-start].second ;
-			::string const& src      = +reserved ? reserved : entry.name ;
+			RunEntry const& entry    = dry_run.runs[j]                  ;
+			::string const& reserved = reserved_files[j-start].second   ;
+			::string const& src      = +reserved ? reserved : entry.run ;
 			try {
 				::string      job_info_str = AcFd(src+"-info").read()                                                               ;
 				JobInfo       job_info     = deserialize<JobInfo>(job_info_str)                                                     ;
@@ -183,24 +191,24 @@ static CrunIdx/*n_conflicts*/ _repair(DryRunDigest const& dry_run) {
 				Cjob          cjob         { New , job , deps.n_statics }                                                           ;
 				//
 				bool done = cjob->insert(
-					deps                                                                                                                                             // to search entry
+					deps                                                                                                                                               // to search entry
 				,	keys.at(entry.key) , entry.is_last?KeyIsLast::Yes:KeyIsLast::No , entry.last_access , sz , to_rate(g_cache_config,sz,job_info.end.digest.exe_time) // to create entry
 				,	false/*force*/ , job_info.end.digest.targets_crc
-				,	reserved , &sync_guard                                                                                                                             // reserved file is renamed (or unlinked if not done)
+				,	reserved , &sync_guard                                                                              // reserved file is renamed (or unlinked if not done)
 				) ;
-				if (done) { trace("done",entry.name,reserved_files[j-start].first) ; continue ; }
-				trace("conflict",entry.name) ;
-				Fd::Stdout.write(cat("rm ",mk_shell_str(entry.name),"-{data,info} # conflicts with a better entry\n")) ;
-				if (!reserved) unlnk_run( entry.name , &sync_guard ) ;                                                                                                 // not unlinked by insert in that case
+				if (done) { trace("done",entry.run,reserved_files[j-start].first) ; continue ; }
+				trace("conflict",entry.run) ;
+				Fd::Stdout.write(cat("rm ",mk_shell_str(entry.run),"-{data,info} # conflicts with a better entry\n")) ;
+				if (!reserved) unlnk_run( entry.run , &sync_guard ) ;                                                   // not unlinked by insert in that case
 			} catch (::string const& e) {
-				trace("throw",entry.name,e) ;
-				Fd::Stdout.write(cat("rm ",mk_shell_str(entry.name),"-{data,info} # ",e,'\n')) ;
+				trace("throw",entry.run,e) ;
+				Fd::Stdout.write(cat("rm ",mk_shell_str(entry.run),"-{data,info} # ",e,'\n')) ;
 				unlnk_run( src , &sync_guard ) ;
 			}
 			n_conflicts++ ;
 		}
 	}
-	try                       { rmdir_s(reserved_s) ;                                                    } // all reserved files must have been renamed or unlinked
+	try                       { rmdir_s(reserved_s) ;                                                        }          // all reserved files must have been renamed or unlinked
 	catch (::string const& e) { Fd::Stderr.write(cat("cannot clean up ",reserved_s,rm_slash," : ",e,'\n')) ; }
 	//
 	AcFd(g_repo_keys_file,{O_WRONLY|O_TRUNC|O_CREAT}).write(keys_str) ;

@@ -365,16 +365,19 @@ struct linux_dirent64 {
 linux_dirent64::linux_dirent64() : d_reclen{sizeof(linux_dirent64)} {}
 
 void SyncGuardDir::access(FileRef path) {
-	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                         // cannot go uphill
-	if ( !has_dir(path.file)                                                             ) return ;
-	access_dir_s({path.at,dir_name_s(path.file)}) ;
+	if      (path.file.ends_with(is_dir_name(path.file)?"../":"..")) {}                                                   // cannot go uphill
+	else if (has_dir(path.file)                                    ) access_dir_s({path.at,dir_name_s(path.file)}) ;
+	else if (fetched_dirs_s.emplace(File(path.at)).second) {                                                              // path is at top level, we must synchronize it
+		::string abs = path.at==Fd::Cwd ? cwd_s() : read_lnk(cat("/proc/self/fd/",path.at.fd)) ;
+		if (+abs) ::close(::open( abs.c_str() , O_RDONLY|O_DIRECTORY )) ;
+	}
 }
 void SyncGuardDir::access_dir_s(FileRef dir_s) {
-	access(dir_s) ;                                                                                                         // we opened dir, we must ensure its dir is up-to-date w.r.t. NFS
-	if (fetched_dirs_s.emplace(dir_s).second) ::close( ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ) ; // open to force NFS close to open coherence, close is useless
+	access(dir_s) ;                                                                                                       // we opened dir, we must ensure its dir is up-to-date w.r.t. NFS
+	if (fetched_dirs_s.emplace(dir_s).second) ::close(::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY )) ; // open to force NFS close to open coherence, close is useless
 }
 void SyncGuardDir::change(FileRef path) {
-	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                         // cannot go uphill
+	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                       // cannot go uphill
 	if ( !has_dir(path.file)                                                             ) return ;
 	File dir_s { path.at , dir_name_s(path.file) } ;
 	access_dir_s(dir_s) ;
@@ -383,7 +386,7 @@ void SyncGuardDir::change(FileRef path) {
 void SyncGuardDir::exec(FileRef path) {
 	int fd = ::openat( path.at , path.file.c_str() , O_RDONLY ) ;
 	if (fd>=0) {
-		::fdatasync(fd) ;                                                                                                   // force network filesystem cache invalidation to avoid error ETXTBSY
+		::fdatasync(fd) ;                                                                                                 // force network filesystem cache invalidation to avoid error ETXTBSY
 		::close(fd)     ;
 	}
 }
@@ -396,13 +399,20 @@ void SyncGuardReaddir::access(FileRef path) {
 	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
 	if ( !has_dir(path.file)                                                             ) return ;
 	access_dir_s({path.at,dir_name_s(path.file)}) ;
+	if      (path.file.ends_with(is_dir_name(path.file)?"../":"..")) {}                                                // cannot go uphill
+	else if (has_dir(path.file)                                    ) access_dir_s({path.at,dir_name_s(path.file)}) ;
+	else if (fetched_dirs_s.emplace(File(path.at)).second) {                                                           // path is at top level, we must synchronize it
+		::string abs = path.at==Fd::Cwd ? cwd_s() : read_lnk(cat("/proc/self/fd/",path.at.fd)) ;
+		Fd       fd  = ::open( abs.c_str() , O_RDONLY|O_DIRECTORY )                            ;
+		::syscall( SYS_getdents64 , fd , &::ref(linux_dirent64()) , 1 ) ;
+		::close(fd) ;
+	}
 }
 void SyncGuardReaddir::access_dir_s(FileRef dir_s) {
 	access(dir_s) ;                                                                                                    // we opened dir, we must ensure its dir is up-to-date
 	if (fetched_dirs_s.emplace(dir_s).second) {
-		Fd             fd     = ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ;
-		linux_dirent64 dirent ;
-		::syscall( SYS_getdents64 , fd , &dirent , 1 ) ;
+		Fd fd = ::openat( dir_s.at , dir_s.file.c_str() , O_RDONLY|O_DIRECTORY ) ;
+		::syscall( SYS_getdents64 , fd , &::ref(linux_dirent64()) , 1 ) ;
 		::close(fd) ;
 	}
 }
