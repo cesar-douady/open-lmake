@@ -30,6 +30,12 @@ if __name__!='__main__' :
 		cache  = 'my_cache'
 		cmd    = 'cat src ; echo {File}'
 
+	class Cat1(Rule) :
+		target = r'{File:.*}.out1'
+		dep    = 'src'
+		cache  = 'my_cache'
+		cmd    = 'sleep 1 ; cat src ; echo {File}' # ensure job is perceived as longer (hence favored to be kept in cache) that Cat in cache
+
 	class Asym(Rule) :             # accesses to x are Reg in repo A and Lnk only in repo B
 		target = r'{File:.*}.asym'
 		cache  = 'my_cache'
@@ -66,7 +72,7 @@ else :
 		shutil.rmtree('LMAKE',ignore_errors=True)
 		os.makedirs('LMAKE')                      # keep repo root unambiguous
 		for f in os.listdir('.') :
-			if f.endswith(('.out','.asym')) : os.unlink(f)
+			if f.endswith(('.out','.out1','.asym')) : os.unlink(f)
 
 	def run_files() :
 		res = []
@@ -85,9 +91,9 @@ else :
 		print('src'       ,file=open(f'{r}/src','w'))
 		print('x from '+r ,file=open(f'{r}/x'  ,'w'))
 
-	os.chdir('A') ; ut.lmake( 'zz.out' , 't.asym' , done=2 , new=2 )
+	os.chdir('A')                      ; ut.lmake( 'zz.out' , 't.asym' , done=2 , new=2 )
 	print('src2',file=open('src','w')) ; ut.lmake( 'zz.out' , changed=1 , done=1 )                               # zz.out now has a first and a last entry for A
-	os.chdir('../B') ; ut.lmake( 'aa.out' , 't.asym' , done=2 , new=2 )                                          # t.asym does not hit as x is different
+	os.chdir('../B')                   ; ut.lmake( 'aa.out' , 't.asym' , done=2 , new=2 )                        # t.asym does not hit as x is different
 	chk_cache()
 	files = run_files()
 	assert len(files)==10,files                                                                                  # 5 runs (2 for t.asym, 2 for zz.out)
@@ -168,11 +174,11 @@ else :
 	open(zz_dir+'/stray','w')
 	print( 'size = 3000' , file=open('../CACHE/LMAKE/config.py','w') )                     # cache can hold 2 runs, not 3
 	for i in range(3) :                                                                    # all pre-existing jobs are victimized, including zz.out whose dir cannot be removed
-		fresh() ; ut.lmake( f'new{i}.out' , done=1 , new=... )
+		fresh() ; ut.lmake( f'new{i}.out1' , done=1 , new=... )                            # use a long rule so that cache will favor newer jobs
 	chk_cache()
 	assert not [ f for f in os.listdir(zz_dir) if f.endswith('-data') ],os.listdir(zz_dir)
 	res = repair('-f')                                                                     # stray file is cleaned up
 	assert 'zz.out' in res,res
 	chk_cache()
 	assert not osp.exists(zz_dir)
-	fresh() ; ut.lmake( 'new2.out' , hit_done=1 , new=... )
+	fresh() ; ut.lmake( 'new2.out1' , hit_done=1 , new=... )

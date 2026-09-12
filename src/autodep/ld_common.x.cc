@@ -209,7 +209,7 @@ static void _exec_chk_is_32([[maybe_unused]] ::string const& file) {
 #else
 	template<bool Send> struct _Exec : Record::Exec<Send,true/*SkipSimple*/> {
 		using Base = Record::Exec<Send,true/*SkipSimple*/> ;
-		using Base::real ;                                                                                            // XXX? : why is this necessary ?
+		using Base::real ;
 		_Exec() = default ;
 		_Exec( Record& r , Record::Path&& path , bool no_follow , const char* const /*envp*/[] , Comment c ) : Base{r,::move(path),no_follow,c} {
 			_exec_chk_is_32(real) ;
