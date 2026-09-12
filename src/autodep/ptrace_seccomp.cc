@@ -41,10 +41,9 @@ template<class T> static typename ::umap<pid_t,T>::const_iterator _get_ppid( pid
 }
 
 struct PidInfoBase {
-	// cxtors & casts
+	// cxtors & co
 	PidInfoBase() = default ;
 	PidInfoBase( pid_t pid , Bool3 enable ) : record{ New , enable , pid } {}
-	// accesses
 	void operator>>(::string& os) const { os << proc_mem ; } // NO_COV
 	// data
 	Record record   ;
@@ -54,7 +53,7 @@ struct PidInfoBase {
 namespace AutodepPtrace {
 
 	struct PidInfo : PidInfoBase {
-		// cxtors & casts
+		// cxtors & co
 		using PidInfoBase::PidInfoBase ;
 		// services
 		void event( pid_t , int wstatus ) ;
@@ -261,7 +260,7 @@ namespace AutodepPtrace {
 		using NotifAddfd = struct ::seccomp_notif_addfd ;
 
 		struct TidInfo : PidInfoBase {
-			// cxtors & casts
+			// cxtors & co
 			TidInfo() = default ;
 			TidInfo( pid_t tid , Bool3 enable ) : PidInfoBase{tid,enable} , tid{tid} {}
 			// data
@@ -278,14 +277,13 @@ namespace AutodepPtrace {
 				size_t newer = 0/*garbage*/ ;                                                      // circular list : newer of newest is oldest
 				size_t older = 0/*.      */ ;                                                      // circular list : older of oldest is newest
 			} ;
-			// cxtors & casts
+			// cxtors & co
 			TidInfoTab() {
 				for( size_t i : iota(NCtxs) ) {                                                    // make circular list
 					_lrus[i].newer = i==NCtxs-1   ? size_t(0) : i+1 ;
 					_lrus[i].older = i==size_t(0) ? NCtxs-1   : i-1 ;
 				}
 			}
-			// accesses
 			void operator>>(::string& os) const {                                                  // START_OF_NO_COV
 				::array<pid_t,NCtxs> tids  = {} ; for( auto [tid,idx] : _idxs ) tids[idx] = tid ;
 				First                first ;

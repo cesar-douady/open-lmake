@@ -12,21 +12,21 @@
 
 namespace Codec {
 	struct CodecRemoteSide {
-		// cxtors & casts
+		// cxtors & co
 		CodecRemoteSide() = default ;
 		CodecRemoteSide(           ::string const& descr ) ; // used when read from $LMAKE_AUTODEP_ENV
 		CodecRemoteSide( NewType , ::string const& dir_s ) ; // used when directly using and external dir
 		operator ::string() const ;
-		// accesses
 		void operator>>(::string&             ) const ;
 		bool operator==(CodecRemoteSide const&) const = default ;
-		bool is_dir() const { return Disk::is_dir_name(tab) ; }
-		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,tab      ) ;
 			::serdes(s,file_sync) ;
 			::serdes(s,umask    ) ;
 		}
+		// accesses
+		bool is_dir() const { return Disk::is_dir_name(tab) ; }
+		// services
 		// data
 		::string tab       ;                                 // source file if is_lcl(tab), else external dir
 		FileSync file_sync = {} ;
@@ -35,17 +35,15 @@ namespace Codec {
 }
 
 struct AutodepEnv : RealPathEnv {
-	// cxtors & casts
+	// cxtors & co
 	AutodepEnv() = default ;
 	// env format : server:port:fast_mail:fast_report_pipe:options:fqdn:tmp_dir_s:repo_root_s:sub_repo_s:src_dirs_s:codecs:views_s
 	// if tmp_dir_s is empty, there is no tmp dir
 	AutodepEnv(::string const& env) ;
 	AutodepEnv(NewType            ) : AutodepEnv{get_env("LMAKE_AUTODEP_ENV")} {}
 	operator ::string() const ;
-	// accesses
 	void operator>>(::string&) const ;
 	bool operator+ (         ) const { return +service ; }
-	// services
 	template<IsStream S> void serdes(S& s) {
 		/**/                        ::serdes(s,static_cast<RealPathEnv&>(self)) ;
 		/**/                        ::serdes(s,auto_mkdir                     ) ;
@@ -63,11 +61,12 @@ struct AutodepEnv : RealPathEnv {
 		else                        ::serdes(s,mk_map(codecs)                 ) ; // serialization does not support umap to ensure stability
 		/**/                        ::serdes(s,views_s                        ) ;
 	}
-	Fd           repo_root_fd   (                    ) const ;
-	bool         can_fast_report(                    ) const ;
-	AcFd         fast_report_fd (                    ) const ;
-	ClientSockFd slow_report_fd (                    ) const ;
-	void         chk            (bool for_cache=false) const ;
+	void chk(bool for_cache=false) const ;
+	// services
+	Fd           repo_root_fd   () const ;
+	bool         can_fast_report() const ;
+	AcFd         fast_report_fd () const ;
+	ClientSockFd slow_report_fd () const ;
 	// data
 	// START_OF_VERSIONING CACHE REPO JOB
 	bool                             auto_mkdir       = false ;                   // if true  <=> auto mkdir in case of chdir

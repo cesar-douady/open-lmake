@@ -147,7 +147,7 @@ using ReqCmdLine = CmdLine<ReqFlag,ReqKey,ReqMark> ;
 
 struct ReqOptions {
 	using FlagArgs = ::array_s<N<ReqFlag>> ;
-	// cxtors & casts
+	// cxtors & co
 	ReqOptions(                    ) : flag_args{*new FlagArgs} {             }
 	ReqOptions(ReqOptions const& ro) : ReqOptions{}             { self = ro ; }
 	ReqOptions( ::string const& sds , Bool3 rv , ReqKey k , ReqMark m , ::umap_ss const& ue , ReqFlags f={} , FlagArgs const& fa={} ) :
@@ -181,9 +181,7 @@ struct ReqOptions {
 		user_env      = ro.user_env      ;
 		return self ;
 	}
-	// accesses
 	void operator>>(::string&) const ;
-	// services
 	template<IsStream S> void serdes(S& s) {
 		/**/                        ::serdes( s , startup_dir_s    ) ;
 		/**/                        ::serdes( s , dark_video       ) ;
@@ -204,13 +202,11 @@ struct ReqOptions {
 
 struct ReqRpcReq {
 	using Proc = ReqProc ;
-	// cxtors & casts
+	// cxtors & co
 	ReqRpcReq() = default ;
 	ReqRpcReq( Proc p                                               ) : proc{p}                           { SWEAR(proc< Proc::HasArgs,proc) ; }
 	ReqRpcReq( Proc p , ::vector_s const& fs , ReqOptions const& ro ) : proc{p} , files{fs} , options{ro} { SWEAR(proc>=Proc::HasArgs,proc) ; }
-	// accesses
 	void operator>>(::string&) const ;
-	// services
 	bool operator+() const { return +proc ; }
 	template<IsStream S> void serdes(S& s) {
 		/**/                     ::serdes( s , proc          ) ;
@@ -224,13 +220,11 @@ struct ReqRpcReq {
 
 struct ReqRpcReply {
 	using Proc = ReqRpcReplyProc ;
-	// cxtors & casts
+	// cxtors & co
 	ReqRpcReply() = default ;
 	ReqRpcReply( Proc p , Rc         rc_  ) : proc{p} , rc {rc_         } { SWEAR( p==Proc::Status                                     ) ; }
 	ReqRpcReply( Proc p , ::string&& txt_ ) : proc{p} , txt{::move(txt_)} { SWEAR( p==Proc::File || p==Proc::Stderr || p==Proc::Stdout ) ; }
-	// accesses
 	void operator>>(::string&) const ;
-	// services
 	bool operator+() const { return +proc ; }
 	template<IsStream S> void serdes(S& s) {
 		::serdes(s,proc) ;

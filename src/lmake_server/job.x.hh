@@ -138,7 +138,7 @@ namespace Engine {
 		static_assert(Job::NGuardBits>=1) ;                                                                                                          // need 1 bit to store is_static_phony bit
 		static constexpr uint8_t NGuardBits = Job::NGuardBits-1       ;
 		static constexpr uint8_t NValBits   = NBits<Idx> - NGuardBits ;
-		// cxtors & casts
+		// cxtors & co
 		JobTgt() = default ;
 		JobTgt( Job j , bool isp=false                                                            ) : Job{j} { if (+j) _set_is_static_phony(isp) ; } // if no job, ensure !sure()
 		JobTgt( RuleTgt rt , ::string const& t , Bool3 chk_psfx=Yes , Req req={} , DepDepth lvl=0 ) ;                                                // chk_psfx=Maybe means check size only
@@ -146,12 +146,11 @@ namespace Engine {
 		JobTgt( JobTgt const& jt                                                                  ) : JobTgt{jt,jt._is_static_phony()} {}
 		//
 		JobTgt& operator=(JobTgt const& jt) { Job::operator=(jt) ; _set_is_static_phony(jt._is_static_phony()) ; return self ; }
-		//
+		// accesses
 		bool sure() const ;
 	private :
 		bool _is_static_phony    (        ) const { return Job::side<1>() ;                             }
 		void _set_is_static_phony(bool isp)       { { if (isp) SWEAR(+self) ; } Job::set_side<1>(isp) ; }
-		// accesses
 	public :
 		void operator>>(::string&) const ;
 		// services
@@ -159,9 +158,7 @@ namespace Engine {
 	} ;
 
 	struct JobTgts : JobTgtsBase {
-		// cxtors & casts
 		using JobTgtsBase::JobTgtsBase ;
-		// accesses
 		void operator>>(::string&) const ;
 	} ;
 
@@ -175,13 +172,12 @@ namespace Engine {
 			::string      severe_msg        ;
 			::vector<Req> running_reqs      ;
 		} ;
-		// cxtors & casts
+		// cxtors & co
 		JobExec() = default ;
 		JobExec( Job j ,               Pdate s           ) : Job{j} ,           start_date{s} , end_date{s} {}
 		JobExec( Job j , in_addr_t h , Pdate s           ) : Job{j} , host{h} , start_date{s} , end_date{s} {}
 		JobExec( Job j ,               Pdate s , Pdate e ) : Job{j} ,           start_date{s} , end_date{e} {}
 		JobExec( Job j , in_addr_t h , Pdate s , Pdate e ) : Job{j} , host{h} , start_date{s} , end_date{e} {}
-		// accesses
 		void operator>>(::string&) const ;
 		// services
 		// called in main thread after start
@@ -231,11 +227,21 @@ namespace Engine {
 	struct JobReqInfo : ReqInfo {                              // watchers of Job's are Node's
 		using Step       = JobStep       ;
 		using MakeAction = JobMakeAction ;
-		// cxtors & casts
+		// cxtors & co
 		JobReqInfo() = default ;
 		JobReqInfo( Req r , Job ) : ReqInfo{r} {}
-		// accesses
 		void operator>>(::string&) const ;
+		void chk() const {
+			switch (step()) {
+				case Step::None   : SWEAR(n_wait==0) ; break ; // not started yet, cannot wait anything
+				case Step::Dep    : SWEAR(n_wait> 0) ; break ; // we must be waiting something if analysing Dep
+				case Step::Queued :                            // if running, we are waiting for job execution
+				case Step::Exec   : SWEAR(n_wait==1) ; break ; // .
+				case Step::Done   :                            // done, cannot wait anything anymore
+				case Step::Hit    : SWEAR(n_wait==0) ; break ;
+			DF}                                                // NO_COV
+		}
+		// accesses
 		bool running(bool hit_ok=false) const {
 			switch (step()) {
 				case Step::Queued :
@@ -262,25 +268,14 @@ namespace Engine {
 		void add_watcher( Node watcher , NodeReqInfo& watcher_req_info ) {
 			ReqInfo::add_watcher(watcher,watcher_req_info) ;
 		}
-		void chk() const {
-			switch (step()) {
-				case Step::None   : SWEAR(n_wait==0) ; break ; // not started yet, cannot wait anything
-				case Step::Dep    : SWEAR(n_wait> 0) ; break ; // we must be waiting something if analysing Dep
-				case Step::Queued :                            // if running, we are waiting for job execution
-				case Step::Exec   : SWEAR(n_wait==1) ; break ; // .
-				case Step::Done   :                            // done, cannot wait anything anymore
-				case Step::Hit    : SWEAR(n_wait==0) ; break ;
-			DF}                                                // NO_COV
-		}
 		// data
 		struct State {
 			struct Bits {
 				RunStatus err  :NBits<RunStatus> = {}    ;
 				bool      modif:1                = false ;
 			} ;
-			// cxtors & casts
+			// cxtors & co
 			State() = default ;
-			// accesses
 			void operator>>(::string&) const ;
 			// data
 			JobReason reason      = {}    ;                    //  36  <= 64 bits, reason to run job when deps are ready, due to dep analysis
@@ -395,7 +390,7 @@ namespace Engine {
 	:	             ::variant< ::monostate/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ >
 	{	using Base = ::variant< ::monostate/*None*/ , JobInfoStart/*Start*/ , JobEndRpcReq/*End*/ , ::vector<::pair<Crc,bool/*err*/>>/*DepCrcs*/ > ;
 		using Kind = JobInfoKind ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::variant ; // necessary for clang++-14
 		// accesses
 		/**/             Kind kind() const { return Kind(index()) ; }

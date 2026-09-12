@@ -124,17 +124,14 @@ namespace Engine {
 		static Job           s_last_dyn_job  ;
 		static const char*   s_last_dyn_msg  ;
 		static Rule          s_last_dyn_rule ;
-		// cxtors & casts
+		// cxtors & co
 		using RuleBase::RuleBase ;
 		Rule(RuleBase const& rb) : RuleBase{rb} {}
-		// accesses
 		void operator>>(::string&) const ;
 	} ;
 
 	struct RuleCrc : RuleCrcBase {
-		// cxtors & casts
 		using RuleCrcBase::RuleCrcBase ;
-		// accesses
 		void operator>>(::string&) const ;
 	} ;
 
@@ -188,9 +185,8 @@ namespace Engine {
 	// used at match time
 	struct DepsAttrs {
 		static constexpr const char* Msg = "deps" ;
-		// cxtors & casts
+		// cxtors & co
 		void init( Py::Object const& , ::umap_s<CmdIdx> const& , RuleData const& ) ;
-		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes( s , deps,dyn_deps.first ) ; // dyn_deps.first is used algorithmically, not for pretty print only
 		}
@@ -376,15 +372,10 @@ namespace Engine {
 
 	struct DynEntry {
 		using Kind = DynKind ;
-		// cxtros & casts
+		// cxtros & co
 		DynEntry() = default ;
 		DynEntry( RulesBase const& , Bool3 is_python , Py::Dict const& py_src , ::umap_s<CmdIdx> const& var_idxs , bool compile ) ; // is_python is Yes/No for cmd, Maybe for dynamic attrs
-		// accesses
-		bool operator+() const { return +kind ; }
-		// services
-		template<IsStream S> void serdes   ( S& , RulesBase const* =nullptr ) ;
-		/**/                 void compile  (      RulesBase const&          ) ;
-		/**/                 void decompile(                                ) ;
+		bool operator+ (                  ) const { return +kind ; }
 		bool operator==(DynEntry const& de) const {
 			if (kind!=de.kind) return false ;
 			if (ctx !=de.ctx ) return false ;
@@ -399,6 +390,10 @@ namespace Engine {
 				case Kind::CompiledGlbs : FAIL() ;                                                // NO_COV too heavy to marshal code to compare, we'll see if necessary
 			DF}                                                                                   // NO_COV
 		}
+		template<IsStream S> void serdes( S& , RulesBase const* =nullptr) ;
+		// services
+		void compile  (      RulesBase const&          ) ;
+		void decompile(                                ) ;
 		// data
 		::vector<CmdIdx>  ctx        ;                 // a list of stems, targets & deps, accessed by code
 		::string          code_str   ;                 // contains string to compile to code object below or cmd for static shell cmd
@@ -420,7 +415,7 @@ namespace Engine {
 		static ::string s_parse_fstr( ::string const& fstr ,       Rule::RuleMatch const& m       , ::vmap_ss const& rsrcs={} ) {
 			return s_parse_fstr( fstr , {} , const_cast<Rule::RuleMatch&>(m) , rsrcs ) ;                                              // cannot lazy evaluate w/o a job
 		}
-		// cxtors & casts
+		// cxtors & co
 		DynBase() = default ;
 		DynBase( Py::Ptr<>* /*out*/ py_update , RulesBase& , Py::Dict const& , ::umap_s<CmdIdx> const& var_idxs , Bool3 is_python ) ; // is_python is Yes/No for cmd, Maybe for dynamic attrs
 		// accesses
@@ -437,14 +432,14 @@ namespace Engine {
 	template<class T> struct Dyn : DynBase {
 		// statics
 		static ::string s_exc_msg(bool using_static) { return cat("cannot compute dynamic ",T::Msg,using_static?", using static info":"") ; }
-		// cxtors & casts
+		// cxtors & co
 		Dyn() = default ;
 		Dyn( RulesBase& , Py::Dict const& , ::umap_s<CmdIdx> const& var_idxs , RuleData const& ) ;
-		// services
 		template<IsStream S> void serdes(S& s) {
 			::serdes(s,static_cast<DynBase&>(self)) ;
 			::serdes(s,spec                       ) ;
 		}
+		// services
 		void update_hash( Hash::Xxh&/*inout*/ h , RulesBase const& rs ) const {
 			// START_OF_VERSIONING REPO
 			/**/             h += spec        ;
@@ -473,7 +468,7 @@ namespace Engine {
 
 	struct DynDepsAttrs : Dyn<DepsAttrs> {
 		using Base = Dyn<DepsAttrs> ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		// services
 		::pair_s</*msg*/::vmap_s<DepSpec>> eval     (Rule::RuleMatch const&  ) const ;
@@ -482,7 +477,7 @@ namespace Engine {
 
 	struct DynStartCmdAttrs : Dyn<StartCmdAttrs> {
 		using Base = Dyn<StartCmdAttrs> ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		// services
 		StartCmdAttrs eval( Rule::RuleMatch const& , ::vmap_ss const& rsrcs , ::vmap_s<DepDigest>* =nullptr ) const ;
@@ -490,7 +485,7 @@ namespace Engine {
 
 	struct DynCmd : Dyn<Cmd> {
 		using Base = Dyn<Cmd> ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		// accesses
 		bool has_entry() const = delete ; // always true for Cmd's, should not ask
@@ -524,7 +519,7 @@ namespace Engine {
 			::vector<bool> captures = {} ;              // indexed by stem, true if stem is back referenced (i.e. appears a 2nd time in pattern)
 			// END_OF_VERSIONING
 		} ;
-		// cxtors & casts
+		// cxtors & co
 		RuleData() = default ;
 		RuleData(Special          ) ;
 		RuleData(::string_view str) {
@@ -534,14 +529,11 @@ namespace Engine {
 			_acquire_py( rules , dct ) ;
 			_set_crcs  ( rules       ) ;
 		}
+		void operator>>(::string&) const ;
 		template<IsStream S> void serdes (S&) ;
-		/**/                 void compile(  ) ;
-	private :
-		void _acquire_py( RulesBase& , Py::Dict const& ) ;
 	public :
 		::string pretty_str() const ;
 		// accesses
-		void   operator>>  (::string&) const ;
 		bool   is_plain    (         ) const {                    return special==Special::Plain         ; }
 		bool   user_defined(         ) const {                    return !allow_ext                      ; }                                    // used to decide to print in LMAKE/rules
 		Tflags tflags      (VarIdx ti) const { SWEAR(ti!=NoVar) ; return matches[ti].second.flags.tflags ; }
@@ -567,9 +559,11 @@ namespace Engine {
 		}
 		void        new_job_report( Delay exe_time , CoarseDelay cost , Tokens1 ) const ;
 		CoarseDelay cost          (                                             ) const ;
+		void        compile       (                                             )       ;
 	private :
+		void          _acquire_py( RulesBase& , Py::Dict const&      )       ;
 		::vector_s    _list_ctx  ( ::vector<CmdIdx> const& ctx       ) const ;
-		void          _set_crcs  ( RulesBase        const&           ) ;
+		void          _set_crcs  ( RulesBase        const&           )       ;
 		TargetPattern _mk_pattern( MatchEntry const& , bool for_name ) const ;
 		//
 		/**/              ::string _pretty_fstr   (::string const& fstr) const ;
@@ -686,15 +680,14 @@ namespace Engine {
 
 	struct RuleTgt : RuleCrc {
 		using Rep = Uint< NBits<RuleCrc> + NBits<VarIdx> > ;
-		//cxtors & casts
+		//cxtors & co
 		RuleTgt() = default ;
 		RuleTgt( RuleCrc rc , VarIdx ti ) : RuleCrc{rc} , tgt_idx{ti} {}
+		void               operator>> (::string&     ) const ;
+		Rep                operator+  (              ) const { return (+RuleCrc(self)<<NBits<VarIdx>) | tgt_idx  ; }
+		bool               operator== (RuleTgt const&) const = default ;
+		::partial_ordering operator<=>(RuleTgt const&) const = default ;
 		// accesses
-		void               operator>>  (::string&     ) const ;
-		Rep                operator+   (              ) const { return (+RuleCrc(self)<<NBits<VarIdx>) | tgt_idx  ; }
-		bool               operator==  (RuleTgt const&) const = default ;
-		::partial_ordering operator<=> (RuleTgt const&) const = default ;
-		//
 		::pair_s<RuleData::MatchEntry> const& key_matches () const { SWEAR(+self->rule)             ; return self->rule->matches [tgt_idx] ; }
 		TargetPattern                  const& pattern     () const { SWEAR(+self->rule)             ; return self->rule->patterns[tgt_idx] ; }
 		::string                       const& key         () const {                                  return key_matches().first           ; }

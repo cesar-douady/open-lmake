@@ -66,12 +66,12 @@ void mk_room          ( Disk::DiskSz                       ) ;
 
 struct Ckey : Idxed<CkeyIdx> {
 	using Base = Idxed<CkeyIdx> ;
-	// cxtors & casts
+	// cxtors & co
 	using Base::Base ;
 	Ckey(           ::string const& ) ; // make empty if not found
 	Ckey( NewType , ::string const& ) ; // create new if not found
+	void operator>>(::string&) const ;
 	// accesses
-	void            operator>>(::string&) const ;
 	CkeyData const& operator* (         ) const ;
 	CkeyData      & operator* (         )       ;
 	CkeyData const* operator->(         ) const { return &*self ; }
@@ -85,70 +85,69 @@ struct Ckey : Idxed<CkeyIdx> {
 
 struct CjobName : Idxed<CjobNameIdx> {
 	using Base = Idxed<CjobNameIdx> ;
-	// cxtors & casts
+	// cxtors & co
 	using Base::Base ;
+	void operator>>(::string&) const ;
 	// accesses
-	void     operator>>(::string&) const ;
-	::string str       (         ) const ;
+	::string str() const ;
 } ;
 
 struct CnodeName : Idxed<CnodeNameIdx> {
 	using Base = Idxed<CnodeNameIdx> ;
-	// cxtors & casts
+	// cxtors & co
 	using Base::Base ;
+	void operator>>(::string&) const ;
 	// accesses
-	void     operator>>(::string&) const ;
-	::string str       (         ) const ;
+	::string str() const ;
 } ;
 
 struct Cjob : Idxed<CjobIdx> {
 	using Base = Idxed<CjobIdx> ;
 	// statics
-	// cxtors & casts
+	// cxtors & co
 	using Base::Base ;
 	Cjob(           ::string const& name                    ) ; // make empty if not found
 	Cjob( NewType , ::string const& name , VarIdx n_statics ) ; // create new if not found
+	void operator>>(::string&) const ;
 	// accesses
-	void            operator>>(::string&) const ;
-	CjobData const& operator* (         ) const ;
-	CjobData      & operator* (         )       ;
-	CjobData const* operator->(         ) const { return &*self ; }
-	CjobData      * operator->(         )       { return &*self ; }
+	CjobData const& operator* () const ;
+	CjobData      & operator* ()       ;
+	CjobData const* operator->() const { return &*self ; }
+	CjobData      * operator->()       { return &*self ; }
 } ;
 
 struct Crun : Idxed<CrunIdx> {
 	using Base = Idxed<CrunIdx> ;
-	// cxtors& casts
+	// cxtors& co
 	using Base::Base ;
 	template<class... A> Crun( NewType , A&&... ) ; // args are passed to CrunData cxtor
+	void operator>>(::string&) const ;
 	// accesses
-	void            operator>>(::string&) const ;
-	CrunData const& operator* (         ) const ;
-	CrunData      & operator* (         )       ;
-	CrunData const* operator->(         ) const { return &*self ; }
-	CrunData      * operator->(         )       { return &*self ; }
+	CrunData const& operator* () const ;
+	CrunData      & operator* ()       ;
+	CrunData const* operator->() const { return &*self ; }
+	CrunData      * operator->()       { return &*self ; }
 } ;
 
 struct Cnode : Idxed<CnodeIdx> {
 	using Base = Idxed<CnodeIdx> ;
-	// cxtors & casts
+	// cxtors & co
 	using Base::Base ;
 	Cnode(           ::string const& name ) ; // make empty if not found
 	Cnode( NewType , ::string const& name ) ; // create new if not found
+	void operator>>(::string&) const ;
 	// accesses
-	void             operator>>(::string&) const ;
-	CnodeData const& operator* (         ) const ;
-	CnodeData      & operator* (         )       ;
-	CnodeData const* operator->(         ) const { return &*self ; }
-	CnodeData      * operator->(         )       { return &*self ; }
+	CnodeData const& operator* () const ;
+	CnodeData      & operator* ()       ;
+	CnodeData const* operator->() const { return &*self ; }
+	CnodeData      * operator->()       { return &*self ; }
 } ;
 
 struct CompileDigest {
-	// cxtors & casts
+	// cxtors & co
 	CompileDigest() = default ;
 	CompileDigest( ::vmap<Cache::StrId<Cache::CnodeIdx>,DepDigest> const& repo_deps , bool for_download , ::vector<Cache::CnodeIdx>* dep_ids=nullptr ) ; // dep_ids are filled for each named dep ...
 	~CompileDigest() ;                                                                                                                                   // ... in repo_deps
-	// accesses
 	void operator>>(::string&) const ;
 	// data
 	VarIdx              n_statics  = 0     ;
@@ -197,15 +196,15 @@ struct CjobData {
 	static void     s_rescue     () ;
 	// static data
 	static ::vector<Cjob> s_trash ;
-	// cxtors & casts
+	// cxtors & co
 	CjobData() = default ;
 	CjobData( CjobName n , VarIdx nss ) : n_statics{nss},_name{n} {}
+	void operator>>(::string&) const ;
 	// accesses
-	void     operator>>(::string&) const ;
-	Cjob     idx       (         ) const ;
-	bool     operator+ (         ) const { return +n_runs     ; }
-	::string name      (         ) const { return _name.str() ; }
-	// services
+	Cjob     idx       () const ;
+	bool     operator+ () const { return +n_runs     ; }
+	::string name      () const { return _name.str() ; }
+	// service
 	::pair<Crun,CacheHitInfo> match( CompileDigest const& ) ;                                    // updates lru related info when hit
 	bool/*done*/ insert(                                                                         // like match, but create when miss
 		CompileDigest const&                                                                     // to search entry
@@ -238,14 +237,14 @@ struct CrunData {
 	static CrunHdr const& s_c_hdr() ;
 	static CrunIdx        s_size () ;
 	static void           s_chk  () ;
-	// cxtors & casts
+	// cxtors & co
 	CrunData() = default ;
 	CrunData( Ckey , bool key_is_last , Cjob , Hash::Crc targets_crc , Time::Pdate last_access , Disk::DiskSz , Rate , CompileDigest const& ) ;
+	void operator>>(::string&) const ;
 	// accesses
-	void     operator>>(::string&) const ;
-	bool     operator+ (         ) const { return +job                                         ; }
-	Crun     idx       (         ) const ;
-	::string name      (         ) const { return run_file( job->name() , +key , key_is_last ) ; }
+	bool     operator+ () const { return +job                                         ; }
+	Crun     idx       () const ;
+	::string name      () const { return run_file( job->name() , +key , key_is_last ) ; }
 	// services
 	void                   access   (                                                               )       ; // move to top in LRU (both job and glb)
 	bool/*job_victimzied*/ victimize( bool victimize_job=true , SyncGuard* =nullptr                 )       ; // if victimize_job, victimize job if last run
@@ -277,14 +276,14 @@ struct CnodeData {
 	static void     s_rescue     () ;
 	// static data
 	static ::vector<Cnode> s_trash ;
-	// cxtors & casts
+	// cxtors & co
 	CnodeData() = default ;
 	CnodeData(CnodeName n) : _name{n} {}
+	void operator>>(::string&) const ;
 	// accesses
-	void     operator>>(::string&) const ;
-	Cnode    idx       (         ) const ;
-	bool     operator+ (         ) const { return ref_cnt>0   ; }
-	::string name      (         ) const { return _name.str() ; }
+	Cnode    idx       () const ;
+	bool     operator+ () const { return ref_cnt>0   ; }
+	::string name      () const { return _name.str() ; }
 	// services
 	void inc      () {                          ref_cnt++ ;                             }
 	void dec      () { SWEAR(ref_cnt>0,idx()) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }

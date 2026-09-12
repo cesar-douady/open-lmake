@@ -23,14 +23,14 @@ namespace Cache {
 		static void s_config( ::vmap_s<::vmap_ss> const& caches ) ;
 		// static data
 		static ::vector<CacheServerSide> s_tab ;
-		// cxtors & casts
+		// cxtors & co
 		CacheServerSide() = default ;
 		CacheServerSide(::vmap_ss const&) ;
-		// services
 		template<IsStream S> void _serdes(S& s) {
 			::serdes( s , static_cast<CacheRemoteSide&>(self) ) ;
 			::serdes( s , repo_key                            ) ;
 		}
+		// services
 		::vmap_ss descr() const ;
 		DownloadDigest download( Engine::Job , Engine::Rule::RuleMatch const& , bool incremental_ok                         ) ;
 		void commit            ( Engine::Job , CacheUploadKey , bool was_missing_audit , bool force , Hash::Crc targets_crc ) ;

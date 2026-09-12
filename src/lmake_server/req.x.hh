@@ -69,19 +69,19 @@ namespace Engine {
 		static ::vector<Req> _s_reqs_by_eta   ;                                                            // INVARIANT : ordered by item->stats.eta
 		static_assert(sizeof(ReqIdx)==1) ;                                                                 // else an array to hold zombie state is not ideal
 		static ::array<atomic<bool>,1<<(sizeof(ReqIdx)*8)> _s_zombie_tab ;
-		// cxtors & casts
+		// cxtors & co
 	public :
 		using Base::Base ;
 		Req(NewType) {
 			throw_unless( s_small_ids.n_acquired<(size_t(1)<<NReqIdxBits)-1 , "cannot run an additional command, already ",s_small_ids.n_acquired," are running" ) ;
 			self = {s_small_ids.acquire()} ;
 		}
+		void operator>>(::string&) const ;
 		// accesses
-		void           operator>>(::string&) const ;
-		ReqData const& operator* (         ) const ;
-		ReqData      & operator* (         )       ;
-		ReqData const* operator->(         ) const { return &*self ; }
-		ReqData      * operator->(         )       { return &*self ; }
+		ReqData const& operator* () const ;
+		ReqData      & operator* ()       ;
+		ReqData const* operator->() const { return &*self ; }
+		ReqData      * operator->()       { return &*self ; }
 		//
 		bool zombie(      ) const { return _s_zombie_tab[+self] ;             }                            // req has been killed, waiting to be closed when all jobs are done
 		void zombie(bool z)       { SWEAR(+self) ; _s_zombie_tab[+self] = z ; }                            // ensure Req 0 is always zombie
@@ -165,7 +165,7 @@ namespace Engine {
 			ReqInfo& _ri ;
 		} ;
 
-		// cxtors & casts
+		// cxtors & co
 		ReqInfo(Req       r ={}) : req{r} , _n_watchers{0} , _watchers_a{} {                     }
 		ReqInfo(ReqInfo&& ri   )                                           { self = ::move(ri) ; }
 		~ReqInfo() {
@@ -184,13 +184,13 @@ namespace Engine {
 			else                         new(&_watchers_a) ::array     {::move(ri._watchers_a)} ;
 			return self ;
 		}
+		void operator>>(::string&) const ;
 		// acesses
-		void       operator>>  (::string&) const ;
-		void       inc_wait    (         )       {                 n_wait++ ; SWEAR(n_wait) ;                       }
-		void       dec_wait    (         )       { SWEAR(n_wait) ; n_wait-- ;                                       }
-		bool       waiting     (         ) const { return n_wait                                                  ; }
-		bool       has_watchers(         ) const { return _n_watchers                                             ; }
-		WatcherIdx n_watchers  (         ) const { return _n_watchers==VectorMrkr?_watchers_v->size():_n_watchers ; }
+		void       inc_wait    ()       {                 n_wait++ ; SWEAR(n_wait) ;                       }
+		void       dec_wait    ()       { SWEAR(n_wait) ; n_wait-- ;                                       }
+		bool       waiting     () const { return n_wait                                                  ; }
+		bool       has_watchers() const { return _n_watchers                                             ; }
+		WatcherIdx n_watchers  () const { return _n_watchers==VectorMrkr?_watchers_v->size():_n_watchers ; }
 		// services
 	private :
 		void _add_watcher(Watcher watcher) ;
@@ -238,7 +238,7 @@ namespace Engine {
 		template<IsWatcher W> struct InfoMap {
 			using Idx  = typename W::Idx     ;
 			using Info = typename W::ReqInfo ;
-			// cxtors & casts
+			// cxtors & co
 		public :
 			InfoMap() = default ;
 			InfoMap (InfoMap&& im) { self = ::move(im) ; }
@@ -251,6 +251,7 @@ namespace Engine {
 				im._clear() ;                                    // ensure im is fully coherent after move
 				return self ;
 			}
+			bool operator+() const { return size() ; }
 		private :
 			void _clear() {
 				for( Info* p : _idxs ) if (p) delete p ;
@@ -258,11 +259,10 @@ namespace Engine {
 				_dflt = {} ;
 				_sz   = 0  ;
 			}
-			// accesses
 		public :
-			bool   operator+(     ) const { return size() ;  }
-			size_t size     (     ) const { return _sz    ;  }
-			void   set_dflt (Req r)       { _dflt = {r,{}} ; }
+			// accesses
+			size_t size    (     ) const { return _sz ;     }
+			void   set_dflt(Req r)       { _dflt = {r,{}} ; }
 			// services
 			Info const& c_req_info(W w) const {
 				Lock lock { _mutex } ;
@@ -304,13 +304,13 @@ namespace Engine {
 			Idx                              _sz    = 0 ;
 		} ;
 		static constexpr size_t StepSz = 18 ;                    // size of the field representing step in output
-		// cxtors & casts
+		// cxtors & co
 	public :
+		bool operator+() const { return +job ; }
 		void clear() ;
 		// accesses
-		bool   operator+() const {                    return +job                     ; }
-		bool   is_open  () const {                    return idx_by_start!=Idx(-1)    ; }
-		Req    idx      () const { SWEAR(is_open()) ; return this-Req::s_store.data() ; }
+		bool is_open() const {                    return idx_by_start!=Idx(-1)    ; }
+		Req  idx    () const { SWEAR(is_open()) ; return this-Req::s_store.data() ; }
 		// services
 		void audit_summary(bool err) const ;
 		//

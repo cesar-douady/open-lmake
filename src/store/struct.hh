@@ -14,7 +14,7 @@ namespace Store {
 		template<class Hdr_,class Idx,class Data> struct Hdr {
 			using HdrNv = NoVoid<Hdr_> ;
 			using Sz    = UintIdx<Idx> ;
-			// cxtors & casts
+			// cxtors & co
 			template<class... A> Hdr(A&&... args) : hdr{::forward<A>(args)...} {}
 			// data
 			// we need to force alignment for subsequent data
@@ -65,17 +65,17 @@ namespace Store {
 			struct Iterator {
 				using value_type      = Idx       ;
 				using difference_type = ptrdiff_t ;
-				// cxtors & casts
+				// cxtors & co
 				Iterator(Idx i) : _idx{i} {}
+				bool operator==(Iterator const& other) const = default ;
 				// services
-				bool      operator==(Iterator const& other) const = default ;
-				Idx       operator* (                     ) const { SWEAR_PROD(+_idx) ;            return _idx ; }
-				Iterator& operator++(                     )       {_idx = Idx(+_idx+1)           ; return self ; }
-				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res  ; }
+				Idx       operator* (   ) const { SWEAR_PROD(+_idx) ;            return _idx ; }
+				Iterator& operator++(   )       {_idx = Idx(+_idx+1)           ; return self ; }
+				Iterator  operator++(int)       { Iterator res = self ; ++self ; return res  ; }
 				// data
 				Idx _idx = {} ;
 			} ;
-			// cxtors & casts
+			// cxtors & co
 			Lst(StructFile const& sf) : _self{&sf} {}
 			// accesses
 			Sz size() const { return _self->size() ; }
@@ -93,7 +93,7 @@ namespace Store {
 	private :
 		static constexpr size_t _Offset1 = Struct::_offset<Hdr,Idx,Data>(1) ;
 		static constexpr size_t _s_offset(Sz idx) { return Struct::_offset<Hdr,Idx,Data>(idx) ; }
-		// cxtors & casts
+		// cxtors & co
 	public :
 		StructFile() = default ;
 		template<class... A> StructFile( NewType                              , A&&... hdr_args ) { init( New             , ::forward<A>(hdr_args)... ) ; }
@@ -107,18 +107,18 @@ namespace Store {
 			Base::expand( _s_offset(1) , false/*thread_chk*/ ) ;                                          // 1 is the first used idx
 			new(&_struct_hdr()) StructHdr{::forward<A>(hdr_args)...} ;
 		}
+		bool operator+() const { return size()>1 ; }
 		// accesses
-		bool         operator+(               ) const                  {                    return size()>1                                                        ; }
-		Sz           size     (               ) const                  {                    return _struct_hdr().sz                                                ; }
-		HdrNv const& hdr      (               ) const requires(HasHdr) {                    return _struct_hdr().hdr                                               ; }
-		HdrNv      & hdr      (               )       requires(HasHdr) {                    return _struct_hdr().hdr                                               ; }
-		HdrNv const& c_hdr    (               ) const requires(HasHdr) {                    return _struct_hdr().hdr                                               ; }
-		Data  const& at       (Idx         idx) const                  { SWEAR_PROD(+idx) ; return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
-		Data       & at       (Idx         idx)                        { SWEAR_PROD(+idx) ; return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
-		Data  const& c_at     (Idx         idx) const                  {                    return at(idx)                                                         ; }
-		Idx          idx      (Data const& at_) const                  {                    return Idx((&at_-&at(Idx(1)))+1)                                       ; }
-		void         clear    (Idx         idx)                        { if (+idx) at(idx) = {} ;                                                                    }
-		Lst          lst      (               ) const requires(!Multi) { chk_thread() ; return Lst(self) ;                                                           }
+		Sz           size (               ) const                  {                    return _struct_hdr().sz                                                ; }
+		HdrNv const& hdr  (               ) const requires(HasHdr) {                    return _struct_hdr().hdr                                               ; }
+		HdrNv      & hdr  (               )       requires(HasHdr) {                    return _struct_hdr().hdr                                               ; }
+		HdrNv const& c_hdr(               ) const requires(HasHdr) {                    return _struct_hdr().hdr                                               ; }
+		Data  const& at   (Idx         idx) const                  { SWEAR_PROD(+idx) ; return *::launder(reinterpret_cast<Data const*>(base+_s_offset(+idx))) ; }
+		Data       & at   (Idx         idx)                        { SWEAR_PROD(+idx) ; return *::launder(reinterpret_cast<Data      *>(base+_s_offset(+idx))) ; }
+		Data  const& c_at (Idx         idx) const                  {                    return at(idx)                                                         ; }
+		Idx          idx  (Data const& at_) const                  {                    return Idx((&at_-&at(Idx(1)))+1)                                       ; }
+		void         clear(Idx         idx)                        { if (+idx) at(idx) = {} ;                                                                    }
+		Lst          lst  (               ) const requires(!Multi) { chk_thread() ; return Lst(self) ;                                                           }
 	private :
 		StructHdr const& _struct_hdr() const { return *::launder(reinterpret_cast<StructHdr const*>(base)) ; }
 		StructHdr      & _struct_hdr()       { return *::launder(reinterpret_cast<StructHdr      *>(base)) ; }

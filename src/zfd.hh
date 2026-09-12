@@ -42,7 +42,7 @@ struct Zlvl {
 
 struct DeflateFd : AcFd {
 	static Disk::DiskSz s_max_sz( Disk::DiskSz sz , Zlvl zlvl={} ) ;
-	// cxtors & casts
+	// cxtors & co
 	DeflateFd() = default ;
 	DeflateFd( AcFd&& , Zlvl={} ) ;
 	~DeflateFd() ;
@@ -73,7 +73,7 @@ private :
 } ;
 
 struct InflateFd : AcFd {
-	// cxtors & casts
+	// cxtors & co
 	InflateFd() = default ;
 	InflateFd( AcFd&& , Zlvl={} ) ;
 	~InflateFd() ;

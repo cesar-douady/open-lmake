@@ -83,12 +83,12 @@ namespace Store {
 		struct KindIterator {
 			using value_type      = bool      ;
 			using difference_type = ptrdiff_t ;
-			// cxtors & casts
+			// cxtors & co
 			KindIterator(Nxt n) : val{n.val} {}
+			bool operator==(KindIterator const& other) const = default ;
 			// services
-			bool operator== (KindIterator const& other) const = default ;
-			bool operator*  (                         ) const { SWEAR(val!=2) ; return val   ; }
-			void operator++ (                         )       {                        val++ ; }
+			bool operator* () const { SWEAR(val!=2) ; return val   ; }
+			void operator++()       {                        val++ ; }
 			// data
 			uint8_t val ;
 		} ;
@@ -506,17 +506,17 @@ namespace Store {
 			struct Iterator {
 				using value_type      = Idx       ;
 				using difference_type = ptrdiff_t ;
-				// cxtors & casts
+				// cxtors & co
 				Iterator( Lst const& s , Idx i ) : _self(&s) , _idx{i} { _legalize() ; }
+				bool operator==(Iterator const& other) const = default ;
 				// accesses
 			private :
 				Item const& _item() const { return _self->_self->_at(_idx) ; }
 				// services
 			public :
-				bool      operator==(Iterator const& other) const = default ;
-				Idx       operator* (                     ) const { SWEAR(_item().used) ;          return _idx ; }
-				Iterator& operator++(                     )       { _advance() ; _legalize() ;     return self ; }
-				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res  ; }
+				Idx       operator* (   ) const { SWEAR(_item().used) ;          return _idx ; }
+				Iterator& operator++(   )       { _advance() ; _legalize() ;     return self ; }
+				Iterator  operator++(int)       { Iterator res = self ; ++self ; return res  ; }
 			private :
 				void _advance() {
 					SWEAR(+_idx) ;
@@ -539,7 +539,7 @@ namespace Store {
 				Lst const* _self ;
 				Idx        _idx  = {} ;
 			} ;
-			// cxtors & casts
+			// cxtors & co
 			Lst( MultiPrefixFile const& s , Idx st ) : _self{&s} , _start{st} {}
 			// services
 			Iterator begin () const { return Iterator(self,_start) ; }
@@ -553,7 +553,7 @@ namespace Store {
 		} ;
 
 		struct DvgDigest {
-			// cxtors & casts
+			// cxtors & co
 		private :
 			// psfx is prefix (Reverse) / suffix (!Reverse)
 			DvgDigest( Idx start , ChunkIdx cp , MultiPrefixFile const& f , VecView const& n , VecView const& psfx , size_t np , bool with_sep , Char sep ) : name_pos{np},idx{start} {

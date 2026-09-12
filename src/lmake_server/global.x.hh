@@ -225,15 +225,15 @@ namespace Engine {
 	{	using Base = ::variant< ::monostate/*None*/ , EngineClosureJobStart/*Start*/ , EngineClosureJobReportStart/*ReportStart*/ , EngineClosureJobGiveUp/*GiveUp*/ , JobDigest<Node>/*End*/ > ;
 		//
 		using Proc = JobRpcProc ;
-		// cxtors & casts
+		// cxtors & co
 		EngineClosureJob( JobExec const& je , EngineClosureJobStart      && ecjs  ) : Base{::move(ecjs )} , job_exec{je} {}
 		EngineClosureJob( JobExec const& je , EngineClosureJobReportStart&& ecjrs ) : Base{::move(ecjrs)} , job_exec{je} {}
 		EngineClosureJob( JobExec const& je , EngineClosureJobGiveUp     && ecjgu ) : Base{::move(ecjgu)} , job_exec{je} {}
 		EngineClosureJob( JobExec const& je , JobDigest<Node>            && jd    ) : Base{::move(jd   )} , job_exec{je} {}
+		void operator>>(::string&) const ;
 		// accesses
-		/**/             void operator>>(::string&) const ;
-		/**/             Proc proc      (         ) const { return Proc(index()) ; }
-		template<Proc P> bool is_a      (         ) const { return index()==+P   ; }
+		/**/             Proc proc() const { return Proc(index()) ; }
+		template<Proc P> bool is_a() const { return index()==+P   ; }
 		//
 		EngineClosureJobStart       const& start       () const { return ::get<EngineClosureJobStart      >(self) ; }
 		EngineClosureJobStart            & start       ()       { return ::get<EngineClosureJobStart      >(self) ; }
@@ -280,7 +280,7 @@ namespace Engine {
 		using R   = Engine::Req     ;
 		using RO  = ReqOptions      ;
 		//
-		// cxtors & casts
+		// cxtors & co
 		// Global
 		EngineClosure(GP p=GP::None) : Base{ECG{.proc=p}} {}
 		// Req
@@ -307,10 +307,10 @@ namespace Engine {
 		EngineClosure( JMP p , JE&& je , Fd fd_ , SeqId id , ::vector<Dep>&& dds ) : Base{ECJM{ .proc=p , .fd=fd_ , .seq_id=id , .job_exec=::move(je) , .deps=::move(dds) }} {
 			SWEAR( p==JMP::DepDirect || p==JMP::DepVerbose , p ) ;
 		}
+		void operator>>(::string&) const ;
 		// accesses
-		/**/             void operator>>(::string&) const ;
-		/**/             Kind kind      (         ) const { return Kind(index()) ; }
-		template<Kind K> bool is_a      (         ) const { return index()==+K   ; }
+		/**/             Kind kind() const { return Kind(index()) ; }
+		template<Kind K> bool is_a() const { return index()==+K   ; }
 		//
 		ECG  const& ecg () const { return ::get<ECG >(self) ; }
 		ECG       & ecg ()       { return ::get<ECG >(self) ; }

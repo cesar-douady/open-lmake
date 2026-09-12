@@ -116,7 +116,7 @@ struct CacheServer : AutoServer<CacheServer> {
 	using RpcReply = CacheRpcReply ;
 	using Item     = RpcReq        ;
 	static constexpr uint64_t Magic = CacheMagic ;                                                             // AutoServer expects Magic definition
-	// cxtors & casts
+	// cxtors & co
 	using AutoServer<CacheServer>::AutoServer ;
 	// injection
 	void end_connection(Fd fd) {

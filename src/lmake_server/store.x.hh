@@ -81,7 +81,7 @@ namespace Engine::Persistent {
 		// static data
 	private :
 		static Mutex<MutexLvl::Job,true/*Shared*/> _s_mutex ; // jobs are created in main thread but its name may be accessed in other threads
-		// cxtors & casts
+		// cxtors & co
 	public :
 		using Base::Base ;
 		JobName( ::pair_ss const& name_sfx , bool& inserted=::ref(bool()) ) ;
@@ -99,7 +99,7 @@ namespace Engine::Persistent {
 	struct NodeName
 	:	             Idxed<NodeNameIdx>
 	{	using Base = Idxed<NodeNameIdx> ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		// accesses
 		::string str() const ;
@@ -108,7 +108,7 @@ namespace Engine::Persistent {
 	struct JobDataBase {
 		friend JobBase ;
 		friend JobName ;
-		// cxtors & casts
+		// cxtors & co
 		JobDataBase() = default ;
 		JobDataBase(JobName n) : _full_name{n} {}
 		// accesses
@@ -124,7 +124,7 @@ namespace Engine::Persistent {
 		// static data
 	private :
 		static Mutex<MutexLvl::Node,true/*Shared*/> _s_mutex ; // nodes can be created from several threads, ensure coherence between names and nodes
-		// cxtors & casts
+		// cxtors & co
 	public :
 		NodeDataBase() = default ;
 		NodeDataBase(NodeName n) : _name{n} {}
@@ -144,11 +144,11 @@ namespace Engine::Persistent {
 		static ::vector<Job> s_frozens      (                                       ) ;
 		static void          s_frozens      ( bool add , ::vector<Job> const& items ) ;
 		static void          s_clear_frozens(                                       ) ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		template<class... A> JobBase( JobName name_ , A&&... ) ;
 	public :
-		void pop() ;
+		void chk() const ;
 		// accesses
 		JobData const& operator* () const ;
 		JobData      & operator* ()       ;
@@ -158,7 +158,7 @@ namespace Engine::Persistent {
 		RuleIdx rule_idx () const ;
 		bool    frozen   () const ;
 		// services
-		void chk() const ;
+		void pop() ;
 	} ;
 
 	struct NodeBase
@@ -184,10 +184,11 @@ namespace Engine::Persistent {
 		static RuleTgts s_rule_tgts(::string const& target_name) ;
 		// static data
 		static Node s_top ;                                                             // Node("/")
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		NodeBase(           ::string const& name                     ) ;                // dont create node if does not already exist
 		NodeBase( NewType , ::string const& name , bool no_dir=false ) ;
+		void chk() const ;
 		// accesses
 		NodeData const& operator* () const ;
 		NodeData      & operator* ()       ;
@@ -195,8 +196,6 @@ namespace Engine::Persistent {
 		NodeData      * operator->()       { return &*self ; }
 		bool            frozen    () const ;
 		bool            no_trigger() const ;
-		// services
-		void chk() const ;
 	} ;
 
 	struct RuleBase
@@ -218,7 +217,7 @@ namespace Engine::Persistent {
 	public :
 		static MatchGen                            s_match_gen ;
 		static StaticUniqPtr<Rules,MutexLvl::None> s_rules     ;          // almost a ::unique_ptr except we do not want it to be destroyed at the end to avoid problems
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		constexpr RuleBase(Special s) : Base{RuleIdx(+s)} { SWEAR(+s) ; } // Special::0 is a marker that says not initialized, so forbidden here
 		// accesses
@@ -230,10 +229,9 @@ namespace Engine::Persistent {
 	struct RuleCrcBase
 	:	             Idxed<RuleCrcIdx>
 	{	using Base = Idxed<RuleCrcIdx> ;
-		// statics
 		// static data
 		static ::umap<Crc,RuleCrc> s_by_rsrcs ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		RuleCrcBase( Crc match , Crc cmd=Crc::Unknown , Crc rsrcs=Crc::Unknown ) ;
 		// accesses
@@ -245,22 +243,20 @@ namespace Engine::Persistent {
 	struct RuleTgts
 	:	             Idxed<RuleTgtsIdx>
 	{	using Base = Idxed<RuleTgtsIdx> ;
-		// statics
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		RuleTgts           (::span<RuleTgt const> const&  ) ;
 		RuleTgts& operator=(::span<RuleTgt const> const& v) ;
-		void pop() ;
 		// accesses
 		::vector<RuleTgt> view() const ;
 		// services
 		void shorten_by(RuleIdx by) ;
+		void pop       (          ) ;
 	} ;
 
 	struct SfxBase
 	:	             Idxed<RuleIdx>
 	{	using Base = Idxed<RuleIdx> ;
-		// cxtors & casts
 		using Base::Base ;
 	} ;
 
@@ -407,7 +403,7 @@ namespace Engine::Persistent {
 	inline ::vector<Job> JobBase::s_frozens      (                                       ) { SWEAR(t_thread_key=='=') ; return mk_vector<Job>(_g_job_file.c_hdr().frozens) ;                 }
 	inline void          JobBase::s_frozens      ( bool add , ::vector<Job> const& items ) { SWEAR(t_thread_key=='=') ; _s_update(_g_job_file.hdr().frozens,_frozen_jobs,add,items) ;        }
 	inline void          JobBase::s_clear_frozens(                                       ) { SWEAR(t_thread_key=='=') ;           _g_job_file.hdr().frozens.clear() ; _frozen_jobs.clear() ; }
-	// cxtors & casts
+	// cxtors & co
 	template<class... A> JobBase::JobBase( JobName name_ , A&&... args ) { // jobs are only created in main thread, so no locking is necessary
 		SWEAR(t_thread_key=='=') ;
 		self = _g_job_file.emplace( name_ , ::forward<A>(args)... ) ;
@@ -485,7 +481,7 @@ namespace Engine::Persistent {
 		SWEAR(t_thread_key=='=') ;
 		return _g_rule_crc_file.lst() ;
 	}
-	// cxtors & casts
+	// cxtors & co
 	inline RuleCrcBase::RuleCrcBase( Crc match , Crc cmd , Crc rsrcs ) {
 		SWEAR(t_thread_key=='=') ;
 		if (!cmd       ) cmd   = match ;                                              // cmd must include match, so if not given, use match
@@ -514,14 +510,9 @@ namespace Engine::Persistent {
 		SWEAR(t_thread_key=='=') ;
 		return _g_rule_tgts_file.lst() ;
 	}
-	// cxtors & casts
+	// cxtors & co
 	inline RuleTgts::RuleTgts(::span<RuleTgt const> const& gs) : Base{+gs?_g_rule_tgts_file.insert(gs).first:RuleTgts()} {
 		SWEAR(t_thread_key=='=') ;
-	}
-	inline void RuleTgts::pop() {
-		SWEAR(t_thread_key=='=') ;
-		_g_rule_tgts_file.pop(+self) ;
-		self = RuleTgts() ;
 	}
 	//
 	inline RuleTgts& RuleTgts::operator=(::span<RuleTgt const> const& v) { self = RuleTgts(v) ; return self ; }
@@ -532,6 +523,11 @@ namespace Engine::Persistent {
 		if (by==RuleIdx(-1)) { clear() ; return ; }
 		self = _g_rule_tgts_file.insert_shorten_by( self , by ) ;
 		if (_g_rule_tgts_file.empty(self)) self = RuleTgts() ;
+	}
+	inline void RuleTgts::pop() {
+		SWEAR(t_thread_key=='=') ;
+		_g_rule_tgts_file.pop(+self) ;
+		self = RuleTgts() ;
 	}
 
 }

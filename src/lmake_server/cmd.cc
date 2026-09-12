@@ -721,7 +721,7 @@ namespace Engine {
 		static constexpr Color CH = Color::HiddenNote ;
 		static constexpr Color CN = Color::None       ;
 		static constexpr Color CW = Color::Warning    ;
-		// cxtors & casts
+		// cxtors & co
 		Show( Fd fd_ , ReqOptions const& ro_ , DepDepth lvl_=0 ) :
 			fd        { fd_                           }
 		,	ro        { ro_                           }
@@ -744,7 +744,7 @@ namespace Engine {
 	} ;
 
 	struct ShowBom : Show {
-		// cxtors & casts
+		// cxtors & co
 		using Show::Show ;
 		// services
 		void show_job(Job job) {
@@ -780,7 +780,7 @@ namespace Engine {
 
 	struct ShowRunning : Show {
 		static constexpr BitMap<JobStep> InterestingSteps = { JobStep::Dep/*waiting*/ , JobStep::Queued , JobStep::Exec } ;
-		// cxtors & casts
+		// cxtors & co
 		using Show::Show ;
 		// services
 		void show_job(Job job) {

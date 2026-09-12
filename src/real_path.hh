@@ -59,9 +59,8 @@ struct RealPath {
 private :
 	// helper class to help recognize when we are in repo or in tmp
 	struct _Dvg {
-		// cxtors & casts
+		// cxtors & co
 		_Dvg( ::string_view domain_s , ::string const& chk ) { update(domain_s,chk) ; }
-		// accesses
 		bool operator+() const { return ok ; }
 		// services
 		void update( ::string_view domain_s , ::string const& chk ) ; // udpate after domain_s & chk have been lengthened or shortened, but not modified internally
@@ -69,13 +68,12 @@ private :
 		bool   ok  = false ;
 		size_t dvg = 0     ;
 	} ;
-	// cxtors & casts
+	// cxtors & co
 public :
 	// src_dirs_s may be either absolute or relative, but must be canonic
 	// tmp_dir_s must be absolute and canonic
 	RealPath() = default ;
 	RealPath ( RealPathEnv const& rpe , pid_t p=0 ) ;
-	// accesses
 	void operator>>(::string&) const ;
 	// services
 	FileLoc file_loc(::string const& real) const { return _env->file_loc(real) ; }

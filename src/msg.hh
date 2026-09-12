@@ -13,19 +13,19 @@
 //
 
 struct MsgBuf {
-	using Len = uint32_t    ;                                    // /!\ dont use size_t in serialized stream to make serialization interoperable between 32-bit and 64-bit
+	using Len = uint32_t    ;                                                   // /!\ dont use size_t in serialized stream to make serialization interoperable between 32-bit and 64-bit
 	using Key = SockFd::Key ;
 	// statics
 	static Len s_sz(const char* str) {
 		Len len ; ::memcpy( &len , str , sizeof(Len) ) ;
 		return len ;
 	}
-	// cxtors & casts
-	MsgBuf() = default ;                                         // suppress aggregate cxtors
+	// cxtors & co
+	MsgBuf() = default ;                                                        // suppress aggregate cxtors
+	void operator>>(::string& os) const { os << "MsgBuf("<<_buf.size()<<')' ; } // NO_COV
+	bool operator+ (            ) const { return +_buf ;                      }
 	// accesses
-	void   operator>>(::string& os) const { os << "MsgBuf("<<_buf.size()<<')' ; } // NO_COV
-	bool   operator+ (            ) const { return +_buf       ; }
-	size_t size      (            ) const { return _buf.size() ; }
+	size_t size() const { return _buf.size() ; }
 	// data
 protected :
 	::string _buf = {} ;
@@ -115,10 +115,9 @@ private :
 } ;
 
 struct OMsgBuf : MsgBuf {
-	// cxtors & casts
+	// cxtors & co
 	/**/              OMsgBuf(          )             { _buf.resize(sizeof(Key)) ; }
 	template<class T> OMsgBuf(T const& x) : OMsgBuf{} { add(x)                   ; }
-	// accesses
 	bool operator+() const { return _buf.size()>sizeof(Key) ; }
 	// services                                                                          Serialize
 	template<class T> void add           ( T        const& x                     ) { _add<true   >(x)         ; }

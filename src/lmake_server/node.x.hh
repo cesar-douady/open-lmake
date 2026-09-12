@@ -153,10 +153,9 @@ namespace Engine {
 		// static data
 	private :
 		static Hash::Crc _s_src_dirs_crc ;
-		// cxtors & casts
+		// cxtors & co
 	public :
 		using NodeBase::NodeBase ;
-		// accesses
 		void operator>>(::string&) const ;
 	} ;
 
@@ -165,14 +164,13 @@ namespace Engine {
 	//
 
 	struct Target : Node {
-		// cxtors & casts
+		// cxtors & co
 		Target() = default ;
 		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} { SWEAR(+self) ; }
-		// accesses
-		void operator>>  (::string&) const ;
-		bool static_phony(         ) const { return ::static_phony(tflags) ; }
-		// services
+		void operator>>(::string&) const ;
 		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
+		// accesses
+		bool static_phony() const { return ::static_phony(tflags) ; }
 		// data
 		Tflags tflags ;
 	} ;
@@ -184,12 +182,12 @@ namespace Engine {
 
 	struct Dep : DepDigestBase<Node> {
 		using Base = DepDigestBase<Node> ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
+		void operator>>(::string&) const ;
 		// accesses
-		void     operator>>  (::string&) const ;
-		::string accesses_str(         ) const ;
-		::string dflags_str  (         ) const ;
+		::string accesses_str() const ;
+		::string dflags_str  () const ;
 		// services
 		bool up_to_date () const ;
 		void acquire_crc()       ;
@@ -200,9 +198,8 @@ namespace Engine {
 
 	union GenericDep {
 		static constexpr uint8_t NodesPerDep = sizeof(Dep)/sizeof(Node) ;
-		// cxtors & casts
+		// cxtors & co
 		GenericDep(Dep const& d={}) : hdr{d} {}
-		// accesses
 		void operator>>(::string&) const ;
 		// services
 		GenericDep const* next() const { return this+1+div_up<GenericDep::NodesPerDep>(hdr.sz) ; }
@@ -225,7 +222,7 @@ namespace Engine {
 			DepsIdx hdr     = 0 ;
 			uint8_t i_chunk = 0 ;
 		} ;
-		// cxtors & casts
+		// cxtors & co
 		DepsIter() = default ;
 		DepsIter( DepsIter const& dit ) : hdr{dit.hdr} , i_chunk{dit.i_chunk} {}
 		DepsIter( GenericDep const* d ) : hdr{d      }                        {}
@@ -236,9 +233,9 @@ namespace Engine {
 			i_chunk = dit.i_chunk ;
 			return self ;
 		}
-		// accesses
 		bool operator==(DepsIter const& dit) const { return hdr==dit.hdr && i_chunk==dit.i_chunk ; }
-		Digest digest  (Deps               ) const ;
+		// accesses
+		Digest digest(Deps) const ;
 		// services
 		Dep const* operator->() const { return &*self ; }
 		Dep const& operator* () const {
@@ -276,7 +273,7 @@ namespace Engine {
 
 	struct Deps : DepsBase {
 		using value_type = Dep ;
-		// cxtors & casts
+		// cxtors & co
 		using DepsBase::DepsBase ;
 		Deps( ::vector<Node> const& , Accesses , Dflags , bool parallel ) ;
 		// accesses
@@ -308,13 +305,13 @@ namespace Engine {
 		//
 		static constexpr RuleIdx NoIdx = Node::NoIdx ;
 		static const     ReqInfo Src   ;
-		// cxtors & casts
+		// cxtors & co
 		NodeReqInfo() = default ;
 		NodeReqInfo( Req , Node ) ;
+		void operator>>(::string&) const ;
 		// accesses
-		void operator>>(::string&  ) const ;
-		bool done      (NodeGoal ng) const { return done_>=ng   ; }
-		bool done      (           ) const { return done_>=goal ; }
+		bool done(NodeGoal ng) const { return done_>=ng   ; }
+		bool done(           ) const { return done_>=goal ; }
 		// data
 	public :
 //		ReqInfo                                  //    128 bits, inherits
@@ -335,7 +332,7 @@ namespace Engine {
 namespace Engine {
 
 	struct RejectSet {
-		// cxtors & casts
+		// cxtors & co
 		RejectSet (NodeData& nd) : _node_data{nd} {}
 		~RejectSet(            )                  { _save() ; }
 		//
@@ -367,16 +364,16 @@ namespace Engine {
 		//
 		static constexpr RuleIdx MaxRuleIdx = Node::MaxRuleIdx ;
 		static constexpr RuleIdx NoIdx      = Node::NoIdx      ;
-		// cxtors & casts
+		// cxtors & co
 		NodeData() = delete ;
 		NodeData( NodeName n             ) : NodeDataBase{n} {              }
 		NodeData( NodeName n , Node dir_ ) : NodeDataBase{n} { dir = dir_ ; }
 		~NodeData() {
 			job_tgts.pop() ;
 		}
-		// accesses
 		void operator>>(::string&) const ;
-		Node idx       (         ) const { return Node::s_idx(self) ; }
+		// accesses
+		Node idx() const { return Node::s_idx(self) ; }
 		//
 		bool           has_req   ( Req                       ) const ;
 		ReqInfo const& c_req_info( Req                       ) const ;

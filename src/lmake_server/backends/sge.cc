@@ -21,10 +21,9 @@ namespace Backends::Sge {
 	//
 
 	struct RsrcsData {
-		// cxtors & casts
+		// cxtors & co
 		RsrcsData() = default ;
 		RsrcsData(::vmap_ss&&) ;
-		// accesses
 		void operator>>(::string& os) const {                                  // START_OF_NO_COV
 			/**/                              os <<"(cpu="<<       cpu       ;
 			if (mem   )                       os <<",mem="<<       mem<<"MB" ;

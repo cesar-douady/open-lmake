@@ -50,7 +50,7 @@ namespace Py {
 	private :
 		static Mutex<MutexLvl::Gil>   _s_mutex          ;
 		static ::atomic<::thread::id> _s_holding_thread ;
-		// cxtors & casts
+		// cxtors & co
 	public :
 		NoGil() {
 			::thread::id id = ::this_thread::get_id() ; if (id==_s_holding_thread) return ; // _s_holding_thread guarantees we already own the lock
@@ -71,7 +71,7 @@ namespace Py {
 	} ;
 
 	struct Gil : NoGil {
-		// cxtors & casts
+		// cxtors & co
 		Gil() {
 			if (_locked) { Trace trace("Gil::acquire",t_thread_key) ; _state = PyGILState_Ensure() ; }
 			else         { Trace trace("Gil::owned"  ,t_thread_key) ;                                }
@@ -125,11 +125,11 @@ namespace Py {
 
 	struct Object : PyObject {
 		static constexpr const char* Name = "object" ;
-		// cxtors & casts
+		// cxtors & co
 		Object(Object&&) = delete ;                                          // manipulating objects is python's responsibility
 		Object& operator=(Object&&) = delete ;                               // .
-		// accesses
 		bool operator==(Object const& other) const { return this==&other ; }
+		// accesses
 		bool qualify() const { return true ; }                               // everything qualifies as object
 		//
 		template<class T> T      & as_a()       { return *_chk<T>(this)                         ; }
@@ -165,7 +165,7 @@ namespace Py {
 		// static datas
 		static Callable* s_dumps ;
 		static Callable* s_loads ;
-		// cxtors & casts
+		// cxtors & co
 		Ptr() = default ;
 		Ptr(PyObject*     p) : ptr{from_py(p)            } {              } // steal ownership from argument
 		Ptr(Object const* o) : ptr{const_cast<Object*>(o)} { boost()    ; }
@@ -177,10 +177,9 @@ namespace Py {
 		Ptr& operator=(Ptr const& p) { unboost() ; ptr = p.ptr ; boost()    ; return self ; }
 		Ptr& operator=(Ptr     && p) { unboost() ; ptr = p.ptr ; p.detach() ; return self ; }
 		//
+		bool operator+() const { return bool(ptr) ; }
 		template<IsStream S> void serdes(S& s) ;
 		// accesses
-		bool operator+() const { return bool(ptr) ; }
-		//
 		Object      & operator* ()       { return *ptr   ; }
 		Object const& operator* () const { return *ptr   ; }
 		Object      * operator->()       { return &*self ; }
@@ -199,7 +198,7 @@ namespace Py {
 		using TBase = typename T::Base ;
 		using Base  = Ptr<TBase>       ;
 		using Base::ptr ;
-		// cxtors & casts
+		// cxtors & co
 		PtrBase() = default ;
 		//
 		PtrBase(PyObject    * p) : Base{       p } { _chk<T>(ptr) ; }
@@ -207,6 +206,13 @@ namespace Py {
 		PtrBase(Base   const& o) : Base{       o } { _chk<T>(ptr) ; }
 		PtrBase(Base       && o) : Base{::move(o)} { _chk<T>(ptr) ; }
 		PtrBase(T           * o) : Base{       o } {                }
+		//
+		operator Object      *()                                            { return                           ptr  ; }
+		operator Object const*() const                                      { return                           ptr  ; }
+		operator TBase       *()       requires(!::is_same_v<Object,TBase>) { return static_cast<TBase      *>(ptr) ; }
+		operator TBase  const*() const requires(!::is_same_v<Object,TBase>) { return static_cast<TBase const*>(ptr) ; }
+		operator T           *()                                            { return static_cast<T          *>(ptr) ; }
+		operator T      const*() const                                      { return static_cast<T     const*>(ptr) ; }
 		//
 		template<IsStream S> void serdes(S& s) {
 			Base::serdes(s) ;
@@ -217,13 +223,6 @@ namespace Py {
 		T const& operator* () const { SWEAR(ptr) ; return *static_cast<T const*>(ptr) ; }
 		T      * operator->()       {              return &*self                      ; }
 		T const* operator->() const {              return &*self                      ; }
-		//
-		operator Object      *()                                            { return                           ptr  ; }
-		operator Object const*() const                                      { return                           ptr  ; }
-		operator TBase       *()       requires(!::is_same_v<Object,TBase>) { return static_cast<TBase      *>(ptr) ; }
-		operator TBase  const*() const requires(!::is_same_v<Object,TBase>) { return static_cast<TBase const*>(ptr) ; }
-		operator T           *()                                            { return static_cast<T          *>(ptr) ; }
-		operator T      const*() const                                      { return static_cast<T     const*>(ptr) ; }
 		// services
 		Ptr<T>      & boost()       { Ptr<Object>::boost() ; return static_cast<Ptr<T>&>(self) ; }
 		Ptr<T> const& boost() const { Ptr<Object>::boost() ; return static_cast<Ptr<T>&>(self) ; }
@@ -408,10 +407,9 @@ namespace Py {
 		using Iterable = ::conditional_t< C , Sequence const , Sequence > ;
 		using PtrItem  = ::conditional_t< C , Ptr<>    const , Ptr<>    > ;
 		using Item     = ::conditional_t< C , Object   const , Object   > ;
-		// cxtors & casts
+		// cxtors & co
 		SequenceIter() = default ;
 		SequenceIter(Iterable& i,bool at_end) : _item {::launder(reinterpret_cast<PtrItem*>(PySequence_Fast_ITEMS(i.to_py())))} { if (at_end) _item += i.size() ; }
-		// accesses
 		bool operator==(SequenceIter const&) const = default ;
 		// services
 		Item        & operator* (   ) const {                                 return **_item ; }
@@ -426,7 +424,7 @@ namespace Py {
 		static constexpr const char* Name = "list/tuple" ;
 		using Base = Object ;
 		template<bool C> friend struct SequenceIter ;
-		// cxtors & casts
+		// cxtors & co
 		operator ::vector_s() const {
 			::vector_s res ; for( Object const& py_v : self ) res.emplace_back(*py_v.str()) ;
 			return res ;
@@ -511,7 +509,7 @@ namespace Py {
 	template<bool C> struct DictIter {
 		using Iterable = ::conditional_t< C , Dict   const , Dict   > ;
 		using Item     = ::conditional_t< C , Object const , Object > ;
-		// cxtors & casts
+		// cxtors & co
 		DictIter() = default ;
 		DictIter(Iterable& i) : _iterable{&i},_pos{0} { _legalize() ; }
 		bool operator==(DictIter const&) const = default ;
@@ -547,7 +545,7 @@ namespace Py {
 		using value_type = ::pair<Object const&,Object&> ;
 		// statics
 		static Dict* s_builtins ;
-		// cxtors & casts
+		// cxtors & co
 		operator ::vmap_ss() const {
 			::vmap_ss res ; for( auto const& [py_k,py_v] : self ) res.emplace_back( *py_k.str() , *py_v.str() ) ;
 			return res ;
@@ -690,7 +688,6 @@ namespace Py {
 
 	template<class T> struct WithGil : T {
 		using T::operator+ ;
-		// cxtors & casts
 		using T::T ;
 		WithGil(T const& t) : T{       t } {}
 		WithGil(T     && t) : T{::move(t)} {}
@@ -705,7 +702,7 @@ namespace Py {
 	} ;
 
 	struct WithBuiltins {                              // set __builtins__ in dict and remove it at the end
-		// cxtors & casts
+		// cxtors & co
 		WithBuiltins (Dict& dct_) : dct{dct_} {
 			#ifndef NDEBUG                             // avoid executing dct.contains if not debugging
 				SWEAR(!dct.contains("__builtins__")) ;
@@ -724,7 +721,7 @@ namespace Py {
 	} ;
 
 	struct WithSysPath { // set sys.path and remove it at the end
-		// cxtors & casts
+		// cxtors & co
 		WithSysPath (Sequence const* sys_path) {
 			if (!sys_path) return ;
 			sav_sys_path = &py_get_sys<Sequence>("path") ;

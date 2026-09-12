@@ -104,19 +104,19 @@ private :
 		}
 		trace("done") ;
 	}
-	// cxtors & casts
+	// cxtors & co
 public :
 	QueueThread() = default ;
 	QueueThread( char k , ::function<void(               T const&)> f ) { open(k,f) ; }
 	QueueThread( char k , ::function<void(::stop_token , T const&)> f ) { open(k,f) ; }
-	//
+	// accesses
+	T const& cur() const RQA { return _cur ; }
+	// services
 	void open( char k , ::function<void(               T const&)> f ) RQA  { thread = ::jthread( _s_thread_func1 , k , this , [=](::stop_token,T const& v)->void {f(       v );} ) ; }
 	void open( char k , ::function<void(::stop_token , T const&)> f ) RQA  { thread = ::jthread( _s_thread_func1 , k , this , f                                                  ) ; }
 	void open( char k , ::function<void(               T     &&)> f ) RNQA { thread = ::jthread( _s_thread_func2 , k , this , [=](::stop_token,T     && v)->void {f(::move(v));} ) ; }
 	void open( char k , ::function<void(::stop_token , T     &&)> f ) RNQA { thread = ::jthread( _s_thread_func2 , k , this , f                                                  ) ; }
-	// accesses
-	T const& cur() const RQA { return _cur ; }
-	// services
+	//
 	auto begin()       RQA { swear_locked() ; return Base::begin() ; }
 	auto begin() const RQA { swear_locked() ; return Base::begin() ; }
 	auto end  ()       RQA { swear_locked() ; return Base::end  () ; }
@@ -148,15 +148,15 @@ private :
 		}
 		trace("done") ;
 	}
-	// cxtors & casts
+	// cxtors & co
 public :
 	TimedQueueThread() = default ;
 	TimedQueueThread( char k , ::function<void(             T&&)> f ) { open(k,f) ; }
 	TimedQueueThread( char k , ::function<void(::stop_token,T&&)> f ) { open(k,f) ; }
-	//
+	// services
 	void open( char k , ::function<void(             T&&)> f ) { thread = ::jthread( _s_thread_func , k , this , [=](::stop_token,T&& v)->void {f(::move(v));} ) ; }
 	void open( char k , ::function<void(::stop_token,T&&)> f ) { thread = ::jthread( _s_thread_func , k , this , f                                             ) ; }
-	// services
+	//
 	template<class U> void push_urgent(           U&& x ) { Base::emplace_urgent(Pdate()     , ::forward<U>(x) ) ; }
 	template<class U> void push       (           U&& x ) { Base::emplace       (Pdate()     , ::forward<U>(x) ) ; }
 	template<class U> void push_at    ( Pdate d , U&& x ) { Base::emplace       (d           , ::forward<U>(x) ) ; }
@@ -199,17 +199,17 @@ private :
 		}
 		trace("done") ;
 	}
-	// cxtors & casts
+	// cxtors & co
 public :
 	WakeupThread() = default ;
 	//
 	WakeupThread ( char key , ::function<void(            )> f ) { open(key,f)     ; }
 	WakeupThread ( char key , ::function<void(::stop_token)> f ) { open(key,f)     ; }
 	~WakeupThread(                                             ) { _request_stop() ; }
-	//
+	// services
 	void open( char key , ::function<void(            )> f ) { thread = ::jthread( _s_thread_func , key , this , [=](::stop_token)->void {f();}) ; }
 	void open( char key , ::function<void(::stop_token)> f ) { thread = ::jthread( _s_thread_func , key , this , f                             ) ; }
-	// services
+	//
 	void wakeup() {
 		if (_run) return ;
 		_run = true ;
@@ -309,26 +309,26 @@ private :
 		}
 		trace("done") ;
 	}
-	// cxtors & casts
+	// cxtors & co
 public :
 	ServerThread() = default ;
 	//
-	ServerThread( char thread_key , ::function<void(             T&&,Fd)> f , int backlog ) { open( thread_key , f                                                          , backlog ) ; }
-	ServerThread( char thread_key , ::function<void(::stop_token,T&&,Fd)> f , int backlog ) { open( thread_key , f                                                          , backlog ) ; }
-	//
-	void open   ( char thread_key , ::function<void(             T&&,Fd)> f , int backlog ) { open( thread_key , [=](::stop_token,T&& r,Fd fd) { return f(::move(r),fd) ; } , backlog ) ; }
-	void open   ( char thread_key , ::function<void(::stop_token,T&&,Fd)> f , int backlog ) {
+	ServerThread( char thread_key , ::function<void(             T&&,Fd)> f , int backlog ) { open( thread_key , f , backlog ) ; }
+	ServerThread( char thread_key , ::function<void(::stop_token,T&&,Fd)> f , int backlog ) { open( thread_key , f , backlog ) ; }
+	// services
+	void open( char thread_key , ::function<void(             T&&,Fd)> f , int backlog ) { open( thread_key , [=](::stop_token,T&& r,Fd fd) { return f(::move(r),fd) ; } , backlog ) ; }
+	void open( char thread_key , ::function<void(::stop_token,T&&,Fd)> f , int backlog ) {
 		fd     = { backlog }                                         ;
 		thread = ::jthread( _s_thread_func , thread_key , this , f ) ;
 	}
-	// services
+	//
 	void wait_started() {
 		_ready.wait() ;
 	}
 	// data
 	ServerSockFd fd ;
 private :
-	::latch   _ready  { 1 } ;
+	::latch _ready { 1 } ;
 public :
 	::jthread thread ;                                                                                           // ensure thread is last so other fields are constructed when it starts
 } ;

@@ -94,9 +94,8 @@ namespace Backends {
 				SmallId      small_id = 0  ;
 				KeyedService service  ;
 			} ;
-			// cxtors & casts
+			// cxtors & co
 			StartEntry() = default ;
-			// accesses
 			void operator>>(::string&) const ;
 			bool operator+ (         ) const { return +conn ; }
 			// services
@@ -116,9 +115,8 @@ namespace Backends {
 		} ;
 
 		struct DeferredEntry {
-			// cxtors & casts
+			// cxtors & co
 			DeferredEntry( SeqId si=0 , JobExec je={} ) : seq_id{si} , job_exec{je} {}
-			// accesses
 			void operator>>(::string&) const ;
 			// data
 				SeqId   seq_id   = 0 ;
@@ -196,7 +194,7 @@ namespace Backends {
 			static Workload                              _s_workload                      ;                // book keeping of workload
 			static ::map <Pdate,JobExec>                 _s_deferred_report_queue_by_date ;
 			static ::umap<Job  ,Pdate  >                 _s_deferred_report_queue_by_job  ;
-			// cxtors & casts
+			// cxtors & co
 		public :
 			virtual ~Backend() = default ;                                                                 // ensure all fields of sub-backends are correctly destroyed
 			// services

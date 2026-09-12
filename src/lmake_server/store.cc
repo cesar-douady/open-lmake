@@ -359,10 +359,9 @@ namespace Engine::Persistent {
 		else           return str.substr(0,pos) ;
 	}
 	struct Rt : RuleTgt {
-		// cxtors & casts
+		// cxtors & co
 		Rt() = default  ;
 		Rt( RuleCrc rc , VarIdx ti ) : RuleTgt{rc,ti} , pfx{_parse_pfx(target())} , sfx{_parse_sfx(target())} {}
-		// services
 		size_t hash() const { return ::hash<Engine::RuleTgt>()(self) ; } // there is no more info in a Rt than in a RuleTgt
 		// data (cache)
 		::string pfx ;

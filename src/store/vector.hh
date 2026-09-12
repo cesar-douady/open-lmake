@@ -14,7 +14,7 @@ namespace Store {
 		// MinSz is indicative : allocation granularity is based on this size and no hole smaller than this will be generated
 		template<class Idx,class Item,class Sz=Idx,size_t MinSz=1> struct ChunkBase {
 			using ItemMem = char[sizeof(Item)] ;                                      // define memory for item so that cxtor & dxtor is managed by hand
-			// cxtors & casts
+			// cxtors & co
 			ChunkBase(Sz sz_) : sz{sz_} {}
 			// accesses
 			Item const* items() const { return ::launder(reinterpret_cast<Item const*>(_items)) ; }
@@ -40,7 +40,7 @@ namespace Store {
 			static constexpr IdxSz s_n_items(Sz sz_) {
 				return div_up<sizeof(Base)>( sizeof(Base) - MinSz*sizeof(Item) + sz_*sizeof(Item) ) ; // /!\ unsigned computation : take care of any subtraction
 			}                                                                                         // compute size before we have an object
-			// cxtors & casts
+			// cxtors & co
 			using Base::Base ;
 			template<::convertible_to<Item> I> Chunk(::span<I> const& v) : Base{Sz(v.size())} {
 				for( Sz i : iota(sz) ) new(items()+i) Item{v[i]} ;
@@ -93,8 +93,9 @@ namespace Store {
 		using Base::chk_thread   ;
 		using Base::chk_writable ;
 		using Base::size         ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
+		void clear(Idx idx) { pop(idx) ; }
 		// accesses
 		bool        empty   (Idx idx) const                 {                            return !idx                           ; }
 		Sz          size    (Idx idx) const                 { if (!idx) return 0       ; return Base::at(idx).sz               ; }
@@ -123,7 +124,6 @@ namespace Store {
 			if (!idx) return ;
 			Base::pop(idx) ;
 		}
-		void clear(Idx idx) { pop(idx) ; }
 		Idx shorten_by( Idx idx , Sz by ) {
 			chk_thread() ;
 			Sz sz = size(idx) ;

@@ -61,7 +61,7 @@ namespace Hash {
 		static char    _s_exe_secret[XXH3_SECRET_SIZE_MIN] ;
 		static Mutex<> _s_salt_init_mutex                  ;
 		static bool    _s_salt_inited                      ;
-		//cxtors & casts
+		//cxtors & co
 	public :
 		_Xxh(         ) ;
 		_Xxh(FileTag t) ;
@@ -123,7 +123,7 @@ namespace Hash {
 			_Crc crc{t} ;
 			return !crc.match(crc,a) ;
 		}
-		// cxtors & casts
+		// cxtors & co
 		constexpr _Crc() = default ;
 		//
 		constexpr _Crc( Val v , Bool3 is_lnk=Maybe ) : _val{v} {
@@ -151,21 +151,22 @@ namespace Hash {
 		constexpr _Crc(CrcSpecial special) : _val{+special} {}
 		//
 		constexpr explicit operator CrcSpecial() const { return _val>=+CrcSpecial::Plain ? CrcSpecial::Plain : CrcSpecial(_val) ; }
-		// accesses
 	public :
 		void     operator>>       (::string&) const ;
 		explicit operator ::string(         ) const ;
-		::string hex              (         ) const ;
-		::string base64           (         ) const ;
 		//
 		constexpr bool              operator== (_Crc const&) const = default ;
 		constexpr ::strong_ordering operator<=>(_Crc const&) const = default ;
-		constexpr Val               operator+  (           ) const { return  _val                                                                ; }
-		constexpr bool              valid      (           ) const { return _val>=+CrcSpecial::Valid                                             ; }
-		constexpr bool              exists     (           ) const { return +self && self!=None                                                  ; }
-		/**/      void              clear      (           )       { self = {}                                                                   ; }
-		constexpr bool              is_lnk     (           ) const { return _plain() ?   _val&0x1  : self==Lnk||self==LnkUnreadable              ; }
-		constexpr bool              is_reg     (           ) const { return _plain() ? !(_val&0x1) : self==Reg||self==RegUnreadable||self==Empty ; }
+		constexpr Val               operator+  (           ) const { return  _val ; }
+		// accesses
+		::string hex   () const ;
+		::string base64() const ;
+		//
+		constexpr bool valid () const { return _val>=+CrcSpecial::Valid                                             ; }
+		constexpr bool exists() const { return +self && self!=None                                                  ; }
+		/**/      void clear ()       { self = {}                                                                   ; }
+		constexpr bool is_lnk() const { return _plain() ?   _val&0x1  : self==Lnk||self==LnkUnreadable              ; }
+		constexpr bool is_reg() const { return _plain() ? !(_val&0x1) : self==Reg||self==RegUnreadable||self==Empty ; }
 	private :
 		constexpr bool _plain() const { return _val>=N<CrcSpecial> ; }
 		//

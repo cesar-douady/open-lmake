@@ -68,9 +68,9 @@ size_t   g_max_line_sz  = 0/*garbage*/ ;
 }
 
 struct Info {
-	// cxtors & casts
+	// cxtors & co
 	Info( bool ko_ , size_t n_lvls ) : ko{ko_} , breaks(n_lvls) {}
-	// services
+	// accesses
 	bool operator<(Info const& other) const {
 		/**/                                      if (ko         !=other.ko         ) return ko         <other.ko          ;
 		/**/                                      if (n_closes   !=other.n_closes   ) return n_closes   <other.n_closes    ;
@@ -86,7 +86,7 @@ struct Info {
 } ;
 
 struct Tab {
-	// cxtors & casts
+	// cxtors & co
 	Tab( size_t h_ , size_t w_ , size_t nl ) : h{h_} , w{w_} , tab{h*w,Info(true/*ko*/,nl)} {}
 	// accesses
 	::span<Info> operator[](size_t l) { return { &tab[l*w] , w } ; }

@@ -46,12 +46,12 @@ struct Gather {                                         // NOLINT(clang-analyzer
 	using DI   = DepInfo       ;
 	static constexpr Time::Delay HeartbeatTick { 10 } ; // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 10s seems a good compromize
 	struct AccessInfo {
-		// cxtors & casts
+		// cxtors & co
 		AccessInfo() = default ;
-		//
 		bool operator==(AccessInfo const&) const = default ;
+		void operator>>(::string&        ) const ;
+		void chk       (                 ) const ;
 		// accesses
-		void operator>>(::string&) const ;
 		PD                       first_read (bool with_readdir=true) const ;
 		PD                       first_write(                      ) const ;
 		::pair<PD,bool/*write*/> sort_key   (                      ) const ;
@@ -80,7 +80,6 @@ struct Gather {                                         // NOLINT(clang-analyzer
 			;
 		}
 		//
-		void chk() const ;
 		// data
 		// seen detection : we record the earliest date at which file has been as existing to detect situations where file is non-existing, then existing, then non-existing
 		// this cannot be seen on file date has there is no date for non-existing files

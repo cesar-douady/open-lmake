@@ -31,7 +31,7 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static Atomic<bool    > s_backup_trace ;
 		static Atomic<size_t  > s_sz           ;
 		static Atomic<Channels> s_channels     ;
-		// cxtors & casts
+		// cxtors & co
 		/**/                  Trace( Channel                              ) {}
 		template<class... Ts> Trace( Channel , const char* , Ts const&... ) {}
 		/**/                  Trace(                                      ) {}
@@ -82,7 +82,7 @@ static constexpr Channels DfltChannels = ~Channels() ;
 		static thread_local bool      _t_hide ;                                                                    // if true <=> do not generate trace
 		static thread_local ::string* _t_buf  ;                                                                    // pointer to avoid init/fini order hazards
 		//
-		// cxtors & casts
+		// cxtors & co
 	public :
 		/**/                  Trace( Channel channel                                       ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _chnl{channel}                            {}
 		template<class... Ts> Trace( Channel channel , const char* tag , Ts const&... args ) : _sav_lvl{_t_lvl} , _sav_hide{_t_hide} , _chnl{channel} , _first{true} , _tag{tag} {

@@ -51,7 +51,7 @@ namespace Codec {
 	static constexpr Channel CodecChnl = Channel::Codec ;
 
 	struct CodecServerSide : CodecRemoteSide {
-		// cxtors & casts
+		// cxtors & co
 		CodecServerSide() = default ;
 		CodecServerSide( ::string const& tab   , FileSync dflt_file_sync ) ;
 		// services
@@ -135,12 +135,10 @@ namespace Engine {
 		//
 		struct Backend {
 			using Tag = BackendTag ;
-			// cxtors & casts
+			// cxtors & co
 			Backend() = default ;
 			Backend(Py::Dict const& py_map) ;
-			// accesses
-			void operator>>(::string&) const ;
-			// services
+			void operator>>(::string&     ) const ;
 			bool operator==(Backend const&) const = default ;
 			template<IsStream S> void serdes(S& s) {
 				::serdes( s , domain_name,dct,env,configured ) ;
@@ -199,13 +197,11 @@ namespace Engine {
 	} ;
 
 	struct Config : ConfigClean , ConfigStatic , ConfigDyn {
-		// cxtors & casts
+		// cxtors & co
 		Config() = default ;
 		Config(Py::Dict const& py_map) ;
-		// accesses
 		void operator>>(::string&) const ;
 		bool operator+ (         ) const { return booted ; }
-		// services
 		template<IsStream S> void serdes(S& s) {
 			// START_OF_VERSIONING REPO
 			::serdes(s,static_cast<ConfigClean &>(self)) ;
@@ -214,6 +210,7 @@ namespace Engine {
 			// END_OF_VERSIONING
 			if (IsIStream<S>) booted = true ;  // if config comes from disk, it is booted
 		}
+		// services
 		::string pretty_str() const ;
 		void open() ;
 		ConfigDiff diff(Config const& other) {

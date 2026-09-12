@@ -37,7 +37,7 @@ struct Elf {
 		template<class T> static T const&                   _s_vma_to_ref    ( size_t vma         , FileMap const& file_map={} ) ;
 		/**/              static Dyn const*                 _s_search_dyn_tab(                      FileMap const& file_map    ) ;
 		/**/              static ::pair<const char*,size_t> _s_str_tab       ( Dyn const* dyn_tab , FileMap const& file_map    ) ;
-		// cxtors & casts
+		// cxtors & co
 	public :
 		DynDigest( Dyn const* dyn_tab , FileMap const& file_map={} ) ;
 		DynDigest(                      FileMap const& file_map    ) : DynDigest{ _s_search_dyn_tab(file_map) , file_map } {}
@@ -54,7 +54,7 @@ struct Elf {
 
 	// statics
 	static ::string s_expand( const char* txt , ::string const& exe={} ) ;
-	// cxtors & casts
+	// cxtors & co
 	Elf( Record& r_ , ::string const& exe , const char* llp , const char* rp=nullptr ) : r{&r_} , ld_library_path{s_expand(llp,exe)} , rpath{s_expand(rp,exe)} {
 		if (!llp) return ;
 		::string const& root_s = Record::s_autodep_env().repo_root_s ; SWEAR(+root_s) ;     // root_s contains at least /

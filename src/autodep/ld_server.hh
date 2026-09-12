@@ -14,7 +14,7 @@ struct AutodepLock {
 	static thread_local bool t_active ;
 private :
 	static Mutex<MutexLvl::Autodep> _s_mutex ;
-	// cxtors & casts
+	// cxtors & co
 public :
 	AutodepLock() = default ;
 	AutodepLock(::vmap_s<DepDigest>* deps=nullptr) ;

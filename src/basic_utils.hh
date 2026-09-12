@@ -191,18 +191,18 @@ template<bool WithStart,class T> struct Iota {
 	struct Iterator {
 		using value_type      = T         ;
 		using difference_type = ptrdiff_t ;
-		// cxtors & casts
+		// cxtors & co
 		Iterator() = default ;
 		constexpr Iterator(T c) : cur{c} {}
+		constexpr bool operator==(Iterator const&) const = default ;
 		// services
-		constexpr bool      operator==(Iterator const&) const = default ;
-		constexpr T         operator* (               ) const {                                return cur   ; }
-		constexpr Iterator& operator++(               )       { cur = T(+cur+1) ;              return self  ; }
-		constexpr Iterator  operator++(int            )       { Iterator self_=self ; ++self ; return self_ ; }
+		constexpr T         operator* (   ) const {                                return cur   ; }
+		constexpr Iterator& operator++(   )       { cur = T(+cur+1) ;              return self  ; }
+		constexpr Iterator  operator++(int)       { Iterator self_=self ; ++self ; return self_ ; }
 		// data
 		T cur = {} ;
 	} ;
-	// cxtors & casts
+	// cxtors & co
 	Iota() = default ;
 	/**/               constexpr Iota(        T e ) requires(!WithStart) : bounds{     e} {}
 	/**/               constexpr Iota(        T e ) requires( WithStart) : bounds{T( ),e} {}
@@ -227,7 +227,7 @@ template<class T> using Iota1 = Iota<false   ,T> ;
 template<class T> using Iota2 = Iota<true    ,T> ;
 
 struct First {
-	// accesses
+	// cxtors & co
 	bool operator+() const { return _val ; }
 	// services
 	bool advance() { uint8_t v = _val ; _val = ::min(_val+1,2) ; return v==0 ; }

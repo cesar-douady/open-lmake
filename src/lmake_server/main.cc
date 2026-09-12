@@ -23,7 +23,7 @@ static constexpr Delay StatsRefresh { 1 } ;
 struct LmakeServer : AutoServer<LmakeServer> {
 	using Item = ReqRpcReq ;
 	static constexpr uint64_t Magic = LmakeServerMagic ;             // any random improbable value!=0 used as a sanity check when client connect to server
-	// cxtors & casts
+	// cxtors & co
 	using AutoServer<LmakeServer>::AutoServer ;
 	// injection
 	bool/*done*/ interrupt() {

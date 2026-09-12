@@ -170,7 +170,7 @@ template<UEnum E> struct BitMap ;
 template<UEnum E> struct BitMap {
 	using Elem =       E    ;
 	using Val  = Uint<N<E>> ;
-	// cxtors & casts
+	// cxtors & co
 	BitMap() = default ;
 	//
 	constexpr explicit BitMap(Val v) : _val{v} {}
@@ -178,7 +178,6 @@ template<UEnum E> struct BitMap {
 	template<Same<E>... Args> constexpr BitMap(Args... e) {
 		( (_val|=(Val(1)<<+e)) , ... ) ;
 	}
-	// accesses
 	void operator>>(::string& os) const {                                                                            // START_OF_NO_COV
 		bool first = true ;
 		os << '(' ;
@@ -189,11 +188,12 @@ template<UEnum E> struct BitMap {
 			}
 		os << ')' ;
 	}                                                                                                                // END_OF_NO_COV
-	constexpr Val operator+() const { return _val ; }
+	constexpr Val  operator+ (             ) const { return _val ; }
+	constexpr bool operator==(BitMap const&) const = default ;
+	// accesses
+	constexpr bool operator<=(BitMap other) const { return !(  _val & ~other._val ) ; }
+	constexpr bool operator>=(BitMap other) const { return !( ~_val &  other._val ) ; }
 	// services
-	constexpr bool    operator==( BitMap const&     ) const = default ;
-	constexpr bool    operator<=( BitMap other      ) const { return !(  _val & ~other._val )    ;                 }
-	constexpr bool    operator>=( BitMap other      ) const { return !( ~_val &  other._val )    ;                 }
 	constexpr BitMap  operator~ (                   ) const { return BitMap(lsb_msk(N<E>)&~_val) ;                 }
 	constexpr BitMap  operator& ( BitMap other      ) const { return BitMap(_val&other._val)     ;                 }
 	constexpr BitMap  operator| ( BitMap other      ) const { return BitMap(_val|other._val)     ;                 }

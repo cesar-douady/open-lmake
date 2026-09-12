@@ -84,14 +84,13 @@ namespace Re {
 			static constexpr size_t ErrMsgSz = 120 ;                                               // per PCRE doc
 			using _RegExprBits::Data ;
 			struct Cache {
-				// cxtors & casts
+				// cxtors & co
 				~Cache() {
 					for( auto const& [k,c_u] : _cache ) {
 						SWEAR(c_u.first) ;
 						::pcre2_code_free(const_cast<pcre2_code*>(c_u.first)) ;
 					}
 				}
-				// services
 				template<IsOStream S> void serdes(S& os) const {
 					// START_OF_VERSIONING REPO
 					::vector_s        keys  ;
@@ -176,7 +175,7 @@ namespace Re {
 			// static data
 		public :
 			static Cache s_cache ;
-			// cxtors & casts
+			// cxtors & co
 			RegExpr() = default ;
 			RegExpr( Pattern  const& pattern , bool cache ) ;
 			RegExpr( ::string const& pattern , bool cache ) ;
@@ -185,16 +184,15 @@ namespace Re {
 			RegExpr& operator=(RegExpr&& re)                            { close() ; _RegExprBits::operator=(::move(re)) ; re._code = nullptr ; return self ; }
 			//
 			~RegExpr() { close() ; }
-			//
-			void close() {
-				if ( _own && _code ) { ::pcre2_code_free(const_cast<pcre2_code*>(_code)) ; _code = nullptr ; }
-			}
 			// accesses
 			bool has_stems() const { return _special!=Special::Single ; }
 			Data data     () const { return { self }                  ; }
 			// services
 			// chk_psfx=Maybe means check size only
 			// without Data, matching is not reentrant
+			void close() {
+				if ( _own && _code ) { ::pcre2_code_free(const_cast<pcre2_code*>(_code)) ; _code = nullptr ; }
+			}
 			size_t n_marks  (                                                              ) const ;
 			Match  match    ( ::string const& subject , Data const&   , Bool3 chk_psfx=Yes ) const ;
 			bool   can_match( ::string const& s       , Data const& d , Bool3 cp      =Yes ) const {                                          return _n_match1( s , d     , cp )>=0 ; }
@@ -235,7 +233,7 @@ namespace Re {
 			// static data
 		public :
 			static Cache s_cache ;
-			// cxtors & casts
+			// cxtors & co
 			RegExpr( Pattern  const& pattern , bool /*cache*/ ) : ::regex{_s_mk_pattern(pattern),Flags} , _has_stems{_s_mk_has_stems(pattern)} {} // cache is ignored as no cache is implemented
 			RegExpr( ::string const& pattern , bool /*cache*/ ) : ::regex{              pattern ,Flags}                                        {}
 			//

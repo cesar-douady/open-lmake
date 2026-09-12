@@ -408,19 +408,20 @@ struct AccDflags {
 
 struct JobReason {
 	using Tag = JobReasonTag ;
-	// cxtors & casts
+	// cxtors & co
 	JobReason() = default ;
 	JobReason( Tag t             ) :           tag{t} { SWEAR( t< Tag::HasNode          , t        ) ; }
 	JobReason( Tag t , NodeIdx n ) : node{n} , tag{t} { SWEAR( t>=Tag::HasNode && +node , t , node ) ; }
-	// accesses
 	void operator>>(::string&) const ;
-	bool operator+ (         ) const { return +tag                           ; }
-	bool need_run  (         ) const { return +tag and tag<JobReasonTag::Err ; }
-	// services
+	bool operator+ (         ) const { return +tag ; }
 	template<IsStream S> void serdes(S& s) {
 		/**/                            ::serdes( s , tag  ) ;
 		if (tag>=JobReasonTag::HasNode) ::serdes( s , node ) ;
 	}
+	void chk() const ;
+	// accesses
+	bool need_run() const { return +tag and tag<JobReasonTag::Err ; }
+	// services
 	JobReason operator|(JobReason jr) const {
 		if (JobReasonTagPrios[+tag].second>=JobReasonTagPrios[+jr.tag].second) return self ; // at equal level, prefer older reason
 		else                                                                   return jr   ;
@@ -430,7 +431,6 @@ struct JobReason {
 		if (tag<Tag::HasNode) SWEAR( !node , tag,node ) ;
 		return JobReasonTagStrs[+tag].second ;
 	}
-	void chk() const ;
 	// data
 	// START_OF_VERSIONING REPO CACHE
 	NodeIdx node = 0                  ;
@@ -470,7 +470,7 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	using Crc      = Hash::Crc      ;
 	using FileSig  = Disk::FileSig  ;
 	using FileInfo = Disk::FileInfo ;
-	//cxtors & casts
+	//cxtors & co
 	constexpr DepInfo() : Base{Crc()} {}
 	using Base::Base ;
 	//
@@ -479,7 +479,6 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 		else if ( ddb.is_crc   ) self = ddb.crc() ;
 		else                     self = ddb.sig() ;
 	}
-	// accesses
 	void operator>>(::string&        ) const ;
 	bool operator==(DepInfo const& di) const { // if true => self and di are identical (but there may be false negative if one is a Crc)
 		if      ( kind()==di.kind()                         ) return static_cast<Base const&>(self)==static_cast<Base const&>(di) ;
@@ -487,7 +486,7 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 		else                                                  return sig()==di.sig()                                              ; // if one is Info and the other is Sig, convert Info into Sig
 	}
 	bool operator+() const { return !is_a<Kind::Crc>() || +crc() ; }
-	//
+	// accesses
 	/**/             Kind kind() const { return Kind(index()) ; }
 	template<Kind K> bool is_a() const { return index()==+K   ; }
 	//
@@ -528,7 +527,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	using Crc      = Hash::Crc      ;
 	using FileSig  = Disk::FileSig  ;
 	using FileInfo = Disk::FileInfo ;
-	//cxtors & casts
+	//cxtors & co
 	constexpr DepDigestBase(                                                                             bool p=false ) :                                         parallel{p} { del_crc    (    ) ; }
 	constexpr DepDigestBase(          Accesses a ,                               Dflags dfs=DflagsDflt , bool p=false ) :           dflags(dfs) , accesses_{+a} , parallel{p} { del_crc    (    ) ; }
 	constexpr DepDigestBase(          Accesses a , Crc             c  , bool e , Dflags dfs=DflagsDflt , bool p=false ) :           dflags(dfs) , accesses_{+a} , parallel{p} { set_crc    (c ,e) ; }
@@ -562,7 +561,6 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		/**/                   if (is_crc                  ) return _crc==ddb._crc ;
 		/**/                                                 return _sig==ddb._sig ;
 	}
-	// accesses
 	void operator>>(::string& os) const {                                                                                                                              // START_OF_NO_COV
 		First first ;
 		/**/                                   os << "D("                                       ;
@@ -577,6 +575,18 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		if           (  create_encode        ) os << first("",",")<<"create_encode"             ;
 		/**/                                   os << ')'                                        ;
 	}                                                                                                                                                                  // END_OF_NO_COV
+	template<IsStream S> void serdes(S& s) {
+		::serdes( s , sz,dflags ) ;
+		// bitfields cannot be serialized directly as no ref is allowed
+		/**/                Accesses::Val accesses__ ; Accesses::Val    chunk_accesses__ ; bool      parallel_ ; bool    is_crc_ ; bool hot_ ; bool err_ ; bool create_encode_           ;
+		if (IsOStream<S>) { accesses__=   accesses_  ; chunk_accesses__=chunk_accesses_  ; parallel_=parallel  ; is_crc_=is_crc  ; hot_=hot  ; err_=err  ; create_encode_=create_encode  ; }
+		::serdes( s ,       accesses__               , chunk_accesses__                  , parallel_           , is_crc_         , hot_      , err_      , create_encode_                ) ;
+		if (IsIStream<S>) { accesses_ =   accesses__ ; chunk_accesses_ =chunk_accesses__ ; parallel =parallel_ ; is_crc =is_crc_ ; hot =hot_ ; err =err_ ; create_encode =create_encode_ ; }
+		//
+		if (is_crc) ::serdes( s , _crc ) ;
+		else        ::serdes( s , _sig ) ;
+	}
+	// accesses
 	constexpr Accesses accesses      () const {                  return Accesses(accesses_      )    ; }
 	constexpr Accesses chunk_accesses() const {                  return Accesses(chunk_accesses_)    ; }
 	constexpr Crc      crc           () const { SWEAR( is_crc) ; return _crc                         ; }
@@ -599,17 +609,6 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 	constexpr void may_set_crc    (Crc            c ) { if (!(                                c       .valid() && accesses()[Access::Err] )) set_crc    (c ,false) ; } // only set crc if err is useless
 	constexpr void may_set_crc_sig(DepInfo const& di) { if (!( di.is_a<DepInfoKind::Crc>() && di.crc().valid() && accesses()[Access::Err] )) set_crc_sig(di,false) ; } // .
 	// services
-	template<IsStream S> void serdes(S& s) {
-		::serdes( s , sz,dflags ) ;
-		// bitfields cannot be serialized directly as no ref is allowed
-		/**/                Accesses::Val accesses__ ; Accesses::Val    chunk_accesses__ ; bool      parallel_ ; bool    is_crc_ ; bool hot_ ; bool err_ ; bool create_encode_           ;
-		if (IsOStream<S>) { accesses__=   accesses_  ; chunk_accesses__=chunk_accesses_  ; parallel_=parallel  ; is_crc_=is_crc  ; hot_=hot  ; err_=err  ; create_encode_=create_encode  ; }
-		::serdes( s ,       accesses__               , chunk_accesses__                  , parallel_           , is_crc_         , hot_      , err_      , create_encode_                ) ;
-		if (IsIStream<S>) { accesses_ =   accesses__ ; chunk_accesses_ =chunk_accesses__ ; parallel =parallel_ ; is_crc =is_crc_ ; hot =hot_ ; err =err_ ; create_encode =create_encode_ ; }
-		//
-		if (is_crc) ::serdes( s , _crc ) ;
-		else        ::serdes( s , _sig ) ;
-	}
 	constexpr DepDigestBase& operator|=(DepDigestBase const& ddb) {            // assumes ddb has been accessed after us
 		if constexpr (HasBase) SWEAR( Base::operator==(ddb) , self,ddb ) ;
 		if (!accesses_) {
@@ -667,7 +666,7 @@ struct TargetDigest {
 } ;
 
 template<class Key=::string> struct JobDigest {                            // Key may be ::string or Node
-	// cxtors & casts
+	// cxtors & co
 	template<class KeyTo> operator JobDigest<KeyTo>() const {
 		JobDigest<KeyTo> res {
 			.upload_key     = upload_key
@@ -690,8 +689,6 @@ template<class Key=::string> struct JobDigest {                            // Ke
 		}
 		return res ;
 	}
-	void chk(bool for_cache=false) const ;
-	// accesses
 	void operator>>(::string& os) const {                                  // START_OF_NO_COV
 		/**/                 os << "JobDigest("                          ;
 		/**/                 os <<      status                           ;
@@ -704,6 +701,7 @@ template<class Key=::string> struct JobDigest {                            // Ke
 		if (+upload_key    ) os << ','<<upload_key                       ;
 		/**/                 os << ')'                                   ;
 	}                                                                      // END_OF_NO_COV
+	void chk(bool for_cache=false) const ;
 	// services
 	void cache_cleanup() ;
 	// data
@@ -735,19 +733,18 @@ template<class Key> void JobDigest<Key>::chk(bool for_cache) const {
 }
 
 struct UserTraceEntry {
-	// cxtor & casts
+	// cxtor & co
 	// mimic aggregate cxtors as clang would not accept emplace_back if not explicitely provided
 	UserTraceEntry() = default ;
 	UserTraceEntry( Time::Pdate d , Comment c , CommentExts ces={} , ::string const& f={} ) : date{d} , comment{c} , comment_exts{ces} , file{       f } {}
 	UserTraceEntry( Time::Pdate d , Comment c , CommentExts ces    , ::string     && f    ) : date{d} , comment{c} , comment_exts{ces} , file{::move(f)} {}
-	// accesses
 	void operator>>(::string&) const ;
-	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , date                   ) ;
 		::serdes( s , comment , comment_exts ) ;
 		::serdes( s , file                   ) ;
 	}
+	// services
 	::string step() const {
 		if (+comment_exts) return cat(comment,comment_exts) ;
 		else               return cat(comment             ) ;
@@ -845,19 +842,18 @@ struct JobRpcReq {
 } ;
 
 struct JobStartRpcReq : JobRpcReq {
-	// cxtors & casts
+	// cxtors & co
 	JobStartRpcReq() = default ;
 	JobStartRpcReq( JobRpcReq jrr , KeyedService s , ::string&& msg_={} ) : JobRpcReq{jrr} , service{s} , msg{::move(msg_)} {}
-	// accesses
 	void operator>>(::string&) const ;
-	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
 		::serdes( s , service                       ) ;
 		::serdes( s , msg                           ) ;
 	}
-	void cache_cleanup() ;
 	void chk(bool for_cache=false) const ;
+	// services
+	void cache_cleanup() ;
 	// data
 	// START_OF_VERSIONING REPO CACHE
 	KeyedService service ; // where job_exec can be contacted (except addr which is discovered by server from peer_addr
@@ -965,11 +961,9 @@ struct JobEndRpcReq : JobRpcReq {
 	using SI  = SeqId               ;
 	using JI  = JobIdx              ;
 	using MDD = ::vmap_s<DepDigest> ;
-	// cxtors & casts
+	// cxtors & co
 	JobEndRpcReq(JobRpcReq jrr={}) : JobRpcReq{jrr} {}
-	// accesses
 	void operator>>(::string&) const ;
-	// services
 	template<IsStream S> void serdes(S& s) {
 		::serdes( s , static_cast<JobRpcReq&>(self) ) ;
 		::serdes( s , cache_addr                    ) ;
@@ -986,8 +980,9 @@ struct JobEndRpcReq : JobRpcReq {
 		::serdes( s , user_trace                    ) ;
 		::serdes( s , wstatus                       ) ;
 	}
-	void cache_cleanup() ;                       // clean up info before uploading to cache
 	void chk(bool for_cache=false) const ;
+	// services
+	void cache_cleanup() ;                       // clean up info before uploading to cache
 	// data
 	// START_OF_VERSIONING REPO CACHE
 	in_addr_t                cache_addr    = 0 ; // report back used address

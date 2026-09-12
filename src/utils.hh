@@ -321,7 +321,7 @@ template<MutexLvl Lvl_=MutexLvl::Inner,bool S=false/*shared*/> struct Mutex : ::
 #endif
 
 template<class M=Mutex<>> struct Lock {
-	// cxtors & casts
+	// cxtors & co
 	Lock() = default ;
 	Lock (M& m) : _mutex{&m} { lock() ; }
 	//
@@ -329,7 +329,7 @@ template<class M=Mutex<>> struct Lock {
 	//
 	Lock           (Lock&& l) : _mutex{l._mutex} , _lvl{l._lvl} { l._mutex=nullptr ; l._lvl=MutexLvl::Unlocked ;               }
 	Lock& operator=(Lock&& l) { _mutex=l._mutex  ; _lvl=l._lvl ;  l._mutex=nullptr ; l._lvl=MutexLvl::Unlocked ; return self ; }
-	// accesses
+	//
 	bool operator+() const { return _mutex ; }
 	// services
 	void lock  () { SWEAR(!_lvl) ; _mutex->lock  (_lvl) ; }
@@ -339,7 +339,7 @@ template<class M=Mutex<>> struct Lock {
 	MutexLvl _lvl   = MutexLvl::Unlocked ;
 } ;
 template<class M=Mutex<>> struct SharedLock {
-	// cxtors & casts
+	// cxtors & co
 	SharedLock() = default ;
 	SharedLock (M& m) : _mutex{&m} { lock  () ; }
 	~SharedLock(    )              { unlock() ; }
@@ -353,7 +353,7 @@ template<class M=Mutex<>> struct SharedLock {
 
 #ifndef NDEBUG
 	struct NoLock {                 // check exclusion is guaranteed by caller
-		// cxtors & casts
+		// cxtors & co
 		NoLock() = default ;
 		NoLock (NoMutex& m) : _mutex{&m} { lock  () ; }
 		~NoLock(          )              { unlock() ; }
@@ -364,7 +364,7 @@ template<class M=Mutex<>> struct SharedLock {
 		NoMutex* _mutex = nullptr ; // must be !=nullptr to lock
 	} ;
 	struct NoSharedLock {           // check exclusion is guaranteed by caller
-		// cxtors & casts
+		// cxtors & co
 		NoSharedLock() = default ;
 		NoSharedLock (NoMutex& m) : _mutex{&m} { lock  () ; }
 		~NoSharedLock(          )              { unlock() ; }
@@ -393,17 +393,18 @@ template<class T,MutexLvl Lvl=MutexLvl::Unlocked> struct Atomic : ::atomic<T> {
 	using Base = ::atomic<T> ;
 	using Base::load  ;
 	using Base::store ;
-	// cxtors & casts
+	// cxtors & co
 	Atomic(               ) : Base{T()     } {}
 	Atomic(Atomic const& a) : Base{a.load()} {}
 	using Base::Base ;
 	Atomic& operator=(Atomic const& a) { store(a.load()) ; return self ; }  // yes, the whole operation is not atomic, but the load part and the store part are, and this is useful
 	using Base::operator= ;
-	// accesses
+	//
 	void  operator>>(::string& os) const { os << "Atomic("<<load()<<')' ; } // NO_COV
 	auto  operator+ (            ) const { return +load() ;               }
-	auto& operator* (            ) const { return *load() ;               }
-	auto* operator->(            ) const { return &*self  ;               }
+	// accesses
+	auto& operator* () const { return *load() ; }
+	auto* operator->() const { return &*self  ; }
 	// services
 	void wait(T const& old) requires(bool(+Lvl)) ;
 } ;
@@ -484,15 +485,15 @@ private :
 
 // /!\ OrderedSet is like OrderedMap without value, both codes must stay in sync
 template<class K> struct OrderedSet {
-	// cxtors & casts
+	// cxtors & co
 	OrderedSet() = default ;
 	operator ::vector<K>() const {
 		::vector<K> res(_data.size()) ; for( auto const& [k,i] : _data ) res[i] = k ;
 		return res ;
 	}
+	bool operator+() const { return +_data ; }
 	// accesses
-	bool operator+(          ) const { return +_data            ; }
-	bool contains (K const& k) const { return _data.contains(k) ; }
+	bool contains(K const& k) const { return _data.contains(k) ; }
 	// services
 	bool push(K const& k) {                                   // store if k does not already exists
 		return _data.try_emplace( k , _data.size() ).second ;
@@ -504,15 +505,15 @@ private :
 
 // /!\ OrderedSet is like OrderedMap without value, both codes must stay in sync
 template<class K,class V> struct OrderedMap {
-	// cxtors & casts
+	// cxtors & co
 	OrderedMap() = default ;
 	operator ::vmap<K,V>() const {
 		::vmap<K,V> res(_data.size()) ; for( auto const& [k,i_v] : _data ) res[i_v.first] = {k,i_v.second} ;
 		return res ;
 	}
+	bool operator+() const { return +_data ; }
 	// accesses
-	bool operator+(          ) const { return +_data            ; }
-	bool contains (K const& k) const { return _data.contains(k) ; }
+	bool contains(K const& k) const { return _data.contains(k) ; }
 	// services
 	bool push( K const& k , V const& v ) {                        // store if k does not already exists
 		return _data.try_emplace( k , _data.size() , v ).second ;
@@ -542,7 +543,7 @@ mode_t _action_mod2( mode_t mod , mode_t umask ) ; // return mod to pass to ::fc
 
 struct _FdAction ;
 struct _CreatAction {
-	// cxtors & casts
+	// cxtors & co
 	operator _FdAction() const ;
 	// services
 	mode_t mod1() const { return _action_mod1(mod,umask) ; }
@@ -555,7 +556,7 @@ struct _CreatAction {
 	mode_t     umask      = -1      ;                        // -1 means use standard umask
 } ;
 struct _FdAction {
-	// cxtors & casts
+	// cxtors & co
 	operator _CreatAction() const ;
 	// services
 	mode_t mod1() const { return _action_mod1(mod,umask) ; } // copy _CreatAction as inheriting would prevent aggregate init
@@ -583,7 +584,7 @@ struct Fd {
 	static const Fd Std    ;                                                                            // the highest standard fd
 	//
 	using Action = _FdAction ;
-	// cxtors & casts
+	// cxtors & co
 private :
 	static int _s_mk_fd( FileRef file , Action action ) ;
 public :
@@ -598,7 +599,7 @@ public :
 	constexpr bool operator+() const { return fd>=0 || fd==AT_FDCWD ; }                                 // other negative values are used to spawn processes
 	//
 	void swap(Fd& fd_) { ::swap(fd,fd_.fd) ; }
-	// accesses
+	//
 	void operator>>(::string& os) const { append_to_str( os , "Fd" ) ; }                                // NO_COV
 	// services
 	constexpr bool              operator== (Fd const&                    ) const = default ;
@@ -633,7 +634,6 @@ constexpr Fd Fd::Stderr{2            } ;
 constexpr Fd Fd::Std   {2            } ;
 
 struct AcFd : Fd {
-	// cxtors & casts
 	AcFd() = default ;
 	AcFd( Fd fd_                       ) : Fd{fd_        } {              }
 	AcFd( AcFd&& acfd                  )                   { swap(acfd) ; }
@@ -647,8 +647,7 @@ struct AcFd : Fd {
 	AcFd& operator=(int       fd_ ) { if (fd!=fd_) { close() ; fd = fd_ ; } return self ; }
 	AcFd& operator=(Fd const& fd_ ) { self = fd_.fd ;                       return self ; }
 	AcFd& operator=(AcFd   && acfd) { swap(acfd) ;                          return self ; }
-	// accesses
-	void operator>>(::string& os) const { append_to_str( os , "AcFd" ) ; } // NO_COV
+	void operator>>(::string& os) const { append_to_str( os , "AcFd" ) ; }                  // NO_COV
 } ;
 
 template<class F> struct _File {
@@ -693,7 +692,7 @@ public :
 	F  file ;
 } ;
 struct SyncGuardDir {                                             // open/close uphill dirs before read accesses and after write accesses
-	// cxtors & casts
+	// cxtors & co
 	~SyncGuardDir() { flush() ; }
 	//services
 	void access      (FileRef path ) ;
@@ -706,7 +705,7 @@ struct SyncGuardDir {                                             // open/close 
 	::uset<File> to_stamp_dirs_s ;
 } ;
 struct SyncGuardReaddir {                                         // open/close uphill dirs after write accesses and readdir before read accesses
-	// cxtors & casts
+	// cxtors & co
 	~SyncGuardReaddir() { flush() ; }
 	//services
 	void access      (FileRef path ) ;
@@ -719,7 +718,7 @@ struct SyncGuardReaddir {                                         // open/close 
 	::uset<File> to_stamp_dirs_s ;
 } ;
 struct SyncGuard : ::variant< ::monostate , SyncGuardDir , SyncGuardReaddir > {
-	// cxtors & casts
+	// cxtors & co
 	constexpr SyncGuard(FileSync fs=FileSync::None) {
 		switch (fs) {                                             // PER_FILE_SYNC : add entry here
 			case FileSync::None    :                break ;
@@ -822,7 +821,7 @@ template<class T,MutexLvl A=MutexLvl::Unlocked> struct StaticUniqPtr ;
 //
 template<class T,MutexLvl A> struct StaticUniqPtr {
 	template<class,MutexLvl> friend struct StaticUniqPtr ;
-	// cxtors & casts
+	// cxtors & co
 	/**/                 StaticUniqPtr() = default ;
 	/**/                 StaticUniqPtr(T*                   p  )                    : _ptr{p       } {}
 	/**/                 StaticUniqPtr(NewType                 )                    : _ptr{new T   } {}
@@ -839,14 +838,15 @@ template<class T,MutexLvl A> struct StaticUniqPtr {
 	//
 	StaticUniqPtr           (StaticUniqPtr const&) = delete ;
 	StaticUniqPtr& operator=(StaticUniqPtr const&) = delete ;
+	//
+	void operator>>(::string& os) const { os << _ptr ; }                                                                      // NO_COV
 	// accesses
-	void     operator>>(::string& os) const { os << _ptr ;     }                                                              // NO_COV
-	bool     operator+ (            ) const { return _ptr    ; }
-	T      & operator* (            )       { return *_ptr   ; }
-	T const& operator* (            ) const { return *_ptr   ; }
-	T      * operator->(            )       { return &*self  ; }
-	T const* operator->(            ) const { return &*self  ; }
-	void     detach    (            )       { _ptr = nullptr ; }
+	bool     operator+ () const { return _ptr    ; }
+	T      & operator* ()       { return *_ptr   ; }
+	T const& operator* () const { return *_ptr   ; }
+	T      * operator->()       { return &*self  ; }
+	T const* operator->() const { return &*self  ; }
+	void     detach    ()       { _ptr = nullptr ; }
 	// data
 private :
 	::conditional_t<+A,Atomic<T*,A>,T*> _ptr = nullptr ;

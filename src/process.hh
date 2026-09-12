@@ -45,11 +45,10 @@ struct Child {
 	static constexpr Fd NoneFd { -1 } ;
 	static constexpr Fd PipeFd { -2 } ;
 	static constexpr Fd JoinFd { -3 } ;               // used on sderr to join to stdout
-	// cxtors & casts
+	// cxtors & co
 	~Child() {
 		swear_prod(pid==0,"bad pid",pid) ;
 	}
-	// accesses
 	bool operator+() const { return pid ; }
 	// services
 	void spawn() ;
@@ -105,7 +104,7 @@ struct AutoServerBase {
 		SockFd::Key   key        = {}    ;
 		IMsgBuf       buf        = {}    ;
 	} ;
-	// cxtors & casts
+	// cxtors & co
 	AutoServerBase() = default ;
 	AutoServerBase(::string const& server_mrkr) ;
 	// accesses
@@ -125,7 +124,7 @@ protected :
 } ;
 
 template<class T> struct AutoServer : AutoServerBase {
-	// cxtors & casts
+	// cxtors & co
 	using AutoServerBase::AutoServerBase ;
 	// services
 	bool/*interrupted*/ event_loop     (         ) ;

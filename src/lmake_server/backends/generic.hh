@@ -24,7 +24,7 @@ namespace Backends {
 		// static data
 	private :
 		static ::umap<Data,RefCnt> _s_store ;                                   // map rsrcs to refcount, always >0 (erased when reaching 0)
-		// cxtors & casts
+		// cxtors & co
 	public :
 		Shared() = default ;
 		//
@@ -49,16 +49,16 @@ namespace Backends {
 		//
 		Shared& operator=(Shared s) { swap(self,s) ; return self ; }
 		//
+		bool operator+ (             ) const { return data   ; }
 		bool operator==(Shared const&) const = default ;
-		// access
 		void operator>>(::string& os) const {                                   // START_OF_NO_COV
 			/**/       os << "Shared" ;
 			if (+self) os << *self    ;
 			else       os << "()"     ;
 		}                                                                       // END_OF_NO_COV
+		// access
 		Data const& operator* () const { return *data  ; }
 		Data const* operator->() const { return &*self ; }
-		bool        operator+ () const { return data   ; }
 		// services
 		Shared round(Backend const& be) const { return {New,self->round(be)}       ; }
 		size_t hash (                 ) const { return ::hash<Data const*>()(data) ; }
@@ -130,10 +130,9 @@ namespace Backends {
 	} ;
 
 	template<class Rsrcs> struct _SpawnedEntry {
-		// cxtors & casts
+		// cxtors & co
 		_SpawnedEntry() = default ;
 		_SpawnedEntry( Rsrcs const& rsrcs_ , Rsrcs const& rounded_rsrcs_ ) : rsrcs{rsrcs_} , rounded_rsrcs{rounded_rsrcs_} {}
-		// accesses
 		void operator>>(::string& os) const {                           // START_OF_NO_COV
 			os << "SpawnedEntry(" ;
 			if (!zombie) {

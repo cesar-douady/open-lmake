@@ -21,7 +21,7 @@ namespace Backends::Local {
 	using Rsrc = uint32_t ;
 
 	struct RsrcsData : ::vector<Rsrc> {
-		// cxtors & casts
+		// cxtors & co
 		RsrcsData() = default ;
 		RsrcsData( size_t sz                                                          ) : ::vector<Rsrc>(sz) {}
 		RsrcsData( ::vmap_ss const& , ::umap_s<size_t> const& idxs , bool rnd_up=true ) ;

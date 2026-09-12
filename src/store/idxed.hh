@@ -21,11 +21,10 @@ template<class I,uint8_t NGuardBits_=0> struct Idxed {
 	// statics
 private :
 	static constexpr void _s_chk(Idx idx) { swear_prod( !(idx&~lsb_msk(NValBits)) , "index overflow : ",idx ) ; }
-	// cxtors & casts
+	// cxtors & co
 public :
 	constexpr Idxed() = default ;
 	constexpr Idxed(Idx i) : val{i} { _s_chk(i) ; }                                                 // ensure no index overflow
-	// accesses
 	void operator>>(::string& os) const {                                                           // START_OF_NO_COV
 		/**/                                        os <<     +self                               ;
 		if constexpr (NGuardBits>1) if (val!=+self) os << '+'<<self.template side<NGuardBits-1>() ;
@@ -35,7 +34,7 @@ public :
 	constexpr Idx               operator+  (           ) const { return val&lsb_msk(NValBits) ; }
 	//
 	void clear() { self = Idxed{} ; }
-	//
+	// accesses
 	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx>-(NGuardBits>0) ) Idx  side    (     ) const { return Idx(val>>(LSB+NValBits))&lsb_msk<Idx>(W) ; }
 	template<uint8_t W,uint8_t LSB=0> requires( W>0 && W+LSB+NValBits<=NBits<Idx>-(NGuardBits>0) ) void set_side(Idx v)       {
 		val =
@@ -69,7 +68,7 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	template<class T> static constexpr bool IsB    = ::is_base_of_v<B,T> && ( ::is_base_of_v<A,B> || !::is_base_of_v<A,T> ) ; // .
 	template<class T> static constexpr bool IsAOrB = IsA<T> || IsB<T>                                                       ;
 	//
-	// cxtors & casts
+	// cxtors & co
 	constexpr Idxed2() = default ;
 	constexpr Idxed2(A a) : _val{SIdx( a.val)} {}
 	constexpr Idxed2(B b) : _val{SIdx(-b.val)} {}
@@ -83,7 +82,6 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T      &()       { SWEAR(is_a<T>()) ; return *::launder(reinterpret_cast<T      *>(this)) ; }
 	//
 	void clear() { self = Idxed2() ; }
-	// accesses
 	void operator>>(::string& os) const {                                                                                     // START_OF_NO_COV
 		if      (!self                   ) os << '0'     ;
 		else if ( self.template is_a<A>()) os << A(self) ;
@@ -92,7 +90,7 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	constexpr bool              operator== (Idxed2 other) const { return +self== +other               ; }
 	constexpr ::strong_ordering operator<=>(Idxed2 other) const { return +self<=>+other               ; }
 	constexpr SIdx              operator+  (            ) const { return _val<<NGuardBits>>NGuardBits ; }
-	//
+	// accesses
 	template<class T> requires(IsAOrB<T>) bool is_a() const {
 		if (IsA<T>) return _val>=0 ;
 		else        return _val<=0 ;
@@ -134,7 +132,7 @@ namespace Vector {
 		using Sz   = Idx                          ;
 		using D    = Descr<Simple<Idx,Item,Mrkr>> ;
 		static const Idx EmptyIdx ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		//
 		template<::convertible_to<Item> I> SimpleBase ( NewType , I          const& x ) : SimpleBase{::span<I const>(&x,1)} {} // New to disambiguate with cxtor from index defined in Base
@@ -143,14 +141,14 @@ namespace Vector {
 		template<::convertible_to<Item> I> void assign(          ::vector<I> const& v ) { self = D::file.assign(+self,v) ; }
 		template<::convertible_to<Item> I> void assign(          ::span  <I> const& v ) { self = D::file.assign(+self,v) ; }
 		//
-		void pop   () { D::file.pop(+self) ; forget() ; }
-		void clear () { pop() ;                         }
-		void forget() { Base::clear() ;                 }
+		void clear () { pop() ; }
 		// accesses
 		Sz          size () const { return ::as_const(D::file).size (+self) ; }
 		Item const* items() const { return ::as_const(D::file).items(+self) ; }
 		Item      * items()       { return            D::file .items(+self) ; }
 		// services
+		void pop   () { D::file.pop(+self) ; forget() ; }
+		void forget() { Base::clear() ;                 }
 		void shorten_by(Sz by) { self = D::file.shorten_by(+self,by) ; }
 		//
 		template<::convertible_to<Item> I> void append(::span<I> const& v) { self = D::file.append(+self,v ) ; }
@@ -173,7 +171,7 @@ namespace Vector {
 		using Sz     = Idx                          ;
 		using D      = Descr<Crunch<Idx,Item,Mrkr>> ;
 		//
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		//
 		template<IsA<Item>              I> CrunchBase(           I         const& x ) = delete ;
@@ -188,9 +186,7 @@ namespace Vector {
 			else                  { D::file.pop(self) ; self = CrunchBase(New,v[0])   ; }
 		}
 		//
-		void pop   () { if (_multi()) D::file.pop(self) ; forget     () ; }
-		void clear () {                                   pop        () ; }
-		void forget() {                                   Base::clear() ; }
+		void clear() { pop() ; }
 		// accesses
 		auto        size () const -> Sz { if (_single()) return 1                               ; else return            D::file .size (self) ; }
 		Item const* items() const       { if (_single()) return &static_cast<Item const&>(self) ; else return ::as_const(D::file).items(self) ; }
@@ -200,6 +196,8 @@ namespace Vector {
 		bool _single() const { return !self.template is_a<Vector>() ; } // 0 is both a Vector and an Item, so this way 0 is !_single()
 		// services
 	public :
+		void pop   () { if (_multi()) D::file.pop(self) ; forget     () ; }
+		void forget() {                                   Base::clear() ; }
 		void shorten_by(Sz by) {
 			Sz sz = size() ;
 			SWEAR( by<=sz , by , sz ) ;
@@ -223,14 +221,14 @@ namespace Vector {
 		using Base           = V                   ;
 		using Idx            = typename Base::Idx  ;
 		using Item           = typename Base::Item ;
-		using value_type     = Item                ;                                                // mimic vector
-		using iterator       = Item      *         ;                                                // .
-		using const_iterator = Item const*         ;                                                // .
+		using value_type     = Item                ;                                             // mimic vector
+		using iterator       = Item      *         ;                                             // .
+		using const_iterator = Item const*         ;                                             // .
 		static constexpr bool IsStr = IsChar<Item> ;
 		//
 		using Base::items ;
 		using Base::size  ;
-		// cxtors & casts
+		// cxtors & co
 		using Base::Base ;
 		//
 		template<::convertible_to<Item> I> requires( ::is_const_v<I>) Generic(::vector           <::remove_const_t<I>> const& v) : Base{::span<I const>(v)} {}
@@ -247,29 +245,29 @@ namespace Vector {
 		operator ::span             <Item const>() const                 { return view    () ; }
 		operator ::span             <Item      >()                       { return view    () ; }
 		operator ::basic_string_view<Item      >() const requires(IsStr) { return str_view() ; }
-		// accesses
-		void operator>>(::string& os) const {                                                       // START_OF_NO_COV
+		void operator>>(::string& os) const {                                                    // START_OF_NO_COV
 			First first ;
 			/**/                                    os <<'['               ;
 			for( typename V::Item const& x : self ) os << first("",",")<<x ;
 			/**/                                    os <<']'               ;
-		}                                                                                           // END_OF_NO_COV
-		::span      <Item const> view    () const                 { return { items() , size() } ; }
-		::span      <Item      > view    ()                       { return { items() , size() } ; }
-		::basic_string_view<Item      > str_view() const requires(IsStr) { return { items() , size() } ; }
+		}                                                                                        // END_OF_NO_COV
+		// accesses
+		::span      <Item const > view    () const                 { return { items() , size() } ; }
+		::span      <Item       > view    ()                       { return { items() , size() } ; }
+		::basic_string_view<Item> str_view() const requires(IsStr) { return { items() , size() } ; }
 		//
-		Item const* begin     (        ) const { return items()           ; }                       // mimic vector
-		Item      * begin     (        )       { return items()           ; }                       // .
-		Item const* cbegin    (        ) const { return items()           ; }                       // .
-		Item const* end       (        ) const { return items()+size()    ; }                       // .
-		Item      * end       (        )       { return items()+size()    ; }                       // .
-		Item const* cend      (        ) const { return items()+size()    ; }                       // .
-		Item const& front     (        ) const { return items()[0       ] ; }                       // .
-		Item      & front     (        )       { return items()[0       ] ; }                       // .
-		Item const& back      (        ) const { return items()[size()-1] ; }                       // .
-		Item      & back      (        )       { return items()[size()-1] ; }                       // .
-		Item const& operator[](size_t i) const { return items()[i       ] ; }                       // .
-		Item      & operator[](size_t i)       { return items()[i       ] ; }                       // .
+		Item const* begin     (        ) const { return items()           ; }                    // mimic vector
+		Item      * begin     (        )       { return items()           ; }                    // .
+		Item const* cbegin    (        ) const { return items()           ; }                    // .
+		Item const* end       (        ) const { return items()+size()    ; }                    // .
+		Item      * end       (        )       { return items()+size()    ; }                    // .
+		Item const* cend      (        ) const { return items()+size()    ; }                    // .
+		Item const& front     (        ) const { return items()[0       ] ; }                    // .
+		Item      & front     (        )       { return items()[0       ] ; }                    // .
+		Item const& back      (        ) const { return items()[size()-1] ; }                    // .
+		Item      & back      (        )       { return items()[size()-1] ; }                    // .
+		Item const& operator[](size_t i) const { return items()[i       ] ; }                    // .
+		Item      & operator[](size_t i)       { return items()[i       ] ; }                    // .
 		//
 		::span             <Item const> const subvec( size_t start , size_t sz=Npos ) const { return ::span<Item const> ( begin()+start , ::min(sz,size()-start) ) ; }
 		::span             <Item      >       subvec( size_t start , size_t sz=Npos )       { return ::span<Item      > ( begin()+start , ::min(sz,size()-start) ) ; }

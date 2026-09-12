@@ -90,13 +90,13 @@ namespace Store {
 			struct Iterator {
 				using value_type      = Idx       ;
 				using difference_type = ptrdiff_t ;
-				// cxtors & casts
+				// cxtors & co
 				Iterator( Lst const& s , Idx i ) : _self(&s) , _idx{i} { _fix_end() ; _legalize() ; }
+				bool operator==(Iterator const& other) const = default ;
 				// services
-				bool      operator==(Iterator const& other) const = default ;
-				Idx       operator* (                     ) const { return _idx ;                               }
-				Iterator& operator++(                     )       { _advance() ; _legalize() ; return self ;    }
-				Iterator  operator++(int                  )       { Iterator res = self ; ++self ; return res ; }
+				Idx       operator* (   ) const { return _idx ;                               }
+				Iterator& operator++(   )       { _advance() ; _legalize() ; return self ;    }
+				Iterator  operator++(int)       { Iterator res = self ; ++self ; return res ; }
 			private :
 				void _advance() {
 					SWEAR(+_idx) ;
@@ -111,7 +111,7 @@ namespace Store {
 				Lst const* _self ;
 				Idx        _idx  = {} ;
 			} ;
-			// cxtors & casts
+			// cxtors & co
 			Lst( AllocFile const& s ) : _self{&s} {
 				for( Idx i=_self->_free (0) ; +i ; i=_self->Base::at(i).nxt ) _frees.insert(+i) ;
 			}

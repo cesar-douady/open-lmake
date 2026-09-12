@@ -174,7 +174,7 @@ namespace Codec {
 			SWEAR(Disk::is_dir_name(tab)) ;
 			return cat(tab,AdminDirS,"config.py") ;
 		}
-		// cxtors & casts
+		// cxtors & co
 		CodecFile() = default ;
 		CodecFile(               ::string const& f , ::string const& x , CodecCrc        val_crc  ) : file{       f } , ctx{       x } , _code_val_crc{val_crc} {}
 		CodecFile(               ::string     && f , ::string     && x , CodecCrc        val_crc  ) : file{::move(f)} , ctx{::move(x)} , _code_val_crc{val_crc} {}
@@ -188,17 +188,17 @@ namespace Codec {
 		}
 		CodecFile( NewType , ::string const& node                                   ) ; // for local    file codec
 		CodecFile( NewType , ::string const& node , ::string const& ext_codec_dir_s ) ; // for external dir  codec
+		void operator>>(::string&) const ;
+		void chk() const ;
 		// acceses
-		void            operator>>(::string&) const ;
-		bool            is_encode (         ) const { return        _code_val_crc.index()==1 ; }
-		::string const& code      (         ) const { return get<0>(_code_val_crc)           ; }
-		::string      & code      (         )       { return get<0>(_code_val_crc)           ; }
-		CodecCrc const& val_crc   (         ) const { return get<1>(_code_val_crc)           ; }
-		CodecCrc      & val_crc   (         )       { return get<1>(_code_val_crc)           ; }
+		bool            is_encode() const { return        _code_val_crc.index()==1 ; }
+		::string const& code     () const { return get<0>(_code_val_crc)           ; }
+		::string      & code     ()       { return get<0>(_code_val_crc)           ; }
+		CodecCrc const& val_crc  () const { return get<1>(_code_val_crc)           ; }
+		CodecCrc      & val_crc  ()       { return get<1>(_code_val_crc)           ; }
 		// services
 		::string ctx_dir_s(bool tmp=false) const ;
 		::string name     (bool tmp=false) const ;
-		void chk() const ;
 		// data
 		::string file ;
 		::string ctx  ;
@@ -207,11 +207,10 @@ namespace Codec {
 	} ;
 
 	struct Entry {
-		// cxtors & casts
+		// cxtors & co
 		Entry() = default ;
 		Entry( ::string const& x , ::string const& c , ::string const& v ) : ctx{x} , code{c} , val{v} {}
 		Entry( ::string const& line                                      ) ;                              // format : "\t<code>\t<ctx>\t<val>" exactly
-		// accesses
 		void operator>>(::string&) const ;
 		// services
 		::string line(bool with_nl=false) const ;                                                         // .
@@ -229,16 +228,16 @@ namespace Codec {
 		// statics
 	public :
 		static void s_init() ;
-		// cxtors & casts
+		// cxtors & co
 		CodecLock() = default ;
 		CodecLock( Fd root_fd , ::string const& tab ) : _root_fd{root_fd} , _tab{New,tab} {}
 		CodecLock(              ::string const& tab ) : CodecLock{Fd::Cwd,tab}            {}
 		~CodecLock() ;
-		// accesses
 		CodecLock& operator=(CodecLock const&)       = default ;
 		CodecLock& operator=(CodecLock     &&)       = default ;
 		bool       operator+(                ) const { return +_root_fd ; }
-		bool       locked   (                ) const { return _num      ; }
+		// accesses
+		bool locked() const { return _num ; }
 		// services
 		void lock_shared(::string const& id={}) ;            // id is for debug purpose only
 		void lock_excl  (                     ) ;            // .
