@@ -1398,12 +1398,16 @@ namespace Engine {
 						Node                      n       = target ; while ( +n->last_asking && n->last_asking.is_a<Node>() ) n = Node(n->last_asking) ;
 						::vmap_s<::pair_s<Color>> entries ;
 						if      (+n->last_asking) entries.push_back({ porcelain?"required_by":"required by" , {Job(n->last_asking)->name(),{}} }) ;
-						else if (n!=target      ) entries.push_back({ porcelain?"required_by":"required by" , {    n         ->name(),{}} }) ;
+						else if (n!=target      ) entries.push_back({ porcelain?"required_by":"required by" , {    n              ->name(),{}} }) ;
+						if ( target->buildable==Buildable::No && !porcelain ) {
+							audit( fd , ro , "not buildable" , true/*as_is*/ , lvl ) ;
+							continue ;
+						}
 						if (target->is_src_anti()) {
 							Color c = {} ; if ( !porcelain && verbose && FileSig(target->name())!=target->sig.sig ) c = Color::Warning ;
 							//
-							/**/         entries.push_back({ "special"  , {snake_str(::copy(target->buildable)),{}} }) ;
-							if (verbose) entries.push_back({ "checksum" , {_node_crc(target)                   ,c } }) ;
+							/**/         entries.push_back({ "special"  , {BuildableAttrs[+target->buildable].second.descr,{}} }) ;
+							if (verbose) entries.push_back({ "checksum" , {_node_crc(target)                              ,c } }) ;
 						}
 						size_t w = ::max<size_t>( entries , [](auto const& k_v) { return k_v.first.size() ; } ) ;
 						if (porcelain) {
@@ -1436,7 +1440,7 @@ namespace Engine {
 								first() ;
 							}
 						} else {
-							_audit_node( fd , ro , verbose , Maybe/*hide*/ , "UP_HILL" , target->dir , lvl ) ;
+							_audit_node( fd , ro , verbose , Maybe/*hide*/ , "up_hill" , target->dir , lvl ) ;
 						}
 					}
 					for( JobTgt jt : target->conform_job_tgts() ) {

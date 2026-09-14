@@ -26,26 +26,27 @@ enum class Buildable : uint8_t {
 } ;
 // END_OF_VERSIONING
 struct BuildableAttrsEntry {
-	Bool3 has_file    ;
-	bool  is_src_anti ;
-	Bool3 has_job     ;          // if Maybe, there is a rule but no job
+	Bool3       has_file    ;
+	bool        is_src_anti ;
+	Bool3       has_job     ;          // if Maybe, there is a rule but no job
+	const char* descr       ;
 } ;
 static constexpr ::amap<Buildable,BuildableAttrsEntry,N<Buildable>> BuildableAttrs {{
-	//                         has_file is_src_anti has_job
-	{ Buildable::Anti        , { No    , true      , No    } }
-,	{ Buildable::SrcDir      , { No    , true      , No    } }
-,	{ Buildable::SubSrc      , { No    , true      , No    } }
-,	{ Buildable::PathTooLong , { No    , true      , No    } }
-,	{ Buildable::DynAnti     , { No    , true      , Maybe } }
-,	{ Buildable::No          , { No    , false     , No    } }
-,	{ Buildable::Maybe       , { Maybe , false     , Yes   } }
-,	{ Buildable::SubSrcDir   , { Maybe , true      , No    } }
-,	{ Buildable::Unknown     , { Maybe , false     , No    } }
-,	{ Buildable::Yes         , { Maybe , false     , Yes   } }
-,	{ Buildable::Codec       , { Maybe , false     , Yes   } }
-,	{ Buildable::DynSrc      , { Maybe , true      , Maybe } }
-,	{ Buildable::Src         , { Yes   , true      , No    } }
-,	{ Buildable::Loop        , { No    , false     , No    } }
+	//                         has_file is_src_anti has_job  descr
+	{ Buildable::Anti        , { No    , true      , No    , "anti"            } }
+,	{ Buildable::SrcDir      , { No    , true      , No    , "source dir"      } }
+,	{ Buildable::SubSrc      , { No    , true      , No    , "sub-source"      } }
+,	{ Buildable::PathTooLong , { No    , true      , No    , "path too long"   } }
+,	{ Buildable::DynAnti     , { No    , true      , Maybe , "dynamic anti"    } }
+,	{ Buildable::No          , { No    , false     , No    , "not buildable"   } }
+,	{ Buildable::Maybe       , { Maybe , false     , Yes   , "maybe buildable" } }
+,	{ Buildable::SubSrcDir   , { Maybe , true      , No    , "sub-source dir"  } }
+,	{ Buildable::Unknown     , { Maybe , false     , No    , "???"             } }
+,	{ Buildable::Yes         , { Maybe , false     , Yes   , "buildable"       } }
+,	{ Buildable::Codec       , { Maybe , false     , Yes   , "codec"           } }
+,	{ Buildable::DynSrc      , { Maybe , true      , Maybe , "dynamic source"  } }
+,	{ Buildable::Src         , { Yes   , true      , No    , "source"          } }
+,	{ Buildable::Loop        , { No    , false     , No    , "loop"            } }
 }} ;
 static_assert(chk_enum_tab(BuildableAttrs)) ;
 
