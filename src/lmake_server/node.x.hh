@@ -169,7 +169,6 @@ namespace Engine {
 		Target() = default ;
 		Target( Node n , Tflags tf={} ) : Node(n) , tflags{tf} { SWEAR(+self) ; }
 		void operator>>(::string&) const ;
-		constexpr ::strong_ordering operator<=>(Node const& other) const { return Node::operator<=>(other) ; }
 		// accesses
 		bool static_phony() const { return ::static_phony(tflags) ; }
 		// data

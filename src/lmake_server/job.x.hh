@@ -633,7 +633,7 @@ namespace Engine {
 		if ( !actual && sure()                          ) return true                            ;
 		if ( t->has_actual_job(self)                    ) return t->actual_tflags[Tflag::Target] ;
 		//
-		auto it = ::lower_bound( self->targets() , {t,{}} ) ;
+		auto it = ::lower_bound( self->targets() , t ) ;
 		return it!=self->targets().end() && *it==t && it->tflags[Tflag::Target] ;
 	}
 

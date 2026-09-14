@@ -14,6 +14,7 @@ RUN \
 	&&	apt-get install -y           \
 			# compulsory
 			build-essential \
+			gcc-16 g++-16   \
 			git             \
 			groff m4        \
 			python3-dev     \
@@ -30,7 +31,9 @@ RUN \
 			ed                                                       \
 			libzstd-dev                                              \
 			sudo                                                     \
-	&&	apt-get clean               \
+	&&	update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-16 100 \
+	&&	update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-16 100 \
+	&&	apt-get clean                                                      \
 	&&	rm -rf /var/lib/apt/lists/*
 
 RUN     useradd --uid 1001 --home-dir /home/cdy cdy

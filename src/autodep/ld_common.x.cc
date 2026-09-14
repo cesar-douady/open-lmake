@@ -10,6 +10,7 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/syscall.h>
 #include <sys/time.h>
 #include <utime.h>
 

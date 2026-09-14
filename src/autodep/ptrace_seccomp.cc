@@ -7,6 +7,7 @@
 #include <linux/seccomp.h>
 #include <sys/prctl.h>
 #include <sys/ptrace.h>
+#include <sys/syscall.h>
 #include <linux/ptrace.h> // for struct ptrace_syscall_info, must be after sys/ptrace.h to avoid stupid request macro definitions
 
 #include "disk.hh"
