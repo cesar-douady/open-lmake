@@ -188,12 +188,12 @@ namespace Backends::Slurm::SlurmApi {
 				break ;
 			DN}
 			trace("spawn_error" ,sav_errno) ;
-			const char* th = i==0 ? "st" : i==1 ? "nd" : "th" ;
+			const char* th = i==0 ? "st" : i==1 ? "nd" : i==3 ? "rd" : "th" ;
 			if (+err_msg) throw cat("slurm spawn job error on ",i+1,th," trial : ",_strerror(sav_errno)," (",err_msg,")") ;
 			else          throw cat("slurm spawn job error on ",i+1,th," trial : ",_strerror(sav_errno)                 ) ;
 		}
 		trace("cannot_spawn") ;
-		throw cat("cannot connect to slurm daemon after",SlurmSpawnTrials," trials") ;
+		throw cat("cannot connect to slurm daemon after ",SlurmSpawnTrials," trials") ;
 	}
 
 	static ::pair_s<Bool3/*job_ok*/> _job_state(SlurmId slurm_id) {                                                                                             // Maybe means job has not completed

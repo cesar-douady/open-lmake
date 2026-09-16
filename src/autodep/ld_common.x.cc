@@ -349,7 +349,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		if ( UNLIKELY(_t_loop) || !LIKELY(started()) || LIKELY(cond) ) return (*orig) args ; \
 		SaveTloop sav_t_loop ;                                                               \
 	// do a first check to see if it is obvious that nothing needs to be done
-	#define HDR0(libcall,            args) HDR( libcall , false                                                    , args )
+	#define HDR0(libcall,            args) HDR( libcall , false/*cond*/                                            , args )
 	#define HDR1(libcall,path,       args) HDR( libcall , Record::s_is_simple(path )                               , args )
 	#define HDR2(libcall,path1,path2,args) HDR( libcall , Record::s_is_simple(path1) && Record::s_is_simple(path2) , args )
 	#define HDR_OPEN(libcall,path,flags,args,err_val) \
@@ -359,16 +359,15 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	// macro for libcall that are forbidden in server when recording deps
 	#if IN_SERVER
 		#define _NO_SERVER(libcall,err_val) if (started()) { \
-			LockRecord lock ;                                                                        \
-			*Record::s_deps_err += #libcall " is forbidden during dynamic attribute computation\n" ; \
-			errno = ENOSYS ;                                                                         \
-			return err_val ;                                                                         \
+			LockRecord lock ;                                                                         \
+			*Record::s_deps_err << #libcall<<" is forbidden during dynamic attribute computation\n" ; \
+			errno = ENOSYS ;                                                                          \
+			return err_val ;                                                                          \
 		}
-		#define NO_SERVER(libcall) _NO_SERVER(libcall,-1)
 	#else
 		#define _NO_SERVER(libcall,err_val) {}
-		#define NO_SERVER( libcall        ) {}
 	#endif
+	#define NO_SERVER(libcall) _NO_SERVER(libcall,-1)
 
 	#define CC const char
 
@@ -504,7 +503,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int execlp(CC* p,CC* arg,...) NE { MK_ARGS(                                             ) ; return execvp(p,args     ) ; }
 	#undef MK_ARGS
 
-	// fopen
+	// fopen                                                                                          err_val
 	FILE* fopen    (CC* p,CC* m         ) { int f=fopen_mk_flags(m) ; HDR_OPEN(fopen    ,p,f,(p,m   ),nullptr) ; Fopen r{p,f,Comment::fopen    } ; return r(orig(p,m   )) ; }
 	FILE* freopen  (CC* p,CC* m,FILE* fp) { int f=fopen_mk_flags(m) ; HDR_OPEN(freopen  ,p,f,(p,m,fp),nullptr) ; Fopen r{p,f,Comment::freopen  } ; return r(orig(p,m,fp)) ; }
 	FILE* fopen64  (CC* p,CC* m         ) { int f=fopen_mk_flags(m) ; HDR_OPEN(fopen64  ,p,f,(p,m   ),nullptr) ; Fopen r{p,f,Comment::fopen64  } ; return r(orig(p,m   )) ; }
@@ -553,21 +552,21 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	static_assert( ::is_unsigned_v<mode_t> && sizeof(mode_t)<=sizeof(uint) ) ;
 	#define MOD mode_t m = 0 ; if ( f & (O_CREAT|O_TMPFILE) ) { va_list lst ; va_start(lst,f) ; m = mode_t(va_arg(lst,uint)) ; va_end(lst) ; }
 	#define CWT (O_CREAT|O_WRONLY|O_TRUNC)
-	//
-	int open             (      CC* p,int f,...) { MOD ; HDR_OPEN(open             ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::open             } ; return r(orig(  p,f,m)) ; }
-	int __open           (      CC* p,int f,...) { MOD ; HDR_OPEN(__open           ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::__open           } ; return r(orig(  p,f,m)) ; }
-	int __open_nocancel  (      CC* p,int f,...) { MOD ; HDR_OPEN(__open_nocancel  ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::__open_nocancel  } ; return r(orig(  p,f,m)) ; }
-	int __open_2         (      CC* p,int f    ) {       HDR_OPEN(__open_2         ,p,f  ,(  p,f  ),-1) ; Open r{   p ,f  ,Comment::__open_2         } ; return r(orig(  p,f  )) ; }
-	int openat           (int d,CC* p,int f,...) { MOD ; HDR_OPEN(openat           ,p,f  ,(d,p,f,m),-1) ; Open r{{d,p},f  ,Comment::openat           } ; return r(orig(d,p,f,m)) ; }
-	int __openat_2       (int d,CC* p,int f    ) {       HDR_OPEN(__openat_2       ,p,f  ,(d,p,f  ),-1) ; Open r{{d,p},f  ,Comment::__openat_2       } ; return r(orig(d,p,f  )) ; }
-	int creat            (      CC* p,mode_t m ) {       HDR_OPEN(creat            ,p,CWT,(  p,  m),-1) ; Open r{   p ,CWT,Comment::creat            } ; return r(orig(  p,  m)) ; }
-	int open64           (      CC* p,int f,...) { MOD ; HDR_OPEN(open64           ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::open64           } ; return r(orig(  p,f,m)) ; }
-	int __open64         (      CC* p,int f,...) { MOD ; HDR_OPEN(__open64         ,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::__open64         } ; return r(orig(  p,f,m)) ; }
-	int __open64_nocancel(      CC* p,int f,...) { MOD ; HDR_OPEN(__open64_nocancel,p,f  ,(  p,f,m),-1) ; Open r{   p ,f  ,Comment::__open64_nocancel} ; return r(orig(  p,f,m)) ; }
-	int __open64_2       (      CC* p,int f    ) {       HDR_OPEN(__open64_2       ,p,f  ,(  p,f  ),-1) ; Open r{   p ,f  ,Comment::__open64_2       } ; return r(orig(  p,f  )) ; }
-	int openat64         (int d,CC* p,int f,...) { MOD ; HDR_OPEN(openat64         ,p,f  ,(d,p,f,m),-1) ; Open r{{d,p},f  ,Comment::openat64         } ; return r(orig(d,p,f,m)) ; }
-	int __openat64_2     (int d,CC* p,int f    ) {       HDR_OPEN(__openat64_2     ,p,f  ,(d,p,f  ),-1) ; Open r{{d,p},f  ,Comment::__openat64_2     } ; return r(orig(d,p,f  )) ; }
-	int creat64          (      CC* p,mode_t m ) {       HDR_OPEN(creat64          ,p,CWT,(  p,  m),-1) ; Open r{   p ,CWT,Comment::creat64          } ; return r(orig(  p,  m)) ; }
+	//                                                                                             err_val
+	int open             (      CC* p,int f,...) { MOD ; HDR_OPEN(open             ,p,f  ,(  p,f,m),-1   ) ; Open r{   p ,f  ,Comment::open             } ; return r(orig(  p,f,m)) ; }
+	int __open           (      CC* p,int f,...) { MOD ; HDR_OPEN(__open           ,p,f  ,(  p,f,m),-1   ) ; Open r{   p ,f  ,Comment::__open           } ; return r(orig(  p,f,m)) ; }
+	int __open_nocancel  (      CC* p,int f,...) { MOD ; HDR_OPEN(__open_nocancel  ,p,f  ,(  p,f,m),-1   ) ; Open r{   p ,f  ,Comment::__open_nocancel  } ; return r(orig(  p,f,m)) ; }
+	int __open_2         (      CC* p,int f    ) {       HDR_OPEN(__open_2         ,p,f  ,(  p,f  ),-1   ) ; Open r{   p ,f  ,Comment::__open_2         } ; return r(orig(  p,f  )) ; }
+	int openat           (int d,CC* p,int f,...) { MOD ; HDR_OPEN(openat           ,p,f  ,(d,p,f,m),-1   ) ; Open r{{d,p},f  ,Comment::openat           } ; return r(orig(d,p,f,m)) ; }
+	int __openat_2       (int d,CC* p,int f    ) {       HDR_OPEN(__openat_2       ,p,f  ,(d,p,f  ),-1   ) ; Open r{{d,p},f  ,Comment::__openat_2       } ; return r(orig(d,p,f  )) ; }
+	int creat            (      CC* p,mode_t m ) {       HDR_OPEN(creat            ,p,CWT,(  p,  m),-1   ) ; Open r{   p ,CWT,Comment::creat            } ; return r(orig(  p,  m)) ; }
+	int open64           (      CC* p,int f,...) { MOD ; HDR_OPEN(open64           ,p,f  ,(  p,f,m),-1   ) ; Open r{   p ,f  ,Comment::open64           } ; return r(orig(  p,f,m)) ; }
+	int __open64         (      CC* p,int f,...) { MOD ; HDR_OPEN(__open64         ,p,f  ,(  p,f,m),-1   ) ; Open r{   p ,f  ,Comment::__open64         } ; return r(orig(  p,f,m)) ; }
+	int __open64_nocancel(      CC* p,int f,...) { MOD ; HDR_OPEN(__open64_nocancel,p,f  ,(  p,f,m),-1   ) ; Open r{   p ,f  ,Comment::__open64_nocancel} ; return r(orig(  p,f,m)) ; }
+	int __open64_2       (      CC* p,int f    ) {       HDR_OPEN(__open64_2       ,p,f  ,(  p,f  ),-1   ) ; Open r{   p ,f  ,Comment::__open64_2       } ; return r(orig(  p,f  )) ; }
+	int openat64         (int d,CC* p,int f,...) { MOD ; HDR_OPEN(openat64         ,p,f  ,(d,p,f,m),-1   ) ; Open r{{d,p},f  ,Comment::openat64         } ; return r(orig(d,p,f,m)) ; }
+	int __openat64_2     (int d,CC* p,int f    ) {       HDR_OPEN(__openat64_2     ,p,f  ,(d,p,f  ),-1   ) ; Open r{{d,p},f  ,Comment::__openat64_2     } ; return r(orig(d,p,f  )) ; }
+	int creat64          (      CC* p,mode_t m ) {       HDR_OPEN(creat64          ,p,CWT,(  p,  m),-1   ) ; Open r{   p ,CWT,Comment::creat64          } ; return r(orig(  p,  m)) ; }
 	#undef CWT
 	#undef MOD
 	DIR* opendir(CC* p) { HDR1(opendir,p,(p)) ; Solve r{p,false/*no_follow*/,false/*read*/,Comment::opendir} ; return r(orig(p)) ; }

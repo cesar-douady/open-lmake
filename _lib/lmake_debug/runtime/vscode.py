@@ -26,4 +26,4 @@ def run_py(dbg_dir,deps,func,*args,**kwds) :
 	except BaseException as e :
 		import sys
 		import traceback
-		traceback.print_exception(sys.exc_info(e))
+		traceback.print_exception(*sys.exc_info())

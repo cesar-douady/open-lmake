@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 57      ; // b625f98d3120dc390607f7343a8479a4
+	uint64_t    constexpr Cache = 57      ; // 01c7694ea8a0a67013b7a3dfe002e711
 	uint64_t    constexpr Codec = 3       ; // 084f97cd3cdfd24a126f49adeb731f3f
-	uint64_t    constexpr Repo  = 62      ; // 23f13a812b7ae2d843a24f01c03ff061
+	uint64_t    constexpr Repo  = 62      ; // 7c1cd38f43c446489dd078d396de5383
 	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
 	const char* const     Major = "26.08" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : b625f98d3120dc390607f7343a8479a4 *
+// * Cache : 01c7694ea8a0a67013b7a3dfe002e711 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -933,6 +933,25 @@ namespace Version {
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				Idx      prev                        {}  ;
+//			private :
+//				uint16_t _sz1       :2               ;                                                                    // actual sz-1, counted in ItemSizeOf
+//				uint16_t _kind      :2               ;
+//			public :
+//				uint16_t used       :1               = 0 ;
+//				uint16_t cmp_bit    :LogSizeOfChar+3 = 0 ;                                                                // bits up to cmp_bit must match, and this bit indexes nxt to get next item
+//				uint16_t chunk_sz   :7-LogSizeOfChar ;
+//				uint16_t prev_is_eq :1               = 1 ;                                                                // false if prev is Split and points to use through its nxt_if(false) side
+//				// Char     chunk[whatever_fits] ;                                                                        // in reverse order so that adding or suppressing a prefix requires no copy
+//				// CharUint cmp_val              ;                                                                        // if Split
+//				// Idx      nxt  [n_nxt(kind())] ;                                                                        // if Split, indexed by is_eq
+//				// Data     data ?               ;                                                                        // if used, data after or before nxt depending on which alignment is highest
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//			private :
+//				[[no_unique_address]] ::array<Char,(ItemSizeOf-ChunkOfs)/sizeof(Char)> _extra ; // ensure underlying AllocFile has adequate quantum
+//				// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			template<IsIdx Idx,class Char,class Data=void,bool Reverse=false> struct SaveItem {
 //				using Item_   = Item<Idx,Char,Data,Reverse> ;
@@ -1163,7 +1182,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 23f13a812b7ae2d843a24f01c03ff061 *
+// * Repo : 7c1cd38f43c446489dd078d396de5383 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2503,6 +2522,25 @@ namespace Version {
 //		static constexpr char DecodeSfx[] = ".decode" ; static constexpr size_t DecodeSfxSz = sizeof(DecodeSfx)-1 ;
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				Idx      prev                        {}  ;
+//			private :
+//				uint16_t _sz1       :2               ;                                                                    // actual sz-1, counted in ItemSizeOf
+//				uint16_t _kind      :2               ;
+//			public :
+//				uint16_t used       :1               = 0 ;
+//				uint16_t cmp_bit    :LogSizeOfChar+3 = 0 ;                                                                // bits up to cmp_bit must match, and this bit indexes nxt to get next item
+//				uint16_t chunk_sz   :7-LogSizeOfChar ;
+//				uint16_t prev_is_eq :1               = 1 ;                                                                // false if prev is Split and points to use through its nxt_if(false) side
+//				// Char     chunk[whatever_fits] ;                                                                        // in reverse order so that adding or suppressing a prefix requires no copy
+//				// CharUint cmp_val              ;                                                                        // if Split
+//				// Idx      nxt  [n_nxt(kind())] ;                                                                        // if Split, indexed by is_eq
+//				// Data     data ?               ;                                                                        // if used, data after or before nxt depending on which alignment is highest
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//			private :
+//				[[no_unique_address]] ::array<Char,(ItemSizeOf-ChunkOfs)/sizeof(Char)> _extra ; // ensure underlying AllocFile has adequate quantum
+//				// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO CACHE
 //			template<IsIdx Idx,class Char,class Data=void,bool Reverse=false> struct SaveItem {
 //				using Item_   = Item<Idx,Char,Data,Reverse> ;

@@ -45,11 +45,20 @@ struct PidInfoBase {
 	// cxtors & co
 	PidInfoBase() = default ;
 	PidInfoBase( pid_t pid , Bool3 enable ) : record{ New , enable , pid } {}
-	void operator>>(::string& os) const { os << proc_mem ; } // NO_COV
+	void operator>>(::string& os) const { os << proc_mem ; }                  // NO_COV
 	// data
 	Record record   ;
 	AcFd   proc_mem ;
 } ;
+
+// /!\ this function must be malloc free
+static void _print_err(const char* reason) {
+	const char* msg = ::strerror(errno) ;
+	{ int rc = ::write( 2 , reason                   , ::strlen(reason                   ) ) ; (void)rc ; }
+	{ int rc = ::write( 2 , " ("                     , ::strlen(" ("                     ) ) ; (void)rc ; }
+	{ int rc = ::write( 2 , msg                      , ::strlen(msg                      ) ) ; (void)rc ; }
+	{ int rc = ::write( 2 , ") when launching job\n" , ::strlen(") when launching job\n" ) ) ; (void)rc ; }
+}
 
 namespace AutodepPtrace {
 
@@ -67,20 +76,12 @@ namespace AutodepPtrace {
 	// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 	int/*rc*/ prepare_child(void*) {
 		SyscallDescr::BpfProg const& bp = SyscallDescr::s_bpf_prog_ptrace ;
-		const char* reason = nullptr/*garbage*/ ;
 		// /!\ despite man page saying nothing, missing args must be 0 for prctl
-		if (::ptrace(PTRACE_TRACEME,0/*pid*/,0/*addr*/,0/*data*/                          )!=0) { reason = "cannot set up ptrace"      ; goto Error ; }
-		if (::prctl (PR_SET_NO_NEW_PRIVS,1                  ,0/*arg3*/,0/*arg4*/,0/*arg5*/)!=0) { reason = "cannot prevent privileges" ; goto Error ; }
-		if (::prctl (PR_SET_SECCOMP     ,SECCOMP_MODE_FILTER,&bp      ,0/*.   */,0/*.   */)!=0) { reason = "cannot set up seccomp"     ; goto Error ; }
+		if (::ptrace(PTRACE_TRACEME,0/*pid*/,0/*addr*/,0/*data*/                          )!=0) { _print_err("cannot set up ptrace"     ) ; return 1 ; }
+		if (::prctl (PR_SET_NO_NEW_PRIVS,1                  ,0/*arg3*/,0/*arg4*/,0/*arg5*/)!=0) { _print_err("cannot prevent privileges") ; return 1 ; }
+		if (::prctl (PR_SET_SECCOMP     ,SECCOMP_MODE_FILTER,&bp      ,0/*.   */,0/*.   */)!=0) { _print_err("cannot set up seccomp"    ) ; return 1 ; }
 		::raise(SIGSTOP) ;                                                                                                                              // wait until released by supervisor
 		return 0 ;
-	Error :
-		const char* msg = ::strerror(errno) ;
-		{ int rc = ::write( 2 , reason                   , ::strlen(reason                   ) ) ; (void)rc ; }
-		{ int rc = ::write( 2 , " ("                     , ::strlen(" ("                     ) ) ; (void)rc ; }
-		{ int rc = ::write( 2 , msg                      , ::strlen(msg                      ) ) ; (void)rc ; }
-		{ int rc = ::write( 2 , ") when launching job\n" , ::strlen(") when launching job\n" ) ) ; (void)rc ; }
-		return 1 ;
 	}
 
 	void PidInfo::event( pid_t pid , int wstatus ) {
@@ -347,27 +348,13 @@ namespace AutodepPtrace {
 
 		// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 		int/*rc*/ prepare_child(void*) {
-			if (::prctl(PR_SET_NO_NEW_PRIVS,1,0/*arg3*/,0/*arg4*/,0/*arg5*/)!=0) {
-				const char* msg = ::strerror(errno) ;
-				{ int rc = ::write( 2 , "cannot prevent privileges (" , ::strlen("cannot prevent privileges (") ) ; (void)rc ; }
-				{ int rc = ::write( 2 , msg                           , ::strlen(msg                          ) ) ; (void)rc ; }
-				{ int rc = ::write( 2 , ") when launching job\n"      , ::strlen(") when launching job\n"     ) ) ; (void)rc ; }
-				return 1 ;
-			}
+			if (::prctl(PR_SET_NO_NEW_PRIVS,1,0/*arg3*/,0/*arg4*/,0/*arg5*/)!=0) { _print_err("cannot prevent privileges") ; return 1 ; }
 			//
 			AcFd fd = _seccomp_set_filter(SyscallDescr::s_bpf_prog_seccomp) ;
-			if (fd.fd==3)
-				fd.detach() ;
-			else
-				if (::dup2(fd,3)!=3) {                    // so fd does not have to be transfered to supervisor (job is not started yet, so 3 is available)
-					const char* msg = ::strerror(errno) ;
-					{ int rc = ::write( 2 , "cannot prepare process (" , ::strlen("cannot prepare process (") ) ; (void)rc ; }
-					{ int rc = ::write( 2 , msg                        , ::strlen(msg                       ) ) ; (void)rc ; }
-					{ int rc = ::write( 2 , ") when launching job\n"   , ::strlen(") when launching job\n"  ) ) ; (void)rc ; }
-					return 1 ;
-				}
-			::raise(SIGSTOP) ;                            // wait until released by supervisor
-			::close(3) ;
+			if      (fd.fd==3       )   fd.detach() ;
+			else if (::dup2(fd,3)!=3) { _print_err("cannot prepare process") ; return 1 ; } // so fd does not have to be transfered to supervisor (job is not started yet, so 3 is available)
+			::raise(SIGSTOP) ;                                                              // wait until released by supervisor
+			::close(3)       ;
 			return 0 ;
 		}
 

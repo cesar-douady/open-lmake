@@ -396,9 +396,6 @@ void SyncGuardDir::flush() {
 }
 
 void SyncGuardReaddir::access(FileRef path) {
-	if ( is_dir_name(path.file) ? path.file.ends_with("../") : path.file.ends_with("..") ) return ;                    // cannot go uphill
-	if ( !has_dir(path.file)                                                             ) return ;
-	access_dir_s({path.at,dir_name_s(path.file)}) ;
 	if      (path.file.ends_with(is_dir_name(path.file)?"../":"..")) {}                                                // cannot go uphill
 	else if (has_dir(path.file)                                    ) access_dir_s({path.at,dir_name_s(path.file)}) ;
 	else if (fetched_dirs_s.emplace(File(path.at)).second) {                                                           // path is at top level, we must synchronize it

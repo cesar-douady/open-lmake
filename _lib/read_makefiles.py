@@ -68,10 +68,10 @@ class UserEnvironDict(pdict) :
 	def __iter__    (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # record all keys if it turns out to be necessary
 	def __len__     (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
 	def __or__      (self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
-	def __repr__    (self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
-	def __reversed__(self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def __repr__    (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def __reversed__(self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
 	def __ror__     (self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
-	def __str__     (self,other        ) : raise TypeError('user_environ cannot be iterated over'      ) # .
+	def __str__     (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
 	def items       (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
 	def keys        (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .
 	def values      (self              ) : raise TypeError('user_environ cannot be iterated over'      ) # .

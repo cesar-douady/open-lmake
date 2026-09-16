@@ -124,6 +124,7 @@ namespace Store {
 			ItemKind kind   (          ) const { return ItemKind(_kind) ;       }
 			void     kind   (ItemKind k)       { _kind = +k ;                   }
 			// data
+			// START_OF_VERSIONING REPO CACHE
 			Idx      prev                        {}  ;
 		private :
 			uint16_t _sz1       :2               ;                                                                    // actual sz-1, counted in ItemSizeOf
@@ -137,6 +138,7 @@ namespace Store {
 			// CharUint cmp_val              ;                                                                        // if Split
 			// Idx      nxt  [n_nxt(kind())] ;                                                                        // if Split, indexed by is_eq
 			// Data     data ?               ;                                                                        // if used, data after or before nxt depending on which alignment is highest
+			// END_OF_VERSIONING
 		} ;
 
 		template<IsIdx Idx,class Char,class Data=void,bool Reverse=false> struct Item
@@ -192,8 +194,10 @@ namespace Store {
 			/**/   bool     dvg_at    (                    CharUint dvg_val ) const { return CharUint(cmp_val()^dvg_val) &  CharUint(CharUint(1)<<(NBits<CharUint>-1-cmp_bit)) ; }
 
 			// data
+			// START_OF_VERSIONING REPO CACHE
 		private :
 			[[no_unique_address]] ::array<Char,(ItemSizeOf-ChunkOfs)/sizeof(Char)> _extra ; // ensure underlying AllocFile has adequate quantum
+			// END_OF_VERSIONING
 
 			// cxtors
 			void _new_data(                ) requires(!HasData) {                                                                                             }
@@ -241,8 +245,8 @@ namespace Store {
 			}
 			~Item() { _del_data() ; }
 			// accesses
-			Char const& chunk(ChunkIdx i) const { return _at<Char const>(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; }                                          // in reverse order
-			Char      & chunk(ChunkIdx i)       { return _at<Char      >(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; }                                          // .
+			Char const& chunk(ChunkIdx i) const { return _at<Char const>(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; }                                   // in reverse order
+			Char      & chunk(ChunkIdx i)       { return _at<Char      >(ChunkOfs+sizeof(Char)*(chunk_sz-1-i)) ; }                                   // .
 			//
 			CharUint const& cmp_val(          ) const                   { SWEAR(kind()==Kind::Split       ,kind()      ) ; return _at<CharUint const>(_s_cmp_val_ofs(sz(),used      )) ; }
 			CharUint      & cmp_val(          )                         { SWEAR(kind()==Kind::Split       ,kind()      ) ; return _at<CharUint      >(_s_cmp_val_ofs(sz(),used      )) ; }
@@ -253,8 +257,8 @@ namespace Store {
 			Idx      const& nxt    (          ) const                   { SWEAR(kind()==Kind::Prefix      ,kind()      ) ; return nxt_if(true/*is_eq*/)                                ; }
 			Idx           & nxt    (          )                         { SWEAR(kind()==Kind::Prefix      ,kind()      ) ; return nxt_if(true/*.    */)                                ; }
 			CharUint dvg_char( ChunkIdx pos , CharUint dvg_val ) const {
-				if (!( kind()==Kind::Split && chunk_sz==pos )) return rep(chunk(pos)) ;                                                                     // chunk is stored in reverse order
-				SWEAR( s_cmp_bit(cmp_val(),dvg_val) < cmp_bit , cmp_val() , dvg_val , cmp_bit ) ;                                                           // cannot diverge past cmp_bit
+				if (!( kind()==Kind::Split && chunk_sz==pos )) return rep(chunk(pos)) ;                                                              // chunk is stored in reverse order
+				SWEAR( s_cmp_bit(cmp_val(),dvg_val) < cmp_bit , cmp_val() , dvg_val , cmp_bit ) ;                                                    // cannot diverge past cmp_bit
 				return cmp_val() ;
 			}
 			static constexpr ChunkIdx s_max_chunk_sz( Sz sz , Kind k , bool used ) {
@@ -278,38 +282,38 @@ namespace Store {
 			template<class T> T const& _at(size_t ofs) const { return *::launder(reinterpret_cast<const T*>(reinterpret_cast<char const*>(this)+ofs)) ; }
 			//
 			static constexpr ItemOfs _s_end_ofs(Sz sz) { return ItemSizeOf*sz ; }
-			static ItemOfs _s_data_ofs( Sz sz , Kind /*k*/ ) requires(BigData) {                                                                            // data is after  nxt
-				SWEAR( _s_end_ofs(sz) >= DataSizeOf + ChunkOfs , sz ) ;                                                                                     // check no overlap with metadata
+			static ItemOfs _s_data_ofs( Sz sz , Kind /*k*/ ) requires(BigData) {                                                                     // data is after  nxt
+				SWEAR( _s_end_ofs(sz) >= DataSizeOf + ChunkOfs , sz ) ;                                                                              // check no overlap with metadata
 				return _s_end_ofs(sz) -  DataSizeOf ;
 			}
-			static ItemOfs _s_data_ofs( Sz sz , Kind k ) requires(!BigData) {                                                                               // data is before nxt
-				SWEAR( _s_end_ofs(sz) >= ( sizeof(Idx)*+k + DataSizeOf ) + ChunkOfs , sz , k ) ;                                                            // check no overlap with metadata
+			static ItemOfs _s_data_ofs( Sz sz , Kind k ) requires(!BigData) {                                                                        // data is before nxt
+				SWEAR( _s_end_ofs(sz) >= ( sizeof(Idx)*+k + DataSizeOf ) + ChunkOfs , sz , k ) ;                                                     // check no overlap with metadata
 				return _s_end_ofs(sz) -  ( sizeof(Idx)*+k + DataSizeOf ) ;
 			}
-			static ItemOfs _s_nxt_if_ofs( Sz sz ,  bool used_ , bool is_eq ) requires(BigData) {                                                            // data is after  nxt
-				SWEAR( _s_end_ofs(sz) >= ( DataSizeOf*used_ + sizeof(Idx)*2 ) + ChunkOfs , sz , used_ ) ;                                                   // check no overlap with metadata
+			static ItemOfs _s_nxt_if_ofs( Sz sz ,  bool used_ , bool is_eq ) requires(BigData) {                                                     // data is after  nxt
+				SWEAR( _s_end_ofs(sz) >= ( DataSizeOf*used_ + sizeof(Idx)*2 ) + ChunkOfs , sz , used_ ) ;                                            // check no overlap with metadata
 				return _s_end_ofs(sz) -  ( DataSizeOf*used_ + sizeof(Idx)*2 ) + sizeof(Idx)*is_eq ;
 			}
-			static ItemOfs _s_nxt_if_ofs( Sz sz , bool /*used*/ , bool is_eq ) requires(!BigData) {                                                         // data is before nxt
-				SWEAR( _s_end_ofs(sz) >= sizeof(Idx)*2 + ChunkOfs , sz ) ;                                                                                  // check no overlap with metadata
+			static ItemOfs _s_nxt_if_ofs( Sz sz , bool /*used*/ , bool is_eq ) requires(!BigData) {                                                  // data is before nxt
+				SWEAR( _s_end_ofs(sz) >= sizeof(Idx)*2 + ChunkOfs , sz ) ;                                                                           // check no overlap with metadata
 				return _s_end_ofs(sz) -  sizeof(Idx)*2 + sizeof(Idx)*is_eq ;
 			}
 			static ItemOfs _s_cmp_val_ofs( Sz sz , bool used_ ) {
 				ItemOfs end_ofs = round_up<CharSizeOf>( DataSizeOf*used_ + sizeof(Idx)*2 ) + CharSizeOf ;
-				SWEAR( _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz , end_ofs ) ;                                                                              // check no overlap with metadata
+				SWEAR( _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz , end_ofs ) ;                                                                       // check no overlap with metadata
 				return round_down<alignof(CharUint)>( _s_end_ofs(sz) - end_ofs ) ;
 			}
 			static constexpr ItemOfs _s_chunk_end_ofs( Sz sz , Kind k , bool used_ ) {
 				if (k==Kind::Split) return round_down<alignof(Char)>(_s_cmp_val_ofs(sz,used_)) ;
-				ItemOfs end_ofs = DataSizeOf*used_ + sizeof(Idx)*+k ;                                                                                       // space for data and nxt
-				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz , end_ofs ) ;                                                                  // check no overlap with metadata
-				return round_down<alignof(Char)>( _s_end_ofs(sz) -  end_ofs ) ;                                                                             // align
+				ItemOfs end_ofs = DataSizeOf*used_ + sizeof(Idx)*+k ;                                                                                // space for data and nxt
+				SWEAR(             _s_end_ofs(sz) >= end_ofs + ChunkOfs , sz , end_ofs ) ;                                                           // check no overlap with metadata
+				return round_down<alignof(Char)>( _s_end_ofs(sz) -  end_ofs ) ;                                                                      // align
 			}
 			static constexpr bool _s_large_enough_empty( Sz sz , Kind k , bool used_ ) {
-				if (!used_      ) return true  ;                                                                                                            // an unused Split fits in a minimal item
+				if (!used_      ) return true  ;                                                                                                     // an unused Split fits in a minimal item
 				if (sz<MinUsedSz) return false ;
 				ItemOfs at_end = DataSizeOf + sizeof(Idx)*+k ; if (k==Kind::Split) at_end = round_up<CharSizeOf>(at_end) + CharSizeOf ;
-				return _s_end_ofs(sz) >= ChunkOfs+sizeof(Char)+at_end ;                                                                                     // used items must have a non-null chunk
+				return _s_end_ofs(sz) >= ChunkOfs+sizeof(Char)+at_end ;                                                                              // used items must have a non-null chunk
 			}
 			size_t _data_ofs   () const { SWEAR(used                         ) ; return _s_data_ofs   (sz(),kind()     ) ; }
 			size_t _nxt_ofs    () const { SWEAR(kind()!=Kind::Terminal       ) ; return _s_nxt_ofs    (sz(),kind(),used) ; }
@@ -323,7 +327,7 @@ namespace Store {
 			void _mk_up( CharUint cmp_val_=0 , CharUint dvg_val=0 ) {
 				if (!BigData) _mv_data(sz(),kind()+1) ;
 				kind(kind()+1) ;
-				nxt_if(*begin(Nxt(kind()))) = Idx() ;                                                                                                       // init new nxt field
+				nxt_if(*begin(Nxt(kind()))) = Idx() ;                                                                                                // init new nxt field
 				if (kind()==Kind::Split) {
 					cmp_val() = cmp_val_                    ;
 					cmp_bit   = s_cmp_bit(cmp_val_,dvg_val) ;
@@ -367,10 +371,10 @@ namespace Store {
 				SWEAR(need_mk_min_sz()) ;
 				Sz min_sz_ = min_sz() ;
 				if (kind()==Kind::Split) _at<CharUint>(_s_cmp_val_ofs(min_sz_,used)) = cmp_val() ;
-				if (BigData) {                                                                                                                              // data is after nxt
+				if (BigData) {                                                                                                                       // data is after nxt
 					for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(min_sz_,used,is_eq)) = nxt_if(is_eq) ;
 					_mv_data(min_sz_,kind()) ;
-				} else {                                                                                                                                    // data is before nxt
+				} else {                                                                                                                             // data is before nxt
 					_mv_data(min_sz_,kind()) ;
 					for( bool is_eq : Nxt(kind()) ) _at<Idx>(_s_nxt_if_ofs(min_sz_,used,is_eq)) = nxt_if(is_eq) ;
 				}
@@ -594,15 +598,13 @@ namespace Store {
 			Base::init( name , writable_ , ::forward<A>(hdr_args)... ) ;
 			// fix in case of crash during an operation
 			if (!_n_saved()) return ;
-			if (!writable_) {
-				Fd::Stderr.write(cat(name," has been damaged and needs recovery but this cannot be done while read-only")) ;
-				exit(Rc::BadState) ;
-			}
-			for( uint8_t i1=_n_saved() ; i1>0 ; i1-- ) {                 // restore backward as some items may be saved several times
+			if (!writable_ ) exit( Rc::BadState , name," has been damaged and needs recovery but this cannot be done while read-only" ) ;
+			//
+			for( uint8_t i1=_n_saved() ; i1>0 ; i1-- ) {      // restore backward as some items may be saved several times
 				auto const& [idx,save_item] = _save()[i1-1] ;
 				save_item.restore(_at(idx)) ;
 			}
-			_commit() ;                                                  // until this point, nothing is commited and program may crash without impact
+			_commit() ;                                       // until this point, nothing is commited and program may crash without impact
 		}
 
 		// data
@@ -990,7 +992,7 @@ namespace Store {
 			{	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 				Idx new_idx = _emplace( kind , true/*used*/ , idx , 0/*start*/ , chunk_sz ) ;
 				_mv<true/*BuPrev*/,false/*BuO*/,true/*BuNxt0*/,true/*BuNxt1*/>( idx , new_idx ) ; // root cannot be here as with empty chunk it would be caught by previous case
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				_compress_before<true/*BuPrev2*/,false/*BuPrev*/,true/*BuI*/>(new_idx) ;          // prev already backed up
 				_commit() ;
 				return new_idx ;
@@ -1067,46 +1069,30 @@ namespace Store {
 
 		void _pop(Idx idx) {
 			chk_writable() ;
-			Item* item = &_at(idx) ;
-			SWEAR(item->used) ;
-			if ( item->kind()==Kind::Terminal && +item->prev ) {                      // root must remain as a Terminal even if unused
-				Idx nxt ;
-				do {                                                                  // walk backward to suppress all items whose only purpose is to lead to Terminal
+			Item* item = &_at(idx) ; SWEAR(item->used) ;
+			Idx   nxt  = {}        ;
+			if ( item->kind()==Kind::Terminal && +item->prev ) { // root must remain as a Terminal even if unused
+				do {                                             // walk backward to suppress all items whose only purpose is to lead to Terminal
 					nxt  = idx        ;
 					idx  = item->prev ;
 					item = &_at(idx)  ;
-				} while( item->kind()==Kind::Prefix && !item->used && +item->prev ) ; // root can be an unused Terminal
-				SWEAR(item->kind()!=Kind::Terminal,idx,item);
-				Item* nxt_item = &_at(nxt) ; //!                                                  BuPrev BuI                   BuI   BuNxt
-				//                                                                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				if (item->kind()==Kind::Split) { bool is_eq = nxt_item->prev_is_eq ; _unlnk_before<true ,true>(nxt) ; _mk_down<false,true>(idx,!is_eq) ; }
-				else                           {                                     _unlnk_before<true ,true>(nxt) ; _mk_down<false     >(idx       ) ; }
-				//                                                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				// try compression forward & backward, so use | instead of ||
-				bool compressed ;
-				/**/             ::tie(compressed,idx) = _compress_after <                true /*BuPrev*/,false/*BuI*/,true/*BuNxt*/>(idx) ; // idx already backed up
-				if ( compressed)                         _compress_before<true/*BuPrev2*/,false/*.     */,false/*.  */              >(idx) ; // prev already backed up by _compress_after above
-				else                   compressed      = _compress_before<true/*.      */,true /*.     */,false/*.  */              >(idx) ;
-				if (!compressed)                         _minimize_sz    <                                false/*Bu */              >(idx) ; // idx already backed up
-				_commit() ;
-				for(;;) {   // now that branch is out of the tree, walk forward to actually collect the items
-					//    vvvvvvvv
-					Base::pop(nxt) ;
-					//    ^^^^^^^^
-					if (nxt_item->kind()==Kind::Terminal) break ;
-					nxt      = nxt_item->nxt() ;
-					nxt_item = &_at(nxt)       ;
-				} ;
-			} else {
+				} while( item->kind()==Kind::Prefix && !item->used && +item->prev ) ;                                                     // root can be an unused Terminal
+				SWEAR(item->kind()!=Kind::Terminal,idx,item); //!                                BuPrev BuI                   BuI   BuNxt
+				//                                                                  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				if (item->kind()==Kind::Split) { bool is_eq = _at(nxt).prev_is_eq ; _unlnk_before<true ,true>(nxt) ; _mk_down<false,true>(idx,!is_eq) ; }
+				else                           {                                    _unlnk_before<true ,true>(nxt) ; _mk_down<false     >(idx       ) ; }
+			} else { //!                                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				_backup(idx) ;
 				item->mk_used(false/*used*/) ;
-				// try compression forward & backward, so use | instead of ||
-				bool compressed ;
-				/**/             ::tie(compressed,idx)  = _compress_after <                true /*BuPrev*/,false/*BuI*/,true/*BuNxt*/>(idx) ; // idx already backed up
-				if ( compressed)                          _compress_before<true/*BuPrev2*/,false/*.     */,false/*.  */              >(idx) ; // prev already backed up by _compress_after above
-				else                   compressed       = _compress_before<true/*.      */,true /*.     */,false/*.  */              >(idx) ;
-				if (!compressed)                          _minimize_sz    <                                false/*Bu */              >(idx) ; // idx already backed up
-				_commit() ;
+			}
+			bool compressed ;
+			/**/             ::tie(compressed,idx) = _compress_after <                true /*BuPrev*/,false/*BuI*/,true/*BuNxt*/>(idx) ;  // idx already backed up
+			if (!compressed)       compressed      = _compress_before<true/*BuPrev2*/,true /*.     */,false/*.  */              >(idx) ;  // .
+			/**/                                     _minimize_sz    <                                false/*Bu */              >(idx) ;  // .
+			_commit() ;
+			if (+nxt) {                                                                                       // now that branch is out of the tree, walk forward to actually collect the items
+				while (_at(nxt).kind()!=Kind::Terminal) { Idx n2=_at(nxt).nxt() ; Base::pop(nxt) ; nxt=n2 ; } // intermediate items, fetch nxt field before pop
+				/**/                                                              Base::pop(nxt) ;            // last terminal item
 			}
 		}
 
