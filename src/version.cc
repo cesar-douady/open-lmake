@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 57      ; // 01c7694ea8a0a67013b7a3dfe002e711
-	uint64_t    constexpr Codec = 3       ; // 084f97cd3cdfd24a126f49adeb731f3f
-	uint64_t    constexpr Repo  = 62      ; // 7c1cd38f43c446489dd078d396de5383
+	uint64_t    constexpr Cache = 58      ; // 85a124b0ea7f0febcb79ddc6be2bfbd5
+	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
+	uint64_t    constexpr Repo  = 63      ; // ffb95ea79a86c56e633474b03b6422e0
 	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
 	const char* const     Major = "26.08" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 01c7694ea8a0a67013b7a3dfe002e711 *
+// * Cache : 85a124b0ea7f0febcb79ddc6be2bfbd5 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -136,7 +136,7 @@ namespace Version {
 //					n_static_stems = 1 ;                                                                      // other stems are star-stems
 //					//
 //					::string       pfx      = Codec::CodecFile::s_pfx_s() ;
-//					::vector<bool> captures ( 4 )                         ;                                   // no back-references, no need for capture
+//					::vector<bool> captures ( stems.size() )              ;                                   // no back-references, no need for capture
 //					job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
 //					matches  = { //!                             File                        Ctx
 //						{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures=captures} }
@@ -1029,7 +1029,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ********************************************
-// * Codec : 084f97cd3cdfd24a126f49adeb731f3f *
+// * Codec : 403dc2743b6e16290876935ae09d2242 *
 // ********************************************
 //
 //			// START_OF_VERSIONING CODEC
@@ -1099,7 +1099,7 @@ namespace Version {
 //					n_static_stems = 1 ;                                                                      // other stems are star-stems
 //					//
 //					::string       pfx      = Codec::CodecFile::s_pfx_s() ;
-//					::vector<bool> captures ( 4 )                         ;                                   // no back-references, no need for capture
+//					::vector<bool> captures ( stems.size() )              ;                                   // no back-references, no need for capture
 //					job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
 //					matches  = { //!                             File                        Ctx
 //						{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures=captures} }
@@ -1182,7 +1182,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 7c1cd38f43c446489dd078d396de5383 *
+// * Repo : ffb95ea79a86c56e633474b03b6422e0 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1299,7 +1299,7 @@ namespace Version {
 //					n_static_stems = 1 ;                                                                      // other stems are star-stems
 //					//
 //					::string       pfx      = Codec::CodecFile::s_pfx_s() ;
-//					::vector<bool> captures ( 4 )                         ;                                   // no back-references, no need for capture
+//					::vector<bool> captures ( stems.size() )              ;                                   // no back-references, no need for capture
 //					job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
 //					matches  = { //!                             File                        Ctx
 //						{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures=captures} }
@@ -1609,20 +1609,21 @@ namespace Version {
 //			// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO
 //	enum class Buildable : uint8_t {
-//		Anti                         //                                   match independent, include uphill dirs of Src/SrcDir listed in manifest
-//	,	SrcDir                       //                                   match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
-//	,	SubSrc                       //                                   match independent, sub-file of a Src listed in manifest
-//	,	PathTooLong                  //                                   match dependent  , (as limit may change with config)
-//	,	DynAnti                      //                                   match dependent
+//		Admin                        //                                  match independent, include all files in the admin dir
+//	,	Anti                         //                                  match independent, include uphill dirs of Src/SrcDir listed in manifest
+//	,	SrcDir                       //                                  match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
+//	,	SubSrc                       //                                  match independent, sub-file of a Src listed in manifest
+//	,	PathTooLong                  //                                  match dependent  , (as limit may change with config)
+//	,	DynAnti                      //                                  match dependent
 //	,	No                           // <=No means node is not buildable
-//	,	Maybe                        //                                   buildability is data dependent (maybe converted to Yes by further analysis)
-//	,	SubSrcDir                    //                                   sub-file of a SrcDir
+//	,	Maybe                        //                                  buildability is data dependent (maybe converted to Yes by further analysis)
+//	,	SubSrcDir                    //                                  sub-file of a SrcDir
 //	,	Unknown
 //	,	Yes                          // >=Yes means node is buildable
-//	,	Codec                        //                                   match independent, file is a encode or decode marker (LMAKE/lmake/codec/file/ctx/*(.decode|.encode)
-//	,	DynSrc                       //                                   match dependent
-//	,	Src                          //                                   file listed in manifest, match independent
-//	,	Loop                         //                                   node is being analyzed, deemed buildable so as to block further analysis
+//	,	Codec                        //                                  match independent, file is a encode or decode marker (LMAKE/lmake/codec/file/ctx/*(.decode|.encode)
+//	,	DynSrc                       //                                  match dependent
+//	,	Src                          //                                  file listed in manifest, match independent
+//	,	Loop                         //                                  node is being analyzed, deemed buildable so as to block further analysis
 //	} ;
 //	// END_OF_VERSIONING
 //	// START_OF_VERSIONING REPO
@@ -1690,11 +1691,12 @@ namespace Version {
 //	} ;
 //
 //	enum class Special : uint8_t {
-//		None                       // value 0 reserved to mean not initialized
-//	,	Dep                        // used for synthetized jobs when asking for direct dep
-//	,	Req                        // used for synthetized jobs representing a Req
+//		None                                                                          // value 0 reserved to mean not initialized
+//	,	Dep                                                                           // used for synthetized jobs when asking for direct dep
+//	,	Req                                                                           // used for synthetized jobs representing a Req
 //	,	InfiniteDep
 //	,	InfinitePath
+//	,	Admin
 //	,	Codec
 //	,	Plain
 //	// ordered by increasing matching priority within each prio
@@ -1702,13 +1704,29 @@ namespace Version {
 //	,	Anti
 //	//
 //	// aliases
-//	,	NUniq      = Plain         // < NUniq      means there is a single such rule
-//	,	HasJobs    = Plain         // <=HasJobs    means jobs can refer to this rule
-//	,	Fugitive   = InfinitePath  // <=Fugitive   means job is not kept permanently
-//	,	HasMatches = Codec         // >=HasMatches means rules can get jobs by matching
-//	,	HasTargets = InfiniteDep   // >=HasTargets means targets field exists
+//	,	NUniq = Plain                                                                 // <NUniq means there is a single such rule
 //	} ;
 //	inline bool is_infinite(Special s) { return s==Special::InfiniteDep || s==Special::InfinitePath ; }
+//	struct SpecialAttr {
+//		bool has_matches() const { return prio!=0                   ; }
+//		uint8_t prio        = 0     ;                                                 // prioriy among special rules at same priority level
+//		Bool3   has_jobs    = No    ;                                                 // Maybe means fugitive jobs (not kept in persistent data)
+//		bool    has_targets = false ;
+//		bool    is_anti     = false ;
+//	} ;
+//	static constexpr ::amap<Special,SpecialAttr,N<Special>> SpecialAttrs {{
+//		{ Special::None         , {                                                               } }
+//	,	{ Special::Dep          , {           .has_jobs=Maybe                                     } }
+//	,	{ Special::Req          , {           .has_jobs=Maybe                                     } }
+//	,	{ Special::InfiniteDep  , {           .has_jobs=Maybe , .has_targets=true                 } }
+//	,	{ Special::InfinitePath , {           .has_jobs=Maybe , .has_targets=true                 } }
+//	,	{ Special::Admin        , { .prio=4 ,                   .has_targets=true , .is_anti=true } }
+//	,	{ Special::Codec        , { .prio=5 , .has_jobs=Yes   , .has_targets=true                 } } // codec files lie in admin dir, so matching must be higher prio
+//	,	{ Special::Plain        , { .prio=1 , .has_jobs=Yes   , .has_targets=true                 } }
+//	,	{ Special::GenericSrc   , { .prio=2 ,                   .has_targets=true                 } }
+//	,	{ Special::Anti         , { .prio=3 ,                   .has_targets=true , .is_anti=true } }
+//	}} ;
+//	static_assert(chk_enum_tab(SpecialAttrs)) ;
 //
 //	enum class VarCmd : uint8_t {
 //		Stems   , Stem

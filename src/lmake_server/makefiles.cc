@@ -32,9 +32,6 @@ namespace Engine::Makefiles {
 		::vmap_s<::optional_s> user_env ;
 	} ;
 
-	static constexpr const char* EnvironFile  = ADMIN_DIR_S "environ"   ; // provided to user, contains only variables used in Lmakefile.py
-	static constexpr const char* ManifestFile = ADMIN_DIR_S "manifest"  ; // provided to user, contains the list of source files
-
 	static ::string _g_user_env_str ;
 
 	::umap_ss clean_env(bool under_lmake_ok) {
@@ -335,8 +332,8 @@ namespace Engine::Makefiles {
 					_g_user_env_str << first(""," , ")<< mk_py_str(k) <<":"<< mk_py_str(v) ;
 				_g_user_env_str << " }" ;
 			}
-			AcFd( EnvironFile  , {O_RDONLY|O_CREAT} ) ;                                            // these are sources, they must exist
-			AcFd( ManifestFile , {O_RDONLY|O_CREAT} ) ;                                            // .
+			AcFd( admin_src_file(AdminSrc::Environ ) , {O_RDONLY|O_CREAT} ) ;                      // these are sources, they must exist
+			AcFd( admin_src_file(AdminSrc::Manifest) , {O_RDONLY|O_CREAT} ) ;                      // .
 		}
 		//
 		bool/*done*/ config_digest = _refresh_config( /*out*/msg , /*out*/config , /*out*/py_info , /*out*/config_deps , user_env , startup_dir_s ) ;
@@ -389,17 +386,17 @@ namespace Engine::Makefiles {
 		bool          new_srcs    = srcs_digest==Yes || (srcs_digest==Maybe&&config_digest) || changed_extra_srcs                                                           ;
 		if (new_srcs) {
 			for( ::string const& s : g_config->extra_manifest ) srcs.push_back(s) ;
-			//                                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try                           { invalidate |= Persistent::new_srcs( ::move(srcs) , ManifestFile ) ;                 }
-			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			//                                            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try                           { invalidate |= Persistent::new_srcs(::move(srcs)) ;                                  }
+			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string     const& e) { throw         cat("cannot ",dynamically,"update sources : ",e      )              ; }
 			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dynamically,"update sources : ",e.first) , e.second ) ; }
 		}
 		Rules         rules        ;
 		Bool3/*done*/ rules_digest = _refresh_rules_srcs<Action::Rules>( /*out*/msg , /*out*/rules , /*out*/rules_deps , changed_rules , py_info , user_env , startup_dir_s ) ; // Maybe means not split
 		bool          new_rules    = rules_digest==Yes || (rules_digest==Maybe&&config_digest)                                                                                ;
-		if (new_rules) //!                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-			try                           { invalidate |= Persistent::new_rules( ::move(rules) ) ;                            }
+		if (new_rules) //!                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+			try                           { invalidate |= Persistent::new_rules(::move(rules)) ;                              }
 			//                                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 			catch (::string     const& e) { throw         cat("cannot ",dynamically,"update rules : ",e      )              ; }
 			catch (::pair_s<Rc> const& e) { throw ::pair( cat("cannot ",dynamically,"update rules : ",e.first) , e.second ) ; }
@@ -421,7 +418,7 @@ namespace Engine::Makefiles {
 			if (rules_digest==Yes) { _stamp_deps(Action::Rules  ) ; for( auto const& [k,v] : rules_deps .user_env ) if (+v) ue[k] = *v ; } else _recall_env(ue,Action::Rules  ) ;
 			::string user_env_str ;
 			for( auto const& [k,v] : ue ) user_env_str << k<<'='<<mk_printable(v)<<'\n' ;
-			AcFd( EnvironFile , {.flags=O_WRONLY|O_TRUNC} ).write(user_env_str) ;
+			AcFd( admin_src_file(AdminSrc::Environ) , {.flags=O_WRONLY|O_TRUNC} ).write(user_env_str) ;
 		}
 		trace("done") ;
 	}

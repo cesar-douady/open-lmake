@@ -56,7 +56,7 @@ using namespace Time  ;
 void quarantine( ::string const& file , SyncGuard* sync_guard ) {
 	if (!FileInfo(file).tag()) return ;
 	//
-	::string qf = cat( ADMIN_DIR_S "quarantine/" , file ) ;
+	::string qf = cat(AdminDirS,"quarantine/",file) ;
 	try {
 		unlnk (        qf , {.dir_ok=true,.force=true,.sync_guard=sync_guard} ) ;
 		rename( file , qf , {             .force=true,.sync_guard=sync_guard} ) ;

@@ -392,8 +392,8 @@ Gather::Digest Gather::analyze( Status status , bool do_upload ) {
 					case ENOENT       :
 					case ENOTDIR      :
 					case ELOOP        :
-					case ENAMETOOLONG :                                                            break ;
-					default           : res.msg << "cannot access ("<<StrErr()<<") "<<file<<'\n' ; break ;
+					case ENAMETOOLONG :                                                                                  break ;
+					default           : res.msg << "cannot access for target analysis ("<<StrErr()<<") : "<<file<<'\n' ; break ;
 				}
 				st.st_mode = 0 ;
 			}

@@ -35,8 +35,8 @@ namespace Codec {
 		SWEAR( is_dir_name(dir_s) , dir_s ) ;
 		//
 		FileStat st ;
-		int      rc = ::lstat( +dir_s?dir_s.c_str():"." , &st ) ; throw_unless( rc==0               , "cannot access (",StrErr(),") ",dir_s,rm_slash ) ;
-		/**/                                                      throw_unless( S_ISDIR(st.st_mode) , "not a dir : "                 ,dir_s,rm_slash ) ;
+		int      rc = ::lstat( +dir_s?dir_s.c_str():"." , &st ) ; throw_unless( rc==0               , "cannot access codec dir (",StrErr(),") ",dir_s,rm_slash ) ;
+		/**/                                                      throw_unless( S_ISDIR(st.st_mode) , "not a dir : "                           ,dir_s,rm_slash ) ;
 		umask = ~st.st_mode & 0777 ; // ensure permissions on top-level dir are propagated to all underlying dirs and files
 		//
 		::string init_msg ;

@@ -53,11 +53,12 @@ enum class RuleCrcState : uint8_t {
 } ;
 
 enum class Special : uint8_t {
-	None                       // value 0 reserved to mean not initialized
-,	Dep                        // used for synthetized jobs when asking for direct dep
-,	Req                        // used for synthetized jobs representing a Req
+	None                                                                          // value 0 reserved to mean not initialized
+,	Dep                                                                           // used for synthetized jobs when asking for direct dep
+,	Req                                                                           // used for synthetized jobs representing a Req
 ,	InfiniteDep
 ,	InfinitePath
+,	Admin
 ,	Codec
 ,	Plain
 // ordered by increasing matching priority within each prio
@@ -65,13 +66,29 @@ enum class Special : uint8_t {
 ,	Anti
 //
 // aliases
-,	NUniq      = Plain         // < NUniq      means there is a single such rule
-,	HasJobs    = Plain         // <=HasJobs    means jobs can refer to this rule
-,	Fugitive   = InfinitePath  // <=Fugitive   means job is not kept permanently
-,	HasMatches = Codec         // >=HasMatches means rules can get jobs by matching
-,	HasTargets = InfiniteDep   // >=HasTargets means targets field exists
+,	NUniq = Plain                                                                 // <NUniq means there is a single such rule
 } ;
 inline bool is_infinite(Special s) { return s==Special::InfiniteDep || s==Special::InfinitePath ; }
+struct SpecialAttr {
+	bool has_matches() const { return prio!=0                   ; }
+	uint8_t prio        = 0     ;                                                 // prioriy among special rules at same priority level
+	Bool3   has_jobs    = No    ;                                                 // Maybe means fugitive jobs (not kept in persistent data)
+	bool    has_targets = false ;
+	bool    is_anti     = false ;
+} ;
+static constexpr ::amap<Special,SpecialAttr,N<Special>> SpecialAttrs {{
+	{ Special::None         , {                                                               } }
+,	{ Special::Dep          , {           .has_jobs=Maybe                                     } }
+,	{ Special::Req          , {           .has_jobs=Maybe                                     } }
+,	{ Special::InfiniteDep  , {           .has_jobs=Maybe , .has_targets=true                 } }
+,	{ Special::InfinitePath , {           .has_jobs=Maybe , .has_targets=true                 } }
+,	{ Special::Admin        , { .prio=4 ,                   .has_targets=true , .is_anti=true } }
+,	{ Special::Codec        , { .prio=5 , .has_jobs=Yes   , .has_targets=true                 } } // codec files lie in admin dir, so matching must be higher prio
+,	{ Special::Plain        , { .prio=1 , .has_jobs=Yes   , .has_targets=true                 } }
+,	{ Special::GenericSrc   , { .prio=2 ,                   .has_targets=true                 } }
+,	{ Special::Anti         , { .prio=3 ,                   .has_targets=true , .is_anti=true } }
+}} ;
+static_assert(chk_enum_tab(SpecialAttrs)) ;
 
 enum class VarCmd : uint8_t {
 	Stems   , Stem

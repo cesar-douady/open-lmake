@@ -9,31 +9,33 @@
 
 // START_OF_VERSIONING REPO
 enum class Buildable : uint8_t {
-	Anti                         //                                   match independent, include uphill dirs of Src/SrcDir listed in manifest
-,	SrcDir                       //                                   match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
-,	SubSrc                       //                                   match independent, sub-file of a Src listed in manifest
-,	PathTooLong                  //                                   match dependent  , (as limit may change with config)
-,	DynAnti                      //                                   match dependent
+	Admin                        //                                  match independent, include all files in the admin dir
+,	Anti                         //                                  match independent, include uphill dirs of Src/SrcDir listed in manifest
+,	SrcDir                       //                                  match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
+,	SubSrc                       //                                  match independent, sub-file of a Src listed in manifest
+,	PathTooLong                  //                                  match dependent  , (as limit may change with config)
+,	DynAnti                      //                                  match dependent
 ,	No                           // <=No means node is not buildable
-,	Maybe                        //                                   buildability is data dependent (maybe converted to Yes by further analysis)
-,	SubSrcDir                    //                                   sub-file of a SrcDir
+,	Maybe                        //                                  buildability is data dependent (maybe converted to Yes by further analysis)
+,	SubSrcDir                    //                                  sub-file of a SrcDir
 ,	Unknown
 ,	Yes                          // >=Yes means node is buildable
-,	Codec                        //                                   match independent, file is a encode or decode marker (LMAKE/lmake/codec/file/ctx/*(.decode|.encode)
-,	DynSrc                       //                                   match dependent
-,	Src                          //                                   file listed in manifest, match independent
-,	Loop                         //                                   node is being analyzed, deemed buildable so as to block further analysis
+,	Codec                        //                                  match independent, file is a encode or decode marker (LMAKE/lmake/codec/file/ctx/*(.decode|.encode)
+,	DynSrc                       //                                  match dependent
+,	Src                          //                                  file listed in manifest, match independent
+,	Loop                         //                                  node is being analyzed, deemed buildable so as to block further analysis
 } ;
 // END_OF_VERSIONING
-struct BuildableAttrsEntry {
+struct BuildableAttr {
 	Bool3       has_file    ;
 	bool        is_src_anti ;
-	Bool3       has_job     ;          // if Maybe, there is a rule but no job
+	Bool3       has_job     ;    // if Maybe, there is a rule but no job
 	const char* descr       ;
 } ;
-static constexpr ::amap<Buildable,BuildableAttrsEntry,N<Buildable>> BuildableAttrs {{
+static constexpr ::amap<Buildable,BuildableAttr,N<Buildable>> BuildableAttrs {{
 	//                         has_file is_src_anti has_job  descr
-	{ Buildable::Anti        , { No    , true      , No    , "anti"            } }
+	{ Buildable::Admin       , { No    , true      , No    , "admin"           } }
+,	{ Buildable::Anti        , { No    , true      , No    , "anti"            } }
 ,	{ Buildable::SrcDir      , { No    , true      , No    , "source dir"      } }
 ,	{ Buildable::SubSrc      , { No    , true      , No    , "sub-source"      } }
 ,	{ Buildable::PathTooLong , { No    , true      , No    , "path too long"   } }
@@ -49,7 +51,19 @@ static constexpr ::amap<Buildable,BuildableAttrsEntry,N<Buildable>> BuildableAtt
 ,	{ Buildable::Loop        , { No    , false     , No    , "loop"            } }
 }} ;
 static_assert(chk_enum_tab(BuildableAttrs)) ;
-
+static constexpr ::amap<Special,Buildable,N<Special>> BuildableFromSpecial {{
+	{ Special::None         , Buildable::Unknown }
+,	{ Special::Dep          , Buildable::Unknown }
+,	{ Special::Req          , Buildable::Unknown }
+,	{ Special::InfiniteDep  , Buildable::Unknown }
+,	{ Special::InfinitePath , Buildable::Unknown }
+,	{ Special::Admin        , Buildable::Admin   }
+,	{ Special::Codec        , Buildable::Codec   }
+,	{ Special::Plain        , Buildable::Unknown }
+,	{ Special::GenericSrc   , Buildable::DynSrc  }
+,	{ Special::Anti         , Buildable::DynAnti }
+}} ;
+static_assert(chk_enum_tab(BuildableFromSpecial)) ;
 
 enum class Manual : uint8_t {
 	Ok                        // file is as recorded

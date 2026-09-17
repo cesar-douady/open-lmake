@@ -629,14 +629,15 @@ namespace Engine {
 		Rule prev_rule ;
 		for( RuleTgt rt : Node::s_rule_tgts(name).view() ) {               // first pass to gather info : mrts : matching rules, n_missing : number of missing deps
 			Rule            r = rt->rule    ; if (r==prev_rule) continue ; // only consider first match for any given rule
-			Rule::RuleMatch m { rt , name } ;
-			if (!m                              )              continue ;
-			if (rt->rule->special==Special::Anti) { art = rt ; break    ; }
+			Rule::RuleMatch m { rt , name } ; if (!m          ) continue ;
+			//
+			if (SpecialAttrs[+r->special].second.is_anti) { art = rt ; break ; }
+			SWEAR( SpecialAttrs[+r->special].second.has_jobs!=No , r->special ) ;                                   // this would be a source
 			//
 			if ( JobTgt jt{::copy(m),rt.sure()} ; +jt && jt->run_status!=RunStatus::MissingStatic ) goto Continue ; // do not pass self as req to avoid generating error message at cxtor time
-			try                      { rt->rule->deps_attrs.eval(m) ; }
-			catch (MsgStderr const&) { goto Continue ;                }                                             // do not consider rule if deps cannot be computed
-			prev_rule = rt->rule ;
+			try                      { r->deps_attrs.eval(m) ; }
+			catch (MsgStderr const&) { goto Continue ;         }                                                    // do not consider rule if deps cannot be computed
+			prev_rule = r ;
 			n_missing++ ;
 		Continue :
 			mrts.emplace_back(rt,::move(m)) ;
@@ -691,7 +692,11 @@ namespace Engine {
 			if ( +missing_dep && n_missing==1 && (!g_config->max_err_lines||lvl<g_config->max_err_lines) ) _report_no_rule( missing_dep , sync_guard , lvl+2 ) ;
 		}
 		//
-		if (+art) audit_info( Color::Note , "anti-rule "+art->rule->user_name()+" matches" , lvl+1 ) ;
+		if (+art)
+			switch (art->rule->special) {
+				case Special::Anti  : audit_info( Color::Note , cat("anti-rule ",art->rule->user_name()," matches") , lvl+1 ) ; break ;
+				case Special::Admin : audit_info( Color::Note , "admin file"                                        , lvl+1 ) ; break ;
+			DF}
 	}
 
 	//

@@ -3,7 +3,8 @@
 // This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 // This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-#include "core.hh" // /!\ must be first to include Python.h first
+#include "core.hh"      // /!\ must be first to include Python.h first
+#include "makefiles.hh"
 
 #include <tuple>
 
@@ -344,25 +345,25 @@ namespace Engine::Persistent {
 	// return suffix after last stem (StartMrkr+str if no stem)
 	static ::string _parse_sfx(::string const& str) {
 		size_t pos = 0 ;
-		for(;;) {                                                        // cannot use rfind as anything can follow a StemMrkr, including a StemMrkr, so iterate with find
+		for(;;) {                                           // cannot use rfind as anything can follow a StemMrkr, including a StemMrkr, so iterate with find
 			size_t nxt_pos = str.find(Rule::StemMrkr,pos) ;
 			if (nxt_pos==Npos) break ;
 			pos = nxt_pos+1+sizeof(VarIdx) ;
 		}
-		if (pos==0) return StartMrkr+str   ;                             // signal that there is no stem by prefixing with StartMrkr
-		else        return str.substr(pos) ;                             // suppress stem marker & stem idx
+		if (pos==0) return StartMrkr+str   ;                // signal that there is no stem by prefixing with StartMrkr
+		else        return str.substr(pos) ;                // suppress stem marker & stem idx
 	}
 	// return prefix before first stem (empty if no stem)
 	static ::string _parse_pfx(::string const& str) {
 		size_t pos = str.find(Rule::StemMrkr) ;
-		if (pos==Npos) return {}                ;                        // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
+		if (pos==Npos) return {}                ;           // absence of stem is already signal in _parse_sfx, we just need to pretend there is no prefix
 		else           return str.substr(0,pos) ;
 	}
 	struct Rt : RuleTgt {
 		// cxtors & co
 		Rt() = default  ;
 		Rt( RuleCrc rc , VarIdx ti ) : RuleTgt{rc,ti} , pfx{_parse_pfx(target())} , sfx{_parse_sfx(target())} {}
-		size_t hash() const { return ::hash<Engine::RuleTgt>()(self) ; } // there is no more info in a Rt than in a RuleTgt
+		size_t hash() const { return ::hash<Engine::RuleTgt>()(self) ; }                                         // there is no more info in a Rt than in a RuleTgt
 		// data (cache)
 		::string pfx ;
 		::string sfx ;
@@ -438,9 +439,9 @@ namespace Engine::Persistent {
 						Rule            br  = b->rule ;
 						RuleData const& ard = *ar     ;
 						RuleData const& brd = *br     ;
-						return //!   <------------semantic_sort------------->   optim_sort    stable_sort within_rule
-							::tuple( !ard.is_plain() , ard.prio , ard.special , psfx_szs[ar] , +a->match , a.tgt_idx )
-						>	::tuple( !brd.is_plain() , brd.prio , brd.special , psfx_szs[br] , +b->match , b.tgt_idx )
+						return //!   <------------semantic_sort---------------------------------------->   optim_sort    stable_sort within_rule
+							::tuple( !ard.is_plain() , ard.prio , SpecialAttrs[+ard.special].second.prio , psfx_szs[ar] , +a->match , a.tgt_idx )
+						>	::tuple( !brd.is_plain() , brd.prio , SpecialAttrs[+brd.special].second.prio , psfx_szs[br] , +b->match , b.tgt_idx )
 						;
 					}
 				) ;
@@ -566,8 +567,9 @@ namespace Engine::Persistent {
 		return invalidate ;
 	}
 
-	bool/*invalidate*/ new_srcs( Sources&& src_names , ::string const& manifest ) {
-		static bool s_first_time = true ; bool first_time = s_first_time ; s_first_time = false ;
+	bool/*invalidate*/ new_srcs(Sources&& src_names) {
+		static ::string s_admin_dir  = AdminDirS ;                                  rm_slash(s_admin_dir) ;
+		static bool     s_first_time = true      ; bool first_time = s_first_time ; s_first_time = false ;
 		//
 		size_t               n_codecs       = g_config->codecs.size()                                                ;
 		size_t               n_old_srcs     = Node::s_srcs(false/*dirs*/).size() + Node::s_srcs(true/*dirs*/).size() ;
@@ -580,17 +582,24 @@ namespace Engine::Persistent {
 		::uset<Node        > new_src_dirs   ;
 		::uset_s             ext_src_dirs_s ;
 		::uset_s             lcl_src_regs   ;
-		Trace trace("new_srcs",src_names.size(),manifest) ;
+		Trace trace("new_srcs",src_names.size()) ;
 		// check and format new srcs
-		size_t      repo_root_depth = ::count(*g_repo_root_s,'/') - 1/* / */                                                                                                         ;
-		RealPathEnv rpe             { .file_sync=FileSync::None , .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=*g_repo_root_s+PRIVATE_ADMIN_DIR_S } ;
-		RealPath    real_path       { rpe                                                                                                                                          } ;
+		size_t      repo_root_depth = ::count(*g_repo_root_s,'/') - 1/* / */                                                                                                           ;
+		RealPathEnv rpe             { .file_sync=FileSync::None , .lnk_support=g_config->lnk_support , .repo_root_s=*g_repo_root_s , .tmp_dir_s=cat(*g_repo_root_s,PrivateAdminDirS) } ;
+		RealPath    real_path       { rpe                                                                                                                                            } ;
 		// user report done before analysis so manifest is available for investigation in case of error
 		{	::string content ;
-			for( ::string const& src : src_names ) content << src <<'\n' ;
-			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT} ).write( content ) ;
+			for( ::string const& src : src_names ) content << src<<'\n' ;
+			AcFd( admin_src_file(AdminSrc::Manifest) , {O_WRONLY|O_TRUNC|O_CREAT} ).write( content ) ;
 		}
 		Node::s_top = {New,"/"} ;
+		for( ::string& src : src_names )
+			throw_if(
+				src.starts_with(s_admin_dir) && (src[s_admin_dir.size()]==0||src[s_admin_dir.size()]=='/')
+			,	"source ",is_dir_name(src)?"dir ":"","lies in admin dir ",s_admin_dir," : ",src
+			) ;
+		for( AdminSrc s : iota(All<AdminSrc>) )
+			src_names.push_back(admin_src_file(s)) ;
 		for( ::string& src : src_names ) {
 			throw_unless( +src , "found an empty source" ) ;
 			bool is_dir_ = is_dir_name(src) ;
@@ -710,11 +719,6 @@ namespace Engine::Persistent {
 			for( Node d : new_src_dirs ) d->mk_src( Buildable::Anti , Crc::None ) ;
 		}
 		_compile_srcs() ;
-		// user report
-		{	::string content ;
-			for( auto [n,t] : srcs ) content << n->name() << (t==FileTag::Dir?"/":"") <<'\n' ;
-			AcFd( manifest , {O_WRONLY|O_TRUNC|O_CREAT} ).write( content ) ;
-		}
 		trace("done",srcs.size(),"srcs") ;
 		return invalidate ;
 	}

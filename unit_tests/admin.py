@@ -16,9 +16,21 @@ if __name__!='__main__' :
 		target = 'test'
 		cmd    = ''
 
+	class Any(Rule) :
+		prio   = -1
+		target = '{File:.*}'
+		cmd    = 'echo {File}'
+
+	class Dut(Rule) :
+		target = 'dut'
+		dep    = 'LMAKE/dut'
+		cmd    = 'cat'
+
 else :
 
 	import ut
 
-	ut.lmake( 'test' , done=1 )
-	ut.lmake( 'test' , done=0 )
+	ut.lmake( 'test'      , done=1        )
+	ut.lmake( 'test'      , done=0        )
+	ut.lmake( 'dut'       , done=1        ) # with rule any
+	ut.lmake( 'LMAKE/dut' , done=0 , rc=1 ) # ruel Any cannot apply in admin dir

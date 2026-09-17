@@ -91,7 +91,7 @@ namespace Engine {
 			.file_sync   = g_config->server_file_sync
 		,	.lnk_support = g_config->lnk_support
 		,	.repo_root_s = *g_repo_root_s
-		,	.tmp_dir_s   = *g_repo_root_s+PRIVATE_ADMIN_DIR_S
+		,	.tmp_dir_s   = cat(*g_repo_root_s,PrivateAdminDirS)
 		,	.src_dirs_s  = Record::s_autodep_env().src_dirs_s
 		} ;
 		s_real_path = new RealPath{*_s_rpe} ;
@@ -544,6 +544,7 @@ namespace Engine {
 							else                res.severe_msg << " unlink of" ;
 							switch (target->buildable) {
 								case Buildable::PathTooLong : res.severe_msg << " path too long"  ; break ;
+								case Buildable::Admin       : res.severe_msg << " admin file"     ; break ;
 								case Buildable::Anti        :
 								case Buildable::DynAnti     : res.severe_msg << " anti-file"      ; break ;
 								case Buildable::SrcDir      : res.severe_msg << " source dir"     ; break ;

@@ -7,6 +7,12 @@
 
 #include "rpc_client.hh"
 
+enum class AdminSrc : uint8_t { // source files within admin dir
+	Environ                     // environment variables read by accessing lmake.user_environ in Lmakefile.py
+,	Manifest                    // list of sources (excludes automatic files defined here)
+} ;
+inline ::string admin_src_file(AdminSrc src) { return cat(AdminDirS,snake(src)) ; }
+
 namespace Engine::Makefiles {
 	::umap_ss clean_env(bool under_lmake_ok) ; // ensure env is clean for dynamic execution and return original env
 	// msg may be updated even if throwing

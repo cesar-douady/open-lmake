@@ -758,7 +758,7 @@ namespace Engine {
 
 	::pair_s<VarIdx> Rule::RuleMatch::reject_msg() const {
 		RuleData const& rd = *rule ;
-		SWEAR( rd.special<=Special::HasJobs , rd.special ) ;
+		SWEAR( SpecialAttrs[+rd.special].second.has_jobs!=No , rd.special ) ;
 		for( bool star : {false,true} ) {
 			Iota2<VarIdx> matches_iota = rd.matches_iotas[star][+MatchKind::Target] ;
 			auto it = matches_iota.begin() ;

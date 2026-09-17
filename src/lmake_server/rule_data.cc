@@ -99,7 +99,7 @@ namespace Engine {
 				n_static_stems = 1 ;                                                                      // other stems are star-stems
 				//
 				::string       pfx      = Codec::CodecFile::s_pfx_s() ;
-				::vector<bool> captures ( 4 )                         ;                                   // no back-references, no need for capture
+				::vector<bool> captures ( stems.size() )              ;                                   // no back-references, no need for capture
 				job_name = cat(pfx,_stem_mrkr(0/*File*/)) ;
 				matches  = { //!                             File                        Ctx
 					{ "DECODE" , {.pattern=cat(pfx,_stem_mrkr(0 ),'/',CodecSep,_stem_mrkr(1),'/',_stem_mrkr(2/*Code*/),DecodeSfx),.flags=IncPhony,.captures=captures} }
@@ -112,6 +112,15 @@ namespace Engine {
 				} ;
 				// END_OF_VERSIONING
 			} break ;
+			case Special::Admin :
+				stems          = { {"File",".+"} } ;
+				n_static_stems = 1                 ;
+				//
+				matches = {
+					{ {} , { .pattern=cat(AdminDirS,_stem_mrkr(0/*File*/)) , .flags={.tflags=Tflag::Target} , .captures=::vector<bool>(stems.size()) } }
+				} ;
+				matches_iotas[false/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;
+			break ;
 		DF}                                                                                               // NO_COV
 		for( auto const& [_,v] : stems ) stem_n_marks.push_back(Re::RegExpr(v,true/*cache*/).n_marks()) ;
 		_set_crcs({}) ;                                                                                   // rules is not necessary for special rules

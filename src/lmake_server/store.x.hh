@@ -355,17 +355,17 @@ namespace Engine::Persistent {
 
 	void new_config( Config&& , bool rescue=false , ::function<void(Config const& old,Config const& new_)> diff=[](Config const&,Config const&)->void{} ) ;
 	//
-	bool/*invalidate*/ new_srcs        ( Sources&& , ::string const& manifest ) ;
-	bool/*invalidate*/ new_rules       ( Rules  &&                            ) ;
-	void               invalidate_match( bool force_physical=false            ) ;
+	bool/*invalidate*/ new_srcs        (Sources&&                ) ;
+	bool/*invalidate*/ new_rules       (Rules  &&                ) ;
+	void               invalidate_match(bool force_physical=false) ;
 	//
 	void chk() ;
 
 	template<class Disk,class Item> void _s_update( Disk& disk , ::uset<Item>& mem , bool add , ::vector<Item> const& items ) {
 		bool modified = false ;
-		if      (add ) for( Item i : items ) modified |= mem.insert(i).second ;
-		else if (+mem) for( Item i : items ) modified |= mem.erase (i)        ; // fast path : no need to update mem if it is already empty
-		if (modified) disk.assign(mk_vector<typename Disk::Item>(mem)) ;
+		if      (add     ) for( Item i : items ) modified |= mem.insert(i).second ;
+		else if (+mem    ) for( Item i : items ) modified |= mem.erase (i)        ; // fast path : no need to update mem if it is already empty
+		if      (modified) disk.assign(mk_vector<typename Disk::Item>(mem)) ;
 	}
 	template<class Disk,class Item> void _s_update( Disk& disk , bool add , ::vector<Item> const& items ) {
 		::uset<Item> mem = mk_uset<Item>(disk) ;

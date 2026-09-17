@@ -324,7 +324,7 @@ namespace Engine {
 	}
 
 	void JobData::_reset_targets(Rule::RuleMatch const& match) {
-		SWEAR( match.rule->special>=Special::HasMatches , match,match.rule,match.rule->special ) ;
+		SWEAR( SpecialAttrs[+match.rule->special].second.has_matches() , match,match.rule,match.rule->special ) ;
 		//
 		Rule             r     = rule()                       ;
 		::vector<Target> ts    ;                                ts.reserve(r->matches_iotas[false/*star*/][+MatchKind::Target].size()) ; // there are usually no duplicates
@@ -565,8 +565,8 @@ namespace Engine {
 					:	                                ri.speculate                                  // this dep will not disappear from us
 					;
 					//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					if (                                                                 special_>Special::Fugitive ) dnd.last_asking  = job ; // dont record if job is fugitive
-					if ( dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) && special_>Special::Fugitive ) dnd.build_asking = job ;
+					if (                                                                 SpecialAttrs[+special_].second.has_jobs==Yes ) dnd.last_asking  = job ; // dont record if job is fugitive
+					if ( dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) && SpecialAttrs[+special_].second.has_jobs==Yes ) dnd.build_asking = job ;
 					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				}
 				if ( is_static && dnd.buildable<Buildable::Yes ) sure_ = false ; // buildable (remember it is pessimistic) is better after make() (i.e. less pessimistic)

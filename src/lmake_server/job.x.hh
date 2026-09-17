@@ -432,14 +432,14 @@ namespace Engine {
 	private :
 		JobData           (JobData const&) = default ;          // /!\ only used as convenience to move operators as this duplicates targets and deps that are owned
 		JobData& operator=(JobData const&) = default ;          // .
-		void _close        (                      ) ;
+		void _close       (              ) ;
 		// accesses
 	public :
-		Special special    () const { return rule()->special                ; }
-		bool    has_targets() const { return special()>=Special::HasTargets ; }
-		bool    is_dep     () const { return special()==Special::Dep        ; }
+		Special special    () const { return rule()->special                             ; }
+		bool    has_targets() const { return SpecialAttrs[+special()].second.has_targets ; }
+		bool    is_dep     () const { return special()==Special::Dep                     ; }
 		//
-		RuleCrc            rule_crc    () const {                                            return RuleCrc(rule_crc_idx)                              ; }
+		RuleCrc            rule_crc    () const {                                      return RuleCrc(rule_crc_idx)                              ; }
 		Node             & last_asking ()       { SWEAR( has_targets() , special() ) ; return                 _if_plain.last_asking              ; }
 		Node        const& last_asking () const { SWEAR( has_targets() , special() ) ; return                 _if_plain.last_asking              ; }
 		Node             & build_asking()       { SWEAR( has_targets() , special() ) ; return                 _if_plain.build_asking             ; }

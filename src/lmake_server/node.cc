@@ -275,11 +275,8 @@ namespace Engine {
 			if (known_rejected.contains(rt)                     ) { n_skip++ ;                             continue                ; } // ... shorten_by suppresses initial chunk)
 			if (!rt.pattern().can_match(name_,Maybe/*chk_psfx*/)) { n_skip++ ; known_rejected.insert(rt) ; continue                ; } // rule is pre-filtered, so dont match prefix and ...
 			rule_tgts = ::vector<RuleTgt>({rt}) ;                                                                                      // ... suffix, check size as pfx and sfx could overlap
-			switch (r->special) {
-				case Special::Codec      : return Buildable::Codec   ;
-				case Special::Anti       : return Buildable::DynAnti ;
-				case Special::GenericSrc : return Buildable::DynSrc  ;
-			DF}                                                                                                                        // NO_COV
+			Buildable b = BuildableFromSpecial[+r->special].second ; SWEAR( b!=Buildable::Unknown , r->special ) ;
+			return b ;
 		}
 		rule_tgts.clear() ;
 		return Buildable::Maybe ;                                                                                                      // node may be buildable from dir
@@ -303,7 +300,7 @@ namespace Engine {
 		for( RuleTgt const& rt : rule_tgts_ ) {
 			Rule            r  = rt->rule ; if (!r) continue ;
 			RuleData const& rd = *r       ;
-			SWEAR( rd.special>=Special::HasMatches && rd.special<=Special::HasJobs , idx(),rd.special ) ;
+			SWEAR( SpecialAttrs[+rd.special].second.has_matches() && SpecialAttrs[+rd.special].second.has_jobs!=No , idx(),rd.special ) ;
 			if ( +prev_rule1 && rd.prio<prev_rule1->prio ) goto Done ;
 			if ( n_rules!=NoIdx                          ) n_rules++ ;                                          // in all cases, rule is consumed, whether it matches or not
 			if ( r==prev_rule2                           ) continue  ;                                          // only match first target candidate for any given rule
@@ -366,6 +363,7 @@ namespace Engine {
 	void NodeData::_do_set_buildable( Req req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl ) {
 		Trace trace("_do_set_buildable",idx(),req,lvl) ;
 		switch (buildable) {                                                                         // ensure we do not update sources
+			case Buildable::Admin  :
 			case Buildable::Anti   :
 			case Buildable::SrcDir :
 			case Buildable::Src    : SWEAR( !rule_tgts , rule_tgts ) ; goto Return ;
@@ -470,6 +468,7 @@ namespace Engine {
 		//^^^^^^^^^^^^^^^^^^^^^
 		switch (dir->buildable) {
 			case Buildable::DynAnti     :
+			case Buildable::Admin       :
 			case Buildable::Anti        :
 			case Buildable::No          :                                goto NotDone ;
 			case Buildable::SrcDir      : set_status(NodeStatus::None) ; goto Src     ;                   // status is overwritten Src if node actually exists
