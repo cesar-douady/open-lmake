@@ -48,8 +48,7 @@ template< SerializableIn  T               > T    deserialize( ::string const& s 
 // however we must ensure not to redefine hash for already hashable types
 // /!\ : not ideal in terms of performances, but easy to use.
 // uncomment if necessary
-//template<HasSerdesOut T> bool              operator== ( T const& a , T const& b ) { return serialize(a)== serialize(b) ; } // NO_COV cannot define for Serializable as it creates conflicts
-//template<HasSerdesOut T> ::strong_ordering operator<=>( T const& a , T const& b ) { return serialize(a)<=>serialize(b) ; } // NO_COV .
+//template<HasSerdesOut T> ::strong_ordering operator<=>( T const& a , T const& b ) { return serialize(a)<=>serialize(b) ; } // NO_COV cannot define for Serializable as it creates conflicts
 
 namespace std {
 	// specializing std::hash is legal

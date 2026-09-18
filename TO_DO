@@ -16,21 +16,6 @@ items (also used in XXX comments) :
 * BUGS (implemented but does not work)
 ****************************************************************************************************
 
-* in backend, Workload::kill is never called
-	- but should when a job has been submitted but is finally not executed
-	- generally speaking, workload tracking is fusy and must be thoroughly reviewed with AI
-* if LMAKE/lmake/x becomes a dep, it may be constructed
-	- there should be no rule to make such a file
-? bug Sylvain :
-	- foo a derived file needed by a job
-	- lmark -fa foo
-	- rm foo
-	- lmark -fd foo
-	- touch foo
-	- git add foo
-	- lmark -fd foo
-	- crash (but could not reproduce, cf TU misc28)
-
 ****************************************************************************************************
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
@@ -183,12 +168,10 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- if auto_mkdir, create dirs each time a matching file name is seen
 	- allow using fuse as a autodep method
 	- more robust to history
-* provide an anti_manifest
-	- same as manifest, except that accessing such a file is an error
-	- goal is typically to ensure data in home dir (such as .foorc) is not read
 * provide external access control
 	- by default forbid all accesses unless to system dirs, source dirs or repo
 	- provide means for exceptions (e.g. mimic readdir_ok)
+	- conifguration is implemented, but actual tracking is not
 * add a deterministic rule attribute
 	- use it when cache upload is already cached : content must match
 		- consider a check cache mode that does not upload but check contents if it happens to already be cached

@@ -104,19 +104,20 @@ namespace Time {
 		static const     Delay  Forever    ;
 		// statics
 	private :
-		static bool/*slept*/ _s_sleep( ::stop_token , Delay sleep , Pdate until , bool flush=true ) ;     // if flush, consider we slept if asked to stop but we do not have to wait
+		static bool/*slept*/ _s_sleep( ::stop_token , Delay sleep , Pdate until , bool flush=true ) ; // if flush, consider we slept if asked to stop but we do not have to wait
 		// cxtors & co
 	public :
 		using Base::Base      ;
 		using Base::operator+ ;
 		constexpr Delay(Base v         ) : Base(v) {}
-		/**/      Delay(::string const&) ;                                                                // format is same as short_str
+		/**/      Delay(::string const&) ;                                                            // format is same as short_str
 		operator ::chrono::nanoseconds() const { return ::chrono::nanoseconds(nsec()) ; }
 		void operator>>(::string&) const ;
 		//
-		constexpr bool              operator== (Delay const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
-		constexpr ::strong_ordering operator<=>(Delay const& other) const { return _val<=>other._val  ; }
+		constexpr bool operator==(Delay other) const { return _val==other._val ; }                    // because operator<=> is not the default, operator== is not synthesized from it
 		// services
+		constexpr ::strong_ordering operator<=>(Delay other) const { return _val<=>other._val ; }
+		//
 		constexpr Delay  operator- (       ) const {                 return Delay(New,-_val      )  ; }
 		constexpr Delay  operator+ (Delay d) const {                 return Delay(New,_val+d._val)  ; }
 		constexpr Delay  operator- (Delay d) const {                 return Delay(New,_val-d._val)  ; }
@@ -134,7 +135,7 @@ namespace Time {
 		constexpr Delay round_msec() const { static_assert(IsNs) ; return Delay( New , _val-_val%(TicksPerSecond/1000    ) ) ; }
 		constexpr Delay round_usec() const { static_assert(IsNs) ; return Delay( New , _val-_val%(TicksPerSecond/1000'000) ) ; }
 		//
-		bool/*slept*/ sleep_for( ::stop_token , bool flush=true ) const ;                                 // if flush, consider we slept if asked to stop but we do not have to wait
+		bool/*slept*/ sleep_for( ::stop_token , bool flush=true ) const ;                             // if flush, consider we slept if asked to stop but we do not have to wait
 		void          sleep_for(                                ) const ;
 		//
 		::string str      (uint8_t prec=0) const ;
@@ -148,9 +149,9 @@ namespace Time {
 	// short logarithmic representation of time (positive)
 	struct CoarseDelay {
 		using Val = uint16_t ;
-		static constexpr int64_t  TicksPerSecond = 1000  ; // this may be freely modified
-		static constexpr uint8_t  Mantissa       = 11    ; // .
-		static constexpr uint32_t Scale          = 28294 ; // (::logf(Delay::TicksPerSecond)-::logf(TicksPerSecond))*(1<<Mantissa) ;
+		static constexpr int64_t  TicksPerSecond = 1000  ;                       // this may be freely modified
+		static constexpr uint8_t  Mantissa       = 11    ;                       // .
+		static constexpr uint32_t Scale          = 28294 ;                       // (::logf(Delay::TicksPerSecond)-::logf(TicksPerSecond))*(1<<Mantissa) ;
 		//
 		static const CoarseDelay Lowest  ;
 		static const CoarseDelay Highest ;
@@ -178,8 +179,9 @@ namespace Time {
 		constexpr explicit operator double() const { return double(Delay(self)) ; }
 		constexpr explicit operator float () const { return float (Delay(self)) ; }
 		//
-		/**/      void operator>>(::string&) const ;
-		constexpr bool operator+ (         ) const { return _val ; }
+		/**/      void operator>>(::string&    ) const ;
+		constexpr bool operator+ (             ) const { return _val         ; }
+		constexpr bool operator==(CoarseDelay d) const { return _val==d._val ; } // because operator<=> is not the default, operator== is not synthesized from it
 		// accesses
 		constexpr Delay::Tick   sec      () const { return Delay(self).sec      () ; }
 		constexpr Delay::Tick   nsec     () const { return Delay(self).nsec     () ; }
@@ -189,10 +191,9 @@ namespace Time {
 		constexpr Delay::Tick   msec     () const { return Delay(self).msec     () ; }
 		constexpr Delay::Tick32 msec_in_s() const { return Delay(self).msec_in_s() ; }
 		// services
-		constexpr CoarseDelay       operator+  (Delay              d) const { return Delay(self) + d ;        }
-		constexpr CoarseDelay&      operator+= (Delay              d)       { self = self + d ; return self ; }
-		constexpr bool              operator== (CoarseDelay const& d) const { return _val== d._val ;          }
-		constexpr ::strong_ordering operator<=>(CoarseDelay const& d) const { return _val<=>d._val ;          }
+		constexpr ::strong_ordering operator<=>(CoarseDelay d) const { return _val<=>d._val   ;        }
+		constexpr CoarseDelay       operator+  (Delay       d) const { return Delay(self) + d ;        }
+		constexpr CoarseDelay&      operator+= (Delay       d)       { self = self + d ; return self ; }
 		//
 		CoarseDelay scale_up  (uint32_t percent) const { return CoarseDelay( New , _val>=Val(-1)-_Factor(percent) ? Val(-1) : Val(_val+_Factor(percent)) ) ; }
 		CoarseDelay scale_down(uint32_t percent) const { return CoarseDelay( New , _val<=        _Factor(percent) ? Val( 0) : Val(_val-_Factor(percent)) ) ; }
@@ -218,7 +219,7 @@ namespace Time {
 		// cxtors & co
 		using Base::Base      ;
 		using Base::operator+ ;
-		Date(::string_view) ; // read a reasonable approximation of ISO8601
+		Date(::string_view) ;              // read a reasonable approximation of ISO8601
 		void operator>>(::string&) const ;
 		// services
 		constexpr Date  operator+ (Delay other) const {                     return Date(New,_val+other._val) ; }
@@ -237,20 +238,20 @@ namespace Time {
 
 	struct Pdate : Date {
 		friend Delay ;
-		static const Pdate Never  ;                     // highest date, used as infinity
-		static const Pdate Future ;                     // last date before Never
+		static const Pdate Never  ;                                                // highest date, used as infinity
+		static const Pdate Future ;                                                // last date before Never
 		// static data
 	private :
-		static Mutex<MutexLvl::PdateNew> _s_mutex_new ; // ensure serialization to _s_last
-		static Tick                      _s_last      ; // time returned by last call, used to ensure strict monotonicity on systems that have unreliable clocks
+		static Mutex<MutexLvl::PdateNew> _s_mutex_new ;                            // ensure serialization to _s_last
+		static Tick                      _s_last      ;                            // time returned by last call, used to ensure strict monotonicity on systems that have unreliable clocks
 		// cxtors & co
 	public :
 		using Date::Date ;
 		Pdate(NewType) ;
 		void operator>>(::string&) const ;
+		constexpr bool operator==(Pdate other) const { return _val==other._val ; } // because operator<=> is not the default, operator== is not synthesized from it
 		// services
-		constexpr bool              operator== (Pdate const& other) const { return _val== other._val  ; } // C++ requires a direct compare to support <=>
-		constexpr ::strong_ordering operator<=>(Pdate const& other) const { return _val<=>other._val  ; }
+		constexpr ::strong_ordering operator<=>(Pdate other) const { return _val<=>other._val ; }
 		//
 		using Base::operator+ ;
 		constexpr Pdate  operator+ (Delay other) const {                     return Pdate( New , _val+other._val ) ; }
@@ -263,7 +264,7 @@ namespace Time {
 		constexpr Pdate round_msec() const { static_assert(IsNs) ; return Pdate( New , _val-_val%(TicksPerSecond/1000    ) ) ; }
 		constexpr Pdate round_usec() const { static_assert(IsNs) ; return Pdate( New , _val-_val%(TicksPerSecond/1000'000) ) ; }
 		//
-		bool/*slept*/ sleep_until( ::stop_token , bool flush=true ) const ;                               // if flush, consider we slept if asked to stop but we do not have to wait
+		bool/*slept*/ sleep_until( ::stop_token , bool flush=true ) const ;        // if flush, consider we slept if asked to stop but we do not have to wait
 		void          sleep_until(                                ) const ;
 		//
 		::string str( uint8_t prec=0 , bool in_day=false ) const { if (self<Never) return Date::str(prec,in_day) ; else return "Never" ; }
@@ -283,19 +284,19 @@ namespace Time {
 		constexpr Ddate(                           FileTag tag=FileTag::None )                    {                    _val  = +tag ; }
 		constexpr Ddate( struct ::stat const& st , FileTag tag               ) : Date{st.st_mtim} { _val &= ~_TagMsk ; _val |= +tag ; }
 		//
-		/**/      void operator>>(::string&) const ;
-		constexpr bool operator+ (         ) const { return _date() ; }
+		/**/      void operator>>(::string&      ) const ;
+		constexpr bool operator+ (               ) const { return _date()          ; }
+		constexpr bool operator==(Ddate     other) const { return _val==other._val ; }
 		// accesses
 		constexpr FileTag tag() const { return FileTag(_val&_TagMsk) ; }
 	private :
 		constexpr Tick _date() const { return _val&~_TagMsk ; }
 		// services
 	public :
-		constexpr bool operator==(Ddate const& other) const { return _val==other._val          ; }        // if only differ by tag bits, all comparisons return false
-		constexpr bool operator< (Ddate const& other) const { return _date()<other._date()     ; }        // .
-		constexpr bool operator> (Ddate const& other) const { return _date()>other._date()     ; }        // .
-		constexpr bool operator<=(Ddate const& other) const { return self<other || self==other ; }        // .
-		constexpr bool operator>=(Ddate const& other) const { return self>other || self==other ; }        // .
+		constexpr bool operator< (Ddate other) const { return _date()<other._date()     ; }               // if only differ by tag bits, all comparisons return false
+		constexpr bool operator> (Ddate other) const { return _date()>other._date()     ; }               // .
+		constexpr bool operator<=(Ddate other) const { return self<other || self==other ; }               // .
+		constexpr bool operator>=(Ddate other) const { return self>other || self==other ; }               // .
 		//
 		using Base::operator+ ;
 		constexpr Ddate& operator+=(Delay other)       { _val += other._val&~_TagMsk ;    return self ; } // do not modify tag bits

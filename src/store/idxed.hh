@@ -29,9 +29,8 @@ public :
 		/**/                                        os <<     +self                               ;
 		if constexpr (NGuardBits>1) if (val!=+self) os << '+'<<self.template side<NGuardBits-1>() ;
 	}                                                                                               // END_OF_NO_COV
-	constexpr bool              operator== (Idxed other) const { return +self== +other        ; }
-	constexpr ::strong_ordering operator<=>(Idxed other) const { return +self<=>+other        ; }
-	constexpr Idx               operator+  (           ) const { return val&lsb_msk(NValBits) ; }
+	constexpr bool operator==(Idxed other) const { return +self==+other         ; }                 // because operator<=> is not the default, operator== is not synthesized from it
+	constexpr Idx  operator+ (           ) const { return val&lsb_msk(NValBits) ; }
 	//
 	void clear() { self = Idxed{} ; }
 	// accesses
@@ -43,6 +42,7 @@ public :
 		;
 	}
 	//services
+	constexpr ::strong_ordering operator<=>(Idxed other) const { return +self<=>+other ; }
 	size_t hash() const { return +self ; }
 	// data
 	Idx val = 0 ;
@@ -82,20 +82,20 @@ template<IsIdxed A_,IsIdxed B_> requires(!::is_same_v<A_,B_>) struct Idxed2 {
 	template<class T> requires( IsA<T> && sizeof(T)==sizeof(Idx) ) explicit operator T      &()       { SWEAR(is_a<T>()) ; return *::launder(reinterpret_cast<T      *>(this)) ; }
 	//
 	void clear() { self = Idxed2() ; }
-	void operator>>(::string& os) const {                                                                                     // START_OF_NO_COV
+	void operator>>(::string& os) const {                                                   // START_OF_NO_COV
 		if      (!self                   ) os << '0'     ;
 		else if ( self.template is_a<A>()) os << A(self) ;
 		else                               os << B(self) ;
-	}                                                                                                                         // END_OF_NO_COV
-	constexpr bool              operator== (Idxed2 other) const { return +self== +other               ; }
-	constexpr ::strong_ordering operator<=>(Idxed2 other) const { return +self<=>+other               ; }
-	constexpr SIdx              operator+  (            ) const { return _val<<NGuardBits>>NGuardBits ; }
+	}                                                                                       // END_OF_NO_COV
+	constexpr bool operator==(Idxed2 other) const { return +self==+other                ; } // because operator<=> is not the default, operator== is not synthesized from it
+	constexpr SIdx operator+ (            ) const { return _val<<NGuardBits>>NGuardBits ; }
 	// accesses
 	template<class T> requires(IsAOrB<T>) bool is_a() const {
 		if (IsA<T>) return _val>=0 ;
 		else        return _val<=0 ;
 	}
 	//services
+	constexpr ::strong_ordering operator<=>(Idxed2 other) const { return +self<=>+other ; }
 	size_t hash() const { return +self ; }
 private :
 	// data

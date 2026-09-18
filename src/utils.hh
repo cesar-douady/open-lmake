@@ -602,7 +602,6 @@ public :
 	//
 	void operator>>(::string& os) const { append_to_str( os , "Fd" ) ; }                                // NO_COV
 	// services
-	constexpr bool              operator== (Fd const&                    ) const = default ;
 	constexpr ::strong_ordering operator<=>(Fd const&                    ) const = default ;
 	/**/      void              write      (::string_view data           ) const ;                      // writing does not modify the Fd object
 	/**/      ::string          read       (size_t        sz        =Npos) const ;                      // read sz bytes or to eof

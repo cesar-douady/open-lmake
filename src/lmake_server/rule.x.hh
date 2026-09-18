@@ -701,9 +701,7 @@ namespace Engine {
 		RuleTgt() = default ;
 		RuleTgt( RuleCrc rc , VarIdx ti ) : RuleCrc{rc} , tgt_idx{ti} {}
 		void               operator>> (::string&     ) const ;
-		Rep                operator+  (              ) const { return (+RuleCrc(self)<<NBits<VarIdx>) | tgt_idx  ; }
-		bool               operator== (RuleTgt const&) const = default ;
-		::partial_ordering operator<=>(RuleTgt const&) const = default ;
+		Rep                operator+  (              ) const { return (+RuleCrc(self)<<NBits<VarIdx>) | tgt_idx ; }
 		// accesses
 		::pair_s<RuleData::MatchEntry> const& key_matches () const { SWEAR(+self->rule)             ; return self->rule->matches [tgt_idx] ; }
 		TargetPattern                  const& pattern     () const { SWEAR(+self->rule)             ; return self->rule->patterns[tgt_idx] ; }
@@ -713,6 +711,7 @@ namespace Engine {
 		Tflags                                tflags      () const {                                  return matches().flags.tflags        ; }
 		ExtraTflags                           extra_tflags() const {                                  return matches().flags.extra_tflags  ; }
 		// services
+		::partial_ordering operator<=>(RuleTgt const&) const = default ;
 		bool sure() const {
 			Rule r = self->rule ;
 			//                    star

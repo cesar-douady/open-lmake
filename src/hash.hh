@@ -155,7 +155,6 @@ namespace Hash {
 		void     operator>>       (::string&) const ;
 		explicit operator ::string(         ) const ;
 		//
-		constexpr bool              operator== (_Crc const&) const = default ;
 		constexpr ::strong_ordering operator<=>(_Crc const&) const = default ;
 		constexpr Val               operator+  (           ) const { return  _val ; }
 		// accesses

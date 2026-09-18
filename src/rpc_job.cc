@@ -225,7 +225,7 @@ Complex :
 //
 
 struct UniqKey {
-	// accesses
+	// cxtors & co
 	bool operator==(UniqKey const&) const = default ;
 	// services
 	size_t hash() const { return dev+ino ; }
