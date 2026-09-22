@@ -716,7 +716,7 @@ namespace Engine::Persistent {
 				Node(n)->mk_src( t==FileTag::Dir?Buildable::SrcDir:Buildable::Src , t ) ;
 				trace2('+',t==FileTag::Dir?"dir":"",n) ;
 			}
-			for( Node d : new_src_dirs ) d->mk_src( Buildable::Anti , Crc::None ) ;
+			for( Node d : new_src_dirs ) d->mk_src( Buildable::DirOfSrc , Crc::None ) ;
 		}
 		_compile_srcs() ;
 		trace("done",srcs.size(),"srcs") ;

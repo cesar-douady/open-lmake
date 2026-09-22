@@ -53,9 +53,9 @@ enum class RuleCrcState : uint8_t {
 } ;
 
 enum class Special : uint8_t {
-	None                                                                          // value 0 reserved to mean not initialized
-,	Dep                                                                           // used for synthetized jobs when asking for direct dep
-,	Req                                                                           // used for synthetized jobs representing a Req
+	None                                                                                          // value 0 reserved to mean not initialized
+,	Dep                                                                                           // used for synthetized jobs when asking for direct dep
+,	Req                                                                                           // used for synthetized jobs representing a Req
 ,	InfiniteDep
 ,	InfinitePath
 ,	Admin
@@ -66,13 +66,13 @@ enum class Special : uint8_t {
 ,	Anti
 //
 // aliases
-,	NUniq = Plain                                                                 // <NUniq means there is a single such rule
+,	NUniq = Plain                                                                                 // <NUniq means there is a single such rule
 } ;
 inline bool is_infinite(Special s) { return s==Special::InfiniteDep || s==Special::InfinitePath ; }
 struct SpecialAttr {
-	bool has_matches() const { return prio!=0                   ; }
-	uint8_t prio        = 0     ;                                                 // prioriy among special rules at same priority level
-	Bool3   has_jobs    = No    ;                                                 // Maybe means fugitive jobs (not kept in persistent data)
+	bool has_matches() const { return prio!=0 ; }
+	uint8_t prio        = 0     ;                                                                 // prioriy among special rules at same priority level
+	Bool3   has_jobs    = No    ;                                                                 // Maybe means fugitive jobs (not kept in persistent data)
 	bool    has_targets = false ;
 	bool    is_anti     = false ;
 } ;

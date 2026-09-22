@@ -132,7 +132,7 @@ namespace Backends {
 			static ::string const& s_config_err(Tag) ;
 			//
 			static void s_config       ( Tag , Config::Backend const& ) ;
-			static void s_record_thread( char thread_key , ::jthread& ) ;
+			static void s_record_thread( char thread_key , ::jthread& t ) { _s_threads.emplace_back( thread_key , &t ) ; }
 			static void s_finalize     (                              ) ;
 			// sub-backend is responsible for job (i.e. answering to heart beat and kill) from submit to start
 			// then it is top-backend that mangages it until end, at which point it is transfered back to engine

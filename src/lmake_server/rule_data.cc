@@ -81,6 +81,8 @@ namespace Engine {
 	RuleData::RuleData(Special s) : special{s} , name{snake(s)} {
 		SWEAR(+s) ;
 		//
+		user_prio = +Inf        ;                                                                         // for user messages if necessary
+		prio      = uint8_t(-1) ;                                                                         // before any user provided prio
 		switch (s) {
 			case Special::Dep          :
 			case Special::InfiniteDep  :
@@ -116,7 +118,7 @@ namespace Engine {
 				stems          = { {"File",".+"} } ;
 				n_static_stems = 1                 ;
 				//
-				matches = {
+				matches   = {
 					{ {} , { .pattern=cat(AdminDirS,_stem_mrkr(0/*File*/)) , .flags={.tflags=Tflag::Target} , .captures=::vector<bool>(stems.size()) } }
 				} ;
 				matches_iotas[false/*star*/][+MatchKind::Target] = { 0/*start*/ , VarIdx(matches.size())/*end*/ } ;

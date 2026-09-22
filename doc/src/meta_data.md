@@ -9,7 +9,7 @@ The `LMAKE` dir at the root of the repo contains numerous information that may b
 
 It also contains a `lmake` dir containing private data for open-lmake's own usage.
 
-`LMAKE/environ` and `LMAKE/manifest` can be freely used in jobs and are considered as sources if they are listed in `lmake.manifest`, which is automatic by default.
+`LMAKE/environ` and `LMAKE/manifest` can be freely used in jobs and are considered as sources.
 
 ### `LMAKE/config_deps`, `LMAKE/rules_deps` and `LMAKE/sources_deps`
 

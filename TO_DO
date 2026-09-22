@@ -171,7 +171,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * provide external access control
 	- by default forbid all accesses unless to system dirs, source dirs or repo
 	- provide means for exceptions (e.g. mimic readdir_ok)
-	- conifguration is implemented, but actual tracking is not
+	- configuration is implemented, but actual tracking is not
 * add a deterministic rule attribute
 	- use it when cache upload is already cached : content must match
 		- consider a check cache mode that does not upload but check contents if it happens to already be cached

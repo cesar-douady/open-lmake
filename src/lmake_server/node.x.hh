@@ -10,7 +10,7 @@
 // START_OF_VERSIONING REPO
 enum class Buildable : uint8_t {
 	Admin                        //                                  match independent, include all files in the admin dir
-,	Anti                         //                                  match independent, include uphill dirs of Src/SrcDir listed in manifest
+,	DirOfSrc                     //                                  match independent, uphill dirs of Src/SrcDir listed in manifest
 ,	SrcDir                       //                                  match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
 ,	SubSrc                       //                                  match independent, sub-file of a Src listed in manifest
 ,	PathTooLong                  //                                  match dependent  , (as limit may change with config)
@@ -34,21 +34,21 @@ struct BuildableAttr {
 } ;
 static constexpr ::amap<Buildable,BuildableAttr,N<Buildable>> BuildableAttrs {{
 	//                         has_file is_src_anti has_job  descr
-	{ Buildable::Admin       , { No    , true      , No    , "admin"           } }
-,	{ Buildable::Anti        , { No    , true      , No    , "anti"            } }
-,	{ Buildable::SrcDir      , { No    , true      , No    , "source dir"      } }
-,	{ Buildable::SubSrc      , { No    , true      , No    , "sub-source"      } }
-,	{ Buildable::PathTooLong , { No    , true      , No    , "path too long"   } }
-,	{ Buildable::DynAnti     , { No    , true      , Maybe , "dynamic anti"    } }
-,	{ Buildable::No          , { No    , false     , No    , "not buildable"   } }
-,	{ Buildable::Maybe       , { Maybe , false     , Yes   , "maybe buildable" } }
-,	{ Buildable::SubSrcDir   , { Maybe , true      , No    , "sub-source dir"  } }
-,	{ Buildable::Unknown     , { Maybe , false     , No    , "???"             } }
-,	{ Buildable::Yes         , { Maybe , false     , Yes   , "buildable"       } }
-,	{ Buildable::Codec       , { Maybe , false     , Yes   , "codec"           } }
-,	{ Buildable::DynSrc      , { Maybe , true      , Maybe , "dynamic source"  } }
-,	{ Buildable::Src         , { Yes   , true      , No    , "source"          } }
-,	{ Buildable::Loop        , { No    , false     , No    , "loop"            } }
+	{ Buildable::Admin       , { No    , true      , No    , "admin file"              } }
+,	{ Buildable::DirOfSrc    , { No    , true      , No    , "dir of source"           } }
+,	{ Buildable::SrcDir      , { No    , true      , No    , "source dir"              } }
+,	{ Buildable::SubSrc      , { No    , true      , No    , "sub-source"              } }
+,	{ Buildable::PathTooLong , { No    , true      , No    , "path too long"           } }
+,	{ Buildable::DynAnti     , { No    , true      , Maybe , "dynamic anti-file"       } }
+,	{ Buildable::No          , { No    , false     , No    , "not buildable file"      } }
+,	{ Buildable::Maybe       , { Maybe , false     , Yes   , "maybe buildable file"    } }
+,	{ Buildable::SubSrcDir   , { Maybe , true      , No    , "sub-source dir"          } }
+,	{ Buildable::Unknown     , { Maybe , false     , No    , "???"                     } }
+,	{ Buildable::Yes         , { Maybe , false     , Yes   , "buildable file"          } }
+,	{ Buildable::Codec       , { Maybe , false     , Yes   , "codec file"              } }
+,	{ Buildable::DynSrc      , { Maybe , true      , Maybe , "dynamic source"          } }
+,	{ Buildable::Src         , { Yes   , true      , No    , "source"                  } }
+,	{ Buildable::Loop        , { No    , false     , No    , "file in dependency loop" } }
 }} ;
 static_assert(chk_enum_tab(BuildableAttrs)) ;
 static constexpr ::amap<Special,Buildable,N<Special>> BuildableFromSpecial {{

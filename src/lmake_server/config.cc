@@ -137,14 +137,14 @@ namespace Engine {
 					Object const& py_heartbeat = py_map[f0] ;
 					if (!py_heartbeat) heartbeat = Delay()                           ;
 					else               heartbeat = Delay(py_heartbeat.as_a<Float>()) ;
-					throw_unless( heartbeat>=Delay() , "must be positive or null" ) ;
+					throw_unless( heartbeat>=Delay() , "must be non-negative" ) ;
 				}
 				f0 = "heartbeat_tick" ;
 				if (py_map.contains(f0)) {
 					Object const& py_heartbeat_tick = py_map[f0] ;
 					if (!py_heartbeat_tick) heartbeat_tick = Delay()                                ;
 					else                    heartbeat_tick = Delay(py_heartbeat_tick.as_a<Float>()) ;
-					throw_unless( heartbeat_tick>=Delay() , "must be positive or null" ) ;
+					throw_unless( heartbeat_tick>=Delay() , "must be non-negative" ) ;
 				}
 				f0 = "link_support" ;
 				if (py_map.contains(f0)) {

@@ -8,7 +8,12 @@ if __name__!='__main__' :
 	import lmake
 	from lmake.rules import Rule
 
-	lmake.manifest = ('Lmakefile.py',)
+	lmake.manifest = (
+		'Lmakefile.py'
+	,	'step.py'
+	)
+
+	from step import step
 
 	lmake.config.local_admin_dir = 'LMAKE_LOCAL' # declared within repo for test ease of use, but goal is to make it absolute in a fast local disk
 
@@ -26,11 +31,22 @@ if __name__!='__main__' :
 		dep    = 'LMAKE/dut'
 		cmd    = 'cat'
 
+	if step==2 :
+		class New(Rule) :  # just a new rule to reread
+			target = 'new'
+			cmd    = ''
+
 else :
 
 	import ut
 
+	print('step=1',file=open('step.py','w'))
+
 	ut.lmake( 'test'      , done=1        )
 	ut.lmake( 'test'      , done=0        )
-	ut.lmake( 'dut'       , done=1        ) # with rule any
+	ut.lmake( 'dut'       , done=1        ) # with rule Any
 	ut.lmake( 'LMAKE/dut' , done=0 , rc=1 ) # ruel Any cannot apply in admin dir
+
+	print('step=2',file=open('step.py','w'))
+
+	ut.lmake( 'dut' , done=0 ) # with rule Any

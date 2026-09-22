@@ -610,16 +610,18 @@ namespace Engine {
 		RuleTgt                         art       ;                        // set if an anti-rule matches
 		RuleIdx                         n_missing = 0            ;         // number of rules missing deps
 		//
-		if (node->buildable==Buildable::PathTooLong) {
-			audit_node( Color::Warning , "name is too long :" , node , lvl ) ;
-			audit_info( Color::Note    , cat("consider : lmake.config.path_max = ",name.size()," # or larger") , lvl+1 ) ;
+		if (node->buildable<=Buildable::No) {
+			audit_node( Color::Warning , cat(BuildableAttrs[+node->buildable].second.descr," :") , node , lvl ) ;
+			switch (node->buildable) {
+				case Buildable::PathTooLong : audit_info( Color::Note , cat("consider : lmake.config.path_max = ",name.size()," # or larger") , lvl+1 ) ; break ;
+			DN}
 			return ;
 		}
 		//
-		if ( node->status()==NodeStatus::Uphill || node->status()==NodeStatus::Transient ) {
-			Node dir ; for( dir=node->dir ; +dir && (dir->status()==NodeStatus::Uphill||dir->status()==NodeStatus::Transient) ; dir=dir->dir ) ;
-			swear_prod(+dir                              ,"dir is buildable for",name,"but cannot find buildable dir"                  ) ;
-			swear_prod(dir->status()<=NodeStatus::Makable,"dir is buildable for",name,"but cannot find buildable dir until",dir->name()) ;
+		if (node->status()>=NodeStatus::Uphill) {
+			Node dir ; for( dir=node->dir ; +dir && dir->status()>=NodeStatus::Uphill ; dir=dir->dir ) ;
+			swear_prod( +dir                               , "dir is buildable for",name,"but cannot find buildable dir"                   ) ;
+			swear_prod( dir->status()<=NodeStatus::Makable , "dir is buildable for",name,"but cannot find buildable dir until",dir->name() ) ;
 			/**/                                audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;
 			if (dir->status()==NodeStatus::Src) audit_node( Color::Note , "dir is a source :"  , dir  , lvl+1 ) ;
 			else                                audit_node( Color::Note , "dir is buildable :" , dir  , lvl+1 ) ;
@@ -632,7 +634,7 @@ namespace Engine {
 			Rule::RuleMatch m { rt , name } ; if (!m          ) continue ;
 			//
 			if (SpecialAttrs[+r->special].second.is_anti) { art = rt ; break ; }
-			SWEAR( SpecialAttrs[+r->special].second.has_jobs!=No , r->special ) ;                                   // this would be a source
+			SWEAR( SpecialAttrs[+r->special].second.has_jobs!=No , r->special,node->buildable,node->status() ) ;    // this would be a source
 			//
 			if ( JobTgt jt{::copy(m),rt.sure()} ; +jt && jt->run_status!=RunStatus::MissingStatic ) goto Continue ; // do not pass self as req to avoid generating error message at cxtor time
 			try                      { r->deps_attrs.eval(m) ; }

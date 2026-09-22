@@ -188,7 +188,7 @@ namespace Backends::Slurm::SlurmApi {
 				break ;
 			DN}
 			trace("spawn_error" ,sav_errno) ;
-			const char* th = i==0 ? "st" : i==1 ? "nd" : i==3 ? "rd" : "th" ;
+			const char* th = i==0 ? "st" : i==1 ? "nd" : i==2 ? "rd" : "th" ;
 			if (+err_msg) throw cat("slurm spawn job error on ",i+1,th," trial : ",_strerror(sav_errno)," (",err_msg,")") ;
 			else          throw cat("slurm spawn job error on ",i+1,th," trial : ",_strerror(sav_errno)                 ) ;
 		}

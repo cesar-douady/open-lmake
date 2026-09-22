@@ -857,7 +857,10 @@ namespace Backends {
 		if (s_first_time) {
 			s_first_time = false ;
 			// threads must be stopped while store is still mapped, i.e. before main() returns
-			_s_heartbeat_thread = ::jthread(_s_heartbeat_thread_func) ;                          s_record_thread('H',_s_heartbeat_thread             ) ;
+			if (+g_config->heartbeat) {
+				_s_heartbeat_thread = ::jthread(_s_heartbeat_thread_func) ;
+				s_record_thread('H',_s_heartbeat_thread) ;
+			}
 			_s_job_start_thread      .open( 'S' , _s_handle_job_start       , JobExecBacklog ) ; s_record_thread('S',_s_job_start_thread      .thread) ;
 			_s_job_mngt_thread       .open( 'M' , _s_handle_job_mngt        , JobExecBacklog ) ; s_record_thread('M',_s_job_mngt_thread       .thread) ;
 			_s_job_end_thread        .open( 'E' , _s_handle_job_end         , JobExecBacklog ) ; s_record_thread('E',_s_job_end_thread        .thread) ;
@@ -890,10 +893,6 @@ namespace Backends {
 			s_seen |= t ;
 		}
 		trace("done",_s_job_exec) ;
-	}
-
-	void Backend::s_record_thread( char thread_key , ::jthread& t ) {
-		_s_threads.emplace_back( thread_key , &t ) ;
 	}
 
 	void Backend::s_finalize() {

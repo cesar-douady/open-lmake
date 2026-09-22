@@ -539,21 +539,7 @@ namespace Engine {
 									if (td.extra_tflags[ExtraTflag::SourceOk]) goto SourceOk ;
 								} break ;
 							DN}
-							/**/                res.severe_msg << "unexpected" ;
-							if (crc!=Crc::None) res.severe_msg << " write to"  ;
-							else                res.severe_msg << " unlink of" ;
-							switch (target->buildable) {
-								case Buildable::PathTooLong : res.severe_msg << " path too long"  ; break ;
-								case Buildable::Admin       : res.severe_msg << " admin file"     ; break ;
-								case Buildable::Anti        :
-								case Buildable::DynAnti     : res.severe_msg << " anti-file"      ; break ;
-								case Buildable::SrcDir      : res.severe_msg << " source dir"     ; break ;
-								case Buildable::SubSrcDir   : res.severe_msg << " source sub-dir" ; break ;
-								case Buildable::DynSrc      :
-								case Buildable::Src         : res.severe_msg << " source"         ; break ;
-								case Buildable::SubSrc      : res.severe_msg << " sub-source"     ; break ;
-							DF}                                                                             // NO_COV
-							res.severe_msg <<" : "<< mk_file(target->name()) <<'\n' ;
+							res.severe_msg << "unexpected "<<(crc!=Crc::None?"write to":"unlink of")<<' '<<BuildableAttrs[+target->buildable].second.descr<<" : "<<mk_file(target->name())<<'\n' ;
 							if (ok==Yes) status = Status::Forbidden ;
 						SourceOk : ;
 						}

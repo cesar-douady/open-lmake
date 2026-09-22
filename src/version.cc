@@ -2,7 +2,7 @@
 namespace Version {
 	uint64_t    constexpr Cache = 58      ; // 85a124b0ea7f0febcb79ddc6be2bfbd5
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 63      ; // ffb95ea79a86c56e633474b03b6422e0
+	uint64_t    constexpr Repo  = 63      ; // 8e16490aa9d9488f74af603d978b67ca
 	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
 	const char* const     Major = "26.08" ;
 	uint64_t    constexpr Tag   = 0       ;
@@ -1182,7 +1182,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : ffb95ea79a86c56e633474b03b6422e0 *
+// * Repo : 8e16490aa9d9488f74af603d978b67ca *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1610,7 +1610,7 @@ namespace Version {
 //	// START_OF_VERSIONING REPO
 //	enum class Buildable : uint8_t {
 //		Admin                        //                                  match independent, include all files in the admin dir
-//	,	Anti                         //                                  match independent, include uphill dirs of Src/SrcDir listed in manifest
+//	,	DirOfSrc                     //                                  match independent, uphill dirs of Src/SrcDir listed in manifest
 //	,	SrcDir                       //                                  match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
 //	,	SubSrc                       //                                  match independent, sub-file of a Src listed in manifest
 //	,	PathTooLong                  //                                  match dependent  , (as limit may change with config)
@@ -1691,9 +1691,9 @@ namespace Version {
 //	} ;
 //
 //	enum class Special : uint8_t {
-//		None                                                                          // value 0 reserved to mean not initialized
-//	,	Dep                                                                           // used for synthetized jobs when asking for direct dep
-//	,	Req                                                                           // used for synthetized jobs representing a Req
+//		None                                                                                          // value 0 reserved to mean not initialized
+//	,	Dep                                                                                           // used for synthetized jobs when asking for direct dep
+//	,	Req                                                                                           // used for synthetized jobs representing a Req
 //	,	InfiniteDep
 //	,	InfinitePath
 //	,	Admin
@@ -1704,13 +1704,13 @@ namespace Version {
 //	,	Anti
 //	//
 //	// aliases
-//	,	NUniq = Plain                                                                 // <NUniq means there is a single such rule
+//	,	NUniq = Plain                                                                                 // <NUniq means there is a single such rule
 //	} ;
 //	inline bool is_infinite(Special s) { return s==Special::InfiniteDep || s==Special::InfinitePath ; }
 //	struct SpecialAttr {
-//		bool has_matches() const { return prio!=0                   ; }
-//		uint8_t prio        = 0     ;                                                 // prioriy among special rules at same priority level
-//		Bool3   has_jobs    = No    ;                                                 // Maybe means fugitive jobs (not kept in persistent data)
+//		bool has_matches() const { return prio!=0 ; }
+//		uint8_t prio        = 0     ;                                                                 // prioriy among special rules at same priority level
+//		Bool3   has_jobs    = No    ;                                                                 // Maybe means fugitive jobs (not kept in persistent data)
 //		bool    has_targets = false ;
 //		bool    is_anti     = false ;
 //	} ;

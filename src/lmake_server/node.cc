@@ -361,13 +361,13 @@ namespace Engine {
 	}
 
 	void NodeData::_do_set_buildable( Req req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl ) {
-		Trace trace("_do_set_buildable",idx(),req,lvl) ;
+		Trace trace("_do_set_buildable",idx(),buildable,req,lvl) ;
 		switch (buildable) {                                                                         // ensure we do not update sources
-			case Buildable::Admin  :
-			case Buildable::Anti   :
-			case Buildable::SrcDir :
-			case Buildable::Src    : SWEAR( !rule_tgts , rule_tgts ) ; goto Return ;
-			case Buildable::Loop   :                                   goto Return ;
+			case Buildable::DirOfSrc :
+			case Buildable::SrcDir   :
+			case Buildable::Src      : SWEAR( !rule_tgts , rule_tgts ) ; goto Return ;
+			case Buildable::Admin    :
+			case Buildable::Loop     :                                   goto Return ;
 		DN}
 		set_status(NodeStatus::Unknown) ;
 		//
@@ -398,8 +398,8 @@ namespace Engine {
 					dir->set_buildable( req , lvl , true/*throw_if_infinite*/ ) ;                    // dir is necessarily shorter than us, no need to increment lvl, and this is not user-visible level
 					//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					switch ((db=dir->buildable)) {
+						case Buildable::DirOfSrc  :
 						case Buildable::DynAnti   :
-						case Buildable::Anti      :
 						case Buildable::No        :
 						case Buildable::Maybe     :                                    break       ;
 						case Buildable::Yes       : buildable = Buildable::Yes       ; goto Return ; // if dir is buildable, uphill applies (and generates an error unless it is a symlink)
@@ -467,9 +467,8 @@ namespace Engine {
 		dir->set_buildable(req) ;
 		//^^^^^^^^^^^^^^^^^^^^^
 		switch (dir->buildable) {
+			case Buildable::DirOfSrc    :
 			case Buildable::DynAnti     :
-			case Buildable::Admin       :
-			case Buildable::Anti        :
 			case Buildable::No          :                                goto NotDone ;
 			case Buildable::SrcDir      : set_status(NodeStatus::None) ; goto Src     ;                   // status is overwritten Src if node actually exists
 			case Buildable::PathTooLong : set_status(NodeStatus::None) ; goto NotDone ;                   // path too long have been discovered above
@@ -793,7 +792,7 @@ namespace Engine {
 	}
 
 	void NodeData::mk_src( Buildable b , ::optional<Crc> crc ) {
-		Trace trace("mk_src",idx()) ;
+		Trace trace("mk_src",idx(),b) ;
 		buildable = b ;
 		fence() ;
 		rule_tgts .clear() ;
