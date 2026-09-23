@@ -12,7 +12,7 @@ enum class Buildable : uint8_t {
 	Admin                        //                                  match independent, include all files in the admin dir
 ,	DirOfSrc                     //                                  match independent, uphill dirs of Src/SrcDir listed in manifest
 ,	SrcDir                       //                                  match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
-,	SubSrc                       //                                  match independent, sub-file of a Src listed in manifest
+,	SubSrc                       //                                  match dependent  , sub-file of a Src listed in manifest
 ,	PathTooLong                  //                                  match dependent  , (as limit may change with config)
 ,	DynAnti                      //                                  match dependent
 ,	No                           // <=No means node is not buildable

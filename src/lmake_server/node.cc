@@ -450,7 +450,7 @@ namespace Engine {
 	}
 
 	bool/*solved*/ NodeData::_make_pre( ReqInfo& ri , bool query ) {
-		Trace trace("Nmake_pre",idx(),buildable,ri,STR(query),crc) ;
+		Trace trace("Nmake_pre",idx(),buildable,match_gen,ri,STR(query),crc) ;
 		Req              req   = ri.req ;
 		::string/*lazy*/ name_ ;
 		auto lazy_name = [&]->::string const& {

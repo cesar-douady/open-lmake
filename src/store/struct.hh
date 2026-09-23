@@ -21,8 +21,10 @@ namespace Store {
 			// ideally we would like to put the alignas constraints on the type, but this does not seem to be allowed (and does not work)
 			// also, putting a constraint less than the natural constraint is not supported
 			// so the idea is to put the alignment constraint on the first item (minimal room lost) and to also put the natural alignment at as constraint
+			// START_OF_VERSIONING REPO CACHE
 			alignas(Data) alignas(Sz) Sz    sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0
 			[[no_unique_address]]     HdrNv hdr ;     // no need to allocate space if header is empty
+			// END_OF_VERSIONING
 		} ;
 
 		template<class Hdr_,class Idx,class Data> static constexpr size_t _offset(size_t idx) {

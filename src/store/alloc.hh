@@ -48,9 +48,11 @@ namespace Store {
 		}
 
 		template<class H,class I,uint8_t Mantissa=0> struct Hdr {
+			// START_OF_VERSIONING REPO CACHE
 			static constexpr size_t NFree = bucket<Mantissa>(lsb_msk(8*sizeof(I)))+1 ; // number of necessary slot is highest possible index + 1
 			NoVoid<H>        hdr  ;
 			::array<I,NFree> free = {} ;
+			// END_OF_VERSIONING
 		} ;
 		template<class I,class D> struct Data {
 			static_assert( sizeof(D)>=sizeof(I) ) ;                                    // else waste memory

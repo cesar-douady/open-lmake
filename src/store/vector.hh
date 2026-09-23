@@ -20,8 +20,10 @@ namespace Store {
 			Item const* items() const { return ::launder(reinterpret_cast<Item const*>(_items)) ; }
 			Item      * items()       { return ::launder(reinterpret_cast<Item      *>(_items)) ; }
 			// data
+			// START_OF_VERSIONING REPO CACHE
 			Sz                    sz               ;
 			alignas(Item) ItemMem _items[1][MinSz] ; // [1] is just there to suppress gcc warning about size : gcc handles specially arrays[1] as arrays of indeterminate size
+			// END_OF_VERSIONING
 		} ;
 		template<class Idx_,class Item_,class Sz_=Idx_,size_t MinSz_=1> struct Chunk
 		:	              ChunkBase<Idx_,Item_,Sz_,MinSz_>

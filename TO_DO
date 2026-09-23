@@ -164,6 +164,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * FEATURES (not implemented and can work without)
 ****************************************************************************************************
 
+* add a --dry-run option to lmake
 * provide a config.dir_regexpr entry
 	- if auto_mkdir, create dirs each time a matching file name is seen
 	- allow using fuse as a autodep method

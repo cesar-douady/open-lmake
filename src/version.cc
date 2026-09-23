@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 58      ; // 85a124b0ea7f0febcb79ddc6be2bfbd5
+	uint64_t    constexpr Cache = 58      ; // 4310313d3505f4fbc4350728e0578b41
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 63      ; // 8e16490aa9d9488f74af603d978b67ca
+	uint64_t    constexpr Repo  = 63      ; // 72e376922fce9fc12e1362d3a20e971b
 	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
-	const char* const     Major = "26.08" ;
+	const char* const     Major = "26.09" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 85a124b0ea7f0febcb79ddc6be2bfbd5 *
+// * Cache : 4310313d3505f4fbc4350728e0578b41 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -934,6 +934,30 @@ namespace Version {
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO CACHE
+//				static constexpr size_t NFree = bucket<Mantissa>(lsb_msk(8*sizeof(I)))+1 ; // number of necessary slot is highest possible index + 1
+//				NoVoid<H>        hdr  ;
+//				::array<I,NFree> free = {} ;
+//				// END_OF_VERSIONING
+//	// START_OF_VERSIONING REPO CACHE
+//	enum class ItemKind : uint8_t {
+//		Terminal
+//	,	Prefix
+//	,	Split
+//	} ;
+//	// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				using CharUint = Prefix::CharUint<Char> ; static_assert( sizeof(CharUint)==sizeof(Char)) ;
+//				using ChunkIdx = uint8_t                ;
+//				using ItemOfs  = uint32_t               ;
+//				using ChunkBit = uint8_t                ;
+//				using Sz       = uint8_t                ;
+//				static constexpr uint8_t  CharSizeOf    = sizeof(CharUint)                                              ;
+//				static constexpr uint8_t  LogSizeOfChar = CharSizeOf==1 ? 0 : CharSizeOf==2 ? 1 : CharSizeOf<=4 ? 2 : 3 ;
+//				static constexpr ChunkIdx MaxChunkSz    = lsb_msk(7-LogSizeOfChar)                                      ;
+//				static constexpr ItemOfs  ChunkOfs      = round_up<alignof(Char)>(round_up<2>(sizeof(Idx))+2)           ; // cannot find a way to rely on compiler
+//				static constexpr Sz       MaxSz         = 4                                                             ; // number of ItemSizeOf in the largest Item
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
 //				Idx      prev                        {}  ;
 //			private :
 //				uint16_t _sz1       :2               ;                                                                    // actual sz-1, counted in ItemSizeOf
@@ -958,27 +982,29 @@ namespace Version {
 //				using Sz      = typename Item_::Sz          ;
 //				using ItemOfs = typename Item_::ItemOfs     ;
 //				//
-//				static constexpr uint8_t NSave     = 64                             ; // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
-//				static constexpr ItemOfs MaxSizeOf = Item_::ItemSizeOf*Item_::MaxSz ;
-//				//
-//				static_assert( ::is_trivially_copyable_v<NoVoid<Data>> ) ;            // items are saved and restored with memcpy
-//				// services
-//				void save(Item_ const& from) {
-//					_sz = from.sz() ;
-//					::memcpy( _data , reinterpret_cast<char const*>(&from) , _sz*Item_::ItemSizeOf ) ;
-//				}
-//				void restore(Item_& to) const {
-//					::memcpy( reinterpret_cast<char*>(&to) , _data , _sz*Item_::ItemSizeOf ) ;
-//				}
-//				// data
-//			private :
+//				// START_OF_VERSIONING REPO CACHE
+//				static constexpr uint8_t NSave = 64 ;                      // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
 //				Sz   _sz              = 0 /*garbage*/ ;
 //				char _data[MaxSizeOf] = {}/*.      */ ;
-//			} ;
-//			// END_OF_VERSIONING
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				NoVoid<H>           hdr         ;
+//				uint8_t             n_saved     = 0 ;
+//				::pair<I,SaveItem_> save[NSave] ;
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				alignas(Data) alignas(Sz) Sz    sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0
+//				[[no_unique_address]]     HdrNv hdr ;     // no need to allocate space if header is empty
+//				// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO CACHE
 //				constexpr size_t CacheLineSz = 64                                                               ; // hint only, defined independently of ::hardware_destructive_interference_size ...
 //				constexpr size_t Offset0     = round_up<CacheLineSz>( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ) ; // ... to ensure inter-operability
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				Sz                    sz               ;
+//				alignas(Item) ItemMem _items[1][MinSz] ; // [1] is just there to suppress gcc warning about size : gcc handles specially arrays[1] as arrays of indeterminate size
 //				// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway
@@ -1182,7 +1208,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 8e16490aa9d9488f74af603d978b67ca *
+// * Repo : 72e376922fce9fc12e1362d3a20e971b *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1612,7 +1638,7 @@ namespace Version {
 //		Admin                        //                                  match independent, include all files in the admin dir
 //	,	DirOfSrc                     //                                  match independent, uphill dirs of Src/SrcDir listed in manifest
 //	,	SrcDir                       //                                  match independent, SrcDir listed in manifest (much like star targets, i.e. only existing files are deemed buildable)
-//	,	SubSrc                       //                                  match independent, sub-file of a Src listed in manifest
+//	,	SubSrc                       //                                  match dependent  , sub-file of a Src listed in manifest
 //	,	PathTooLong                  //                                  match dependent  , (as limit may change with config)
 //	,	DynAnti                      //                                  match dependent
 //	,	No                           // <=No means node is not buildable
@@ -2541,6 +2567,30 @@ namespace Version {
 //		static constexpr char EncodeSfx[] = ".encode" ; static constexpr size_t EncodeSfxSz = sizeof(EncodeSfx)-1 ;
 //		// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO CACHE
+//				static constexpr size_t NFree = bucket<Mantissa>(lsb_msk(8*sizeof(I)))+1 ; // number of necessary slot is highest possible index + 1
+//				NoVoid<H>        hdr  ;
+//				::array<I,NFree> free = {} ;
+//				// END_OF_VERSIONING
+//	// START_OF_VERSIONING REPO CACHE
+//	enum class ItemKind : uint8_t {
+//		Terminal
+//	,	Prefix
+//	,	Split
+//	} ;
+//	// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				using CharUint = Prefix::CharUint<Char> ; static_assert( sizeof(CharUint)==sizeof(Char)) ;
+//				using ChunkIdx = uint8_t                ;
+//				using ItemOfs  = uint32_t               ;
+//				using ChunkBit = uint8_t                ;
+//				using Sz       = uint8_t                ;
+//				static constexpr uint8_t  CharSizeOf    = sizeof(CharUint)                                              ;
+//				static constexpr uint8_t  LogSizeOfChar = CharSizeOf==1 ? 0 : CharSizeOf==2 ? 1 : CharSizeOf<=4 ? 2 : 3 ;
+//				static constexpr ChunkIdx MaxChunkSz    = lsb_msk(7-LogSizeOfChar)                                      ;
+//				static constexpr ItemOfs  ChunkOfs      = round_up<alignof(Char)>(round_up<2>(sizeof(Idx))+2)           ; // cannot find a way to rely on compiler
+//				static constexpr Sz       MaxSz         = 4                                                             ; // number of ItemSizeOf in the largest Item
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
 //				Idx      prev                        {}  ;
 //			private :
 //				uint16_t _sz1       :2               ;                                                                    // actual sz-1, counted in ItemSizeOf
@@ -2565,27 +2615,29 @@ namespace Version {
 //				using Sz      = typename Item_::Sz          ;
 //				using ItemOfs = typename Item_::ItemOfs     ;
 //				//
-//				static constexpr uint8_t NSave     = 64                             ; // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
-//				static constexpr ItemOfs MaxSizeOf = Item_::ItemSizeOf*Item_::MaxSz ;
-//				//
-//				static_assert( ::is_trivially_copyable_v<NoVoid<Data>> ) ;            // items are saved and restored with memcpy
-//				// services
-//				void save(Item_ const& from) {
-//					_sz = from.sz() ;
-//					::memcpy( _data , reinterpret_cast<char const*>(&from) , _sz*Item_::ItemSizeOf ) ;
-//				}
-//				void restore(Item_& to) const {
-//					::memcpy( reinterpret_cast<char*>(&to) , _data , _sz*Item_::ItemSizeOf ) ;
-//				}
-//				// data
-//			private :
+//				// START_OF_VERSIONING REPO CACHE
+//				static constexpr uint8_t NSave = 64 ;                      // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
 //				Sz   _sz              = 0 /*garbage*/ ;
 //				char _data[MaxSizeOf] = {}/*.      */ ;
-//			} ;
-//			// END_OF_VERSIONING
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				NoVoid<H>           hdr         ;
+//				uint8_t             n_saved     = 0 ;
+//				::pair<I,SaveItem_> save[NSave] ;
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				alignas(Data) alignas(Sz) Sz    sz  = 1 ; // logical size, i.e. first non-allocated idx ==> account for unused idx 0
+//				[[no_unique_address]]     HdrNv hdr ;     // no need to allocate space if header is empty
+//				// END_OF_VERSIONING
 //				// START_OF_VERSIONING REPO CACHE
 //				constexpr size_t CacheLineSz = 64                                                               ; // hint only, defined independently of ::hardware_destructive_interference_size ...
 //				constexpr size_t Offset0     = round_up<CacheLineSz>( sizeof(Hdr<Hdr_,Idx,Data>)-sizeof(Data) ) ; // ... to ensure inter-operability
+//				// END_OF_VERSIONING
+//				// START_OF_VERSIONING REPO CACHE
+//				Sz                    sz               ;
+//				alignas(Item) ItemMem _items[1][MinSz] ; // [1] is just there to suppress gcc warning about size : gcc handles specially arrays[1] as arrays of indeterminate size
 //				// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE JOB REPO
 //	enum class FileTag : uint8_t { // FileTag is defined here as it is used for Ddate and disk.hh includes this file anyway

@@ -7,11 +7,13 @@
 
 #include "alloc.hh"
 
+// START_OF_VERSIONING REPO CACHE
 enum class ItemKind : uint8_t {
 	Terminal
 ,	Prefix
 ,	Split
 } ;
+// END_OF_VERSIONING
 
 namespace Store {
 
@@ -97,6 +99,7 @@ namespace Store {
 
 		template<IsIdx Idx,class Char> struct ItemBase {
 			static_assert(IsTrivial<Char>) ;
+			// START_OF_VERSIONING REPO CACHE
 			using CharUint = Prefix::CharUint<Char> ; static_assert( sizeof(CharUint)==sizeof(Char)) ;
 			using ChunkIdx = uint8_t                ;
 			using ItemOfs  = uint32_t               ;
@@ -107,6 +110,7 @@ namespace Store {
 			static constexpr ChunkIdx MaxChunkSz    = lsb_msk(7-LogSizeOfChar)                                      ;
 			static constexpr ItemOfs  ChunkOfs      = round_up<alignof(Char)>(round_up<2>(sizeof(Idx))+2)           ; // cannot find a way to rely on compiler
 			static constexpr Sz       MaxSz         = 4                                                             ; // number of ItemSizeOf in the largest Item
+			// END_OF_VERSIONING
 			// cxtors
 			ItemBase() = default ;
 			ItemBase( Sz sz_ , ItemKind kind_ , bool used_ , ChunkIdx chunk_sz , size_t cmp_bit_=0 ) :
@@ -262,18 +266,18 @@ namespace Store {
 				return cmp_val() ;
 			}
 			static constexpr ChunkIdx s_max_chunk_sz( Sz sz , Kind k , bool used ) {
-				ItemOfs chunk_end = _s_chunk_end_ofs(sz,k,used) ;
-				ChunkIdx chunk_sz = ( chunk_end -  ChunkOfs ) / sizeof(Char) ;
-				if (NeedSzChk) return ::min(chunk_sz,MaxChunkSz) ;
-				else           return       chunk_sz             ;
+				ChunkIdx res ;
+				if (NeedSzChk)   res = ChunkIdx(::min<ItemOfs>(_s_uncapped_max_chunk_sz(sz,k,used),MaxChunkSz)) ;
+				else           { res =                         _s_uncapped_max_chunk_sz(sz,k,used)              ; SWEAR( res<MaxChunkSz , res,MaxChunkSz ) ; }
+				return res ;
 			}
 			static constexpr ChunkIdx s_max_chunk_sz( Kind k , bool used ) {
 				return s_max_chunk_sz(MaxSz,k,used) ;
 			}
 			static Sz s_min_sz( Kind k , bool used , ChunkIdx chunk_sz ) {
-				ChunkIdx max_chunk_sz = s_max_chunk_sz(k,used) ;
-				SWEAR( max_chunk_sz>=chunk_sz , max_chunk_sz , chunk_sz ) ;
-				Sz min_sz = MaxSz - (max_chunk_sz-chunk_sz)*CharSizeOf/ItemSizeOf ;
+				ChunkIdx max_chunk_sz = _s_uncapped_max_chunk_sz(MaxSz,k,used) ;
+				SWEAR( max_chunk_sz>=chunk_sz , max_chunk_sz,chunk_sz ) ;
+				Sz min_sz = MaxSz - (max_chunk_sz-chunk_sz)*CharSizeOf/ItemSizeOf ; SWEAR( min_sz>=1 && min_sz<=MaxSz , min_sz,MaxSz ) ;
 				if ( used && min_sz<MinUsedSz ) return MinUsedSz ;
 				else                            return min_sz    ;
 			}
@@ -281,6 +285,9 @@ namespace Store {
 			template<class T> T      & _at(size_t ofs)       { return *::launder(reinterpret_cast<      T*>(reinterpret_cast<char      *>(this)+ofs)) ; }
 			template<class T> T const& _at(size_t ofs) const { return *::launder(reinterpret_cast<const T*>(reinterpret_cast<char const*>(this)+ofs)) ; }
 			//
+			static constexpr ItemOfs _s_uncapped_max_chunk_sz( Sz sz , Kind k , bool used ) {                                                        // may not fit within ChunkIdx before it is capped
+				return (_s_chunk_end_ofs(sz,k,used)-ChunkOfs) / CharSizeOf ;
+			}
 			static constexpr ItemOfs _s_end_ofs(Sz sz) { return ItemSizeOf*sz ; }
 			static ItemOfs _s_data_ofs( Sz sz , Kind /*k*/ ) requires(BigData) {                                                                     // data is after  nxt
 				SWEAR( _s_end_ofs(sz) >= DataSizeOf + ChunkOfs , sz ) ;                                                                              // check no overlap with metadata
@@ -361,11 +368,16 @@ namespace Store {
 				//^^^^^^^^^^
 				if (kind()==Kind::Split) cmp_val() = cmp_val_ ;
 				_new_data() ;
-				SWEAR( chunk_sz<=max_chunk_sz() , chunk_sz , max_chunk_sz() ) ;
+				#ifndef NDEBUG
+					ChunkIdx max_chunk_sz_ = max_chunk_sz() ;
+					SWEAR( chunk_sz<=max_chunk_sz_ , chunk_sz , max_chunk_sz_ ) ;
+				#endif
 			}
 			bool need_mk_min_sz() {
-				SWEAR( min_sz()<=sz() , min_sz() , sz() ) ;
-				return min_sz()<sz() ;
+				Sz sz_     = sz    () ;
+				Sz min_sz_ = min_sz() ;
+				SWEAR( min_sz_<=sz_ , min_sz_,sz_ ) ;
+				return min_sz_<sz_ ;
 			}
 			void mk_min_sz() {
 				SWEAR(need_mk_min_sz()) ;
@@ -413,10 +425,12 @@ namespace Store {
 			using Sz      = typename Item_::Sz          ;
 			using ItemOfs = typename Item_::ItemOfs     ;
 			//
-			static constexpr uint8_t NSave     = 64                             ; // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
+			// START_OF_VERSIONING REPO CACHE
+			static constexpr uint8_t NSave = 64 ;                      // there are recursive loops to backup, but 64 is more than extreme (need ~6+loops, loops may be 1 or 2)
+			// END_OF_VERSIONING
 			static constexpr ItemOfs MaxSizeOf = Item_::ItemSizeOf*Item_::MaxSz ;
 			//
-			static_assert( ::is_trivially_copyable_v<NoVoid<Data>> ) ;            // items are saved and restored with memcpy
+			static_assert( ::is_trivially_copyable_v<NoVoid<Data>> ) ; // items are saved and restored with memcpy
 			// services
 			void save(Item_ const& from) {
 				_sz = from.sz() ;
@@ -427,8 +441,10 @@ namespace Store {
 			}
 			// data
 		private :
+			// START_OF_VERSIONING REPO CACHE
 			Sz   _sz              = 0 /*garbage*/ ;
 			char _data[MaxSizeOf] = {}/*.      */ ;
+			// END_OF_VERSIONING
 		} ;
 		// END_OF_VERSIONING
 
@@ -451,9 +467,11 @@ namespace Store {
 				fence() ;                                       // ensure backup is effective before doing any modif
 			}
 			// data
+			// START_OF_VERSIONING REPO CACHE
 			NoVoid<H>           hdr         ;
 			uint8_t             n_saved     = 0 ;
 			::pair<I,SaveItem_> save[NSave] ;
+			// END_OF_VERSIONING
 		} ;
 
 	}
@@ -977,36 +995,27 @@ namespace Store {
 		// idx always backed up, others as necessary
 		Idx _use(Idx idx) {
 			_backup(idx) ;
-			Item&    item     = _at(idx)      ;
-			Kind     kind     = item.kind()   ;
-			ChunkIdx chunk_sz = item.chunk_sz ;
-			SWEAR( !item.used             ) ;
-			SWEAR( chunk_sz || !item.prev ) ;
-			if (item.may_use_empty()                            )    goto InPlaceWithPrefix ;
-			SWEAR(+item.prev) ;
-			if (kind!=Kind::Split                               )    goto EnlargeItem       ;
-			if (!item.prev                                      )    goto InsertSplitAfter  ;     // root cannot move
-			if (Item::s_max_chunk_sz(kind,true/*used*/)<chunk_sz)    goto InsertSplitAfter  ;     // chunk is too large to become used, even max sized
-			/**/                                                  /* goto EnlargeItem       */
-		EnlargeItem :
-			{	//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				Idx new_idx = _emplace( kind , true/*used*/ , idx , 0/*start*/ , chunk_sz ) ;
-				_mv<true/*BuPrev*/,false/*BuO*/,true/*BuNxt0*/,true/*BuNxt1*/>( idx , new_idx ) ; // root cannot be here as with empty chunk it would be caught by previous case
-				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-				_compress_before<true/*BuPrev2*/,false/*BuPrev*/,true/*BuI*/>(new_idx) ;          // prev already backed up
-				_commit() ;
-				return new_idx ;
+			Item& item = _at(idx)    ;
+			Kind  kind = item.kind() ;
+			SWEAR( !item.used                  ) ;
+			SWEAR( item.chunk_sz || !item.prev ) ;
+			if (item.may_use_empty()) {
+				//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				_add_prefix<true/*BuPrev2*/,true/*BuPrev*/,false/*BuI*/>( idx , Item::s_max_chunk_sz( item.sz() , kind , true/*used*/ ) ) ;
+				item.mk_used(true/*used*/) ;
+				_minimize_sz<false/*Bu*/>(idx) ;                                                                                                           // idx already backed up
+				//^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+			} else {
+				SWEAR(+item.prev) ;                                                                                                                        // root is always may_use_empty()
+				//            vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				//                            BuPrev2 BuPrev BuI   BuNxt0 BuNxt1         used                                                    used
+				/**/          _add_prefix     <true  ,true  ,false             >(               idx     ,              Item::s_max_chunk_sz(kind,true) ) ;
+				Idx new_idx = _emplace                                          ( kind , true , idx     , 0/*start*/ , item.chunk_sz                   ) ;
+				/**/          _mv             <       true  ,false,true  ,true >(               idx     , new_idx                                      ) ;
+				/**/          _compress_before<true  ,false ,true              >(               new_idx                                                ) ; // prev already backed up
+				//            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				idx = new_idx ;
 			}
-		InsertSplitAfter :
-			SWEAR( kind==Kind::Split , kind ) ;
-			_insert_after<false/*BuB*/,true/*BuNxtEq*/,true/*BuNxtNeq*/>( idx , true/*is_eq*/ , _emplace( Kind::Split , item.cmp_val() , item.cmp_bit ) ) ; // insert empty Split after
-			item.mk_down(true/*keep_is_eq*/) ;
-		InPlaceWithPrefix :
-			_add_prefix<true/*BuPrev2*/,true/*BuPrev*/,false/*BuI*/>( idx , Item::s_max_chunk_sz( item.sz() , item.kind() , true/*used*/ ) ) ; // item.kind may have changed, so cannot use kind
-			//vvvvvvvvvvvvvvvvvvvvvvvv
-			item.mk_used(true/*used*/) ;
-			//^^^^^^^^^^^^^^^^^^^^^^^^
-			_minimize_sz<false/*Bu*/>(idx) ;                                                                                                   // idx already backed up
 			_commit() ;
 			return idx ;
 		}
@@ -1087,7 +1096,7 @@ namespace Store {
 			}
 			bool compressed ;
 			/**/             ::tie(compressed,idx) = _compress_after <                true /*BuPrev*/,false/*BuI*/,true/*BuNxt*/>(idx) ;  // idx already backed up
-			if (!compressed)       compressed      = _compress_before<true/*BuPrev2*/,true /*.     */,false/*.  */              >(idx) ;  // .
+			if (!compressed)                         _compress_before<true/*BuPrev2*/,true /*.     */,false/*.  */              >(idx) ;  // .
 			/**/                                     _minimize_sz    <                                false/*Bu */              >(idx) ;  // .
 			_commit() ;
 			if (+nxt) {                                                                                       // now that branch is out of the tree, walk forward to actually collect the items
@@ -1333,9 +1342,10 @@ namespace Store {
 				IdxSz       res  = item.used ;
 				throw_unless( +idx+item.sz()<=size() , "idx ",idx," of size ",item.sz()," is out of range (",size(),')' ) ;
 				// root may not be minimized as it must stay prepared to hold its info w/o moving
-				if (+item.prev) throw_unless( item.sz()==item.min_sz()   , "item(",idx,").sz is non-minimum : ",item.sz(),"!=",item.min_sz()   ) ;
-				else            throw_unless( item.sz()==Item::MinUsedSz , "root(",idx,").sz is non-minimum : ",item.sz(),"!=",Item::MinUsedSz ) ;
-				if (!item.prev) throw_unless( !item.chunk_sz             , "root(",idx,") must have an empty chunk"                            ) ;
+				/**/            throw_unless( item.chunk_sz<=item.max_chunk_sz() , "item(",idx,").chunk_sz is illegal : ",item.chunk_sz,'>' ,item.max_chunk_sz() ) ;
+				if (+item.prev) throw_unless( item.sz()==item.min_sz()           , "item(",idx,").sz is non-minimum : "  ,item.sz()    ,"!=",item.min_sz()       ) ;
+				else            throw_unless( item.sz()==Item::MinUsedSz         , "root(",idx,").sz is non-minimum : "  ,item.sz()    ,"!=",Item::MinUsedSz     ) ;
+				if (!item.prev) throw_unless( !item.chunk_sz                     , "root(",idx,") must have an empty chunk"                                      ) ;
 				for( bool is_eq : Nxt(item.kind()) ) {
 					Idx         nxt      = item.nxt_if(is_eq) ;
 					throw_unless( +nxt       , "item(",idx,").nxt(",is_eq,") is null"                      ) ;

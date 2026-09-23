@@ -144,11 +144,12 @@ namespace Engine {
 	static bool/*ok*/ _freeze(EngineClosureReq const& ecr) {
 		ReqOptions const& ro = ecr.options ;
 		Trace trace("freeze",ecr) ;
+		::vector<Job > jobs  ;
+		::vector<Node> nodes ;
 		if (_is_mark_glb(ro.key)) {
-			::vector<Job > jobs    ;
 			::vector<Job > no_jobs ;
-			::vector<Node> nodes   = Node::s_frozens() ;
-			size_t         w       = 0                 ;
+			size_t         w       = 0 ;
+			nodes = Node::s_frozens() ;
 			for( Job j : Job::s_frozens() ) {
 				if (+j->rule()) { jobs   .push_back(j) ; w = ::max( w , j->rule()->name.size() ) ; }
 				else              no_jobs.push_back(j) ;
@@ -159,18 +160,15 @@ namespace Engine {
 				Job ::s_clear_frozens() ;
 				Node::s_clear_frozens() ;
 			} else if (+no_jobs) {
-				Job::s_frozens(false/*add*/,no_jobs) ;                             // clean up old jobs
+				Job::s_frozens( false/*add*/ , no_jobs ) ; // clean up old jobs
 			}
 			for( Job  j : jobs  ) audit( ecr.fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(j->rule()->name,w)+' '+mk_file(j->name()              ) ) ;
 			for( Node n : nodes ) audit( ecr.fd , ro , ro.key==ReqKey::List?Color::Warning:Color::Note , widen(""             ,w)+' '+mk_file(n->name(),Yes/*exists*/) ) ;
-			return true ;
 		} else {
 			bool           add   = ro.key==ReqKey::Add ;
 			size_t         w     = 0                   ;
 			::string       name  ;
 			::string       err   ;
-			::vector<Job > jobs  ;
-			::vector<Node> nodes ;
 			//
 			auto handle_job = [&](Job j) {
 				/**/       if (!j.is_plain(true/*frozen_ok*/)) throw cat("job not found " ,mk_file(j->name())) ;
@@ -223,11 +221,11 @@ namespace Engine {
 				trace("nodes",nodes) ;
 				Node::s_frozens(add,nodes) ;
 				for( Node n : nodes ) if (add) n->mk_src() ; else n->mk_no_src() ;
-				Persistent::invalidate_match() ;                                   // seen from the engine, we have modified sources, we must rematch everything
 			}
 			trace("done") ;
-			return true/*ok*/ ;
 		}
+		if (+nodes) Persistent::invalidate_match() ;       // seen from the engine, we have modified sources, we must rematch everything
+		return true/*ok*/ ;
 	}
 
 	static bool/*ok*/ _no_trigger(EngineClosureReq const& ecr) {

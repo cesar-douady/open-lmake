@@ -81,6 +81,7 @@ namespace Engine {
 	StaticUniqPtr<RealPathEnv> Job::_s_rpe ;
 
 	void Job::s_init() {
+		Trace trace("Js_init",Rule::s_match_gen) ;
 		s_record_thread.open('J',
 			[](::pair<Job,JobInfo1> const& jji)->void {
 				Trace trace("s_record_thread",jji.first,jji.second.kind()) ;
