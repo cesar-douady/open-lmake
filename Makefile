@@ -419,12 +419,12 @@ define CUSTOMIZE_RECIPE
 	@echo customize $< to $@
 	@mkdir -p $(@D)
 	@	sed \
-			-e 's!\$$GIT!$(GIT)!'                                 \
-			-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!'               \
-			-e 's!\$$CAN_AUTODEP_SECCOMP!$(CAN_AUTODEP_SECCOMP)!' \
-			-e 's!\$$TAG!$(TAG)!'                                 \
-			-e 's!\$$VERSION!$(VERSION)!'                         \
-			$<                                                    \
+			-e 's!\$$GIT!$(GIT)!'                   \
+			-e 's!\$$HAS_LD_AUDIT!$(HAS_LD_AUDIT)!' \
+			-e 's!\$$HAS_SECCOMP!$(HAS_SECCOMP)!'   \
+			-e 's!\$$TAG!$(TAG)!'                   \
+			-e 's!\$$VERSION!$(VERSION)!'           \
+			$<                                      \
 	|	_bin/align_comments 4 200 '#' >$@
 endef
 lib/%.py  : _lib/%.src.py sys_config.mk _bin/align_comments ; $(CUSTOMIZE_RECIPE)

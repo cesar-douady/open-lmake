@@ -129,7 +129,7 @@ int main( int argc , char* argv[] ) {
 		autodep_method_doc << "ld_audit, " ;
 	#endif
 	autodep_method_doc << "ld_preload, ld_preload_jemalloc, ptrace" ;
-	#if CAN_AUTODEP_SECCOMP
+	#if HAS_SECCOMP
 		autodep_method_doc << ", seccomp" ;
 	#endif
 	autodep_method_doc << ')' ;

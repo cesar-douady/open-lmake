@@ -212,7 +212,7 @@ namespace AutodepPtrace {
 		int                   wstatus ;
 		pid_t                 pid     = ::wait(&wstatus)  ;                    // wait for child to stop
 		SWEAR( pid==child_pid      , pid,child_pid ) ;                         // job has not started yet, only a single child exists
-		#if CAN_AUTODEP_SECCOMP
+		#if HAS_SECCOMP
 			throw_unless( WIFSTOPPED(wstatus) , "cannot ptrace, consider using autodep='seccomp' instead" ) ;
 		#else
 			throw_unless( WIFSTOPPED(wstatus) , "cannot ptrace"                                         ) ;
@@ -240,7 +240,7 @@ namespace AutodepPtrace {
 
 }
 
-#if CAN_AUTODEP_SECCOMP
+#if HAS_SECCOMP
 
 	#if HAS_PIDFD
 		extern "C" {

@@ -585,5 +585,5 @@ template<uint32_t SeccompRetCatch> static constexpr SyscallDescr::BpfProg Syscal
 ,	.filter = const_cast<BpfInstr*>(&BpfFilter<SeccompRetCatch>[0])
 } ;
 
-/**/                    SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog_ptrace  = SyscallDescrBpfProg<SECCOMP_RET_TRACE     > ;
-IF_CAN_AUTODEP_SECCOMP( SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog_seccomp = SyscallDescrBpfProg<SECCOMP_RET_USER_NOTIF> ; )
+/**/            SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog_ptrace  = SyscallDescrBpfProg<SECCOMP_RET_TRACE     > ;
+IF_HAS_SECCOMP( SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog_seccomp = SyscallDescrBpfProg<SECCOMP_RET_USER_NOTIF> ; )

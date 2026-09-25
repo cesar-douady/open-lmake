@@ -11,10 +11,10 @@
 
 #include "record.hh"
 
-#if CAN_AUTODEP_SECCOMP
-	#define IF_CAN_AUTODEP_SECCOMP(...) __VA_ARGS__
+#if HAS_SECCOMP
+	#define IF_HAS_SECCOMP(...) __VA_ARGS__
 #else
-	#define IF_CAN_AUTODEP_SECCOMP(...)
+	#define IF_HAS_SECCOMP(...)
 #endif
 
 #if HAS_32
@@ -35,8 +35,8 @@ struct SyscallDescr {
 	// static data
 	/**/       static Tab const& s_tab   ;
 	IF_HAS_32( static Tab const& s_tab32 ; )
-	/**/                    static BpfProg const& s_bpf_prog_ptrace  ;
-	IF_CAN_AUTODEP_SECCOMP( static BpfProg const& s_bpf_prog_seccomp ; )
+	/**/            static BpfProg const& s_bpf_prog_ptrace  ;
+	IF_HAS_SECCOMP( static BpfProg const& s_bpf_prog_seccomp ; )
 	// accesses
 	constexpr bool operator+() const { return +comment ; } // entry or exit seem to be non-constexpr when compiling with sanitizer
 	// data

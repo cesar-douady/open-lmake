@@ -25,7 +25,7 @@
 enum class AutodepMethod : uint8_t {
 	None
 ,	Ptrace
-#if CAN_AUTODEP_SECCOMP
+#if HAS_SECCOMP
 	,	Seccomp
 #endif
 ,	LdPreload

@@ -498,7 +498,7 @@ EOF
 HAS_RENAMEAT2=$(ok cc -o /dev/null -xc renameat2.c )
 
 #
-# SECCOMP (HAS_PIDFD+CAN_AUTODEP_SECCOMP)
+# SECCOMP (HAS_PIDFD+HAS_SECCOMP)
 #
 cat <<-"EOF" >has_pidfd.cc
 	extern "C" {
@@ -531,7 +531,7 @@ cat <<-"EOF" >can_autodep_seccomp.c
 		return x ;                             // use variable
 	}
 EOF
-CAN_AUTODEP_SECCOMP=$(ok cc -c -o /dev/null -xc can_autodep_seccomp.c )
+HAS_SECCOMP=$(ok cc -c -o /dev/null -xc can_autodep_seccomp.c )
 
 #
 # SINGLE_THREADED (HAS_SINGLE_THREADED)
@@ -634,7 +634,6 @@ cat >$MK_FILE <<-EOF
 	LMAKE_FLAGS   := $LMAKE_FLAGS
 	#
 	BASH                      := /bin/bash
-	CAN_AUTODEP_SECCOMP       := ${CAN_AUTODEP_SECCOMP#0}
 	CXX                       := $CXX
 	CXX_FLAVOR                := $CXX_FLAVOR
 	CXX_STD                   := $CXX_STD
@@ -645,6 +644,7 @@ cat >$MK_FILE <<-EOF
 	HAS_PCRE                  := ${HAS_PCRE#0}
 	HAS_PY_DYN                := ${HAS_PY_DYN#0}
 	HAS_PY2_DYN               := ${HAS_PY2_DYN#0}
+	HAS_SECCOMP               := ${HAS_SECCOMP#0}
 	HAS_ZLIB                  := ${HAS_ZLIB#0}
 	HAS_ZSTD                  := ${HAS_ZSTD#0}
 	LD_SO_LIB                 := $LD_SO_LIB
@@ -695,7 +695,6 @@ cat >$H_FILE <<-EOF
 		#error "unexpected word width"
 	#endif
 	#define ADDR2LINE                   "$ADDR2LINE"
-	#define CAN_AUTODEP_SECCOMP         $CAN_AUTODEP_SECCOMP
 	#define HAS_32                      $HAS_32
 	#define HAS_ACL                     $HAS_ACL
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
@@ -705,6 +704,7 @@ cat >$H_FILE <<-EOF
 	#define HAS_PIDFD                   $HAS_PIDFD
 	#define HAS_PTRACE_GET_SYSCALL_INFO $HAS_PTRACE_GET_SYSCALL_INFO
 	#define HAS_RENAMEAT2               $HAS_RENAMEAT2
+	#define HAS_SECCOMP                 $HAS_SECCOMP
 	#define HAS_SINGLE_THREADED         $HAS_SINGLE_THREADED
 	#define HAS_STACKTRACE              $HAS_STACKTRACE_H
 	#define HAS_UINT128                 $HAS_UINT128

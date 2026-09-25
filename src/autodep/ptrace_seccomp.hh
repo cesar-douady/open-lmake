@@ -12,7 +12,7 @@ namespace AutodepPtrace {
 	int/*wstatus*/ process      (pid_t child_pid) ;
 } ;
 
-#if CAN_AUTODEP_SECCOMP
+#if HAS_SECCOMP
 	namespace AutodepSeccomp {
 		int/*rc*/      prepare_child(void*          ) ; // must be called from child
 		int/*wstatus*/ process      (pid_t child_pid) ;

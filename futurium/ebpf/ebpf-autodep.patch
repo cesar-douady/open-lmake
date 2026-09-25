@@ -1,0 +1,1189 @@
+diff --git a/.gitignore b/.gitignore
+index f5a2a756..098b622f 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -92,3 +92,8 @@ gcov/
+ # debian
+ /open-lmake_*
+ /open-lmake-*/
++
++# ebpf generated files
++/src/autodep/vmlinux.h
++/src/autodep/ebpf.bpf.o
++/src/autodep/ebpf.skel.h
+diff --git a/Makefile b/Makefile
+index 3ea1c82e..53d68cdd 100644
+--- a/Makefile
++++ b/Makefile
+@@ -177,6 +177,9 @@ CC_FLAGS := -iquote ext -iquote src -iquote src/lmake_server -iquote .
+ 
+ Z_LIB := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
+ 
++# ebpf autodep method : only job_exec and lautodep need libbpf (the server does not, so it is not added to LINK_LIB)
++BPF_LIB := $(if $(CAN_AUTODEP_EBPF),-lbpf)
++
+ PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -I
+ PY_INC_DIRS  :=                 $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR)  $(PY_INCLUDEPY) )  # .
+ PY2_CC_FLAGS := $(if $(PYTHON2),$(patsubst %,-I %,$(PY2_INC_DIRS)) -Wno-register)
+@@ -498,6 +501,20 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
+ 	@$(LINT) $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CC_FLAGS) >$@.err 2>$@.stderr
+ 	@if [ -s $@.err ] ; then echo errors in $@.err ; cat $@.stderr ; else >$@ ; fi
+ 
++# ebpf autodep method : the BPF program is compiled by clang to a BPF object, from which bpftool generates a C skeleton included by ebpf.cc
++ifeq ($(CAN_AUTODEP_EBPF),1)
++src/autodep/vmlinux.h :
++	@echo generate $@
++	@$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c >$@
++src/autodep/ebpf.bpf.o : src/autodep/ebpf.bpf.c src/autodep/ebpf_event.h src/autodep/vmlinux.h
++	@echo $(BPF_CLANG) -target bpf to $@
++	@$(BPF_CLANG) -g -O2 -target bpf -D__TARGET_ARCH_$(BPF_ARCH) -iquote src/autodep -I $(BPF_INC_DIR) -c -o $@ $<
++src/autodep/ebpf.skel.h : src/autodep/ebpf.bpf.o
++	@echo $(BPFTOOL) gen skeleton to $@
++	@$(BPFTOOL) gen skeleton $< name ebpf >$@
++src/autodep/ebpf.o : src/autodep/ebpf.skel.h # the auto-dep .d does not exist on the first build, so make the skeleton an explicit prerequisite
++endif
++
+ %.d : %.cc
+ 	@$(COMPILE) \
+ 		-MM -MG                                              \
+@@ -753,6 +770,7 @@ JOB_EXEC_OBJS := \
+ 	src/re.o                     \
+ 	src/rpc_job.o                \
+ 	src/zfd.o                    \
++	src/autodep/ebpf.o           \
+ 	src/autodep/gather.o         \
+ 	src/autodep/ptrace_seccomp.o \
+ 	src/autodep/record.o         \
+@@ -766,7 +784,7 @@ _bin/job_exec bin/lautodep :
+ 	@mkdir -p $(@D)
+ 	@echo link to $@
+ 	@# forces dynamic lib resolution as chroot may be called, so lazy binding could lead to wrong lib being loaded
+-	@$(LINK) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
++	@$(LINK) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(BPF_LIB) $(LINK_LIB)
+ 	@$(SPLIT_DBG_CMD)
+ 
+ LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps
+diff --git a/_bin/sys_config b/_bin/sys_config
+index 999e0b82..ad7b6151 100755
+--- a/_bin/sys_config
++++ b/_bin/sys_config
+@@ -533,6 +533,48 @@ cat <<-"EOF" >can_autodep_seccomp.c
+ EOF
+ CAN_AUTODEP_SECCOMP=$(ok cc -c -o /dev/null -xc can_autodep_seccomp.c )
+ 
++#
++# EBPF (CAN_AUTODEP_EBPF+BPF_CLANG+BPF_ARCH+BPF_INC_DIR)
++#
++BPF_CLANG=$(type -p clang || :)
++case $(uname -m) in
++	x86_64 ) BPF_ARCH=x86   ;;
++	aarch64) BPF_ARCH=arm64 ;;
++	*      ) BPF_ARCH=      ;;
++esac
++BPF_INC_DIR=/usr/include/$(cc -print-multiarch 2>/dev/null || :) # asm/types.h lies in the multi-arch dir, which is not searched when targeting bpf
++# find a bpftool able to dump the running kernel BTF (the distro one may not support the running kernel, e.g. under WSL)
++BPFTOOL=
++for bt in bpftool /usr/sbin/bpftool /usr/lib/linux-tools/*/bpftool /usr/lib/linux-tools-*/bpftool ; do
++	if command -v "$bt" >/dev/null 2>&1 && "$bt" btf dump file /sys/kernel/btf/vmlinux format c >/dev/null 2>&1 ; then BPFTOOL=$(command -v "$bt") ; break ; fi
++done
++cat <<"EOF" >can_autodep_ebpf.bpf.c
++	#include "vmlinux.h"
++	#include <bpf/bpf_helpers.h>
++	#include <bpf/bpf_tracing.h>
++	#include <bpf/bpf_core_read.h>
++	struct { __uint(type,BPF_MAP_TYPE_RINGBUF) ; __uint(max_entries,4096) ; } rb SEC(".maps") ;
++	SEC("tracepoint/raw_syscalls/sys_enter") int probe(struct trace_event_raw_sys_enter* ctx) { return 0 ; }
++	SEC("fexit/getname_flags") int BPF_PROG(probe2,const char* u,int f,struct filename* ret) { return !BPF_CORE_READ(ret,name) ; }
++	char LICENSE[] SEC("license") = "GPL" ;
++EOF
++cat <<"EOF" >can_autodep_ebpf.cc
++	#include <bpf/libbpf.h>
++	static_assert(LIBBPF_MAJOR_VERSION>=1) ;
++	int main() {
++		struct bpf_object*  o  = bpf_object__open_mem(nullptr,0,nullptr)        ;
++		struct ring_buffer* rb = ring_buffer__new(0,nullptr,nullptr,nullptr) ;
++		return o==nullptr && rb==nullptr ;
++	}
++EOF
++CAN_AUTODEP_EBPF=0
++if [ "$BPF_CLANG" -a "$BPF_ARCH" -a "$BPFTOOL" ] ; then
++	if $BPFTOOL btf dump file /sys/kernel/btf/vmlinux format c >vmlinux.h 2>/dev/null && $BPF_CLANG -g -O2 -target bpf -D__TARGET_ARCH_$BPF_ARCH -I. -I$BPF_INC_DIR -c -o can_autodep_ebpf.bpf.o can_autodep_ebpf.bpf.c >/dev/null 2>&1 ; then
++		CAN_AUTODEP_EBPF=$(ok cc -std=$CXX_STD -o /dev/null can_autodep_ebpf.cc -lbpf)
++	fi
++fi
++[ $CAN_AUTODEP_EBPF = 1 ] || echo "no ebpf autodep support (requires clang, libbpf>=1.0, bpftool and kernel BTF)" >>$SUM_FILE
++
+ #
+ # SINGLE_THREADED (HAS_SINGLE_THREADED)
+ #
+@@ -634,6 +676,11 @@ cat >$MK_FILE <<-EOF
+ 	LMAKE_FLAGS   := $LMAKE_FLAGS
+ 	#
+ 	BASH                      := /bin/bash
++	BPF_ARCH                  := $BPF_ARCH
++	BPF_CLANG                 := $BPF_CLANG
++	BPF_INC_DIR               := $BPF_INC_DIR
++	BPFTOOL                   := $BPFTOOL
++	CAN_AUTODEP_EBPF          := ${CAN_AUTODEP_EBPF#0}
+ 	CAN_AUTODEP_SECCOMP       := ${CAN_AUTODEP_SECCOMP#0}
+ 	CXX                       := $CXX
+ 	CXX_FLAVOR                := $CXX_FLAVOR
+@@ -695,6 +742,7 @@ cat >$H_FILE <<-EOF
+ 		#error "unexpected word width"
+ 	#endif
+ 	#define ADDR2LINE                   "$ADDR2LINE"
++	#define CAN_AUTODEP_EBPF            $CAN_AUTODEP_EBPF
+ 	#define CAN_AUTODEP_SECCOMP         $CAN_AUTODEP_SECCOMP
+ 	#define HAS_32                      $HAS_32
+ 	#define HAS_ACL                     $HAS_ACL
+@@ -732,8 +780,13 @@ case $HAS_LD_AUDIT in
+ 	0) HAS_LD_AUDIT_PY=False ;;
+ 	1) HAS_LD_AUDIT_PY=True  ;;
+ esac
++case $CAN_AUTODEP_EBPF in
++	0) CAN_AUTODEP_EBPF_PY=False ;;
++	1) CAN_AUTODEP_EBPF_PY=True  ;;
++esac
+ >$PY_FILE
+-true               && echo "has_ld_audit        = $HAS_LD_AUDIT_PY" >>$PY_FILE
++true               && echo "can_autodep_ebpf    = $CAN_AUTODEP_EBPF_PY" >>$PY_FILE
++true               && echo "has_ld_audit        = $HAS_LD_AUDIT_PY"     >>$PY_FILE
+ true               && echo "python              = '$PYTHON'"        >>$PY_FILE
+ [ "$PYTHON2"     ] && echo "python2             = '$PYTHON2'"       >>$PY_FILE
+ [ "$PY_LIB_DIR"  ] && echo "py_ld_library_path  = '$PY_LIB_DIR'"    >>$PY_FILE
+diff --git a/src/autodep/ebpf.bpf.c b/src/autodep/ebpf.bpf.c
+new file mode 100644
+index 00000000..b23167cf
+--- /dev/null
++++ b/src/autodep/ebpf.bpf.c
+@@ -0,0 +1,397 @@
++// This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
++// Copyright (c) 2023-2026 Doliam
++// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
++// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
++
++// BPF program for the ebpf autodep method.
++// It observes file accesses of the traced process sub-tree, including those submitted through io_uring (which bypass syscalls),
++// and pushes one event per access into a ring buffer. The user-space consumer (ebpf.cc) replays each event through the same
++// SyscallDescr machinery as ptrace/seccomp, so that deps and targets are computed identically.
++//
++// Path strings are captured from the kernel copy made by getname_flags (avoids user page faults and is syscall-agnostic).
++// io_uring path operations are captured on the io_* handlers and translated into the equivalent syscall.
++
++#include "vmlinux.h"
++
++#include <bpf/bpf_helpers.h>
++#include <bpf/bpf_tracing.h>
++#include <bpf/bpf_core_read.h>
++
++#include "ebpf_event.h"
++
++char LICENSE[] SEC("license") = "GPL" ; // required to use GPL-only helpers
++
++// x86_64 syscall numbers we need to recognize by hand (io_uring ops are translated to these) ; other syscalls are selected through the `wanted` map
++#define NR_readlinkat 267
++#define NR_openat2    437
++#define NR_statx      332
++#define NR_renameat2  316
++#define NR_unlinkat   263
++#define NR_mkdirat    258
++#define NR_linkat     265
++#define NR_symlinkat  266
++
++#define AT_FDCWD_     (-100)
++#define MAGIC_FD      (AT_FDCWD_-100) // Backdoor::MagicFd    : begin backdoor local-processing suspension window
++#define MAGIC_FD_END  (AT_FDCWD_-101) // Backdoor::MagicFdEnd : end   backdoor local-processing suspension window
++
++#define NSYSCALLS 512 // >= SyscallDescr::NSyscalls ; sized as a power of 2 for the wanted array
++
++// (dev,ino) of the consumer's pid namespace (/proc/self/ns/pid), set from user space before load : lets us report tids as the consumer sees them
++const volatile __u64 g_pidns_dev = 0 ;
++const volatile __u64 g_pidns_ino = 0 ;
++
++// tid/tgid of the current task in the consumer's pid namespace (so /proc/<tid> is resolvable by the consumer, even under WSL where bpf global pids differ)
++static __always_inline void _ns_ids( __u32* tid , __u32* tgid ) {
++	struct bpf_pidns_info ns = {} ;
++	if (bpf_get_ns_current_pid_tgid( g_pidns_dev , g_pidns_ino , &ns , sizeof(ns) )==0) { *tid = ns.pid ; *tgid = ns.tgid ; }
++	else                                                                                { *tid = 0      ; *tgid = 0       ; }
++}
++
++struct traced_val {
++	__u8 enabled ;  // mirrors the autodep enable bit (toggled through the backdoor), inherited by children
++	__u8 suspend ;  // if set, this thread is inside the backdoor local-processing fallback : do not record its accesses
++} ;
++
++struct {                                       // filters events to the traced process sub-tree ; keyed by tid (in the tracer pid namespace)
++	__uint(type       ,BPF_MAP_TYPE_HASH   ) ;
++	__uint(max_entries,65536               ) ;
++	__uint(map_flags  ,BPF_F_NO_PREALLOC   ) ; // only live threads consume memory
++	__type(key        ,__u32               ) ;
++	__type(value      ,struct traced_val   ) ;
++} traced SEC(".maps") ;
++
++struct {                                       // syscalls to record : wanted[nr]!=0 ; filled by user space from SyscallDescr::s_tab
++	__uint(type       ,BPF_MAP_TYPE_ARRAY  ) ;
++	__uint(max_entries,NSYSCALLS           ) ;
++	__type(key        ,__u32               ) ;
++	__type(value      ,__u8                ) ;
++} wanted SEC(".maps") ;
++
++
++struct {                                       // partial event being built for an in-progress syscall ; keyed by tid , alive between sys_enter and sys_exit
++	__uint(type       ,BPF_MAP_TYPE_HASH   ) ;
++	__uint(max_entries,8192                ) ;
++	__uint(map_flags  ,BPF_F_NO_PREALLOC   ) ; // value is large (~12KB) : only in-flight syscalls consume memory
++	__type(key        ,__u32               ) ;
++	__type(value      ,struct ebpf_event   ) ;
++} events SEC(".maps") ;
++
++struct {                                            // always-zero template used to (re)initialize an events entry without putting a huge value on the BPF stack
++	__uint(type       ,BPF_MAP_TYPE_PERCPU_ARRAY) ;
++	__uint(max_entries,1                        ) ;
++	__type(key        ,__u32                    ) ;
++	__type(value      ,struct ebpf_event        ) ;
++} zero SEC(".maps") ;
++
++struct {                                            // scratch to build an io_uring event off-stack (io_uring ops have no sys_enter/sys_exit pairing)
++	__uint(type       ,BPF_MAP_TYPE_PERCPU_ARRAY) ;
++	__uint(max_entries,1                        ) ;
++	__type(key        ,__u32                    ) ;
++	__type(value      ,struct ebpf_event        ) ;
++} io_scratch SEC(".maps") ;
++
++struct {
++	__uint(type       ,BPF_MAP_TYPE_RINGBUF) ;
++	__uint(max_entries,64<<20              ) ; // large enough to absorb bursts ; an overflow makes the job fail (never a silent dep loss)
++} rb SEC(".maps") ;
++
++static __always_inline __u32 _hdr_sz(__u32 n_blobs) {
++	return offsetof(struct ebpf_event,blobs) + n_blobs*sizeof(struct ebpf_blob) ;
++}
++
++// append a captured kernel string as the next blob ; the slot is picked by a switch so its offset is constant (the verifier rejects a variable-offset destination for a large write)
++static __always_inline void _add_blob( struct ebpf_event* ev , __u64 key , const char* name ) {
++	__u32             n = ev->n_blobs ;
++	struct ebpf_blob* b ;
++	switch (n) {
++		case 0  : b = &ev->blobs[0] ; break ;
++		case 1  : b = &ev->blobs[1] ; break ;
++		case 2  : b = &ev->blobs[2] ; break ;
++		default : return ;
++	}
++	long len = bpf_probe_read_kernel_str( b->data , EBPF_BLOB_MAX , name ) ;
++	if (len<=0) return ;
++	b->addr     = key   ;
++	b->len      = len   ;
++	ev->n_blobs = n + 1 ;
++}
++
++// resolve the current task's working directory in kernel context, storing its components (leaf first, NUL-separated) into ev->cwd
++// done at access time (the task is current and alive), so the consumer never needs /proc (which is gone once a short-lived process exited)
++#define CWD_MAX_DEPTH 40
++static __always_inline void _fill_cwd(struct ebpf_event* ev) {
++	ev->cwd_len = 0 ;
++	struct task_struct* t  = bpf_get_current_task_btf() ;
++	struct fs_struct*   fs = BPF_CORE_READ(t,fs)        ;
++	if (!fs) return ;
++	struct dentry*   dentry = BPF_CORE_READ(fs,pwd.dentry) ;
++	struct vfsmount* vmnt   = BPF_CORE_READ(fs,pwd.mnt   ) ;
++	struct mount*    mnt    = (struct mount*)( (char*)vmnt - bpf_core_field_offset(struct mount,mnt) ) ;
++	__u32 off = 0 ;
++	#pragma unroll
++	for( int i=0 ; i<CWD_MAX_DEPTH ; i++ ) {
++		struct dentry* parent   = BPF_CORE_READ(dentry,d_parent   ) ;
++		struct dentry* mnt_root = BPF_CORE_READ(mnt,mnt.mnt_root   ) ;
++		if (dentry==mnt_root) {                                                 // reached the root of the current mount : cross to the parent mount
++			struct mount* mp = BPF_CORE_READ(mnt,mnt_parent) ;
++			if (mnt==mp) break ;                                                // global root reached
++			dentry = BPF_CORE_READ(mnt,mnt_mountpoint) ;
++			mnt    = mp                                ;
++			continue ;
++		}
++		if (dentry==parent) break ;                                             // safety : detached dentry
++		const char* name = (const char*)BPF_CORE_READ(dentry,d_name.name) ;
++		if (!name) break ;
++		if ( off >= EBPF_BLOB_MAX/2 ) break ;                                   // cwd limited to ~half the buffer, leaving room for one 256-byte component
++		__u32 woff = off & (EBPF_BLOB_MAX/2-1) ;                                // mask so the verifier knows woff+256 stays within cwd (independently of off's history)
++		long  n    = bpf_probe_read_kernel_str( &ev->cwd[woff] , 256 , name ) ;
++		if (n<=0) break ;
++		off    = woff + (__u32)n ;                                              // n includes the terminating NUL : components stay NUL-separated
++		dentry = parent          ;
++	}
++	ev->cwd_len = off ;
++}
++
++//
++// syscalls
++//
++
++SEC("tracepoint/raw_syscalls/sys_enter")
++int on_sys_enter(struct trace_event_raw_sys_enter* ctx) {
++	__u32 tid = (__u32)bpf_get_current_pid_tgid() ;
++	long  id  = ctx->id                           ;
++	// self-registration marker : the child announces itself as the root of the traced sub-tree, in the namespace we see here
++	if ( id==NR_readlinkat && (int)ctx->args[0]==EBPF_REGISTER_FD ) {
++		struct traced_val v = { .enabled=1 , .suspend=0 } ;
++		bpf_map_update_elem( &traced , &tid , &v , BPF_ANY ) ;
++		return 0 ;
++	}
++	struct traced_val* tv  = bpf_map_lookup_elem(&traced,&tid)       ;
++	if (!tv) return 0 ;                                                // not part of the traced sub-tree
++	if ( id<0 || id>=NSYSCALLS ) return 0 ;
++	// backdoor suspension window : the magic readlinkat calls delimit the local-processing fallback whose own syscalls must not be recorded
++	if (id==NR_readlinkat) {
++		int dfd = (int)ctx->args[0] ;
++		if (dfd==MAGIC_FD    ) { tv->suspend = 1 ; return 0 ; }
++		if (dfd==MAGIC_FD_END) { tv->suspend = 0 ; return 0 ; }
++	}
++	if (tv->suspend) return 0 ;
++	__u32 wk = id ; __u8* w = bpf_map_lookup_elem(&wanted,&wk) ;
++	if ( !w || !*w ) return 0 ;                                        // syscall not recorded by this method
++	// (re)initialize the per-tid event from the zero template
++	__u32              zk = 0                              ;
++	struct ebpf_event* z  = bpf_map_lookup_elem(&zero,&zk) ;
++	if (!z) return 0 ;
++	bpf_map_update_elem(&events,&tid,z,BPF_ANY) ;
++	struct ebpf_event* ev = bpf_map_lookup_elem(&events,&tid) ;
++	if (!ev) return 0 ;
++	ev->nr       = id                      ;
++	_ns_ids( &ev->tid , &ev->pid ) ;                                   // tids as the consumer sees them (for /proc resolution)
++	ev->is32     = 0                       ;
++	ev->n_blobs  = 0                       ;
++	ev->stamp_ns = bpf_ktime_get_boot_ns() ;
++	_fill_cwd(ev) ;
++	// /!\ read each arg at a constant offset from ctx : a plain loop makes clang build a moving ctx pointer, which the verifier rejects ("dereference of modified ctx ptr")
++	#define RD_ARG(i) (((volatile struct trace_event_raw_sys_enter*)ctx)->args[i])
++	ev->args[0] = RD_ARG(0) ; ev->args[1] = RD_ARG(1) ; ev->args[2] = RD_ARG(2) ;
++	ev->args[3] = RD_ARG(3) ; ev->args[4] = RD_ARG(4) ; ev->args[5] = RD_ARG(5) ;
++	#undef RD_ARG
++	// openat2 : the open_how struct is not seen by getname, capture it directly from user space
++	if (id==NR_openat2) {
++		struct ebpf_blob* b = &ev->blobs[0] ;
++		b->addr = ctx->args[2] ;
++		b->len  = sizeof(struct open_how) ;
++		if ( bpf_probe_read_user(b->data,sizeof(struct open_how),(void*)ctx->args[2])==0 ) ev->n_blobs = 1 ;
++	}
++	return 0 ;
++}
++
++SEC("tracepoint/raw_syscalls/sys_exit")
++int on_sys_exit(struct trace_event_raw_sys_exit* ctx) {
++	__u32              tid = (__u32)bpf_get_current_pid_tgid() ;
++	struct ebpf_event* ev  = bpf_map_lookup_elem(&events,&tid) ;
++	if (!ev) return 0 ;
++	ev->rc = ctx->ret ;
++	__u32 nb = ev->n_blobs ; if (nb>EBPF_MAX_BLOBS) nb = EBPF_MAX_BLOBS ; // help the verifier bound the output size
++	bpf_ringbuf_output( &rb , ev , _hdr_sz(nb) , 0 ) ;
++	bpf_map_delete_elem(&events,&tid) ;
++	return 0 ;
++}
++
++// getname_flags copies the user path into a kernel buffer for (almost) every path-taking syscall : capture it, keyed by the user pointer
++SEC("fexit/getname_flags")
++int BPF_PROG( on_getname , const char* user , int flags , struct filename* ret ) {
++	__u32              tid = (__u32)bpf_get_current_pid_tgid() ;
++	struct ebpf_event* ev  = bpf_map_lookup_elem(&events,&tid) ;
++	if (!ev) return 0 ;
++	if ( ret==0 || (unsigned long)ret >= -4095UL ) return 0 ;           // IS_ERR : getname failed
++	const char* name = BPF_CORE_READ(ret,name) ;
++	if (!name) return 0 ;
++	__u64 uptr = (__u64)BPF_CORE_READ(ret,uptr) ;
++	_add_blob( ev , uptr ? uptr : (__u64)(unsigned long)name , name ) ; // key must match the syscall argument, which is the user pointer
++	return 0 ;
++}
++
++//
++// process tracking
++//
++
++SEC("tp_btf/task_newtask")
++int BPF_PROG( on_newtask , struct task_struct* p , __u64 clone_flags ) {
++	__u32              ptid = (__u32)bpf_get_current_pid_tgid() ;
++	struct traced_val* ptv  = bpf_map_lookup_elem(&traced,&ptid) ;
++	if (!ptv) return 0 ;                                              // parent is not traced
++	__u32             ctid = BPF_CORE_READ(p,pid) ;                   // note : io-wq / SQPOLL workers are created here too (via create_io_thread), so io_uring is covered
++	struct traced_val cv   = { .enabled=ptv->enabled , .suspend=0 } ;
++	bpf_map_update_elem(&traced,&ctid,&cv,BPF_ANY) ;
++	return 0 ;
++}
++
++SEC("tp_btf/sched_process_exit")
++int BPF_PROG( on_task_exit , struct task_struct* p ) {
++	__u32 tid = BPF_CORE_READ(p,pid) ;
++	bpf_map_delete_elem(&traced,&tid) ;
++	bpf_map_delete_elem(&events,&tid) ;
++	return 0 ;
++}
++
++//
++// io_uring : translate each path operation into the equivalent syscall event
++//
++
++static __always_inline struct ebpf_event* _io_begin(int* ok) {
++	*ok = 0 ;
++	__u32              tid = (__u32)bpf_get_current_pid_tgid()   ;
++	struct traced_val* tv  = bpf_map_lookup_elem(&traced,&tid)   ;
++	if ( !tv || tv->suspend ) return 0 ;
++	__u32              sk = 0 ; struct ebpf_event* ev = bpf_map_lookup_elem(&io_scratch,&sk) ; if (!ev) return 0 ;
++	// initialize only the fields the io_* handlers do not set themselves (cannot memcpy the whole header : it is too large for the bpf inliner)
++	#pragma unroll
++	for( int i=0 ; i<6 ; i++ ) ev->args[i] = 0 ;
++	ev->n_blobs  = 0 ;
++	ev->is32     = 0 ;
++	_ns_ids( &ev->tid , &ev->pid ) ;         // tids as the consumer sees them (for /proc resolution)
++	ev->stamp_ns = bpf_ktime_get_boot_ns() ;
++	_fill_cwd(ev) ;
++	*ok = 1 ;
++	return ev ;
++}
++
++// append the path referenced by a struct filename* to the event, and return the key to store in the matching args slot
++static __always_inline __u64 _io_path( struct ebpf_event* ev , struct filename* fn ) {
++	if (!fn) return 0 ;
++	const char* name = (const char*)BPF_CORE_READ(fn,name) ;
++	if (!name) return 0 ;
++	__u64 uptr = (__u64)BPF_CORE_READ(fn,uptr) ;
++	__u64 key  = uptr ? uptr : (__u64)(unsigned long)name ;
++	_add_blob( ev , key , name ) ;
++	return key ;
++}
++
++static __always_inline void _io_emit( struct ebpf_event* ev , long res ) {
++	if (res==-11/*-EAGAIN*/) return ;                                      // request will be re-issued (typically from an io-wq worker), record it there
++	ev->rc = res ;
++	__u32 nb = ev->n_blobs ; if (nb>EBPF_MAX_BLOBS) nb = EBPF_MAX_BLOBS ;  // help the verifier bound the output size
++	bpf_ringbuf_output( &rb , ev , _hdr_sz(nb) , 0 ) ;
++}
++
++SEC("fexit/io_openat2")
++int BPF_PROG( on_io_openat2 , struct io_kiocb* req ) {
++	int ok ; struct ebpf_event* ev = _io_begin(&ok) ; if (!ok) return 0 ;
++	struct io_open* op = (struct io_open*)req ;                           // per-op data overlays the head of io_kiocb
++	ev->nr      = NR_openat2 ;
++	ev->args[0] = (__u64)(int)BPF_CORE_READ(op,dfd) ;
++	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,filename) ) ;
++	// how : append as a second blob and point args[2] at it
++	__u32 n = ev->n_blobs ;
++	if (n<EBPF_MAX_BLOBS) {
++		struct ebpf_blob* b = &ev->blobs[n] ;
++		b->addr = (__u64)(unsigned long)req + 1 ;                         // synthetic, unique per request
++		b->len  = sizeof(struct open_how) ;
++		struct open_how how = {} ; BPF_CORE_READ_INTO( &how , op , how ) ;
++		__builtin_memcpy( b->data , &how , sizeof(how) ) ;
++		ev->args[2] = b->addr ;
++		ev->args[3] = sizeof(struct open_how) ;
++		ev->n_blobs = n+1 ;
++	}
++	_io_emit( ev , BPF_CORE_READ(req,cqe.res) ) ;
++	return 0 ;
++}
++
++SEC("fexit/io_statx")
++int BPF_PROG( on_io_statx , struct io_kiocb* req ) {
++	int ok ; struct ebpf_event* ev = _io_begin(&ok) ; if (!ok) return 0 ;
++	struct io_statx* op = (struct io_statx*)req ;
++	ev->nr      = NR_statx ;
++	ev->args[0] = (__u64)(int)BPF_CORE_READ(op,dfd)   ;
++	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,filename) ) ;
++	ev->args[2] = BPF_CORE_READ(op,flags) ;
++	ev->args[3] = BPF_CORE_READ(op,mask ) ;
++	_io_emit( ev , BPF_CORE_READ(req,cqe.res) ) ;
++	return 0 ;
++}
++
++SEC("fexit/io_renameat")
++int BPF_PROG( on_io_renameat , struct io_kiocb* req ) {
++	int ok ; struct ebpf_event* ev = _io_begin(&ok) ; if (!ok) return 0 ;
++	struct io_rename* op = (struct io_rename*)req ;
++	ev->nr      = NR_renameat2 ;
++	ev->args[0] = (__u64)(int)BPF_CORE_READ(op,old_dfd) ;
++	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,oldpath) ) ;
++	ev->args[2] = (__u64)(int)BPF_CORE_READ(op,new_dfd) ;
++	ev->args[3] = _io_path( ev , BPF_CORE_READ(op,newpath) ) ;
++	ev->args[4] = BPF_CORE_READ(op,flags) ;
++	_io_emit( ev , BPF_CORE_READ(req,cqe.res) ) ;
++	return 0 ;
++}
++
++SEC("fexit/io_unlinkat")
++int BPF_PROG( on_io_unlinkat , struct io_kiocb* req ) {
++	int ok ; struct ebpf_event* ev = _io_begin(&ok) ; if (!ok) return 0 ;
++	struct io_unlink* op = (struct io_unlink*)req ;
++	ev->nr      = NR_unlinkat ;
++	ev->args[0] = (__u64)(int)BPF_CORE_READ(op,dfd) ;
++	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,filename) ) ;
++	ev->args[2] = BPF_CORE_READ(op,flags) ;
++	_io_emit( ev , BPF_CORE_READ(req,cqe.res) ) ;
++	return 0 ;
++}
++
++SEC("fexit/io_mkdirat")
++int BPF_PROG( on_io_mkdirat , struct io_kiocb* req ) {
++	int ok ; struct ebpf_event* ev = _io_begin(&ok) ; if (!ok) return 0 ;
++	struct io_mkdir* op = (struct io_mkdir*)req ;
++	ev->nr      = NR_mkdirat ;
++	ev->args[0] = (__u64)(int)BPF_CORE_READ(op,dfd) ;
++	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,filename) ) ;
++	ev->args[2] = BPF_CORE_READ(op,mode) ;
++	_io_emit( ev , BPF_CORE_READ(req,cqe.res) ) ;
++	return 0 ;
++}
++
++SEC("fexit/io_linkat")
++int BPF_PROG( on_io_linkat , struct io_kiocb* req ) {
++	int ok ; struct ebpf_event* ev = _io_begin(&ok) ; if (!ok) return 0 ;
++	struct io_link* op = (struct io_link*)req ;
++	ev->nr      = NR_linkat ;
++	ev->args[0] = (__u64)(int)BPF_CORE_READ(op,old_dfd) ;
++	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,oldpath) ) ;
++	ev->args[2] = (__u64)(int)BPF_CORE_READ(op,new_dfd) ;
++	ev->args[3] = _io_path( ev , BPF_CORE_READ(op,newpath) ) ;
++	ev->args[4] = BPF_CORE_READ(op,flags) ;
++	_io_emit( ev , BPF_CORE_READ(req,cqe.res) ) ;
++	return 0 ;
++}
++
++SEC("fexit/io_symlinkat")
++int BPF_PROG( on_io_symlinkat , struct io_kiocb* req ) {
++	int ok ; struct ebpf_event* ev = _io_begin(&ok) ; if (!ok) return 0 ;
++	struct io_link* op = (struct io_link*)req ;                           // symlinkat uses struct io_link in io_uring
++	ev->nr      = NR_symlinkat ;
++	ev->args[0] = 0 ;                                                     // target string : not resolved by Record::Symlink , unused in replay
++	ev->args[1] = (__u64)(int)BPF_CORE_READ(op,new_dfd) ;
++	ev->args[2] = _io_path( ev , BPF_CORE_READ(op,newpath) ) ;            // the link path (the file being created)
++	_io_emit( ev , BPF_CORE_READ(req,cqe.res) ) ;
++	return 0 ;
++}
+diff --git a/src/autodep/ebpf.cc b/src/autodep/ebpf.cc
+new file mode 100644
+index 00000000..8b9ca7a7
+--- /dev/null
++++ b/src/autodep/ebpf.cc
+@@ -0,0 +1,164 @@
++// This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
++// Copyright (c) 2023-2026 Doliam
++// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
++// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
++
++#include "utils.hh"
++
++#include "ebpf.hh"
++
++#if CAN_AUTODEP_EBPF
++
++	#include <sys/wait.h>
++	#include <sys/syscall.h>
++	#include <sys/stat.h>
++	#include <signal.h>
++	#include <unistd.h>
++
++	#include <bpf/libbpf.h>
++	#include <bpf/bpf.h>
++
++	#include "record.hh"
++	#include "syscall_tab.hh"
++	#include "gather.hh"
++
++	#include "ebpf_event.h"
++	#include "ebpf.skel.h"
++
++	using namespace Disk ;
++
++	namespace AutodepEbpf {
++
++		// the loaded & attached BPF programs (global : a single job_exec process, loaded once before namespaces are entered)
++		static struct ebpf* _g_skel = nullptr ;
++
++		// must match struct traced_val in ebpf.bpf.c
++		struct TracedVal {
++			uint8_t enabled ;
++			uint8_t suspend ;
++		} ;
++
++		// print libbpf/verifier diagnostics in full to stderr (the verifier log is large and its failure reason is at the very end)
++		static int _pr( libbpf_print_level lvl , const char* fmt , va_list ap ) {
++			if (lvl>LIBBPF_WARN) return 0 ;
++			return ::vfprintf( stderr , fmt , ap ) ;
++		}
++
++		// user-space consumer : turns each captured event back into the same Record operations as ptrace/seccomp
++		struct Consumer {
++			Record& record(pid_t tid) {
++				auto it = _records.find(tid) ;
++				if (it==_records.end()) it = _records.try_emplace(tid,New,tid).first ;    // Record(New,pid=tid) : RealPath resolves relative paths via /proc/<tid>
++				return it->second ;
++			}
++			void handle( void* data , size_t sz ) {
++				if ( sz<offsetof(ebpf_event,blobs) ) return ;
++				ebpf_event const& ev = *static_cast<ebpf_event const*>(data) ;
++				uint64_t args[6] ; for( int i : iota(6) ) args[i] = ev.args[i] ;
++				AutodepReplay::Mem mem ;
++				uint32_t nb = ev.n_blobs<=EBPF_MAX_BLOBS ? ev.n_blobs : EBPF_MAX_BLOBS ;
++				for( uint32_t i : iota(nb) ) {
++					ebpf_blob const& b   = ev.blobs[i] ;
++					size_t           len = b.len<=EBPF_BLOB_MAX ? b.len : EBPF_BLOB_MAX ;
++					mem[b.addr] = ::string( reinterpret_cast<const char*>(b.data) , len ) ;
++				}
++				::string cwd = _abs_cwd(ev) ;                                             // cwd resolved in-kernel, rebuilt into an absolute path
++				RealPath::s_set_cwd_override( +cwd ? &cwd : nullptr ) ;
++				try                            { AutodepReplay::replay( record(ev.tid) , ev.nr , ev.is32 , args , ev.rc , mem ) ;                             }
++				catch (AutodepReplay::Miss&)   { if (!err) err = "an access could not be recorded (path not captured by ebpf), dependencies may be incomplete" ; }
++				catch (::string const& e   )   { if (!err) err = e ;                                                                                          }
++				RealPath::s_set_cwd_override(nullptr) ;
++			}
++			// rebuild the absolute cwd from the kernel-resolved components (leaf first, NUL-separated)
++			static ::string _abs_cwd(ebpf_event const& ev) {
++				if (!ev.cwd_len) return {} ;
++				::vector<::string> comps ;
++				uint32_t len = ev.cwd_len<=EBPF_BLOB_MAX ? ev.cwd_len : EBPF_BLOB_MAX ;
++				for( uint32_t i=0 ; i<len ; ) {
++					const char* s = reinterpret_cast<const char*>(ev.cwd)+i ;
++					size_t      l = ::strnlen( s , len-i )                   ;
++					if (l) comps.emplace_back( s , l ) ;
++					i += l+1 ;
++				}
++				::string res ;
++				for( size_t k=comps.size() ; k-->0 ; ) { res += '/' ; res += comps[k] ; } // components are leaf first : emit in reverse
++				return +res ? res : "/"s ;
++			}
++			// data
++			::umap<pid_t,Record> _records ;
++			::string             err      ;
++		} ;
++
++		static int _handle_event( void* ctx , void* data , size_t sz ) {
++			static_cast<Consumer*>(ctx)->handle(data,sz) ;
++			return 0 ;
++		}
++
++
++		// runs in the child, just before execve (must be malloc-free) : self-register into the traced set from kernel context via a marker syscall
++		// this makes the traced key be the tid as bpf_get_current_pid_tgid() sees it, which avoids pid-namespace mismatches (e.g. under WSL)
++		static int/*rc*/ _prepare_child(void*) {
++			char c ;
++			::syscall( SYS_readlinkat , EBPF_REGISTER_FD , "" , &c , 1 ) ; // recognized by the sys_enter program ; returns EBADF, harmless
++			return 0 ;
++		}
++
++		// runs in the tracer thread : consume events until the child exits, return its wstatus (the child self-registers, and the kernel ring buffers events until we drain them)
++		static int/*wstatus*/ _process(pid_t child_pid) {
++			SWEAR(_g_skel) ;
++			Lock                lock { Record::s_mutex } ;              // single consumer thread, but Record code asserts the lock is held (like the ptrace tracer)
++			Consumer            cons ;
++			struct ring_buffer* rb   = ::ring_buffer__new( ::bpf_map__fd(_g_skel->maps.rb) , _handle_event , &cons , nullptr ) ;
++			if (!rb) throw "cannot create ebpf ring buffer"s ;
++			//
++			int wstatus = 0 ;
++			for (;;) {
++				int r = ::ring_buffer__poll( rb , 100/*ms*/ ) ;         // process available events, wait up to 100ms
++				if (r<0 && r!=-EINTR) break ;                           // ring buffer error
++				pid_t w = ::waitpid( child_pid , &wstatus , WNOHANG ) ;
++				if ( w==child_pid                 ) break ;             // child is done
++				if ( w<0 && errno!=EINTR && errno!=0 ) break ;          // ECHILD or other : give up waiting
++			}
++			::ring_buffer__consume(rb) ;                                // drain whatever is left
++			::ring_buffer__free   (rb) ;
++			if (+cons.err) throw cons.err ;
++			return wstatus ;
++		}
++
++		void load() {
++			if (_g_skel) return ;                // already loaded (defensive)
++			::libbpf_set_print(_pr) ;            // full libbpf/verifier log goes to stderr
++			struct ebpf* skel = ::ebpf__open() ;
++			if (!skel) throw "cannot open ebpf programs"s ;
++			// tell the BPF programs our pid namespace, so they report tids we can resolve through /proc (init-ns pids from bpf_get_current_pid_tgid would be wrong under WSL)
++			{	struct ::stat st ;
++				if (::stat("/proc/self/ns/pid",&st)==0) {
++					skel->rodata->g_pidns_dev = st.st_dev ;
++					skel->rodata->g_pidns_ino = st.st_ino ;
++				}
++			}
++			if (::ebpf__load(skel)!=0) {
++				::ebpf__destroy(skel) ;
++				throw "cannot load ebpf programs : see the libbpf/verifier log above on stderr (needs CAP_BPF and CAP_PERFMON, e.g. run as root, and a kernel with BTF)"s ;
++			}
++			// select the syscalls to record : those known to SyscallDescr, except the io_uring entry points (their operations are captured on the io_* handlers instead)
++			int wanted_fd = ::bpf_map__fd(skel->maps.wanted) ;
++			for( long nr : iota(long(SyscallDescr::NSyscalls)) ) {
++				SyscallDescr const& d = SyscallDescr::s_tab[nr] ;
++				if (!d.entry) continue ;
++				if ( d.comment==Comment::io_uring_enter || d.comment==Comment::io_uring_register || d.comment==Comment::io_uring_setup ) continue ;
++				uint32_t k = nr ; uint8_t v = 1 ;
++				::bpf_map_update_elem( wanted_fd , &k , &v , BPF_ANY ) ;
++			}
++			if (::ebpf__attach(skel)!=0) {
++				::ebpf__destroy(skel) ;
++				throw "cannot attach ebpf programs : see the libbpf log above on stderr (needs a recent kernel with BTF)"s ;
++			}
++			_g_skel = skel ;
++			Gather::s_ebpf_prepare_child = _prepare_child ;
++			Gather::s_ebpf_process       = _process       ;
++		}
++
++	}
++
++#endif
+diff --git a/src/autodep/ebpf.hh b/src/autodep/ebpf.hh
+new file mode 100644
+index 00000000..102e1385
+--- /dev/null
++++ b/src/autodep/ebpf.hh
+@@ -0,0 +1,10 @@
++// This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
++// Copyright (c) 2023-2026 Doliam
++// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
++// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
++
++#pragma once
++
++namespace AutodepEbpf {
++	void load() ;       // must be called before entering namespaces as it requires privileges, throw a ::string on error
++}
+diff --git a/src/autodep/ebpf_event.h b/src/autodep/ebpf_event.h
+new file mode 100644
+index 00000000..6b47a114
+--- /dev/null
++++ b/src/autodep/ebpf_event.h
+@@ -0,0 +1,54 @@
++// This file is part of the open-lmake distribution (git@github.com:cesar-douady/open-lmake.git)
++// Copyright (c) 2023-2026 Doliam
++// This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
++// This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
++
++// event layout shared between the BPF program (src/autodep/ebpf.bpf.c) and the user-space consumer (src/autodep/ebpf.cc)
++// /!\ plain C, fixed width types only : it must compile both as BPF (clang) and as C++ (included by ebpf.cc)
++
++#ifndef EBPF_EVENT_H
++#define EBPF_EVENT_H
++
++#ifdef __cplusplus
++	#include <cstdint>
++	using ebpf_u8  = uint8_t  ;
++	using ebpf_u32 = uint32_t ;
++	using ebpf_u64 = uint64_t ;
++	using ebpf_s64 = int64_t  ;
++#else
++	typedef unsigned char      ebpf_u8  ;
++	typedef unsigned int       ebpf_u32 ;
++	typedef unsigned long long ebpf_u64 ;
++	typedef long long          ebpf_s64 ;
++#endif
++
++#define EBPF_BLOB_MAX  4096 // enough for a full PATH_MAX path or an open_how struct
++#define EBPF_MAX_BLOBS 3    // at most 2 paths (rename, link) + 1 open_how (openat2)
++
++// the child self-registers into the traced set from kernel context (so the key is always in the namespace bpf_get_current_pid_tgid() uses, avoiding pid-namespace mismatches e.g. under WSL) :
++// prepare_child issues readlinkat(EBPF_REGISTER_FD,...) and the sys_enter program registers the current task on seeing it
++#define EBPF_REGISTER_FD (-300)
++
++// one chunk of tracee memory captured by the kernel (a path string copied by getname_flags, or an open_how struct)
++struct ebpf_blob {
++	ebpf_u64 addr             ;    // user-space address this blob was read at ; it matches the corresponding entry in ebpf_event::args, and is the key used by the replay memory
++	ebpf_u32 len              ;    // number of valid bytes in data
++	ebpf_u8  data[EBPF_BLOB_MAX] ;
++} ;
++
++// one syscall (or io_uring operation translated into the equivalent syscall) to be replayed through the syscall_tab machinery
++struct ebpf_event {
++	ebpf_u64        stamp_ns          ; // date of the access (bpf_ktime_get_boot_ns), reserved for future conservative-date handling
++	ebpf_s64        rc                ; // syscall result (negative means -errno)
++	ebpf_u64        args[6]           ; // syscall arguments as seen at syscall entry (pointer args are user-space addresses matching a blob)
++	ebpf_s64        nr                ; // syscall number, index into SyscallDescr::s_tab (io_uring ops are mapped to their syscall equivalent)
++	ebpf_u32        tid               ; // thread id (in the tracer pid namespace) used to resolve /proc/<tid>/{cwd,fd}
++	ebpf_u32        pid               ; // thread group id
++	ebpf_u32        is32              ; // if set, the syscall used the 32-bit ABI (index into s_tab32)
++	ebpf_u32        cwd_len           ; // number of valid bytes in cwd (0 if not resolved)
++	ebpf_u8         cwd[EBPF_BLOB_MAX]  ; // current working directory resolved in-kernel : path components, leaf first, NUL-separated (rebuilt into an absolute path by the consumer, avoids /proc which is unreliable once the task exited)
++	ebpf_u32        n_blobs           ;
++	struct ebpf_blob blobs[EBPF_MAX_BLOBS] ;
++} ;
++
++#endif
+diff --git a/src/autodep/gather.cc b/src/autodep/gather.cc
+index fbf253bd..b93e56e2 100644
+--- a/src/autodep/gather.cc
++++ b/src/autodep/gather.cc
+@@ -16,6 +16,11 @@ using namespace Hash ;
+ using namespace Re   ;
+ using namespace Time ;
+ 
++#if CAN_AUTODEP_EBPF
++	int/*rc*/      (*Gather::s_ebpf_prepare_child)(void*          ) = nullptr ;
++	int/*wstatus*/ (*Gather::s_ebpf_process      )(pid_t child_pid) = nullptr ;
++#endif
++
+ //
+ // Gather::AccessInfo
+ //
+@@ -517,6 +522,7 @@ void Gather::_trace_child( Fd report_fd , ::latch* ready ) {
+ 	switch (method) {
+ 		/**/                    case AutodepMethod::Ptrace  : _child.pre_exec = AutodepPtrace ::prepare_child ; break ;
+ 		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : _child.pre_exec = AutodepSeccomp::prepare_child ; break ; )
++		IF_CAN_AUTODEP_EBPF   ( case AutodepMethod::Ebpf    : _child.pre_exec = s_ebpf_prepare_child          ; break ; )
+ 	DF}                                                                                                                   // NO_COV
+ 	//vvvvvvvvvvvv
+ 	_child.spawn() ;      // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
+@@ -526,6 +532,7 @@ void Gather::_trace_child( Fd report_fd , ::latch* ready ) {
+ 		switch (method) {
+ 			/**/                    case AutodepMethod::Ptrace  : wstatus = AutodepPtrace ::process(_child.pid) ; break ;
+ 			IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : wstatus = AutodepSeccomp::process(_child.pid) ; break ; )
++			IF_CAN_AUTODEP_EBPF   ( case AutodepMethod::Ebpf    : wstatus = s_ebpf_process         (_child.pid) ; break ; )
+ 		DF}                                                                                                                 // NO_COV
+ 	} catch (::string const& e) {
+ 		wstatus = 255<<8 ;                                                                                                  // exit code 255
+@@ -554,11 +561,15 @@ Fd Gather::_spawn_child() {
+ 	_child.stdin      = child_stdin                           ;
+ 	_child.stdout     = child_stdout                          ;
+ 	_child.stderr     = child_stderr                          ;
++	#if CAN_AUTODEP_EBPF
++		if (method==AutodepMethod::Ebpf) throw_unless( s_ebpf_prepare_child && s_ebpf_process , "autodep method ebpf is not available (tracer not loaded)" ) ;
++	#endif
+ 	// PER_AUTODEP_METHOD : handle case
+ Retry :
+ 	switch (method) {
+ 		/**/                    case AutodepMethod::Ptrace  :
+-		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : ) {
++		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : )
++		IF_CAN_AUTODEP_EBPF   ( case AutodepMethod::Ebpf    : ) {
+ 			// we split the responsability into 2 threads :
+ 			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
+ 			// - child launches target process and watches it using direct wait then report deps using normal socket report
+diff --git a/src/autodep/gather.hh b/src/autodep/gather.hh
+index 2a1f26a5..5d094e1d 100644
+--- a/src/autodep/gather.hh
++++ b/src/autodep/gather.hh
+@@ -45,6 +45,11 @@ struct Gather {                                         // NOLINT(clang-analyzer
+ 	using PD   = Time::Pdate   ;
+ 	using DI   = DepInfo       ;
+ 	static constexpr Time::Delay HeartbeatTick { 10 } ; // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 10s seems a good compromize
++	#if CAN_AUTODEP_EBPF
++		// the ebpf tracer requires libbpf and is only linked in executables supporting it (job_exec & lautodep), which set these hooks
++		static int/*rc*/      (*s_ebpf_prepare_child)(void*          ) ;
++		static int/*wstatus*/ (*s_ebpf_process      )(pid_t child_pid) ;
++	#endif
+ 	struct AccessInfo {
+ 		// cxtors & co
+ 		AccessInfo() = default ;
+diff --git a/src/autodep/lautodep.cc b/src/autodep/lautodep.cc
+index 95bafb64..c0e060d4 100644
+--- a/src/autodep/lautodep.cc
++++ b/src/autodep/lautodep.cc
+@@ -15,6 +15,10 @@
+ 
+ #include "gather.hh"
+ 
++#if CAN_AUTODEP_EBPF
++	#include "ebpf.hh"
++#endif
++
+ using namespace Disk ;
+ using namespace Py   ;
+ using namespace Time ;
+@@ -132,6 +136,9 @@ int main( int argc , char* argv[] ) {
+ 	#if CAN_AUTODEP_SECCOMP
+ 		autodep_method_doc << ", seccomp" ;
+ 	#endif
++	#if CAN_AUTODEP_EBPF
++		autodep_method_doc << ", ebpf" ;
++	#endif
+ 	autodep_method_doc << ')' ;
+ 	Syntax<CmdFlag> syntax {{
+ 		{ CmdFlag::AutoMkdir       , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                         } }
+@@ -220,6 +227,12 @@ int main( int argc , char* argv[] ) {
+ 		}
+ 		//
+ 		jsrr.interpreter = ::move(cmd_line.args) ;
++		#if CAN_AUTODEP_EBPF
++			// loading ebpf tracer requires privileges, hence it must be done before entering namespaces
++			if (jsrr.method==AutodepMethod::Ebpf)
++				try                       { AutodepEbpf::load() ; }
++				catch (::string const& e) { exit(Rc::System,e) ;  }
++		#endif
+ 		jsrr.enter(
+ 			/*out  */::ref(::vector_s())
+ 		,	/*.    */::ref(::string                ())/*repo_root_s*/
+diff --git a/src/autodep/syscall_tab.cc b/src/autodep/syscall_tab.cc
+index e58d2157..6fbd07fd 100644
+--- a/src/autodep/syscall_tab.cc
++++ b/src/autodep/syscall_tab.cc
+@@ -17,7 +17,20 @@
+ 
+ #include "syscall_tab.hh"
+ 
++#if CAN_AUTODEP_EBPF
++	// when set (during ebpf replay), tracee memory is served from here (keyed by user address) instead of from proc_mem
++	static thread_local AutodepReplay::Mem const* _t_replay_mem = nullptr ;
++#endif
++
+ [[maybe_unused]] static void _peek( Fd proc_mem , char* dst , uint64_t src , size_t sz ) {
++	#if CAN_AUTODEP_EBPF
++		if (_t_replay_mem) {
++			auto it = _t_replay_mem->find(src) ;
++			if ( it==_t_replay_mem->end() || it->second.size()<sz ) throw AutodepReplay::Miss{} ;
++			::memcpy( dst , it->second.data() , sz ) ;
++			return ;
++		}
++	#endif
+ 	if (!proc_mem) { ::memcpy( dst , reinterpret_cast<const char*>(src) , sz ) ; return ; }
+ 	while (sz) {
+ 		ssize_t cnt = ::pread( proc_mem , dst , sz , src ) ; if (cnt<=0) throw cat("cannot peek at address 0x",to_hex(src)) ;
+@@ -28,6 +41,9 @@
+ }
+ 
+ [[maybe_unused]] static void _poke( Fd proc_mem , uint64_t dst , const char* src , size_t sz ) {
++	#if CAN_AUTODEP_EBPF
++		if (_t_replay_mem) throw AutodepReplay::Miss{} ; // cannot write back to the tracee during asynchronous replay (only used by the backdoor, which is not replayed)
++	#endif
+ 	if (!proc_mem) { ::memcpy( reinterpret_cast<char*>(dst) , src , sz ) ; return ; }
+ 	while (sz) {
+ 		ssize_t cnt = ::pwrite( proc_mem , src , sz , dst ) ; if (cnt<=0) throw cat("cannot poke at address 0x",to_hex(dst)) ;
+@@ -40,6 +56,14 @@
+ // return null terminated string pointed by src in process space
+ [[maybe_unused]] static ::string _get_str( Fd proc_mem , uint64_t src ) {
+ 	if (!src     ) return {}                                   ;
++	#if CAN_AUTODEP_EBPF
++		if (_t_replay_mem) {
++			auto it = _t_replay_mem->find(src) ;
++			if (it==_t_replay_mem->end()) throw AutodepReplay::Miss{} ;
++			::string const& b = it->second                       ;
++			return b.substr( 0 , ::strnlen(b.data(),b.size()) ) ;
++		}
++	#endif
+ 	if (!proc_mem) return {reinterpret_cast<const char*>(src)} ;
+ 	::string res                      ;
+ 	char     buf[::min(PAGE_SZ,1024)] ; // filenames longer than 1024 are really exceptional, no need to anticipate more than that
+@@ -587,3 +611,28 @@ template<uint32_t SeccompRetCatch> static constexpr SyscallDescr::BpfProg Syscal
+ 
+ /**/                    SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog_ptrace  = SyscallDescrBpfProg<SECCOMP_RET_TRACE     > ;
+ IF_CAN_AUTODEP_SECCOMP( SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog_seccomp = SyscallDescrBpfProg<SECCOMP_RET_USER_NOTIF> ; )
++
++#if CAN_AUTODEP_EBPF
++	// replay one captured syscall through the same entry/exit machinery as ptrace/seccomp
++	// mirrors the exit handling of AutodepPtrace::PidInfo::event, except the result is already known (no emulation)
++	void AutodepReplay::replay( Record& r , long nr , bool is32 , uint64_t args[6] , int64_t res , AutodepReplay::Mem const& mem ) {
++		if ( nr<0 || nr>=SyscallDescr::NSyscalls ) return ;
++		#if HAS_32
++			SyscallDescr const& descr = is32 ? SyscallDescr::s_tab32[nr] : SyscallDescr::s_tab[nr] ;
++		#else
++			(void)is32 ;
++			SyscallDescr const& descr =                                    SyscallDescr::s_tab[nr] ;
++		#endif
++		if (!descr.entry) return ;
++		_t_replay_mem = &mem ;
++		try {
++			int64_t old_rc = res ;
++			if (res<0) { old_rc = -1 ; errno = -res ; }                                                          // present the result the way the exit handlers expect it
++			auto [ctx,refresh] = descr.entry( r , Fd()/*proc_mem*/ , args , false/*emulate*/ , descr.comment ) ;
++			(void)refresh ;                                                                                      // memory/word-size refresh is meaningless for replay
++			if ( ctx && descr.exit ) descr.exit( ctx , r , Fd()/*proc_mem*/ , old_rc ) ;
++		} catch (::string const&) {                                                      // entry could not process this call (e.g. simple path, unsupported flag) : ignore, as ptrace would
++		} catch (AutodepReplay::Miss&) { _t_replay_mem = nullptr ; throw ; }             // a needed blob was missing : propagate so the job is failed
++		_t_replay_mem = nullptr ;
++	}
++#endif
+diff --git a/src/autodep/syscall_tab.hh b/src/autodep/syscall_tab.hh
+index 07a41819..02d70add 100644
+--- a/src/autodep/syscall_tab.hh
++++ b/src/autodep/syscall_tab.hh
+@@ -17,6 +17,12 @@
+ 	#define IF_CAN_AUTODEP_SECCOMP(...)
+ #endif
+ 
++#if CAN_AUTODEP_EBPF
++	#define IF_CAN_AUTODEP_EBPF(...) __VA_ARGS__
++#else
++	#define IF_CAN_AUTODEP_EBPF(...)
++#endif
++
+ #if HAS_32
+ 	#define IF_HAS_32(...) __VA_ARGS__
+ #else
+@@ -48,6 +54,17 @@ struct SyscallDescr {
+ 	Comment                                   comment                                                                   = Comment::None ;
+ } ;
+ 
++#if CAN_AUTODEP_EBPF
++	// support for replaying a syscall from a captured event (ebpf method) rather than from a live, stopped tracee (ptrace/seccomp)
++	// the tracee memory is served from the captured blobs instead of /proc/<pid>/mem
++	namespace AutodepReplay {
++		struct Miss {} ;                                                 // thrown when a needed memory blob was not captured (lost event) : distinct from the ::string thrown for ignorable cases
++		using Mem = ::umap<uint64_t/*user address*/,::string/*bytes*/> ;
++		// replay one syscall through SyscallDescr::s_tab : run entry then, if it asks for it, exit with the recorded result
++		void replay( Record& , long nr , bool is32 , uint64_t args[6] , int64_t rc , Mem const& ) ;
++	}
++#endif
++
+ #ifdef LD_PRELOAD
+ 	#define ENUMERATE_LD_PRELOAD_LIBCALLS \
+ 		,	LIBCALL_ENTRY(dlmopen ) \
+diff --git a/src/job_exec.cc b/src/job_exec.cc
+index fb20aeff..36490747 100644
+--- a/src/job_exec.cc
++++ b/src/job_exec.cc
+@@ -17,6 +17,10 @@
+ 
+ #include "autodep/gather.hh"
+ 
++#if CAN_AUTODEP_EBPF
++	#include "autodep/ebpf.hh"
++#endif
++
+ using namespace Disk ;
+ using namespace Hash ;
+ using namespace Re   ;
+@@ -267,6 +271,12 @@ int main( int argc , char* argv[] ) {
+ 			if ( size_t pos=chroot_tag.find('.') ; pos!=Npos ) chroot_tag.resize(pos) ;
+ 			else                                               rm_slash(chroot_tag)   ;
+ 		}
++		#if CAN_AUTODEP_EBPF
++			// loading ebpf tracer requires privileges, hence it must be done before entering namespaces
++			if (g_start_info.method==AutodepMethod::Ebpf)
++				try                       { AutodepEbpf::load() ;                          }
++				catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }
++		#endif
+ 		try {
+ 			g_start_info.enter(
+ 				/*out*/  enter_accesses
+diff --git a/src/real_path.cc b/src/real_path.cc
+index 69687f65..3db39319 100644
+--- a/src/real_path.cc
++++ b/src/real_path.cc
+@@ -11,6 +11,9 @@
+ 
+ using namespace Disk ;
+ 
++// when set (ebpf replay), a relative AT_FDCWD access uses this in-kernel-resolved cwd instead of /proc/<pid>/cwd
++thread_local ::string const* RealPath::_s_cwd_override = nullptr ;
++
+ static FileLoc _lcl_file_loc(::string_view file) {
+ 	::string_view s_private_admin_dir { PrivateAdminDirS , sizeof(PrivateAdminDirS)-2/* /+null*/ } ;
+ 	if (!file.starts_with(s_private_admin_dir) ) return FileLoc::Repo  ;
+@@ -126,7 +129,9 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
+ 	bool        exists        = true              ;                       // if false, we have seen a non-existent component and there cannot be symlinks within it
+ 	size_t      pos           = is_abs(file.file) ;
+ 	if (!pos) {                                                           // file is relative, meaning relative to at
+-		if (file.at==Fd::Cwd) {
++		if ( file.at==Fd::Cwd && _s_cwd_override ) {                      // ebpf replay : cwd was resolved in-kernel at access time (/proc is unreliable once the task exited)
++			real = *_s_cwd_override ;
++		} else if (file.at==Fd::Cwd) {
+ 			if (pid) real = read_lnk(cat("/proc/",pid,"/cwd")) ;
+ 			else     real = cwd()                              ;
+ 		} else {
+diff --git a/src/real_path.hh b/src/real_path.hh
+index b63b8cdd..52df0f3b 100644
+--- a/src/real_path.hh
++++ b/src/real_path.hh
+@@ -75,6 +75,9 @@ public :
+ 	RealPath() = default ;
+ 	RealPath ( RealPathEnv const& rpe , pid_t p=0 ) ;
+ 	void operator>>(::string&) const ;
++	// ebpf replay : override the cwd used for relative AT_FDCWD accesses (resolved in-kernel), as /proc/<pid>/cwd is unreliable once the task exited
++	static void s_set_cwd_override(::string const* c) { _s_cwd_override = c ; }
++	static thread_local ::string const* _s_cwd_override ;
+ 	// services
+ 	FileLoc file_loc(::string const& real) const { return _env->file_loc(real) ; }
+ 	//
+diff --git a/src/rpc_job.cc b/src/rpc_job.cc
+index c1f2805d..ca824626 100644
+--- a/src/rpc_job.cc
++++ b/src/rpc_job.cc
+@@ -1163,16 +1163,18 @@ void JobStartRpcReply::mk_lmake_version() {
+ 		lmake_version.py2_ld_library_path = PY2_LD_LIBRARY_PATH ;
+ 		return ;
+ 	}
+-	try {                                            // if using a different lmake, we must check compatibility and extract system info
+-		[[maybe_unused]] bool has_ld_audit = false ;
+-		[[maybe_unused]] bool has_seccomp  = false ;
+-		uint64_t              v_job        = 0     ;
++	try {                                                // if using a different lmake, we must check compatibility and extract system info
++		[[maybe_unused]] bool can_autodep_ebpf = false ;
++		[[maybe_unused]] bool has_ld_audit     = false ;
++		[[maybe_unused]] bool has_seccomp      = false ;
++		uint64_t              v_job            = 0     ;
+ 		for( ::string const& line : AcFd(phy_lmake_root_s+"_lib/version.py",{.err_ok=true}).read_lines() ) {
+ 			if (line[0]=='#') continue ;
+ 			size_t   pos = line.find('=')                ; if (pos==Npos) continue ;
+ 			::string key = strip(line.substr(0    ,pos)) ;
+ 			::string val = strip(line.substr(pos+1    )) ;
+ 			switch (key[0]) {
++				case 'c' : if      (key=="can_autodep_ebpf"   ) can_autodep_ebpf                  = (val=="True")              ; break ;
+ 				case 'h' : if      (key=="has_ld_audit"       ) has_ld_audit                      = (val=="True")              ;
+ 				/**/       else if (key=="has_seccomp"        ) has_seccomp                       = (val=="True")              ;
+ 				break ;
+@@ -1195,6 +1197,9 @@ void JobStartRpcReply::mk_lmake_version() {
+ 		#if HAS_SECCOMP
+ 			if (method==AutodepMethod::Seccomp) throw_unless( has_seccomp  , "seccomp is not supported as autodep method"  ) ;
+ 		#endif
++		#if CAN_AUTODEP_EBPF
++			if (method==AutodepMethod::Ebpf) throw_unless( can_autodep_ebpf , "ebpf is not supported as autodep method" ) ;
++		#endif
+ 	} catch (::string const& e) {
+ 		throw cat("cannot execute job with incompatible open-lmake (",e,") as per file _lib/version.py in root dir ",phy_lmake_root_s,rm_slash) ;
+ 	}
+diff --git a/src/rpc_job.hh b/src/rpc_job.hh
+index 538f5439..58556748 100644
+--- a/src/rpc_job.hh
++++ b/src/rpc_job.hh
+@@ -28,6 +28,9 @@ enum class AutodepMethod : uint8_t {
+ #if CAN_AUTODEP_SECCOMP
+ 	,	Seccomp
+ #endif
++#if CAN_AUTODEP_EBPF
++	,	Ebpf
++#endif
+ ,	LdPreload
+ ,	LdPreloadJemalloc
+ #if HAS_LD_AUDIT
+diff --git a/src/version.cc b/src/version.cc
+index 712d78cc..8801e28c 100644
+--- a/src/version.cc
++++ b/src/version.cc
+@@ -1,15 +1,15 @@
+ #include "version.hh"
+ namespace Version {
+-	uint64_t    constexpr Cache = 58      ; // 85a124b0ea7f0febcb79ddc6be2bfbd5
++	uint64_t    constexpr Cache = 59      ; // 3a2d6291512f4d237f04b8a1df6d7eb9
+ 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
+-	uint64_t    constexpr Repo  = 63      ; // 8e16490aa9d9488f74af603d978b67ca
++	uint64_t    constexpr Repo  = 64      ; // d9bb2bf2128755d868d154b472af22a9
+ 	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
+ 	const char* const     Major = "26.08" ;
+ 	uint64_t    constexpr Tag   = 0       ;
+ }
+ 
+ // ********************************************
+-// * Cache : 85a124b0ea7f0febcb79ddc6be2bfbd5 *
++// * Cache : 3a2d6291512f4d237f04b8a1df6d7eb9 *
+ // ********************************************
+ //
+ //	// START_OF_VERSIONING CACHE REPO JOB
+@@ -434,6 +434,9 @@ namespace Version {
+ //	#if CAN_AUTODEP_SECCOMP
+ //		,	Seccomp
+ //	#endif
++//	#if CAN_AUTODEP_EBPF
++//		,	Ebpf
++//	#endif
+ //	,	LdPreload
+ //	,	LdPreloadJemalloc
+ //	#if HAS_LD_AUDIT
+@@ -1182,7 +1185,7 @@ namespace Version {
+ //		// END_OF_VERSIONING
+ 
+ // *******************************************
+-// * Repo : 8e16490aa9d9488f74af603d978b67ca *
++// * Repo : d9bb2bf2128755d868d154b472af22a9 *
+ // *******************************************
+ //
+ //	// START_OF_VERSIONING CACHE REPO JOB
+@@ -2041,6 +2044,9 @@ namespace Version {
+ //	#if CAN_AUTODEP_SECCOMP
+ //		,	Seccomp
+ //	#endif
++//	#if CAN_AUTODEP_EBPF
++//		,	Ebpf
++//	#endif
+ //	,	LdPreload
+ //	,	LdPreloadJemalloc
+ //	#if HAS_LD_AUDIT

@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 58      ; // 4310313d3505f4fbc4350728e0578b41
+	uint64_t    constexpr Cache = 58      ; // 3fb7783c10332a5fc1773d9f67d3b4cf
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 63      ; // 72e376922fce9fc12e1362d3a20e971b
+	uint64_t    constexpr Repo  = 63      ; // 23368605dc02e1249144921b5fb5f76a
 	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
 	const char* const     Major = "26.09" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 4310313d3505f4fbc4350728e0578b41 *
+// * Cache : 3fb7783c10332a5fc1773d9f67d3b4cf *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -431,7 +431,7 @@ namespace Version {
 //	enum class AutodepMethod : uint8_t {
 //		None
 //	,	Ptrace
-//	#if CAN_AUTODEP_SECCOMP
+//	#if HAS_SECCOMP
 //		,	Seccomp
 //	#endif
 //	,	LdPreload
@@ -1208,7 +1208,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 72e376922fce9fc12e1362d3a20e971b *
+// * Repo : 23368605dc02e1249144921b5fb5f76a *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2064,7 +2064,7 @@ namespace Version {
 //	enum class AutodepMethod : uint8_t {
 //		None
 //	,	Ptrace
-//	#if CAN_AUTODEP_SECCOMP
+//	#if HAS_SECCOMP
 //		,	Seccomp
 //	#endif
 //	,	LdPreload

@@ -1,0 +1,221 @@
+diff --git a/src/autodep/ebpf.bpf.c b/src/autodep/ebpf.bpf.c
+index dd44cc44..c6fe386f 100644
+--- a/src/autodep/ebpf.bpf.c
++++ b/src/autodep/ebpf.bpf.c
+@@ -43,8 +43,9 @@ char LICENSE[] SEC("license") = "GPL" ; // required to use GPL-only helpers
+ // - its own pid namespace (job_cfg[job_id]) so reported tids are resolvable by that job's consumer through /proc
+ 
+ struct job_cfg_val {
+-	__u64 pidns_dev ; // (dev,ino) of the job consumer's pid namespace, so we can report tids as it sees them (bpf_get_ns_current_pid_tgid)
+-	__u64 pidns_ino ;
++	__u64 pidns_dev      ; // (dev,ino) of the job consumer's pid namespace, so we can report tids as it sees them (bpf_get_ns_current_pid_tgid)
++	__u64 pidns_ino      ;
++	__u32 deps_in_system ; // if 0, system files are simple and dropped in-kernel
+ } ;
+ 
+ struct {                                           // job_id -> per-job configuration ; filled by the daemon at job registration
+@@ -76,9 +77,10 @@ static __always_inline void _ns_ids( __u32 job_id , __u32* tid , __u32* tgid ) {
+ }
+ 
+ struct traced_val {
+-	__u32 job_id  ; // job this task belongs to : selects the ring buffer and the pid namespace
+-	__u8  enabled ; // mirrors the autodep enable bit (toggled through the backdoor), inherited by children
+-	__u8  suspend ; // if set, this thread is inside the backdoor local-processing fallback : do not record its accesses
++	__u32 job_id         ; // job this task belongs to : selects the ring buffer and the pid namespace
++	__u8  deps_in_system ; // cached from the job config : whether system files may be deps (else dropped in-kernel)
++	__u8  enabled        ; // mirrors the autodep enable bit (toggled through the backdoor), inherited by children
++	__u8  suspend        ; // if set, this thread is inside the backdoor local-processing fallback : do not record its accesses
+ } ;
+ 
+ struct {                                       // filters events to the traced process sub-trees ; keyed by global tid
+@@ -184,6 +186,59 @@ static __always_inline void _fill_cwd(struct ebpf_event* ev) {
+ 	ev->cwd_len = off ;
+ }
+ 
++//
++// in-kernel "simple path" filter : drop accesses to system files before they reach the ring buffer (perf : avoids flooding it with /usr, /lib, ... opens)
++// /!\ must stay conservative : only drop what user-space Record::s_is_simple would also drop (else a real dep would be lost) ; when unsure, keep the event
++//
++
++static __always_inline bool _pfx( const __u8* d , const char* p , int n ) {                // d starts with p (n chars) and the next char is a component boundary
++	for( int i=0 ; i<n ; i++ ) if (d[i]!=(__u8)p[i]) return false ;                        // (d has at least EBPF_BLOB_MAX bytes and is NUL-terminated, so reads are in-bounds and stop at the NUL)
++	__u8 b = d[n] ;
++	return b=='/' || b==0 ;
++}
++static __always_inline bool _has_dotdot( const __u8* d , __u32 len ) {                     // true if the path contains a ".." component (then we keep the event and let user-space resolve it)
++	if (len>256) len = 256 ;
++	for( int i=1 ; i<255 ; i++ ) {
++		if ( (__u32)(i+1) >= len ) break ;
++		if ( d[i]=='.' && d[i+1]=='.' && d[i-1]=='/' ) {
++			__u8 nxt = ((__u32)(i+2)<len) ? d[i+2] : 0 ;
++			if (nxt=='/' || nxt==0) return true ;
++		}
++	}
++	return false ;
++}
++static __always_inline bool _is_simple( const __u8* d , __u32 len , int deps_in_system ) {
++	if ( len==0 || d[0]!='/' ) return false ;                                              // relative or empty : not simple (keep)
++	if ( _has_dotdot(d,len)  ) return false ;                                              // may escape its top dir : keep and let user-space decide
++	int special = 0 , sys = 0 ;                                                            // special : simple regardless of deps_in_system ; sys : simple only if !deps_in_system
++	if      ( _pfx(d,"/dev",4) ) { special=1 ;                                             // /dev, with the exceptions that are actually processed
++		if (d[4]=='/') {
++			if ( _pfx(d,"/dev/fd",7) || _pfx(d,"/dev/random",11) || _pfx(d,"/dev/urandom",12)
++			  || _pfx(d,"/dev/stderr",11) || _pfx(d,"/dev/stdin",10) || _pfx(d,"/dev/stdout",11) ) return false ;
++		}
++	}
++	else if ( _pfx(d,"/proc",5) ) { special=1 ;                                            // /proc, except /proc/<pid> and /proc/self
++		if (d[5]=='/') {
++			__u8 c = d[6] ;
++			if ( c>='0' && c<='9'      ) return false ;
++			if ( _pfx(d,"/proc/self",10) ) return false ;
++		}
++	}
++	else if ( _pfx(d,"/sys" ,4) ) special = 1 ;
++	else if ( _pfx(d,"/run" ,4) ) special = 1 ;
++	else if ( _pfx(d,"/var" ,4) ) special = 1 ;
++	else if ( _pfx(d,"/usr" ,4) ) sys     = 1 ;
++	else if ( _pfx(d,"/bin" ,4) ) sys     = 1 ;
++	else if ( _pfx(d,"/etc" ,4) ) sys     = 1 ;
++	else if ( _pfx(d,"/opt" ,4) ) sys     = 1 ;
++	else if ( _pfx(d,"/sbin",5) ) sys     = 1 ;
++	else if ( _pfx(d,"/lib32",6) || _pfx(d,"/lib64",6) || _pfx(d,"/lib",4) ) sys = 1 ;
++	else                          return false ;                                           // unknown top dir : keep
++	if (special         ) return true  ;
++	if (!deps_in_system ) return true  ;                                                   // system files are not deps for this job
++	return false ;                                                                         // deps_in_system : keep system files
++}
++
+ //
+ // syscalls
+ //
+@@ -194,7 +249,9 @@ int on_sys_enter(struct trace_event_raw_sys_enter* ctx) {
+ 	long  id  = ctx->id                           ;
+ 	// self-registration marker : the child announces itself (and its job_id, carried in arg 3) as the root of a traced sub-tree, in the namespace we see here
+ 	if ( id==NR_readlinkat && (int)ctx->args[0]==EBPF_REGISTER_FD ) {
+-		struct traced_val v = { .job_id=(__u32)ctx->args[3] , .enabled=1 , .suspend=0 } ;
++		__u32               job_id = (__u32)ctx->args[3]              ;
++		struct job_cfg_val* jc     = bpf_map_lookup_elem(&job_cfg,&job_id) ;
++		struct traced_val   v      = { .job_id=job_id , .deps_in_system=(__u8)(jc?jc->deps_in_system:0) , .enabled=1 , .suspend=0 } ;
+ 		bpf_map_update_elem( &traced , &tid , &v , BPF_ANY ) ;
+ 		return 0 ;
+ 	}
+@@ -245,7 +302,9 @@ int on_sys_exit(struct trace_event_raw_sys_exit* ctx) {
+ 	if (!ev) return 0 ;
+ 	struct traced_val* tv  = bpf_map_lookup_elem(&traced,&tid) ;
+ 	ev->rc = ctx->ret ;
+-	if (tv) _emit( tv->job_id , ev , ev->n_blobs ) ;
++	// drop single-path accesses to system files in-kernel (they are dropped by user-space anyway) ; multi-path ops (rename/link) and fd-based ops are kept
++	bool drop = ev->n_blobs==1 && tv && _is_simple( ev->blobs[0].data , ev->blobs[0].len , tv->deps_in_system ) ;
++	if ( tv && !drop ) _emit( tv->job_id , ev , ev->n_blobs ) ;
+ 	bpf_map_delete_elem(&events,&tid) ;
+ 	return 0 ;
+ }
+@@ -272,9 +331,9 @@ SEC("tp_btf/task_newtask")
+ int BPF_PROG( on_newtask , struct task_struct* p , __u64 clone_flags ) {
+ 	__u32              ptid = (__u32)bpf_get_current_pid_tgid() ;
+ 	struct traced_val* ptv  = bpf_map_lookup_elem(&traced,&ptid) ;
+-	if (!ptv) return 0 ;                                                                    // parent is not traced
+-	__u32             ctid = BPF_CORE_READ(p,pid) ;                                         // note : io-wq / SQPOLL workers are created here too (via create_io_thread), so io_uring is covered
+-	struct traced_val cv   = { .job_id=ptv->job_id , .enabled=ptv->enabled , .suspend=0 } ;
++	if (!ptv) return 0 ;                                           // parent is not traced
++	__u32             ctid = BPF_CORE_READ(p,pid) ;                // note : io-wq / SQPOLL workers are created here too (via create_io_thread), so io_uring is covered
++	struct traced_val cv   = { .job_id=ptv->job_id , .deps_in_system=ptv->deps_in_system , .enabled=ptv->enabled , .suspend=0 } ;
+ 	bpf_map_update_elem(&traced,&ctid,&cv,BPF_ANY) ;
+ 	return 0 ;
+ }
+diff --git a/src/autodep/ebpf.cc b/src/autodep/ebpf.cc
+index 169d5726..32cc1cb9 100644
+--- a/src/autodep/ebpf.cc
++++ b/src/autodep/ebpf.cc
+@@ -142,8 +142,8 @@
+ 		}
+ 
+ 		// connect to the daemon, upload our pid namespace and the recorded-syscall list, and receive this job's ring buffer
+-		void load() {
+-			if (_g_sock>=0) return ;                                                                                                                // already connected (defensive)
++		void load(bool deps_in_system) {
++			if (_g_sock>=0) return ;                                                                // already connected (defensive)
+ 			const char* path = ::getenv(EBPF_SOCK_ENV) ; if (!path||!*path) path = EBPF_SOCK_DFLT ;
+ 			int s = ::socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0) ;
+ 			if (s<0) throw "cannot create ebpf socket"s ;
+@@ -155,6 +155,7 @@
+ 			// hello : our pid namespace + the syscalls to record (owned by syscall_tab ; the daemon has no access to that list)
+ 			ebpf_hello hello = {} ;
+ 			{	struct ::stat st ; if (::stat("/proc/self/ns/pid",&st)==0) { hello.pidns_dev = st.st_dev ; hello.pidns_ino = st.st_ino ; } }
++			hello.deps_in_system = deps_in_system ;                                                 // let the daemon drop system-file accesses in-kernel when they cannot be deps
+ 			uint32_t n = 0 ;
+ 			for( long nr : iota(long(SyscallDescr::NSyscalls)) ) {
+ 				SyscallDescr const& d = SyscallDescr::s_tab[nr] ;
+diff --git a/src/autodep/ebpf.hh b/src/autodep/ebpf.hh
+index 102e1385..5710bfeb 100644
+--- a/src/autodep/ebpf.hh
++++ b/src/autodep/ebpf.hh
+@@ -6,5 +6,5 @@
+ #pragma once
+ 
+ namespace AutodepEbpf {
+-	void load() ;       // must be called before entering namespaces as it requires privileges, throw a ::string on error
++	void load(bool deps_in_system) ; // must be called before entering namespaces as it requires privileges, throw a ::string on error
+ }
+diff --git a/src/autodep/ebpf_daemon.cc b/src/autodep/ebpf_daemon.cc
+index 09f367db..b33bd7b1 100644
+--- a/src/autodep/ebpf_daemon.cc
++++ b/src/autodep/ebpf_daemon.cc
+@@ -145,7 +145,7 @@ int main( int argc , char* argv[] ) {
+ 					} else if ( bpf_map_update_elem(job_rbs_fd,&jid,&rb_fd,BPF_ANY)!=0 ) {
+ 						_log("job %u : cannot register ring buffer : %s",jid,strerror(errno)) ; close(rb_fd) ; rb_fd = -1 ;
+ 					} else {
+-						struct { uint64_t dev , ino ; } cfg = { hello.pidns_dev , hello.pidns_ino } ;
++						struct { uint64_t dev , ino ; uint32_t deps_in_system ; } cfg = { hello.pidns_dev , hello.pidns_ino , hello.deps_in_system } ; // must match struct job_cfg_val in ebpf.bpf.c
+ 						bpf_map_update_elem(job_cfg_fd,&jid,&cfg,BPF_ANY) ;
+ 						reply.ok = 1 ;
+ 					}
+diff --git a/src/autodep/ebpf_event.h b/src/autodep/ebpf_event.h
+index 255fbfd0..b1dfb2e0 100644
+--- a/src/autodep/ebpf_event.h
++++ b/src/autodep/ebpf_event.h
+@@ -37,6 +37,7 @@
+ struct ebpf_hello {                           // client -> daemon : sent once at connect
+ 	ebpf_u64 pidns_dev             ;          // the job's pid namespace (dev,ino of /proc/self/ns/pid), so reported tids are resolvable by the client
+ 	ebpf_u64 pidns_ino             ;
++	ebpf_u32 deps_in_system        ;          // if 0, system files (/usr, /lib, /etc, ...) are "simple" and dropped in-kernel ; if 1, they may be deps and are kept
+ 	ebpf_u32 n_wanted              ;          // number of syscall numbers to record (owned by syscall_tab, uploaded so the daemon need not duplicate the list)
+ 	ebpf_u32 wanted[EBPF_NSYSCALLS] ;         // wanted[i] = syscall number to record (only the first n_wanted entries are meaningful)
+ } ;
+diff --git a/src/autodep/lautodep.cc b/src/autodep/lautodep.cc
+index c0e060d4..4afc15dc 100644
+--- a/src/autodep/lautodep.cc
++++ b/src/autodep/lautodep.cc
+@@ -230,7 +230,7 @@ int main( int argc , char* argv[] ) {
+ 		#if CAN_AUTODEP_EBPF
+ 			// loading ebpf tracer requires privileges, hence it must be done before entering namespaces
+ 			if (jsrr.method==AutodepMethod::Ebpf)
+-				try                       { AutodepEbpf::load() ; }
++				try                       { AutodepEbpf::load(autodep_env.deps_in_system) ; }
+ 				catch (::string const& e) { exit(Rc::System,e) ;  }
+ 		#endif
+ 		jsrr.enter(
+diff --git a/src/job_exec.cc b/src/job_exec.cc
+index 36490747..d42f919b 100644
+--- a/src/job_exec.cc
++++ b/src/job_exec.cc
+@@ -274,7 +274,7 @@ int main( int argc , char* argv[] ) {
+ 		#if CAN_AUTODEP_EBPF
+ 			// loading ebpf tracer requires privileges, hence it must be done before entering namespaces
+ 			if (g_start_info.method==AutodepMethod::Ebpf)
+-				try                       { AutodepEbpf::load() ;                          }
++				try                       { AutodepEbpf::load(g_start_info.autodep_env.deps_in_system) ; }
+ 				catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ; }
+ 		#endif
+ 		try {
+@@ -304,8 +304,8 @@ int main( int argc , char* argv[] ) {
+ 			}
+ 			g_start_info.update_env( /*out*/end_report.dyn_env , g_phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
+ 		}
+-		end_report.os_info                        = get_os_info()                                              ;            // get_os_info() must be called after enter()
+-		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_seq_id) ;            // fast_report_pipe is a pipe and only works locally
++		end_report.os_info                        = get_os_info()                                              ;                         // get_os_info() must be called after enter()
++		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_seq_id) ;                         // fast_report_pipe is a pipe and only works locally
+ 		g_start_info.autodep_env.views_s          = g_start_info.job_space.flat_phys_s()                       ;
+ 		trace("prepared",g_start_info.autodep_env) ;
+ 		//

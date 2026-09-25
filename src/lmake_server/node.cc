@@ -844,7 +844,7 @@ namespace Engine {
 
 	Manual NodeData::manual_refresh( Accesses a , Req req ) {
 		if (buildable==Buildable::Codec) {
-			if (crc==Crc::None) {                                                           // may be created up-to-date remotely as codec table file is (logically) updated simultaneously
+			if (crc==Crc::None) {                    // may be created up-to-date remotely as codec table file is (logically) updated simultaneously
 				::string n    = name() ;
 				FileSig  sig_ { n }    ;
 				if (sig_.exists()) set_crc_date( Crc(n) , sig_ ) ;
@@ -852,19 +852,21 @@ namespace Engine {
 			return {} ;
 		}
 		Manual m = manual({name()}) ;
-		if (m<Manual::Changed) return m ;                                                   // file was not modified
-		if (crc==Crc::None   ) return m ;                                                   // file appeared, it cannot be steady
+		if (m<Manual::Changed) return m ;            // file was not modified
+		if (crc==Crc::None   ) return m ;            // file appeared, it cannot be steady
 		//
 		::string n = name() ;
-		if ( m==Manual::Empty && crc==Crc::Empty ) {                                        // fast path : no need to open file
-			sig = FileSig(n) ;                                                              // /!\ do not inform user when an empty file is updated as this happens spuriously with no reason
+		if ( m==Manual::Empty && crc==Crc::Empty ) { // fast path : no need to open file
+			sig.sig = FileSig(n) ;                   // /!\ do not inform user when an empty file is updated as this happens spuriously with no reason
 			return {} ;
 		}
 		//
-		FileSig sig_ ;
-		Crc     crc_ { n , /*out*/sig_ } ; if (!crc_.match(crc,a)) return m ;               // real modif
+		SigDate sig_ ;
+		Crc     crc_ { n , /*out*/sig_.sig } ;
+		if (!crc_.match(crc,a)) return m ;                                                                                // real modif
+		if ( crc_.match(crc  )) { sig_.date = sig.date ; if (+req) req->audit_node(Color::Note,"manual_steady",idx()) ; } // generate steady message only if really steady
+		else                      sig_.date = New      ;                                                                  // update production date if not really steady
 		set_crc_date( crc_ , sig_ ) ;
-		if ( crc_.match(crc) && +req ) req->audit_node(Color::Note,"manual_steady",idx()) ; // generate steady message only if really steady
 		return {} ;
 	}
 

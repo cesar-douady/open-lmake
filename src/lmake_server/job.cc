@@ -496,44 +496,44 @@ namespace Engine {
 				//
 				if (!crc) {
 					trace("keep_old") ;
-					target->stamp_crc_date() ;                                                                 // any previous state is now the official state
+					target->stamp_crc_date() ;                                                       // any previous state is now the official state
 				} else {
 					if (td.written) {
 						// file dates are very fuzzy and unreliable, at least, filter out targets we generated ourselves
-						if ( +start_date && target->sig.date>start_date ) {                                    // if no start_date, job did not execute, it cannot generate a clash
+						if ( +start_date && target->sig.date>start_date ) {                          // if no start_date, job did not execute, it cannot generate a clash
 							// /!\ This may be very annoying !
 							// A job was running in parallel with us and there was a clash on this target.
 							// There are 2 problems : for us and for them.
 							// For us, it's ok, we will rerun.
-							// But for them, they are already done,  possibly some dependent jobs are done, possibly even Req's are already done and we may have reported ok to the user,
+							// But for them, they are already done, possibly some dependent jobs are done, possibly even Req's are already done and we may have reported ok to the user,
 							// and all that is wrong.
 							// This is too complex and too rare to detect (and ideally handle).
 							// Putting target in clash_nodes will generate a frightening message to user asking to relaunch all commands that were running in parallel.
-							if ( crc.valid() && td.tflags[Tflag::Target] ) {                                   // official targets should have a valid crc, but if not, we dont care
+							if ( crc.valid() && td.tflags[Tflag::Target] ) {                         // official targets should have a valid crc, but if not, we dont care
 								trace("clash",start_date,target->sig.date) ;
-								res.target_reason |= {JobReasonTag::ClashTarget,+target} ;                     // crc is actually unreliable, rerun
+								res.target_reason |= {JobReasonTag::ClashTarget,+target} ;           // crc is actually unreliable, rerun
 							}
 							Job aj = target->actual_job ;
 							if ( +aj && aj!=self && target->crc.valid() && target->actual_tflags[Tflag::Target] && !is_src_anti ) { // existing crc was believed to be reliable but actually was not
-								SWEAR( +aj->rule() , aj ) ;                                                                         // what could be this ruleless job that has been run ?!?
+								SWEAR( +aj->rule() , aj,start_date,target->sig.date ) ;                                             // what could be this ruleless job that has been run ?!?
 								trace("critical_clash",start_date,target->sig.date) ;
 								for( Req r : target->reqs() ) {
 									r->clash_nodes.push(target,{aj,Job(self)}) ;
-									target->req_info(r).done_ = NodeGoal::None ;                            // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
+									target->req_info(r).done_ = NodeGoal::None ;                   // best effort to trigger re-analysis but this cannot be guaranteed (fooled req may be gone)
 								}
 							}
 						}
 						//
-						if (is_src_anti) {                                                                  // source may have been modified
-							old_srcs.try_emplace( target , ::pair(target->sig.sig,target->crc) ) ;          // if it is also a dep, at best the dep will see old sig, and we want to associate old crc
-							if (!crc.valid()) crc = Crc(target->name()) ;                                   // force crc computation if updating a source
+						if (is_src_anti) {                                                         // source may have been modified
+							old_srcs.try_emplace( target , ::pair(target->sig.sig,target->crc) ) ; // if it is also a dep, at best the dep will see old sig, and we want to associate old crc
+							if (!crc.valid()) crc = Crc(target->name()) ;                          // force crc computation if updating a source
 							//
 							switch (target->buildable) {
 								case Buildable::DynSrc :
 								case Buildable::Src    : {
 									bool src_ok = false ;
 									for( Req req : res.running_reqs ) {
-										target->req_info(req).overwritten = false ;                         // ok for a job to create newer-than-req sources as this is repeatable and useful
+										target->req_info(req).overwritten = false ;                // ok for a job to create newer-than-req sources as this is repeatable and useful
 										src_ok |= req->options.flags[ReqFlag::SourceOk] ;
 									}
 									if (src_ok                               ) goto SourceOk ;

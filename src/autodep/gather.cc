@@ -515,23 +515,23 @@ void Gather::_trace_child( Fd report_fd , ::latch* ready ) {
 	t_thread_key = 'T' ;
 	Record::s_autodep_env(autodep_env) ;
 	switch (method) {
-		/**/                    case AutodepMethod::Ptrace  : _child.pre_exec = AutodepPtrace ::prepare_child ; break ;
-		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : _child.pre_exec = AutodepSeccomp::prepare_child ; break ; )
-	DF}                                                                                                                   // NO_COV
+		/**/            case AutodepMethod::Ptrace  : _child.pre_exec = AutodepPtrace ::prepare_child ; break ;
+		IF_HAS_SECCOMP( case AutodepMethod::Seccomp : _child.pre_exec = AutodepSeccomp::prepare_child ; break ; )
+	DF}                                                                                                           // NO_COV
 	//vvvvvvvvvvvv
 	_child.spawn() ;      // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
 	//^^^^^^^^^^^^
 	ready->count_down() ; // signal main thread that _child.pid is available
 	try {
 		switch (method) {
-			/**/                    case AutodepMethod::Ptrace  : wstatus = AutodepPtrace ::process(_child.pid) ; break ;
-			IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : wstatus = AutodepSeccomp::process(_child.pid) ; break ; )
-		DF}                                                                                                                 // NO_COV
+			/**/            case AutodepMethod::Ptrace  : wstatus = AutodepPtrace ::process(_child.pid) ; break ;
+			IF_HAS_SECCOMP( case AutodepMethod::Seccomp : wstatus = AutodepSeccomp::process(_child.pid) ; break ; )
+		DF}                                                                                                         // NO_COV
 	} catch (::string const& e) {
-		wstatus = 255<<8 ;                                                                                                  // exit code 255
+		wstatus = 255<<8 ;                                                                                          // exit code 255
 		msg << add_nl<<e ;
 	}
-	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ;                                             // report child end
+	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ;                                     // report child end
 	Record::s_close_reports() ;
 }
 
@@ -557,8 +557,8 @@ Fd Gather::_spawn_child() {
 	// PER_AUTODEP_METHOD : handle case
 Retry :
 	switch (method) {
-		/**/                    case AutodepMethod::Ptrace  :
-		IF_CAN_AUTODEP_SECCOMP( case AutodepMethod::Seccomp : ) {
+		/**/            case AutodepMethod::Ptrace  :
+		IF_HAS_SECCOMP( case AutodepMethod::Seccomp : ) {
 			// we split the responsability into 2 threads :
 			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 			// - child launches target process and watches it using direct wait then report deps using normal socket report
@@ -886,11 +886,11 @@ Status Gather::_exec_child() {
 					::optional<JobMngtRpcReply> received = sse.buf.receive_step<JobMngtRpcReply>(fd,Yes/*fetch*/,sse.key) ; if (!received) { trace(kind,fd,"...") ; break ; } // partial message
 					JobMngtRpcReply&            jmrr     = *received                                                      ;
 					trace(kind,fd,"received",_n_server_req_pending,jmrr,jmrr.seq_id) ;
-					Fd rfd = jmrr.fd ;                                                                                                 // capture before move
-					if (jmrr.seq_id!=seq_id) goto ServerNextEvent ;                                                                    // message is not for us
+					Fd rfd = jmrr.fd ;                                                                                             // capture before move
+					if (jmrr.seq_id!=seq_id) goto ServerNextEvent ;                                                                // message is not for us
 					switch (jmrr.proc) {
-						case JobMngtProc::None      :                                                                                  // eof or message is not for us
-						case JobMngtProc::Heartbeat : goto ServerNextEvent ;                                                           // just receiving the message is enough, nothing to do
+						case JobMngtProc::None      :                                                                              // eof or message is not for us
+						case JobMngtProc::Heartbeat : goto ServerNextEvent ;                                                       // just receiving the message is enough, nothing to do
 						case JobMngtProc::Kill      :
 							_user_trace( Comment::Kill , CommentExt::Reply ) ;
 							kill()                                           ;
@@ -899,7 +899,7 @@ Status Gather::_exec_child() {
 						case JobMngtProc::DepVerbose : {
 							_n_server_req_pending-- ;
 							if ( auto sit=job_slaves.find(rfd) ; sit==job_slaves.end() ) {
-								rfd = {} ;                                                                                             // job is dead, ignore server reply
+								rfd = {} ;                                                                                         // job is dead, ignore server reply
 							} else {
 								JobSlaveEntry& jse     = sit->second                        ;
 								bool           verbose = jmrr.proc==JobMngtProc::DepVerbose ;
