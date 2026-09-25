@@ -1,15 +1,14 @@
 open-lmake ($VERSION_TAG-$DEBIAN_RELEASE) $OS_CODENAME; urgency=low
 
-  * General clean up release
+  * General robustness release after throrouh AI analysis
 
-  * implement ConfigRule to handle configs in a lmake-friendly way
-  * handle $NO_COLOR
-  * improve regexpr matching perf
-  * improve lshow -i by providing more information
-  * improve slurm scheduling by passing it timeout info
-  * support ubuntu26.04 and gcc-15
-  * bug fixes
-  * improved error messages
-  * improve perf
+  * support slurm v26.05 and wckey option
+  * support link_support=full_ext to include possibility of external symlinks to within repo
+  * implement slower write based tracing in addition to faster mmap based tracing
+  * improve dangling detection versus unlink/quarantine
+  * fix ldebug reporting deps/targets in random order
+  * forbid io_uring unless explicitly allowed
+  * add Claude skill for improved experience with Claude
+  * support gcc-16
 
  -- Cesar Douady <cesar.douady@doliam.fr>  $DATE

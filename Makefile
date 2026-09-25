@@ -5,7 +5,7 @@
 
 include sys_config.mk
 
-VERSION        := 26.09
+VERSION        := 26.10
 TAG            := 0
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
@@ -88,6 +88,8 @@ endif
 #
 # Manifest
 #
+# when making debian package, Manifest is provided and must not be reconstructed from git
+ifeq ($(MAKEDEBIAN),)
 IDX_DIR := $(shell git rev-parse --git-dir 2>/dev/null)
 ifeq ($(IDX_DIR),)
 ifeq ($(wildcard Manifest),)
@@ -101,6 +103,7 @@ Manifest : $(IDX_DIR)/index
 	fi
 endif
 include Manifest.inc_stamp                                 # Manifest is used in this makefile
+endif
 EXCLUDES := $(if $(HAS_LD_AUDIT),,src/autodep/ld_audit.cc)
 SRCS     := $(filter-out $(EXCLUDES),$(shell cat Manifest 2>/dev/null))
 CC_SRCS  := $(filter-out %.x.cc,$(filter src/%.cc,$(SRCS)))
