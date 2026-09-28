@@ -252,11 +252,11 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::ManualTarget       , 34 }
 ,	{ JobReasonTag::ClashTarget        , 35 }
 // with dep
-,	{ JobReasonTag::BusyDep            , 50 }
-,	{ JobReasonTag::DepOutOfDate       , 50 }
-,	{ JobReasonTag::DepTransient       , 50 }
-,	{ JobReasonTag::DepUnlnked         , 51 }
-,	{ JobReasonTag::DepUnstable        , 51 }
+,	{ JobReasonTag::BusyDep            , 51 }
+,	{ JobReasonTag::DepOutOfDate       , 51 } // starting at this prio, jobs are assumed to generate new targets during dry run
+,	{ JobReasonTag::DepTransient       , 51 }
+,	{ JobReasonTag::DepUnlnked         , 50 }
+,	{ JobReasonTag::DepUnstable        , 52 }
 //	with error
 ,	{ JobReasonTag::DepOverwritten     , 70 }
 ,	{ JobReasonTag::DepDangling        , 71 }
@@ -266,7 +266,8 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::DepMissingStatic   , 80 }
 }} ;
 static_assert(chk_enum_tab(JobReasonTagPrios)) ;
-inline bool is_retry(JobReasonTag jrt) { return jrt==JobReasonTag::Retry || jrt==JobReasonTag::LostRetry ; }
+inline bool is_retry        (JobReasonTag jrt) { return jrt==JobReasonTag::Retry || jrt==JobReasonTag::LostRetry                              ; }
+inline bool dry_run_is_modif(JobReasonTag jrt) { return JobReasonTagPrios[+jrt].second>=JobReasonTagPrios[+JobReasonTag::DepOutOfDate].second ; }
 
 // START_OF_VERSIONING CACHE REPO
 enum class LocalReason : uint8_t {

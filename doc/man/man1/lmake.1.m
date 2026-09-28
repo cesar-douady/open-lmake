@@ -118,6 +118,10 @@ Generating such output for all jobs would produce an intermixed flow of characte
 When this option is used, only the jobs directly producing the asked targets have their output generated on the output of B_(lmake).
 Because most of the time there is a single target, this ensures that there is a single job generating its output, avoiding the intermixing problem.
 
+Item(B_(-n),B_(--dry-run))
+Report what actions would be performed without actually executing them.
+This assumes no job would be steady and no new deps would be discovered.
+
 Item(B_(-N) I_(nice_val),B_(--nice)=I_(nice_val))
 Apply the specified nice value to all jobs.
 

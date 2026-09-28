@@ -159,7 +159,7 @@ namespace Engine {
 		void operator>>(::string&) const ;
 		bool is_job() const {
 			if (options.flags[ReqFlag::Job]) { SWEAR(files.size()==1,files) ; return true  ; }
-			else                             {                                return false ; }
+			else                                                              return false ;
 		}
 		// services
 		Job            job    () const ; //!                       as_deps root_ok

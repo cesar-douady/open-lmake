@@ -74,6 +74,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of concurrent jobs"                  } }
 	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                        } }
 	,	{ ReqFlag::MaxRuns         , { .short_name='m' , .has_arg=true  , .doc="max runs on top of rule prescription"           } }
+	,	{ ReqFlag::DryRun          , { .short_name='n' , .has_arg=false , .doc="report actions but dont execut them"            } }
 	,	{ ReqFlag::MaxSubmits      , { .short_name='M' , .has_arg=true  , .doc="max submits on top of rule prescription"        } }
 	,	{ ReqFlag::Nice            , { .short_name='N' , .has_arg=true  , .doc="nice value to apply to jobs"                    } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"              } }
@@ -95,23 +96,35 @@ int main( int argc , char* argv[] ) {
 	/**/  trace(       env_args                ) ;
 	/**/  trace(       args                    ) ;
 	//
+	if (cmd_line.flags[ReqFlag::DryRun]) {
+		if (cmd_line.flags[ReqFlag::Backend    ]) syntax.usage(cat("flag --backend"     ," is only meaningful when executing jobs")) ;
+		if (cmd_line.flags[ReqFlag::CacheMethod]) syntax.usage(cat("flag --cache-method"," is only meaningful when executing jobs")) ;
+		if (cmd_line.flags[ReqFlag::Ete        ]) syntax.usage(cat("flag --ete"         ," is only meaningful when executing jobs")) ;
+		if (cmd_line.flags[ReqFlag::Jobs       ]) syntax.usage(cat("flag --jobs"        ," is only meaningful when executing jobs")) ;
+		if (cmd_line.flags[ReqFlag::Local      ]) syntax.usage(cat("flag --local"       ," is only meaningful when executing jobs")) ;
+		if (cmd_line.flags[ReqFlag::MaxRuns    ]) syntax.usage(cat("flag --max-runs"    ," is only meaningful when executing jobs")) ;
+		if (cmd_line.flags[ReqFlag::MaxSubmits ]) syntax.usage(cat("flag --max-submits" ," is only meaningful when executing jobs")) ;
+		if (cmd_line.flags[ReqFlag::Nice       ]) syntax.usage(cat("flag --nice"        ," is only meaningful when executing jobs")) ;
+		if (cmd_line.flags[ReqFlag::LiveOut    ]) syntax.usage(cat("flag --live-out"    ," is only meaningful when executing jobs")) ;
+		if (cmd_line.flags[ReqFlag::KeepTmp    ]) syntax.usage(cat("flag --keep-tmp"    ," is only meaningful when executing jobs")) ;
+	}
 	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                                                         }
-	catch (::string const& e) { syntax.usage("cannot understand max number of jobs ("+e+") : "+cmd_line.flag_args[+ReqFlag::Jobs]) ;                               }
+	catch (::string const& e) { syntax.usage(cat("cannot understand max number of jobs (",e,") : ",cmd_line.flag_args[+ReqFlag::Jobs])) ;                          }
 	//
 	try                       { from_string<uint16_t>(cmd_line.flag_args[+ReqFlag::MaxSubmits],true/*empty_ok*/) ;                                                 }
-	catch (::string const& e) { syntax.usage("cannot understand max-submits count ("+e+") : "+cmd_line.flag_args[+ReqFlag::MaxSubmits]) ;                          }
+	catch (::string const& e) { syntax.usage(cat("cannot understand max-submits count (",e,") : ",cmd_line.flag_args[+ReqFlag::MaxSubmits])) ;                     }
 	//
 	try                       { from_string<uint16_t>(cmd_line.flag_args[+ReqFlag::MaxRuns],true/*empty_ok*/) ;                                                    }
-	catch (::string const& e) { syntax.usage("cannot understand max-runs count ("+e+") : "+cmd_line.flag_args[+ReqFlag::MaxRuns]) ;                                }
+	catch (::string const& e) { syntax.usage(cat("cannot understand max-runs count (",e,") : ",cmd_line.flag_args[+ReqFlag::MaxRuns])) ;                           }
 	//
 	try                       { uint8_t n = from_string<uint8_t>(cmd_line.flag_args[+ReqFlag::Nice],true/*empty_ok*/) ; throw_unless(n<=20,"must be at most 20") ; }
-	catch (::string const& e) { syntax.usage("cannot understand nice value ("+e+") : "+cmd_line.flag_args[+ReqFlag::Nice]) ;                                       }
+	catch (::string const& e) { syntax.usage(cat("cannot understand nice value (",e,") : ",cmd_line.flag_args[+ReqFlag::Nice])) ;                                  }
 	//
 	try                       { from_string<uint8_t>(cmd_line.flag_args[+ReqFlag::RetryOnError],true/*empty_ok*/) ;                                                }
-	catch (::string const& e) { syntax.usage("cannot understand retry-on-error count ("+e+") : "+cmd_line.flag_args[+ReqFlag::RetryOnError]) ;                     }
+	catch (::string const& e) { syntax.usage(cat("cannot understand retry-on-error count (",e,") : ",cmd_line.flag_args[+ReqFlag::RetryOnError])) ;                }
 	//
 	try                       { if (cmd_line.flags[ReqFlag::CacheMethod]) mk_enum<CacheMethod>(cmd_line.flag_args[+ReqFlag::CacheMethod]) ;                        }
-	catch (::string const& e) { syntax.usage("unexpected cache method : "+cmd_line.flag_args[+ReqFlag::CacheMethod]) ;                                             }
+	catch (::string const& e) { syntax.usage(cat("unexpected cache method : ",cmd_line.flag_args[+ReqFlag::CacheMethod])) ;                                        }
 	// start interrupt handling thread once server is started
 	//      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 	Rc rc = out_proc( ReqProc::Make , false/*read_only*/ , true/*refresh_makefiles*/ , syntax , cmd_line , _handle_int ) ;

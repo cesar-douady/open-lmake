@@ -76,7 +76,7 @@ namespace Engine {
 			trace("job",data.job) ;
 			//
 			Job::ReqInfo& jri = data.job->req_info(self) ;
-			jri.live_out = self->options.flags[ReqFlag::LiveOut] ;
+			jri.live_out = data.options.flags[ReqFlag::LiveOut] ;
 			//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 			data.job->make( jri , JobMakeAction::Status , {}/*JobReason*/ , No/*speculate*/ ) ;
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -460,48 +460,61 @@ namespace Engine {
 
 	void ReqData::audit_summary(bool err) const {
 		bool warning = +frozen_jobs || +no_triggers || +clash_nodes ;
+		bool dry_run = options.flags[ReqFlag::DryRun]               ;
 		audit_info( err ? Color::Err : warning ? Color::Warning : Color::Note ,
 			"+---------+\n"
 			"| SUMMARY |\n"
 			"+---------+\n"
 		) ;
-		size_t wk = ::max(::strlen("elapsed"),::strlen("startup")) ;
-		size_t wn = 0                                              ;
-		for( JobReport jr : iota(All<JobReport>) ) if ( stats.ended[+jr] || jr==JobReport::Done ) {
-			wk = ::max( wk , snake(jr)                    .size() ) ;
-			wn = ::max( wn , ::to_string(stats.ended[+jr]).size() ) ;
+		size_t wk = 0 ;
+		if (dry_run) {
+			wk =                 ::strlen("estimated job") ;
+			audit_info( Color::None , cat("estimated job time : ",dry_run_stats.job_time.short_str()," (",dry_run_stats.n_jobs," jobs)") ) ;
+			audit_info( Color::None , cat("ETE                : ",dry_run_stats.job_cost.short_str()                                   ) ) ;
+		} else {
+			size_t wn = 0 ;
+			wk = ::max(::strlen("elapsed"),::strlen("startup")) ;
+			for( JobReport jr : iota(All<JobReport>) )
+				if ( stats.ended[+jr] || jr==JobReport::Done ) {
+					wk = ::max( wk , snake(jr)                    .size() ) ;
+					wn = ::max( wn , ::to_string(stats.ended[+jr]).size() ) ;
+				}
+			for( JobReport jr : iota(All<JobReport>) )
+				if ( stats.ended[+jr] || jr==JobReport::Done ) {
+					Color c = Color::Note ;
+					switch (jr) {
+						case JobReport::Failed  :
+						case JobReport::LostErr : c = Color::Err     ; break ;
+						case JobReport::Lost    : c = Color::Warning ; break ;
+						case JobReport::Steady  :
+						case JobReport::Done    : c = Color::Ok      ; break ;
+					DN}
+					::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ::string(Delay::ShortStrSz,' ') ;
+					audit_info( c , cat(widen(snake_str(jr),wk)," time : ",t," (",widen(cat(stats.ended[+jr]),wn,true/*right*/)," jobs)") ) ;
+				}
+			audit_info( Color::Note , cat(widen("elapsed",wk)," time : ",(Pdate(New)-start_pdate).short_str()) ) ;
 		}
-		for( JobReport jr : iota(All<JobReport>) ) if ( stats.ended[+jr] || jr==JobReport::Done ) {
-			Color c = Color::Note ;
-			switch (jr) {
-				case JobReport::Failed  :
-				case JobReport::LostErr : c = Color::Err     ; break ;
-				case JobReport::Lost    : c = Color::Warning ; break ;
-				case JobReport::Steady  :
-				case JobReport::Done    : c = Color::Ok      ; break ;
-			DN}
-			::string t = +stats.jobs_time[+jr] ? stats.jobs_time[+jr].short_str() : ::string(Delay::ShortStrSz,' ') ;
-			audit_info( c , widen(snake_str(jr),wk)+" time : "+t+" ("+widen(cat(stats.ended[+jr]),wn,true/*right*/)+" jobs)" ) ;
-		}
-		/**/                        audit_info( Color::Note , cat(widen("elapsed",wk)," time : ",(Pdate(New)-start_pdate).short_str()) ) ;
-		if (+options.startup_dir_s) audit_info( Color::Note , cat(widen("startup",wk)," dir  : ",options.startup_dir_s,rm_slash      ) ) ;
 		//
-		if (job_up_to_date) {
-			if (job->err()) audit_info( Color::Err  , "was already in error :"   , job->name() ) ;
-			else            audit_info( Color::Note , "was already up-to-date :" , job->name() ) ;
-		} else if (+node_up_to_dates) {
-			static ::string src_msg       = "file is a source"       ;
-			static ::string anti_msg      = "file is anti"           ;
+		if (+options.startup_dir_s) audit_info( Color::Note , cat(widen("startup",wk)," dir  : ",options.startup_dir_s,rm_slash) ) ;
+		//
+		if (!dry_run) {
 			static ::string plain_ok_msg  = "was already up-to-date" ;
 			static ::string plain_err_msg = "was already in error"   ;
-			size_t w = 0 ;
-			for( Node n : node_up_to_dates ) n->set_buildable() ;
-			for( Node n : node_up_to_dates )
-				if      (n->is_src_anti()                ) w = ::max(w,(FileInfo(n->name()).exists()?src_msg     :anti_msg     ).size()) ;
-				else if (n->status()<=NodeStatus::Makable) w = ::max(w,(n->ok()!=No                 ?plain_ok_msg:plain_err_msg).size()) ;
-			for( Node n : node_up_to_dates )
-				if      (n->is_src_anti()                ) audit_node( Color::Warning                     , widen(FileInfo(n->name()).exists()?src_msg     :anti_msg     ,w)+" :" , n ) ;
-				else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , widen(n->ok()!=No                 ?plain_ok_msg:plain_err_msg,w)+" :" , n ) ;
+			static ::string src_msg       = "file is a source"       ;
+			static ::string anti_msg      = "file is anti"           ;
+			if (job_up_to_date) {
+				if (job->err()) audit_info( Color::Err  , plain_ok_msg  , job->name() ) ;
+				else            audit_info( Color::Note , plain_err_msg , job->name() ) ;
+			} else if (+node_up_to_dates) {
+				size_t w = 0 ;
+				for( Node n : node_up_to_dates ) n->set_buildable() ;
+				for( Node n : node_up_to_dates )
+					if      (n->is_src_anti()                ) w = ::max(w,(FileInfo(n->name()).exists()?src_msg     :anti_msg     ).size()) ;
+					else if (n->status()<=NodeStatus::Makable) w = ::max(w,(n->ok()!=No                 ?plain_ok_msg:plain_err_msg).size()) ;
+				for( Node n : node_up_to_dates )
+					if      (n->is_src_anti()                ) audit_node( Color::Warning                     , widen(FileInfo(n->name()).exists()?src_msg     :anti_msg     ,w)+" :" , n ) ;
+					else if (n->status()<=NodeStatus::Makable) audit_node( n->ok()==No?Color::Err:Color::Note , widen(n->ok()!=No                 ?plain_ok_msg:plain_err_msg,w)+" :" , n ) ;
+			}
 		}
 		if (+frozen_jobs) {
 			::vector<Job> frozen_jobs_sorted = frozen_jobs ;
@@ -545,9 +558,35 @@ namespace Engine {
 		/**/                                          msg <<      widen(step                                                ,StepSz                    )      ;
 		/**/                                          msg << ' '<<widen(rule_name                                           ,Rule::s_rules->name_sz    )      ;
 		if (g_config->console.has_exe_time          ) msg << ' '<<widen((+exe_time?exe_time.short_str():"")                 ,6                         )      ;
-		/**/                                          msg << ' '<<      mk_file(job_name)                                                                     ;
-		audit( audit_fd , log_fd , options , c , msg ) ;
+		audit_info( c , msg , job_name ) ;
 		last_info = {} ;
+	}
+
+	static constexpr size_t JobReasonTagWidth = []() {
+		size_t w = 0 ;
+		for( auto [_,descr] : JobReasonTagStrs ) {
+			size_t sz = 0 ; while (descr[sz]) sz++ ;                                        // XXX/ : strlen is not constexpr with clang
+			w = ::max(w,sz) ;
+		}
+		return w ;
+	}() ;
+	void ReqData::would_audit_node( Color c , ::string  const& action , Node node ) const {
+		SWEAR( action.size()<=JobReasonTagWidth , action ) ;                                // actions are typically short
+		::string msg ;
+		msg <<     widen(action,JobReasonTagWidth     ) ;
+		msg <<' '<<widen(""    ,Rule::s_rules->name_sz) ;
+		audit_info( c , msg , node->name() ) ;
+
+	}
+
+	void ReqData::would_audit_job( Color c , JobReason const& reason , Job job ) {
+		::string msg ;
+		msg <<     widen(JobReasonTagStrs[+reason.tag].second,JobReasonTagWidth     ) ;
+		msg <<' '<<widen(job->rule()->user_name()            ,Rule::s_rules->name_sz) ;
+		audit_info( c , msg , job->name() ) ;
+		dry_run_stats.n_jobs   += 1               ;
+		dry_run_stats.job_time += job->exe_time() ;
+		dry_run_stats.job_cost += job->cost    () ;
 	}
 
 	static void          _audit_status( Fd out , Fd log , ReqOptions const& ro , bool ok )       { audit_status (out     ,log   ,ro     ,ok?Rc::Ok:Rc::Fail) ; } // allow access to global function ...

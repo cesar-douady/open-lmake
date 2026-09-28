@@ -257,7 +257,7 @@ static bool/*interrupted*/ _engine_loop() {
 							trace("cannot_refresh",req) ;
 							goto NoMake ;
 						}
-						if (!ecr.is_job()) _record_targets(req->job) ;
+						if ( !ecr.options.flags[ReqFlag::DryRun] && !ecr.is_job() ) _record_targets(req->job) ;
 						SWEAR( +ecr.fd , ecr.fd ) ;
 						fd_tab[req] = Maybe ;                                                                // in and out are both active
 						break ;

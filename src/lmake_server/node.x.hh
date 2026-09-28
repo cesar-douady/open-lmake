@@ -485,8 +485,8 @@ namespace Engine {
 		//
 		void set_infinite( Special , ::vector<Node> const& deps ) ;
 		//
-		bool/*triggered*/ make  ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
-		void              wakeup( ReqInfo& ri                                 ) { make(ri,MakeAction::Wakeup) ; }
+		::pair<JobReason,bool/*triggered*/> make  ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
+		void                                wakeup( ReqInfo& ri                                 ) { make(ri,MakeAction::Wakeup) ; }
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
@@ -495,12 +495,12 @@ namespace Engine {
 		bool/*modified*/ set_crc_date  ( Crc={} , SigDate const& ={} ) ;
 		void             stamp_crc_date(                             ) ;
 	private :
-		void              _do_set_buildable( Req            , RejectSet&/*lazy*/ known_rejected , DepDepth=0 )       ; // req is for error reporting only
-		bool/*solved*/    _make_pre        ( ReqInfo      & , bool query                                     )       ;
-		bool/*triggered*/ _do_make         ( ReqInfo      & , MakeAction , Bool3 speculate=Yes               )       ;
-		void              _do_set_pressure ( ReqInfo      &                                                  ) const ;
-		void              _propag_speculate( ReqInfo const&                                                  ) const ;
-		bool/*unlnked*/   _set_no_job      ( ReqInfo      & , bool query                                     )       ;
+		void                                _do_set_buildable( Req            , RejectSet&/*lazy*/ known_rejected , DepDepth=0 )       ; // req is for error reporting only
+		bool/*solved*/                      _make_pre        ( ReqInfo      & , bool query                                     )       ;
+		::pair<JobReason,bool/*triggered*/> _do_make         ( ReqInfo      & , MakeAction , Bool3 speculate=Yes               )       ;
+		void                                _do_set_pressure ( ReqInfo      &                                                  ) const ;
+		void                                _propag_speculate( ReqInfo const&                                                  ) const ;
+		bool/*unlnked*/                     _set_no_job      ( ReqInfo      & , bool query                                     )       ;
 		//
 		Buildable _gather_special_rule_tgts( ::string const&   name ,       RejectSet&/*lazy*/ known_rejected                  ) ;
 		Buildable _gather_prio_job_tgts    ( ::string&/*lazy*/ name , Req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl=0 ) ;
@@ -620,8 +620,8 @@ namespace Engine {
 		_do_set_pressure(ri) ;
 	}
 
-	inline bool/*triggered*/ NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
-		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted && !busy ) return false/*triggered*/ ; // fast path
+	inline ::pair<JobReason,bool/*triggered*/> NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
+		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted && !busy ) return {{},false/*triggered*/} ; // fast path
 		return _do_make(ri,ma,s) ;
 	}
 

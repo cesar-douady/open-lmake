@@ -82,38 +82,38 @@ enum class ReqMark : uint8_t { // PER_CMD : add mark as necessary
 using ReqMarks = BitMap<ReqMark> ;
 
 enum class ReqFlag : uint8_t { // PER_CMD : add flags as necessary (you may share with other commands) : there may be 0 or more flags on the command line
-	Archive                    // if proc==Make    , all intermediate files are generated
-,	Backend                    // if proc==Make    , send argument to backends
-,	CacheMethod                // if proc==Make    , whether to download/upload/check cache
-,	Deps                       // if proc==Forget  , forget deps
-,	DryRun                     // if proc==Collect , dont execute, just report
-,	EssentialDeps              // if proc==Make    , only check essential deps
-,	Ete                        // if proc==Make    , estimated time of execution for scheduling purpose
-,	Force                      // if proc==Mark    , act if doable, even if awkward
-,	ForgetOldErrors            // if proc==Make    , assume old errors are transient
-,	Job                        //                    interpret (unique) arg as job name
-,	Jobs                       // if proc==Make    , max number of jobs
-,	KeepTmp                    // if proc==Make    , keep tmp dir after job execution
-,	Key                        // if proc==Debug   , key used to look up into config.debug to find helper module used to debug
-,	LiveOut                    // if proc==Make    , generate live output for last job
-,	Local                      // if proc==Make    , lauch all jobs locally
-,	MaxRuns                    // if proc==Make    , max run    count, on top of rule prescription
-,	MaxSubmits                 // if proc==Make    , max submit count, on top of rule prescription
-,	Nice                       // if proc==Make    , jobs nice value
-,	NoDeps                     // if proc==Make    , dont check deps
-,	NoExec                     // if proc==Debug   , dont execute, just generate files
-,	NoIncremental              // if proc==Make    , ignore incremental flag for targets
-,	Porcelain                  //                    generate easy to parse output
-,	Quiet                      //                    do not generate user oriented messages
-,	RetryOnError               // if proc==Make    , retry jobs in error
-,	Rule                       //                    rule name when interpreting arg as job name
-,	SourceOk                   // if proc==Make    , allow lmake to overwrite source files
-,	StdTmp                     // if proc==Debug   , use standard tmp dir, not the one provided in job
-,	Sync                       //                    force synchronous operation (start server and wait for its end)
-,	Targets                    // if proc==Forget  , forget targets
-,	TmpDir                     // if proc==Debug   , tmp dir to use in case TMPDIR is specified as ... in job
-,	Verbose                    //                    generate generous output
-,	Video                      //                    assume output video : l(ight), d(ark) or f(ile)
+	Archive                    // if proc==Make         , all intermediate files are generated
+,	Backend                    // if proc==Make         , send argument to backends
+,	CacheMethod                // if proc==Make         , whether to download/upload/check cache
+,	Deps                       // if proc==Forget       , forget deps
+,	DryRun                     // if proc==Make|Collect , dont execute, just report
+,	EssentialDeps              // if proc==Make         , only check essential deps
+,	Ete                        // if proc==Make         , estimated time of execution for scheduling purpose
+,	Force                      // if proc==Mark         , act if doable, even if awkward
+,	ForgetOldErrors            // if proc==Make         , assume old errors are transient
+,	Job                        //                         interpret (unique) arg as job name
+,	Jobs                       // if proc==Make         , max number of jobs
+,	KeepTmp                    // if proc==Make         , keep tmp dir after job execution
+,	Key                        // if proc==Debug        , key used to look up into config.debug to find helper module used to debug
+,	LiveOut                    // if proc==Make         , generate live output for last job
+,	Local                      // if proc==Make         , lauch all jobs locally
+,	MaxRuns                    // if proc==Make         , max run    count, on top of rule prescription
+,	MaxSubmits                 // if proc==Make         , max submit count, on top of rule prescription
+,	Nice                       // if proc==Make         , jobs nice value
+,	NoDeps                     // if proc==Make         , dont check deps
+,	NoExec                     // if proc==Debug        , dont execute, just generate files
+,	NoIncremental              // if proc==Make         , ignore incremental flag for targets
+,	Porcelain                  //                         generate easy to parse output
+,	Quiet                      //                         do not generate user oriented messages
+,	RetryOnError               // if proc==Make         , retry jobs in error
+,	Rule                       //                         rule name when interpreting arg as job name
+,	SourceOk                   // if proc==Make         , allow lmake to overwrite source files
+,	StdTmp                     // if proc==Debug        , use standard tmp dir, not the one provided in job
+,	Sync                       //                         force synchronous operation (start server and wait for its end)
+,	Targets                    // if proc==Forget       , forget targets
+,	TmpDir                     // if proc==Debug        , tmp dir to use in case TMPDIR is specified as ... in job
+,	Verbose                    //                         generate generous output
+,	Video                      //                         assume output video : l(ight), d(ark) or f(ile)
 } ;
 using ReqFlags = BitMap<ReqFlag> ;
 

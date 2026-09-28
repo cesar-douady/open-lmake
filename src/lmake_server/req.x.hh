@@ -134,6 +134,12 @@ namespace Engine {
 		JobIdx _cur[+JobStep::MaxCurStats1-+JobStep::MinCurStats] = {} ;
 	} ;
 
+	struct DryRunReqStats {
+		JobIdx n_jobs   = 0 ;
+		Delay  job_time ;
+		Delay  job_cost ;
+	} ;
+
 	struct JobAudit {
 		// accesses
 		void operator>>(::string&) const ;
@@ -315,7 +321,6 @@ namespace Engine {
 		void audit_summary(bool err) const ;
 		//
 		#define SC ::string const
-		//                                                                                                                                           as_is
 		void audit_info ( Color c , SC& t , SC& lt , DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , +lt?t+' '+Disk::mk_file(lt):t , false , l            ) ; }
 		void audit_info ( Color c , SC& t ,          DepDepth l=0 ) const { audit( audit_fd , log_fd , options , c , t                             , false , l            ) ; }
 		void audit_node ( Color c , SC& p , Node n , DepDepth l=0 ) const ;
@@ -331,6 +336,9 @@ namespace Engine {
 		void audit_job( Color c , SC& s ,          Job            j  , in_addr_t h=0     , SC& tag={} , Delay et={} ) const { audit_job(c,Pdate(New)                      ,s,   j ,h,tag,et) ; }
 		void audit_job( Color c , SC& s ,          JobExec const& je , bool at_end=false , SC& tag={} , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,   je,  tag,et) ; }
 		#undef SC
+		//
+		void would_audit_job ( Color , JobReason const& reason , Job  )       ;
+		void would_audit_node( Color , ::string  const& action , Node ) const ;
 		//
 		void         audit_status( bool ok                                                                        ) const ;
 		void         audit_stats (                                                                                ) const ;
@@ -351,6 +359,7 @@ namespace Engine {
 		::vector_s           files          ;
 		::umap<Job,JobAudit> missing_audits ;
 		ReqStats             stats          ;
+		DryRunReqStats       dry_run_stats  ;
 		Fd                   audit_fd       ;                       // to report to user
 		AcFd                 log_fd         ;                       // saved output
 		Job mutable          last_info      ;                       // used to identify last message to generate an info line in case of ambiguity
