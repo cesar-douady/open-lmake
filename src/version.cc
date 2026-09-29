@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 58      ; // 3fb7783c10332a5fc1773d9f67d3b4cf
+	uint64_t    constexpr Cache = 58      ; // bbd8624f1f82495205911035c3832df9
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 63      ; // 23368605dc02e1249144921b5fb5f76a
+	uint64_t    constexpr Repo  = 63      ; // 4b2a66980f60d0f2e0bc694323b70b7d
 	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
 	const char* const     Major = "26.10" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 3fb7783c10332a5fc1773d9f67d3b4cf *
+// * Cache : bbd8624f1f82495205911035c3832df9 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -630,6 +630,39 @@ namespace Version {
 //		// START_OF_VERSIONING REPO CACHE
 //		using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 //		// END_OF_VERSIONING
+//			// START_OF_VERSIONING REPO CACHE
+//			::serdes( s , sz,dflags ) ;
+//			// bitfields cannot be serialized directly as no ref is allowed
+//			Accesses::Val accesses__       = {}    ; // XXX/  : initialization is to please c++26
+//			Accesses::Val chunk_accesses__ = {}    ; // .
+//			bool          parallel_        = false ; // .
+//			bool          is_crc_          = false ; // .
+//			bool          hot_             = false ; // .
+//			bool          err_             = false ; // .
+//			bool          create_encode_   = false ; // .
+//			if (IsOStream<S>) {
+//				accesses__       = accesses_       ;
+//				chunk_accesses__ = chunk_accesses_ ;
+//				parallel_        = parallel        ;
+//				is_crc_          = is_crc          ;
+//				hot_             = hot             ;
+//				err_             = err             ;
+//				create_encode_   = create_encode   ;
+//			}
+//			::serdes( s , accesses__,chunk_accesses__,parallel_,is_crc_,hot_,err_,create_encode_ ) ;
+//			if (IsIStream<S>) {
+//				accesses_       = accesses__       ;
+//				chunk_accesses_ = chunk_accesses__ ;
+//				parallel        = parallel_        ;
+//				is_crc          = is_crc_          ;
+//				hot             = hot_             ;
+//				err             = err_             ;
+//				create_encode   = create_encode_   ;
+//			}
+//			//
+//			if (is_crc) ::serdes( s , _crc ) ;
+//			else        ::serdes( s , _sig ) ;
+//			// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
 //		//B                                     ;                                  //   32 bits, for DepDigestBase<Node>
 //		uint8_t       sz                        = 0          ;                     //    8 bits, number of items in chunk following header (semantically before)
@@ -1208,7 +1241,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 23368605dc02e1249144921b5fb5f76a *
+// * Repo : 4b2a66980f60d0f2e0bc694323b70b7d *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -1869,7 +1902,7 @@ namespace Version {
 //			State state = State::CmdOld ;
 //			// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			Kind     kind_ ;
+//			Kind     kind_ = {} ;                                                                                                             // XXX/ : initialization is to please c++26
 //			::string buf   ;
 //			if constexpr (IsHash) {
 //				kind_ = ::min(Kind::Dyn,kind) ;                                                                                               // marshal is unstable and cannot be used for hash computation
@@ -2263,6 +2296,39 @@ namespace Version {
 //		// START_OF_VERSIONING REPO CACHE
 //		using Base = ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > ;
 //		// END_OF_VERSIONING
+//			// START_OF_VERSIONING REPO CACHE
+//			::serdes( s , sz,dflags ) ;
+//			// bitfields cannot be serialized directly as no ref is allowed
+//			Accesses::Val accesses__       = {}    ; // XXX/  : initialization is to please c++26
+//			Accesses::Val chunk_accesses__ = {}    ; // .
+//			bool          parallel_        = false ; // .
+//			bool          is_crc_          = false ; // .
+//			bool          hot_             = false ; // .
+//			bool          err_             = false ; // .
+//			bool          create_encode_   = false ; // .
+//			if (IsOStream<S>) {
+//				accesses__       = accesses_       ;
+//				chunk_accesses__ = chunk_accesses_ ;
+//				parallel_        = parallel        ;
+//				is_crc_          = is_crc          ;
+//				hot_             = hot             ;
+//				err_             = err             ;
+//				create_encode_   = create_encode   ;
+//			}
+//			::serdes( s , accesses__,chunk_accesses__,parallel_,is_crc_,hot_,err_,create_encode_ ) ;
+//			if (IsIStream<S>) {
+//				accesses_       = accesses__       ;
+//				chunk_accesses_ = chunk_accesses__ ;
+//				parallel        = parallel_        ;
+//				is_crc          = is_crc_          ;
+//				hot             = hot_             ;
+//				err             = err_             ;
+//				create_encode   = create_encode_   ;
+//			}
+//			//
+//			if (is_crc) ::serdes( s , _crc ) ;
+//			else        ::serdes( s , _sig ) ;
+//			// END_OF_VERSIONING
 //		// START_OF_VERSIONING REPO CACHE
 //		//B                                     ;                                  //   32 bits, for DepDigestBase<Node>
 //		uint8_t       sz                        = 0          ;                     //    8 bits, number of items in chunk following header (semantically before)

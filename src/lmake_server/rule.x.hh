@@ -847,7 +847,7 @@ namespace Engine {
 		static constexpr bool IsHash = Hash::IsHash<S> ;
 		Trace trace("DynEntry::serdes",STR(IsIStream<S>)) ;
 		// START_OF_VERSIONING REPO
-		Kind     kind_ ;
+		Kind     kind_ = {} ;                                                                                                             // XXX/ : initialization is to please c++26
 		::string buf   ;
 		if constexpr (IsHash) {
 			kind_ = ::min(Kind::Dyn,kind) ;                                                                                               // marshal is unstable and cannot be used for hash computation

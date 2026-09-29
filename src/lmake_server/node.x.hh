@@ -496,7 +496,7 @@ namespace Engine {
 		void             stamp_crc_date(                             ) ;
 	private :
 		void                                _do_set_buildable( Req            , RejectSet&/*lazy*/ known_rejected , DepDepth=0 )       ; // req is for error reporting only
-		bool/*solved*/                      _make_pre        ( ReqInfo      & , bool query                                     )       ;
+		bool/*found*/                       _make_pre        ( ReqInfo      & , bool query                                     )       ;
 		::pair<JobReason,bool/*triggered*/> _do_make         ( ReqInfo      & , MakeAction , Bool3 speculate=Yes               )       ;
 		void                                _do_set_pressure ( ReqInfo      &                                                  ) const ;
 		void                                _propag_speculate( ReqInfo const&                                                  ) const ;

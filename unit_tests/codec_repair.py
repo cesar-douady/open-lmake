@@ -88,8 +88,8 @@ else :
 	os.makedirs('repo/LMAKE') ; os.symlink('../Lmakefile.py','repo/Lmakefile.py') ; os.chdir('repo')
 
 	# initial build (codec dir is initialized by jobs), 2 contexts with the same values
-	ut.lmake( 'a.dec' , 'b.dec' , 'a.dec2' , 'b.dec2' , new=... , done=8 )
-	ut.lmake( 'a.dec' , 'b.dec' , 'a.dec2' , 'b.dec2'                    )
+	ut.lmake( 'a.dec' , 'b.dec' , 'a.dec2' , 'b.dec2' , new=... , rerun=... , done=8 )
+	ut.lmake( 'a.dec' , 'b.dec' , 'a.dec2' , 'b.dec2'                                )
 
 	# repair with no change (with and without -r), then rebuild : must do nothing
 	repair(    )

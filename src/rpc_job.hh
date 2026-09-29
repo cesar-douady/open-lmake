@@ -577,15 +577,39 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		/**/                                   os << ')'                                        ;
 	}                                                                                                                                                                  // END_OF_NO_COV
 	template<IsStream S> void serdes(S& s) {
+		// START_OF_VERSIONING REPO CACHE
 		::serdes( s , sz,dflags ) ;
 		// bitfields cannot be serialized directly as no ref is allowed
-		/**/                Accesses::Val accesses__ ; Accesses::Val    chunk_accesses__ ; bool      parallel_ ; bool    is_crc_ ; bool hot_ ; bool err_ ; bool create_encode_           ;
-		if (IsOStream<S>) { accesses__=   accesses_  ; chunk_accesses__=chunk_accesses_  ; parallel_=parallel  ; is_crc_=is_crc  ; hot_=hot  ; err_=err  ; create_encode_=create_encode  ; }
-		::serdes( s ,       accesses__               , chunk_accesses__                  , parallel_           , is_crc_         , hot_      , err_      , create_encode_                ) ;
-		if (IsIStream<S>) { accesses_ =   accesses__ ; chunk_accesses_ =chunk_accesses__ ; parallel =parallel_ ; is_crc =is_crc_ ; hot =hot_ ; err =err_ ; create_encode =create_encode_ ; }
+		Accesses::Val accesses__       = {}    ; // XXX/  : initialization is to please c++26
+		Accesses::Val chunk_accesses__ = {}    ; // .
+		bool          parallel_        = false ; // .
+		bool          is_crc_          = false ; // .
+		bool          hot_             = false ; // .
+		bool          err_             = false ; // .
+		bool          create_encode_   = false ; // .
+		if (IsOStream<S>) {
+			accesses__       = accesses_       ;
+			chunk_accesses__ = chunk_accesses_ ;
+			parallel_        = parallel        ;
+			is_crc_          = is_crc          ;
+			hot_             = hot             ;
+			err_             = err             ;
+			create_encode_   = create_encode   ;
+		}
+		::serdes( s , accesses__,chunk_accesses__,parallel_,is_crc_,hot_,err_,create_encode_ ) ;
+		if (IsIStream<S>) {
+			accesses_       = accesses__       ;
+			chunk_accesses_ = chunk_accesses__ ;
+			parallel        = parallel_        ;
+			is_crc          = is_crc_          ;
+			hot             = hot_             ;
+			err             = err_             ;
+			create_encode   = create_encode_   ;
+		}
 		//
 		if (is_crc) ::serdes( s , _crc ) ;
 		else        ::serdes( s , _sig ) ;
+		// END_OF_VERSIONING
 	}
 	// accesses
 	constexpr Accesses accesses      () const {                  return Accesses(accesses_      )    ; }
