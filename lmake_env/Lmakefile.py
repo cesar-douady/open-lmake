@@ -155,25 +155,28 @@ class ConfigH(BaseRule) :
 	deps         = { 'CONFIGURE'  : 'ext/{DirS}configure' }
 	cmd          = 'cd ext/{DirS} ; ./configure'
 
-class SysConfig(PathRule,TraceRule) :    # XXX : handle PCRE
+class SysConfig(PathRule,TraceRule) :
 	targets = {
 		'H'     : 'sys_config.h'
 	,	'TRIAL' : r'trial/{*:.*}'
 	,	'MK'    : r'sys_config.dir/{*:.*}'
 	}
-	deps = { 'EXE' : '_bin/sys_config' }
-	autodep = 'ld_preload'               # ptrace is not supported as _bin/sys_config calls ptrace and ptrace under ptrace is forbidden
+	deps    = { 'EXE' : '_bin/sys_config' }
+	autodep = 'ld_preload'                  # ptrace is not supported as _bin/sys_config calls ptrace and ptrace under ptrace is forbidden
 	cmd  = '''
 		OS={os.uname().sysname} CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/mk {H} 2>&1
 		while read k e v ; do
 			case $k in
 				'#'*      ) ;;
-				*HAS_PCRE*) echo    > {MK('$k')} ;;
+				*HAS_EBPF*) echo    > {MK('$k')} ;;       # XXX : handle EBPF
+				*HAS_PCRE*) echo    > {MK('$k')} ;;       # XXX : handle PCRE
 				*         ) echo $v > {MK('$k')} ;;
 			esac
 		done < $TMPDIR/mk
-		echo '#undef  HAS_PCRE'   >> {H}
-		echo '#define HAS_PCRE 0' >> {H}
+		echo '#undef  HAS_EBPF'   >> {H} # XXX : handle EBPF
+		echo '#define HAS_EBPF 0' >> {H} # .
+		echo '#undef  HAS_PCRE'   >> {H} # XXX : handle PCRE
+		echo '#define HAS_PCRE 0' >> {H} # .
 	'''
 def sys_config(key) :
 	try    : return open(f'sys_config.dir/{key}').read().strip()
@@ -453,7 +456,7 @@ class LinkAutodepExe(LinkAutodep,LinkAppExe) :
 	deps    = { 'MAIN'   : 'src/autodep/lautodep.o' }
 
 class LinkJobExecExe(LinkAutodep,LinkAppExe) :
-	targets = { 'TARGET' : '_bin/job_exec'  }
+	targets = { 'TARGET' : '_bin/job_exec' }
 	deps    = {
 		'CACHE'     : None
 	,	'RPC_CACHE' : 'src/cache/rpc_cache.o'

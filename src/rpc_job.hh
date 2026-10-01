@@ -24,6 +24,9 @@
 // by default, use a compromize between speed an reliability
 enum class AutodepMethod : uint8_t {
 	None
+#if HAS_EBPF
+	,	Ebpf
+#endif
 ,	Ptrace
 #if HAS_SECCOMP
 	,	Seccomp
@@ -145,6 +148,7 @@ enum class JobReasonTag : uint8_t {           // see explanations in table below
 ,	OldErr
 ,	Rsrcs
 ,	PollutedTargets
+,	Frozen
 ,	ChkDeps
 ,	WasIncremental
 ,	Lost
@@ -152,7 +156,6 @@ enum class JobReasonTag : uint8_t {           // see explanations in table below
 ,	Force
 ,	Killed
 ,	Cmd
-,	Frozen
 ,	New
 //	with node
 ,	BusyTarget
@@ -163,10 +166,10 @@ enum class JobReasonTag : uint8_t {           // see explanations in table below
 ,	ManualTarget
 ,	ClashTarget
 // with dep
+,	DepUnlnked
 ,	BusyDep                                   // job is waiting for an unknown dep
 ,	DepOutOfDate
 ,	DepTransient
-,	DepUnlnked
 ,	DepUnstable
 //	with error
 ,	DepOverwritten
@@ -178,7 +181,7 @@ enum class JobReasonTag : uint8_t {           // see explanations in table below
 //
 // aliases
 ,	HasNode = BusyTarget                      // if >=HasNode <=> a node is associated
-,	HasDep  = BusyDep                         // if >=HasDep  <=> a dep  is associated
+,	HasDep  = DepUnlnked                      // if >=HasDep  <=> a dep  is associated
 ,	Err     = DepOverwritten                  // if >=Err     <=> a dep  is in error
 ,	Missing = DepMissingStatic                // if >=Missing <=> a dep  is missing
 } ;
@@ -192,6 +195,7 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::OldErr             , "job was in error"                           }
 ,	{ JobReasonTag::Rsrcs              , "resources changed and job was in error"     }
 ,	{ JobReasonTag::PollutedTargets    , "polluted targets"                           }
+,	{ JobReasonTag::Frozen             , "job is frozen"                              }
 ,	{ JobReasonTag::ChkDeps            , "dep check requires rerun"                   }
 ,	{ JobReasonTag::WasIncremental     , "job was built incremental"                  }
 ,	{ JobReasonTag::Lost               , "job lost"                                   }
@@ -199,7 +203,6 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::Force              , "job forced"                                 }
 ,	{ JobReasonTag::Killed             , "job was killed"                             }
 ,	{ JobReasonTag::Cmd                , "command changed"                            }
-,	{ JobReasonTag::Frozen             , "job is frozen"                              }
 ,	{ JobReasonTag::New                , "job was never run"                          }
 //	with node
 ,	{ JobReasonTag::BusyTarget         , "busy target"                                }
@@ -210,10 +213,10 @@ static constexpr ::amap<JobReasonTag,const char*,N<JobReasonTag>> JobReasonTagSt
 ,	{ JobReasonTag::ManualTarget       , "target manually polluted"                   }
 ,	{ JobReasonTag::ClashTarget        , "multiple simultaneous writes"               }
 // with dep
+,	{ JobReasonTag::DepUnlnked         , "dep not on disk"                            }
 ,	{ JobReasonTag::BusyDep            , "waiting dep"                                }
 ,	{ JobReasonTag::DepOutOfDate       , "dep out-of-date"                            }
 ,	{ JobReasonTag::DepTransient       , "dep dir is a symbolic link"                 }
-,	{ JobReasonTag::DepUnlnked         , "dep not on disk"                            }
 ,	{ JobReasonTag::DepUnstable        , "dep changed during job execution"           }
 //	with error
 ,	{ JobReasonTag::DepOverwritten     , "dep has been overwritten"                   }
@@ -234,14 +237,14 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::OldErr             , 21 }
 ,	{ JobReasonTag::Rsrcs              , 22 }
 ,	{ JobReasonTag::PollutedTargets    , 23 }
-,	{ JobReasonTag::ChkDeps            , 41 }
+,	{ JobReasonTag::Frozen             , 41 }
+,	{ JobReasonTag::ChkDeps            , 42 }
 ,	{ JobReasonTag::WasIncremental     , 60 } // job was built incrementally but asked not-incremental
 ,	{ JobReasonTag::Lost               , 61 }
 ,	{ JobReasonTag::WasLost            , 61 }
 ,	{ JobReasonTag::Force              , 62 }
 ,	{ JobReasonTag::Killed             , 63 }
 ,	{ JobReasonTag::Cmd                , 64 }
-,	{ JobReasonTag::Frozen             , 65 }
 ,	{ JobReasonTag::New                , 90 }
 //	with node
 ,	{ JobReasonTag::BusyTarget         , 10 } // this should not occur as there is certainly another reason to be running
@@ -252,10 +255,10 @@ static constexpr ::amap<JobReasonTag,uint8_t,N<JobReasonTag>> JobReasonTagPrios 
 ,	{ JobReasonTag::ManualTarget       , 34 }
 ,	{ JobReasonTag::ClashTarget        , 35 }
 // with dep
+,	{ JobReasonTag::DepUnlnked         , 50 }
 ,	{ JobReasonTag::BusyDep            , 51 }
 ,	{ JobReasonTag::DepOutOfDate       , 51 } // starting at this prio, jobs are assumed to generate new targets during dry run
 ,	{ JobReasonTag::DepTransient       , 51 }
-,	{ JobReasonTag::DepUnlnked         , 50 }
 ,	{ JobReasonTag::DepUnstable        , 52 }
 //	with error
 ,	{ JobReasonTag::DepOverwritten     , 70 }

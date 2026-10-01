@@ -17,6 +17,10 @@
 
 #include "autodep/gather.hh"
 
+#if HAS_EBPF
+	#include "autodep/ebpf.hh"
+#endif
+
 using namespace Disk ;
 using namespace Hash ;
 using namespace Re   ;
@@ -267,6 +271,12 @@ int main( int argc , char* argv[] ) {
 			if ( size_t pos=chroot_tag.find('.') ; pos!=Npos ) chroot_tag.resize(pos) ;
 			else                                               rm_slash(chroot_tag)   ;
 		}
+		#if HAS_EBPF
+			// loading ebpf tracer requires privileges, hence it must be done before entering namespaces
+			if (g_start_info.method==AutodepMethod::Ebpf)
+				try                       { AutodepEbpf::load(g_start_info.autodep_env.deps_in_system) ; }
+				catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                  }
+		#endif
 		try {
 			g_start_info.enter(
 				/*out*/  enter_accesses
@@ -294,8 +304,8 @@ int main( int argc , char* argv[] ) {
 			}
 			g_start_info.update_env( /*out*/end_report.dyn_env , g_phy_repo_root_s , end_report.phy_tmp_dir_s , g_seq_id ) ;
 		}
-		end_report.os_info                        = get_os_info()                                              ;            // get_os_info() must be called after enter()
-		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_seq_id) ;            // fast_report_pipe is a pipe and only works locally
+		end_report.os_info                        = get_os_info()                                              ;                         // get_os_info() must be called after enter()
+		g_start_info.autodep_env.fast_report_pipe = cat(repo_root_s,PrivateAdminDirS,"fast_reports/",g_seq_id) ;                         // fast_report_pipe is a pipe and only works locally
 		g_start_info.autodep_env.views_s          = g_start_info.job_space.flat_phys_s()                       ;
 		trace("prepared",g_start_info.autodep_env) ;
 		//

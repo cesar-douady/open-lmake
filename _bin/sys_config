@@ -515,7 +515,7 @@ cat <<-"EOF" >has_pidfd.cc
 EOF
 HAS_PIDFD=$(ok cc -o /dev/null -std=c++20 has_pidfd.cc )
 
-cat <<-"EOF" >can_autodep_seccomp.c
+cat <<-"EOF" >has_seccomp.c
 	#include <linux/seccomp.h>
 	#include <sys/syscall.h>
 	#include <unistd.h>
@@ -532,7 +532,61 @@ cat <<-"EOF" >can_autodep_seccomp.c
 		return x ;                             // use variable
 	}
 EOF
-HAS_SECCOMP=$(ok cc -c -o /dev/null -xc can_autodep_seccomp.c )
+HAS_SECCOMP=$(ok cc -c -o /dev/null -xc has_seccomp.c )
+
+#
+# EBPF (HAS_EBPF+BPF_CLANG+BPF_ARCH+BPF_INC_DIR)
+#
+BPF_CLANG=$(type -p clang || :)
+case $(uname -m) in
+	x86_64 ) BPF_ARCH=x86   ;;
+	aarch64) BPF_ARCH=arm64 ;;
+	*      ) BPF_ARCH=      ;;
+esac
+BPF_INC_DIR=$($BPF_CLANG -E -v -xc - </dev/null 2>&1 | grep '^ /usr/include/' | sed 's: ::') # asm/types.h lies in the multi-arch dir, which is not searched when targeting bpf
+# find a bpftool able to dump the running kernel BTF (the distro one may not support the running kernel, e.g. under WSL)
+for bt in bpftool /usr/sbin/bpftool /usr/lib/linux-tools/*/bpftool /usr/lib/linux-tools-*/bpftool ; do
+	bt=$(type -p $bt || :)
+	if [ "$bt" ] ; then
+		if $bt btf dump file /sys/kernel/btf/vmlinux format c >/dev/null 2>&1  ; then
+			BPFTOOL=$bt
+			break
+		fi
+	fi
+done
+cat <<"EOF" >has_ebpf.bpf.c
+	#include "vmlinux.h"
+	#include <bpf/bpf_helpers.h>
+	#include <bpf/bpf_tracing.h>
+	#include <bpf/bpf_core_read.h>
+	struct {
+		__uint(type       ,BPF_MAP_TYPE_RINGBUF) ;
+		__uint(max_entries,4096                ) ;
+	} rb SEC(".maps") ;
+	SEC("tracepoint/raw_syscalls/sys_enter") int probe   ( struct trace_event_raw_sys_enter* ctx               ) { return 0                        ; }
+	SEC("fexit/getname_flags"              ) int BPF_PROG( probe2,const char* u , int f , struct filename* ret ) { return !BPF_CORE_READ(ret,name) ; }
+	char LICENSE[] SEC("license") = "GPL" ;
+EOF
+cat <<"EOF" >has_ebpf.cc
+	#include <bpf/libbpf.h>
+	static_assert(LIBBPF_MAJOR_VERSION>=1) ;
+	int main() {
+		struct bpf_object * o  = bpf_object__open_mem( nullptr/*obj_buf*/ , 0/*obj_buf_sz*/ , nullptr/*opts*/ )            ;
+		struct ring_buffer* rb = ring_buffer__new( 0/*map_fd*/ , nullptr/*sample_cb*/ , nullptr/*ctx*/ , nullptr/*opts*/ ) ;
+		return o==nullptr || rb==nullptr ;
+	}
+EOF
+HAS_EBPF=0
+if [ "$BPF_CLANG" -a "$BPF_ARCH" -a "$BPFTOOL" ] ; then
+	if \
+		$BPFTOOL btf dump file /sys/kernel/btf/vmlinux format c >vmlinux.h 2>/dev/null                                                 \
+	&&	$BPF_CLANG -g -O3 -target bpf -D__TARGET_ARCH_$BPF_ARCH -I. -I$BPF_INC_DIR -c -o has_ebpf.bpf.o has_ebpf.bpf.c >/dev/null 2>&1 \
+	&&	cc -std=$CXX_STD -o /dev/null has_ebpf.cc -lbpf
+	then
+		HAS_EBPF=1
+	fi
+fi
+[ $HAS_EBPF = 1 ] || echo "no ebpf autodep support (requires clang, libbpf>=1.0, bpftool and kernel BTF)" >>$SUM_FILE
 
 #
 # SINGLE_THREADED (HAS_SINGLE_THREADED)
@@ -635,12 +689,17 @@ cat >$MK_FILE <<-EOF
 	LMAKE_FLAGS   := $LMAKE_FLAGS
 	#
 	BASH                      := /bin/bash
+	BPF_ARCH                  := $BPF_ARCH
+	BPF_CLANG                 := $BPF_CLANG
+	BPF_INC_DIR               := $BPF_INC_DIR
+	BPFTOOL                   := $BPFTOOL
 	CXX                       := $CXX
 	CXX_FLAVOR                := $CXX_FLAVOR
 	CXX_STD                   := $CXX_STD
 	GCOV                      := $GCOV
 	GIT                       := $(type -p git)
 	HAS_32                    := ${HAS_32#0}
+	HAS_EBPF                  := ${HAS_EBPF#0}
 	HAS_LD_AUDIT              := ${HAS_LD_AUDIT#0}
 	HAS_PCRE                  := ${HAS_PCRE#0}
 	HAS_PY_DYN                := ${HAS_PY_DYN#0}
@@ -698,6 +757,7 @@ cat >$H_FILE <<-EOF
 	#define ADDR2LINE                   "$ADDR2LINE"
 	#define HAS_32                      $HAS_32
 	#define HAS_ACL                     $HAS_ACL
+	#define HAS_EBPF                    $HAS_EBPF
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
 	#define HAS_PCRE                    $HAS_PCRE
@@ -733,7 +793,12 @@ case $HAS_LD_AUDIT in
 	0) HAS_LD_AUDIT_PY=False ;;
 	1) HAS_LD_AUDIT_PY=True  ;;
 esac
+case $HAS_EBPF in
+	0) HAS_EBPF_PY=False ;;
+	1) HAS_EBPF_PY=True  ;;
+esac
 >$PY_FILE
+true               && echo "has_ebpf            = $HAS_EBPF_PY"     >>$PY_FILE
 true               && echo "has_ld_audit        = $HAS_LD_AUDIT_PY" >>$PY_FILE
 true               && echo "python              = '$PYTHON'"        >>$PY_FILE
 [ "$PYTHON2"     ] && echo "python2             = '$PYTHON2'"       >>$PY_FILE

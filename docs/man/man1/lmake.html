@@ -1,5 +1,5 @@
 <!-- Creator     : groff version 1.23.0 -->
-<!-- CreationDate: Tue Sep 29 11:09:58 2026 -->
+<!-- CreationDate: Thu Oct  1 18:54:35 2026 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
 "http://www.w3.org/TR/html4/loose.dtd">
 <html>
@@ -651,7 +651,9 @@ avoiding the intermixing problem.</p>
 
 <p style="margin-left:18%;">Report what actions would be
 performed without actually executing them. This assumes no
-job would be steady and no new deps would be discovered.</p>
+job would be steady (unless regenerated such as if a target
+has been unlinked but no deps were modified) and no new deps
+would be discovered.</p>
 
 <p style="margin-left:9%;"><b>-N</b> <i>nice_val</i>,
 <b>--nice</b>=<i>nice_val</i></p>

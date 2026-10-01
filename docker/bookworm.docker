@@ -2,7 +2,8 @@
 # Copyright (c) 2023-2026 Doliam
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
-# build command from top level : sudo docker build -f docker/bookworm.docker -t bookworm docker
+
+# build command from top level : sudo docker build -f docker/bookworm.docker -t bookworm docker ; mk_docker bookworm
 
 FROM debian:bookworm-slim
 

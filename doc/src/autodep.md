@@ -55,6 +55,14 @@ A special implementation has been devised to handle this case, but is too fragil
 
 ## Spying methods based on system calls
 
+### ebpf (not implemented yet)
+
+The principle is to use the eBPF feature (extended BPF) of modern linux systems.
+
+This is a very promising approach (not finilized yet) that should bring both transparency and performance.
+
+The major drawback is linked to security : installing a eBPF filter requires to be privileged, which implies the presence of a root-suid daemon.
+
 ### ptrace
 
 The principle is to use [`ptrace`](https://man7.org/linux/man-pages/man2/ptrace.2.html) (the system call used by the `strace` utility) to spy user code activity.

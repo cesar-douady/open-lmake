@@ -1163,7 +1163,10 @@ void JobStartRpcReply::mk_lmake_version() {
 		lmake_version.py2_ld_library_path = PY2_LD_LIBRARY_PATH ;
 		return ;
 	}
-	try {                                            // if using a different lmake, we must check compatibility and extract system info
+	try {            // if using a different lmake, we must check compatibility and extract system info
+		#if HAS_EBPF
+			[[maybe_unused]] bool has_ebpf = false ;
+		#endif
 		[[maybe_unused]] bool has_ld_audit = false ;
 		[[maybe_unused]] bool has_seccomp  = false ;
 		uint64_t              v_job        = 0     ;
@@ -1173,16 +1176,22 @@ void JobStartRpcReply::mk_lmake_version() {
 			::string key = strip(line.substr(0    ,pos)) ;
 			::string val = strip(line.substr(pos+1    )) ;
 			switch (key[0]) {
-				case 'h' : if      (key=="has_ld_audit"       ) has_ld_audit                      = (val=="True")              ;
-				/**/       else if (key=="has_seccomp"        ) has_seccomp                       = (val=="True")              ;
+				case 'h' :
+					#if HAS_EBPF
+						if (key=="has_ebpf") { has_ebpf = (val=="True") ; break ; }
+					#endif
+				/**/       if (key=="has_ld_audit"       ) { has_ld_audit                      = (val=="True")              ; break ; }
+				/**/       if (key=="has_seccomp"        ) { has_seccomp                       = (val=="True")              ; break ; }
 				break ;
-				case 'j' : if      (key=="job"                ) v_job                             = from_string<uint64_t>(val) ; break ;
-				case 'p' : if      (key=="py_ld_library_path" ) lmake_version.py_ld_library_path  = val.substr(1,val.size()-2) ;         // suppress quotes
-				/**/       else if (key=="py2_ld_library_path") lmake_version.py2_ld_library_path = val.substr(1,val.size()-2) ;         // .
-				/**/       else if (key=="python"             ) lmake_version.python              = val.substr(1,val.size()-2) ;         // .
-				/**/       else if (key=="python2"            ) lmake_version.python2             = val.substr(1,val.size()-2) ;         // .
+				case 'j' : if (key=="job"                ) { v_job                             = from_string<uint64_t>(val) ; break ; }
 				break ;
-				case 's' : if      (key=="std_path"           ) lmake_version.std_path            = val.substr(1,val.size()-2) ; break ; // .
+				case 'p' : if (key=="py_ld_library_path" ) { lmake_version.py_ld_library_path  = val.substr(1,val.size()-2) ; break ; } // suppress quotes
+				/**/       if (key=="py2_ld_library_path") { lmake_version.py2_ld_library_path = val.substr(1,val.size()-2) ; break ; } // .
+				/**/       if (key=="python"             ) { lmake_version.python              = val.substr(1,val.size()-2) ; break ; } // .
+				/**/       if (key=="python2"            ) { lmake_version.python2             = val.substr(1,val.size()-2) ; break ; } // .
+				break ;
+				case 's' : if (key=="std_path"           ) { lmake_version.std_path            = val.substr(1,val.size()-2) ; break ; } // .
+				break ;
 			DN}
 		}
 		throw_unless( v_job                   , "expected job-version "  ,Version::Job," not found"     ) ;
@@ -1194,6 +1203,9 @@ void JobStartRpcReply::mk_lmake_version() {
 		#endif
 		#if HAS_SECCOMP
 			if (method==AutodepMethod::Seccomp) throw_unless( has_seccomp  , "seccomp is not supported as autodep method"  ) ;
+		#endif
+		#if HAS_EBPF
+			if (method==AutodepMethod::Ebpf) throw_unless( has_ebpf , "ebpf is not supported as autodep method" ) ;
 		#endif
 	} catch (::string const& e) {
 		throw cat("cannot execute job with incompatible open-lmake (",e,") as per file _lib/version.py in root dir ",phy_lmake_root_s,rm_slash) ;

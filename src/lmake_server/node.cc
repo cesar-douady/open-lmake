@@ -487,10 +487,12 @@ namespace Engine {
 			if (!dri.waiting()) {
 				ReqInfo::WaitInc sav_n_wait{ri} ;                                       // appear waiting in case of recursion loop (loop will be caught because of no job on going)
 				MakeAction dma = query ? MakeAction::Query : ri.goal<=NodeGoal::Status ? MakeAction::Status : MakeAction::Dsk ;
-				//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-				/**/                                          dir->last_asking  = idx() ;
-				if ( dir->make(dri,dma,ri.speculate).second ) dir->build_asking = idx() ;
-				//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				if (!( query || dry_run )) {
+					//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					/**/                                   dir->last_asking  = idx() ;
+					if ( dir->make(dri,dma,ri.speculate) ) dir->build_asking = idx() ;
+					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+				}
 			}
 			trace("dir",dir,STR(dir->done(dri,NodeGoal::Status)),ri) ;
 			//
@@ -499,16 +501,16 @@ namespace Engine {
 				set_status(NodeStatus::Uphill) ;                                        // temporarily, until dir is built and we know the definitive answer
 				goto NotDone ;                                                          // return value is meaningless when waiting
 			}
-			if ( (query||dry_run) && !dir->done(dri) ) { trace("query","dir",STR(query),STR(dry_run)) ; return false/*found*/ ; }
-			SWEAR(dir->done(dri)) ;                                                                                              // after having called make, dep must be either waiting or done
+			if ( query && !dir->done(dri) ) { trace("query","dir",STR(query),STR(dry_run)) ; return false/*found*/ ; }
+			SWEAR(dir->done(dri)) ;                                                                                    // after having called make, dep must be either waiting or done
 		}
 		// step 3 : handle what needs dir status
 		switch (dir->buildable) {
 			case Buildable::Maybe :
-				if (dir->status()==NodeStatus::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; } // not Uphill anymore
+				if (dir->status()==NodeStatus::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; }              // not Uphill anymore
 				[[fallthrough]] ;
 			case Buildable::Yes :
-				if (buildable==Buildable::Maybe) buildable = Buildable::Yes ;                             // propagate as dir->buildable may have changed from Maybe to Yes when made
+				if (buildable==Buildable::Maybe) buildable = Buildable::Yes ;                                          // propagate as dir->buildable may have changed from Maybe to Yes when made
 				[[fallthrough]] ;
 			case Buildable::SubSrc    :
 			case Buildable::SubSrcDir :
@@ -522,46 +524,40 @@ namespace Engine {
 		switch (dir->buildable) {
 			case Buildable::Maybe :
 			case Buildable::Yes   :
-				if (dir->crc==Crc::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; }             // uphill is buildable, but does not actually exist
+				if (dir->crc==Crc::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; }                          // uphill is buildable, but does not actually exist
 				goto DirSrc ;
 			case Buildable::SubSrcDir :
-				if (dir->crc==Crc::None) { set_status(NodeStatus::None   ) ; goto Src     ; }             // status is overwritten Src if node actually exists
+				if (dir->crc==Crc::None) { set_status(NodeStatus::None   ) ; goto Src     ; }                          // status is overwritten Src if node actually exists
 				goto DirSrc ;
 			case Buildable::SubSrc :
 			case Buildable::DynSrc :
 			case Buildable::Src    :
 			DirSrc :
-				if (dir->crc.is_lnk()) goto Transient ;                                                   // our dir is a link, we are transient
-				set_status(NodeStatus::Uphill) ;                                                          // a non-existent source stays a source, hence its sub-files are uphill
+				if (dir->crc.is_lnk()) goto Transient ;                                                                // our dir is a link, we are transient
+				set_status(NodeStatus::Uphill) ;                                                                       // a non-existent source stays a source, hence its sub-files are uphill
 				goto NoSrc ;
-		DF}                                                                                               // NO_COV
-		FAIL() ;                                                                                          // NO_COV
+		DF}                                                                                                            // NO_COV
 	Src :
-		{	bool modified = refresh_src_anti( lazy_name() , ~Accesses() , status()!=NodeStatus::None , false/*keep_actual_job*/ , {req} ) ;
-			if      (crc            !=Crc::None) set_status(NodeStatus::Src) ;                                                              // overwrite status if it was pre-set to None
-			else if (status()==NodeStatus::None) goto NoSrc ;                                                                               // if status was pre-set to None, it means we accept NoSrc
-			if      (modified                  ) actual_job = {} ;
-			/**/                                 goto DoneDsk ;    // sources are always done on disk, as it is by probing it that we are done
+		{	ri.dry_run_modif = refresh_src_anti( lazy_name() , ~Accesses() , status()!=NodeStatus::None , false/*keep_actual_job*/ , {req} ) ;
+			if      (crc     !=Crc       ::None) set_status(NodeStatus::Src) ;                                                                 // overwrite status if it was pre-set to None
+			else if (status()==NodeStatus::None) goto NoSrc ;                  // if status was pre-set to None, it means we accept NoSrc
+			if      (ri.dry_run_modif          ) actual_job = {} ;
 		}
-		FAIL() ;                                                   // NO_COV
+		goto DoneDsk ;                                                         // sources are always done on disk, as it is by probing it that we are done
 	Transient :
-		set_crc_date() ;                                           // if depending on a transient node, a job must be rerun in all cases
+		set_crc_date() ;                                                       // if depending on a transient node, a job must be rerun in all cases
 		set_status(NodeStatus::Transient) ;
-		actual_job = {} ;
-		goto Done ;
-		FAIL() ;                                                   // NO_COV
-	NoSrc :
-		{	bool unlnked = _set_no_job( ri , query ) ;
-			if ( unlnked && (query||dry_run) ) return false/*found*/ ;
-			goto DoneDsk ;
-		}
-		FAIL() ;                                                   // NO_COV
-	Done :
-		ri.done_ = ri.goal ;
+		actual_job       = {}      ;
+		ri.dry_run_modif = true    ;
+		ri.done_         = ri.goal ;
 		goto NotDone ;
-		FAIL() ;                                                   // NO_COV
+	NoSrc :
+		if (_set_no_job(ri,query)) { //!                                               found
+			if (dry_run) { ri.done_ = NodeGoal::Dsk ; ri.dry_run_modif = true ; return false ; }
+			if (query  ) {                                                      return false ; }
+		}
 	DoneDsk :
-		ri.done_ = NodeGoal::Dsk   ;                               // disk is de facto updated
+		ri.done_ = NodeGoal::Dsk   ;                                           // disk is de facto updated
 		polluted = Polluted::Clean ;
 	NotDone :
 		trace("done",idx(),status(),crc,ri) ;
@@ -579,7 +575,7 @@ namespace Engine {
 		ri.single   = true             ;                                                                                                          // .
 		return true ;
 	}
-	::pair<JobReason,bool/*triggered*/> NodeData::_do_make( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
+	bool/*triggered*/ NodeData::_do_make( ReqInfo& ri , MakeAction make_action , Bool3 speculate ) {
 		RuleIdx                             prod_idx       = NoIdx                               ;
 		Req                                 req            = ri.req                              ;
 		bool                                dry_run        = req->options.flags[ReqFlag::DryRun] ;
@@ -589,7 +585,7 @@ namespace Engine {
 		bool                                chk_regenerate = false                               ;                    // anti infinite loop : may only regenerate once
 		RejectSet/*lazy*/                   known_rejected { self }                              ;
 		::string/*lazy*/                    name_          ;                                                          // = name()
-		::pair<JobReason,bool/*triggered*/> res            = {}                                  ;
+		bool                                triggered      = false                               ;
 		Trace trace("Nmake",idx(),ri,make_action,crc) ;
 		ri.speculate &= speculate ;
 		//vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
@@ -607,7 +603,7 @@ namespace Engine {
 			//           ^^^^^^^^^^^^^^^^^^^^^^
 			if (!found) {
 				SWEAR( query||dry_run , query,dry_run ) ;
-				if (crc!=Crc::None) res = {JobReasonTag::New,true/*triggered*/} ;
+				if ( dry_run && crc!=Crc::None ) triggered = true/*triggered*/ ;
 				goto Wait ;
 			}
 			if (ri.waiting()) goto Wait   ;
@@ -700,7 +696,10 @@ namespace Engine {
 						else if (!reason) jrtt = jt->make( jri , JobMakeAction::Query  , reason , ri.speculate ) ;
 						//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 						else              jrtt = { reason , true/*triggered*/ }                                  ;                 // if we have a reason to run job, answer to query is known
-						if (jrtt.second) res = jrtt ;
+						if (jrtt.second) {
+							triggered        = jrtt.second                      ;
+							ri.dry_run_modif = dry_run_is_modif(jrtt.first.tag) ;
+						}
 						if (!( query || dry_run )) {
 							/**/             jt->last_asking () = idx() ;
 							if (jrtt.second) jt->build_asking() = idx() ;
@@ -732,14 +731,19 @@ namespace Engine {
 				set_conform_idx(prod_idx) ;
 				JobTgt const& jt = job_tgts[prod_idx] ;
 				// this may occur in case of phony target (or star-target in error which is deemed phony) that is non-existent (but deemed produced)
-				if ( buildable!=Buildable::Codec && actual_job!=jt ) {                                                             // codec files may not have actual_job
-					actual_job = jt ;                                                                                              // we are actually produced non-existent by our official job
+				if ( actual_job!=jt && buildable!=Buildable::Codec ) {                                                             // codec files may not have actual_job
+					if (!dry_run      ) actual_job = jt ;                                                                          // we are actually produced non-existent by our official job
 					if (crc!=Crc::None) {
-						::string n = name() ;
-						unlnk          (n) ;
-						_unlnk_dir_hier(n) ;
-						set_crc_date( Crc::None , {FileInfo()}/*sig*/ ) ;
-						req->audit_node( Color::Note , "unlinked" , idx() ) ;
+						if (dry_run) {
+							triggered = true/*triggered*/ ;
+							ri.req->would_audit_node( Color::Warning , "unlink" , idx() ) ;
+						} else {
+							::string n = name() ;
+							unlnk          (n) ;
+							_unlnk_dir_hier(n) ;
+							set_crc_date( Crc::None , {FileInfo()}/*sig*/ ) ;
+							req->audit_node( Color::Note , "unlinked" , idx() ) ;
+						}
 					}
 				}
 			}
@@ -754,7 +758,7 @@ namespace Engine {
 	Wait :
 		if (stop_speculate) _propag_speculate(ri) ;
 		trace("done",ri) ;
-		return res ;
+		return triggered ;
 	}
 
 	void NodeData::_propag_speculate(ReqInfo const& cri) const {

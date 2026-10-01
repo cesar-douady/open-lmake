@@ -16,6 +16,11 @@ using namespace Hash ;
 using namespace Re   ;
 using namespace Time ;
 
+#if HAS_EBPF
+	int/*rc*/     (*Gather::s_ebpf_prepare_child)(void*) = nullptr ;
+	int/*wstatus*/(*Gather::s_ebpf_process      )(pid_t) = nullptr ;
+#endif
+
 //
 // Gather::AccessInfo
 //
@@ -517,6 +522,7 @@ void Gather::_trace_child( Fd report_fd , ::latch* ready ) {
 	switch (method) {
 		/**/            case AutodepMethod::Ptrace  : _child.pre_exec = AutodepPtrace ::prepare_child ; break ;
 		IF_HAS_SECCOMP( case AutodepMethod::Seccomp : _child.pre_exec = AutodepSeccomp::prepare_child ; break ; )
+		IF_HAS_EBPF   ( case AutodepMethod::Ebpf    : _child.pre_exec = s_ebpf_prepare_child          ; break ; )
 	DF}                                                                                                           // NO_COV
 	//vvvvvvvvvvvv
 	_child.spawn() ;      // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
@@ -526,6 +532,7 @@ void Gather::_trace_child( Fd report_fd , ::latch* ready ) {
 		switch (method) {
 			/**/            case AutodepMethod::Ptrace  : wstatus = AutodepPtrace ::process(_child.pid) ; break ;
 			IF_HAS_SECCOMP( case AutodepMethod::Seccomp : wstatus = AutodepSeccomp::process(_child.pid) ; break ; )
+			IF_HAS_EBPF   ( case AutodepMethod::Ebpf    : wstatus = s_ebpf_process         (_child.pid) ; break ; )
 		DF}                                                                                                         // NO_COV
 	} catch (::string const& e) {
 		wstatus = 255<<8 ;                                                                                          // exit code 255
@@ -554,11 +561,15 @@ Fd Gather::_spawn_child() {
 	_child.stdin      = child_stdin                           ;
 	_child.stdout     = child_stdout                          ;
 	_child.stderr     = child_stderr                          ;
+	#if HAS_EBPF
+		if (method==AutodepMethod::Ebpf) throw_unless( s_ebpf_prepare_child && s_ebpf_process , "autodep method ebpf is not available (tracer not loaded)" ) ;
+	#endif
 	// PER_AUTODEP_METHOD : handle case
 Retry :
 	switch (method) {
 		/**/            case AutodepMethod::Ptrace  :
-		IF_HAS_SECCOMP( case AutodepMethod::Seccomp : ) {
+		IF_HAS_SECCOMP( case AutodepMethod::Seccomp : )
+		IF_HAS_EBPF   ( case AutodepMethod::Ebpf    : ) {
 			// we split the responsability into 2 threads :
 			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 			// - child launches target process and watches it using direct wait then report deps using normal socket report

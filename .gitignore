@@ -92,3 +92,7 @@ gcov/
 # debian
 /open-lmake_*
 /open-lmake-*/
+
+# ebpf generated files
+/src/autodep/vmlinux.h
+/src/autodep/ebpf.skel.h

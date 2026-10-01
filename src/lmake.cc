@@ -74,7 +74,7 @@ int main( int argc , char* argv[] ) {
 	,	{ ReqFlag::Jobs            , { .short_name='j' , .has_arg=true  , .doc="max number of concurrent jobs"                  } }
 	,	{ ReqFlag::Local           , { .short_name='l' , .has_arg=false , .doc="launch all jobs locally"                        } }
 	,	{ ReqFlag::MaxRuns         , { .short_name='m' , .has_arg=true  , .doc="max runs on top of rule prescription"           } }
-	,	{ ReqFlag::DryRun          , { .short_name='n' , .has_arg=false , .doc="report actions but dont execut them"            } }
+	,	{ ReqFlag::DryRun          , { .short_name='n' , .has_arg=false , .doc="report actions but dont execute them"           } }
 	,	{ ReqFlag::MaxSubmits      , { .short_name='M' , .has_arg=true  , .doc="max submits on top of rule prescription"        } }
 	,	{ ReqFlag::Nice            , { .short_name='N' , .has_arg=true  , .doc="nice value to apply to jobs"                    } }
 	,	{ ReqFlag::LiveOut         , { .short_name='o' , .has_arg=false , .doc="generate live output for last job"              } }
@@ -96,18 +96,6 @@ int main( int argc , char* argv[] ) {
 	/**/  trace(       env_args                ) ;
 	/**/  trace(       args                    ) ;
 	//
-	if (cmd_line.flags[ReqFlag::DryRun]) {
-		if (cmd_line.flags[ReqFlag::Backend    ]) syntax.usage(cat("flag --backend"     ," is only meaningful when executing jobs")) ;
-		if (cmd_line.flags[ReqFlag::CacheMethod]) syntax.usage(cat("flag --cache-method"," is only meaningful when executing jobs")) ;
-		if (cmd_line.flags[ReqFlag::Ete        ]) syntax.usage(cat("flag --ete"         ," is only meaningful when executing jobs")) ;
-		if (cmd_line.flags[ReqFlag::Jobs       ]) syntax.usage(cat("flag --jobs"        ," is only meaningful when executing jobs")) ;
-		if (cmd_line.flags[ReqFlag::Local      ]) syntax.usage(cat("flag --local"       ," is only meaningful when executing jobs")) ;
-		if (cmd_line.flags[ReqFlag::MaxRuns    ]) syntax.usage(cat("flag --max-runs"    ," is only meaningful when executing jobs")) ;
-		if (cmd_line.flags[ReqFlag::MaxSubmits ]) syntax.usage(cat("flag --max-submits" ," is only meaningful when executing jobs")) ;
-		if (cmd_line.flags[ReqFlag::Nice       ]) syntax.usage(cat("flag --nice"        ," is only meaningful when executing jobs")) ;
-		if (cmd_line.flags[ReqFlag::LiveOut    ]) syntax.usage(cat("flag --live-out"    ," is only meaningful when executing jobs")) ;
-		if (cmd_line.flags[ReqFlag::KeepTmp    ]) syntax.usage(cat("flag --keep-tmp"    ," is only meaningful when executing jobs")) ;
-	}
 	try                       { from_string<JobIdx>(cmd_line.flag_args[+ReqFlag::Jobs],true/*empty_ok*/) ;                                                         }
 	catch (::string const& e) { syntax.usage(cat("cannot understand max number of jobs (",e,") : ",cmd_line.flag_args[+ReqFlag::Jobs])) ;                          }
 	//

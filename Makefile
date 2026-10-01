@@ -178,7 +178,8 @@ LINT_OPTS  := '--header-filter=.*' $(LINT_CHKS)
 
 CC_FLAGS := -iquote ext -iquote src -iquote src/lmake_server -iquote .
 
-Z_LIB := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
+Z_LIB   := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
+BPF_LIB := $(if $(HAS_EBPF),-lbpf )
 
 PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -I
 PY_INC_DIRS  :=                 $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR)  $(PY_INCLUDEPY) )  # .
@@ -247,25 +248,26 @@ LMAKE_SERVER_PY_FILES := \
 	lib/usercustomize.py
 
 LMAKE_SERVER_BIN_FILES := \
-	_bin/align_comments          \
-	_bin/lmake_dump              \
-	_bin/lcache_dump             \
-	_bin/ldump_job               \
-	_bin/lkpi                    \
-	_bin/find_cc_ld_library_path \
-	bin/lautodep                 \
-	bin/lcollect                 \
-	bin/ldebug                   \
-	bin/lforget                  \
-	bin/lmake                    \
-	bin/lmark                    \
-	bin/lmake_repair             \
-	bin/lmake_server             \
-	bin/lcache_server            \
-	bin/lcache_repair            \
-	bin/lcodec_repair            \
-	bin/lrun_cc                  \
-	bin/lshow                    \
+	_bin/align_comments               \
+	_bin/lmake_dump                   \
+	_bin/lcache_dump                  \
+	_bin/ldump_job                    \
+	_bin/lkpi                         \
+	_bin/find_cc_ld_library_path      \
+	$(if $(HAS_EBPF),_bin/lmake_bpfd) \
+	bin/lautodep                      \
+	bin/lcollect                      \
+	bin/ldebug                        \
+	bin/lforget                       \
+	bin/lmake                         \
+	bin/lmark                         \
+	bin/lmake_repair                  \
+	bin/lmake_server                  \
+	bin/lcache_server                 \
+	bin/lcache_repair                 \
+	bin/lcodec_repair                 \
+	bin/lrun_cc                       \
+	bin/lshow                         \
 	bin/xxhsum
 
 MAN_FILES := $(patsubst doc/%.m,%,$(filter-out %/common.1.m,$(filter doc/man/man1/%.1.m,$(SRCS))))
@@ -500,6 +502,26 @@ src/store/big_test.dir/tok : src/store/big_test.py LMAKE
 	@echo $(LINT) $(USER_FLAGS) to $@
 	@$(LINT) $< $(LINT_OPTS) -- $(LINT_FLAGS) $(PY_CC_FLAGS) $(CC_FLAGS) >$@.err 2>$@.stderr
 	@if [ -s $@.err ] ; then echo errors in $@.err ; cat $@.stderr ; else >$@ ; fi
+
+# ebpf autodep method : the BPF program is compiled by clang to a BPF object, from which bpftool generates a C skeleton included by ebpf.cc
+ifeq ($(HAS_EBPF),1)
+src/autodep/vmlinux.h :
+	@echo generate $@
+	@$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c >$@
+src/autodep/ebpf.bpf.o : src/autodep/ebpf.bpf.c src/autodep/ebpf_event.h src/autodep/vmlinux.h
+	@echo $(BPF_CLANG) -target bpf to $@
+	@$(BPF_CLANG) -g -O3 -target bpf -D__TARGET_ARCH_$(BPF_ARCH) -iquote src/autodep -I $(BPF_INC_DIR) -c -o $@ $<
+src/autodep/ebpf.skel.h : src/autodep/ebpf.bpf.o
+	@echo generate skeleton to $@
+	@$(BPFTOOL) gen skeleton $< name ebpf >$@
+src/autodep/ebpf_daemon.o : src/autodep/ebpf.skel.h # the daemon includes the skeleton ; the auto-dep .d does not exist on the first build, so make it an explicit prerequisite
+LMAKE_DBG_FILES += _bin/lmake_bpfd
+_bin/lmake_bpfd : src/autodep/ebpf_daemon.o
+	@mkdir -p $(@D)
+	@echo link to $@
+	@$(LINK) -o $@ $^ $(BPF_LIB)
+	@$(SPLIT_DBG_CMD)
+endif
 
 %.d : %.cc
 	@$(COMPILE) \
@@ -751,14 +773,15 @@ REMOTE_OBJS  := \
 #	@$(SPLIT_DBG_CMD)
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)              \
-	src/app.o                    \
-	src/re.o                     \
-	src/rpc_job.o                \
-	src/zfd.o                    \
-	src/autodep/gather.o         \
-	src/autodep/ptrace_seccomp.o \
-	src/autodep/record.o         \
+	$(AUTODEP_OBJS)                      \
+	src/app.o                            \
+	src/re.o                             \
+	src/rpc_job.o                        \
+	src/zfd.o                            \
+	$(if $(HAS_EBPF),src/autodep/ebpf.o) \
+	src/autodep/gather.o                 \
+	src/autodep/ptrace_seccomp.o         \
+	src/autodep/record.o                 \
 	src/cache/rpc_cache.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS)          src/job_exec.o
@@ -769,7 +792,7 @@ _bin/job_exec bin/lautodep :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@# forces dynamic lib resolution as chroot may be called, so lazy binding could lead to wrong lib being loaded
-	@$(LINK) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(BPF_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps

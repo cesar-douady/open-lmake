@@ -314,7 +314,7 @@ namespace Engine {
 
 namespace Engine {
 
-	struct NodeReqInfo : ReqInfo {               // watchers of Node's are Job's or Node's (in case of uphill)
+	struct NodeReqInfo : ReqInfo {                   // watchers of Node's are Job's or Node's (in case of uphill)
 		using MakeAction = NodeMakeAction ;
 		//
 		static constexpr RuleIdx NoIdx = Node::NoIdx ;
@@ -328,14 +328,15 @@ namespace Engine {
 		bool done(           ) const { return done_>=goal ; }
 		// data
 	public :
-//		ReqInfo                                  //    128 bits, inherits
-		RuleIdx  prio_idx    = NoIdx           ; //     16 bits, index to the first job of the current prio being or having been analyzed
-		bool     single      = false           ; // 1<=  8 bits, if true <=> consider only job indexed by prio_idx, not all jobs at this priority
-		bool     overwritten = false           ; // 1<=  8 bits, if true <=  file has been updated since start of req
-		Manual   manual      = Manual::Unknown ; // 3<=  8 bits, info is available as soon as done_=Dsk
-		Bool3    speculate   = Yes             ; // 2<=  8 bits, Yes : prev dep not ready, Maybe : prev dep in error
-		NodeGoal goal        = NodeGoal::None  ; // 2<=  8 bits, asked level
-		NodeGoal done_       = NodeGoal::None  ; // 2<=  8 bits, done level
+//		ReqInfo                                      //    128 bits, inherits
+		RuleIdx  prio_idx        = NoIdx           ; //     16 bits, index to the first job of the current prio being or having been analyzed
+		Manual   manual          = Manual::Unknown ; // 3<=  8 bits, info is available as soon as done_=Dsk
+		NodeGoal goal            = NodeGoal::None  ; // 2<=  8 bits, asked level
+		NodeGoal done_           = NodeGoal::None  ; // 2<=  8 bits, done level
+		Bool3    speculate       = Yes             ; // 2<=  8 bits, Yes : prev dep not ready, Maybe : prev dep in error
+		bool     single       :1 = false           ; //      1 bit , if true <=> consider only job indexed by prio_idx, not all jobs at this priority
+		bool     overwritten  :1 = false           ; //      1 bit , if true <=  file has been updated since start of req
+		bool     dry_run_modif:1 = false           ; //      1 bit , if true <=> file is deemed modified when dry_run
 	} ;
 
 }
@@ -485,8 +486,8 @@ namespace Engine {
 		//
 		void set_infinite( Special , ::vector<Node> const& deps ) ;
 		//
-		::pair<JobReason,bool/*triggered*/> make  ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
-		void                                wakeup( ReqInfo& ri                                 ) { make(ri,MakeAction::Wakeup) ; }
+		bool/*triggered*/ make  ( ReqInfo& , MakeAction , Bool3 speculate=Yes ) ;
+		void              wakeup( ReqInfo& ri                                 ) { make(ri,MakeAction::Wakeup) ; }
 		//
 		bool/*ok*/ forget( bool targets , bool deps ) ;
 		//
@@ -495,12 +496,12 @@ namespace Engine {
 		bool/*modified*/ set_crc_date  ( Crc={} , SigDate const& ={} ) ;
 		void             stamp_crc_date(                             ) ;
 	private :
-		void                                _do_set_buildable( Req            , RejectSet&/*lazy*/ known_rejected , DepDepth=0 )       ; // req is for error reporting only
-		bool/*found*/                       _make_pre        ( ReqInfo      & , bool query                                     )       ;
-		::pair<JobReason,bool/*triggered*/> _do_make         ( ReqInfo      & , MakeAction , Bool3 speculate=Yes               )       ;
-		void                                _do_set_pressure ( ReqInfo      &                                                  ) const ;
-		void                                _propag_speculate( ReqInfo const&                                                  ) const ;
-		bool/*unlnked*/                     _set_no_job      ( ReqInfo      & , bool query                                     )       ;
+		void              _do_set_buildable( Req            , RejectSet&/*lazy*/ known_rejected , DepDepth=0 )       ; // req is for error reporting only
+		bool/*found*/     _make_pre        ( ReqInfo      & , bool query                                     )       ;
+		bool/*triggered*/ _do_make         ( ReqInfo      & , MakeAction , Bool3 speculate=Yes               )       ;
+		void              _do_set_pressure ( ReqInfo      &                                                  ) const ;
+		void              _propag_speculate( ReqInfo const&                                                  ) const ;
+		bool/*unlnked*/   _set_no_job      ( ReqInfo      & , bool query                                     )       ;
 		//
 		Buildable _gather_special_rule_tgts( ::string const&   name ,       RejectSet&/*lazy*/ known_rejected                  ) ;
 		Buildable _gather_prio_job_tgts    ( ::string&/*lazy*/ name , Req , RejectSet&/*lazy*/ known_rejected , DepDepth lvl=0 ) ;
@@ -620,8 +621,8 @@ namespace Engine {
 		_do_set_pressure(ri) ;
 	}
 
-	inline ::pair<JobReason,bool/*triggered*/> NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
-		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted && !busy ) return {{},false/*triggered*/} ; // fast path
+	inline bool/*triggered*/ NodeData::make( ReqInfo& ri , MakeAction ma , Bool3 s ) {
+		if ( ma!=MakeAction::Wakeup && s>=ri.speculate && ri.done(mk_goal(ma)) && !polluted && !busy ) return false/*triggered*/ ; // fast path
 		return _do_make(ri,ma,s) ;
 	}
 

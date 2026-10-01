@@ -11,6 +11,11 @@
 
 using namespace Disk ;
 
+#if HAS_EBPF
+	// when set (ebpf replay), a relative AT_FDCWD access uses this in-kernel-resolved cwd instead of /proc/<pid>/cwd
+	thread_local ::string const* RealPath::_s_cwd_override = nullptr ;
+#endif
+
 static FileLoc _lcl_file_loc(::string_view file) {
 	::string_view s_private_admin_dir { PrivateAdminDirS , sizeof(PrivateAdminDirS)-2/* /+null*/ } ;
 	if (!file.starts_with(s_private_admin_dir) ) return FileLoc::Repo  ;
@@ -126,6 +131,11 @@ RealPath::SolveReport RealPath::solve( FileView file , bool no_follow ) {
 	bool        exists        = true              ;                       // if false, we have seen a non-existent component and there cannot be symlinks within it
 	size_t      pos           = is_abs(file.file) ;
 	if (!pos) {                                                           // file is relative, meaning relative to at
+		#if HAS_EBPF
+			if ( file.at==Fd::Cwd && _s_cwd_override ) {                  // ebpf replay : cwd was resolved in-kernel at access time (/proc is unreliable once the task exited)
+				real = *_s_cwd_override ;
+			} else
+		#endif
 		if (file.at==Fd::Cwd) {
 			if (pid) real = read_lnk(cat("/proc/",pid,"/cwd")) ;
 			else     real = cwd()                              ;

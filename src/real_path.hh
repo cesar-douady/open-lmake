@@ -75,6 +75,11 @@ public :
 	RealPath() = default ;
 	RealPath ( RealPathEnv const& rpe , pid_t p=0 ) ;
 	void operator>>(::string&) const ;
+	#if HAS_EBPF
+		// ebpf replay : override the cwd used for relative AT_FDCWD accesses (resolved in-kernel), as /proc/<pid>/cwd is unreliable once the task exited
+		static void s_set_cwd_override(::string const* c) { _s_cwd_override = c ; }
+		static thread_local ::string const* _s_cwd_override ;
+	#endif
 	// services
 	FileLoc file_loc(::string const& real) const { return _env->file_loc(real) ; }
 	//

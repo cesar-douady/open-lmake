@@ -64,7 +64,7 @@ Trois bonnes surprises complémentaires :
   centralisés dans **un seul fichier**, `src/std.hh` : c'est le point d'ancrage unique.
 
 Deux anomalies relevées en passant, indépendantes du port : `src/rpc_job.cc:1195` teste
-`#if HAS_SECCOMP`, macro définie nulle part (`sys_config` émet `CAN_AUTODEP_SECCOMP`) — code mort ;
+`#if HAS_SECCOMP`, macro définie nulle part (`sys_config` émet `HAS_SECCOMP`) — code mort ;
 et `process.cc:145-147` contient un `close_range` commenté.
 
 ## Correspondance Linux → Windows

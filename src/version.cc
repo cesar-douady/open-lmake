@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 58      ; // bbd8624f1f82495205911035c3832df9
+	uint64_t    constexpr Cache = 59      ; // 8d54f6570b36757318a43b2514254942
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 63      ; // 4b2a66980f60d0f2e0bc694323b70b7d
+	uint64_t    constexpr Repo  = 64      ; // 2eb1edb84ae3146051b2a13e9df96f66
 	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
 	const char* const     Major = "26.10" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : bbd8624f1f82495205911035c3832df9 *
+// * Cache : 8d54f6570b36757318a43b2514254942 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -430,6 +430,9 @@ namespace Version {
 //	// by default, use a compromize between speed an reliability
 //	enum class AutodepMethod : uint8_t {
 //		None
+//	#if HAS_EBPF
+//		,	Ebpf
+//	#endif
 //	,	Ptrace
 //	#if HAS_SECCOMP
 //		,	Seccomp
@@ -532,6 +535,7 @@ namespace Version {
 //	,	OldErr
 //	,	Rsrcs
 //	,	PollutedTargets
+//	,	Frozen
 //	,	ChkDeps
 //	,	WasIncremental
 //	,	Lost
@@ -539,7 +543,6 @@ namespace Version {
 //	,	Force
 //	,	Killed
 //	,	Cmd
-//	,	Frozen
 //	,	New
 //	//	with node
 //	,	BusyTarget
@@ -550,10 +553,10 @@ namespace Version {
 //	,	ManualTarget
 //	,	ClashTarget
 //	// with dep
+//	,	DepUnlnked
 //	,	BusyDep                                   // job is waiting for an unknown dep
 //	,	DepOutOfDate
 //	,	DepTransient
-//	,	DepUnlnked
 //	,	DepUnstable
 //	//	with error
 //	,	DepOverwritten
@@ -565,7 +568,7 @@ namespace Version {
 //	//
 //	// aliases
 //	,	HasNode = BusyTarget                      // if >=HasNode <=> a node is associated
-//	,	HasDep  = BusyDep                         // if >=HasDep  <=> a dep  is associated
+//	,	HasDep  = DepUnlnked                      // if >=HasDep  <=> a dep  is associated
 //	,	Err     = DepOverwritten                  // if >=Err     <=> a dep  is in error
 //	,	Missing = DepMissingStatic                // if >=Missing <=> a dep  is missing
 //	} ;
@@ -1241,7 +1244,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 4b2a66980f60d0f2e0bc694323b70b7d *
+// * Repo : 2eb1edb84ae3146051b2a13e9df96f66 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2096,6 +2099,9 @@ namespace Version {
 //	// by default, use a compromize between speed an reliability
 //	enum class AutodepMethod : uint8_t {
 //		None
+//	#if HAS_EBPF
+//		,	Ebpf
+//	#endif
 //	,	Ptrace
 //	#if HAS_SECCOMP
 //		,	Seccomp
@@ -2198,6 +2204,7 @@ namespace Version {
 //	,	OldErr
 //	,	Rsrcs
 //	,	PollutedTargets
+//	,	Frozen
 //	,	ChkDeps
 //	,	WasIncremental
 //	,	Lost
@@ -2205,7 +2212,6 @@ namespace Version {
 //	,	Force
 //	,	Killed
 //	,	Cmd
-//	,	Frozen
 //	,	New
 //	//	with node
 //	,	BusyTarget
@@ -2216,10 +2222,10 @@ namespace Version {
 //	,	ManualTarget
 //	,	ClashTarget
 //	// with dep
+//	,	DepUnlnked
 //	,	BusyDep                                   // job is waiting for an unknown dep
 //	,	DepOutOfDate
 //	,	DepTransient
-//	,	DepUnlnked
 //	,	DepUnstable
 //	//	with error
 //	,	DepOverwritten
@@ -2231,7 +2237,7 @@ namespace Version {
 //	//
 //	// aliases
 //	,	HasNode = BusyTarget                      // if >=HasNode <=> a node is associated
-//	,	HasDep  = BusyDep                         // if >=HasDep  <=> a dep  is associated
+//	,	HasDep  = DepUnlnked                      // if >=HasDep  <=> a dep  is associated
 //	,	Err     = DepOverwritten                  // if >=Err     <=> a dep  is in error
 //	,	Missing = DepMissingStatic                // if >=Missing <=> a dep  is missing
 //	} ;

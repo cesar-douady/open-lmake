@@ -503,8 +503,8 @@ namespace Engine {
 			static ::string src_msg       = "file is a source"       ;
 			static ::string anti_msg      = "file is anti"           ;
 			if (job_up_to_date) {
-				if (job->err()) audit_info( Color::Err  , plain_ok_msg  , job->name() ) ;
-				else            audit_info( Color::Note , plain_err_msg , job->name() ) ;
+				if (job->err()) audit_info( Color::Err  , plain_err_msg , job->name() ) ;
+				else            audit_info( Color::Note , plain_ok_msg  , job->name() ) ;
 			} else if (+node_up_to_dates) {
 				size_t w = 0 ;
 				for( Node n : node_up_to_dates ) n->set_buildable() ;

@@ -15,6 +15,10 @@
 
 #include "gather.hh"
 
+#if HAS_EBPF
+	#include "ebpf.hh"
+#endif
+
 using namespace Disk ;
 using namespace Py   ;
 using namespace Time ;
@@ -132,6 +136,9 @@ int main( int argc , char* argv[] ) {
 	#if HAS_SECCOMP
 		autodep_method_doc << ", seccomp" ;
 	#endif
+	#if HAS_EBPF
+		autodep_method_doc << ", ebpf" ;
+	#endif
 	autodep_method_doc << ')' ;
 	Syntax<CmdFlag> syntax {{
 		{ CmdFlag::AutoMkdir       , { .short_name='a' , .has_arg=false , .doc="automatically create dir upon chdir"                                                                         } }
@@ -220,6 +227,11 @@ int main( int argc , char* argv[] ) {
 		}
 		//
 		jsrr.interpreter = ::move(cmd_line.args) ;
+		#if HAS_EBPF
+			if (jsrr.method==AutodepMethod::Ebpf)
+				try                       { AutodepEbpf::load(autodep_env.deps_in_system) ; }
+				catch (::string const& e) { exit(Rc::System,e) ;                            }
+		#endif
 		jsrr.enter(
 			/*out  */::ref(::vector_s())
 		,	/*.    */::ref(::string                ())/*repo_root_s*/

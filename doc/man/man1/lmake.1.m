@@ -120,7 +120,7 @@ Because most of the time there is a single target, this ensures that there is a 
 
 Item(B_(-n),B_(--dry-run))
 Report what actions would be performed without actually executing them.
-This assumes no job would be steady and no new deps would be discovered.
+This assumes no job would be steady (unless regenerated such as if a target has been unlinked but no deps were modified) and no new deps would be discovered.
 
 Item(B_(-N) I_(nice_val),B_(--nice)=I_(nice_val))
 Apply the specified nice value to all jobs.
