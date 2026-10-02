@@ -337,8 +337,8 @@ namespace Engine {
 		void audit_job( Color c , SC& s ,          JobExec const& je , bool at_end=false , SC& tag={} , Delay et={} ) const { audit_job(c,at_end?je.end_date:je.start_date,s,   je,  tag,et) ; }
 		#undef SC
 		//
-		void would_audit_job ( Color , JobReason const& reason , Job  )       ;
-		void would_audit_node( Color , ::string  const& action , Node ) const ;
+		void would_audit_job ( Color , JobReason const&        , Job  , bool run=true )       ;
+		void would_audit_node( Color , ::string  const& action , Node                 ) const ;
 		//
 		void         audit_status( bool ok                                                                        ) const ;
 		void         audit_stats (                                                                                ) const ;

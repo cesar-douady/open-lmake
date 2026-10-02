@@ -53,12 +53,9 @@ namespace AutodepEbpf {
 				size_t           len = ::min<size_t>( b.len , EBPF_BLOB_MAX ) ;
 				mem[b.addr] = ::string( reinterpret_cast<const char*>(b.data) , len ) ;
 			}
-			::string cwd = _abs_cwd(ev) ;                                                    // cwd resolved in-kernel, rebuilt into an absolute path
-			RealPath::s_set_cwd_override( +cwd ? &cwd : nullptr ) ;
 			try                                  { AutodepReplay::replay( record(ev.tid) , ev.nr , ev.is32 , args , ev.rc , mem ) ;                                }
 			catch (AutodepReplay::Miss const&  ) { if (!err) err = "an access could not be recorded (path not captured by ebpf), dependencies may be incomplete" ; }
 			catch (::string            const& e) { if (!err) err = e                                                                                             ; }
-			RealPath::s_set_cwd_override(nullptr) ;
 		}
 		// rebuild the absolute cwd from the kernel-resolved components (leaf first, NUL-separated)
 		static ::string _abs_cwd(ebpf_event const& ev) {

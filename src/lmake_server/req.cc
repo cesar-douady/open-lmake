@@ -557,7 +557,7 @@ namespace Engine {
 		if (has_host_len                            ) msg <<      widen(h                                                   ,g_config->console.host_len)<<' ' ;
 		/**/                                          msg <<      widen(step                                                ,StepSz                    )      ;
 		/**/                                          msg << ' '<<widen(rule_name                                           ,Rule::s_rules->name_sz    )      ;
-		if (g_config->console.has_exe_time          ) msg << ' '<<widen((+exe_time?exe_time.short_str():"")                 ,6                         )      ;
+		if (g_config->console.has_exe_time          ) msg << ' '<<widen(+exe_time?exe_time.short_str():""                   ,6                         )      ;
 		audit_info( c , msg , job_name ) ;
 		last_info = {} ;
 	}
@@ -575,18 +575,23 @@ namespace Engine {
 		::string msg ;
 		msg <<     widen(action,JobReasonTagWidth     ) ;
 		msg <<' '<<widen(""    ,Rule::s_rules->name_sz) ;
+		msg <<' '<<widen(""    ,6                     ) ; // room for exe_time
 		audit_info( c , msg , node->name() ) ;
 
 	}
 
-	void ReqData::would_audit_job( Color c , JobReason const& reason , Job job ) {
-		::string msg ;
-		msg <<     widen(JobReasonTagStrs[+reason.tag].second,JobReasonTagWidth     ) ;
-		msg <<' '<<widen(job->rule()->user_name()            ,Rule::s_rules->name_sz) ;
+	void ReqData::would_audit_job( Color c , JobReason const& reason , Job job , bool run ) {
+		CoarseDelay et  = job->exe_time() ;
+		::string    msg ;
+		msg <<      widen(JobReasonTagStrs[+reason.tag].second,JobReasonTagWidth     ) ;
+		msg << ' '<<widen(job->rule()->user_name()            ,Rule::s_rules->name_sz) ;
+		msg << ' '<<widen(+et?et.short_str():""               ,6                     ) ;
 		audit_info( c , msg , job->name() ) ;
-		dry_run_stats.n_jobs   += 1               ;
-		dry_run_stats.job_time += job->exe_time() ;
-		dry_run_stats.job_cost += job->cost    () ;
+		if (run) {
+			dry_run_stats.n_jobs   += 1               ;
+			dry_run_stats.job_time += job->exe_time() ;
+			dry_run_stats.job_cost += job->cost    () ;
+		}
 	}
 
 	static void          _audit_status( Fd out , Fd log , ReqOptions const& ro , bool ok )       { audit_status (out     ,log   ,ro     ,ok?Rc::Ok:Rc::Fail) ; } // allow access to global function ...

@@ -42,24 +42,25 @@ namespace Backdoor {
 		for( int i=0 ;; i++ ) {
 			::string buf ( sz , 0 )                                                 ;
 			ssize_t  cnt = ::readlinkat( MagicFd , file.c_str() , buf.data() , sz ) ;                                  // try to go through autodep to process args
-			if (cnt<0)
-				switch (errno) {
+			if (cnt==-1) {                                                                                             // non-magic error
+				Lock lock { Record::s_mutex } ;
+				return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                                       // no autodep available, directly process args
+			} else if (cnt<-1) {                                                                                       // magic error
+				switch (-cnt-1) {                                                                                      // this is the actual errno
 					case ECOMM        : throw cat("cannot poke reply while ",args.descr()) ;
-					case EPROTO       : throw cat("internal error while "   ,args.descr()) ;
+					case EPROTO       :
+					case EOPNOTSUPP   : throw cat("internal error while "   ,args.descr()) ;
 					case ECONNABORTED : {
 						size_t pos = buf.find(char(0)) ;
 						if (pos==Npos) {
 							if (sz>=4) buf.resize(sz-4) ;
-							/**/       buf += " ..." ;
+							/**/       buf << " ..." ;
 						}
 						if (pos==0) throw cat("cannot ",args.descr(                                   )) ;
 						else        throw cat("cannot ",args.descr(cat('(',substr_view(buf,0,pos),')'))) ;
 					} break ;
-					default : {                                                                                        // non-magic error
-						Lock lock { Record::s_mutex } ;
-						return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                               // no autodep available, directly process args
-					}
-				}                                                                                                      // NO_COV
+				DF}                                                                                                    // NO_COV
+			}
 			SWEAR( size_t(cnt)<buf.size() , cnt,buf.size() ) ;
 			buf.resize(size_t(cnt)) ;
 			auto reply = deserialize<Expected<_Reply<T>>>(buf) ;
@@ -236,7 +237,7 @@ namespace Backdoor {
 		::string tab     = {} ;
 		::string ctx     = {} ;
 		::string code    = {} ;
-		uint64_t version = 0  ; // 0 means latest
+		uint64_t version = 0  ;                                 // 0 means latest
 	} ;
 
 	struct Encode {

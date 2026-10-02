@@ -599,8 +599,8 @@ namespace Engine {
 						if      (!dep.dflags[Dflag::Full])   dep_modif = false ;                                                          // if not full, a dep is only used to compute resources
 						else if ( dep.no_trigger()       ) { dep_modif = false ; trace("no_trigger",dep) ; req->no_triggers.push(dep) ; } // record to repeat in summary
 					}
-					if ( +state.stamped.err  ) goto Continue ;                                        // we are already in error, no need to analyze errors any further
-					if ( !is_static && modif ) goto Continue ;                                        // if not static, errors may be washed by previous modifs, dont record them
+					if ( +state.stamped.err  ) goto Continue ; // we are already in error, no need to analyze errors any further
+					if ( !is_static && modif ) goto Continue ; // if not static, errors may be washed by previous modifs, dont record them
 					// analyze error
 					if (dep_modif) {
 						if ( dep.is_crc && dep.never_match() ) { state.reason |= {JobReasonTag::DepUnstable ,+dep} ; trace("unstable_modif",dep) ; }
@@ -613,8 +613,8 @@ namespace Engine {
 					}
 					Bool3 ok = dnd.ok() ;
 					if (ok==No) {
-						if      ( !sense_err                                             ) ok = Yes ;
-						else if ( dry_run && is_ok(dnd.conform_job_tgt()->status)==Maybe ) ok = Yes ; // assume dep will be correctly built
+						if      (!sense_err)                                                                            ok = Yes ;
+						else if (dry_run   ) { Job dcj=dnd.conform_job_tgt() ; if ( +dcj && is_ok(dcj->status)==Maybe ) ok = Yes ; } // assume dep will be correctly built
 					}
 					switch (ok) {
 						case No :
@@ -622,31 +622,31 @@ namespace Engine {
 							state.reason |= {JobReasonTag::DepErr,+dep} ;
 							dep_err       = RunStatus::DepError         ;
 						break ;
-						case Maybe :                                                                  // dep is not buidlable, check if required
-							if (dnd.status()==NodeStatus::Transient) {                                // dep uphill is a symlink, it will disappear at next run
+						case Maybe :                                                                                                 // dep is not buidlable, check if required
+							if (dnd.status()==NodeStatus::Transient) {                                                               // dep uphill is a symlink, it will disappear at next run
 								trace("transient",dep) ;
 								state.reason |= {JobReasonTag::DepTransient,+dep} ;
 								break ;
 							}
 							if      (is_static) { trace("missing_static"  ,dep) ; state.reason |= {JobReasonTag::DepMissingStatic  ,+dep} ; dep_err = RunStatus::MissingStatic ; break ; }
 							else if (required ) { trace("missing_required",dep) ; state.reason |= {JobReasonTag::DepMissingRequired,+dep} ; dep_err = RunStatus::DepError      ; break ; }
-							dep_missing_dsk |= !(query||dry_run) && cdri->manual>=Manual::Changed ;   // ensure dangling are correctly handled
+							dep_missing_dsk |= !(query||dry_run) && cdri->manual>=Manual::Changed ;                                  // ensure dangling are correctly handled
 						[[fallthrough]] ;
 						case Yes :
-							if (dep_goal==NodeGoal::Dsk) {                                            // if asking for disk, we must check disk integrity
-								if (!dry_run)                                                         // else, we assume dep will be rebuilt
+							if (dep_goal==NodeGoal::Dsk) {                                                                           // if asking for disk, we must check disk integrity
+								if (!dry_run)                                                                                        // else, we assume dep will be rebuilt
 									switch(cdri->manual) {
 										case Manual::Empty   :
 										case Manual::Modif   : state.reason |= {JobReasonTag::DepUnstable,+dep} ; dep_err = RunStatus::DepError ; trace("dangling",dep,cdri->manual) ; break ;
 										case Manual::Unlnked : state.reason |= {JobReasonTag::DepUnlnked ,+dep} ;                                 trace("unlnked" ,dep             ) ; break ;
 									DN}
-							} else if ( dep_modif && at_end && dep_missing_dsk ) {                    // dep out-of-date but we do not wait for it being rebuilt
-								dep_goal = NodeGoal::Dsk ;                                            // we must ensure disk integrity for detailed analysis
+							} else if ( dep_modif && at_end && dep_missing_dsk ) {                                                   // dep out-of-date but we do not wait for it being rebuilt
+								dep_goal = NodeGoal::Dsk ;                                                                           // we must ensure disk integrity for detailed analysis
 								trace("restart_dep",dep) ;
 								goto RestartDep/*BACKWARD*/ ;
 							}
 						break ;
-					DF}                                                                               // NO_COV
+					DF}                                                                                                              // NO_COV
 				}
 			Continue :
 				trace("dep",ri,dep,dep_goal,*cdri,dnd.done(*cdri)?"done":"!done",dnd.ok(),dnd.crc,dep_err,dep_modif?"mod":"!mod",state.reason,stamped_seen_critical?"stamped_critical":"") ;
@@ -682,49 +682,50 @@ namespace Engine {
 				trace("run",ri,STR(query),STR(dry_run),pre_reason,report_reason,run_status) ;
 				if (query) goto Return ;
 				if ( dry_run && !(is_req&&pre_reason.tag==JobReasonTag::New) ) {              // job representing req is executed normally once when dry_run to acquire its deps
-					if (!is_req) req->would_audit_job( Color::None , report_reason , job ) ;
+					if      (job.frozen()) req->would_audit_job( Color::None , JobReasonTag::Frozen , job , false/*run*/ ) ;
+					else if (!is_req     ) req->would_audit_job( Color::None , report_reason        , job                ) ;
 					triggered = true ;
-					goto Done ;
-				}
-				if (ri.state.missing_dsk) {                                                   // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
-					SWEAR( !is_infinite(special_) , special_,job ) ;                          // Infinite do not process their deps
-					ri.reset(job) ;
-					goto RestartAnalysis/*BACKWARD*/ ;
-				}
-				bool         maybe_new_deps ;
-				bool         triggered1     ;
-				JobReasonTag rt             = ri.reason.tag ;                                 // sample before _submit_plain as it may modify ri.reason
-				if (!is_plain()) {
-					//                               vvvvvvvvvvvvvvvvvvv
-					tie(maybe_new_deps,triggered1) = _submit_special(ri) ;
-					//                               ^^^^^^^^^^^^^^^^^^^
-					triggered |= triggered1 ;
-					if (maybe_new_deps) {
-						inc_submits( rt , true/*has_run*/ ) ;
-					} else {
-						ri.reason = {} ;                                                      // flash execution
-						ri.reset(job) ;
-					}
 				} else {
-					missing_rerun_report = {} ;
-					//                               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					tie(maybe_new_deps,triggered1) = _submit_plain( ri , dep_pressure ) ;
-					//                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					triggered |= triggered1 ;
-					inc_submits( rt , ri.waiting() ) ;
-					if (ri.waiting()) {
-						req->n_running++ ;
-						goto Wait ;
+					if (ri.state.missing_dsk) {                                                   // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
+						SWEAR( !is_infinite(special_) , special_,job ) ;                          // Infinite do not process their deps
+						ri.reset(job) ;
+						goto RestartAnalysis/*BACKWARD*/ ;
 					}
-					missing_rerun_report = cache_hit_info<CacheHitInfo::Miss ? MissingRerunReport::Hit : MissingRerunReport::Early ;
-				}
-				if (maybe_new_deps) {                                                         // if cached, there may be new deps, we must re-analyze
-					SWEAR(!ri.running()) ;
-					make_action  = MakeAction::End ;                                          // restart analysis as if called by end() as in case of flash execution, submit has called end()
-					asked_reason = {}              ;                                          // .
-					ri.inc_wait() ;                                                           // .
-					trace("restart_full_analysis",ri) ;
-					goto RestartFullAnalysis/*BACKWARD*/ ;
+					bool         maybe_new_deps ;
+					bool         triggered1     ;
+					JobReasonTag rt             = ri.reason.tag ;                                 // sample before _submit_plain as it may modify ri.reason
+					if (!is_plain()) {
+						//                               vvvvvvvvvvvvvvvvvvv
+						tie(maybe_new_deps,triggered1) = _submit_special(ri) ;
+						//                               ^^^^^^^^^^^^^^^^^^^
+						triggered |= triggered1 ;
+						if (maybe_new_deps) {
+							inc_submits( rt , true/*has_run*/ ) ;
+						} else {
+							ri.reason = {} ;                                                      // flash execution
+							ri.reset(job) ;
+						}
+					} else {
+						missing_rerun_report = {} ;
+						//                               vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						tie(maybe_new_deps,triggered1) = _submit_plain( ri , dep_pressure ) ;
+						//                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						triggered |= triggered1 ;
+						inc_submits( rt , ri.waiting() ) ;
+						if (ri.waiting()) {
+							req->n_running++ ;
+							goto Wait ;
+						}
+						missing_rerun_report = cache_hit_info<CacheHitInfo::Miss ? MissingRerunReport::Hit : MissingRerunReport::Early ;
+					}
+					if (maybe_new_deps) {                                                         // if cached, there may be new deps, we must re-analyze
+						SWEAR(!ri.running()) ;
+						make_action  = MakeAction::End ;                                          // restart analysis as if called by end() as in case of flash execution, submit has called end()
+						asked_reason = {}              ;                                          // .
+						ri.inc_wait() ;                                                           // .
+						trace("restart_full_analysis",ri) ;
+						goto RestartFullAnalysis/*BACKWARD*/ ;
+					}
 				}
 				ri.mk_has_run() ;
 				ri.reset( job , true/*mk_done*/ ) ;

@@ -418,7 +418,7 @@ namespace Engine {
 		// static data
 		static Mutex<MutexLvl::TargetDir> s_target_dirs_mutex ;
 		static ::umap<Node,Idx/*cnt*/>    s_target_dirs       ; // dirs created for job execution that must not be deleted
-		static ::umap<Node,Idx/*cnt*/>    s_hier_target_dirs  ; // uphill hierarchy of s_target_dirs
+		static ::umap<Node,Idx/*.  */>    s_hier_target_dirs  ; // uphill hierarchy of s_target_dirs
 		// cxtors etc
 		JobData() = delete ;
 		JobData( JobName n , Special sp               , Deps all_deps={} , bool s=false ) : JobDataBase{n} , deps{all_deps   } , rule_crc_idx{+Rule(sp)->crc} , sure{s} {                     }

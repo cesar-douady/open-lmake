@@ -391,8 +391,7 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 	auto                            it       = func_tab.find(cmd.substr(0,slash)) ;
 	//
 	if (it==func_tab.end()) {
-		errno = EOPNOTSUPP ;
-		return -1 ;
+		return -EOPNOTSUPP-1 ; // -1 to distinguish from normal errors
 	}
 	//
 	char* b = buf ? buf : new char[sz] ;
@@ -402,8 +401,7 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 		return len ;
 	} else {
 		if (!buf) delete[] b ;
-		errno = -len ;
-		return -1 ;
+		return -len-1 ; // len contains errno, -1 to distinguish from normal errors
 	}
 }
 

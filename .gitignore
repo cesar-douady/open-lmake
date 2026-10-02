@@ -13,6 +13,7 @@ __pycache__
 # binaries
 /_bin/align_comments
 /_bin/job_exec
+/_bin/lmake_bpfd
 /_bin/lmake_dump
 /_bin/lcache_dump
 /_bin/ldump_job

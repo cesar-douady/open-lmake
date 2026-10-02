@@ -531,10 +531,14 @@ namespace Disk {
 		AcFd     version_fd   { version_file , {.err_ok=true} } ;
 		if (!version_fd) {
 			throw_unless( action.chk==Maybe , action.key," not initialized, consider : ",action.init_msg ) ;
+			::string tmp_version_file = cat(version_file,'.',host(),'-',::getpid()) ;                                                // dont use fqdn as it is too high-level
 			::string v ;           v << action.version                                          <<'\n' ;
 			if (action.py_version) v << (action.py_version>>16)<<'.'<<(action.py_version&0xffff)<<'\n' ;
-			AcFd( version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.umask=action.umask} ).write(v) ;
-			try { sym_lnk( cat(AdminDirS,"lmake_root") , no_slash(dir_name_s(get_exe(),2)) ) ; } catch (::string const&) {}
+			AcFd( tmp_version_file , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.umask=action.umask} ).write(v) ;
+			rename( tmp_version_file , version_file ) ;                                                                              // ensure creation is atomic
+			try {
+				sym_lnk( cat(dir_s,AdminDirS,"lmake_root") , no_slash(dir_name_s(get_exe(),2)) ) ;
+			} catch (::string const&) {}
 		} else {
 			::vector_s stored  = split(version_fd.read()) ;
 			bool       v_ok    = false                    ;
@@ -552,7 +556,7 @@ namespace Disk {
 					py_v_ok = py_v_int==action.py_version ;
 				} catch(::string const&) {}
 			if ( !v_ok || !py_v_ok ) {
-				::string r         = read_lnk(cat(AdminDirS,"lmake_root")) ;
+				::string r         = read_lnk(cat(dir_s,AdminDirS,"lmake_root")) ;
 				::string msg       ;
 				::string clean_msg = action.clean_msg                      ; if (+r) clean_msg << add_nl<<"use "<<r<<"/bin/"<<base_name(get_exe())<<'\n' ;
 				if (!v_ok                     ) msg << "version"                                                ;

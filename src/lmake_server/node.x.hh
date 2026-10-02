@@ -425,10 +425,10 @@ namespace Engine {
 		}
 		Bool3 ok() const {                                                      // if Maybe <=> not built
 			switch (status()) {
-				case NodeStatus::Plain : return No | !conform_job_tgt()->err() ;
-				case NodeStatus::Multi : return No                             ;
-				case NodeStatus::Src   : return No | (crc!=Crc::None)          ;
-				default                : return Maybe                          ;
+				case NodeStatus::Plain : { Job cj=conform_job_tgt() ; return No | (!cj||!cj->err()) ; }
+				case NodeStatus::Multi :                              return No                     ;
+				case NodeStatus::Src   :                              return No | (crc!=Crc::None)  ;
+				default                :                              return Maybe                  ;
 			}
 		}
 		Bool3 ok(ReqInfo const& cri) const {
