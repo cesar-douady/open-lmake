@@ -101,10 +101,11 @@ int main( int /*argc*/ , char* /*argv*/[] ) {
 	// listen socket
 	int                lst  = ::socket(AF_UNIX,SOCK_STREAM|SOCK_CLOEXEC,0) ; if (lst<0) { _log("cannot create socket : %s",strerror(errno)) ; return 1 ; }
 	struct sockaddr_un addr = {}                                           ; addr.sun_family = AF_UNIX ; ::strncpy( addr.sun_path , g_sock , sizeof(addr.sun_path)-1 ) ;
-	::unlink(g_sock) ;
-	if (::bind(lst,(struct sockaddr*)&addr,sizeof(addr))!=0) { _log("cannot bind %s : %s",g_sock,strerror(errno)) ; return 1 ; }
-	::chmod(g_sock,0666) ;                                                                                                                             // allow unprivileged clients to connect
-	if (::listen(lst,64)!=0) { _log("cannot listen : %s",strerror(errno)) ; return 1 ; }
+	//
+	/**/ ::unlink(g_sock) ;
+	if ( ::bind  (lst,(struct sockaddr*)&addr,sizeof(addr))!=0 ) { _log("cannot bind %s : %s",g_sock,strerror(errno)) ; return 1 ; }
+	/**/ ::chmod (g_sock,0666) ;                                                                                                                       // allow unprivileged clients to connect
+	if ( ::listen(lst,64)                                  !=0 ) { _log("cannot listen : %s" ,       strerror(errno)) ; return 1 ; }
 	_log("ready, listening on %s",g_sock) ;
 	//
 	int      job_rbs_fd  = bpf_map__fd(g_skel->maps.job_rbs) ;
@@ -119,7 +120,7 @@ int main( int /*argc*/ , char* /*argv*/[] ) {
 		int r = ::poll( pfds.data() , pfds.size() , -1/*timeout*/ ) ;
 		if (r<0) {
 			if (errno==EINTR) continue ;
-			break ;
+			else              break    ;
 		}
 		// new connections
 		if (pfds[0].revents&POLLIN) {

@@ -158,32 +158,27 @@ static __always_inline void _add_blob( struct ebpf_event* ev , __u64 key , const
 #define CWD_MAX_DEPTH 40
 static __always_inline void _fill_cwd(struct ebpf_event* ev) {
 	ev->cwd_len = 0 ;
-	struct task_struct* t  = bpf_get_current_task_btf() ;
-	struct fs_struct*   fs = BPF_CORE_READ(t,fs)        ;
-	if (!fs) return ;
-	struct dentry*   dentry = BPF_CORE_READ( fs , pwd.dentry )                                         ;
-	struct vfsmount* vmnt   = BPF_CORE_READ( fs , pwd.mnt    )                                         ;
-	struct mount*    mnt    = (struct mount*)( (char*)vmnt - bpf_core_field_offset(struct mount,mnt) ) ;
-	__u32 off = 0 ;
-	#pragma unroll
+	struct task_struct* t      = bpf_get_current_task_btf()                                               ;
+	struct fs_struct  * fs     = BPF_CORE_READ( t  , fs         )                                         ; if (!fs) return ;
+	struct dentry     * dentry = BPF_CORE_READ( fs , pwd.dentry )                                         ;
+	struct vfsmount   * vmnt   = BPF_CORE_READ( fs , pwd.mnt    )                                         ;
+	struct mount      * mnt    = (struct mount*)( (char*)vmnt - bpf_core_field_offset(struct mount,mnt) ) ;
+	__u32               off    = 0                                                                        ;
 	for( int i=0 ; i<CWD_MAX_DEPTH ; i++ ) {
 		struct dentry* parent   = BPF_CORE_READ( dentry , d_parent    ) ;
 		struct dentry* mnt_root = BPF_CORE_READ( mnt    , mnt.mnt_root) ;
-		if (dentry==mnt_root) {                                                         // reached the root of the current mount : cross to the parent mount
-			struct mount* mp = BPF_CORE_READ( mnt , mnt_parent ) ;
-			if (mnt==mp) break ;                                                        // global root reached
+		if (dentry==mnt_root) {                                                                                                 // reached the root of the current mount : cross to the parent mount
+			struct mount* mp = BPF_CORE_READ( mnt , mnt_parent ) ; if (mp==mnt) break ;                                         // global root reached
 			dentry = BPF_CORE_READ( mnt , mnt_mountpoint ) ;
 			mnt    = mp                                    ;
 			continue ;
 		}
-		if (dentry==parent) break ;                                                     // safety : detached dentry
-		const char* name = (const char*)BPF_CORE_READ( dentry , d_name.name ) ;
-		if (!name               ) break ;
-		if (off>=EBPF_BLOB_MAX/2) break ;                                               // cwd limited to ~half the buffer, leaving room for one 256-byte component
-		__u32 woff = off & (EBPF_BLOB_MAX/2-1)                                        ; // mask so the verifier knows woff+256 stays within cwd (independently of off's history)
-		long  n    = bpf_probe_read_kernel_str( &ev->cwd[woff] , 256/*size*/ , name ) ;
-		if (n<=0) break ;
-		off    = woff + (__u32)n ;                                                      // n includes the terminating NUL : components stay NUL-separated
+		/**/                                                                                  if (dentry==parent      ) break ; // safety : detached dentry
+		const char* name = (const char*)BPF_CORE_READ( dentry , d_name.name )               ; if (!name               ) break ;
+		/**/                                                                                  if (off>=EBPF_BLOB_MAX/2) break ; // limit cwd to ~half the buffer, leaving room for a 256-byte component
+		__u32       woff = off & (EBPF_BLOB_MAX/2-1)                                        ;                                   // mask for verifier static analysis
+		long        n    = bpf_probe_read_kernel_str( &ev->cwd[woff] , 256/*size*/ , name ) ; if (n<=0                ) break ;
+		off    = woff + (__u32)n ;                                                                                              // n includes the terminating NUL : components stay NUL-separated
 		dentry = parent          ;
 	}
 	ev->cwd_len = off ;
@@ -195,26 +190,27 @@ static __always_inline void _fill_cwd(struct ebpf_event* ev) {
 //
 
 static __always_inline bool _pfx( const __u8* d , const char* p , int n ) {                // d starts with p (n chars) and the next char is a component boundary
-	for( int i=0 ; i<n ; i++ ) if (d[i]!=(__u8)p[i]) return false ;                        // (d has at least EBPF_BLOB_MAX bytes and is NUL-terminated, so reads are in-bounds and stop at the NUL)
+	for( int i=0 ; i<n ; i++ )                                                             // (d has at least EBPF_BLOB_MAX bytes and is NUL-terminated, so reads are in-bounds and stop at the NUL)
+		if (d[i]!=(__u8)p[i]) return false ;
 	__u8 b = d[n] ;
 	return b=='/' || b==0 ;
 }
 static __always_inline bool _has_dotdot( const __u8* d , __u32 len ) {                     // true if the path contains a ".." component (then we keep the event and let user-space resolve it)
 	if (len>256) len = 256 ;
 	for( int i=1 ; i<255 ; i++ ) {
-		if ( (__u32)(i+1)>=len ) break ;
-		if ( d[i-1]=='/' && d[i]=='.' && d[i+1]=='.' ) {
-			if ((__u32)(i+2)>=len) return true ;
-			__u8 nxt = d[i+2] ;
-			if ( nxt=='/' || nxt==0 ) return true ;
-		}
+		if (   (__u32)(i+1)>=len                        ) break       ;
+		if (!( d[i-1]=='/' && d[i]=='.' && d[i+1]=='.' )) continue    ;
+		if (   (__u32)(i+2)>=len                        ) return true ;
+		__u8 nxt = d[i+2] ;
+		if ( nxt=='/' || nxt==0                         ) return true ;
 	}
 	return false ;
 }
 static __always_inline bool _is_simple( const __u8* d , __u32 len , int deps_in_system ) {
 	if ( len==0 || d[0]!='/' ) return false ;                                              // relative or empty : not simple (keep)
 	if ( _has_dotdot(d,len)  ) return false ;                                              // may escape its top dir : keep and let user-space decide
-	int special = 0 , sys = 0 ;                                                            // special : simple regardless of deps_in_system ; sys : simple only if !deps_in_system
+	int special = 0 ;                                                                      // simple regardless of deps_in_system
+	int sys     = 0 ;                                                                      // simple only if !deps_in_system
 	if (_pfx(d,"/dev",4)) {                                                                // /dev, with the exceptions that are actually processed
 		special = 1 ;
 		if (d[4]=='/') {
@@ -246,10 +242,10 @@ static __always_inline bool _is_simple( const __u8* d , __u32 len , int deps_in_
 	else if ( _pfx(d,"/lib32",6) ) sys     = 1 ;
 	else if ( _pfx(d,"/lib64",6) ) sys     = 1 ;
 	else if ( _pfx(d,"/lib"  ,4) ) sys     = 1 ;
-	else                          return false ;                                           // unknown top dir : keep
-	if (special         ) return true  ;
-	if (!deps_in_system ) return true  ;                                                   // system files are not deps for this job
-	return false ;                                                                         // deps_in_system : keep system files
+	else                           return false ;                                          // unknown top dir : keep
+	if (special                  ) return true  ;
+	if (!deps_in_system          ) return true  ;                                          // system files are not deps for this job
+	/**/                           return false ;                                          // deps_in_system : keep system files
 }
 
 //
@@ -262,8 +258,8 @@ int on_sys_enter(struct trace_event_raw_sys_enter* ctx) {
 	long  id  = ctx->id                           ;
 	// self-registration marker : the child announces itself (and its job_id, carried in arg 3) as the root of a traced sub-tree, in the namespace we see here
 	if ( id==NR_readlinkat && (int)ctx->args[0]==EBPF_REGISTER_FD ) {
-		__u32               job_id = (__u32)ctx->args[3]              ;
-		struct job_cfg_val* jc     = bpf_map_lookup_elem(&job_cfg,&job_id) ;
+		__u32               job_id = (__u32)ctx->args[3]                                                                            ;
+		struct job_cfg_val* jc     = bpf_map_lookup_elem(&job_cfg,&job_id)                                                          ;
 		struct traced_val   v      = { .job_id=job_id , .deps_in_system=(__u8)(jc?jc->deps_in_system:0) , .enabled=1 , .suspend=0 } ;
 		bpf_map_update_elem( &traced , &tid , &v , BPF_ANY ) ;
 		return 0 ;
@@ -291,15 +287,7 @@ int on_sys_enter(struct trace_event_raw_sys_enter* ctx) {
 	ev->n_blobs  = 0                       ;
 	ev->stamp_ns = bpf_ktime_get_boot_ns() ;
 	_fill_cwd(ev) ;
-	// /!\ read each arg at a constant offset from ctx : a plain loop makes clang build a moving ctx pointer, which the verifier rejects ("dereference of modified ctx ptr")
-	#define RD_ARG(i) (((volatile struct trace_event_raw_sys_enter*)ctx)->args[i])
-	ev->args[0] = RD_ARG(0) ;
-	ev->args[1] = RD_ARG(1) ;
-	ev->args[2] = RD_ARG(2) ;
-	ev->args[3] = RD_ARG(3) ;
-	ev->args[4] = RD_ARG(4) ;
-	ev->args[5] = RD_ARG(5) ;
-	#undef RD_ARG
+	for( int i=0 ; i<6 ; i++ ) ev->args[i]  = ((volatile struct trace_event_raw_sys_enter*)ctx)->args[i] ;
 	// openat2 : the open_how struct is not seen by getname, capture it directly from user space
 	if (id==NR_openat2) {
 		struct ebpf_blob* b = &ev->blobs[0] ;
@@ -325,13 +313,13 @@ int on_sys_exit(struct trace_event_raw_sys_exit* ctx) {
 
 // getname_flags copies the user path into a kernel buffer for (almost) every path-taking syscall : capture it, keyed by the user pointer
 SEC("fexit/getname_flags")
-int BPF_PROG( on_getname , const char* user , int flags , struct filename* ret ) {
-	__u32              tid  = (__u32)bpf_get_current_pid_tgid() ;
-	struct ebpf_event* ev   = bpf_map_lookup_elem(&events,&tid) ; if ( !ev                                   ) return 0 ;
-	/**/                                                          if ( ret==0 || (unsigned long)ret>=-4095UL ) return 0 ; // IS_ERR : getname failed
-	const char*        name = BPF_CORE_READ(ret,name)           ; if ( !name                                 ) return 0 ;
-	__u64 uptr = (__u64)BPF_CORE_READ( ret , uptr ) ;
-	_add_blob( ev , uptr ? uptr : (__u64)(unsigned long)name , name ) ;                                                   // key must match the syscall argument, which is the user pointer
+int BPF_PROG( on_getname , const char* user , int flags , int empty_all , struct filename* ret ) {
+	__u32              tid  = (__u32)bpf_get_current_pid_tgid()  ;
+	struct ebpf_event* ev   = bpf_map_lookup_elem(&events,&tid)  ; if ( !ev                                   ) return 0 ;
+	/**/                                                           if ( ret==0 || (unsigned long)ret>=-4095UL ) return 0 ; // IS_ERR : getname failed
+	const char*        name =        BPF_CORE_READ( ret , name ) ; if ( !name                                 ) return 0 ;
+	__u64              uptr = (__u64)BPF_CORE_READ( ret , uptr ) ;
+	_add_blob( ev , uptr?uptr:(__u64)name , name ) ;                                                                       // key must match the syscall argument, which is the user pointer
 	return 0 ;
 }
 
@@ -370,8 +358,7 @@ static __always_inline struct ebpf_event* _io_begin(__u32* /*out*/ job_id) {
 	__u32              sk = 0                                        ;
 	struct ebpf_event* ev = bpf_map_lookup_elem( &io_scratch , &sk ) ; if (!ev) return 0 ;
 	// initialize only the fields the io_* handlers do not set themselves (cannot memcpy the whole header : it is too large for the bpf inliner)
-	_ns_ids( tv->job_id , /*out*/&ev->tid , /*out*/&ev->pid ) ;         // tids as this job's consumer sees them (for /proc resolution)
-	#pragma unroll
+	_ns_ids( tv->job_id , /*out*/&ev->tid , /*out*/&ev->pid ) ; // tids as this job's consumer sees them (for /proc resolution)
 	for( int i=0 ; i<6 ; i++ ) ev->args[i]  = 0                       ;
 	/**/                       ev->n_blobs  = 0                       ;
 	/**/                       ev->is32     = 0                       ;
@@ -384,8 +371,8 @@ static __always_inline struct ebpf_event* _io_begin(__u32* /*out*/ job_id) {
 static __always_inline __u64 _io_path( struct ebpf_event* ev , struct filename* fn ) {
 	if (!fn) return 0 ;
 	const char* name = (const char*)BPF_CORE_READ( fn , name ) ; if (!name) return 0 ;
-	__u64 uptr = (__u64)BPF_CORE_READ(fn,uptr)            ;
-	__u64 key  = uptr ? uptr : (__u64)(unsigned long)name ;
+	__u64       uptr = (__u64)BPF_CORE_READ(fn,uptr)           ;
+	__u64       key  = uptr ? uptr : (__u64)name               ;
 	_add_blob( ev , key , name ) ;
 	return key ;
 }
@@ -402,7 +389,7 @@ int BPF_PROG( on_io_openat2 , struct io_kiocb* req ) {
 	struct ebpf_event* ev  = _io_begin(/*out*/&jid) ; if (!ev) return 0 ;
 	struct io_open   * op  = (struct io_open*)req   ;                     // per-op data overlays the head of io_kiocb
 	ev->nr      = NR_openat2                                  ;
-	ev->args[0] = (__u64)(int)BPF_CORE_READ( op , dfd )       ;
+	ev->args[0] = (__u64)(int)   BPF_CORE_READ(op, dfd    )   ;
 	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,filename) ) ;
 	// how : append as a second blob and point args[2] at it
 	__u32 n = ev->n_blobs ;
@@ -428,8 +415,8 @@ int BPF_PROG( on_io_statx , struct io_kiocb* req ) {
 	ev->nr      = NR_statx                                    ;
 	ev->args[0] = (__u64)(int)BPF_CORE_READ( op , dfd )       ;
 	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,filename) ) ;
-	ev->args[2] = BPF_CORE_READ( op , flags )                 ;
-	ev->args[3] = BPF_CORE_READ( op , mask  )                 ;
+	ev->args[2] =                BPF_CORE_READ(op, flags  )   ;
+	ev->args[3] =                BPF_CORE_READ(op, mask   )   ;
 	_io_emit( jid , ev , BPF_CORE_READ(req,cqe.res) ) ;
 	return 0 ;
 }
@@ -440,11 +427,11 @@ int BPF_PROG( on_io_renameat , struct io_kiocb* req ) {
 	struct ebpf_event* ev  = _io_begin(/*out*/&jid) ; if (!ev) return 0 ;
 	struct io_rename * op  = (struct io_rename*)req ;
 	ev->nr      = NR_renameat2                               ;
-	ev->args[0] = (__u64)(int)BPF_CORE_READ( op , old_dfd )  ;
+	ev->args[0] = (__u64)(int)   BPF_CORE_READ(op,old_dfd)   ;
 	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,oldpath) ) ;
-	ev->args[2] = (__u64)(int)BPF_CORE_READ( op , new_dfd )  ;
+	ev->args[2] = (__u64)(int)   BPF_CORE_READ(op,new_dfd)   ;
 	ev->args[3] = _io_path( ev , BPF_CORE_READ(op,newpath) ) ;
-	ev->args[4] = BPF_CORE_READ( op , flags )                ;
+	ev->args[4] =                BPF_CORE_READ(op,flags  )   ;
 	_io_emit( jid , ev , BPF_CORE_READ(req,cqe.res) ) ;
 	return 0 ;
 }
@@ -455,9 +442,9 @@ int BPF_PROG( on_io_unlinkat , struct io_kiocb* req ) {
 	struct ebpf_event* ev  = _io_begin(/*out*/&jid) ; if (!ev) return 0 ;
 	struct io_unlink * op  = (struct io_unlink*)req ;
 	ev->nr      = NR_unlinkat                                 ;
-	ev->args[0] = (__u64)(int)BPF_CORE_READ( op , dfd )       ;
+	ev->args[0] = (__u64)(int)   BPF_CORE_READ(op,dfd     )   ;
 	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,filename) ) ;
-	ev->args[2] = BPF_CORE_READ( op , flags )                 ;
+	ev->args[2] =                BPF_CORE_READ(op,flags   )   ;
 	_io_emit( jid , ev , BPF_CORE_READ(req,cqe.res) ) ;
 	return 0 ;
 }
@@ -468,9 +455,9 @@ int BPF_PROG( on_io_mkdirat , struct io_kiocb* req ) {
 	struct ebpf_event* ev  = _io_begin(/*out*/&jid) ; if (!ev) return 0 ;
 	struct io_mkdir  * op  = (struct io_mkdir*)req  ;
 	ev->nr      = NR_mkdirat                                  ;
-	ev->args[0] = (__u64)(int)BPF_CORE_READ( op , dfd )       ;
+	ev->args[0] = (__u64)(int)   BPF_CORE_READ(op, dfd    )   ;
 	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,filename) ) ;
-	ev->args[2] = BPF_CORE_READ( op , mode )                  ;
+	ev->args[2] =                BPF_CORE_READ(op, mode   )   ;
 	_io_emit( jid , ev , BPF_CORE_READ(req,cqe.res) ) ;
 	return 0 ;
 }
@@ -481,11 +468,11 @@ int BPF_PROG( on_io_linkat , struct io_kiocb* req ) {
 	struct ebpf_event* ev  = _io_begin(/*out*/&jid) ; if (!ev) return 0 ;
 	struct io_link   * op  = (struct io_link*)req   ;
 	ev->nr      = NR_linkat                                  ;
-	ev->args[0] = (__u64)(int)BPF_CORE_READ( op , old_dfd )  ;
+	ev->args[0] = (__u64)(int)   BPF_CORE_READ(op,old_dfd)   ;
 	ev->args[1] = _io_path( ev , BPF_CORE_READ(op,oldpath) ) ;
-	ev->args[2] = (__u64)(int)BPF_CORE_READ( op , new_dfd )  ;
+	ev->args[2] = (__u64)(int)   BPF_CORE_READ(op,new_dfd)   ;
 	ev->args[3] = _io_path( ev , BPF_CORE_READ(op,newpath) ) ;
-	ev->args[4] = BPF_CORE_READ( op , flags )                ;
+	ev->args[4] =                BPF_CORE_READ(op,flags  )   ;
 	_io_emit( jid , ev , BPF_CORE_READ(req,cqe.res) ) ;
 	return 0 ;
 }
@@ -497,7 +484,7 @@ int BPF_PROG( on_io_symlinkat , struct io_kiocb* req ) {
 	struct io_link   * op  = (struct io_link*)req   ;                     // symlinkat uses struct io_link in io_uring
 	ev->nr      = NR_symlinkat                               ;
 	ev->args[0] = 0                                          ;            // target string : not resolved by Record::Symlink , unused in replay
-	ev->args[1] = (__u64)(int)BPF_CORE_READ( op , new_dfd )  ;
+	ev->args[1] = (__u64)(int)   BPF_CORE_READ(op,new_dfd)   ;
 	ev->args[2] = _io_path( ev , BPF_CORE_READ(op,newpath) ) ;            // the link path (the file being created)
 	_io_emit( jid , ev , BPF_CORE_READ(req,cqe.res) ) ;
 	return 0 ;

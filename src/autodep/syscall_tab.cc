@@ -632,8 +632,8 @@ IF_HAS_SECCOMP( SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog_seccomp = 
 			auto [ctx,refresh] = descr.entry( r , Fd()/*proc_mem*/ , args , false/*emulate*/ , descr.comment ) ;
 			(void)refresh ;                                                                                      // memory/word-size refresh is meaningless for replay
 			if ( ctx && descr.exit ) descr.exit( ctx , r , Fd()/*proc_mem*/ , old_rc ) ;
-		} catch (::string const&) {                                                      // entry could not process this call (e.g. simple path, unsupported flag) : ignore, as ptrace would
-		} catch (AutodepReplay::Miss&) { _t_replay_mem = nullptr ; throw ; }             // a needed blob was missing : propagate so the job is failed
+		} catch (::string            const&) {                                           // entry could not process this call (e.g. simple path, unsupported flag) : ignore, as ptrace would
+		} catch (AutodepReplay::Miss const&) { _t_replay_mem = nullptr ; throw ; }       // a needed blob was missing : propagate so the job is failed
 		_t_replay_mem = nullptr ;
 	}
 #endif

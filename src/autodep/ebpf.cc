@@ -38,12 +38,12 @@ namespace AutodepEbpf {
 	struct Consumer {
 		// services
 		Record& record(pid_t tid) {
-			auto it = _records.find(tid) ;
-			if (it==_records.end()) it = _records.try_emplace(tid,New,tid).first ;           // Record(New,pid=tid) : RealPath resolves dir fds via /proc/<tid>
+			auto it = _records.try_emplace(tid,New,tid).first ; // Record(New,pid=tid) : RealPath resolves dir fds via /proc/<tid>
 			return it->second ;
 		}
 		void handle( void* data , size_t sz ) {
 			if ( sz<offsetof(ebpf_event,blobs) ) return ;
+			//
 			ebpf_event const&  ev      = *static_cast<ebpf_event const*>(data)          ;
 			uint64_t           args[6] ;                                                  for( int i : iota(6) ) args[i] = ev.args[i] ;
 			AutodepReplay::Mem mem     ;
@@ -56,21 +56,6 @@ namespace AutodepEbpf {
 			try                                  { AutodepReplay::replay( record(ev.tid) , ev.nr , ev.is32 , args , ev.rc , mem ) ;                                }
 			catch (AutodepReplay::Miss const&  ) { if (!err) err = "an access could not be recorded (path not captured by ebpf), dependencies may be incomplete" ; }
 			catch (::string            const& e) { if (!err) err = e                                                                                             ; }
-		}
-		// rebuild the absolute cwd from the kernel-resolved components (leaf first, NUL-separated)
-		static ::string _abs_cwd(ebpf_event const& ev) {
-			if (!ev.cwd_len) return {} ;
-			::vector<::string> comps ;
-			uint32_t           len   = ::min<uint32_t>( ev.cwd_len , EBPF_BLOB_MAX ) ;
-			for( uint32_t i=0 ; i<len ; ) {
-				const char* s = reinterpret_cast<const char*>(ev.cwd)+i ;
-				size_t      l = ::strnlen( s , len-i )                  ;
-				if (l) comps.emplace_back( s , l ) ;
-				i += l+1 ;
-			}
-			if (!comps) return "/" ;
-			::string res ; for( size_t k=comps.size() ; k>0 ; k-- ) res << '/'<<comps[k-1] ; // components are leaf first : emit in reverse
-			return res ;
 		}
 		// data
 		::umap<pid_t,Record> _records ;
@@ -89,9 +74,7 @@ namespace AutodepEbpf {
 	static bool _send_all( int fd , const void* buf , size_t sz ) {
 		const char* p = static_cast<const char*>(buf) ;
 		while (sz) {
-			ssize_t n = ::send( fd , p , sz , 0/*flags*/ ) ;
-			//
-			if (n<=0) return false ;
+			ssize_t n = ::send( fd , p , sz , 0/*flags*/ ) ; if (n<=0) return false ;
 			p  += n         ;
 			sz -= size_t(n) ;
 		}
@@ -131,8 +114,7 @@ namespace AutodepEbpf {
 		//
 		int wstatus = 0 ;
 		for (;;) {
-			int r = ::ring_buffer__poll( rb , 100/*ms*/ ) ;                                           // process available events, wait up to 100ms
-			if ( r<0 && r!=-EINTR ) break ;                                                           // ring buffer error
+			int   r = ::ring_buffer__poll( rb , 100/*ms*/ )       ; if ( r<0 && r!=-EINTR ) break ;   // process available events, wait up to 100ms
 			pid_t w = ::waitpid( child_pid , &wstatus , WNOHANG ) ;
 			if ( w==child_pid                    ) break ;                                            // child is done
 			if ( w<0 && errno!=EINTR && errno!=0 ) break ;                                            // ECHILD or other : give up waiting

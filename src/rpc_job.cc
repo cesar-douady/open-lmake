@@ -1205,7 +1205,7 @@ void JobStartRpcReply::mk_lmake_version() {
 			if (method==AutodepMethod::Seccomp) throw_unless( has_seccomp  , "seccomp is not supported as autodep method"  ) ;
 		#endif
 		#if HAS_EBPF
-			if (method==AutodepMethod::Ebpf) throw_unless( has_ebpf , "ebpf is not supported as autodep method" ) ;
+			if (method==AutodepMethod::Ebpf   ) throw_unless( has_ebpf     , "ebpf is not supported as autodep method"     ) ;
 		#endif
 	} catch (::string const& e) {
 		throw cat("cannot execute job with incompatible open-lmake (",e,") as per file _lib/version.py in root dir ",phy_lmake_root_s,rm_slash) ;

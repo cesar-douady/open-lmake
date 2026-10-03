@@ -383,23 +383,19 @@ Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , 
 }
 
 ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
-	if (magic) {
-		::string                        cmd      = file+Backdoor::MagicPfxLen         ;
-		size_t                          slash    = cmd.find('/')                      ; SWEAR(slash!=Npos) ;
-		::umap_s<Backdoor::Func> const& func_tab = Backdoor::get_func_tab()           ;
-		auto                            it       = func_tab.find(cmd.substr(0,slash)) ;
-		//
-		if (it==func_tab.end()) {
-			len = -+MagicErrno::NotFound ;
-		} else {
-			char* b = buf ? buf : new char[sz] ;
-			len = it->second( r , cmd.substr(slash+1) , b , sz ) ; SWEAR( len<=ssize_t(sz) , len,sz ) ;
-			if      (buf   ) {}                                                                         // buf is provided by caller
-			else if (len>=0) buf = b ;                                                                  // buf will be deleted by caller if allocated here
-			else             delete[] b ;
-		}
-	}
-	return len ;                                                                                        // len contains -errno
+	/**/                                                                            if (!magic            ) return len                    ;
+	::string                        cmd      = file+Backdoor::MagicPfxLen         ;
+	size_t                          slash    = cmd.find('/')                      ; if (slash==Npos       ) return -+MagicErrno::Internal ;
+	::umap_s<Backdoor::Func> const& func_tab = Backdoor::get_func_tab()           ;
+	auto                            it       = func_tab.find(cmd.substr(0,slash)) ; if (it==func_tab.end()) return -+MagicErrno::NotFound ;
+	//
+	char* b = buf ? buf : new char[sz] ;
+	len = it->second( r , cmd.substr(slash+1) , b , sz ) ; SWEAR( len<=ssize_t(sz) , len,sz ) ;
+	if      (buf   ) {}                                                                         // buf is provided by caller
+	else if (len>=0) buf = b ;                                                                  // buf will be deleted by caller if allocated here
+	else             delete[] b ;
+	//
+	return len ;                                                                                // len contains -errno
 }
 
 Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , bool no_replace , Comment c ) :

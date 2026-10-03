@@ -11,7 +11,7 @@
 #include "record.hh"
 
 enum class MagicErrno : int {
-	NoSpace    = 1000         // ensure no confusion with system errno's (up to 133 or so)
+	NoSpace    = 1000         // not enough space for reply, =1000 to ensure no confusion with system errno's (up to 133 or so)
 ,	CannotPoke
 ,	Internal
 ,	NotFound
