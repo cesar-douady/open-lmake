@@ -383,24 +383,23 @@ Record::Readlink::Readlink( Record& r , Path&& path , char* buf_ , size_t sz_ , 
 }
 
 ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
-	if (!magic) return len ;
-	//
-	::string                        cmd      = file+Backdoor::MagicPfxLen         ;
-	size_t                          slash    = cmd.find('/')                      ; SWEAR(slash!=Npos) ;
-	::umap_s<Backdoor::Func> const& func_tab = Backdoor::get_func_tab()           ;
-	auto                            it       = func_tab.find(cmd.substr(0,slash)) ;
-	//
-	if (it==func_tab.end()) return -EOPNOTSUPP-1 ; // errno cannot be reported to user, -1 to distinguish from normal errors
-	//
-	char* b = buf ? buf : new char[sz] ;
-	len = it->second( r , cmd.substr(slash+1) , b , sz ) ; SWEAR( len<=ssize_t(sz) , len,sz ) ;
-	if (len>=0) {
-		if (!buf) buf = b ;    // buf will be deleted by caller if allocated here
-		return len ;
-	} else {
-		if (!buf) delete[] b ;
-		return len-1 ;         // len contains -errno, -1 to distinguish from normal errors
+	if (magic) {
+		::string                        cmd      = file+Backdoor::MagicPfxLen         ;
+		size_t                          slash    = cmd.find('/')                      ; SWEAR(slash!=Npos) ;
+		::umap_s<Backdoor::Func> const& func_tab = Backdoor::get_func_tab()           ;
+		auto                            it       = func_tab.find(cmd.substr(0,slash)) ;
+		//
+		if (it==func_tab.end()) {
+			len = -+MagicErrno::NotFound ;
+		} else {
+			char* b = buf ? buf : new char[sz] ;
+			len = it->second( r , cmd.substr(slash+1) , b , sz ) ; SWEAR( len<=ssize_t(sz) , len,sz ) ;
+			if      (buf   ) {}                                                                         // buf is provided by caller
+			else if (len>=0) buf = b ;                                                                  // buf will be deleted by caller if allocated here
+			else             delete[] b ;
+		}
 	}
+	return len ;                                                                                        // len contains -errno
 }
 
 Record::Rename::Rename( Record& r , Path&& src_ , Path&& dst_ , bool exchange , bool no_replace , Comment c ) :

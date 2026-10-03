@@ -315,11 +315,12 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 	,	[&](ReadlinkHelper& rl)->int64_t {
 			SWEAR( rl.read_lnk.magic ) ;                                                             // else we should not be here
 			int64_t cnt = rl.read_lnk(r,*rc) ;
+			errno = 0 ;
 			if (cnt>=0) {
 				SWEAR_PROD( cnt<=ssize_t(rl.read_lnk.sz) , cnt,rl.read_lnk.sz ) ;
 				if (+proc_mem)                                                                       // access to backdoor was emulated, we must transport result to actual user space
 					try                     { _poke( proc_mem , rl.buf , rl.read_lnk.buf , cnt ) ; }
-					catch (::string const&) { cnt = -+MagicErrno::CannotPoke-1 ;                   } // magic errors are reported directly as -errno-1, not through inaccessible errno
+					catch (::string const&) { cnt = -+MagicErrno::CannotPoke ;                     } // magic errors are reported directly as -errno, not through inaccessible errno
 				if (rl.read_lnk.buf) delete[] rl.read_lnk.buf ;                                      // buf has been allocated when processing magic
 			}
 			return cnt ;

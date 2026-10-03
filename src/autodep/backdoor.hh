@@ -50,8 +50,8 @@ namespace Backdoor {
 			::string buf ( sz , 0 )                                                 ;
 			ssize_t  cnt = ::readlinkat( MagicFd , file.c_str() , buf.data() , sz ) ;                                  // try to go through autodep to process args
 			if (cnt<0) {
-				int err_no = cnt==-1 ? errno : -cnt-1 ;                                                                // ld_audit/ld_preload report errno directly in result as -errno-1
-				switch (err_no) {
+				int err_no = cnt==-1 ? errno : -cnt ;                                                                  // ld_audit/ld_preload report errno directly in result as -errno if magic, ...
+				switch (err_no) {                                                                                      // ... magic errors are never -1, so no confusion with standard convention
 					case +MagicErrno::CannotPoke : throw cat("cannot poke reply while " ,args.descr()) ;
 					case +MagicErrno::Internal   : throw cat("internal error while "    ,args.descr()) ;
 					case +MagicErrno::NotFound   : throw cat("magic function not found ",args.descr()) ;

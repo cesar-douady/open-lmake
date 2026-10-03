@@ -80,7 +80,7 @@ namespace AutodepPtrace {
 		if (::ptrace(PTRACE_TRACEME,0/*pid*/,0/*addr*/,0/*data*/                          )!=0) { _print_err("cannot set up ptrace"     ) ; return 1 ; }
 		if (::prctl (PR_SET_NO_NEW_PRIVS,1                  ,0/*arg3*/,0/*arg4*/,0/*arg5*/)!=0) { _print_err("cannot prevent privileges") ; return 1 ; }
 		if (::prctl (PR_SET_SECCOMP     ,SECCOMP_MODE_FILTER,&bp      ,0/*.   */,0/*.   */)!=0) { _print_err("cannot set up seccomp"    ) ; return 1 ; }
-		::raise(SIGSTOP) ;                                                                                                                              // wait until released by supervisor
+		::raise(SIGSTOP) ;                                                                                                                               // wait until released by supervisor
 		return 0 ;
 	}
 
@@ -157,34 +157,31 @@ namespace AutodepPtrace {
 				}
 			} else {
 				// syscall exit
-				int64_t       res = 0 ;
-				int64_t/*rc*/ rc  ;
+				int64_t       orig_rc = 0 ;
+				int64_t/*rc*/ rc      ;
 				if      (ctx==&ctx_force_inval) rc = -EINVAL ;
 				else if (ctx==&ctx_force_nosys) rc = -ENOSYS ;
 				else {
 					#if HAS_PTRACE_GET_SYSCALL_INFO
 						SWEAR_PROD( syscall_info.op==PTRACE_SYSCALL_INFO_EXIT ) ;
-						res = syscall_info.exit.rval ;
+						orig_rc = syscall_info.exit.rval ;
 					#else
-						res = NonPortable::ptrace_get_res(pid) ;                                        // use non-portable calls if portable accesses are not implemented
+						orig_rc = NonPortable::ptrace_get_res(pid) ;                                    // use non-portable calls if portable accesses are not implemented
 					#endif
 					#if HAS_32
 						SyscallDescr const& descr = is_32==Yes ? SyscallDescr::s_tab32[syscall] : SyscallDescr::s_tab[syscall] ;
 					#else
 						SyscallDescr const& descr =                                               SyscallDescr::s_tab[syscall] ;
 					#endif
-					int64_t old_rc = res ;
-					if (res<0) {
-						old_rc = -1   ;
- 						errno  = -res ;
-					}
+					if (orig_rc<0) { rc = -1      ; errno = -orig_rc ; }
+					else             rc = orig_rc ;
 					SWEAR_PROD( descr.exit , is_32,syscall ) ;
-					//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					rc = descr.exit( ctx , record , proc_mem , old_rc ) ;
-					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					rc = descr.exit( ctx , record , proc_mem , rc ) ;
+					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if (rc==-1) rc = -errno ;
 				}
-				if (rc!=res) NonPortable::ptrace_set_res( pid , rc ) ;
+				if (rc!=orig_rc) NonPortable::ptrace_set_res( pid , rc ) ;
 				ctx = nullptr ;
 			}
 		} catch (::string const& e) {
