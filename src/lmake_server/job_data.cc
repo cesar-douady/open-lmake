@@ -539,7 +539,6 @@ namespace Engine {
 				}
 				//
 				NodeData &         dnd           = *Node(dep)                                     ;
-				bool               dep_triggered = {}                                             ;
 				bool               dep_modif     = false                                          ;
 				RunStatus          dep_err       = RunStatus::Ok                                  ;
 				bool               is_static     =  dep.dflags[Dflag::Static     ]                ;
@@ -569,9 +568,9 @@ namespace Engine {
 					:	+state.stamped.err            ? ri.speculate|Maybe                            // this dep is not the origin of the error
 					:	                                ri.speculate                                  // this dep will not disappear from us
 					;
-					//              vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					dep_triggered = dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) ;
-					//              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					//                   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+					bool dep_triggered = dnd.make( *dri , mk_action(dep_goal,query) , speculate_dep ) ;
+					//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 					if ( !(query||dry_run) && SpecialAttrs[+special_].second.has_jobs==Yes ) {        // dont record if job is fugitive
 						/**/               dnd.last_asking  = job ;
 						if (dep_triggered) dnd.build_asking = job ;
@@ -681,19 +680,19 @@ namespace Engine {
 				report_reason = ri.reason = reason(ri.state) ;                                // ensure we have a reason to report that we would have run if not queried
 				trace("run",ri,STR(query),STR(dry_run),pre_reason,report_reason,run_status) ;
 				if (query) goto Return ;
+				ri.dry_run_modif |= dry_run_is_modif(report_reason.tag) ;
 				if ( dry_run && !(is_req&&pre_reason.tag==JobReasonTag::New) ) {              // job representing req is executed normally once when dry_run to acquire its deps
 					if      (job.frozen()) req->would_audit_job( Color::None , JobReasonTag::Frozen , job , false/*run*/ ) ;
 					else if (!is_req     ) req->would_audit_job( Color::None , report_reason        , job                ) ;
-					triggered = true ;
 				} else {
-					if (ri.state.missing_dsk) {                                                   // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
-						SWEAR( !is_infinite(special_) , special_,job ) ;                          // Infinite do not process their deps
+					if (ri.state.missing_dsk) {                                               // cant run if we are missing some deps on disk, XXX! : rework so that this never fires up
+						SWEAR( !is_infinite(special_) , special_,job ) ;                      // Infinite do not process their deps
 						ri.reset(job) ;
 						goto RestartAnalysis/*BACKWARD*/ ;
 					}
 					bool         maybe_new_deps ;
 					bool         triggered1     ;
-					JobReasonTag rt             = ri.reason.tag ;                                 // sample before _submit_plain as it may modify ri.reason
+					JobReasonTag rt             = ri.reason.tag ;                             // sample before _submit_plain as it may modify ri.reason
 					if (!is_plain()) {
 						//                               vvvvvvvvvvvvvvvvvvv
 						tie(maybe_new_deps,triggered1) = _submit_special(ri) ;
@@ -702,7 +701,7 @@ namespace Engine {
 						if (maybe_new_deps) {
 							inc_submits( rt , true/*has_run*/ ) ;
 						} else {
-							ri.reason = {} ;                                                      // flash execution
+							ri.reason = {} ;                                                  // flash execution
 							ri.reset(job) ;
 						}
 					} else {
@@ -718,11 +717,11 @@ namespace Engine {
 						}
 						missing_rerun_report = cache_hit_info<CacheHitInfo::Miss ? MissingRerunReport::Hit : MissingRerunReport::Early ;
 					}
-					if (maybe_new_deps) {                                                         // if cached, there may be new deps, we must re-analyze
+					if (maybe_new_deps) {                                                     // if cached, there may be new deps, we must re-analyze
 						SWEAR(!ri.running()) ;
-						make_action  = MakeAction::End ;                                          // restart analysis as if called by end() as in case of flash execution, submit has called end()
-						asked_reason = {}              ;                                          // .
-						ri.inc_wait() ;                                                           // .
+						make_action  = MakeAction::End ;                                      // restart analysis as if called by end() as in case of flash execution, submit has called end()
+						asked_reason = {}              ;                                      // .
+						ri.inc_wait() ;                                                       // .
 						trace("restart_full_analysis",ri) ;
 						goto RestartFullAnalysis/*BACKWARD*/ ;
 					}
@@ -782,7 +781,7 @@ namespace Engine {
 				to_pop.req = req ;
 			}
 		}
-		if (!dry_run) report_reason = reason(ri.state) ;
+		report_reason = reason(ri.state)  ;
 		goto Return ;
 	Wait :
 		if (+missing_rerun_report) req->audit_job( Color::Note , cat(missing_rerun_report,"_rerun") , job ) ;

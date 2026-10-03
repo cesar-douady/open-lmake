@@ -401,7 +401,7 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 		return len ;
 	} else {
 		if (!buf) delete[] b ;
-		return -len-1 ; // len contains errno, -1 to distinguish from normal errors
+		return len-1 ; // len contains -errno, -1 to distinguish from normal errors
 	}
 }
 

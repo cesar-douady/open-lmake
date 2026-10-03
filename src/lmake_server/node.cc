@@ -477,40 +477,43 @@ namespace Engine {
 			case Buildable::DirOfSrc    :
 			case Buildable::DynAnti     :
 			case Buildable::No          :                                goto NotDone ;
-			case Buildable::SrcDir      : set_status(NodeStatus::None) ; goto Src     ; // status is overwritten Src if node actually exists
-			case Buildable::PathTooLong : set_status(NodeStatus::None) ; goto NotDone ; // path too long have been discovered above
-			case Buildable::Unknown     :                                FAIL()       ; // NO_COV
+			case Buildable::SrcDir      : set_status(NodeStatus::None) ; goto Src     ;                   // status is overwritten Src if node actually exists
+			case Buildable::PathTooLong : set_status(NodeStatus::None) ; goto NotDone ;                   // path too long have been discovered above
+			case Buildable::Unknown     :                                FAIL()       ;                   // NO_COV
 			default                     :                                break        ;
 		}
-		//
-		if ( ReqInfo& dri = dir->req_info(req) ; !dir->done(dri,ri.goal) ) {            // fast path : no need to call make if dir is done
+		// step 3 : handle what needs dir status
+		if ( ReqInfo& dri = dir->req_info(req) ; !dir->done(dri,ri.goal) ) {                              // fast path : no need to call make if dir is done
 			if (!dri.waiting()) {
-				ReqInfo::WaitInc sav_n_wait{ri} ;                                       // appear waiting in case of recursion loop (loop will be caught because of no job on going)
-				MakeAction dma = query ? MakeAction::Query : ri.goal<=NodeGoal::Status ? MakeAction::Status : MakeAction::Dsk ;
+				ReqInfo::WaitInc sav_n_wait{ri} ;                                                         // appear waiting in case of recursion loop (loop will be caught because of no job on going)
+				MakeAction dma =
+					query                     ? MakeAction::Query
+				:	ri.goal<=NodeGoal::Status ? MakeAction::Status
+				:	                            MakeAction::Dsk
+				; //!                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+				bool dir_triggered = dir->make( dri , dma , ri.speculate ) ;
+				//                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 				if (!( query || dry_run )) {
-					//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-					/**/                                   dir->last_asking  = idx() ;
-					if ( dir->make(dri,dma,ri.speculate) ) dir->build_asking = idx() ;
-					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+					/**/               dir->last_asking  = idx() ;
+					if (dir_triggered) dir->build_asking = idx() ;
 				}
 			}
 			trace("dir",dir,STR(dir->done(dri,NodeGoal::Status)),ri) ;
 			//
 			if (dri.waiting()) {
 				dir->add_watcher(dri,idx(),ri,ri.pressure) ;
-				set_status(NodeStatus::Uphill) ;                                        // temporarily, until dir is built and we know the definitive answer
-				goto NotDone ;                                                          // return value is meaningless when waiting
+				set_status(NodeStatus::Uphill) ;                                                          // temporarily, until dir is built and we know the definitive answer
+				goto NotDone ;                                                                            // return value is meaningless when waiting
 			}
-			if ( query && !dir->done(dri) ) { trace("query","dir",STR(query),STR(dry_run)) ; return false/*found*/ ; }
-			SWEAR(dir->done(dri)) ;                                                                                    // after having called make, dep must be either waiting or done
+			if ( query && !dir->done(dri) ) { trace("query_dir") ; return false/*found*/ ; }
+			SWEAR(dir->done(dri)) ;                                                                       // after having called make, dep must be either waiting or done
 		}
-		// step 3 : handle what needs dir status
 		switch (dir->buildable) {
 			case Buildable::Maybe :
-				if (dir->status()==NodeStatus::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; }              // not Uphill anymore
+				if (dir->status()==NodeStatus::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; } // not Uphill anymore
 				[[fallthrough]] ;
 			case Buildable::Yes :
-				if (buildable==Buildable::Maybe) buildable = Buildable::Yes ;                                          // propagate as dir->buildable may have changed from Maybe to Yes when made
+				if (buildable==Buildable::Maybe) buildable = Buildable::Yes ;                             // propagate as dir->buildable may have changed from Maybe to Yes when made
 				[[fallthrough]] ;
 			case Buildable::SubSrc    :
 			case Buildable::SubSrcDir :
@@ -524,19 +527,19 @@ namespace Engine {
 		switch (dir->buildable) {
 			case Buildable::Maybe :
 			case Buildable::Yes   :
-				if (dir->crc==Crc::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; }                          // uphill is buildable, but does not actually exist
+				if (dir->crc==Crc::None) { set_status(NodeStatus::Unknown) ; goto NotDone ; }             // uphill is buildable, but does not actually exist
 				goto DirSrc ;
 			case Buildable::SubSrcDir :
-				if (dir->crc==Crc::None) { set_status(NodeStatus::None   ) ; goto Src     ; }                          // status is overwritten Src if node actually exists
+				if (dir->crc==Crc::None) { set_status(NodeStatus::None   ) ; goto Src     ; }             // status is overwritten Src if node actually exists
 				goto DirSrc ;
 			case Buildable::SubSrc :
 			case Buildable::DynSrc :
 			case Buildable::Src    :
 			DirSrc :
-				if (dir->crc.is_lnk()) goto Transient ;                                                                // our dir is a link, we are transient
-				set_status(NodeStatus::Uphill) ;                                                                       // a non-existent source stays a source, hence its sub-files are uphill
+				if (dir->crc.is_lnk()) goto Transient ;                                                   // our dir is a link, we are transient
+				set_status(NodeStatus::Uphill) ;                                                          // a non-existent source stays a source, hence its sub-files are uphill
 				goto NoSrc ;
-		DF}                                                                                                            // NO_COV
+		DF}                                                                                               // NO_COV
 	Src :
 		{	ri.dry_run_modif = refresh_src_anti( lazy_name() , ~Accesses() , status()!=NodeStatus::None , false/*keep_actual_job*/ , {req} ) ;
 			if      (crc     !=Crc       ::None) set_status(NodeStatus::Src) ;                                                                 // overwrite status if it was pre-set to None
@@ -603,7 +606,7 @@ namespace Engine {
 			//           ^^^^^^^^^^^^^^^^^^^^^^
 			if (!found) {
 				SWEAR( query||dry_run , query,dry_run ) ;
-				if ( dry_run && crc!=Crc::None ) triggered = true/*triggered*/ ;
+				if ( dry_run && crc!=Crc::None ) triggered = true ;                                                   // unlink
 				goto Wait ;
 			}
 			if (ri.waiting()) goto Wait   ;
@@ -690,24 +693,28 @@ namespace Engine {
 							}
 						}
 						if (ri.live_out) jri.live_out = ri.live_out ;                                                              // transmit user request to job for last level live output
-						::pair<JobReason,bool/*triggered*/> jrtt = {} ;
-						//                       vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-						if      (!query ) jrtt = jt->make( jri , JobMakeAction::Status , reason , ri.speculate ) ;
-						else if (!reason) jrtt = jt->make( jri , JobMakeAction::Query  , reason , ri.speculate ) ;
-						//                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-						else              jrtt = { reason , true/*triggered*/ }                                  ;                 // if we have a reason to run job, answer to query is known
-						if (jrtt.second) {
-							triggered        = jrtt.second                      ;
-							ri.dry_run_modif = dry_run_is_modif(jrtt.first.tag) ;
-						}
+						bool job_triggered ;
+						//                                vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+						if      (!query ) job_triggered = jt->make( jri , JobMakeAction::Status , reason , ri.speculate ).second ;
+						else if (!reason) job_triggered = jt->make( jri , JobMakeAction::Query  , reason , ri.speculate ).second ;
+						//                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+						else              job_triggered = dry_run_is_modif(reason.tag)                                           ; // if we have a reason to run job, answer to query is known
 						if (!( query || dry_run )) {
-							/**/             jt->last_asking () = idx() ;
-							if (jrtt.second) jt->build_asking() = idx() ;
+							/**/               jt->last_asking () = idx() ;
+							if (job_triggered) jt->build_asking() = idx() ;
 						}
+						triggered |= job_triggered ;
 						trace("job",ri,STR(query),jt,STR(jri.waiting()),STR(jt.produces(idx())),polluted,STR(busy)) ;
-						if      (jri.waiting()     )   jt->add_watcher(jri,idx(),ri,ri.pressure) ;
-						else if (!jri.done()       ) { SWEAR(query) ; goto Wait ;                                                }
-						else if (jt.produces(idx())) { if (prod_idx==NoIdx) prod_idx = it.idx ; else multi = {prod_idx,it.idx} ; } // jobs in error are deemed to produce all their potential targets
+						if (jri.waiting()) {
+							jt->add_watcher(jri,idx(),ri,ri.pressure) ;
+						} else if (!jri.done()) {
+							SWEAR(query) ;
+							goto Wait ;
+						} else if (jt.produces(idx())) {                                                                           // jobs in error are deemed to produce all their potential targets
+							ri.dry_run_modif |= jri.dry_run_modif ;
+							if (prod_idx==NoIdx) prod_idx =           it.idx  ;
+							else                 multi    = {prod_idx,it.idx} ;
+						}
 					}
 				}
 				if (ri.waiting()   ) goto Wait     ;

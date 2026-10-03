@@ -299,6 +299,7 @@ namespace Engine {
 		bool             modified          :1 = false ;        //          1 bit , modified when last run
 		bool             modified_speculate:1 = false ;        //          1 bit , modified when marked speculative
 		bool             miss_live_out     :1 = false ;        //          1 bit , live_out info has not been sent to user
+		bool             dry_run_modif     :1 = false ;        //          1 bit , if true <=> all targets are deemed modified when dry_run
 	private :
 		Step _step:NBits<Step> = {} ;                          //          3 bits
 	} ;

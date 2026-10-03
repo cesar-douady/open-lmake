@@ -17,11 +17,16 @@ if __name__!='__main__' :
 	,	'src'
 	)
 
+	class Cpy(Rule) :
+		target = r'{File:.*}.cpy'
+		dep    = '{File}'
+		cmd    = 'cat'
+
 	class Dut(Rule) :
 		target = 'dut'
 		deps = {
-			'SUB1' : 'sub1'
-		,	'SUB2' : 'sub2'
+			'SUB1' : 'sub1.cpy'
+		,	'SUB2' : 'sub2.cpy'
 		}
 		cmd = 'cat {SUB1} {SUB2}'
 
@@ -31,7 +36,7 @@ if __name__!='__main__' :
 		,	'TGT2':'sub2'
 		}
 		deps = { 'SRC' : 'src' }
-		cmd     = 'cat {SRC} > {TGT1} ; cat {SRC} > {TGT2}'
+		cmd  = 'cat {SRC} > {TGT1} ; cat {SRC} > {TGT2}'
 
 else :
 
@@ -41,10 +46,10 @@ else :
 	import ut
 
 	print('v1',file=open('src','w'))
-	ut.lmake( 'dut' , new=1 , done=2 ) # may_rerun vs rerun depends on scheduling
+	ut.lmake( 'dut' , new=1 , done=4 ) # may_rerun vs rerun depends on scheduling
 
 	print('v2',file=open('src','w'))
 	res = sp.run( ('lmake','-n','dut') , stdout=sp.PIPE , universal_newlines=True , check=True ).stdout
 	print(res)
 	n_sub = len(re.findall(r'\sSub\s',res))
-	assert n_sub==1
+	assert n_sub==1 and 'sub1.cpy' in res and 'sub2.cpy' in res
