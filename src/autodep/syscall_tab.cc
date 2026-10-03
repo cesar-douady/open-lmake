@@ -13,6 +13,7 @@
 
 #include "non_portable.hh"
 
+#include "backdoor.hh"
 #include "record.hh"
 
 #include "syscall_tab.hh"
@@ -315,11 +316,10 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 			SWEAR( rl.read_lnk.magic ) ;                                                             // else we should not be here
 			int64_t cnt = rl.read_lnk(r,*rc) ;
 			if (cnt>=0) {
-				errno = 0 ;
 				SWEAR_PROD( cnt<=ssize_t(rl.read_lnk.sz) , cnt,rl.read_lnk.sz ) ;
 				if (+proc_mem)                                                                       // access to backdoor was emulated, we must transport result to actual user space
 					try                     { _poke( proc_mem , rl.buf , rl.read_lnk.buf , cnt ) ; }
-					catch (::string const&) { errno = ECOMM ; cnt = -1 ;                           } // distinguish between backdoor error and absence of support
+					catch (::string const&) { cnt = -+MagicErrno::CannotPoke-1 ;                   } // magic errors are reported directly as -errno-1, not through inaccessible errno
 				if (rl.read_lnk.buf) delete[] rl.read_lnk.buf ;                                      // buf has been allocated when processing magic
 			}
 			return cnt ;

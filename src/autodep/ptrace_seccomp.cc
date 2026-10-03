@@ -182,10 +182,7 @@ namespace AutodepPtrace {
 					//   vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 					rc = descr.exit( ctx , record , proc_mem , old_rc ) ;
 					//   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-					if (rc<0) {
-						SWEAR( rc==-1 && errno>0 , syscall,rc,errno ) ;
-						rc = -errno ;
-					}
+					if (rc==-1) rc = -errno ;
 				}
 				if (rc!=res) NonPortable::ptrace_set_res( pid , rc ) ;
 				ctx = nullptr ;

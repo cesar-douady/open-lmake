@@ -275,7 +275,7 @@ JobExecRpcReq::Id Record::report_access( FileLoc fl , JobExecRpcReq&& jerr , Fil
 
 Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(path),false/*no_follow*/,false/*read*/,c} {
 	report_dep( r , Access() , c ) ;
-	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s({at,with_slash(file)}) ;                                        // in case of overlay, create dir in the view
+	if ( s_autodep_env().auto_mkdir && file_loc==FileLoc::Repo ) mk_dir_s({at,with_slash(file)}) ; // in case of overlay, create dir in the view
 	r.report_guard( file_loc , real_write() ) ;
 	send_report(r) ;
 }
@@ -283,7 +283,7 @@ Record::Chdir::Chdir( Record& r , Path&& path , Comment c ) : Solve<>{r,::move(p
 Record::Chmod::Chmod( Record& r , Path&& path , bool exe , bool no_follow , Comment c ) : SolveModify{r,::move(path),no_follow,true/*read*/,c} { // behave like a read-modify-write
 	if (file_loc>FileLoc::Dep) return ;
 	FileInfo fi {{ s_repo_root_fd() , real }} ;
-	if ( fi.exists() && exe!=(fi.tag()==FileTag::Exe) ) // only consider as a target if exe bit changes
+	if ( fi.exists() && exe!=(fi.tag()==FileTag::Exe) )                                                                                          // only consider as a target if exe bit changes
 		report_update( r , Access::Reg , c ) ;
 	send_report(r) ;
 }
@@ -390,18 +390,16 @@ ssize_t Record::Readlink::operator()( Record& r , ssize_t len ) {
 	::umap_s<Backdoor::Func> const& func_tab = Backdoor::get_func_tab()           ;
 	auto                            it       = func_tab.find(cmd.substr(0,slash)) ;
 	//
-	if (it==func_tab.end()) {
-		return -EOPNOTSUPP-1 ; // -1 to distinguish from normal errors
-	}
+	if (it==func_tab.end()) return -EOPNOTSUPP-1 ; // errno cannot be reported to user, -1 to distinguish from normal errors
 	//
 	char* b = buf ? buf : new char[sz] ;
 	len = it->second( r , cmd.substr(slash+1) , b , sz ) ; SWEAR( len<=ssize_t(sz) , len,sz ) ;
 	if (len>=0) {
-		if (!buf) buf = b ; // buf will be deleted by caller if allocated here
+		if (!buf) buf = b ;    // buf will be deleted by caller if allocated here
 		return len ;
 	} else {
 		if (!buf) delete[] b ;
-		return len-1 ; // len contains -errno, -1 to distinguish from normal errors
+		return len-1 ;         // len contains -errno, -1 to distinguish from normal errors
 	}
 }
 
@@ -467,7 +465,7 @@ Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , Comm
 }
 
 Record::Symlink::Symlink( Record& r , Path&& p , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,c} {
-	report_update( r , Access::Stat , c ) ;                                                                                                // fail if file exists, hence sensitive to existence
+	report_update( r , Access::Stat , c ) ;                                                                                 // fail if file exists, hence sensitive to existence
 	send_report(r) ;
 }
 

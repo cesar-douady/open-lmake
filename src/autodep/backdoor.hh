@@ -10,6 +10,13 @@
 
 #include "record.hh"
 
+enum class MagicErrno : int {
+	NoSpace    = 1000         // ensure no confusion with system errno's (up to 133 or so)
+,	CannotPoke
+,	Internal
+,	NotFound
+} ;
+
 namespace Backdoor {
 
 	template<class T> struct Expected {
@@ -42,15 +49,13 @@ namespace Backdoor {
 		for( int i=0 ;; i++ ) {
 			::string buf ( sz , 0 )                                                 ;
 			ssize_t  cnt = ::readlinkat( MagicFd , file.c_str() , buf.data() , sz ) ;                                  // try to go through autodep to process args
-			if (cnt==-1) {                                                                                             // non-magic error
-				Lock lock { Record::s_mutex } ;
-				return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                                       // no autodep available, directly process args
-			} else if (cnt<-1) {                                                                                       // magic error
-				switch (-cnt-1) {                                                                                      // this is the actual errno
-					case ECOMM        : throw cat("cannot poke reply while ",args.descr()) ;
-					case EPROTO       :
-					case EOPNOTSUPP   : throw cat("internal error while "   ,args.descr()) ;
-					case ECONNABORTED : {
+			if (cnt<0) {
+				int err_no = cnt==-1 ? errno : -cnt-1 ;                                                                // ld_audit/ld_preload report errno directly in result as -errno-1
+				switch (err_no) {
+					case +MagicErrno::CannotPoke : throw cat("cannot poke reply while " ,args.descr()) ;
+					case +MagicErrno::Internal   : throw cat("internal error while "    ,args.descr()) ;
+					case +MagicErrno::NotFound   : throw cat("magic function not found ",args.descr()) ;
+					case +MagicErrno::NoSpace : {
 						size_t pos = buf.find(char(0)) ;
 						if (pos==Npos) {
 							if (sz>=4) buf.resize(sz-4) ;
@@ -59,7 +64,11 @@ namespace Backdoor {
 						if (pos==0) throw cat("cannot ",args.descr(                                   )) ;
 						else        throw cat("cannot ",args.descr(cat('(',substr_view(buf,0,pos),')'))) ;
 					} break ;
-				DF}                                                                                                    // NO_COV
+					default : {
+						Lock lock { Record::s_mutex } ;
+						return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                               // no autodep available, directly process args
+					}
+				}                                                                                                      // NO_COV
 			}
 			SWEAR( size_t(cnt)<buf.size() , cnt,buf.size() ) ;
 			buf.resize(size_t(cnt)) ;
@@ -75,13 +84,13 @@ namespace Backdoor {
 		T                   cmd       ;
 		Expected<_Reply<T>> reply     { .ok=true } ;
 		::string            reply_str ;
-		int                 err       = EPROTO     ;
+		int                 err       = +MagicErrno::Internal ;
 		::string            msg       ;
 		//
-		try { size_t pos=0 ; parsed    =parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"parse args") ; } catch (::string const& e) {                    msg=e ; goto Err ; }
-		try {                cmd       =deserialize<T>(parsed)        ;                                                   } catch (::string const& e) {                    msg=e ; goto Err ; }
-		try {                reply.data=cmd.process(r)                ;                                                   } catch (::string const& e) { err=ECONNABORTED ; msg=e ; goto Err ; }
-		try {                reply_str =serialize(reply)              ;                                                   } catch (::string const& e) {                    msg=e ; goto Err ; }
+		try { size_t pos=0 ; parsed    =parse_printable(args_str,pos) ; throw_unless(pos==args_str.size(),"parse args") ; } catch (::string const& e) {                            msg=e ; goto Err ; }
+		try {                cmd       =deserialize<T>(parsed)        ;                                                   } catch (::string const& e) {                            msg=e ; goto Err ; }
+		try {                reply.data=cmd.process(r)                ;                                                   } catch (::string const& e) { err=+MagicErrno::NoSpace ; msg=e ; goto Err ; }
+		try {                reply_str =serialize(reply)              ;                                                   } catch (::string const& e) {                            msg=e ; goto Err ; }
 		//
 		if (reply_str.size()>=sz) {                             // if reply does not fit, replace with a short reply that provides the necessary size and caller will retry
 			reply.ok  = false            ;
