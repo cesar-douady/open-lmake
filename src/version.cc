@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 59      ; // 8d54f6570b36757318a43b2514254942
+	uint64_t    constexpr Cache = 60      ; // 00ded76c164850d701f2b03095e8e67f
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 64      ; // 2eb1edb84ae3146051b2a13e9df96f66
-	uint64_t    constexpr Job   = 32      ; // 3a3873998f246a1fa262a5941279de1d
+	uint64_t    constexpr Repo  = 65      ; // 17c1a2c9bd77a5d704240ddfa96c3046
+	uint64_t    constexpr Job   = 33      ; // 629d510e50204e6f7a2b2ba3f951e255
 	const char* const     Major = "26.10" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 8d54f6570b36757318a43b2514254942 *
+// * Cache : 00ded76c164850d701f2b03095e8e67f *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -864,6 +864,7 @@ namespace Version {
 //	,	lstat                  , lstat64
 //	,	lutimes
 //	,	mkdir                                      , mkdirat
+//	,	mknod                                      , mknodat
 //	,	mkostemp               , mkostemp64
 //	,	mkostemps              , mkostemps64
 //	,	mkstemp                , mkstemp64
@@ -884,13 +885,13 @@ namespace Version {
 //	,	rmdir
 //	,	scandir                , scandir64         , scandirat         , scandirat64
 //	,	stat                   , stat64
+//	,	statfs                 , statfs64          , statvfs           , statvfs64
 //	,	statx
 //	,	symlink                                    , symlinkat
 //	,	truncate               , truncate64
+//	,	umount                 , umount2
 //	,	unlink                                     , unlinkat
-//	,	utime
-//	,	                                             utimensat
-//	,	utimes
+//	,	utime                  , utimes            , utimensat
 //	,	                                             __fxstatat        , __fxstatat64
 //	,	                                             __lxstat          , __lxstat64
 //	,	__open                 , __open64
@@ -1244,7 +1245,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 2eb1edb84ae3146051b2a13e9df96f66 *
+// * Repo : 17c1a2c9bd77a5d704240ddfa96c3046 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2533,6 +2534,7 @@ namespace Version {
 //	,	lstat                  , lstat64
 //	,	lutimes
 //	,	mkdir                                      , mkdirat
+//	,	mknod                                      , mknodat
 //	,	mkostemp               , mkostemp64
 //	,	mkostemps              , mkostemps64
 //	,	mkstemp                , mkstemp64
@@ -2553,13 +2555,13 @@ namespace Version {
 //	,	rmdir
 //	,	scandir                , scandir64         , scandirat         , scandirat64
 //	,	stat                   , stat64
+//	,	statfs                 , statfs64          , statvfs           , statvfs64
 //	,	statx
 //	,	symlink                                    , symlinkat
 //	,	truncate               , truncate64
+//	,	umount                 , umount2
 //	,	unlink                                     , unlinkat
-//	,	utime
-//	,	                                             utimensat
-//	,	utimes
+//	,	utime                  , utimes            , utimensat
 //	,	                                             __fxstatat        , __fxstatat64
 //	,	                                             __lxstat          , __lxstat64
 //	,	__open                 , __open64
@@ -2760,7 +2762,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 3a3873998f246a1fa262a5941279de1d *
+// * Job : 629d510e50204e6f7a2b2ba3f951e255 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -3074,6 +3076,7 @@ namespace Version {
 //	,	lstat                  , lstat64
 //	,	lutimes
 //	,	mkdir                                      , mkdirat
+//	,	mknod                                      , mknodat
 //	,	mkostemp               , mkostemp64
 //	,	mkostemps              , mkostemps64
 //	,	mkstemp                , mkstemp64
@@ -3094,13 +3097,13 @@ namespace Version {
 //	,	rmdir
 //	,	scandir                , scandir64         , scandirat         , scandirat64
 //	,	stat                   , stat64
+//	,	statfs                 , statfs64          , statvfs           , statvfs64
 //	,	statx
 //	,	symlink                                    , symlinkat
 //	,	truncate               , truncate64
+//	,	umount                 , umount2
 //	,	unlink                                     , unlinkat
-//	,	utime
-//	,	                                             utimensat
-//	,	utimes
+//	,	utime                  , utimes            , utimensat
 //	,	                                             __fxstatat        , __fxstatat64
 //	,	                                             __lxstat          , __lxstat64
 //	,	__open                 , __open64

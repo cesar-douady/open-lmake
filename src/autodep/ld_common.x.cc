@@ -10,8 +10,10 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/statvfs.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
+#include <sys/vfs.h>
 #include <utime.h>
 
 #include "disk.hh"
@@ -528,6 +530,10 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int mkdir  (      CC* p,mode_t m) NE { HDR1(mkdir  ,p,(  p,m)) ; NO_SERVER(mkdir  ) ; Mkdir r{   p ,Comment::mkdir  } ; return r(orig(  p,m)) ; }
 	int mkdirat(int d,CC* p,mode_t m) NE { HDR1(mkdirat,p,(d,p,m)) ; NO_SERVER(mkdirat) ; Mkdir r{{d,p},Comment::mkdirat} ; return r(orig(d,p,m)) ; }
 
+	// mknod                                                                                no_follow read
+	int mknod  (      CC* p,mode_t m,dev_t dev) NE { HDR1(mknod  ,p,(  p,m,dev)) ; Solve r{p,false   ,false,Comment::mknod  } ; return r(orig(  p,m,dev)) ; }
+	int mknodat(int d,CC* p,mode_t m,dev_t dev) NE { HDR1(mknodat,p,(d,p,m,dev)) ; Solve r{p,false   ,false,Comment::mknodat} ; return r(orig(d,p,m,dev)) ; }
+
 	// mkstemp
 	int mkstemp    (char* t             ) { HDR0(mkstemp    ,(t     )) ; Mkstemp r{t,   Comment::mkstemp    } ; return r(orig(t     )) ; }
 	int mkostemp   (char* t,int f       ) { HDR0(mkostemp   ,(t,f   )) ; Mkstemp r{t,   Comment::mkostemp   } ; return r(orig(t,f   )) ; }
@@ -641,16 +647,20 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int truncate  (CC* p,off_t   l) NE { HDR1(truncate  ,p,(p,l)) ; NO_SERVER(truncate  ) ; Open r{p,l?O_RDWR:O_WRONLY,Comment::truncate  } ; return r(orig(p,l)) ; }
 	int truncate64(CC* p,off64_t l) NE { HDR1(truncate64,p,(p,l)) ; NO_SERVER(truncate64) ; Open r{p,l?O_RDWR:O_WRONLY,Comment::truncate64} ; return r(orig(p,l)) ; }
 
+	// umount                                                       no_follow read
+	int umount ( CC* p      ) NE { HDR1(umount ,p,(p  )) ; Solve r{p,false   ,false,Comment::umount } ; return r(orig(p  )) ; }
+	int umount2( CC* p,int f) NE { HDR1(umount2,p,(p,f)) ; Solve r{p,false   ,false,Comment::umount2} ; return r(orig(p,f)) ; }
+
 	// unlink
 	int unlink  (      CC* p      ) NE { HDR1(unlink  ,p,(  p  )) ; NO_SERVER(unlink  ) ; Unlnk r{   p ,false/*rmdir*/      ,Comment::unlink  } ; return r(orig(  p  )) ; }
 	int unlinkat(int d,CC* p,int f) NE { HDR1(unlinkat,p,(d,p,f)) ; NO_SERVER(unlinkat) ; Unlnk r{{d,p},bool(f&AT_REMOVEDIR),Comment::unlinkat} ; return r(orig(d,p,f)) ; }
 
-	// utime                                                                                                 no_follow read
-	int utime    (      CC* p,const struct utimbuf* t         ) { HDR1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,Comment::utime    } ; return r(orig(  p,t  )) ; }
-	int utimes   (      CC* p,const struct timeval  t[2]      ) { HDR1(utimes   ,p,(  p,t  )) ; Solve r{   p ,false   ,false,Comment::utimes   } ; return r(orig(  p,t  )) ; }
-	int futimesat(int d,CC* p,const struct timeval  t[2]      ) { HDR1(futimesat,p,(d,p,t  )) ; Solve r{{d,p},false   ,false,Comment::futimesat} ; return r(orig(d,p,t  )) ; }
-	int lutimes  (      CC* p,const struct timeval  t[2]      ) { HDR1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,Comment::lutimes  } ; return r(orig(  p,t  )) ; }
-	int utimensat(int d,CC* p,const struct timespec t[2],int f) { HDR1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,Comment::utimensat} ; return r(orig(d,p,t,f)) ; }
+	// utime                                                                                                    no_follow read
+	int utime    (      CC* p,const struct utimbuf* t         ) NE { HDR1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,Comment::utime    } ; return r(orig(  p,t  )) ; }
+	int utimes   (      CC* p,const struct timeval  t[2]      ) NE { HDR1(utimes   ,p,(  p,t  )) ; Solve r{   p ,false   ,false,Comment::utimes   } ; return r(orig(  p,t  )) ; }
+	int futimesat(int d,CC* p,const struct timeval  t[2]      ) NE { HDR1(futimesat,p,(d,p,t  )) ; Solve r{{d,p},false   ,false,Comment::futimesat} ; return r(orig(d,p,t  )) ; }
+	int lutimes  (      CC* p,const struct timeval  t[2]      ) NE { HDR1(lutimes  ,p,(  p,t  )) ; Solve r{   p ,true    ,false,Comment::lutimes  } ; return r(orig(  p,t  )) ; }
+	int utimensat(int d,CC* p,const struct timespec t[2],int f) NE { HDR1(utimensat,p,(d,p,t,f)) ; Solve r{{d,p},ASLNF(f),false,Comment::utimensat} ; return r(orig(d,p,t,f)) ; }
 
 	//
 	// stats : mere path accesses (neeed to solve path, but no actual access to file data)
@@ -696,6 +706,12 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		Stat r { {d,p} , ASLNF(f) , a , Comment::statx } ;
 		return r(orig(d,p,f,msk,b)) ;
 	}
+
+	// statfs
+	int statfs   (CC* p,struct statfs   * b) NE { HDR1(statfs   ,p,(p,b)) ; Solve r{p,false/*no_follow*/,false/*read*/,Comment::statfs   } ; return r(orig(p,b)) ; }
+	int statfs64 (CC* p,struct statfs64 * b) NE { HDR1(statfs64 ,p,(p,b)) ; Solve r{p,false/*no_follow*/,false/*read*/,Comment::statfs64} ; return r(orig(p,b)) ; }
+	int statvfs  (CC* p,struct statvfs  * b) NE { HDR1(statvfs  ,p,(p,b)) ; Solve r{p,false/*no_follow*/,false/*read*/,Comment::statvfs  } ; return r(orig(p,b)) ; }
+	int statvfs64(CC* p,struct statvfs64* b) NE { HDR1(statvfs64,p,(p,b)) ; Solve r{p,false/*no_follow*/,false/*read*/,Comment::statvfs64} ; return r(orig(p,b)) ; }
 
 	// realpath                                                                                                    no_follow
 	char* realpath              (CC* p,char* rp          ) NE { HDR1(realpath              ,p,(p,rp   )) ; Stat r{p,false  ,Accesses(),Comment::realpath              } ; return r(orig(p,rp   )) ; }

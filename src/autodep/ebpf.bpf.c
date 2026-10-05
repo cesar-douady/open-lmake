@@ -255,18 +255,17 @@ static __always_inline bool _is_simple( const __u8* d , __u32 len , int deps_in_
 SEC("tracepoint/raw_syscalls/sys_enter")
 int on_sys_enter(struct trace_event_raw_sys_enter* ctx) {
 	__u32 tid = (__u32)bpf_get_current_pid_tgid() ;
-	long  id  = ctx->id                           ;
+	long  id  = ctx->id                           ; if ( id<0 || id>=NSYSCALLS ) return 0 ;
 	// self-registration marker : the child announces itself (and its job_id, carried in arg 3) as the root of a traced sub-tree, in the namespace we see here
 	if ( id==NR_readlinkat && (int)ctx->args[0]==EBPF_REGISTER_FD ) {
 		__u32               job_id = (__u32)ctx->args[3]                                                                            ;
 		struct job_cfg_val* jc     = bpf_map_lookup_elem(&job_cfg,&job_id)                                                          ;
 		struct traced_val   v      = { .job_id=job_id , .deps_in_system=(__u8)(jc?jc->deps_in_system:0) , .enabled=1 , .suspend=0 } ;
 		bpf_map_update_elem( &traced , &tid , &v , BPF_ANY ) ;
+bpf_printk("on_sys_enter1 %d",job_id);
 		return 0 ;
 	}
-	struct traced_val* tv = bpf_map_lookup_elem(&traced,&tid) ;
-	if ( !tv                   ) return 0 ;                                         // not part of the traced sub-tree
-	if ( id<0 || id>=NSYSCALLS ) return 0 ;
+	struct traced_val* tv = bpf_map_lookup_elem(&traced,&tid) ; if (!tv) return 0 ;                                         // not part of the traced sub-tree
 	// backdoor suspension window : the magic readlinkat calls delimit the local-processing fallback whose own syscalls must not be recorded
 	if (id==NR_readlinkat) {
 		int dfd = (int)ctx->args[0] ;
@@ -281,13 +280,21 @@ int on_sys_enter(struct trace_event_raw_sys_enter* ctx) {
 	struct ebpf_event* z  = bpf_map_lookup_elem(&zero,&zk) ; if (!z) return 0 ;
 	bpf_map_update_elem(&events,&tid,z,BPF_ANY) ;
 	struct ebpf_event* ev = bpf_map_lookup_elem(&events,&tid) ; if (!ev) return 0 ;
+bpf_printk("on_sys_enter2 %d %d",tv->suspend,id);
 	_ns_ids( tv->job_id , /*out*/&ev->tid , /*out*/&ev->pid ) ;                     // tids as this job's consumer sees them (for /proc resolution)
 	ev->nr       = id                      ;
 	ev->is32     = 0                       ;
 	ev->n_blobs  = 0                       ;
 	ev->stamp_ns = bpf_ktime_get_boot_ns() ;
 	_fill_cwd(ev) ;
-	for( int i=0 ; i<6 ; i++ ) ev->args[i]  = ((volatile struct trace_event_raw_sys_enter*)ctx)->args[i] ;
+	// XXX/ : verifier does not accept the loop, even with #pragma unroll
+	// for( int i=0 ; i<6 ; i++ ) ev->args[i] = ((volatile struct trace_event_raw_sys_enter*)ctx)->args[i] ;
+	ev->args[0] = ((volatile struct trace_event_raw_sys_enter*)ctx)->args[0] ;
+	ev->args[1] = ((volatile struct trace_event_raw_sys_enter*)ctx)->args[1] ;
+	ev->args[2] = ((volatile struct trace_event_raw_sys_enter*)ctx)->args[2] ;
+	ev->args[3] = ((volatile struct trace_event_raw_sys_enter*)ctx)->args[3] ;
+	ev->args[4] = ((volatile struct trace_event_raw_sys_enter*)ctx)->args[4] ;
+	ev->args[5] = ((volatile struct trace_event_raw_sys_enter*)ctx)->args[5] ;
 	// openat2 : the open_how struct is not seen by getname, capture it directly from user space
 	if (id==NR_openat2) {
 		struct ebpf_blob* b = &ev->blobs[0] ;
@@ -296,6 +303,20 @@ int on_sys_enter(struct trace_event_raw_sys_enter* ctx) {
 		if ( bpf_probe_read_user(b->data,sizeof(struct open_how),(void*)ctx->args[2])==0 ) ev->n_blobs = 1 ;
 	}
 	return 0 ;
+}
+
+SEC("fexit/filename_lookup")
+int BPF_PROG( on_filename_lookup , int dfd , struct filename *name , unsigned flags , struct path *path , struct path *root , int ret ) {
+	__u32              tid = (__u32)bpf_get_current_pid_tgid()              ;
+	struct ebpf_event* ev  = bpf_map_lookup_elem( &events , &tid )          ; if (!ev) return 0;
+	struct ebpf_blob*  b   = &ev->blobs[ev->n_blobs]                        ;
+	long               len = bpf_d_path( path , b->data , sizeof(b->data) ) ;
+bpf_printk("on_filename_lookup1 %d",len);
+	if (len>0) {
+		b->len = len ;
+		ev->n_blobs++ ;
+	}
+	return 0;
 }
 
 SEC("tracepoint/raw_syscalls/sys_exit")
@@ -308,13 +329,16 @@ int on_sys_exit(struct trace_event_raw_sys_exit* ctx) {
 	bool drop = ev->n_blobs==1 && tv && _is_simple( ev->blobs[0].data , ev->blobs[0].len , tv->deps_in_system ) ;
 	if ( tv && !drop ) _emit( tv->job_id , ev , ev->n_blobs ) ;
 	bpf_map_delete_elem(&events,&tid) ;
+bpf_printk("on_sys_exit1");
 	return 0 ;
 }
 
 // getname_flags copies the user path into a kernel buffer for (almost) every path-taking syscall : capture it, keyed by the user pointer
-SEC("fexit/getname_flags")
-int BPF_PROG( on_getname , const char* user , int flags , int empty_all , struct filename* ret ) {
+SEC("fexit/getname")
+int BPF_PROG( on_getname , const char* user , struct filename* ret ) {
 	__u32              tid  = (__u32)bpf_get_current_pid_tgid()  ;
+struct traced_val* tv = bpf_map_lookup_elem(&traced,&tid) ; if (!tv) return 0 ;
+bpf_printk("on_getname1");
 	struct ebpf_event* ev   = bpf_map_lookup_elem(&events,&tid)  ; if ( !ev                                   ) return 0 ;
 	/**/                                                           if ( ret==0 || (unsigned long)ret>=-4095UL ) return 0 ; // IS_ERR : getname failed
 	const char*        name =        BPF_CORE_READ( ret , name ) ; if ( !name                                 ) return 0 ;
@@ -335,6 +359,7 @@ int BPF_PROG( on_newtask , struct task_struct* p , __u64 clone_flags ) {
 	//
 	struct traced_val cv = { .job_id=ptv->job_id , .deps_in_system=ptv->deps_in_system , .enabled=ptv->enabled , .suspend=0 } ;
 	bpf_map_update_elem(&traced,&ctid,&cv,BPF_ANY) ;
+bpf_printk("on_newtask1 %d",ctid);
 	return 0 ;
 }
 

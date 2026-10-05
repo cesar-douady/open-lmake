@@ -198,6 +198,7 @@ enum class Comment : uint8_t {
 ,	lstat                  , lstat64
 ,	lutimes
 ,	mkdir                                      , mkdirat
+,	mknod                                      , mknodat
 ,	mkostemp               , mkostemp64
 ,	mkostemps              , mkostemps64
 ,	mkstemp                , mkstemp64
@@ -218,13 +219,13 @@ enum class Comment : uint8_t {
 ,	rmdir
 ,	scandir                , scandir64         , scandirat         , scandirat64
 ,	stat                   , stat64
+,	statfs                 , statfs64          , statvfs           , statvfs64
 ,	statx
 ,	symlink                                    , symlinkat
 ,	truncate               , truncate64
+,	umount                 , umount2
 ,	unlink                                     , unlinkat
-,	utime
-,	                                             utimensat
-,	utimes
+,	utime                  , utimes            , utimensat
 ,	                                             __fxstatat        , __fxstatat64
 ,	                                             __lxstat          , __lxstat64
 ,	__open                 , __open64

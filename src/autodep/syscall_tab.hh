@@ -98,6 +98,8 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(canonicalize_file_name) \
 ,	LIBCALL_ENTRY(faccessat             ) \
 ,	LIBCALL_ENTRY(mkdirat               ) \
+,	LIBCALL_ENTRY(mknod                 ) \
+,	LIBCALL_ENTRY(mknodat               ) \
 ,	LIBCALL_ENTRY(opendir               ) \
 ,	LIBCALL_ENTRY(realpath              ) \
 ,	LIBCALL_ENTRY(__realpath_chk        ) \
@@ -105,7 +107,13 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(scandirat             ) \
 ,	LIBCALL_ENTRY(scandir64             ) \
 ,	LIBCALL_ENTRY(scandirat64           ) \
+,	LIBCALL_ENTRY(statfs                ) \
+,	LIBCALL_ENTRY(statfs64              ) \
+,	LIBCALL_ENTRY(statvfs               ) \
+,	LIBCALL_ENTRY(statvfs64             ) \
 ,	LIBCALL_ENTRY(statx                 ) \
+,	LIBCALL_ENTRY(umount                ) \
+,	LIBCALL_ENTRY(umount2               ) \
 \
 ,	LIBCALL_ENTRY(__xstat               ) \
 ,	LIBCALL_ENTRY(__fxstatat            ) \
