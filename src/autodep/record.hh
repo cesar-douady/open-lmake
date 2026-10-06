@@ -404,7 +404,7 @@ public :
 	} ;
 	struct Mount : Solve<> {
 		Mount() = default ;
-		Mount( Record& r , Path&& dst , Comment c ) : Solve<>{r,::move(dst),true/*no_follow*/,false/*read*/,c} { send_report(r) ; }
+		Mount( Record& r , Path&& dst , bool no_follow , Comment c ) : Solve<>{r,::move(dst),no_follow,false/*read*/,c} { send_report(r) ; }
 		int operator()( Record& , int rc=0 ) ;
 	} ;
 	struct Open : SolveModify {

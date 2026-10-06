@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 60      ; // 00ded76c164850d701f2b03095e8e67f
+	uint64_t    constexpr Cache = 61      ; // f34d6fdccba17e9b2302fefa95735dbf
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 65      ; // 17c1a2c9bd77a5d704240ddfa96c3046
-	uint64_t    constexpr Job   = 33      ; // 629d510e50204e6f7a2b2ba3f951e255
+	uint64_t    constexpr Repo  = 66      ; // 5e997e90caaba1a0f7eef474819d0e84
+	uint64_t    constexpr Job   = 34      ; // a4d8df9188776834d6876fbad8288bd0
 	const char* const     Major = "26.10" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 00ded76c164850d701f2b03095e8e67f *
+// * Cache : f34d6fdccba17e9b2302fefa95735dbf *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -869,7 +869,7 @@ namespace Version {
 //	,	mkostemps              , mkostemps64
 //	,	mkstemp                , mkstemp64
 //	,	mkstemps               , mkstemps64
-//	,	mount
+//	,	mount                  , move_mount
 //	,	                                             name_to_handle_at , open_handle_at
 //	,	                                             newfstatat
 //	,	oldlstat
@@ -1245,7 +1245,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 17c1a2c9bd77a5d704240ddfa96c3046 *
+// * Repo : 5e997e90caaba1a0f7eef474819d0e84 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2539,7 +2539,7 @@ namespace Version {
 //	,	mkostemps              , mkostemps64
 //	,	mkstemp                , mkstemp64
 //	,	mkstemps               , mkstemps64
-//	,	mount
+//	,	mount                  , move_mount
 //	,	                                             name_to_handle_at , open_handle_at
 //	,	                                             newfstatat
 //	,	oldlstat
@@ -2762,7 +2762,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : 629d510e50204e6f7a2b2ba3f951e255 *
+// * Job : a4d8df9188776834d6876fbad8288bd0 *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -3081,7 +3081,7 @@ namespace Version {
 //	,	mkostemps              , mkostemps64
 //	,	mkstemp                , mkstemp64
 //	,	mkstemps               , mkstemps64
-//	,	mount
+//	,	mount                  , move_mount
 //	,	                                             name_to_handle_at , open_handle_at
 //	,	                                             newfstatat
 //	,	oldlstat

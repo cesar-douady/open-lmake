@@ -203,7 +203,7 @@ enum class Comment : uint8_t {
 ,	mkostemps              , mkostemps64
 ,	mkstemp                , mkstemp64
 ,	mkstemps               , mkstemps64
-,	mount
+,	mount                  , move_mount
 ,	                                             name_to_handle_at , open_handle_at
 ,	                                             newfstatat
 ,	oldlstat

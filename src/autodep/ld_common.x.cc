@@ -73,9 +73,9 @@ struct LockRecord {                             // ensure no reporting clash
 #endif
 
 extern "C" {
-	// the following libcalls are defined in libc not always in #include's, so they may be called by application code
+	// the following libcalls are defined in libc but not always in #include's, so they may be called by application code
 	// they may not be defined on all systems, but it does not hurt to redeclare them if they are already declared, so filter may be loose
-	extern int     __clone2        ( int (*fn)(void*) , void *stack_base , size_t stack_size , int flags , void *arg , ...    ) ;
+	extern int     __clone2        ( int (*fn)(void*) , void *stack_base , size_t stack_size , int flags , void *arg , ...    )    ;
 	extern int     __close         (         int fd                                                                           )    ;
 	extern int     __dup2          (         int oldfd , int newfd                                                            ) NE ;
 	extern pid_t   __fork          (                                                                                          ) NE ;
@@ -387,7 +387,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int fchmodat(int d,CC* p,mode_t m,int f) NE { HDR1(fchmodat,p,(d,p,m,f)) ; NO_SERVER(fchmodat) Chmod r{{d,p},EXE(m),ASLNF(f),Comment::fchmodat} ; return r(orig(d,p,m,f)) ; }
 
 	// chroot
-	int chroot(CC* path) { HDR0( chroot , (path) ) ; NO_SERVER(chroot) ; Chroot r{path,Comment::chroot} ; return r(orig(path)) ; }
+	int chroot(CC* path) NE { HDR0( chroot , (path) ) ; NO_SERVER(chroot) ; Chroot r{path,Comment::chroot} ; return r(orig(path)) ; }
 
 	// clone
 	// cf fork about why this wrapper is necessary
@@ -461,9 +461,9 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		// env
 		// only there to capture LD_LIBRARY_PATH before it is modified as man dlopen says it must be captured at program start, but we have no entry at program start
 		// ld_audit does not need it and anyway captures LD_LIBRARY_PATH at startup
-		int setenv  (const char *name , const char *value , int overwrite) { ORIG(setenv  ) ; NO_SERVER(setenv  ) ; get_ld_library_path() ; return (*orig)(name,value,overwrite) ; }
-		int unsetenv(const char *name                                    ) { ORIG(unsetenv) ; NO_SERVER(unsetenv) ; get_ld_library_path() ; return (*orig)(name                ) ; }
-		int putenv  (char *s                                             ) { ORIG(putenv  ) ; NO_SERVER(putenv  ) ; get_ld_library_path() ; return (*orig)(s                   ) ; }
+		int setenv  (const char *name , const char *value , int overwrite) NE { ORIG(setenv  ) ; NO_SERVER(setenv  ) ; get_ld_library_path() ; return (*orig)(name,value,overwrite) ; }
+		int unsetenv(const char *name                                    ) NE { ORIG(unsetenv) ; NO_SERVER(unsetenv) ; get_ld_library_path() ; return (*orig)(name                ) ; }
+		int putenv  (char *s                                             ) NE { ORIG(putenv  ) ; NO_SERVER(putenv  ) ; get_ld_library_path() ; return (*orig)(s                   ) ; }
 	#endif
 
 	// execv
@@ -545,7 +545,29 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int mkostemps64(char* t,int f,int sl) { HDR0(mkostemps64,(t,f,sl)) ; Mkstemp r{t,sl,Comment::mkostemps64} ; return r(orig(t,f,sl)) ; }
 
 	// mount
-	int mount(CC* sp,CC* tp,CC* fst,ulong f,const void* d) { HDR0(mount,(sp,tp,fst,f,d)) ; NO_SERVER(mount) ; Mount r{tp,Comment::mount} ; return r(orig(sp,tp,fst,f,d)) ; }
+	int mount( CC* sp , CC* dp , CC* fst , ulong f , const void* d ) NE {
+		HDR0(mount,(sp,dp,fst,f,d)) ;
+		NO_SERVER(mount) ;
+		Mount r { dp , true/*no_follow*/ , Comment::mount } ;
+		return r(orig(sp,dp,fst,f,d)) ;
+	}
+	#if HAS_MOVE_MOUNT
+		int move_mount( int sd,CC* sp , int dd,CC *dp , uint f ) NE {
+			HDR0(move_mount,(sd,sp,dd,dp,f)) ;
+			NO_SERVER(move_mount) ;
+			Solve   ( {sd,sp} , !(f&MOVE_MOUNT_F_SYMLINKS) , false/*read*/ , Comment::move_mount ) ;
+			Mount r {     dp  , !(f&MOVE_MOUNT_T_SYMLINKS) ,                 Comment::move_mount } ;
+			return r(orig(sd,sp,dd,dp,f)) ;
+		}
+	#endif
+	#if HAS_OPEN_TREE
+		int open_tree( int d,CC* p , uint f ) NE {
+			HDR1(open_tree,p,(d,p,f)) ;
+			NO_SERVER(open_tree) ;
+			Solve r { {d,p} , bool(f&AT_SYMLINK_NOFOLLOW) , false/*read*/ , Comment::open_tree } ;
+			return r(orig(d,p,f)) ;
+		}
+	#endif
 
 	// name_to_handle_at (open_by_handle_at is priviledged, no need to handle it)
 	int name_to_handle_at( int d , CC* p , struct ::file_handle *h , int *mount_id , int f ) NE {
@@ -667,16 +689,20 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	//
 
 	// access
-	#define ACCESSES(msk) ( (msk)&X_OK ? Accesses(Access::Reg) : Accesses(Access::Stat) )
-	//                                                                                    no_follow accesses
-	int access    (      CC* p,int m      ) NE { HDR1(access    ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::access    } ; return r(orig(  p,m  )) ; }
-	int eaccess   (      CC* p,int m      ) NE { HDR1(eaccess   ,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::eaccess   } ; return r(orig(  p,m  )) ; }
-	int euidaccess(      CC* p,int m      ) NE { HDR1(euidaccess,p,(  p,m  )) ; Stat r{   p ,false   ,ACCESSES(m),Comment::euidaccess} ; return r(orig(  p,m  )) ; }
-	int faccessat (int d,CC* p,int m,int f) NE { HDR1(faccessat ,p,(d,p,m,f)) ; Stat r{{d,p},ASLNF(f),ACCESSES(m),Comment::faccessat } ; return r(orig(d,p,m,f)) ; }
-	#undef ACCESSES
+	// exe bit is part of file crc
+	#define ACCESS(libcall,args,no_follow,c,...) \
+		HDR1(libcall,p,args) ; \
+		if (m&X_OK) { Stat  r{ __VA_ARGS__ ,no_follow,Access::Reg  ,c} ; return r(orig args) ; } \
+		else        { Solve r{ __VA_ARGS__ ,no_follow,false/*read*/,c} ; return r(orig args) ; }
+	//                                                                      no_follow
+	int access    (      CC* p,int m      ) NE { ACCESS(access    ,(  p,m  ),false   ,Comment::access    ,   p ) }
+	int eaccess   (      CC* p,int m      ) NE { ACCESS(eaccess   ,(  p,m  ),false   ,Comment::eaccess   ,   p ) }
+	int euidaccess(      CC* p,int m      ) NE { ACCESS(euidaccess,(  p,m  ),false   ,Comment::euidaccess,   p ) }
+	int faccessat (int d,CC* p,int m,int f) NE { ACCESS(faccessat ,(d,p,m,f),ASLNF(f),Comment::faccessat ,{d,p}) }
+	#undef ACCESS
 
 	// stat* accesses provide the size field, which make the user sensitive to file content
-	//                                                                                                             no_follow accesses
+	//                                                                                                             no_follow
 	int __xstat     (int v,      CC* p,struct stat  * b      ) NE { HDR1(__xstat     ,p,(v,  p,b  )) ; Stat r{   p ,false   ,FullAccesses,Comment::__xstat     } ; return r(orig(v,  p,b  )) ; }
 	int __lxstat    (int v,      CC* p,struct stat  * b      ) NE { HDR1(__lxstat    ,p,(v,  p,b  )) ; Stat r{   p ,true    ,FullAccesses,Comment::__lxstat    } ; return r(orig(v,  p,b  )) ; }
 	int __fxstatat  (int v,int d,CC* p,struct stat  * b,int f) NE { HDR1(__fxstatat  ,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),FullAccesses,Comment::__fxstatat  } ; return r(orig(v,d,p,b,f)) ; }
@@ -685,7 +711,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int __fxstatat64(int v,int d,CC* p,struct stat64* b,int f) NE { HDR1(__fxstatat64,p,(v,d,p,b,f)) ; Stat r{{d,p},ASLNF(f),FullAccesses,Comment::__fxstatat64} ; return r(orig(v,d,p,b,f)) ; }
 	#if ! LIBC_MAP_STAT
 		// on some systems (e.g. centos7), libc does not define stat (&co) syscalls, and if present, they may be used (seen when open-lmake compiled with -fno-inline)
-		// on such systems, it is important not to define these entries for an yet obscure reason
+		// on such systems, it is important not to define these entries for an yet obscure reason        no_follow
 		int stat     (      CC* p,struct stat  * b      ) NE { HDR1(stat     ,p,(  p,b  )) ; Stat r{   p ,false   ,FullAccesses,Comment::stat     } ; return r(orig(  p,b  )) ; }
 		int lstat    (      CC* p,struct stat  * b      ) NE { HDR1(lstat    ,p,(  p,b  )) ; Stat r{   p ,true    ,FullAccesses,Comment::lstat    } ; return r(orig(  p,b  )) ; }
 		int fstatat  (int d,CC* p,struct stat  * b,int f) NE { HDR1(fstatat  ,p,(d,p,b,f)) ; Stat r{{d,p},ASLNF(f),FullAccesses,Comment::fstatat  } ; return r(orig(d,p,b,f)) ; }
@@ -772,7 +798,7 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	// - so filter on s_tab must be done before locking (in HDR)
 	// - this requires that s_tab does no memory allocation as memory allocation may call brk
 	// - hence it is a ::array, not a ::umap (which would be simpler)
-	long syscall( long n , ... ) {
+	long syscall( long n , ... ) NE {
 		static constexpr SyscallDescr NoSyscallDescr ;
 		uint64_t args[6] ;
 		{	va_list lst ; va_start(lst,n) ;

@@ -236,9 +236,9 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 
 // mount
 [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_mount( Record& r , Fd proc_mem , uint64_t args[6] , bool emulate , Comment c ) {
-	try { //!                                                        At
-		if (emulate) { Record::Mount  m {                    r,_path<false>(proc_mem,args+1),c} ; m(r) ; return {                   } ; } // cannot emulate mount, record access in all cases
-		else         { Record::Mount& m = *new Record::Mount{r,_path<false>(proc_mem,args+1),c} ;        return {&m,false/*refresh*/} ; }
+	try { //!                                                        At                     no_follow                      refresh
+		if (emulate) { Record::Mount  m {                    r,_path<false>(proc_mem,args+1),true   ,c} ; m(r) ; return {        } ; } // cannot emulate mount, record access in all cases
+		else         { Record::Mount& m = *new Record::Mount{r,_path<false>(proc_mem,args+1),true   ,c} ;        return {&m,false} ; }
 	} catch (::string const&) {}
 	return {} ;
 }
@@ -248,6 +248,17 @@ template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> 
 	,	[&](Record::Mount& m,int64_t rc)          { m(r,rc) ; }
 	) ;
 }
+
+// move_mount
+[[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_move_mount( Record& r , Fd proc_mem , uint64_t args[6] , bool emulate , Comment c ) {
+	try { //!                                                        At                                                                        read                        refresh
+		/**/           Record::Solve    (                    r,_path<true>(proc_mem,args+0),!_flag<4>(args,MACRO_VAL(MOVE_MOUNT_F_SYMLINKS,0)),false,c) ;
+		if (emulate) { Record::Mount  m {                    r,_path<true>(proc_mem,args+2),!_flag<4>(args,MACRO_VAL(MOVE_MOUNT_T_SYMLINKS,0))      ,c} ; m(r) ; return {        } ; }
+		else         { Record::Mount& m = *new Record::Mount{r,_path<true>(proc_mem,args+2),!_flag<4>(args,MACRO_VAL(MOVE_MOUNT_T_SYMLINKS,0))      ,c} ;        return {&m,false} ; }
+	} catch (::string const&) {}
+	return {} ;
+}
+// use _exit_mount for exit
 
 // open
 struct OpenHelper {
@@ -430,24 +441,16 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	) ;
 }
 
-// access
+// stat
 template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _do_stat( Record& r , Fd proc_mem , uint64_t args[6] , Accesses a , Comment c ) {
 	try {
 		Record::Stat( r , _path<At>(proc_mem,args+0) , _flag<FlagArg>(args,AT_SYMLINK_NOFOLLOW) , a , c ) ;
 	} catch (::string const&) {}
 	return {} ;
 }
-template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_access( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
-	Accesses a ; if (args[At+1]&X_OK) a |= Access::Reg ;
-	return _do_stat<At,FlagArg>(r,proc_mem,args,a,c) ;
-}
-template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_open_tree( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
-	return _do_stat<At,FlagArg>(r,proc_mem,args,Accesses(),c) ;
-}
 template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_stat( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
-	return _do_stat<At,FlagArg>(r,proc_mem,args,FullAccesses,c) ;
+	return _do_stat<At,FlagArg>( r , proc_mem , args , FullAccesses , c ) ;
 }
-
 [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_statx( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
 	#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
 		uint     msk = args[3] ;
@@ -458,6 +461,10 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 		Accesses a = FullAccesses ;                                           // if access macros are not defined, be pessimistic
 	#endif
 	return _do_stat<true,2>(r,proc_mem,args,a,c) ;
+}
+template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_access( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
+	if (args[At+1]&X_OK) return _do_stat    <At,FlagArg>( r , proc_mem , args , Access::Reg      , c ) ; // exe bit is part of file crc
+	else                 return _entry_solve<At,FlagArg>( r , proc_mem , args , false/*emulate*/ , c ) ; // emulate is unused
 }
 
 template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_tab() {
@@ -476,63 +483,64 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 		}                                                                                    \
 	}
 	// entries marked filter (i.e. field is !=-1) means that processing can be skipped if corresponding arg is a filename known to require no processing
-	//                                entry           <At   ,FlagArg   > , exit           filter syscall convention         comment
-	FILL_ENTRY( access            , { _entry_access   <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::access            } ) ;
-	FILL_ENTRY( faccessat         , { _entry_access   <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::faccessat         } ) ;
-	FILL_ENTRY( faccessat2        , { _entry_access   <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::faccessat2        } ) ;
-	FILL_ENTRY( chdir             , { _entry_chdir    <false           > , nullptr        , -1 , SyscallConvention::Plain , Comment::chdir             } ) ;
-	FILL_ENTRY( fchdir            , { _entry_chdir    <true            > , nullptr        , -1 , SyscallConvention::Plain , Comment::fchdir            } ) ;
-	FILL_ENTRY( chmod             , { _entry_chmod    <false,FlagNever > , _exit_chmod    ,  0 , SyscallConvention::Plain , Comment::chmod             } ) ;
-	FILL_ENTRY( fchmodat          , { _entry_chmod    <true ,3         > , _exit_chmod    ,  1 , SyscallConvention::Plain , Comment::fchmodat          } ) ;
-	FILL_ENTRY( chroot            , { _entry_chroot                      , _exit_chroot   , -1 , SyscallConvention::Plain , Comment::chroot            } ) ;
-	FILL_ENTRY( creat             , { _entry_creat                       , _exit_creat    ,  0 , SyscallConvention::Fd    , Comment::creat             } ) ;
-	FILL_ENTRY( execve            , { _entry_execve   <false,FlagNever > , nullptr        , -1 , SyscallConvention::Plain , Comment::execve            } ) ;
-	FILL_ENTRY( execveat          , { _entry_execve   <true ,4         > , nullptr        , -1 , SyscallConvention::Plain , Comment::execveat          } ) ;
-	FILL_ENTRY( getdents          , { _entry_getdents                    , _exit_getdents , -1 , SyscallConvention::Plain , Comment::getdents          } ) ;
-	FILL_ENTRY( getdents64        , { _entry_getdents                    , _exit_getdents , -1 , SyscallConvention::Plain , Comment::getdents64        } ) ;
-	FILL_ENTRY( io_uring_enter    , { _entry_io_uring                    , nullptr        , -1 , SyscallConvention::Plain , Comment::io_uring_enter    } ) ;
-	FILL_ENTRY( io_uring_register , { _entry_io_uring                    , nullptr        , -1 , SyscallConvention::Plain , Comment::io_uring_register } ) ;
-	FILL_ENTRY( io_uring_setup    , { _entry_io_uring                    , nullptr        , -1 , SyscallConvention::Plain , Comment::io_uring_setup    } ) ;
-	FILL_ENTRY( link              , { _entry_lnk      <false,FlagNever > , _exit_lnk      ,  1 , SyscallConvention::Plain , Comment::link              } ) ;
-	FILL_ENTRY( linkat            , { _entry_lnk      <true ,4         > , _exit_lnk      ,  3 , SyscallConvention::Plain , Comment::linkat            } ) ;
-	FILL_ENTRY( mkdir             , { _entry_mkdir    <false           > , nullptr        ,  0 , SyscallConvention::Plain , Comment::mkdir             } ) ;
-	FILL_ENTRY( mkdirat           , { _entry_mkdir    <true            > , nullptr        ,  1 , SyscallConvention::Plain , Comment::mkdirat           } ) ;
-	FILL_ENTRY( mknod             , { _entry_solve    <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::mknod             } ) ;
-	FILL_ENTRY( mknodat           , { _entry_solve    <true ,FlagAlways> , nullptr        ,  1 , SyscallConvention::Plain , Comment::mknodat           } ) ;
-	FILL_ENTRY( mount             , { _entry_mount                       , _exit_mount    , -1 , SyscallConvention::Plain , Comment::mount             } ) ;
-	FILL_ENTRY( name_to_handle_at , { _entry_solve    <true ,FlagAlways> , nullptr        ,  1 , SyscallConvention::Plain , Comment::name_to_handle_at } ) ;
-	FILL_ENTRY( open              , { _entry_open     <false           > , _exit_open     ,  0 , SyscallConvention::Fd    , Comment::open              } ) ;
-	FILL_ENTRY( openat            , { _entry_open     <true            > , _exit_open     ,  1 , SyscallConvention::Fd    , Comment::openat            } ) ;
-	FILL_ENTRY( openat2           , { _entry_open2                       , _exit_open2    ,  1 , SyscallConvention::Fd    , Comment::openat2           } ) ;
-	FILL_ENTRY( open_tree         , { _entry_open_tree<true ,2         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::open_tree         } ) ;
-	FILL_ENTRY( readdir           , { _entry_getdents                    , _exit_getdents , -1 , SyscallConvention::Plain , Comment::readdir           } ) ;
-	FILL_ENTRY( readlink          , { _entry_read_lnk <false           > , _exit_read_lnk ,  0 , SyscallConvention::Plain , Comment::readlink          } ) ;
-	FILL_ENTRY( readlinkat        , { _entry_read_lnk <true            > , _exit_read_lnk ,  1 , SyscallConvention::Plain , Comment::readlinkat        } ) ;
-	FILL_ENTRY( rename            , { _entry_rename   <false,FlagNever > , _exit_rename   ,  1 , SyscallConvention::Plain , Comment::rename            } ) ;
-	FILL_ENTRY( renameat          , { _entry_rename   <true ,FlagNever > , _exit_rename   ,  3 , SyscallConvention::Plain , Comment::renameat          } ) ;
-	FILL_ENTRY( renameat2         , { _entry_rename   <true ,4         > , _exit_rename   ,  3 , SyscallConvention::Plain , Comment::renameat2         } ) ;
-	FILL_ENTRY( rmdir             , { _entry_unlink   <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::rmdir             } ) ;
-	FILL_ENTRY( stat              , { _entry_stat     <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::stat              } ) ;
-	FILL_ENTRY( stat64            , { _entry_stat     <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::stat64            } ) ;
-	FILL_ENTRY( fstatat64         , { _entry_stat     <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::fstatat64         } ) ;
-	FILL_ENTRY( lstat             , { _entry_stat     <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::lstat             } ) ;
-	FILL_ENTRY( lstat64           , { _entry_stat     <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::lstat64           } ) ;
-	FILL_ENTRY( statx             , { _entry_statx                       , nullptr        ,  1 , SyscallConvention::Plain , Comment::statx             } ) ;
-	FILL_ENTRY( newfstatat        , { _entry_stat     <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::newfstatat        } ) ;
-	FILL_ENTRY( oldstat           , { _entry_stat     <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::oldstat           } ) ;
-	FILL_ENTRY( oldlstat          , { _entry_stat     <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::oldlstat          } ) ;
-	FILL_ENTRY( statfs            , { _entry_solve    <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::statfs            } ) ;
-	FILL_ENTRY( statfs64          , { _entry_solve    <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::statfs64          } ) ;
-	FILL_ENTRY( symlink           , { _entry_symlink  <false           > , _exit_sym_lnk  ,  1 , SyscallConvention::Plain , Comment::symlink           } ) ;
-	FILL_ENTRY( symlinkat         , { _entry_symlink  <true            > , _exit_sym_lnk  ,  2 , SyscallConvention::Plain , Comment::symlinkat         } ) ;
-	FILL_ENTRY( truncate          , { _entry_truncate                    , _exit_truncate ,  0 , SyscallConvention::Fd    , Comment::truncate          } ) ;
-	FILL_ENTRY( umount            , { _entry_solve    <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::umount            } ) ;
-	FILL_ENTRY( umount2           , { _entry_solve    <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::umount2           } ) ;
-	FILL_ENTRY( unlink            , { _entry_unlink   <false,FlagNever > , _exit_unlnk    ,  0 , SyscallConvention::Plain , Comment::unlink            } ) ;
-	FILL_ENTRY( unlinkat          , { _entry_unlink   <true ,2         > , _exit_unlnk    ,  1 , SyscallConvention::Plain , Comment::unlinkat          } ) ;
-	FILL_ENTRY( utime             , { _entry_solve    <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::utime             } ) ;
-	FILL_ENTRY( utimes            , { _entry_solve    <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::utimes            } ) ;
-	FILL_ENTRY( utimensat         , { _entry_solve    <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::utimensat         } ) ;
+	//                                entry            <At   ,FlagArg   > , exit           filter
+	FILL_ENTRY( access            , { _entry_access    <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::access            } ) ;
+	FILL_ENTRY( faccessat         , { _entry_access    <true ,FlagNever > , nullptr        ,  1 , SyscallConvention::Plain , Comment::faccessat         } ) ;
+	FILL_ENTRY( faccessat2        , { _entry_access    <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::faccessat2        } ) ;
+	FILL_ENTRY( chdir             , { _entry_chdir     <false           > , nullptr        , -1 , SyscallConvention::Plain , Comment::chdir             } ) ;
+	FILL_ENTRY( fchdir            , { _entry_chdir     <true            > , nullptr        , -1 , SyscallConvention::Plain , Comment::fchdir            } ) ;
+	FILL_ENTRY( chmod             , { _entry_chmod     <false,FlagNever > , _exit_chmod    ,  0 , SyscallConvention::Plain , Comment::chmod             } ) ;
+	FILL_ENTRY( fchmodat          , { _entry_chmod     <true ,3         > , _exit_chmod    ,  1 , SyscallConvention::Plain , Comment::fchmodat          } ) ;
+	FILL_ENTRY( chroot            , { _entry_chroot                       , _exit_chroot   , -1 , SyscallConvention::Plain , Comment::chroot            } ) ;
+	FILL_ENTRY( creat             , { _entry_creat                        , _exit_creat    ,  0 , SyscallConvention::Fd    , Comment::creat             } ) ;
+	FILL_ENTRY( execve            , { _entry_execve    <false,FlagNever > , nullptr        , -1 , SyscallConvention::Plain , Comment::execve            } ) ;
+	FILL_ENTRY( execveat          , { _entry_execve    <true ,4         > , nullptr        , -1 , SyscallConvention::Plain , Comment::execveat          } ) ;
+	FILL_ENTRY( getdents          , { _entry_getdents                     , _exit_getdents , -1 , SyscallConvention::Plain , Comment::getdents          } ) ;
+	FILL_ENTRY( getdents64        , { _entry_getdents                     , _exit_getdents , -1 , SyscallConvention::Plain , Comment::getdents64        } ) ;
+	FILL_ENTRY( io_uring_enter    , { _entry_io_uring                     , nullptr        , -1 , SyscallConvention::Plain , Comment::io_uring_enter    } ) ;
+	FILL_ENTRY( io_uring_register , { _entry_io_uring                     , nullptr        , -1 , SyscallConvention::Plain , Comment::io_uring_register } ) ;
+	FILL_ENTRY( io_uring_setup    , { _entry_io_uring                     , nullptr        , -1 , SyscallConvention::Plain , Comment::io_uring_setup    } ) ;
+	FILL_ENTRY( link              , { _entry_lnk       <false,FlagNever > , _exit_lnk      ,  1 , SyscallConvention::Plain , Comment::link              } ) ;
+	FILL_ENTRY( linkat            , { _entry_lnk       <true ,4         > , _exit_lnk      ,  3 , SyscallConvention::Plain , Comment::linkat            } ) ;
+	FILL_ENTRY( mkdir             , { _entry_mkdir     <false           > , nullptr        ,  0 , SyscallConvention::Plain , Comment::mkdir             } ) ;
+	FILL_ENTRY( mkdirat           , { _entry_mkdir     <true            > , nullptr        ,  1 , SyscallConvention::Plain , Comment::mkdirat           } ) ;
+	FILL_ENTRY( mknod             , { _entry_solve     <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::mknod             } ) ;
+	FILL_ENTRY( mknodat           , { _entry_solve     <true ,FlagAlways> , nullptr        ,  1 , SyscallConvention::Plain , Comment::mknodat           } ) ;
+	FILL_ENTRY( mount             , { _entry_mount                        , _exit_mount    , -1 , SyscallConvention::Plain , Comment::mount             } ) ;
+	FILL_ENTRY( move_mount        , { _entry_move_mount                   , _exit_mount    , -1 , SyscallConvention::Plain , Comment::move_mount        } ) ;
+	FILL_ENTRY( name_to_handle_at , { _entry_solve     <true ,FlagAlways> , nullptr        ,  1 , SyscallConvention::Plain , Comment::name_to_handle_at } ) ;
+	FILL_ENTRY( open              , { _entry_open      <false           > , _exit_open     ,  0 , SyscallConvention::Fd    , Comment::open              } ) ;
+	FILL_ENTRY( openat            , { _entry_open      <true            > , _exit_open     ,  1 , SyscallConvention::Fd    , Comment::openat            } ) ;
+	FILL_ENTRY( openat2           , { _entry_open2                        , _exit_open2    ,  1 , SyscallConvention::Fd    , Comment::openat2           } ) ;
+	FILL_ENTRY( open_tree         , { _entry_solve     <true ,2         > , nullptr        ,  1 , SyscallConvention::Fd    , Comment::open_tree         } ) ;
+	FILL_ENTRY( readdir           , { _entry_getdents                     , _exit_getdents , -1 , SyscallConvention::Plain , Comment::readdir           } ) ;
+	FILL_ENTRY( readlink          , { _entry_read_lnk  <false           > , _exit_read_lnk ,  0 , SyscallConvention::Plain , Comment::readlink          } ) ;
+	FILL_ENTRY( readlinkat        , { _entry_read_lnk  <true            > , _exit_read_lnk ,  1 , SyscallConvention::Plain , Comment::readlinkat        } ) ;
+	FILL_ENTRY( rename            , { _entry_rename    <false,FlagNever > , _exit_rename   ,  1 , SyscallConvention::Plain , Comment::rename            } ) ;
+	FILL_ENTRY( renameat          , { _entry_rename    <true ,FlagNever > , _exit_rename   ,  3 , SyscallConvention::Plain , Comment::renameat          } ) ;
+	FILL_ENTRY( renameat2         , { _entry_rename    <true ,4         > , _exit_rename   ,  3 , SyscallConvention::Plain , Comment::renameat2         } ) ;
+	FILL_ENTRY( rmdir             , { _entry_unlink    <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::rmdir             } ) ;
+	FILL_ENTRY( stat              , { _entry_stat      <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::stat              } ) ;
+	FILL_ENTRY( stat64            , { _entry_stat      <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::stat64            } ) ;
+	FILL_ENTRY( fstatat64         , { _entry_stat      <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::fstatat64         } ) ;
+	FILL_ENTRY( lstat             , { _entry_stat      <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::lstat             } ) ;
+	FILL_ENTRY( lstat64           , { _entry_stat      <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::lstat64           } ) ;
+	FILL_ENTRY( statx             , { _entry_statx                        , nullptr        ,  1 , SyscallConvention::Plain , Comment::statx             } ) ;
+	FILL_ENTRY( newfstatat        , { _entry_stat      <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::newfstatat        } ) ;
+	FILL_ENTRY( oldstat           , { _entry_stat      <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::oldstat           } ) ;
+	FILL_ENTRY( oldlstat          , { _entry_stat      <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::oldlstat          } ) ;
+	FILL_ENTRY( statfs            , { _entry_solve     <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::statfs            } ) ;
+	FILL_ENTRY( statfs64          , { _entry_solve     <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::statfs64          } ) ;
+	FILL_ENTRY( symlink           , { _entry_symlink   <false           > , _exit_sym_lnk  ,  1 , SyscallConvention::Plain , Comment::symlink           } ) ;
+	FILL_ENTRY( symlinkat         , { _entry_symlink   <true            > , _exit_sym_lnk  ,  2 , SyscallConvention::Plain , Comment::symlinkat         } ) ;
+	FILL_ENTRY( truncate          , { _entry_truncate                     , _exit_truncate ,  0 , SyscallConvention::Fd    , Comment::truncate          } ) ;
+	FILL_ENTRY( umount            , { _entry_solve     <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::umount            } ) ;
+	FILL_ENTRY( umount2           , { _entry_solve     <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::umount2           } ) ;
+	FILL_ENTRY( unlink            , { _entry_unlink    <false,FlagNever > , _exit_unlnk    ,  0 , SyscallConvention::Plain , Comment::unlink            } ) ;
+	FILL_ENTRY( unlinkat          , { _entry_unlink    <true ,2         > , _exit_unlnk    ,  1 , SyscallConvention::Plain , Comment::unlinkat          } ) ;
+	FILL_ENTRY( utime             , { _entry_solve     <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::utime             } ) ;
+	FILL_ENTRY( utimes            , { _entry_solve     <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::utimes            } ) ;
+	FILL_ENTRY( utimensat         , { _entry_solve     <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::utimensat         } ) ;
 	#undef FILL_ENTRY
 	return tab ;
 }

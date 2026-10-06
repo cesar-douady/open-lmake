@@ -417,6 +417,17 @@ LIBC_MAP_STAT=$(ko grep -q 'U  *stat\>' map_stat.nm)
 MAX_PID=$(cat /proc/sys/kernel/pid_max || echo 0)
 
 #
+# MOVE_MOUNT (HAS_MOVE_MOUNT)
+#
+cat <<"EOF" >move_mount.cc
+	#include <sys/mount.h>
+	int main() {
+		move_mount( 0,"" , 0,"" , 0 ) ;
+	}
+EOF
+HAS_MOVE_MOUNT=$(ok cc -std=$CXX_STD -o /dev/null move_mount.cc )
+
+#
 # OBJCOPY
 #
 case $CXX_FLAVOR in
@@ -424,6 +435,17 @@ case $CXX_FLAVOR in
 	clang) OBJCOPY=$cxx_dir/llvm-objcopy ;;
 esac
 [ -x "$OBJCOPY" ] || OBJCOPY=$(type -p objcopy ||:)
+
+#
+# OPEN_TREE (HAS_OPEN_TREE)
+#
+cat <<"EOF" >move_mount.cc
+	#include <sys/mount.h>
+	int main() {
+		open_tree( 0,"" , 0 ) ;
+	}
+EOF
+HAS_OPEN_TREE=$(ok cc -std=$CXX_STD -o /dev/null move_mount.cc )
 
 #
 # OS (OS_ID)
@@ -760,6 +782,8 @@ cat >$H_FILE <<-EOF
 	#define HAS_EBPF                    $HAS_EBPF
 	#define HAS_CLOSE_RANGE             $HAS_CLOSE_RANGE
 	#define HAS_LD_AUDIT                $HAS_LD_AUDIT
+	#define HAS_MOVE_MOUNT              $HAS_MOVE_MOUNT
+	#define HAS_OPEN_TREE               $HAS_OPEN_TREE
 	#define HAS_PCRE                    $HAS_PCRE
 	#define HAS_PCRE_ENDANCHORED        $HAS_PCRE_ENDANCHORED
 	#define HAS_PIDFD                   $HAS_PIDFD

@@ -115,12 +115,12 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(umount                ) \
 ,	LIBCALL_ENTRY(umount2               ) \
 \
-,	LIBCALL_ENTRY(__xstat               ) \
-,	LIBCALL_ENTRY(__fxstatat            ) \
-,	LIBCALL_ENTRY(__lxstat              ) \
-,	LIBCALL_ENTRY(__xstat64             ) \
-,	LIBCALL_ENTRY(__fxstatat64          ) \
-,	LIBCALL_ENTRY(__lxstat64            ) \
+,	LIBCALL_ENTRY(__xstat     ) \
+,	LIBCALL_ENTRY(__fxstatat  ) \
+,	LIBCALL_ENTRY(__lxstat    ) \
+,	LIBCALL_ENTRY(__xstat64   ) \
+,	LIBCALL_ENTRY(__fxstatat64) \
+,	LIBCALL_ENTRY(__lxstat64  ) \
 	ENUMERATE_PATH_STATS
 
 #if HAS_CLOSE_RANGE
@@ -128,6 +128,20 @@ struct SyscallDescr {
 	,	LIBCALL_ENTRY(close_range)
 #else
 	#define ENUMERATE_CLOSE_RANGE_LIBCALLS
+#endif
+
+#if HAS_MOVE_MOUNT
+	#define ENUMERATE_MOVE_MOUNT_LIBCALLS \
+	,	LIBCALL_ENTRY(move_mount)
+#else
+	#define ENUMERATE_MOVE_MOUNT_LIBCALLS
+#endif
+
+#if HAS_OPEN_TREE
+	#define ENUMERATE_OPEN_TREE_LIBCALLS \
+	,	LIBCALL_ENTRY(open_tree)
+#else
+	#define ENUMERATE_OPEN_TREE_LIBCALLS
 #endif
 
 #define ENUMERATE_DIR_LIBCALLS \
@@ -142,65 +156,65 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(readdir64_r    )
 
 #define ENUMERATE_LIBCALLS \
-	LIBCALL_ENTRY(chdir            ) \
-,	LIBCALL_ENTRY(chmod            ) \
-,	LIBCALL_ENTRY(chroot           ) \
-,	LIBCALL_ENTRY(clone            ) \
-,	LIBCALL_ENTRY(__clone2         ) \
-,	LIBCALL_ENTRY(close            ) \
-,	LIBCALL_ENTRY(__close          ) \
-,	LIBCALL_ENTRY(creat            ) \
-,	LIBCALL_ENTRY(dup2             ) \
-,	LIBCALL_ENTRY(dup3             ) \
-,	LIBCALL_ENTRY(execl            ) \
-,	LIBCALL_ENTRY(execle           ) \
-,	LIBCALL_ENTRY(execlp           ) \
-,	LIBCALL_ENTRY(execv            ) \
-,	LIBCALL_ENTRY(execve           ) \
-,	LIBCALL_ENTRY(execveat         ) \
-,	LIBCALL_ENTRY(execvp           ) \
-,	LIBCALL_ENTRY(execvpe          ) \
-,	LIBCALL_ENTRY(fchdir           ) \
-,	LIBCALL_ENTRY(fchmodat         ) \
-,	LIBCALL_ENTRY(fopen            ) \
-,	LIBCALL_ENTRY(fork             ) \
-,	LIBCALL_ENTRY(__fork           ) \
-,	LIBCALL_ENTRY(freopen          ) \
-,	LIBCALL_ENTRY(futimesat        ) \
-,	LIBCALL_ENTRY(__libc_fork      ) \
-,	LIBCALL_ENTRY(link             ) \
-,	LIBCALL_ENTRY(linkat           ) \
-,	LIBCALL_ENTRY(lutimes          ) \
-,	LIBCALL_ENTRY(mkdir            ) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
-,	LIBCALL_ENTRY(mkostemp         ) \
-,	LIBCALL_ENTRY(mkostemps        ) \
-,	LIBCALL_ENTRY(mkstemp          ) \
-,	LIBCALL_ENTRY(mkstemps         ) \
-,	LIBCALL_ENTRY(mount            ) \
-,	LIBCALL_ENTRY(open             ) \
-,	LIBCALL_ENTRY(__open           ) \
-,	LIBCALL_ENTRY(__open_nocancel  ) \
-,	LIBCALL_ENTRY(__open_2         ) \
-,	LIBCALL_ENTRY(openat           ) \
-,	LIBCALL_ENTRY(__openat_2       ) \
-,	LIBCALL_ENTRY(readlink         ) \
-,	LIBCALL_ENTRY(readlinkat       ) \
-,	LIBCALL_ENTRY(__readlinkat_chk ) \
-,	LIBCALL_ENTRY(__readlink_chk   ) \
-,	LIBCALL_ENTRY(rename           ) \
-,	LIBCALL_ENTRY(renameat         ) \
-,	LIBCALL_ENTRY(renameat2        ) \
-,	LIBCALL_ENTRY(rmdir            ) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
-,	LIBCALL_ENTRY(symlink          ) \
-,	LIBCALL_ENTRY(symlinkat        ) \
-,	LIBCALL_ENTRY(syscall          ) \
-,	LIBCALL_ENTRY(system           ) \
-,	LIBCALL_ENTRY(truncate         ) \
-,	LIBCALL_ENTRY(unlink           ) \
-,	LIBCALL_ENTRY(unlinkat         ) \
-,	LIBCALL_ENTRY(utime            ) \
-,	LIBCALL_ENTRY(utimensat        ) \
-,	LIBCALL_ENTRY(utimes           ) \
+	LIBCALL_ENTRY(chdir           ) \
+,	LIBCALL_ENTRY(chmod           ) \
+,	LIBCALL_ENTRY(chroot          ) \
+,	LIBCALL_ENTRY(clone           ) \
+,	LIBCALL_ENTRY(__clone2        ) \
+,	LIBCALL_ENTRY(close           ) \
+,	LIBCALL_ENTRY(__close         ) \
+,	LIBCALL_ENTRY(creat           ) \
+,	LIBCALL_ENTRY(dup2            ) \
+,	LIBCALL_ENTRY(dup3            ) \
+,	LIBCALL_ENTRY(execl           ) \
+,	LIBCALL_ENTRY(execle          ) \
+,	LIBCALL_ENTRY(execlp          ) \
+,	LIBCALL_ENTRY(execv           ) \
+,	LIBCALL_ENTRY(execve          ) \
+,	LIBCALL_ENTRY(execveat        ) \
+,	LIBCALL_ENTRY(execvp          ) \
+,	LIBCALL_ENTRY(execvpe         ) \
+,	LIBCALL_ENTRY(fchdir          ) \
+,	LIBCALL_ENTRY(fchmodat        ) \
+,	LIBCALL_ENTRY(fopen           ) \
+,	LIBCALL_ENTRY(fork            ) \
+,	LIBCALL_ENTRY(__fork          ) \
+,	LIBCALL_ENTRY(freopen         ) \
+,	LIBCALL_ENTRY(futimesat       ) \
+,	LIBCALL_ENTRY(__libc_fork     ) \
+,	LIBCALL_ENTRY(link            ) \
+,	LIBCALL_ENTRY(linkat          ) \
+,	LIBCALL_ENTRY(lutimes         ) \
+,	LIBCALL_ENTRY(mkdir           ) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
+,	LIBCALL_ENTRY(mkostemp        ) \
+,	LIBCALL_ENTRY(mkostemps       ) \
+,	LIBCALL_ENTRY(mkstemp         ) \
+,	LIBCALL_ENTRY(mkstemps        ) \
+,	LIBCALL_ENTRY(mount           ) \
+,	LIBCALL_ENTRY(open            ) \
+,	LIBCALL_ENTRY(__open          ) \
+,	LIBCALL_ENTRY(__open_nocancel ) \
+,	LIBCALL_ENTRY(__open_2        ) \
+,	LIBCALL_ENTRY(openat          ) \
+,	LIBCALL_ENTRY(__openat_2      ) \
+,	LIBCALL_ENTRY(readlink        ) \
+,	LIBCALL_ENTRY(readlinkat      ) \
+,	LIBCALL_ENTRY(__readlinkat_chk) \
+,	LIBCALL_ENTRY(__readlink_chk  ) \
+,	LIBCALL_ENTRY(rename          ) \
+,	LIBCALL_ENTRY(renameat        ) \
+,	LIBCALL_ENTRY(renameat2       ) \
+,	LIBCALL_ENTRY(rmdir           ) /* necessary against NFS strange notion of coherence as this touches containing dir */ \
+,	LIBCALL_ENTRY(symlink         ) \
+,	LIBCALL_ENTRY(symlinkat       ) \
+,	LIBCALL_ENTRY(syscall         ) \
+,	LIBCALL_ENTRY(system          ) \
+,	LIBCALL_ENTRY(truncate        ) \
+,	LIBCALL_ENTRY(unlink          ) \
+,	LIBCALL_ENTRY(unlinkat        ) \
+,	LIBCALL_ENTRY(utime           ) \
+,	LIBCALL_ENTRY(utimensat       ) \
+,	LIBCALL_ENTRY(utimes          ) \
 \
 ,	LIBCALL_ENTRY(creat64          ) \
 ,	LIBCALL_ENTRY(fopen64          ) \
@@ -217,7 +231,9 @@ struct SyscallDescr {
 ,	LIBCALL_ENTRY(__openat64_2     ) \
 ,	LIBCALL_ENTRY(truncate64       ) \
 \
-	ENUMERATE_LD_PRELOAD_LIBCALLS    \
-	ENUMERATE_PATH_LIBCALLS          \
-	ENUMERATE_CLOSE_RANGE_LIBCALLS   \
+	ENUMERATE_LD_PRELOAD_LIBCALLS  \
+	ENUMERATE_PATH_LIBCALLS        \
+	ENUMERATE_CLOSE_RANGE_LIBCALLS \
+	ENUMERATE_MOVE_MOUNT_LIBCALLS  \
+	ENUMERATE_OPEN_TREE_LIBCALLS   \
 	ENUMERATE_DIR_LIBCALLS

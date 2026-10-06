@@ -275,7 +275,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 	- generally speaking, prelude can avoid rerun as they are executed during analysis
 ? find a way for local resources to be anything
 	? int/float/str/bool/None/... or list/tuple/set/dict thereof
-X consider using fanotify as an autodep method
+X consider using fanotify as an autodep methodh
 	- does not work because symbolic links used during path resolution must be recorded but are lost by fanotify
 	- fanotify_init
 	- fanotify_mark
@@ -301,9 +301,46 @@ M port to Darwin
 * OPTIMIZATIONS
 ****************************************************************************************************
 
-* use ebpf in seccomp/ptrace to better filter files
-	- in particular, exclude system files which are very frequently accessed
-	- cf https:bpf.io/linux/concepts/token
+* implement ebpf
+	- hook lsm/inode_follow_symlink to capture symlinks traversed during path resolution
+	- sys_enter/sys_exit are not used so as to have a unified view direct syscall/io_uring
+	- hook fentry/fexit :
+		- access/faccessat                  : do_faccessat   (                                       int dfd   ,struct filename* filename , int mode,int flags                                        )
+		- chmod/fchmodat                    : do_fchmodat    (                                       int dfd   ,struct filename* filename , umode_t mode                                              )
+		- creat/open/openat/execve/execveat : do_filp_open   (                                       int dfd   ,struct filename* pathname , const struct open_flags* op                               )
+		- getdents/getents64/readdir        : iterate_dir    (                                                                              struct file* file,struct dir_context* ctx                 )
+		- link/linkat                       : do_linkat      ( int olddfd,struct filename* oldname , int newdfd,struct filename* newname  , int flags                                                 )
+		- mkdir/mkdirat                     : do_mkdirat     (                                       int dfd   ,struct filename* filename , umode_t mode                                              )
+		- mknod/mknodat                     : do_mknodat     (                                       int dfd   ,struct filename* name     , umode_t mode,dev_t dev                                    )
+		- name_to_handle_at                 : do_common_name_to_handle(                              int dfd   ,struct filename* name     , struct file_handle* handle,int* mnt_id, int flag          )
+		- mount                             : do_mount       ( const char* dev_name                ,            const char*      dir_name , const char* type_page,unsigned long flags,void* data_page )
+		- move_mount                        : do_move_mount  (            struct path*   from_path ,            struct path*     to_path  , unsigned int ms_flags                                     )
+		- open_tree                         : do_open_tree   (                                       int dfd   ,struct filename* name     , unsigned int flags                                        )
+		- readlink/readlinkat               : do_readlinkat  (                                       int dfd   ,struct filename* filename , char __user* buf,int bufsiz                               )
+		- rename/renameat                   : do_renameat2   ( int olddfd,struct filename* oldname , int newdfd,struct filename* newname  , unsigned int flags                                        )
+		- rmdir/unlink/unlinkat             : do_unlinkat    (                                       int dfd   ,struct filename* name                                                                 )
+		- stat/statx/fstatat                : vfs_statx      (                                       int dfd   ,struct filename* filename , int flags,struct kstat* stat,u32 request_mask             )
+		- statfs                            : user_statfs    (                                                  const char*      pathname , struct kstatfs *buf                                       )
+		- symlink/symlinkat                 : do_symlinkat   (            struct filename* from    , int newdfd,struct filename* to                                                                   )
+		- truncate                          : do_sys_truncate(                                       int dfd   ,const char*      pathname , loff_t length                                             )
+		- umount                            : path_umount    (                                                  struct path*     path     , int flags                                                 )
+		- utime/utimes/utimensat            : do_utimes      (                                       int dfd   ,const char*      filename , struct timespec64 *times, int flags                       )
+	- note that for symlink, from is a text, not a filename
+	- for rename, ensure they are rename of files
+		- in a first implementation, report an error
+		- then rename of dirs can be handle with
+			- bpf_send_signal(SIGSTOP)
+			- userland does the job
+			- userland sends CONTINUE to interrupted thread
+	- in case of actual file access, report mtime (before access) to tracer
+		- else, report it does not exist
+	- in case of relative filename, capture abs path of dfd (cwd if AT_FDCWD)
+	- from symlinks and raw filename, we can easily reconstruct real filename (easier in tracer than in kernel)
+	- think twice about locks (require careful analysis and a priori none are necessary)
+	- timestamp everything with same ns-resolution timestamp for symlinks during resolution and accesses for the syscall
+		- so userland can easily associate what goes together and we need a timestamp anyway
+		- ensure all accesses have a different timestamp
+
 * implement ptrace/seccomp with a single thread within job_exec
 	- rather than 2 : on that transform ptrace events into socket messages and one that processes messages similarly to ld_preload/ld_audit
 	- particularly important when ebpf is implemented as ebpf then becomes the standard autodep method
