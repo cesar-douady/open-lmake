@@ -125,6 +125,7 @@ HIDDEN_CC_FLAGS := -ftabstop=4 -ftemplate-backtrace-limit=0 -pedantic -fvisibili
 # - St     : -fsanitize threads
 # - P      : -pg
 # - C      : coverage (not operational yet)
+# - E      : use ebpf if available
 LTO_FLAGS        := -O3 $(if $(findstring gcc,$(CXX_FLAVOR) ) , -flto=2 , -flto )
 EXTRA_LINK_FLAGS :=
 EXTRA_LINK_FLAGS := $(if $(findstring O4,$(LMAKE_FLAGS) ) , $(LTO_FLAGS) , $(EXTRA_LINK_FLAGS)     )
@@ -510,7 +511,7 @@ src/autodep/vmlinux.h :
 	@$(BPFTOOL) btf dump file /sys/kernel/btf/vmlinux format c >$@
 src/autodep/ebpf.bpf.o : src/autodep/ebpf.bpf.c src/autodep/ebpf_event.h src/autodep/vmlinux.h
 	@echo $(BPF_CLANG) -target bpf to $@
-	@$(BPF_CLANG) -g -O3 -target bpf -D__TARGET_ARCH_$(BPF_ARCH) -iquote src/autodep -I $(BPF_INC_DIR) -c -o $@ $<
+	@$(BPF_CLANG) -g -O3 -target bpf -D__TARGET_ARCH_$(BPF_ARCH) -iquote . -iquote src/autodep -I $(BPF_INC_DIR) -c -o $@ $<
 src/autodep/ebpf.skel.h : src/autodep/ebpf.bpf.o
 	@echo generate skeleton to $@
 	@$(BPFTOOL) gen skeleton $< name ebpf >$@
@@ -521,6 +522,8 @@ _bin/lmake_bpfd : src/autodep/ebpf_daemon.o
 	@echo link to $@
 	@$(LINK) -o $@ $^ $(BPF_LIB)
 	@$(SPLIT_DBG_CMD)
+	@sudo chown root:root $@
+	@sudo chmod ug+s      $@
 endif
 
 %.d : %.cc

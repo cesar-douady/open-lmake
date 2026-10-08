@@ -229,8 +229,8 @@ int main( int argc , char* argv[] ) {
 		jsrr.interpreter = ::move(cmd_line.args) ;
 		#if HAS_EBPF
 			if (jsrr.method==AutodepMethod::Ebpf)
-				try                       { AutodepEbpf::load(autodep_env.deps_in_system) ; }
-				catch (::string const& e) { exit(Rc::System,e) ;                            }
+				try                       { AutodepEbpf::load( autodep_env.deps_in_system , *g_repo_root_s , autodep_env.src_dirs_s ) ; }
+				catch (::string const& e) { exit(Rc::System,e) ;                                                                        }
 		#endif
 		jsrr.enter(
 			/*out  */::ref(::vector_s())
@@ -257,6 +257,8 @@ int main( int argc , char* argv[] ) {
 	//
 	try                       { jsrr.exit() ;        }
 	catch (::string const& e) { exit(Rc::System,e) ; }
+	//
+	if (+gather.msg) Fd::Stderr.write(with_nl(gather.msg)) ;                 // else errors of the tracer are only visible through the exit code
 	//
 	Gather::Digest digest = gather.analyze() ;
 	::string files = "targets :\n" ;

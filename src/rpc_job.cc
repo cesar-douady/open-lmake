@@ -1165,11 +1165,15 @@ void JobStartRpcReply::mk_lmake_version() {
 	}
 	try {            // if using a different lmake, we must check compatibility and extract system info
 		#if HAS_EBPF
-			[[maybe_unused]] bool has_ebpf = false ;
+			bool has_ebpf = false ;
 		#endif
-		[[maybe_unused]] bool has_ld_audit = false ;
-		[[maybe_unused]] bool has_seccomp  = false ;
-		uint64_t              v_job        = 0     ;
+		#if HAS_LD_AUDIT
+			bool has_ld_audit = false ;
+		#endif
+		#if HAS_SECCOMP
+			bool has_seccomp  = false ;
+		#endif
+		uint64_t v_job = 0 ;
 		for( ::string const& line : AcFd(phy_lmake_root_s+"_lib/version.py",{.err_ok=true}).read_lines() ) {
 			if (line[0]=='#') continue ;
 			size_t   pos = line.find('=')                ; if (pos==Npos) continue ;
@@ -1178,10 +1182,14 @@ void JobStartRpcReply::mk_lmake_version() {
 			switch (key[0]) {
 				case 'h' :
 					#if HAS_EBPF
-						if (key=="has_ebpf") { has_ebpf = (val=="True") ; break ; }
+						if (key=="has_ebpf"    ) { has_ebpf     = val=="True" ; break ; }
 					#endif
-				/**/       if (key=="has_ld_audit"       ) { has_ld_audit                      = (val=="True")              ; break ; }
-				/**/       if (key=="has_seccomp"        ) { has_seccomp                       = (val=="True")              ; break ; }
+					#if HAS_LD_AUDIT
+						if (key=="has_ld_audit") { has_ld_audit = val=="True" ; break ; }
+					#endif
+					#if HAS_SECCOMP
+						if (key=="has_seccomp" ) { has_seccomp  = val=="True" ; break ; }
+					#endif
 				break ;
 				case 'j' : if (key=="job"                ) { v_job                             = from_string<uint64_t>(val) ; break ; }
 				break ;
@@ -1198,14 +1206,14 @@ void JobStartRpcReply::mk_lmake_version() {
 		throw_unless( v_job==Version::Job     , "found job-version ",v_job," != expected ",Version::Job ) ;
 		throw_unless( +lmake_version.python   , "python path not found"                                 ) ;
 		throw_unless( +lmake_version.std_path , "standard PATH not found"                               ) ;
+		#if HAS_EBPF
+			if (method==AutodepMethod::Ebpf   ) throw_unless( has_ebpf     , "ebpf is not supported as autodep method"     ) ;
+		#endif
 		#if HAS_LD_AUDIT
 			if (method==AutodepMethod::LdAudit) throw_unless( has_ld_audit , "ld_audit is not supported as autodep method" ) ;
 		#endif
 		#if HAS_SECCOMP
 			if (method==AutodepMethod::Seccomp) throw_unless( has_seccomp  , "seccomp is not supported as autodep method"  ) ;
-		#endif
-		#if HAS_EBPF
-			if (method==AutodepMethod::Ebpf   ) throw_unless( has_ebpf     , "ebpf is not supported as autodep method"     ) ;
 		#endif
 	} catch (::string const& e) {
 		throw cat("cannot execute job with incompatible open-lmake (",e,") as per file _lib/version.py in root dir ",phy_lmake_root_s,rm_slash) ;

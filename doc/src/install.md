@@ -76,6 +76,7 @@ It has been tested with the dockers listed in the docker dir.
 			- St      controls the `-fsantize=thread`                       option  (exclusive with Sa                                                             )
 			- P       controls the `-pg`                                    option  (profiling info is in gmon.out.<tool>.<pid>                                    )
 			- C       controls the `--coverage`                             option  (profiling info is in gmon.out.<tool>.<pid>                                    )
+			- E       controls whether to install ebpf (for dev only, work in progress)
 		- the `-j` flag of make is automatically set to the number of processors, you may want to override this, though
 	- this is true the first time you run make. After that, these values are remembered in the file `sys_config.env`.
 	- you can freely modify this file `sys_config.env`, though. It will be taken into account.

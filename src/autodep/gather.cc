@@ -17,7 +17,8 @@ using namespace Re   ;
 using namespace Time ;
 
 #if HAS_EBPF
-	int/*rc*/     (*Gather::s_ebpf_prepare_child)(void*) = nullptr ;
+	void          (*Gather::s_ebpf_start        )(AutodepEnv const&) = nullptr ;
+	int/*rc*/     (*Gather::s_ebpf_prepare_child)(void*)             = nullptr ;
 	int/*wstatus*/(*Gather::s_ebpf_process      )(pid_t) = nullptr ;
 #endif
 
@@ -562,7 +563,11 @@ Fd Gather::_spawn_child() {
 	_child.stdout     = child_stdout                          ;
 	_child.stderr     = child_stderr                          ;
 	#if HAS_EBPF
-		if (method==AutodepMethod::Ebpf) throw_unless( s_ebpf_prepare_child && s_ebpf_process , "autodep method ebpf is not available (tracer not loaded)" ) ;
+		if (method==AutodepMethod::Ebpf) {
+			throw_unless( s_ebpf_prepare_child && s_ebpf_process , "autodep method ebpf is not available (tracer not loaded)"                              ) ;
+			throw_if    ( autodep_env.auto_mkdir                 , "auto_mkdir is not supported with autodep method ebpf (accesses are observed, not intercepted)" ) ;
+			if (s_ebpf_start) s_ebpf_start(autodep_env) ;
+		}
 	#endif
 	// PER_AUTODEP_METHOD : handle case
 Retry :

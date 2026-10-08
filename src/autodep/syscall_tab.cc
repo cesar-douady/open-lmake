@@ -18,20 +18,7 @@
 
 #include "syscall_tab.hh"
 
-#if HAS_EBPF
-	// when set (during ebpf replay), tracee memory is served from here (keyed by user address) instead of from proc_mem
-	static thread_local AutodepReplay::Mem const* _t_replay_mem = nullptr ;
-#endif
-
 [[maybe_unused]] static void _peek( Fd proc_mem , char* dst , uint64_t src , size_t sz ) {
-	#if HAS_EBPF
-		if (_t_replay_mem) {
-			auto it = _t_replay_mem->find(src) ;
-			if ( it==_t_replay_mem->end() || it->second.size()<sz ) throw AutodepReplay::Miss() ;
-			::memcpy( dst , it->second.data() , sz ) ;
-			return ;
-		}
-	#endif
 	if (!proc_mem) { ::memcpy( dst , reinterpret_cast<const char*>(src) , sz ) ; return ; }
 	while (sz) {
 		ssize_t cnt = ::pread( proc_mem , dst , sz , src ) ; if (cnt<=0) throw cat("cannot peek at address 0x",to_hex(src)) ;
@@ -42,9 +29,6 @@
 }
 
 [[maybe_unused]] static void _poke( Fd proc_mem , uint64_t dst , const char* src , size_t sz ) {
-	#if HAS_EBPF
-		if (_t_replay_mem) throw AutodepReplay::Miss() ; // cannot write back to the tracee during asynchronous replay (only used by the backdoor, which is not replayed)
-	#endif
 	if (!proc_mem) { ::memcpy( reinterpret_cast<char*>(dst) , src , sz ) ; return ; }
 	while (sz) {
 		ssize_t cnt = ::pwrite( proc_mem , src , sz , dst ) ; if (cnt<=0) throw cat("cannot poke at address 0x",to_hex(dst)) ;
@@ -57,14 +41,6 @@
 // return null terminated string pointed by src in process space
 [[maybe_unused]] static ::string _get_str( Fd proc_mem , uint64_t src ) {
 	if (!src) return {} ;
-	#if HAS_EBPF
-		if (_t_replay_mem) {
-			auto it = _t_replay_mem->find(src) ;
-			if (it==_t_replay_mem->end()) throw AutodepReplay::Miss{} ;
-			::string const& b = it->second ;
-			return b.substr( 0 , ::strnlen(b.data(),b.size()) ) ;
-		}
-	#endif
 	if (!proc_mem) return {reinterpret_cast<const char*>(src)} ;
 	::string res                      ;
 	char     buf[::min(PAGE_SZ,1024)] ; // filenames longer than 1024 are really exceptional, no need to anticipate more than that
@@ -551,6 +527,27 @@ IF_HAS_32( constexpr SyscallDescr::Tab        SyscallDescrTab32     = _mk_syscal
 /**/                 SyscallDescr::Tab const& SyscallDescr::s_tab   = SyscallDescrTab                ;
 IF_HAS_32(           SyscallDescr::Tab const& SyscallDescr::s_tab32 = SyscallDescrTab32              ; )
 
+#if HAS_EBPF
+	// check all interesting syscalls are caught by ebpf
+	#include "ebpf_daemon.hh"
+	static constexpr bool SyscallTabOk = []() {
+		bool EbpfSyscalls[SyscallDescr::NSyscalls] = {} ;
+		// tracked syscalls
+		#define X(name,kind,d1,p1,d2,p2,fd,fl) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
+		#define Y(name                       ) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
+		EBPF_SYSCALLS          (X)
+		EBPF_UNTRACKED_SYSCALLS(Y)
+		#undef X
+		#undef Y
+		for( long nr : iota(long(SyscallDescr::NSyscalls)) ) {
+			if (!SyscallDescr::s_tab[nr]) continue     ;
+			if (!EbpfSyscalls       [nr]) return false ;
+		}
+		return true ;
+	}() ;
+	static_assert(SyscallTabOk) ;
+#endif
+
 // generate BPF filter that does a dicothomy search rather than linear for improved perf
 // generate BPF filter at compile time for improved perf
 
@@ -651,28 +648,3 @@ template<uint32_t SeccompRetCatch> static constexpr SyscallDescr::BpfProg Syscal
 
 /**/            SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog_ptrace  = SyscallDescrBpfProg<SECCOMP_RET_TRACE     > ;
 IF_HAS_SECCOMP( SyscallDescr::BpfProg const& SyscallDescr::s_bpf_prog_seccomp = SyscallDescrBpfProg<SECCOMP_RET_USER_NOTIF> ; )
-
-#if HAS_EBPF
-	// replay one captured syscall through the same entry/exit machinery as ptrace/seccomp
-	// mirrors the exit handling of AutodepPtrace::PidInfo::event, except the result is already known (no emulation)
-	void AutodepReplay::replay( Record& r , long nr , bool is32 , uint64_t args[6] , int64_t res , AutodepReplay::Mem const& mem ) {
-		if ( nr<0 || nr>=SyscallDescr::NSyscalls ) return ;
-		#if HAS_32
-			SyscallDescr const& descr = is32 ? SyscallDescr::s_tab32[nr] : SyscallDescr::s_tab[nr] ;
-		#else
-			(void)is32 ;
-			SyscallDescr const& descr =                                    SyscallDescr::s_tab[nr] ;
-		#endif
-		if (!descr.entry) return ;
-		_t_replay_mem = &mem ;
-		try {
-			int64_t old_rc = res ;
-			if (res<0) { old_rc = -1 ; errno = -res ; }                                                          // present the result the way the exit handlers expect it
-			auto [ctx,refresh] = descr.entry( r , Fd()/*proc_mem*/ , args , false/*emulate*/ , descr.comment ) ;
-			(void)refresh ;                                                                                      // memory/word-size refresh is meaningless for replay
-			if ( ctx && descr.exit ) descr.exit( ctx , r , Fd()/*proc_mem*/ , old_rc ) ;
-		} catch (::string            const&) {                                           // entry could not process this call (e.g. simple path, unsupported flag) : ignore, as ptrace would
-		} catch (AutodepReplay::Miss const&) { _t_replay_mem = nullptr ; throw ; }       // a needed blob was missing : propagate so the job is failed
-		_t_replay_mem = nullptr ;
-	}
-#endif

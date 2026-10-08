@@ -55,13 +55,19 @@ A special implementation has been devised to handle this case, but is too fragil
 
 ## Spying methods based on system calls
 
-### ebpf (not implemented yet)
+### ebpf (experimental)
 
-The principle is to use the eBPF feature (extended BPF) of modern linux systems.
+The principle is to use the eBPF feature (extended BPF) of modern linux systems : small programs are attached to hooks in the kernel and report job accesses.
 
-This is a very promising approach (not finilized yet) that should bring both transparency and performance.
+Everything is captured in the kernel when the access occurs (the resolved path, the state of the file before it is modified, the traversed symbolic links),
+so accesses are reliably known although they are processed asynchronously.
+Files that can be neither deps nor targets (the vast majority, such as those lying in `/usr`) are filtered out in the kernel, which makes this method fast.
 
-The major drawback is linked to security : installing a eBPF filter requires to be privileged, which implies the presence of a root-suid daemon.
+This is a non-intrusive approach : the job is not modified in any way and all accesses are seen, including those from statically linked programs and those done through `io_uring`.
+As accesses are observed and not intercepted, features that need to act before a system call executes are not supported (`auto_mkdir`).
+
+The major drawback is linked to security : installing a eBPF filter requires to be privileged, which implies the presence of a root daemon (`_bin/lmake_bpfd`) that jobs connect to.
+At start-up, this daemon checks that the kernel hooks it relies on are operational, and refuses to run if not.
 
 ### ptrace
 

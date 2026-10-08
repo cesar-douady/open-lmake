@@ -32,9 +32,14 @@ namespace Backdoor {
 		T      data = {}    ;                                                       // the data if the buffer size was ok to deserialize
 	} ;
 
-	static constexpr Fd     MagicFd     { Fd::Cwd.fd - 100 }              ; // any improbable negative value (to avoid conflict with real fd) will do
-	static constexpr char   MagicPfx[]  = PRIVATE_ADMIN_DIR_S "backdoor/" ; // any improbable prefix will do
-	static constexpr size_t MagicPfxLen = sizeof(MagicPfx)-1              ; // -1 to account for terminating null
+	static constexpr Fd     MagicFd       { Fd::Cwd.fd - 100 }              ; // any improbable negative value (to avoid conflict with real fd) will do
+	static constexpr char   MagicPfx[]    = PRIVATE_ADMIN_DIR_S "backdoor/" ; // any improbable prefix will do
+	static constexpr size_t MagicPfxLen   = sizeof(MagicPfx)-1              ; // -1 to account for terminating null
+	// with ebpf, syscalls cannot be intercepted, hence backdoor calls fail and are processed by the job itself
+	// the kernel is only told what it needs to know through markers, which are mere readlinkat calls with magic dir fds (they fail with EBADF, which is harmless with other methods)
+	// /!\ must be in sync with EBPF_MAGIC_FD* in ebpf_event.h
+	static constexpr Fd     MagicFdEnd    { Fd::Cwd.fd - 101 }              ; // accesses are not recorded from the failed backdoor call (they are internal to its processing) until this marker
+	static constexpr Fd     MagicFdEnable { Fd::Cwd.fd - 102 }              ; // set the enable bit of the thread (inherited by threads and processes it creates), passed as the size
 
 	using Func = ::function<ssize_t/*len*/(Record&,::string const& args,char* buf,size_t sz)> ;
 
@@ -42,16 +47,18 @@ namespace Backdoor {
 
 	template<class T> using _Reply = decltype(::declval<T>().process(::declval<Record&>())) ;
 
+	struct Enable ;
+
 	template<class T> _Reply<T> call(T const& args) {
-		static constexpr size_t ErrMsgSz = 1000 ;                                                                      // quite comfortable for an error message
+		static constexpr size_t ErrMsgSz = 1000 ;                                                        // quite comfortable for an error message
 		::string file = cat(MagicPfx,T::Cmd,'/',mk_printable(serialize(args)))              ;
-		size_t   sz   = ::max( ErrMsgSz , ::max( T::MaxReplySz , Expected<T>::MinSz ) ) + 1 ;                          // +1 to distinguish truncation
+		size_t   sz   = ::max( ErrMsgSz , ::max( T::MaxReplySz , Expected<T>::MinSz ) ) + 1 ;            // +1 to distinguish truncation
 		for( int i=0 ;; i++ ) {
 			::string buf ( sz , 0 )                                                 ;
-			ssize_t  cnt = ::readlinkat( MagicFd , file.c_str() , buf.data() , sz ) ;                                  // try to go through autodep to process args
+			ssize_t  cnt = ::readlinkat( MagicFd , file.c_str() , buf.data() , sz ) ;                    // try to go through autodep to process args
 			if (cnt<0) {
-				int err_no = cnt==-1 ? errno : -cnt ;                                                                  // ld_audit/ld_preload report errno directly in result as -errno if magic, ...
-				switch (err_no) {                                                                                      // ... magic errors are never -1, so no confusion with standard convention
+				int err_no = cnt==-1 ? errno : -cnt ;                                                    // ld_audit/ld_preload report errno directly in result as -errno if magic, ...
+				switch (err_no) {                                                                        // ... magic errors are never -1, so no confusion with standard convention
 					case +MagicErrno::CannotPoke : throw cat("cannot poke reply while " ,args.descr()) ;
 					case +MagicErrno::Internal   : throw cat("internal error while "    ,args.descr()) ;
 					case +MagicErrno::NotFound   : throw cat("magic function not found ",args.descr()) ;
@@ -64,11 +71,13 @@ namespace Backdoor {
 						if (pos==0) throw cat("cannot ",args.descr(                                   )) ;
 						else        throw cat("cannot ",args.descr(cat('(',substr_view(buf,0,pos),')'))) ;
 					} break ;
-					default : {
+					default : {                                                                                                                        // no autodep available, directly process args
+						struct EndMarker { ~EndMarker() { char c ; ssize_t rc = ::readlinkat( MagicFdEnd , "" , &c , 1 ) ; (void)rc ; } } end_marker ; // even in case of exception
 						Lock lock { Record::s_mutex } ;
-						return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;                               // no autodep available, directly process args
+						if constexpr (::is_same_v<T,Enable>) return args.local_enable()                                     ;
+						else                                 return ::copy(args).process(::ref(Record(New,Yes/*enabled*/))) ;
 					}
-				}                                                                                                      // NO_COV
+				}                                                                                                                                      // NO_COV
 			}
 			SWEAR( size_t(cnt)<buf.size() , cnt,buf.size() ) ;
 			buf.resize(size_t(cnt)) ;
@@ -112,8 +121,9 @@ namespace Backdoor {
 		// accesses
 		void operator>>(::string&) const ;
 		// services
-		bool/*enabled*/ process(Record&         r        )       ;
-		::string        descr  (::string const& reason={}) const ;
+		bool/*enabled*/ local_enable(                         ) const ; // process Enable when nobody processes the backdoor
+		bool/*enabled*/ process     (Record&         r        )       ;
+		::string        descr       (::string const& reason={}) const ;
 		// data
 		Bool3 enable = Maybe ; // Maybe means dont update record state
 	} ;

@@ -891,9 +891,9 @@ template<::integral I,I DfltVal> consteval I _macro_val_str(const char* n_str) {
 		else                                          base =  8 ;
 	}
 	for( const char* p=n_str ; *p ; p++ )
-		if      ( '0'<=*p && *p<='9' && (*p-'0'   <base) ) { if (::is_same_v<I,bool>) n |= *p!=0 ; else n = (n*base) + (*p-'0'   ) ; }
-		else if ( 'a'<=*p && *p<='z' && (*p-'a'+10<base) ) { if (::is_same_v<I,bool>) n  = true  ; else n = (n*base) + (*p-'a'+10) ; }
-		else if ( 'A'<=*p && *p<='Z' && (*p-'A'+10<base) ) { if (::is_same_v<I,bool>) n  = true  ; else n = (n*base) + (*p-'A'+10) ; }
+		if      ( '0'<=*p && *p<='9' && (*p-'0'   <base) ) { if (::is_same_v<I,bool>) n |= *p!='0' ; else n = (n*base) + (*p-'0'   ) ; }
+		else if ( 'a'<=*p && *p<='z' && (*p-'a'+10<base) ) { if (::is_same_v<I,bool>) n  = true    ; else n = (n*base) + (*p-'a'+10) ; }
+		else if ( 'A'<=*p && *p<='Z' && (*p-'A'+10<base) ) { if (::is_same_v<I,bool>) n  = true    ; else n = (n*base) + (*p-'A'+10) ; }
 		else                                                 return DfltVal ;
 	if ( !::is_same_v<I,bool> && is_neg ) n = -n ;
 	return n ;

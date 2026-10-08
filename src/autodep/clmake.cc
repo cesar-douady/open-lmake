@@ -388,10 +388,9 @@ static int _populate_mod(PyObject* py_mod) {
 	//
 	Module* mod = from_py<Module>(py_mod) ;
 	try {
-#define HAS_EBPf 0                                                           // XXX : enable ebpf
-		Ptr<Tuple> py_ads { HAS_EBPf+1+HAS_SECCOMP+HAS_LD_AUDIT+2 } ;        // PER_AUTODEP_METHOD : add entries here
+		Ptr<Tuple> py_ads { HAS_EBPF+1+HAS_SECCOMP+HAS_LD_AUDIT+2 } ;        // PER_AUTODEP_METHOD : add entries here
 		{	size_t i = 0 ;
-			if (HAS_EBPf    ) py_ads->set_item( i++ , *Ptr<Str>("ebpf"               ) ) ;
+			if (HAS_EBPF    ) py_ads->set_item( i++ , *Ptr<Str>("ebpf"               ) ) ;
 			/**/              py_ads->set_item( i++ , *Ptr<Str>("ptrace"             ) ) ;
 			if (HAS_SECCOMP ) py_ads->set_item( i++ , *Ptr<Str>("seccomp"            ) ) ;
 			if (HAS_LD_AUDIT) py_ads->set_item( i++ , *Ptr<Str>("ld_audit"           ) ) ;

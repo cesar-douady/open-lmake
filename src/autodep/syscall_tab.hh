@@ -54,17 +54,6 @@ struct SyscallDescr {
 	Comment                                   comment                                                                   = Comment::None ;
 } ;
 
-#if HAS_EBPF
-	// support for replaying a syscall from a captured event (ebpf method) rather than from a live, stopped tracee (ptrace/seccomp)
-	// the tracee memory is served from the captured blobs instead of /proc/<pid>/mem
-	namespace AutodepReplay {
-		struct Miss {} ;                                                 // thrown when a needed memory blob was not captured (lost event) : distinct from the ::string thrown for ignorable cases
-		using Mem = ::umap<uint64_t/*user address*/,::string/*bytes*/> ;
-		// replay one syscall through SyscallDescr::s_tab : run entry then, if it asks for it, exit with the recorded result
-		void replay( Record& , long nr , bool is32 , uint64_t args[6] , int64_t rc , Mem const& ) ;
-	}
-#endif
-
 #ifdef LD_PRELOAD
 	#define ENUMERATE_LD_PRELOAD_LIBCALLS \
 		,	LIBCALL_ENTRY(dlmopen ) \

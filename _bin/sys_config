@@ -608,7 +608,17 @@ if [ "$BPF_CLANG" -a "$BPF_ARCH" -a "$BPFTOOL" ] ; then
 		HAS_EBPF=1
 	fi
 fi
-[ $HAS_EBPF = 1 ] || echo "no ebpf autodep support (requires clang, libbpf>=1.0, bpftool and kernel BTF)" >>$SUM_FILE
+if [ $HAS_EBPF = 1 ] ; then
+	case $LMAKE_FLAGS in
+		*E* ) ;;
+		*   )
+			echo "no support for ebpf was explicitly asked although it is available" >>$SUM_FILE
+			HAS_EBPF=0
+		;;
+	esac
+else
+	echo "no ebpf autodep support (requires clang, libbpf>=1.0, bpftool and kernel BTF)" >>$SUM_FILE
+fi
 
 #
 # SINGLE_THREADED (HAS_SINGLE_THREADED)

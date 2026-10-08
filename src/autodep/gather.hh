@@ -47,8 +47,9 @@ struct Gather {                                         // NOLINT(clang-analyzer
 	static constexpr Time::Delay HeartbeatTick { 10 } ; // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 10s seems a good compromize
 	#if HAS_EBPF
 		// the ebpf tracer requires libbpf and is only linked in executables supporting it (job_exec & lautodep), which set these hooks
-		static int/*rc*/      (*s_ebpf_prepare_child)(void*) ;
-		static int/*wstatus*/ (*s_ebpf_process      )(pid_t) ;
+		static void           (*s_ebpf_start        )(AutodepEnv const&) ;                      // called before child is spawned
+		static int/*rc*/      (*s_ebpf_prepare_child)(void*            ) ;
+		static int/*wstatus*/ (*s_ebpf_process      )(pid_t            ) ;
 	#endif
 	struct AccessInfo {
 		// cxtors & co

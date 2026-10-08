@@ -53,6 +53,19 @@ namespace Backdoor {
 		return res ;
 	}
 
+	// when nobody processes the backdoor, the enable bit is held by this process (a Record is only temporary)
+	// with ebpf, it is also held in the kernel for each thread to filter accesses : tell it
+	bool/*enabled*/ Enable::local_enable() const {
+		static bool s_enable = Record(New).enable ;
+		bool res = s_enable ;
+		if (enable!=Maybe) {
+			s_enable = enable==Yes ;
+			char    c  ;
+			ssize_t rc = ::readlinkat( MagicFdEnable , "" , &c , s_enable ) ; (void)rc ;
+		}
+		return res ;
+	}
+
 	::string Enable::descr(::string const& reason) const {
 		switch (enable) {
 			case No    : return cat("disable autodep "  ,reason) ;
