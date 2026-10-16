@@ -672,7 +672,7 @@ CacheHitInfo CrunData::match( CompileDigest const& compile_digest , Cnode&/*out*
 	SWEAR( n_statics<=dep_crcs_view.size() && dep_crcs_view.size()<=deps_view.size() , n_statics,deps_view,dep_crcs_view ) ;
 	// first check static deps
 	for( NodeIdx i : iota(n_statics) ) {
-		SWEAR( deps_view[i]==deps_[i] , i,deps_,deps_view ) ;                                                                                        // static deps only depend on job
+		SWEAR( deps_view[i]==deps_[i] , i,n_statics,deps_,deps_view ) ;                                                                              // static deps only depend on job
 		if (!crc_ok(dep_crcs_view[i],dep_crcs_[i])) { trace("miss1",i,deps_view[i],dep_crcs_view[i],dep_crcs_[i]) ; return CacheHitInfo::BadDeps ; } // found with a different crc
 	}
 	NodeIdx j1 = n_statics        ;                                                                                                                  // index into provided deps, with    crc

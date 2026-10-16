@@ -29,6 +29,9 @@
 	#include "world_32.h"
 #endif
 
+#include "app.hh"
+#include "process.hh"
+
 #include "record.hh"
 #include "syscall_tab.hh"
 #include "gather.hh"
@@ -53,8 +56,8 @@ namespace AutodepEbpf {
 	using Proc = JobExecProc ;
 
 	// per-job state obtained from the daemon (a single job per job_exec / lautodep process)
-	static int              _g_sock   = -1 ; // kept open for the whole job : closing it tells the daemon to release the job
-	static int              _g_rb_fd  = -1 ; // this job's ring buffer, received via SCM_RIGHTS
+	static Fd               _g_sock   ;      // kept open for the whole job : closing it tells the daemon to release the job
+	static Fd               _g_rb_fd  ;      // this job's ring buffer, received via SCM_RIGHTS
 	static uint32_t         _g_job_id =  0 ; // carried to the kernel by the child's self-registration marker
 	static ::vector<size_t> _g_roots  ;      // roots registered in the kernel : Npos for the repo, else the index in src_dirs_s
 
@@ -747,7 +750,7 @@ namespace AutodepEbpf {
 	//
 
 	// send hello and the root dir fds as an SCM_RIGHTS ancillary message
-	static bool/*ok*/ _send_hello( int fd , EbpfDaemon::Hello const& hello , ::vector<int> const& root_fds ) {
+	static bool/*ok*/ _send_hello( int fd , EbpfDaemon::Hello const& hello , ::vector<AcFd> const& root_fds ) {
 		const char* p    = reinterpret_cast<const char*>(&hello) ;
 		size_t      sz   = sizeof(hello)                         ;
 		bool        first = true                                 ;
@@ -756,13 +759,14 @@ namespace AutodepEbpf {
 			char          cbuf[CMSG_SPACE(EBPF_MAX_ROOTS*sizeof(int))] = {}                                               ;
 			struct msghdr msg                                          = {}                                               ; msg.msg_iov = &iov ; msg.msg_iovlen = 1 ;
 			if ( first && +root_fds ) {
-				msg.msg_control    = cbuf                                   ;
+				msg.msg_control    = cbuf                                    ;
 				msg.msg_controllen = CMSG_SPACE(root_fds.size()*sizeof(int)) ;
+				//
 				struct cmsghdr* cm = CMSG_FIRSTHDR(&msg) ;
 				cm->cmsg_level = SOL_SOCKET                             ;
 				cm->cmsg_type  = SCM_RIGHTS                             ;
 				cm->cmsg_len   = CMSG_LEN(root_fds.size()*sizeof(int))  ;
-				::memcpy( CMSG_DATA(cm) , root_fds.data() , root_fds.size()*sizeof(int) ) ;
+				for( size_t i : iota(root_fds.size()) ) ::memcpy( CMSG_DATA(cm)+i*sizeof(int) , &root_fds[i].fd , sizeof(int) ) ;
 			}
 			ssize_t n = ::sendmsg( fd , &msg , MSG_NOSIGNAL ) ; if (n<=0) return false ;
 			p     += n         ;
@@ -773,16 +777,16 @@ namespace AutodepEbpf {
 	}
 
 	// receive the reply and the ring buffer fd sent as an SCM_RIGHTS ancillary message
-	static bool/*ok*/ _recv_reply( int fd , EbpfDaemon::Reply* reply , int* rb_fd ) {
-		*rb_fd = -1 ;
-		struct iovec  iov                           = { .iov_base=reply , .iov_len=sizeof(*reply) } ;
-		char          cbuf[CMSG_SPACE(sizeof(int))] = {}                                            ;
-		struct msghdr msg                           = {}                                            ; msg.msg_iov=&iov ; msg.msg_iovlen=1 ; msg.msg_control=cbuf ; msg.msg_controllen=sizeof(cbuf) ;
+	static bool/*ok*/ _recv_reply( Fd fd , EbpfDaemon::Reply&/*out*/ reply , AcFd&/*out*/ rb_fd ) {
+		rb_fd = {} ;
+		struct iovec  iov                           = { .iov_base=&reply , .iov_len=sizeof(reply)                                                                                            } ;
+		char          cbuf[CMSG_SPACE(sizeof(int))] = {}                                                                                                                                       ;
+		struct msghdr msg                           = { .msg_name=nullptr , .msg_namelen=0 , .msg_iov=&iov , .msg_iovlen=1 , .msg_control=cbuf , .msg_controllen=sizeof(cbuf) , .msg_flags=0 } ;
 		//
-		if (::recvmsg(fd,&msg,MSG_CMSG_CLOEXEC)!=ssize_t(sizeof(*reply))) return false ;
+		if (::recvmsg(fd,&msg,MSG_CMSG_CLOEXEC)!=ssize_t(sizeof(reply))) return false ;
 		//
 		for( struct cmsghdr* cm=CMSG_FIRSTHDR(&msg) ; cm ; cm=CMSG_NXTHDR(&msg,cm) )
-			if ( cm->cmsg_level==SOL_SOCKET && cm->cmsg_type==SCM_RIGHTS ) ::memcpy( rb_fd , CMSG_DATA(cm) , sizeof(int) ) ;
+			if ( cm->cmsg_level==SOL_SOCKET && cm->cmsg_type==SCM_RIGHTS ) ::memcpy( &rb_fd.fd , CMSG_DATA(cm) , sizeof(int) ) ;
 		return true ;
 	}
 
@@ -863,24 +867,39 @@ namespace AutodepEbpf {
 			::usleep(1000) ;
 		}
 		::ring_buffer__free(rb) ;
-		throw_if    ( +cons.err                  , cons.err                                                                                                            ) ;
-		throw_unless( stat_ok                    , "cannot get ebpf stats from daemon"                                                                                 ) ;
-		throw_if    ( stats.lost                 , "some accesses could not be recorded by ebpf (",stats.lost," events lost), dependencies may be incomplete"          ) ;
-		throw_unless( cons.n_events>=stats.seq   , "some accesses have been lost by ebpf (",stats.seq-cons.n_events," events missing), dependencies may be incomplete" ) ;
+		throw_if    ( +cons.err                , cons.err                                                                                                            ) ;
+		throw_unless( stat_ok                  , "cannot get ebpf stats from daemon"                                                                                 ) ;
+		throw_if    ( stats.lost               , "some accesses could not be recorded by ebpf (",stats.lost," events lost), dependencies may be incomplete"          ) ;
+		throw_unless( cons.n_events>=stats.seq , "some accesses have been lost by ebpf (",stats.seq-cons.n_events," events missing), dependencies may be incomplete" ) ;
 		return wstatus ;
 	}
 
 	// connect to the daemon, upload our pid namespace, the tracked syscalls and the dirs of interest, and receive this job's ring buffer
 	void load( bool deps_in_system , ::string const& phy_repo_root_s , ::vector_s const& src_dirs_s ) {
-		if (_g_sock>=0) return ;                                                                        // already connected (defensive)
-		::string           sock_name = EbpfDaemon::get_sock_name()                                    ;
-		int                s         = ::socket( AF_UNIX , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ ) ; throw_unless( s>=0 , "cannot create ebpf socket" ) ;
-		struct sockaddr_un addr      = {}                                                             ; addr.sun_family=AF_UNIX ; ::strncpy(addr.sun_path,sock_name.c_str(),sizeof(addr.sun_path)-1) ;
-		if (::connect(s,reinterpret_cast<struct sockaddr*>(&addr),sizeof(addr))!=0) {
-			::close(s) ;
-			throw cat("cannot reach the ebpf daemon on ",sock_name," : start it with 'sudo _bin/lmake_bpfd'") ;
+		if (+_g_sock) return ;                                                                          // already connected (defensive)
+		//
+		::string sock_name = EbpfDaemon::get_sock_name()                                      ;
+		AcFd     s         { ::socket( AF_UNIX , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ ) } ; throw_unless( +s , "cannot create ebpf socket" ) ;
+		//
+		struct sockaddr_un addr = {} ; addr.sun_family=AF_UNIX ; ::strncpy(addr.sun_path,sock_name.c_str(),sizeof(addr.sun_path)-1) ;
+		for( int _ : iota(EbpfDaemon::NTrials) ) {
+			if (::connect(s,reinterpret_cast<struct sockaddr*>(&addr),sizeof(addr))==0) goto Connected ;
+			Child child {
+				.as_session = true
+			,	.cmd_line   = { *g_lmake_root_s+"_bin/lmake_bpfd" }
+			,	.stdout     = Child::PipeFd
+			} ;
+			child.spawn() ;
+			::string reply = child.stdout.read() ;
+			switch (reply[0]) {
+				case '0' : child.wait     () ; break ;                                                  // daemon is already running, wait for this new one that will terminate shortly
+				case '1' : child.mk_daemon() ; break ;                                                  // daemon is starting, let it live its daemon life
+				default  : child.wait     () ; throw_unless( +reply ,"cannot launch ebpf daemon" ) ;
+			}
 		}
-		// a stuck daemon must not block the job for ever, daemon answers within a few rcu grace periods
+		throw cat("cannot reach the ebpf daemon on ",sock_name," after ",EbpfDaemon::NTrials," trials") ;
+	Connected :
+		// a stuck daemon must not block the job forever, daemon answers within a few rcu grace periods
 		{	struct timeval tv = { .tv_sec=60 , .tv_usec=0 } ;
 			::setsockopt( s , SOL_SOCKET , SO_RCVTIMEO , &tv , sizeof(tv) ) ;
 			::setsockopt( s , SOL_SOCKET , SO_SNDTIMEO , &tv , sizeof(tv) ) ;
@@ -896,13 +915,12 @@ namespace AutodepEbpf {
 		hello.deps_in_system = deps_in_system ;
 		// dirs of interest : the repo and source dirs lying outside the repo (when inside, they are part of the repo)
 		// they are opened here so that the daemon can make the kernel know them, independently of the way the job will see them (chroot, views, ...)
-		::vector<int> root_fds ;
+		::vector<AcFd> root_fds ;                                                                                                        // daemon keeps them open
 		auto add_root = [&]( ::string const& dir_s , size_t r ) {
-			if (root_fds.size()>=EBPF_MAX_ROOTS) { for( int fd : root_fds ) ::close(fd) ; ::close(s) ; throw cat("too many source dirs for autodep method ebpf (max ",EBPF_MAX_ROOTS-1,')') ; }
-			int fd = ::open( no_slash(dir_s).c_str() , O_PATH|O_DIRECTORY|O_CLOEXEC ) ;
-			if (fd<0) return ;                                                                          // nothing can be accessed there
-			root_fds .push_back(fd) ;
-			_g_roots .push_back(r ) ;
+			throw_unless( root_fds.size()<EBPF_MAX_ROOTS , "too many source dirs for autodep method ebpf (max ",EBPF_MAX_ROOTS-1,')' ) ;
+			AcFd fd { ::open( dir_s.c_str() , O_PATH|O_DIRECTORY|O_CLOEXEC ) } ; if (!fd) return ;                                       // nothing can be accessed there
+			root_fds.push_back(::move(fd)) ;
+			_g_roots.push_back(       r  ) ;
 		} ;
 		add_root( phy_repo_root_s , Npos ) ;
 		throw_unless( +root_fds , "cannot open repo root ",phy_repo_root_s ) ;
@@ -913,25 +931,14 @@ namespace AutodepEbpf {
 		hello.n_roots = root_fds.size() ;
 		//
 		bool ok = _send_hello(s,hello,root_fds) ;
-		for( int fd : root_fds ) ::close(fd) ;                                                          // daemon keeps them open
-		if (!ok) {
-			::close(s) ;
-			throw "cannot talk to the ebpf daemon"s ;
-		}
-		EbpfDaemon::Reply reply = {} ;
-		int        rb_fd = -1 ;
-		if (!_recv_reply(s,&reply,&rb_fd)) {
-			::close(s) ;
-			throw cat("the ebpf daemon does not answer") ;
-		}
-		if (reply.err || rb_fd<0 ) {
-			if (rb_fd>=0) ::close(rb_fd) ;
-			/**/          ::close(s    ) ;
-			throw "the ebpf daemon could not register the job (cf. its log)"s ;
-		}
+		throw_unless( ok , "cannot talk to the ebpf daemon" ) ;
+		EbpfDaemon::Reply reply ;
+		AcFd              rb_fd ;
+		throw_unless( _recv_reply( s , /*out*/reply , /*out*/rb_fd ) , "the ebpf daemon does not answer"                          ) ;
+		throw_unless( !reply.err && +rb_fd                           , "the ebpf daemon could not register the job (cf. its log)" ) ;
 		//
-		_g_sock   = s            ;                                                                      // keep the connection open : closing it releases the job in the daemon
-		_g_rb_fd  = rb_fd        ;
+		_g_sock   = s    .detach() ; // keep the connection open : closing it releases the job in the daemon
+		_g_rb_fd  = rb_fd.detach() ;
 		_g_job_id = reply.job_id ;
 		//
 		Gather::s_ebpf_start         = _start         ;

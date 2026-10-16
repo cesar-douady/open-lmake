@@ -70,4 +70,5 @@ else :
 		exit()
 
 	for ad in lmake.autodeps :
-		ut.lmake( f'dut.{ad}.ok' , f'dut.{ad}.ko' , done=1 , failed=1 , rc=1 )
+		if ad=='ebpf' : ut.lmake( f'dut.{ad}.ok' , f'dut.{ad}.ko' , done=2                   )
+		else          : ut.lmake( f'dut.{ad}.ok' , f'dut.{ad}.ko' , done=1 , failed=1 , rc=1 )

@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 61      ; // f34d6fdccba17e9b2302fefa95735dbf
+	uint64_t    constexpr Cache = 61      ; // e85acb13f4d660e905b06450804a8342
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 66      ; // 5e997e90caaba1a0f7eef474819d0e84
+	uint64_t    constexpr Repo  = 66      ; // 58d11ddd0c0aac6297c3e40e6871e728
 	uint64_t    constexpr Job   = 34      ; // a4d8df9188776834d6876fbad8288bd0
 	const char* const     Major = "26.10" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : f34d6fdccba17e9b2302fefa95735dbf *
+// * Cache : e85acb13f4d660e905b06450804a8342 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -444,7 +444,9 @@ namespace Version {
 //	#endif
 //	// aliases
 //	,	Ld = LdPreload         // >=Ld means method is ld-based
-//	#if HAS_LD_AUDIT
+//	#if HAS_EBPF
+//		,	DfltLd = LdAudit   // XXX> : change to Ebpf when reliable
+//	#elif HAS_LD_AUDIT
 //		,	DfltLd = LdAudit   // default value while ensuring it is of ld-based kind
 //	#else
 //		,	DfltLd = LdPreload // .
@@ -636,13 +638,13 @@ namespace Version {
 //			// START_OF_VERSIONING REPO CACHE
 //			::serdes( s , sz,dflags ) ;
 //			// bitfields cannot be serialized directly as no ref is allowed
-//			Accesses::Val accesses__       = {}    ; // XXX/  : initialization is to please c++26
-//			Accesses::Val chunk_accesses__ = {}    ; // .
-//			bool          parallel_        = false ; // .
-//			bool          is_crc_          = false ; // .
-//			bool          hot_             = false ; // .
-//			bool          err_             = false ; // .
-//			bool          create_encode_   = false ; // .
+//			Accesses::Val accesses__       = {}    ;                                                  // XXX/  : initialization is to please c++26
+//			Accesses::Val chunk_accesses__ = {}    ;                                                  // .
+//			bool          parallel_        = false ;                                                  // .
+//			bool          is_crc_          = false ;                                                  // .
+//			bool          hot_             = false ;                                                  // .
+//			bool          err_             = false ;                                                  // .
+//			bool          create_encode_   = false ;                                                  // .
 //			if (IsOStream<S>) {
 //				accesses__       = accesses_       ;
 //				chunk_accesses__ = chunk_accesses_ ;
@@ -1245,7 +1247,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 5e997e90caaba1a0f7eef474819d0e84 *
+// * Repo : 58d11ddd0c0aac6297c3e40e6871e728 *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2114,7 +2116,9 @@ namespace Version {
 //	#endif
 //	// aliases
 //	,	Ld = LdPreload         // >=Ld means method is ld-based
-//	#if HAS_LD_AUDIT
+//	#if HAS_EBPF
+//		,	DfltLd = LdAudit   // XXX> : change to Ebpf when reliable
+//	#elif HAS_LD_AUDIT
 //		,	DfltLd = LdAudit   // default value while ensuring it is of ld-based kind
 //	#else
 //		,	DfltLd = LdPreload // .
@@ -2306,13 +2310,13 @@ namespace Version {
 //			// START_OF_VERSIONING REPO CACHE
 //			::serdes( s , sz,dflags ) ;
 //			// bitfields cannot be serialized directly as no ref is allowed
-//			Accesses::Val accesses__       = {}    ; // XXX/  : initialization is to please c++26
-//			Accesses::Val chunk_accesses__ = {}    ; // .
-//			bool          parallel_        = false ; // .
-//			bool          is_crc_          = false ; // .
-//			bool          hot_             = false ; // .
-//			bool          err_             = false ; // .
-//			bool          create_encode_   = false ; // .
+//			Accesses::Val accesses__       = {}    ;                                                  // XXX/  : initialization is to please c++26
+//			Accesses::Val chunk_accesses__ = {}    ;                                                  // .
+//			bool          parallel_        = false ;                                                  // .
+//			bool          is_crc_          = false ;                                                  // .
+//			bool          hot_             = false ;                                                  // .
+//			bool          err_             = false ;                                                  // .
+//			bool          create_encode_   = false ;                                                  // .
 //			if (IsOStream<S>) {
 //				accesses__       = accesses_       ;
 //				chunk_accesses__ = chunk_accesses_ ;

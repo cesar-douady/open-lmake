@@ -38,7 +38,9 @@ enum class AutodepMethod : uint8_t {
 #endif
 // aliases
 ,	Ld = LdPreload         // >=Ld means method is ld-based
-#if HAS_LD_AUDIT
+#if HAS_EBPF
+	,	DfltLd = LdAudit   // XXX> : change to Ebpf when reliable
+#elif HAS_LD_AUDIT
 	,	DfltLd = LdAudit   // default value while ensuring it is of ld-based kind
 #else
 	,	DfltLd = LdPreload // .
@@ -565,7 +567,7 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		/**/                   if (is_crc                  ) return _crc==ddb._crc ;
 		/**/                                                 return _sig==ddb._sig ;
 	}
-	void operator>>(::string& os) const {                                                                                                                              // START_OF_NO_COV
+	void operator>>(::string& os) const {                                                         // START_OF_NO_COV
 		First first ;
 		/**/                                   os << "D("                                       ;
 		if constexpr ( !::is_void_v<B>       ) os << first("",",")<<static_cast<B const&>(self) ;
@@ -578,18 +580,18 @@ template<class B> struct DepDigestBase : NoVoid<B> {
 		if           (  err                  ) os << first("",",")<<"err"                       ;
 		if           (  create_encode        ) os << first("",",")<<"create_encode"             ;
 		/**/                                   os << ')'                                        ;
-	}                                                                                                                                                                  // END_OF_NO_COV
+	}                                                                                             // END_OF_NO_COV
 	template<IsStream S> void serdes(S& s) {
 		// START_OF_VERSIONING REPO CACHE
 		::serdes( s , sz,dflags ) ;
 		// bitfields cannot be serialized directly as no ref is allowed
-		Accesses::Val accesses__       = {}    ; // XXX/  : initialization is to please c++26
-		Accesses::Val chunk_accesses__ = {}    ; // .
-		bool          parallel_        = false ; // .
-		bool          is_crc_          = false ; // .
-		bool          hot_             = false ; // .
-		bool          err_             = false ; // .
-		bool          create_encode_   = false ; // .
+		Accesses::Val accesses__       = {}    ;                                                  // XXX/  : initialization is to please c++26
+		Accesses::Val chunk_accesses__ = {}    ;                                                  // .
+		bool          parallel_        = false ;                                                  // .
+		bool          is_crc_          = false ;                                                  // .
+		bool          hot_             = false ;                                                  // .
+		bool          err_             = false ;                                                  // .
+		bool          create_encode_   = false ;                                                  // .
 		if (IsOStream<S>) {
 			accesses__       = accesses_       ;
 			chunk_accesses__ = chunk_accesses_ ;

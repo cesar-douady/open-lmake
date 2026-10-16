@@ -445,7 +445,7 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 
 template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_tab() {
 	SyscallDescr::Tab tab = {} ;
-	#if HAS_32
+	#if HAS_32_IN_64
 		#define SC_NUM(sc) Is32 ? MACRO_VAL(SYS32_##sc,-1L) : MACRO_VAL(SYS_##sc,-1L)
 	#else
 		#define SC_NUM(sc)                                    MACRO_VAL(SYS_##sc,-1L)
@@ -521,11 +521,11 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 	return tab ;
 }
 
-//                                                                                          Is32
-/**/       constexpr SyscallDescr::Tab        SyscallDescrTab       = _mk_syscall_descr_tab<false>() ;
-IF_HAS_32( constexpr SyscallDescr::Tab        SyscallDescrTab32     = _mk_syscall_descr_tab<true >() ; )
-/**/                 SyscallDescr::Tab const& SyscallDescr::s_tab   = SyscallDescrTab                ;
-IF_HAS_32(           SyscallDescr::Tab const& SyscallDescr::s_tab32 = SyscallDescrTab32              ; )
+//                                                                                                Is32
+/**/             constexpr SyscallDescr::Tab        SyscallDescrTab       = _mk_syscall_descr_tab<false>() ;
+IF_HAS_32_IN_64( constexpr SyscallDescr::Tab        SyscallDescrTab32     = _mk_syscall_descr_tab<true >() ; )
+/**/                       SyscallDescr::Tab const& SyscallDescr::s_tab   = SyscallDescrTab                ;
+IF_HAS_32_IN_64(           SyscallDescr::Tab const& SyscallDescr::s_tab32 = SyscallDescrTab32              ; )
 
 #if HAS_EBPF
 	// check all interesting syscalls are caught by ebpf
@@ -576,20 +576,20 @@ template<uint8_t N> static constexpr ::array<BpfInstr,NBpfInstrs<N>> _mk_bpf_fil
 	return res ;
 }
 
-/**/       static constexpr uint NBpfSyscalls   = [] { uint n = 0 ; for( SyscallDescr const& e : SyscallDescrTab   ) if (+e) n++ ; return n ; }() ;
-IF_HAS_32( static constexpr uint NBpfSyscalls32 = [] { uint n = 0 ; for( SyscallDescr const& e : SyscallDescrTab32 ) if (+e) n++ ; return n ; }() ; )
+/**/             static constexpr uint NBpfSyscalls   = [] { uint n = 0 ; for( SyscallDescr const& e : SyscallDescrTab   ) if (+e) n++ ; return n ; }() ;
+IF_HAS_32_IN_64( static constexpr uint NBpfSyscalls32 = [] { uint n = 0 ; for( SyscallDescr const& e : SyscallDescrTab32 ) if (+e) n++ ; return n ; }() ; )
 
 constexpr uint8_t BpfFilterSz =
-	IF_HAS_32( +2                            ) // load+check arch
-	/**/       +1+NBpfInstrs<NBpfSyscalls  >   // load nr + filter
-	IF_HAS_32( +1+NBpfInstrs<NBpfSyscalls32> ) // load nr + filter 32-bit
-	/**/       +2                              // return
+	IF_HAS_32_IN_64( +2                            ) // load+check arch
+	/**/             +1+NBpfInstrs<NBpfSyscalls  >   // load nr + filter
+	IF_HAS_32_IN_64( +1+NBpfInstrs<NBpfSyscalls32> ) // load nr + filter 32-bit
+	/**/             +2                              // return
 ;
 template<uint32_t SeccompRetCatch> static constexpr ::array<BpfInstr,BpfFilterSz> mk_bpf_filter() {
 	::array<BpfInstr,BpfFilterSz> res ;
 	uint                          i   = 0 ;
 	// load+check arch
-	#if HAS_32
+	#if HAS_32_IN_64
 		res[i++] = { .code=BPF_LD |BPF_W|BPF_ABS , .jt=0 , .jf=0                                   , .k=offsetof(struct ::seccomp_data,arch) } ;
 		res[i++] = { .code=BPF_JMP|BPF_JEQ|BPF_K , .jt=0 , .jf=uint8_t(1+NBpfInstrs<NBpfSyscalls>) , .k=NonPortable::Arch                    } ;
 		uint8_t N32 = 1+NBpfInstrs<NBpfSyscalls32> ;
@@ -603,7 +603,7 @@ template<uint32_t SeccompRetCatch> static constexpr ::array<BpfInstr,BpfFilterSz
 	::copy( _mk_bpf_filter_tree<NBpfSyscalls>(0,N32,N32+1) , res.begin()+i ) ; i += NBpfInstrs<NBpfSyscalls> ;
 	//
 	// load nr + filter 32-bit
-	#if HAS_32
+	#if HAS_32_IN_64
 		uint8_t start32 = i ;
 		res[i++] = { .code=BPF_LD |BPF_W|BPF_ABS , .jt=0 , .jf=0 , .k=offsetof(struct ::seccomp_data,nr) } ;
 		::copy( _mk_bpf_filter_tree<NBpfSyscalls32>(0,0,1) , res.begin()+i ) ; i += NBpfInstrs<NBpfSyscalls32> ;
@@ -616,11 +616,11 @@ template<uint32_t SeccompRetCatch> static constexpr ::array<BpfInstr,BpfFilterSz
 	SWEAR( i==BpfFilterSz , i,BpfFilterSz ) ;
 	//
 	/**/       ::array<uint,NBpfSyscalls  > syscalls   ;
-	IF_HAS_32( ::array<uint,NBpfSyscalls32> syscalls32 ; )
-	/**/       i = 0 ; for( uint sc : iota(SyscallDescrTab  .size()) ) if (+SyscallDescrTab  [sc]) syscalls  [i++] = sc ; SWEAR( i==NBpfSyscalls   , i,NBpfSyscalls   ) ;
-	IF_HAS_32( i = 0 ; for( uint sc : iota(SyscallDescrTab32.size()) ) if (+SyscallDescrTab32[sc]) syscalls32[i++] = sc ; SWEAR( i==NBpfSyscalls32 , i,NBpfSyscalls32 ) ; )
-	/**/       ::sort(syscalls  ) ;
-	IF_HAS_32( ::sort(syscalls32) ; )
+	IF_HAS_32_IN_64( ::array<uint,NBpfSyscalls32> syscalls32 ; )
+	/**/             i = 0 ; for( uint sc : iota(SyscallDescrTab  .size()) ) if (+SyscallDescrTab  [sc]) syscalls  [i++] = sc ; SWEAR( i==NBpfSyscalls   , i,NBpfSyscalls   ) ;
+	IF_HAS_32_IN_64( i = 0 ; for( uint sc : iota(SyscallDescrTab32.size()) ) if (+SyscallDescrTab32[sc]) syscalls32[i++] = sc ; SWEAR( i==NBpfSyscalls32 , i,NBpfSyscalls32 ) ; )
+	/**/             ::sort(syscalls  ) ;
+	IF_HAS_32_IN_64( ::sort(syscalls32) ; )
 	//
 	for( BpfInstr& instr : res ) {
 		if (&instr<&res[start]) continue ;
@@ -628,7 +628,7 @@ template<uint32_t SeccompRetCatch> static constexpr ::array<BpfInstr,BpfFilterSz
 			case BPF_JMP|BPF_JEQ|BPF_K :
 			case BPF_JMP|BPF_JGE|BPF_K :
 			case BPF_JMP|BPF_JGT|BPF_K :
-				#if HAS_32
+				#if HAS_32_IN_64
 					instr.k = &instr<&res[start32] ? syscalls[instr.k] : syscalls32[instr.k] ;
 				#else
 					instr.k =                        syscalls[instr.k]                       ;

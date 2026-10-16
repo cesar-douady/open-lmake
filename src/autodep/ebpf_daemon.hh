@@ -7,10 +7,16 @@
 
 #pragma once
 
+#include <fcntl.h>
 #include <stdio.h>
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <cstdint>
+#include <cstdio>
+#include <ctime>
+
+#include <format>
 #include <string>
 
 // /!\ must list all the syscalls of SyscallDescr::s_tab that access files through a path (this is checked by ebpf.cc)
@@ -78,16 +84,18 @@
 
 namespace EbpfDaemon {
 
-	struct Hello {                // client -> daemon : sent once at connect, the dir fds of the roots are sent as an SCM_RIGHTS ancillary message
-		uint64_t pidns_dev      ; // the client's pid namespace (dev,ino of /proc/self/ns/pid), so reported tids are meaningful to the client
-		uint64_t pidns_ino      ;
-		uint32_t deps_in_system ; // if 0, system files (/usr, /lib, /etc, ...) are simple, cf. Record::s_is_simple
-		uint32_t n_roots        ; // number of root dirs (<=EBPF_MAX_ROOTS) : only accesses lying in these dirs are reported
+	static constexpr int NTrials = 3 ; // number of times to try to launch daemon before giving up
+
+	struct Hello {                    // client -> daemon : sent once at connect, the dir fds of the roots are sent as an SCM_RIGHTS ancillary message
+		uint64_t pidns_dev      = 0 ; // the client's pid namespace (dev,ino of /proc/self/ns/pid), so reported tids are meaningful to the client
+		uint64_t pidns_ino      = 0 ;
+		uint32_t deps_in_system = 0 ; // if 0, system files (/usr, /lib, /etc, ...) are simple, cf. Record::s_is_simple
+		uint32_t n_roots        = 0 ; // number of root dirs (<=EBPF_MAX_ROOTS) : only accesses lying in these dirs are reported
 	} ;
 
-	struct Reply {        // daemon -> client : job id, plus the job's ring buffer fd sent as an SCM_RIGHTS ancillary message on success
-		bool     err    ; // no fd if set
-		uint32_t job_id ;
+	struct Reply {                // daemon -> client : job id, plus the job's ring buffer fd sent as an SCM_RIGHTS ancillary message on success
+		bool     err    = false ; // no fd if set
+		uint32_t job_id = 0     ;
 	} ;
 
 	enum class ReqKey : uint8_t {
@@ -96,8 +104,8 @@ namespace EbpfDaemon {
 	} ;
 
 	struct Stats {
-		uint64_t seq  ; // number of events the kernel has emitted (or tried to emit) for this job
-		uint64_t lost ; // number of events that could not be pushed to the ring buffer (or whose data could not be captured), the job cannot be trusted if not 0
+		uint64_t seq  = 0 ; // number of events the kernel has emitted (or tried to emit) for this job
+		uint64_t lost = 0 ; // number of events that could not be pushed to the ring buffer (or whose data could not be captured), the job cannot be trusted if not 0
 	} ;
 
 	// easy, fast and good enough
@@ -118,15 +126,16 @@ namespace EbpfDaemon {
 	// unix-socket protocol between the root daemon (loads/attaches the shared programs) and the unprivileged job clients (job_exec/lautodep)
 	constexpr char SockDir[] = "/run/open-lmake" ;
 
-	inline std::string get_sock_name() {
+	inline std::string get_file_name(const char* sfx) {
 		using namespace std::string_literals ;
 		std::string exe        ( PATH_MAX , 0 )                                           ;
 		ssize_t     exe_len    = ::readlink( "/proc/self/exe" , exe.data() , exe.size() ) ; if ( exe_len<0 || size_t(exe_len)>=exe.size()   ) throw "cannot read exe name"s        ;
 		size_t      slash      = exe.rfind('/',exe.rfind('/',exe_len)-1)                  ; if ( slash==std::string::npos                   ) throw "cannot find 2 / in exe name"s ;
 		std::string lmake_root = exe.substr(0,slash)                                      ;
 		Fnv         fnv        { lmake_root }                                             ;
-		std::string res        = std::format("{}/daemon-{:08x}.sock",SockDir,+fnv)        ; if ( res.size()>=sizeof(sockaddr_un().sun_path) ) throw "socket name too long"s        ;
+		std::string res        = std::format("{}/daemon-{:08x}.{}",SockDir,+fnv,sfx)      ; if ( res.size()>=sizeof(sockaddr_un().sun_path) ) throw "socket name too long"s        ;
 		return res ;
 	}
+	inline std::string get_sock_name() { return get_file_name("sock") ; }
 
 }

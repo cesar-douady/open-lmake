@@ -12,6 +12,8 @@
 
 #include "non_portable.hh"
 
+#define HAS_32_IN_64 ( HAS_32 && __SIZEOF_POINTER__==8 )
+
 namespace NonPortable {
 
 	#if HAS_32
@@ -35,14 +37,14 @@ namespace NonPortable {
 	}
 
 	Bool3 is_32_from_elf(const char* elf_hdr) {
-		if (::strncmp(elf_hdr,"\177ELF",4)!=0) return  Maybe ; // not an elf
+		if (::strncmp(elf_hdr,"\177ELF",4)!=0) return  Maybe ;  // not an elf
 		switch (elf_hdr[EI_CLASS]) {
-			case ELFCLASS64 : return Maybe&IS_32 ;             // 64-bit elf are only recognized in 64-bit hosts
-			case ELFCLASS32 : break              ;             // need to further analyze to manage -mx32 mode which appears as 32-bit elf with 64-bits architecture
-			default         : return Maybe       ;             // not an elf (or at least not reconizable)
+			case ELFCLASS64 : return Maybe&(sizeof(void*)==4) ; // 64-bit elf are only recognized in 64-bit hosts
+			case ELFCLASS32 : break                           ; // need to further analyze to manage -mx32 mode which appears as 32-bit elf with 64-bits architecture
+			default         : return Maybe                    ; // not an elf (or at least not reconizable)
 		}
-		if (reinterpret_cast<Elf32_Ehdr const*>(elf_hdr)->e_machine==EM_X86_64) return Maybe&IS_32 ; // -mx32, only recognized in 64-bit hosts
-		else                                                                    return Yes  &IS_64 ; // real 32-bit, only reported as 32-bit in 64-bit hosts
+		if (reinterpret_cast<Elf32_Ehdr const*>(elf_hdr)->e_machine==EM_X86_64) return Maybe&(sizeof(void*)==4) ; // -mx32, only recognized in 64-bit hosts
+		else                                                                    return Yes  &(sizeof(void*)==8) ; // real 32-bit, only reported as 32-bit in 64-bit hosts
 	}
 
 	template<bool Set,bool Is32=false> static void _get_set( pid_t pid , UserRegsStruct<Is32>&/*inout*/ regs ) {
@@ -61,29 +63,27 @@ namespace NonPortable {
 
 	// info from : https://www.chromium.org/chromium-os/developer-library/reference/linux-constants/syscalls
 
-	bool ptrace_is_32(pid_t pid) {
-		constexpr size_t Sz = sizeof(UserRegsStruct<false/*Is32*/>) ;
-		#if HAS_32
-			constexpr size_t Sz32  = sizeof(UserRegsStruct<true/*Is32*/>) ;
-			constexpr size_t BufSz = ::max(Sz,Sz32)+sizeof(size_t)        ;                                 // an impossible buf size larger than what can possibly be needed
+	bool ptrace_is_32([[maybe_unused]] pid_t pid) {
+		#if !HAS_32
+			return sizeof(void*)==4 ;
 		#else
-			constexpr size_t BufSz = Sz+sizeof(size_t)                    ;                                 // .
-		#endif
-		//
-		alignas(size_t) char buf[BufSz] ;                                                                  // no need for init as buf is not read
-		Iovec                iov        { .iov_base=buf , .iov_len=BufSz }                               ;
-		long                 rc         = ::ptrace( PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
-		throw_unless( rc==0 , "cannot get"," (",StrErr(),") regs from pid ",pid ) ;
-		//
-		#if HAS_32                                                                                          // cannot check size if no 32-bit support
+			constexpr size_t Sz    = sizeof(UserRegsStruct<false/*Is32*/>) ;
+			constexpr size_t Sz32  = sizeof(UserRegsStruct<true /*.   */>) ;
+			constexpr size_t BufSz = ::max(Sz,Sz32)+sizeof(size_t)         ;                                   // an impossible buf size larger than what can possibly be needed
+			//
+			alignas(size_t) char buf[BufSz] ;                                                                  // no need for init as buf is not read
+			Iovec                iov        { .iov_base=buf , .iov_len=BufSz }                               ;
+			long                 rc         = ::ptrace( PTRACE_GETREGSET , pid , (void*)NT_PRSTATUS , &iov ) ;
+			throw_unless( rc==0 , "cannot get"," (",StrErr(),") regs from pid ",pid ) ;
+			//
 			SWEAR( iov.iov_len==Sz || iov.iov_len==Sz32 , iov.iov_len ) ;
+			return iov.iov_len!=Sz ;
 		#endif
-		return iov.iov_len!=Sz ;
 	}
 
-	::array<uint64_t,6> ptrace_get_args( pid_t pid , bool is_32 ) { // info come from man 2 syscall
+	::array<uint64_t,6> ptrace_get_args( pid_t pid , [[maybe_unused]] bool is_32 ) { // info come from man 2 syscall
 		::array<uint64_t,6> res ;
-		#if HAS_32
+		#if HAS_32_IN_64
 			if (is_32) {
 				UserRegsStruct<true/*Is32*/> regs = _get<true/*Is32*/>(pid) ;
 				#if __x86_64__
@@ -108,12 +108,11 @@ namespace NonPortable {
 					res[4] = regs.gprs[6] ;
 					res[5] = regs.gprs[7] ;
 				#else
-					#error "cannot has HAS_32 within 32-bit hosts"
+					#error "architecture not supported"
 				#endif
 				return res ;
 			}
 		#endif
-		SWEAR_PROD(!is_32) ;
 		UserRegsStruct<> regs = _get(pid) ;
 		#if __x86_64__
 			res[0] = regs.rdi     ;                                 // full struct is retrieved with x86
@@ -156,8 +155,8 @@ namespace NonPortable {
 		return res ;
 	}
 
-	int64_t ptrace_get_res( pid_t pid , bool is_32 ) {
-		#if HAS_32
+	int64_t ptrace_get_res( pid_t pid , [[maybe_unused]] bool is_32 ) {
+		#if HAS_32_IN_64
 			if (is_32) {
 				UserRegsStruct<true/*Is32*/> regs = _get<true/*Is32*/>(pid) ;
 				#if __x86_64__
@@ -167,11 +166,10 @@ namespace NonPortable {
 				#elif __s390x__
 					return regs.gprs[2] ;
 				#else
-					#error "cannot has HAS_32 within 32-bit hosts"
+					#error "unrecognized architecture"
 				#endif
 			}
 		#endif
-		SWEAR_PROD(!is_32) ;
 		UserRegsStruct<> regs = _get(pid) ;
 		#if __x86_64__
 			return regs.rax     ;
@@ -188,8 +186,8 @@ namespace NonPortable {
 		#endif
 	}
 
-	long ptrace_get_nr( pid_t pid , bool is_32 ) {
-		#if HAS_32
+	long ptrace_get_nr( pid_t pid , [[maybe_unused]] bool is_32 ) {
+		#if HAS_32_IN_64
 			if (is_32) {
 				UserRegsStruct<true/*Is32*/> regs = _get<true/*Is32*/>(pid) ;
 				#if __x86_64__
@@ -199,11 +197,10 @@ namespace NonPortable {
 				#elif __s390x__
 					return regs.gprs[1]  ;
 				#else
-					#error "cannot has HAS_32 within 32-bit hosts"
+					#error "unrecognized architecture"
 				#endif
 			}
 		#endif
-		SWEAR_PROD(!is_32) ;
 		UserRegsStruct<> regs = _get(pid) ;
 		#if __x86_64__
 			return regs.orig_rax ;
@@ -220,8 +217,8 @@ namespace NonPortable {
 		#endif
 	}
 
-	void ptrace_set_res( pid_t pid , int64_t val , bool is_32 ) {
-		#if HAS_32
+	void ptrace_set_res( pid_t pid , int64_t val , [[maybe_unused]] bool is_32 ) {
+		#if HAS_32_IN_64
 			if (is_32) {
 				UserRegsStruct<true/*Is32*/> regs = _get<true/*Is32*/>(pid) ;
 				#if __x86_64__
@@ -231,13 +228,12 @@ namespace NonPortable {
 				#elif __s390x__
 					regs.gprs[2] = int32_t(val) ;
 				#else
-					#error "cannot has HAS_32 within 32-bit hosts"
+					#error "unrecognized architecture"
 				#endif
 				_set<true/*Is32*/>(pid,regs) ;
 				return ;
 			}
 		#endif
-		SWEAR_PROD(!is_32) ;
 		UserRegsStruct<> regs = _get(pid) ;
 		#if __x86_64__
 			regs.rax     = val ;
@@ -255,8 +251,8 @@ namespace NonPortable {
 		_set(pid,regs) ;
 	}
 
-	void ptrace_set_nr( pid_t pid , int64_t val , bool is_32 ) {
-		#if HAS_32
+	void ptrace_set_nr( pid_t pid , int64_t val , [[maybe_unused]] bool is_32 ) {
+		#if HAS_32_IN_64
 			if (is_32) {
 				UserRegsStruct<true/*Is32*/> regs = _get<true/*Is32*/>(pid) ;
 				#if __x86_64__
@@ -266,13 +262,12 @@ namespace NonPortable {
 				#elif __s390x__
 					regs.gprs[1]  = int32_t(val) ;
 				#else
-					#error "cannot has HAS_32 within 32-bit hosts"
+					#error "unrecognized architecture"
 				#endif
 				_set<true/*Is32*/>(pid,regs) ;
 				return ;
 			}
 		#endif
-		SWEAR_PROD(!is_32) ;
 		UserRegsStruct<> regs = _get(pid) ;
 		#if __x86_64__
 			regs.orig_rax = val ;

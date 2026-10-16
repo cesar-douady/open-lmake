@@ -39,10 +39,10 @@ int main( int argc , char* /*argv*/[] ) {
 	for( Buildable b : iota(All<Buildable>) ) out_tab.emplace_back( cat("nodes ",b                           ) , n_nodes[+b] ) ;
 	for( Buildable b : iota(All<Buildable>) ) out_tab.emplace_back( cat("deps " ,b                           ) , n_deps [+b] ) ;
 	//
-	size_t   wk  = ::max<size_t>( out_tab , [&](auto const& k_v) { return     k_v.first  .size() ; } ) ;
-	size_t   wv  = ::max<size_t>( out_tab , [&](auto const& k_v) { return cat(k_v.second).size() ; } ) ;
+	size_t   wk  = ::max<size_t>( out_tab , [&](::pair_s<size_t> const& k_v) { return     k_v.first  .size() ; } ) ;
+	size_t   wv  = ::max<size_t>( out_tab , [&](::pair_s<size_t> const& k_v) { return cat(k_v.second).size() ; } ) ;
 	::string out ;
-	for( auto const& [k,v] : out_tab ) if (v) out << widen(k,wk) <<" : "<< widen(cat(v),wv,true/*right*/) <<'\n' ;
+	for( auto const& [k,v] : out_tab ) if (v) out << widen(k,wk)<<" : "<<widen(cat(v),wv,true/*right*/)<<'\n' ;
 	Fd::Stdout.write(out) ;
 	//
 	return 0 ;

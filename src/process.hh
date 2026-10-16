@@ -9,6 +9,7 @@
 
 #include <csignal>
 
+#include "disk.hh"
 #include "msg.hh"
 #include "trace.hh"
 
@@ -64,8 +65,7 @@ struct Child {
 	int/*wstatus*/ wait() {
 		SWEAR(pid!=0) ;
 		int wstatus ;
-		int rc      = ::waitpid(pid,&wstatus,0/*options*/) ;
-		swear_prod(rc==pid,"cannot wait for pid",pid) ;
+		int rc      = ::waitpid(pid,&wstatus,0/*options*/) ; swear_prod(rc==pid,"cannot wait for pid",pid) ;
 		waited() ;
 		return wstatus ;
 	}

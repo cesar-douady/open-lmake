@@ -515,9 +515,10 @@ src/autodep/ebpf.bpf.o : src/autodep/ebpf.bpf.c src/autodep/ebpf_event.h src/aut
 src/autodep/ebpf.skel.h : src/autodep/ebpf.bpf.o
 	@echo generate skeleton to $@
 	@$(BPFTOOL) gen skeleton $< name ebpf >$@
-src/autodep/ebpf_daemon.o : src/autodep/ebpf.skel.h # the daemon includes the skeleton ; the auto-dep .d does not exist on the first build, so make it an explicit prerequisite
+src/autodep/ebpf_daemon.o    : src/autodep/ebpf.skel.h # includes the skeleton ; the auto-dep .d does not exist on the first build, so make it an explicit prerequisite
+src/autodep/ebpf_self_test.o : src/autodep/ebpf.skel.h # .
 LMAKE_DBG_FILES += _bin/lmake_bpfd
-_bin/lmake_bpfd : src/autodep/ebpf_daemon.o
+_bin/lmake_bpfd : src/autodep/ebpf_self_test.o src/autodep/ebpf_daemon.o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) -o $@ $^ $(BPF_LIB)

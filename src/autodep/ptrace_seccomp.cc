@@ -63,14 +63,15 @@ static void _print_err(const char* reason) {
 namespace AutodepPtrace {
 
 	struct PidInfo : PidInfoBase {
+		static constexpr Bool3 Is32Dflt = HAS_32 ? Maybe : sizeof(void*)==8 ? No : Yes ;
 		// cxtors & co
 		using PidInfoBase::PidInfoBase ;
 		// services
 		void event( pid_t , int wstatus ) ;
 		// data
-		void* ctx     = nullptr ;
-		long  syscall = 0       ;
-		Bool3 is_32   = Maybe   ;
+		void* ctx     = nullptr  ;
+		long  syscall = 0        ;
+		Bool3 is_32   = Is32Dflt ;
 	} ;
 
 	// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
@@ -153,7 +154,7 @@ namespace AutodepPtrace {
 				}
 				if (refresh) {
 					proc_mem.close() ;
-					is_32 = Maybe ;
+					is_32 = Is32Dflt ;
 				}
 			} else {
 				// syscall exit

@@ -210,7 +210,7 @@ struct WalkCtx {
 	struct RootKey   rk           ;
 	__u32            saved_off    ;
 	__u32            saved        ;                                                                      // 0 : nothing saved, 1 : walking physically, 2 : resumed
-	__u32            copy         ;                                                                      // if 0, only look for the root
+	__u32            want_abs     ;                                                                      // if 0, only look for the root
 	__u32            off          ;
 	__u32            res          ;
 } ;
@@ -256,7 +256,7 @@ static long/*stop*/ _walk_step( __u64 idx , void* ctx ) {
 		c->saved  = 2               ;
 		return 0/*stop*/ ;
 	}
-	if (c->copy) {
+	if (c->want_abs) {
 		const char* name = (const char*)BPF_CORE_READ( dentry , d_name.name )                ; if (!name            )                         return 1/*stop*/ ;
 		__u32       off  = c->off                                                            ; if (off>=WALK_MAX_LEN) { c->res = WALK_TRUNC ; return 1/*stop*/ ; }
 		long        n    = bpf_probe_read_kernel_str( &dst->data[off] , 256/*size*/ , name ) ; if (n<=0             )                         return 1/*stop*/ ;
@@ -283,7 +283,7 @@ __noinline __u32 _walk( struct WalkData* dst , __u64 dentry , __u64 vmnt , __u32
 	,	.rk           = { .dentry=0 , .job_id=job_id , .pad=0 }
 	,	.saved_off    = 0
 	,	.saved        = 0
-	,	.copy         = want_abs // when the absolute path is looked for, the walk always succeeds
+	,	.want_abs     = want_abs // when the absolute path is looked for, the walk always succeeds
 	,	.off          = 0
 	,	.res          = 0
 	} ;
@@ -294,14 +294,14 @@ __noinline __u32 _walk( struct WalkData* dst , __u64 dentry , __u64 vmnt , __u32
 		c.troot_mnt = BPF_CORE_READ( fs , root.mnt    ) ;
 	}
 	bpf_loop( WALK_MAX_DEPTH , _walk_step , &c , 0/*flags*/ ) ;
-	if ( c.copy || !(c.res&WALK_OK) ) return c.res ;
+	if ( c.want_abs || !(c.res&WALK_OK) ) return c.res ;
 	// a root has been found, do it again to get the names
-	c.dentry = (struct dentry*)dentry                   ;
-	c.mnt    = vmnt ? (struct mount*)(vmnt-mnt_off) : 0 ;
-	c.saved  = 0                                        ;
-	c.copy   = 1                                        ;
-	c.off    = 0                                        ;
-	c.res    = 0                                        ;
+	c.dentry   = (struct dentry*)dentry                   ;
+	c.mnt      = vmnt ? (struct mount*)(vmnt-mnt_off) : 0 ;
+	c.saved    = 0                                        ;
+	c.want_abs = 1                                        ;
+	c.off      = 0                                        ;
+	c.res      = 0                                        ;
 	bpf_loop( WALK_MAX_DEPTH , _walk_step , &c , 0/*flags*/ ) ;
 	return c.res ;
 }

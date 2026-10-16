@@ -23,10 +23,11 @@
 	#define IF_HAS_EBPF(...)
 #endif
 
-#if HAS_32
-	#define IF_HAS_32(...) __VA_ARGS__
+#define HAS_32_IN_64 ( HAS_32 && __SIZEOF_POINTER__==8 )
+#if HAS_32_IN_64
+	#define IF_HAS_32_IN_64(...) __VA_ARGS__
 #else
-	#define IF_HAS_32(...)
+	#define IF_HAS_32_IN_64(...)
 #endif
 
 enum class SyscallConvention : uint8_t { // if ok                               , if error
@@ -39,10 +40,10 @@ struct SyscallDescr {
 	using Tab     = ::array<SyscallDescr,NSyscalls> ;      // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
 	using BpfProg = struct ::sock_fprog             ;
 	// static data
-	/**/       static Tab const& s_tab   ;
-	IF_HAS_32( static Tab const& s_tab32 ; )
-	/**/            static BpfProg const& s_bpf_prog_ptrace  ;
-	IF_HAS_SECCOMP( static BpfProg const& s_bpf_prog_seccomp ; )
+	/**/             static Tab const& s_tab   ;
+	IF_HAS_32_IN_64( static Tab const& s_tab32 ; )
+	/**/             static BpfProg const& s_bpf_prog_ptrace  ;
+	IF_HAS_SECCOMP ( static BpfProg const& s_bpf_prog_seccomp ; )
 	// accesses
 	constexpr bool operator+() const { return +comment ; } // entry or exit seem to be non-constexpr when compiling with sanitizer
 	// data
