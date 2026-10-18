@@ -44,7 +44,7 @@
 	if (!proc_mem) return {reinterpret_cast<const char*>(src)} ;
 	::string res                      ;
 	char     buf[::min(PAGE_SZ,1024)] ; // filenames longer than 1024 are really exceptional, no need to anticipate more than that
-	for (;;) {
+	for(;;) {
 		size_t  sz  = ::min( sizeof(buf) , size_t(PAGE_SZ-src%PAGE_SZ) ) ;
 		ssize_t cnt = ::pread( proc_mem , buf , sz , src )               ; if (cnt<=0) throw cat("cannot peek name from address 0x",to_hex(src)) ;
 		size_t  l   = ::strnlen( buf , sz )                              ;

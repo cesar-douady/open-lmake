@@ -114,7 +114,7 @@ static void _compute_crc_thread_func( size_t id , ::vector<NodeIdx> const* crcs 
 						size_t   rr_sz = phy_repo_root.size() ; SWEAR( rr_sz<PATH_MAX , phy_repo_root ) ; // ensure no overlap during memcpy
 						AcFd     fd    { tn }                 ;
 						::string buf   = fd.read(DiskBufSz)   ;
-						for (;;) {
+						for(;;) {
 							if (buf.find(phy_repo_root)!=Npos) { found = true ; break ; }                 // found
 							if (buf.size()<DiskBufSz         )                  break ;                   // not found
 							static_assert( DiskBufSz>2*PATH_MAX ) ;                                       // ensure no overlap during memcpy

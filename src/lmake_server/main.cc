@@ -171,7 +171,7 @@ static bool/*interrupted*/ _engine_loop() {
 	Trace trace("_engine_loop") ;
 	::umap<Req,Bool3/*out_active*/> fd_tab          ;                              // Maybe means both input and output are active, Yes means output is active, No means input is active
 	Pdate                           next_stats_date = New ;
-	for (;;) {
+	for(;;) {
 		bool empty = !g_engine_queue ;
 		if (empty) {                                                               // we are about to block, do some book-keeping
 			trace("wait") ;

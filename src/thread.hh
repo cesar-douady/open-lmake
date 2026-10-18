@@ -190,7 +190,7 @@ private :
 				this_->_request_stop() ;
 			}
 		} ;
-		for (;;) {
+		for(;;) {
 			this_->_run.wait(false) ; if (!this_->_run) continue ; // wait may spuriously return while still false
 			this_->_run = false ;
 			Bool3 stop_requested = this_->_stop_requested ;

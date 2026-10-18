@@ -386,7 +386,7 @@ namespace AutodepPtrace {
 			//
 			kill_process( child_pid , SIGCONT ) ;
 			//
-			for (;;) {
+			for(;;) {
 				for( Event const& event : epoll.wait() ) {
 					switch (event.data()) {
 						case Kind::Job : {

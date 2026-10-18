@@ -260,7 +260,7 @@ ClientSockFd::ClientSockFd( KeyedService service , bool reuse_addr , Delay timeo
 	uint32_t i_connect    = 1                    ;
 	::setsockopt( fd , IPPROTO_TCP , TCP_NODELAY  , &::ref<int>(1) , sizeof(int) ) ;                                      // avoid waiting for data packet aggregation
 	::setsockopt( fd , IPPROTO_TCP , TCP_QUICKACK , &::ref<int>(1) , sizeof(int) ) ;                                      // avoid waiting for ack  packet aggregation
-	for (;;) {
+	for(;;) {
 		if (has_timeout) {
 			TimeVal to ( ::max( Delay(0.001) , end-Pdate(New) ) ) ;                                                       // ensure to is positive
 			::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &to , sizeof(to) ) ;

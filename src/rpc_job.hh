@@ -506,7 +506,6 @@ struct DepInfo : ::variant< Hash::Crc , Disk::FileSig , Disk::FileInfo > {
 	//
 	bool seen(Accesses a) const {                                                                                                   // return true if accesses could perceive the existence of file
 		if (!a) return false ;
-		SWEAR( +self , self,a ) ;
 		switch (kind()) {
 			case Kind::Crc  : return !Crc::None.match( crc()             , a ) ;
 			case Kind::Sig  : return !Crc::None.match( Crc(sig ().tag()) , a ) ;

@@ -242,10 +242,10 @@ namespace AutodepEbpf {
 		// these are only necessary for paths the kernel could not resolve
 		::string _ext_target( Thread const& th , ::string const& file ) {
 			::string_view tmp_dir_s = +_env.tmp_dir_s ? ::string_view(_env.tmp_dir_s) : ::string_view(P_tmpdir "/") ;
-			::string      f         = file                                                                         ;
+			::string      f         = file                                                                          ;
 			if      (file.starts_with(tmp_dir_s)            ) {}
 			else if (file.starts_with("/dev/")              ) {}
-			else if (file.starts_with("/proc/self/")        ) f = cat("/proc/",th.pid               ,substr_view(file,10)) ;  // /proc/self is ours, not that of the job
+			else if (file.starts_with("/proc/self/")        ) f = cat("/proc/",th.pid,                substr_view(file,10)) ; // /proc/self is ours, not that of the job
 			else if (file.starts_with("/proc/thread-self/") ) f = cat("/proc/",th.pid,"/task/",th.tid,substr_view(file,17)) ;
 			else if (file.starts_with("/proc/")             ) {}
 			else if (_env.lnk_support==LnkSupport::FullExt  ) {}
@@ -421,11 +421,11 @@ namespace AutodepEbpf {
 			if ( rc>=0 && ( src_kind.is_dir || (exchange&&dst_kind.is_dir) ) && ( src.loc<=FileLoc::Dep || dst.loc<=FileLoc::Dep ) )
 				throw cat("renaming a dir (",osrc?src.real:"<outside repo>"s," -> ",odst?dst.real:"<outside repo>"s,") is not supported yet with autodep method ebpf") ; // XXX : implement
 			// files are read and unlinked in the source dir, their coresponding files in the destination dir are written
-			::vmap_s<FileInfo>                     reads     ;
-			::vmap_s<FileInfo>                     stats     ;
+			::vmap_s<FileInfo>                      reads     ;
+			::vmap_s<FileInfo>                      stats     ;
 			::umap_s<::pair<bool/*read*/,FileInfo>> unlnk_map ;                                              // files listed here are unlinked and read if value is true
-			::vmap_s<FileInfo>                     unlnks    ;
-			::vmap_s<FileInfo>                     writes    ;
+			::vmap_s<FileInfo>                      unlnks    ;
+			::vmap_s<FileInfo>                      writes    ;
 			auto do1 = [&]( Solved const& src , Kind src_kind , Solved const& dst ) {
 				if ( !src_kind.exists || src_kind.is_dir ) return ;                                          // only files are renamed here
 				if (+src.real0) {
@@ -435,7 +435,7 @@ namespace AutodepEbpf {
 					if      (src.loc<=FileLoc::Repo) unlnk_map.try_emplace (src.real,true/*read*/,src.info) ;
 					else if (src.loc<=FileLoc::Dep ) reads    .emplace_back(src.real,src.info             ) ;
 				}
-				if (no_replace) { if (dst.loc <=FileLoc::Dep ) stats .emplace_back(dst.real ,dst.info ) ; }  // probe existence of destination
+				if (no_replace) { if (dst.loc <=FileLoc::Dep ) stats .emplace_back(dst.real ,dst.info  ) ; } // probe existence of destination
 				if (+dst.real0) { if (dst.loc0<=FileLoc::Repo) writes.emplace_back(dst.real0,FileInfo()) ; }
 				else            { if (dst.loc <=FileLoc::Repo) writes.emplace_back(dst.real ,dst.info  ) ; }
 			} ;
@@ -500,22 +500,20 @@ namespace AutodepEbpf {
 	// the syscall is over : interpret captures
 	void Consumer::_end( Thread const& th , EbpfEvent const& ev ) {
 		Comment c ;
-		if      (ev.flags&EBPF_F_IO                       ) c = _io_comment(ev.nr)                   ;
-		else if (ev.nr<0||ev.nr>=SyscallDescr::NSyscalls  ) c = Comment::None                        ;
-		else if (!ev.is32                                 ) c = SyscallDescr::s_tab  [ev.nr].comment ;
+		if      (ev.flags&EBPF_F_IO                         ) c = _io_comment(ev.nr)                   ;
+		else if ( ev.nr<0 || ev.nr>=SyscallDescr::NSyscalls ) c = Comment::None                        ;
 		#if HAS_32
-			else                                            c = SyscallDescr::s_tab32[ev.nr].comment ;
-		#else
-			else                                            c = Comment::None                        ;
+			else if (ev.is32)                                 c = SyscallDescr::s_tab32[ev.nr].comment ;
 		#endif
+		else                                                  c = SyscallDescr::s_tab  [ev.nr].comment ;
 		// date
-		if (ev.stamp_ns) _date = Pdate( New , Pdate::Tick(ev.stamp_ns-_tai_offset_s*1'000'000'000l) ) ;
-		else             _date = New                                                                 ;
-		if (_date<=_last_date) { _date = _last_date ; _date++ ; }                                      // ensure syscalls are seen in order, even if clock is coarse
+		if (ev.stamp_ns      )   _date = Pdate( New , Pdate::Tick(ev.stamp_ns-_tai_offset_s*1'000'000'000l) ) ;
+		else                     _date = New                                                                  ;
+		if (_date<=_last_date) { _date = _last_date ; _date++ ; }                                       // ensure syscalls are seen in order, even if clock is coarse
 		//
-		int64_t         rc   = ev.rc         ;
+		int64_t         rc   = ev.rc          ;
 		int             err  = rc<0 ? -rc : 0 ;
-		uint64_t const* args = ev.args       ;
+		uint64_t const* args = ev.args        ;
 		// accessors
 		auto first = [&](uint8_t kind)->Obj const* { for( Obj const& o : th.objs          ) if ( !o.raw && o.kind==kind                   ) return &o          ; return nullptr ; } ;
 		auto last  = [&](uint8_t kind)->Obj const* { for( size_t i=th.objs.size() ; i-- ; ) if ( !th.objs[i].raw && th.objs[i].kind==kind ) return &th.objs[i] ; return nullptr ; } ;
@@ -543,13 +541,13 @@ namespace AutodepEbpf {
 			case Comment::truncate : _open( th , obj(EBPF_LOOKUP) , args[1]?O_RDWR:O_WRONLY , rc , c ) ; break ;
 			// stat
 			case Comment::stat       :
-			case Comment::stat64     :
-			case Comment::oldstat    : _stat( th , obj(EBPF_LOOKUP) , false                            /*no_follow*/ , FullAccesses , rc , c ) ; break ;
+			case Comment::stat64     : //!                            no_follow
+			case Comment::oldstat    : _stat( th , obj(EBPF_LOOKUP) , false                             , FullAccesses , rc , c ) ; break ;
 			case Comment::lstat      :
 			case Comment::lstat64    :
-			case Comment::oldlstat   : _stat( th , obj(EBPF_LOOKUP) , true                             /*no_follow*/ , FullAccesses , rc , c ) ; break ;
+			case Comment::oldlstat   : _stat( th , obj(EBPF_LOOKUP) , true                              , FullAccesses , rc , c ) ; break ;
 			case Comment::fstatat64  :
-			case Comment::newfstatat : _stat( th , obj(EBPF_LOOKUP) , bool(args[3]&AT_SYMLINK_NOFOLLOW)/*no_follow*/ , FullAccesses , rc , c ) ; break ;
+			case Comment::newfstatat : _stat( th , obj(EBPF_LOOKUP) , bool(args[3]&AT_SYMLINK_NOFOLLOW) , FullAccesses , rc , c ) ; break ;
 			case Comment::statx      : {
 				#if defined(STATX_TYPE) && defined(STATX_SIZE) && defined(STATX_BLOCKS) && defined(STATX_MODE)
 					uint     msk = args[3] ;
@@ -695,15 +693,15 @@ namespace AutodepEbpf {
 			uint32_t l0 = ::min<uint32_t>( ev.len[0] , sz-EBPF_HDR_SZ    ) ;
 			uint32_t l1 = ::min<uint32_t>( ev.len[1] , sz-EBPF_HDR_SZ-l0 ) ;
 			switch (ev.kind) {
-				case EBPF_PROC_START : _live.insert(ev.tid) ;                            break ;
-				case EBPF_PROC_END   : _live.erase (ev.tid) ; _threads.erase(ev.tid) ;   break ;                         // captures not closed by an End are meaningless
+				case EBPF_PROC_START : _live.insert(ev.tid) ;                          break ;
+				case EBPF_PROC_END   : _live.erase (ev.tid) ; _threads.erase(ev.tid) ; break ;                         // captures not closed by an End are meaningless
 				case EBPF_LINK : {
 					Lnk lnk ;
 					::tie(lnk.real,lnk.loc) = _mk_real( ev , &lnk.abs ) ;
 					lnk.info = _mk_info(ev) ;
 					if ( (ev.flags&EBPF_F_TARGET) && l1 ) {
 						lnk.target     = ::string( reinterpret_cast<const char*>(ev.data+l0) , l1-1/*null*/ ) ;
-						lnk.has_target = true                                                                ;
+						lnk.has_target = true                                                                 ;
 					}
 					::vector<Lnk>& lnks = _thread(ev).lnks ;
 					if (::none_of( lnks , [&](Lnk const& l) { return l.abs==lnk.abs ; } )) lnks.push_back(::move(lnk)) ; // a link may be reported several times if resolution is restarted
@@ -777,17 +775,21 @@ namespace AutodepEbpf {
 	}
 
 	// receive the reply and the ring buffer fd sent as an SCM_RIGHTS ancillary message
-	static bool/*ok*/ _recv_reply( Fd fd , EbpfDaemon::Reply&/*out*/ reply , AcFd&/*out*/ rb_fd ) {
-		rb_fd = {} ;
-		struct iovec  iov                           = { .iov_base=&reply , .iov_len=sizeof(reply)                                                                                            } ;
-		char          cbuf[CMSG_SPACE(sizeof(int))] = {}                                                                                                                                       ;
-		struct msghdr msg                           = { .msg_name=nullptr , .msg_namelen=0 , .msg_iov=&iov , .msg_iovlen=1 , .msg_control=cbuf , .msg_controllen=sizeof(cbuf) , .msg_flags=0 } ;
+	static ::pair<AcFd/*ring_buf*/,uint32_t/*job_id*/> _recv_reply(Fd fd) {
+		::pair<AcFd/*ring_buf*/,uint32_t/*job_id*/> res ;
 		//
-		if (::recvmsg(fd,&msg,MSG_CMSG_CLOEXEC)!=ssize_t(sizeof(reply))) return false ;
+		EbpfDaemon::Reply reply                         ;
+		::iovec           iov                           = { .iov_base=&reply , .iov_len=sizeof(reply)                                                                                            } ;
+		char              cbuf[CMSG_SPACE(sizeof(int))] = {}                                                                                                                                       ;
+		::msghdr          msg                           = { .msg_name=nullptr , .msg_namelen=0 , .msg_iov=&iov , .msg_iovlen=1 , .msg_control=cbuf , .msg_controllen=sizeof(cbuf) , .msg_flags=0 } ;
+		//
+		throw_unless( ::recvmsg(fd,&msg,MSG_CMSG_CLOEXEC)==ssize_t(sizeof(reply)) , "the ebpf daemon does not answer" ) ;
 		//
 		for( struct cmsghdr* cm=CMSG_FIRSTHDR(&msg) ; cm ; cm=CMSG_NXTHDR(&msg,cm) )
-			if ( cm->cmsg_level==SOL_SOCKET && cm->cmsg_type==SCM_RIGHTS ) ::memcpy( &rb_fd.fd , CMSG_DATA(cm) , sizeof(int) ) ;
-		return true ;
+			if ( cm->cmsg_level==SOL_SOCKET && cm->cmsg_type==SCM_RIGHTS ) { SWEAR(!res.first) ; ::memcpy( &res.first.fd , CMSG_DATA(cm) , sizeof(int) ) ; }
+		throw_unless( +res.first && reply.job_id , "the ebpf daemon could not register the job (cf. its log)" ) ;
+		res.second = reply.job_id ;
+		return res ;
 	}
 
 	static bool/*ok*/ _get_stats(EbpfDaemon::Stats* /*out*/ stats) {
@@ -841,22 +843,21 @@ namespace AutodepEbpf {
 
 	// runs in the tracer thread : consume this job's ring buffer until the child exits, then return its wstatus
 	static int/*wstatus*/ _process(pid_t child_pid) {
-		Lock                lock { Record::s_mutex }                                                ; // single consumer thread, but Record code asserts the lock is held (like the ptrace tracer)
-		Consumer            cons ;
-		struct ring_buffer* rb   = ::ring_buffer__new( _g_rb_fd , _handle_event , &cons , nullptr ) ; throw_unless( rb , "cannot open ebpf ring buffer" ) ;
+		Lock           lock { Record::s_mutex }                                                ; // single consumer thread, but Record code asserts the lock is held (like the ptrace tracer)
+		Consumer       cons ;
+		::ring_buffer* rb   = ::ring_buffer__new( _g_rb_fd , _handle_event , &cons , nullptr ) ; throw_unless( rb , "cannot open ebpf ring buffer" ) ;
 		//
 		// wait for both events and end of child, so that the latter is seen at once (else, each job would last the polling period)
-		int           wstatus = 0                                              ;
-		int           pid_fd  = ::syscall( SYS_pidfd_open , child_pid , 0 )    ;                                                                       // if not available, child is polled
-		struct pollfd pfds[2] = { { .fd=::ring_buffer__epoll_fd(rb) , .events=POLLIN , .revents=0 } , { .fd=pid_fd , .events=POLLIN , .revents=0 } } ;
-		for (;;) {
-			int r = ::poll( pfds , pid_fd>=0?2:1 , pid_fd>=0?-1:10/*ms*/ ) ; if ( r<0 && errno!=EINTR ) break ;
+		int      wstatus = 0                                                                                                      ;
+		AcFd     pid_fd  { int(::syscall( SYS_pidfd_open , child_pid , 0 ))                                                     } ; // if not available, child is polled
+		::pollfd pfds[2] { {.fd=::ring_buffer__epoll_fd(rb),.events=POLLIN,.revents=0} , {.fd=pid_fd,.events=POLLIN,.revents=0} } ;
+		for(;;) {
+			int r = ::poll( pfds , +pid_fd?2:1 , +pid_fd?-1:10/*ms*/ ) ; if ( r<0 && errno!=EINTR ) break ;
 			::ring_buffer__consume(rb) ;
 			pid_t w = ::waitpid( child_pid , &wstatus , WNOHANG ) ;
 			if ( w==child_pid                    ) break ;          // child is done
 			if ( w<0 && errno!=EINTR && errno!=0 ) break ;          // ECHILD or other : give up waiting
 		}
-		if (pid_fd>=0) ::close(pid_fd) ;
 		// ensure all events have been seen : an event is pushed before the syscall returns, so all what the job could observe before child ended has been pushed
 		// processes of the job which are still alive may go on pushing events, so we only wait for the events pushed so far
 		EbpfDaemon::Stats stats   = {}                 ;
@@ -930,16 +931,12 @@ namespace AutodepEbpf {
 		}
 		hello.n_roots = root_fds.size() ;
 		//
-		bool ok = _send_hello(s,hello,root_fds) ;
-		throw_unless( ok , "cannot talk to the ebpf daemon" ) ;
-		EbpfDaemon::Reply reply ;
-		AcFd              rb_fd ;
-		throw_unless( _recv_reply( s , /*out*/reply , /*out*/rb_fd ) , "the ebpf daemon does not answer"                          ) ;
-		throw_unless( !reply.err && +rb_fd                           , "the ebpf daemon could not register the job (cf. its log)" ) ;
+		bool ok = _send_hello(s,hello,root_fds) ; throw_unless( ok , "cannot talk to the ebpf daemon" ) ;
+		::pair<AcFd/*ring_buf*/,uint32_t/*job_id*/> rb_ji = _recv_reply(s) ;
 		//
-		_g_sock   = s    .detach() ; // keep the connection open : closing it releases the job in the daemon
-		_g_rb_fd  = rb_fd.detach() ;
-		_g_job_id = reply.job_id ;
+		_g_sock   = s          .detach() ; // keep the connection open : closing it releases the job in the daemon
+		_g_rb_fd  = rb_ji.first.detach() ;
+		_g_job_id = rb_ji.second         ;
 		//
 		Gather::s_ebpf_start         = _start         ;
 		Gather::s_ebpf_prepare_child = _prepare_child ;

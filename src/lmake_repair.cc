@@ -124,6 +124,8 @@ int main( int argc , char* /*argv*/[] ) {
 		if ( +phy_lad && +bck_phy_lad ) SWEAR( phy_lad!=bck_phy_lad , phy_lad , bck_phy_lad ) ;
 	} ;
 	//
+	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
+	//
 	// this must be done before app_init as, if last lmake_repair was interrupted, admin_dir may be a fresh dir not yet initialized (no version file) and app_init would refuse it
 	// lmake_repair must be started from repo root (checked below), so relative paths are meaningful here
 	if (FileInfo(bck_admin_dir_s).tag()==FileTag::Dir) {
@@ -140,7 +142,6 @@ int main( int argc , char* /*argv*/[] ) {
 	app_init({ .read_only_ok=false , .py_version=Py::Version }) ;
 	Record::s_autodep_env(New) ;
 	//
-	if (argc!=1                            ) exit(Rc::Usage   ,"must be called without arg"                                                      ) ;
 	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
 	if (FileInfo(File(ServerMrkr)).exists()) exit(Rc::BadState,"after having ensured no lmake_server is running, consider : rm ",ServerMrkr      ) ;
 	//

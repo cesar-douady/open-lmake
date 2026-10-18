@@ -159,13 +159,15 @@ static __always_inline void _lost(struct Task* tv) {
 
 // push tv->ev to the ring buffer of its job, if the job is gone, the event is dropped
 static __always_inline void _emit( struct Task* tv , __u32 tid , __u32 pid , __u32 sz ) {
-	__u32          jid = tv->job_id                           ;
+	__u32          jid = tv->job_id                             ;
 	struct JobCfg* jc  = bpf_map_lookup_elem( &job_cfg , &jid ) ; if (!jc) return ;
 	void*          rb  = bpf_map_lookup_elem( &job_rbs , &jid ) ; if (!rb) return ;
+	//
 	tv->ev.seq = __sync_fetch_and_add( &jc->seq , 1 ) ;
 	tv->ev.tid = tid                                  ;
 	tv->ev.pid = pid                                  ;
-	if (sz>sizeof(struct EbpfEvent)) sz = sizeof(struct EbpfEvent) ;
+	//
+	if (sz>sizeof(struct EbpfEvent)                    ) sz = sizeof(struct EbpfEvent) ;
 	if (bpf_ringbuf_output(rb,&tv->ev,sz,0/*flags*/)!=0) __sync_fetch_and_add( &jc->lost , 1 ) ; // ring buffer is full, consumer will know through seq and will ask the daemon in the end
 }
 
@@ -756,8 +758,8 @@ int BPF_PROG( on_path_rename , struct path* old_dir , struct dentry* old_dentry 
 	struct Task* tv = _capturing() ; if (!tv) return 0 ;
 	tv->seen |= SEEN_RES|SEEN_PAIR ;
 	// a side which is not of interest is not reported, so each side also carries the mode of the other one (0 if it does not exist)
-	struct inode* old_inode = BPF_CORE_READ( old_dentry , d_inode )          ;
-	struct inode* new_inode = BPF_CORE_READ( new_dentry , d_inode )          ;
+	struct inode* old_inode = BPF_CORE_READ( old_dentry , d_inode )           ;
+	struct inode* new_inode = BPF_CORE_READ( new_dentry , d_inode )           ;
 	__u32         old_mode  = old_inode ? BPF_CORE_READ(old_inode,i_mode) : 0 ;
 	__u32         new_mode  = new_inode ? BPF_CORE_READ(new_inode,i_mode) : 0 ;
 	tv->ev.flags      = 0        ;
@@ -774,8 +776,8 @@ int BPF_PROG( on_path_rename , struct path* old_dir , struct dentry* old_dentry 
 //
 
 static __always_inline void _register( struct task_struct* t , __u32 job_id ) {
-	struct JobCfg* jc = bpf_map_lookup_elem( &job_cfg , &job_id                                      ) ; if (!jc)                                       return ;
-	struct Task  * tv = bpf_task_storage_get( &tasks  , t       , 0 , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if (!tv) { __sync_fetch_and_add(&jc->lost,1) ; return ; }
+	struct JobCfg* jc = bpf_map_lookup_elem( &job_cfg , &job_id                                ) ; if (!jc)                                       return ;
+	struct Task  * tv = bpf_task_storage_get( &tasks  , t , 0 , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if (!tv) { __sync_fetch_and_add(&jc->lost,1) ; return ; }
 	tv->job_id         = job_id                                                             ;
 	tv->deps_in_system = jc->deps_in_system                                                 ;
 	tv->enabled        = 1                                                                  ;

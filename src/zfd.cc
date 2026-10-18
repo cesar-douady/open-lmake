@@ -143,7 +143,7 @@ void DeflateFd::flush() {
 				#if HAS_ZLIB
 					_zlib_state.next_in  = nullptr ;
 					_zlib_state.avail_in = 0       ;
-					for (;;) {
+					for(;;) {
 						_zlib_state.next_out  = ::launder(reinterpret_cast<uint8_t*>(_buf+_pos)) ;
 						_zlib_state.avail_out = DiskBufSz - _pos                                 ;
 						int rc = ::deflate(&_zlib_state,Z_FINISH) ;
@@ -160,7 +160,7 @@ void DeflateFd::flush() {
 				#if HAS_ZSTD
 					::ZSTD_inBuffer  in_buf  { .src=nullptr , .size=0         , .pos=0 } ;
 					::ZSTD_outBuffer out_buf { .dst=_buf    , .size=DiskBufSz , .pos=0 } ;
-					for (;;) {
+					for(;;) {
 						out_buf.pos = _pos ;
 						size_t rc = ::ZSTD_compressStream2( _zstd_state , &out_buf , &in_buf , ZSTD_e_end ) ;
 						_pos = out_buf.pos ;

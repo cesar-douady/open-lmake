@@ -93,9 +93,8 @@ namespace EbpfDaemon {
 		uint32_t n_roots        = 0 ; // number of root dirs (<=EBPF_MAX_ROOTS) : only accesses lying in these dirs are reported
 	} ;
 
-	struct Reply {                // daemon -> client : job id, plus the job's ring buffer fd sent as an SCM_RIGHTS ancillary message on success
-		bool     err    = false ; // no fd if set
-		uint32_t job_id = 0     ;
+	struct Reply {            // daemon -> client : job id, plus the job's ring buffer fd sent as an SCM_RIGHTS ancillary message on success
+		uint32_t job_id = 0 ; // no ring buffer fd if 0
 	} ;
 
 	enum class ReqKey : uint8_t {

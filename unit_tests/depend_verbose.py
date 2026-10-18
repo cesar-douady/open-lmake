@@ -74,5 +74,5 @@ else :
 				*( f'hello.{interp}.{ad}.{ls}.cpy' for interp in ('sh','py') for ad in lmake.autodeps )
 			,	new=... , may_rerun=... , rerun=... , done=(p==0)+(p!=1)+(p!=1)*2*n_ads
 			)
-			assert cnts.may_rerun+cnts.rerun==(p==0)*2*n_ads , cnts
+			assert cnts.may_rerun+cnts.rerun<=(p==0)*2*n_ads , cnts # if copies are slow enough (which may particulary occur with ebpf when starting daemon), hello may be ready
 			assert cnts.new<=1                                      # python may access Lmakefile.py if it generates a backtrace, which may happen

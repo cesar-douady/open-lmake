@@ -5,6 +5,9 @@
 
 #include "lmake_server/core.hh" // /!\ must be first to include Python.h first
 
+#include "disk.hh"
+
+using namespace Disk   ;
 using namespace Engine ;
 
 int main( int argc , char* /*argv*/[] ) {
@@ -14,10 +17,14 @@ int main( int argc , char* /*argv*/[] ) {
 	size_t n_deps [N<Buildable> ] = {} ;
 	size_t n_nodes[N<Buildable> ] = {} ;
 	//
-	if (argc!=1) exit(Rc::Usage,"must be called without arg") ;
+	if (argc!=1) exit( Rc::Usage , "must be called without arg" ) ;
+	//
 	app_init() ;
 	Record::s_autodep_env(New) ;
 	Py::init(*g_lmake_root_s) ;
+	//
+	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
+	if (FileInfo(File(ServerMrkr)).exists()) exit(Rc::BadState,"after having ensured no lmake_server is running, consider : rm ",ServerMrkr      ) ;
 	//
 	try                       { Persistent::new_config({}/*config*/,false/*dyn*/) ; }
 	catch (::string const& e) { exit(Rc::BadState,e) ;                              }

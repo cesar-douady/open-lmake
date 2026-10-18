@@ -22,15 +22,14 @@
 
 // do not include "utils.hh" nor any other lmake .hh so as to keep ebpf daemon very simple to analyze
 
-#include <poll.h>
+#include <bpf/libbpf.h>
+#include <bpf/bpf.h>
+#include <sys/epoll.h>
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
-
-#include <bpf/libbpf.h>
-#include <bpf/bpf.h>
 
 #include <cerrno>
 #include <cstdarg>
@@ -41,6 +40,7 @@
 #include <filesystem>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "sys_config.h"
@@ -82,16 +82,12 @@ static constexpr time_t   HelloTimeout = 10 ; // in seconds, a client must not b
 
 ::mutex      g_reg_mutex ;
 struct ebpf* g_skel      = nullptr ;
-
-static volatile sig_atomic_t _g_stop = 0 ;
-
-static void _on_signal(int) {
-	_g_stop = 1 ;
-}
+int          g_log_fd    = -1      ;
 
 static int _pr( enum libbpf_print_level lvl , const char* fmt , va_list ap ) {
-	if (lvl>LIBBPF_WARN) return 0                       ;
-	else                 return vfprintf(stderr,fmt,ap) ;
+	// higher lvl means less critical
+	if (lvl>LIBBPF_WARN)                                                       return 0 ;
+	else                 { vlog(false/*with_errno*/,false/*with_nl*/,fmt,ap) ; return 1 ; }
 }
 
 // each running job needs a few fds (connection, ring buffer, dirs of interest), so the default limit would be reached with a few hundreds of jobs
@@ -175,8 +171,8 @@ static ::vector<int>/*root_fds*/ _recv_hello( int conn , Hello&/*out*/ hello ) {
 		//
 		void set_timeout(time_t secs=0) {
 			struct timeval tv = { .tv_sec=secs , .tv_usec=0 } ;
-			::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &tv , sizeof(tv) ) ;
-			::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &tv , sizeof(tv) ) ;
+			if (::setsockopt( fd , SOL_SOCKET , SO_RCVTIMEO , &tv , sizeof(tv) )!=0) log_errno("cannot set receive timeout to %d",int(secs)) ;
+			if (::setsockopt( fd , SOL_SOCKET , SO_SNDTIMEO , &tv , sizeof(tv) )!=0) log_errno("cannot set send    timeout to %d",int(secs)) ;
 		}
 		//
 		int fd ;
@@ -210,11 +206,11 @@ Err :
 }
 
 // send the reply plus, on success, the ring buffer fd as an SCM_RIGHTS ancillary message
-static bool/*ok*/ _send_reply( int conn , Reply const& reply , int rb_fd/*-1 if none*/ ) {
+static bool/*ok*/ _send_reply( int conn , Reply const& reply , int rb_fd=-1 ) {
 	struct iovec  iov                           = { .iov_base=const_cast<Reply*>(&reply) , .iov_len=sizeof(reply) } ;
 	char          cbuf[CMSG_SPACE(sizeof(int))] = {}                                                                ;
 	struct msghdr msg                           = {}                                                                ; msg.msg_iov = &iov ; msg.msg_iovlen = 1 ;
-	if (rb_fd>=0) {
+	if (reply.job_id) {
 		msg.msg_control    = cbuf         ;
 		msg.msg_controllen = sizeof(cbuf) ;
 		struct cmsghdr* cm = CMSG_FIRSTHDR(&msg) ;
@@ -230,59 +226,55 @@ static bool/*ok*/ _send_reply( int conn , Reply const& reply , int rb_fd/*-1 if 
 // clients
 //
 
-// serve a client, i.e. a job, until it disconnects
-static void _serve( int conn , uint32_t job_id ) {
-	{	Hello         hello    ;
-		::vector<int> root_fds = _recv_hello(conn,/*out*/hello)                             ; if (root_fds.empty()) goto Return ;
-		Reply         reply    { .err=false , .job_id=job_id                              } ;
-		Job           job      { .conn=conn , .job_id=job_id , .root_fds=::move(root_fds) } ;    // from now on, job owns conn and root_fds
-		//
-		if (!job.mk_job(hello))   reply.err = true ;
-		//
-		if ( _send_reply(conn,reply,reply.err?-1:job.rb_fd) && !reply.err ) {
-			uint32_t n_excludes = 0 ;
-			for (;;) {
-				ReqKey        req                           ;
-				int           req_fd                        = -1                              ;
-				struct iovec  iov                           = { .iov_base=&req , .iov_len=1 } ;
-				char          cbuf[CMSG_SPACE(sizeof(int))] = {}                              ;
-				struct msghdr msg                           = {}                              ; msg.msg_iov=&iov ; msg.msg_iovlen=1 ; msg.msg_control=cbuf ; msg.msg_controllen=sizeof(cbuf) ;
-				ssize_t       n                             = ::recvmsg( conn , &msg , MSG_CMSG_CLOEXEC ) ;
-				if ( n<0 && errno==EINTR ) continue ;
-				if ( n<=0                ) break    ;                                            // client is gone
-				for( struct cmsghdr* cm=CMSG_FIRSTHDR(&msg) ; cm ; cm=CMSG_NXTHDR(&msg,cm) ) {
-					if (!( cm->cmsg_level==SOL_SOCKET && cm->cmsg_type==SCM_RIGHTS )) continue ;
-					for( size_t ofs=0 ; ofs<(cm->cmsg_len-CMSG_LEN(0)) ; ofs+=sizeof(int) ) {    // close all received fds but the first one
-						int fd ; ::memcpy( &fd , CMSG_DATA(cm)+ofs , sizeof(int) ) ;
-						if (req_fd<0) req_fd = fd ;
-						else          ::close(fd) ;
-					}
-				}
-				bool ok ;
-				switch (req) {
-					case ReqKey::Stats : {
-						JobCfg cfg   = {}                              ; ::bpf_map_lookup_elem( bpf_map__fd(g_skel->maps.job_cfg) , &job.job_id , &cfg ) ;
-						Stats  stats { .seq=cfg.seq , .lost=cfg.lost } ;
-						ok = ::send(conn,&stats,sizeof(stats),MSG_NOSIGNAL)==ssize_t(sizeof(stats)) ;
-					} break ;
-					case ReqKey::Exclude : {
-						char done = req_fd>=0 && n_excludes<MaxExcludes && job.register_root( EBPF_ROOT_EXCLUDE , req_fd ) ;
-						if (done) {
-							job.root_fds.push_back(req_fd) ;
-							req_fd = -1 ;
-							n_excludes++ ;
-						}                                                                        // keep it open so that dentry stays valid
-						ok = ::send(conn,&done,1/*len*/,MSG_NOSIGNAL)==1 ;
-					} break ;
-					default : ok = false ;                                                       // unknown request, client cannot be trusted
-				}
-				if (req_fd>=0) ::close(req_fd) ;
-				if (!ok      ) break ;
-			}
+static bool/*ok*/ _start_job(Job&/*inout*/ job) {
+	Hello hello ;
+	//
+	job.root_fds = _recv_hello(job.conn,/*out*/hello) ; if (job.root_fds.empty()) return false/*ok*/ ;
+	//
+	Reply reply { .job_id=job.mk_job(hello)?job.job_id:0 } ;
+	//
+	return _send_reply(job.conn,reply,job.rb_fd) && reply.job_id ;
+}
+
+static bool/*done*/ _process_job(Job&/*inout*/ job) {
+	ReqKey          req                           ;
+	int             req_fd                        = -1                                                                                                                                     ;
+	struct ::iovec  iov                           { .iov_base=&req , .iov_len=1                                                                                                          } ;
+	char            cbuf[CMSG_SPACE(sizeof(int))] = {}                                                                                                                                     ;
+	struct ::msghdr msg                           { .msg_name=nullptr , .msg_namelen=0 , .msg_iov=&iov , .msg_iovlen=1 , .msg_control=cbuf , .msg_controllen=sizeof(cbuf) , .msg_flags=0 } ;
+	ssize_t         n                             = ::recvmsg( job.conn , &msg , MSG_CMSG_CLOEXEC )                                                                                        ;
+	if ( n<0 && errno==EINTR ) return false/*done*/ ;
+	if ( n<=0                ) return true /*.   */ ;
+	for( struct cmsghdr* cm=CMSG_FIRSTHDR(&msg) ; cm ; cm=CMSG_NXTHDR(&msg,cm) ) {
+		if (!( cm->cmsg_level==SOL_SOCKET && cm->cmsg_type==SCM_RIGHTS )) continue ;
+		for( size_t ofs=0 ; ofs<(cm->cmsg_len-CMSG_LEN(0)) ; ofs+=sizeof(int) ) {    // close all received fds but the first one
+			int fd ; ::memcpy( &fd , CMSG_DATA(cm)+ofs , sizeof(int) ) ;
+			if (req_fd<0) req_fd = fd ;
+			else          ::close(fd) ;
 		}
 	}
-Return :
-	::close(conn) ;
+	bool ok = false ;                                                                // as long as not recognized ok
+	switch (req) {
+		case ReqKey::Stats : {
+			JobCfg cfg   = {}                              ; ::bpf_map_lookup_elem( bpf_map__fd(g_skel->maps.job_cfg) , &job.job_id , &cfg ) ;
+			Stats  stats { .seq=cfg.seq , .lost=cfg.lost } ;
+			ok = ::send( job.conn , &stats , sizeof(stats) , MSG_NOSIGNAL )==ssize_t(sizeof(stats)) ;
+		} break ;
+		case ReqKey::Exclude : {
+			char done =
+				req_fd>=0
+			&&	job.root_fds.size()<EBPF_MAX_ROOTS
+			&&	job.register_root( EBPF_ROOT_EXCLUDE , req_fd )
+			;
+			if (done) {
+				job.root_fds.push_back(req_fd) ;
+				req_fd = -1 ;                                                        // keep it open so that dentry stays valid
+			}
+			ok = ::send( job.conn , &done , 1/*len*/ , MSG_NOSIGNAL )==1 ;
+		} break ;
+	}
+	if (req_fd>=0) ::close(req_fd) ;
+	return !ok ;
 }
 
 //
@@ -318,10 +310,8 @@ private :
 
 static struct ebpf* _load_ebpf() {
 	::libbpf_set_print(_pr) ;
-	struct ebpf* res = ::ebpf__open() ;
-	if (!res                  ) throw "cannot open ebpf programs"s                                                               ;
-	if (::ebpf__load  (res)!=0) throw "cannot load ebpf programs (need CAP_BPF+CAP_PERFMON, run as root and with a BTF kernel)"s ;
-	if (::ebpf__attach(res)!=0) throw "cannot attach ebpf programs (need a recent BTF kernel)"s                                  ;
+	ebpf* res = ebpf::open_and_load() ; if (!res ) throw "cannot load autodep ebpf filter"s   ;
+	int   rc  = ebpf::attach(res)     ; if (rc!=0) throw "cannot attach autodep ebpf filter"s ;
 	_set_syscalls(res) ;
 	return res ;
 }
@@ -337,13 +327,11 @@ int main( int argc , char* argv[] ) {
 		::filesystem::create_directories(SockDir) ;
 		Start start ;
 		if (start.already_running) {
-			log_errno("daemon already running") ;
-			::fprintf(  stdout , "0\n" ) ;                                                                                                     // report another daemon is up and running
+			log("daemon already running") ;
+			::fprintf(  stdout , "0\n" ) ;                                                                                                       // report another daemon is up and running
 			return 0 ;
 		}
-		::signal( SIGINT  , _on_signal ) ;
-		::signal( SIGTERM , _on_signal ) ;
-		::signal( SIGPIPE , SIG_IGN    ) ;
+		reset_log() ;
 		_raise_n_open_files(10000) ;
 		//
 		g_skel = _load_ebpf() ;
@@ -360,30 +348,50 @@ int main( int argc , char* argv[] ) {
 			//
 			/**/ ::unlink(sock_name.c_str()) ;
 			if ( ::bind(sock_fd,(struct sockaddr*)&addr,sizeof(addr))!=0 ) { log_errno("cannot bind %s"     ,sock_name.c_str()) ; return 1 ; }
-			/**/ ::chmod(sock_name.c_str(),0666) ;                                                                                             // allow unprivileged clients to connect
+			/**/ ::chmod(sock_name.c_str(),0666) ;                                                                                               // allow unprivileged clients to connect
 			if ( ::listen(sock_fd,64)                                !=0 ) { log_errno("cannot listen on %s",sock_name.c_str()) ; return 1 ; }
 			log("ready, listening on %s",sock_name.c_str()) ;
 			start.started() ;
-			::fprintf( stdout , "1\n" ) ;                                                                                                     // report we are up and running
+			::fprintf( stdout , "1\n" ) ;                                                                                                        // report we are up and running
 			::fflush ( stdout         ) ;
-			::close(1/*stdout*/) ;                                                                                                             // .
+			::close(1/*stdout*/) ;                                                                                                               // .
 			//
-			uint32_t job_id = 2 ;                                                                                                              // 0 means no job, 1 is used by self-test
-			while (!_g_stop) {
-				struct pollfd pfd = { .fd=sock_fd , .events=POLLIN , .revents=0 } ;
-				int           r   = ::poll( &pfd , 1/*nfds*/ , -1/*timeout*/ )    ;
-				if (r<0) {
-					if (errno==EINTR) continue ;
-					else              break    ;
+			uint32_t                 job_id = 2                              ;                                                                   // 0 means no job, 1 is used by self-test
+			::vector<::epoll_event>  events ;
+			::unordered_map<int,Job> jobs   ;
+			int                      ep_fd  = ::epoll_create1(EPOLL_CLOEXEC) ; if (ep_fd<0) throw "cannot create epoll fd"s ;
+			//
+			::epoll_event e { .events=EPOLLIN , .data{.fd=sock_fd} } ;
+			if (::epoll_ctl(ep_fd,EPOLL_CTL_ADD,sock_fd,&e)!=0) throw "cannot add master event to epoll fd"s ;
+			events.push_back({}) ;
+			for( bool first=true ;; first=false ) {
+				int timeout  = !first&&events.size()==1/*master*/ ? 300000 : -1                ;                                                 // leave after idle for 300s, except for first ...
+				int n_events = ::epoll_wait( ep_fd , events.data() , events.size() , timeout ) ; if (n_events<0) throw "cannot wait epoll fd"s ; // ... conn as starting takes ~3s
+				if (!n_events) break ;                                                                                                           // timeout has expired
+				//
+				for( int i=0 ; i<n_events ; i++ ) {
+					::epoll_event const& event = events[i] ;
+					if (event.data.fd==sock_fd) {
+						int           job_fd = ::accept4( sock_fd , nullptr/*addr*/ , nullptr/*addrlen*/ , SOCK_CLOEXEC ) ;
+						pair it_inserted = jobs.try_emplace(job_fd) ; if (!it_inserted.second) throw "cannot insert job in book-keeping"s ;
+						Job& job = it_inserted.first->second ;
+						job.conn   = job_fd   ;
+						job.job_id = job_id++ ;
+						_start_job(/*inout*/job) ;
+						::epoll_event e      { .events=EPOLLIN , .data{.fd=job_fd} } ;
+						::epoll_ctl( ep_fd , EPOLL_CTL_ADD , job_fd , &e ) ;
+						events.push_back({}) ;
+					} else {
+						auto it = jobs.find(event.data.fd) ; if (it==jobs.end()) throw "cannot retreive job in book-keeping"s ;
+						if (_process_job(/*inout*/it->second)) {
+							::epoll_ctl( ep_fd , EPOLL_CTL_DEL , event.data.fd , nullptr ) ;
+							::close(event.data.fd) ;
+							events.pop_back() ;
+							jobs.erase(it) ;
+						}
+					}
 				}
-				if (!(pfd.revents&POLLIN)) continue ;
-				int conn = ::accept4( sock_fd , nullptr/*addr*/ , nullptr/*addrlen*/ , SOCK_CLOEXEC ) ;
-				if (conn<0) continue ;
-				try                             { ::thread(_serve,conn,job_id++).detach() ;                  }
-				catch (::system_error const& e) { log("cannot serve client : %s",e.what()) ; ::close(conn) ; }
 			}
-			log("shutting down")        ;                                                                                                       // maps are released when process exits
-			::unlink(sock_name.c_str()) ;
 		}
 	}
 	catch (::string    const& e) { log("%s",e.c_str()) ; return 1 ; }

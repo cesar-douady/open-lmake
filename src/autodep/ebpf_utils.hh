@@ -17,21 +17,38 @@ static constexpr uint32_t RingBufSz = 4u<<20 ; // comfortable : events are small
 
 extern struct ebpf* g_skel      ;
 extern std::mutex   g_reg_mutex ; // root registration and syscall table are unique resources
+extern int          g_log_fd    ;
 
-inline void _log( bool with_errno , const char* fmt , va_list ap ) {
-	int            en     = errno ;
-	struct timeval tv     ;         ::gettimeofday(&tv,nullptr/*timezone*/)  ;
-	struct tm      tm     ;         ::localtime_r(&tv.tv_sec,&tm)            ;
-	char           ts[32] ;         ::strftime(ts,sizeof(ts),"%H:%M:%S",&tm) ;
+inline void vlog( bool with_errno , bool with_nl , const char* fmt , va_list ap ) {
+	static constexpr size_t N = 1024 ; // buf size
+	int            en      = errno ;
+	struct timeval tv      ;         ::gettimeofday(&tv,nullptr/*timezone*/)  ;
+	struct tm      tm      ;         ::localtime_r(&tv.tv_sec,&tm)            ;
+	char           ts [32] ;         ::strftime(ts,sizeof(ts),"%H:%M:%S",&tm) ;
+	char           buf[N ] ;
+	size_t         i       = 0     ;
 	//
-	/**/            ::fprintf (        stderr , "lmake_bpfd %s.%03d : ",ts,int(tv.tv_usec/1000) ) ;
-	/**/            ::vfprintf(        stderr , fmt                    ,ap                      ) ;
-	if (with_errno) ::fprintf (        stderr , " : %s"                ,::strerror(en)          ) ;
-	/**/            ::fputc   ( '\n' , stderr                                                   ) ;
+	if (g_log_fd<0) {
+		g_log_fd = ::open( EbpfDaemon::get_file_name("log").c_str() , O_WRONLY|O_APPEND|O_CREAT , 0020/*mode*/ ) ;
+		if (g_log_fd<0) {
+			fprintf(stderr,"cannot open log file : %s\n",::strerror(errno)) ;
+			exit(2) ;
+		}
+	}
+	//
+	/**/              i += ::snprintf ( buf+i , N-i , "lmake_bpfd %s.%03d : ",ts,int(tv.tv_usec/1000) ) ; if (i>=N) return ;
+	/**/              i += ::vsnprintf( buf+i , N-i , fmt                    ,ap                      ) ; if (i>=N) return ;
+	if (with_errno) { i += ::snprintf ( buf+i , N-i , " : %s"                ,::strerror(en)          ) ; if (i>=N) return ; }
+	if (with_nl   ) { i += ::snprintf ( buf+i , N-i , "\n"                                            ) ; if (i>=N) return ; }
+	::write( g_log_fd , buf , i ) ;
 }
-//                                                                                   with_errno
-inline void log      ( const char* fmt , ... ) { va_list ap ; va_start(ap,fmt) ; _log( false  , fmt , ap ) ; va_end(ap) ; }
-inline void log_errno( const char* fmt , ... ) { va_list ap ; va_start(ap,fmt) ; _log( true   , fmt , ap ) ; va_end(ap) ; }
+//                                                                                   with_errno with_nl
+inline void log      ( const char* fmt , ... ) { va_list ap ; va_start(ap,fmt) ; vlog( false   , true , fmt , ap ) ; va_end(ap) ; }
+inline void log_errno( const char* fmt , ... ) { va_list ap ; va_start(ap,fmt) ; vlog( true    , true , fmt , ap ) ; va_end(ap) ; }
+
+inline void reset_log() {
+	::ftruncate( g_log_fd , 0/*lenght*/ ) ;
+}
 
 struct Job {
 	// cxtors & co
