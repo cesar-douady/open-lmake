@@ -498,7 +498,7 @@ namespace Backends {
 		if (tag!=Tag::Local) jis.pre_start.service.addr = SockFd::s_addr(fd,true/*peer*/)      ;
 		else                 SWEAR( jis.pre_start.service.addr==0 ) ;
 		if (+deps) {
-			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
+			::umap_s<size_t> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )
 				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second.first |= dd ;              // update existing dep
 				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,::pair(dd,ExtraDflags())) ; } // create new dep
