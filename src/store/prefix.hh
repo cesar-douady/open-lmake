@@ -681,13 +681,13 @@ namespace Store {
 		DataNv const*                search_at( Idx root , VecView const& n , VecView const& psfx={} ) const requires(HasData) { Idx idx=search(root,n,psfx) ; return +idx?&at(idx):nullptr ; }
 		::pair<Idx,bool/*inserted*/> insert   ( Idx root , VecView const& n , VecView const& psfx={} ) ;
 		DataNv      &                insert_at( Idx root , VecView const& n , VecView const& psfx={} )                         { return at(insert(root,n,psfx).first) ;                       }
-		Idx                          erase    ( Idx root , VecView const& n , VecView const& psfx={} ) ;
+		bool                         erase    ( Idx root , VecView const& n , VecView const& psfx={} ) ;
 		::pair<Idx,size_t/*pos*/>    longest  ( Idx root , VecView const& n , VecView const& psfx={} ) const ; // longest existing prefix(!Reverse) / suffix(Reverse)
 		//
 		::pair<Idx/*top*/,::vector<Idx>/*created*/> insert_chain( Idx root , VecView const& n , Char sep ) ;   // insert all intermediate dirs separated by sep
 		//
 		::vector<Idx> path             ( Idx             ) const ;                                             // path of existing items
-		void          pop              ( Idx             ) ;
+		bool          pop              ( Idx             ) ;
 		Idx           insert_shorten_by( Idx , size_t by ) ;
 		//
 		bool            empty         ( Idx i                    ) const                               { if (!i) return true ; return !_at(i).prev                     ; }
@@ -1076,9 +1076,9 @@ namespace Store {
 			return res ;
 		}
 
-		void _pop(Idx idx) {
+		bool _pop(Idx idx) {
 			chk_writable() ;
-			Item* item = &_at(idx) ; SWEAR(item->used) ;
+			Item* item = &_at(idx) ; if (!item->used) return false ;
 			Idx   nxt  = {}        ;
 			if ( item->kind()==Kind::Terminal && +item->prev ) { // root must remain as a Terminal even if unused
 				do {                                             // walk backward to suppress all items whose only purpose is to lead to Terminal
@@ -1103,6 +1103,7 @@ namespace Store {
 				while (_at(nxt).kind()!=Kind::Terminal) { Idx n2=_at(nxt).nxt() ; Base::pop(nxt) ; nxt=n2 ; } // intermediate items, fetch nxt field before pop
 				/**/                                                              Base::pop(nxt) ;            // last terminal item
 			}
+			return true ;
 		}
 
 	} ;
@@ -1272,12 +1273,11 @@ namespace Store {
 		}
 
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		Idx MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::erase( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
+		bool MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::erase( Idx root , VecView const& name , VecView const& psfx ) { // psfx is prefix (Reverse) / suffix (!Reverse)
 			chk_thread() ;
 			DvgDigest dvg { root , self , name , psfx } ;
-			if (dvg.dvg!=Dvg::Match) return Idx() ;
-			_pop(dvg.idx) ;
-			return dvg.idx ;
+			if (dvg.dvg!=Dvg::Match) return false ;
+			return _pop(dvg.idx) ;
 		}
 
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
@@ -1287,9 +1287,9 @@ namespace Store {
 		}
 
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
-		void MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::pop(Idx idx) {
+		bool MultiPrefixFile<ThreadKey,Hdr,Idx,NIdxBits,Char,Data,Reverse>::pop(Idx idx) {
 			chk_thread() ;
-			_pop(idx) ;
+			return _pop(idx) ;
 		}
 
 	template<char ThreadKey,class Hdr,IsIdx Idx,uint8_t NIdxBits,class Char,class Data,bool Reverse>
@@ -1460,7 +1460,7 @@ namespace Store {
 		DataNv const*                               search_at   ( VecView const& n , VecView const& psfx={} ) const requires(HasData) { return Base::search_at   ( Root , n , psfx ) ; }
 		::pair<Idx,bool/*inserted*/>                insert      ( VecView const& n , VecView const& psfx={} )                         { return Base::insert      ( Root , n , psfx ) ; }
 		DataNv      &                               insert_at   ( VecView const& n , VecView const& psfx={} )                         { return Base::insert_at   ( Root , n , psfx ) ; }
-		Idx                                         erase       ( VecView const& n , VecView const& psfx={} )                         { return Base::erase       ( Root , n , psfx ) ; }
+		bool                                        erase       ( VecView const& n , VecView const& psfx={} )                         { return Base::erase       ( Root , n , psfx ) ; }
 		::pair<Idx,size_t/*pos*/>                   longest     ( VecView const& n , VecView const& psfx={} ) const                   { return Base::longest     ( Root , n , psfx ) ; }
 		::pair<Idx/*top*/,::vector<Idx>/*created*/> insert_chain( VecView const& n , Char sep               )                         { return Base::insert_chain( Root , n , sep  ) ; }
 	} ;

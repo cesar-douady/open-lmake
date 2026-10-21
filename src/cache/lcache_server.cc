@@ -45,11 +45,13 @@ static CacheRpcReply _config( Fd fd , ::string const& repo_key ) {
 
 static CacheRpcReply _download(CacheRpcReq const& crr) {
 	Trace trace("_download",crr) ;
-	CacheRpcReply              res    { .proc=CacheRpcProc::Download , .hit_info=CacheHitInfo::NoJob } ;
-	Cjob                       job    = crr.job.is_name() ? Cjob(crr.job.name) : Cjob(crr.job.id)      ; if (!job) { trace("no_job") ; return res ; }
-	CompileDigest              deps   { crr.repo_deps , true/*for_download*/ , &res.dep_ids }          ; SWEAR_PROD( deps.n_statics==job->n_statics , crr.job,deps.n_statics,job,job->n_statics ) ;
-	::pair<Crun,CacheHitInfo > digest = job->match(deps)                                               ;
-	if (crr.job.is_name()) res.job_id = +job ;
+	bool          is_name = crr.job.is_name()                                              ;
+	CacheRpcReply res     { .proc=CacheRpcProc::Download , .hit_info=CacheHitInfo::NoJob } ;
+	Cjob          job     = is_name ? Cjob(crr.job.name) : Cjob(crr.job.id)                ; if (!job) { trace("no_job") ; return res ; }
+	CompileDigest deps    { crr.repo_deps , true/*for_download*/ , &res.dep_ids }          ; SWEAR_PROD( deps.n_statics==job->n_statics , is_name,crr.job,deps.n_statics,job,job->n_statics ) ;
+	//
+	::pair<Crun,CacheHitInfo > digest = job->match(deps) ;
+	if (is_name) res.job_id = +job ;
 	//
 	res.hit_info = digest.second ;
 	if (res.hit_info<CacheHitInfo::Miss) {
