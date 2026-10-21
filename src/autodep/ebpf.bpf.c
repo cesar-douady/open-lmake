@@ -66,7 +66,7 @@ struct {                                        // job_id -> per-job configurati
 	__uint( max_entries , MAX_JOBS          ) ;
 	__type( key         , __u32             ) ;
 	__type( value       , struct JobCfg     ) ;
-} job_cfg SEC(".maps") ;
+} job_cfgs SEC(".maps") ;
 
 struct InnerRb {                                   // template describing the per-job ring buffers stored in job_rbs
 	__uint( type        , BPF_MAP_TYPE_RINGBUF ) ;
@@ -101,32 +101,20 @@ struct {                                           // syscalls[is32*NSYSCALLS+nr
 	__type( value       , __u32                ) ;
 } syscalls SEC(".maps") ;
 
-#define SEEN_OPEN 0x01 // an open hook has been called during the current syscall, even if nothing was reported
-#define SEEN_RES  0x02 // a path has been resolved      during the current syscall, even if nothing was reported
-#define SEEN_PAIR 0x04 // a pair of paths has been resolved (rename)
-#define SEEN_RAW  0x08 // an open has failed during the current syscall, its path has been dealt with
-#define SEEN_FAIL 0x10 // an open has failed during the current syscall, its path is an arg of the syscall and must be dealt with at exit
+#define SEEN_RES  0x01 // a path has been resolved      during the current syscall, even if nothing was reported
+#define SEEN_PAIR 0x02 // a pair of paths has been resolved (rename)
 
-struct Rep {                                          // what identifies a failed syscall that designates a single path, all what is reported is derived from it
-	__u64 path[8] ;                                   // path as provided (null padded), longer paths are not candidate
-	__u64 args[6] ;
-	__u64 dir     ;                                   // dentry of the dir path is relative to
-	__s64 rc      ;
-	__u32 nr      ;
-	__u32 is32    ;
-} ;
 struct Task {
+	__u32            root_pid       ;
 	__u32            job_id         ;                 // job this task belongs to, 0 if none
 	__u32            tid            ;                 // ids in the client's pid namespace
 	__u32            pid            ;
-	__u32            pending        ;                 // number of captures emitted since last End
+	__u8             pending        ;                 // true if  captures have been emitted since last End
 	__u8             deps_in_system ;                 // cached from the job config
 	__u8             enabled        ;                 // mirrors the autodep enable bit (toggled through the backdoor), inherited by children
 	__u8             suspend        ;                 // if set, this thread is processing a backdoor call by itself : do not record its accesses
 	__u8             seen           ;
 	__u8             cur_kind       ;                 // EBPF_SCK_* of the syscall being executed, as of last call to _capturing
-	__u8             rep_valid      ;                 // rep[0] describes the last syscall reported by this thread
-	struct Rep       rep[2]         ;                 // last failed syscall that has been reported and candidate, so as not to report repeated failures
 	__u64            io_req         ;                 // last io_uring request closed by io_openat2, so that io_openat does not close it again
 	volatile __u64   ptr[2]         ;                 // global functions only accept scalars, kernel pointers passed to them go through here to make the verifier forget their type
 	struct EbpfEvent ev             ;                 // event being built, off-stack as it is large
@@ -151,32 +139,45 @@ static __always_inline uid_t _get_current_euid() {
 // emission
 //
 
-static __always_inline void _lost(struct Task* tv) {
-	__u32          jid = tv->job_id                             ;
-	struct JobCfg* jc  = bpf_map_lookup_elem( &job_cfg , &jid ) ; if (!jc) return ;
-	__sync_fetch_and_add( &jc->lost , 1 ) ;
-}
-
 // push tv->ev to the ring buffer of its job, if the job is gone, the event is dropped
-static __always_inline void _emit( struct Task* tv , __u32 tid , __u32 pid , __u32 sz ) {
-	__u32          jid = tv->job_id                             ;
-	struct JobCfg* jc  = bpf_map_lookup_elem( &job_cfg , &jid ) ; if (!jc) return ;
-	void*          rb  = bpf_map_lookup_elem( &job_rbs , &jid ) ; if (!rb) return ;
+static __always_inline void _emit(struct Task* tv) {
+	__u32             jid = tv->job_id                              ;
+	struct JobCfg   * jc  = bpf_map_lookup_elem( &job_cfgs , &jid ) ; if (!jc) return ;
+	void            * rb  = bpf_map_lookup_elem( &job_rbs  , &jid ) ; if (!rb) return ;
+	struct EbpfEvent* ev  = &tv->ev                                 ;
 	//
-	tv->ev.seq = __sync_fetch_and_add( &jc->seq , 1 ) ;
-	tv->ev.tid = tid                                  ;
-	tv->ev.pid = pid                                  ;
+	ev->tid = tv->tid ;
+	ev->pid = tv->pid ;
 	//
-	if (sz>sizeof(struct EbpfEvent)                    ) sz = sizeof(struct EbpfEvent) ;
-	if (bpf_ringbuf_output(rb,&tv->ev,sz,0/*flags*/)!=0) __sync_fetch_and_add( &jc->lost , 1 ) ; // ring buffer is full, consumer will know through seq and will ask the daemon in the end
+	if (jc->overflow) return ;
+	//
+	__u32 sz = EBPF_HDR_SZ+ev->len[0]+ev->len[1] ; if (sz>sizeof(struct EbpfEvent)) sz = sizeof(struct EbpfEvent) ; // please verifier
+	if (bpf_ringbuf_output(rb,ev,sz,0/*flags*/)!=0) jc->overflow = true ;                                           // ring buffer is full, dont emmit job end
 }
 
-static __always_inline void _emit_capture( struct Task* tv , __u32 len ) {
-	_emit( tv , tv->tid , tv->pid , EBPF_HDR_SZ+(len&(EBPF_DATA_SZ-1)) ) ;
-	tv->pending++     ;
-	tv->rep_valid = 0 ; // what is reported is no more the repetition of anything
+static __always_inline void _emit_capture(struct Task* tv) {
+	_emit(tv) ;
+	tv->pending = 1 ;
 }
 
+static __always_inline void _panic( struct Task* tv , const char* reason ) {
+	struct EbpfEvent* ev = &tv->ev ;
+	ev->kind   = EBPF_PANIC ;
+	ev->len[1] = 0          ;
+	for( int i=0 ; i<EBPF_PATH_MAX ; i++ ) {
+		ev->data[i] = reason[i] ;
+		if (!reason[i]) {
+			ev->len[0] = i+1 ;
+			break ;
+		}
+	}
+	_emit(tv) ;
+}
+
+static __always_inline void _overflow(struct Task* tv) {
+	struct JobCfg* jc  = bpf_map_lookup_elem( &job_cfgs , &tv->job_id ) ; if (!jc) return ; // job is gone
+	jc->overflow = true ;
+}
 //
 // path resolution
 //
@@ -419,16 +420,13 @@ static __always_inline void _fill_info( struct EbpfEvent* /*inout*/ ev , struct 
 	if (!inode) return ;
 	ev->mode = BPF_CORE_READ( inode , i_mode ) ;
 	ev->size = BPF_CORE_READ( inode , i_size ) ;
-	if (bpf_core_field_exists(((struct inode___v611*)0)->i_mtime_sec)) {
-		ev->mtime_s  = BPF_CORE_READ( (struct inode___v611*)inode , i_mtime_sec  ) ;
-		ev->mtime_ns = BPF_CORE_READ( (struct inode___v611*)inode , i_mtime_nsec ) ;
-	} else if (bpf_core_field_exists(((struct inode___v66*)0)->__i_mtime)) {
-		ev->mtime_s  = BPF_CORE_READ( (struct inode___v66*)inode , __i_mtime.tv_sec  ) ;
-		ev->mtime_ns = BPF_CORE_READ( (struct inode___v66*)inode , __i_mtime.tv_nsec ) ;
-	} else {
-		ev->mtime_s  = BPF_CORE_READ( (struct inode___old*)inode , i_mtime.tv_sec  ) ;
-		ev->mtime_ns = BPF_CORE_READ( (struct inode___old*)inode , i_mtime.tv_nsec ) ;
-	}
+	#define HAS_FIELD(s,f)        bpf_core_field_exists(((struct s*)0)->f)
+	#define MTIME_NS(in,sec,nsec) (__u64)BPF_CORE_READ(in,sec)*1000000000 + BPF_CORE_READ(in,nsec)
+	if      (HAS_FIELD(inode___v611,i_mtime_sec     )) ev->mtime_ns = MTIME_NS( (struct inode___v611*)inode , i_mtime_sec      , i_mtime_nsec      ) ;
+	else if (HAS_FIELD(inode___v66 ,__i_mtime.tv_sec)) ev->mtime_ns = MTIME_NS( (struct inode___v66 *)inode , __i_mtime.tv_sec , __i_mtime.tv_nsec ) ;
+	else if (HAS_FIELD(inode___old ,i_mtime.tv_sec  )) ev->mtime_ns = MTIME_NS( (struct inode___old *)inode , i_mtime.tv_sec   , i_mtime.tv_nsec   ) ;
+	#undef HAS_FIELD
+	#undef MTIME_NS
 	ev->flags |= EBPF_F_EXISTS ;
 }
 
@@ -438,14 +436,14 @@ static __always_inline bool/*emitted*/ _capture_obj( struct Task* tv , __u8 kind
 	tv->ptr[0] = (__u64)dentry ;
 	tv->ptr[1] = (__u64)vmnt   ;
 	__u32 r = _walk( (struct WalkData*)tv->ev.data , tv->ptr[0] , tv->ptr[1] , tv->job_id , 0/*want_abs*/ ) ;
-	if (  r&WALK_TRUNC ) { _lost(tv) ; return false ; }
-	if (!(r&WALK_OK   )) {             return false ; }
+	if (  r&WALK_TRUNC ) { _panic(tv,"dir is too deep") ; return false ; }
+	if (!(r&WALK_OK   ))                                  return false ;
 	tv->ev.kind   = kind         ;
 	tv->ev.root   = WALK_ROOT(r) ;
 	tv->ev.len[0] = WALK_LEN (r) ;
 	tv->ev.len[1] = 0            ;
 	_fill_info( /*inout*/&tv->ev , BPF_CORE_READ(dentry,d_inode) ) ;
-	_emit_capture( tv , WALK_LEN(r) ) ;
+	_emit_capture(tv) ;
 	return true ;
 }
 
@@ -468,8 +466,8 @@ static __noinline void _capture_raw( struct task_struct* t , struct Task* tv , _
 	long              n  ;
 	if (flags&CAPTURE_KERNEL_STR) n = bpf_probe_read_kernel_str( ev->data , EBPF_PATH_MAX , (const void*)ptr ) ;
 	else                          n = bpf_probe_read_user_str  ( ev->data , EBPF_PATH_MAX , (const void*)ptr ) ;
-	if (n<=0) { _lost(tv) ; return ; }                                                                           // page is not resident any more, cannot do anything but report it
-	if (n==1)               return ;                                                                             // empty path : access is through a fd, not through a path
+	if (n<=0) { _overflow(tv) ; return ; }                                                                       // page is not resident any more, cannot do anything but report it
+	if (n==1)                   return ;                                                                         // empty path : access is through a fd, not through a path
 	__u32 len0 = 0 ;
 	if (ev->data[0]=='/') {
 		if (_is_simple(ev->data,n,tv->deps_in_system)) return ;
@@ -482,27 +480,27 @@ static __noinline void _capture_raw( struct task_struct* t , struct Task* tv , _
 			dentry = BPF_CORE_READ( fs , pwd.dentry ) ;
 			vmnt   = BPF_CORE_READ( fs , pwd.mnt    ) ;
 		} else {
-			struct file* f = _fd_file(t,dfd) ; if (!f) return ;                                                  // bad dir fd, no access
+			struct file* f = _fd_file( t , dfd ) ; if (!f) return ;                                              // bad dir fd, no access
 			dentry = BPF_CORE_READ( f , f_path.dentry ) ;
 			vmnt   = BPF_CORE_READ( f , f_path.mnt    ) ;
 		}
 		tv->ptr[0] = (__u64)dentry ;
 		tv->ptr[1] = (__u64)vmnt   ;
 		__u32 r = _walk( (struct WalkData*)ev->data , tv->ptr[0] , tv->ptr[1] , tv->job_id , 1/*want_abs*/ ) ;
-		if (!(r&WALK_OK)) { _lost(tv) ; return ; }
+		if (!(r&WALK_OK)) { _overflow(tv) ; return ; }
 		ev->root = WALK_ROOT(r) ;
 		len0     = WALK_LEN (r) ;
 		__u8* dst = &ev->data[len0&(EBPF_PATH_MAX-1)] ;                                                          // path has been overwritten, read it again after dir
 		if (flags&CAPTURE_KERNEL_STR) n = bpf_probe_read_kernel_str( dst , EBPF_PATH_MAX , (const void*)ptr ) ;
 		else                          n = bpf_probe_read_user_str  ( dst , EBPF_PATH_MAX , (const void*)ptr ) ;
-		if (n<=0) { _lost(tv) ; return ; }
+		if (n<=0) { _overflow(tv) ; return ; }
 	}
 	ev->kind   = EBPF_RAW               ;
 	ev->flags  = 0                      ;
 	ev->nr     = (flags&CAPTURE_DST)!=0 ;
 	ev->len[0] = len0                   ;
 	ev->len[1] = n                      ;
-	_emit_capture( tv , len0+(__u32)n ) ;
+	_emit_capture(tv) ;
 }
 
 // close captures
@@ -518,7 +516,7 @@ static __always_inline void _emit_end( struct Task* tv , __u8 flags , __s32 nr ,
 	ev->len[1] = 0        ;
 	if (bpf_core_enum_value_exists(enum bpf_func_id,BPF_FUNC_ktime_get_tai_ns)) ev->stamp_ns = bpf_ktime_get_tai_ns() ;
 	else                                                                        ev->stamp_ns = 0                      ;
-	_emit( tv , tv->tid , tv->pid , EBPF_HDR_SZ ) ;
+	_emit(tv) ;
 	tv->pending = 0 ;
 	tv->seen    = 0 ;
 }
@@ -528,45 +526,32 @@ static __always_inline void _emit_end( struct Task* tv , __u8 flags , __s32 nr ,
 //
 
 // id of pid in the pid namespace whose inode is ns_ino (which may be an ancestor of the active namespace of the task), 0 if not found
-static __always_inline __u32 _ns_nr( struct pid* pid , __u64 ns_ino ) {
+static __always_inline __u32 _ns_nr( struct pid* pid , struct JobCfg* jc ) {
 	if (!pid) return 0 ;
 	unsigned int level = BPF_CORE_READ( pid , level ) ;
 	for( unsigned int i=0 ; i<8 ; i++ ) {               // namespaces deeper than that are not supported
 		if (i>level) break ;
 		struct upid u = {} ;
 		bpf_probe_read_kernel( &u , sizeof(u) , (char*)pid + bpf_core_field_offset(struct pid,numbers) + i*bpf_core_type_size(struct upid) ) ;
-		if ((__u64)BPF_CORE_READ(u.ns,ns.inum)==ns_ino) return u.nr ;
+		if ((__u64)BPF_CORE_READ(u.ns,ns.inum)==jc->pidns_ino) return u.nr ;
 	}
 	return 0 ;
-}
-
-static __always_inline void _proc_start( struct Task* emitter , struct Task* tv , __u32 parent ) {
-	struct EbpfEvent* ev = &emitter->ev ;
-	ev->kind   = EBPF_PROC_START ;
-	ev->flags  = 0               ;
-	ev->nr     = parent          ;
-	ev->len[0] = 0               ;
-	ev->len[1] = 0               ;
-	_emit( emitter , tv->tid , tv->pid , EBPF_HDR_SZ ) ;
 }
 
 // a new thread or process inherits the job of its creator
 // sched_process_fork is called once creation is sure to succeed, so there will be a corresponding sched_process_exit
 SEC("tp_btf/sched_process_fork")
 int BPF_PROG( on_fork , struct task_struct* parent , struct task_struct* child ) {
-	struct Task*   ptv = bpf_task_storage_get( &tasks , parent , 0 , 0                              ) ; if ( !ptv || !ptv->job_id )                return 0 ;
-	struct Task*   ctv = bpf_task_storage_get( &tasks , child  , 0 , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if ( !ctv                 ) { _lost(ptv) ; return 0 ; }
-	__u32          jid = ptv->job_id                                                                  ;
-	struct JobCfg* jc  = bpf_map_lookup_elem( &job_cfg , &jid )                                       ; if ( !jc                  )                return 0 ; // job is gone
-	ctv->job_id         = jid                 ;
-	ctv->deps_in_system = ptv->deps_in_system ;
-	ctv->enabled        = ptv->enabled        ;
-	ctv->suspend        = 0                   ;
-	ctv->pending        = 0                   ;
-	ctv->seen           = 0                   ;
-	ctv->tid            = _ns_nr( BPF_CORE_READ(child,thread_pid)              , jc->pidns_ino ) ;
-	ctv->pid            = _ns_nr( BPF_CORE_READ(child,group_leader,thread_pid) , jc->pidns_ino ) ;
-	_proc_start( ptv , ctv , ptv->pid ) ;
+	struct Task*   ptv = bpf_task_storage_get( &tasks , parent , 0/*value*/ , 0/*flags*/ )                     ; if ( !ptv || !ptv->job_id )                         return 0 ;
+	struct JobCfg* jc  = bpf_map_lookup_elem( &job_cfgs , &ptv->job_id )                                       ; if ( !jc                  )                         return 0 ;   // job is gone
+	struct Task*   ctv = bpf_task_storage_get( &tasks , child  , 0/*value*/ , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if ( !ctv                 ) { jc->overflow = true ; return 0 ; }
+	ctv->job_id         = ptv->job_id                                                 ;
+	ctv->deps_in_system = ptv->deps_in_system                                         ;
+	ctv->enabled        = ptv->enabled                                                ;
+	ctv->tid            = _ns_nr( BPF_CORE_READ(child,thread_pid)              , jc ) ;
+	ctv->pid            = _ns_nr( BPF_CORE_READ(child,group_leader,thread_pid) , jc ) ;
+	ctv->ev.kind        = ctv->tid==ctv->pid ? EBPF_PROC_START : EBPF_THREAD_START    ;
+	_emit(ctv) ;
 	return 0 ;
 }
 
@@ -575,35 +560,31 @@ int BPF_PROG( on_fork , struct task_struct* parent , struct task_struct* child )
 SEC("tp_btf/task_newtask")
 int BPF_PROG( on_newtask , struct task_struct* p , __u64 clone_flags ) {
 	if (!(BPF_CORE_READ(p,flags)&PF_IO_WORKER_)) return 0 ;
-	struct task_struct* t   = bpf_get_current_task_btf()                                              ;
-	struct Task       * ptv = bpf_task_storage_get( &tasks , t , 0 , 0                              ) ; if ( !ptv || !ptv->job_id )                return 0 ;
-	struct Task       * ctv = bpf_task_storage_get( &tasks , p , 0 , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if ( !ctv                 ) { _lost(ptv) ; return 0 ; }
-	ctv->job_id         = ptv->job_id         ;
-	ctv->deps_in_system = ptv->deps_in_system ;
-	ctv->enabled        = ptv->enabled        ;
-	ctv->suspend        = 0                   ;
-	ctv->pending        = 0                   ;
-	ctv->seen           = 0                   ;
-	// a worker runs concurrently with the thread that created it and with other workers, so it needs its own id for its captures to be told apart
-	__u32          jid = ptv->job_id                            ;
-	struct JobCfg* jc  = bpf_map_lookup_elem( &job_cfg , &jid ) ;
-	ctv->tid = jc ? _ns_nr( BPF_CORE_READ(p,thread_pid) , jc->pidns_ino ) : 0 ;
-	if (!ctv->tid) ctv->tid = BPF_CORE_READ(p,pid) ;                            // any id will do as long as it is unique
-	ctv->pid = ptv->pid ;
+	struct task_struct* t   = bpf_get_current_task_btf()                                                       ;
+	struct Task       * ptv = bpf_task_storage_get( &tasks , t , 0/*value*/ , 0/*flags*/ )                     ; if ( !ptv || !ptv->job_id )                         return 0 ;
+	struct JobCfg     * jc  = bpf_map_lookup_elem( &job_cfgs , &ptv->job_id )                                  ; if ( !jc                  )                         return 0 ;
+	struct Task       * ctv = bpf_task_storage_get( &tasks , p , 0/*.    */ , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if ( !ctv                 ) { jc->overflow = true ; return 0 ; }
+	ctv->job_id         = ptv->job_id                                ;
+	ctv->deps_in_system = ptv->deps_in_system                        ;
+	ctv->enabled        = ptv->enabled                               ;
+	ctv->tid            = _ns_nr( BPF_CORE_READ(p,thread_pid) , jc ) ;
+	ctv->pid            = ptv->pid                                   ;
+	ctv->ev.kind        = EBPF_THREAD_START                          ;
+	_emit(ctv) ;
 	return 0 ;
 }
 
 // if a thread is killed while processing a syscall, its captures are never closed : nobody can depend on such accesses
 SEC("tp_btf/sched_process_exit")
 int BPF_PROG( on_exit , struct task_struct* p ) {
-	struct Task     * tv = bpf_task_storage_get( &tasks , p , 0 , 0 ) ; if ( !tv || !tv->job_id ) return 0 ;
-	struct EbpfEvent* ev = &tv->ev                                    ;
-	ev->kind   = EBPF_PROC_END ;
-	ev->flags  = 0             ;
-	ev->nr     = 0             ;
-	ev->len[0] = 0             ;
-	ev->len[1] = 0             ;
-	_emit( tv , tv->tid , tv->pid , EBPF_HDR_SZ ) ;
+	struct Task     * tv = bpf_task_storage_get( &tasks , p , 0/*value*/ , 0/*flags*/ ) ; if ( !tv || !tv->job_id ) return 0 ;
+	struct EbpfEvent* ev = &tv->ev                                                      ;
+	if      (BPF_CORE_READ(p,signal,nr_threads)!=1) ev->kind   = EBPF_THREAD_END ;
+	else if (BPF_CORE_READ(p,tgid)!=tv->root_pid  ) ev->kind   = EBPF_PROC_END   ;
+	else                                            ev->kind   = EBPF_JOB_END    ;
+	/**/                                            ev->len[0] = 0               ;
+	/**/                                            ev->len[1] = 0               ;
+	_emit(tv) ;
 	tv->job_id = 0 ;
 	return 0 ;
 }
@@ -630,8 +611,8 @@ int BPF_PROG( on_follow_link , struct dentry* dentry , struct inode* inode , boo
 		if (nd) tv->ptr[1] = (__u64)BPF_CORE_READ( nd , path.mnt ) ;
 	}
 	__u32 r = _walk( (struct WalkData*)tv->ev.data , tv->ptr[0] , tv->ptr[1] , tv->job_id , 0/*want_abs*/ ) ;
-	if (r&WALK_TRUNC) { _lost(tv) ; return 0 ; }
-	if (!(r&WALK_OK)) {             return 0 ; }
+	if (r&WALK_TRUNC) { _panic(tv,"bad symlink in path") ; return 0 ; }
+	if (!(r&WALK_OK))                                      return 0 ;
 	struct EbpfEvent* ev   = &tv->ev     ;
 	__u32             len0 = WALK_LEN(r) ;
 	__u32             len1 = 0           ;
@@ -646,7 +627,7 @@ int BPF_PROG( on_follow_link , struct dentry* dentry , struct inode* inode , boo
 	}
 	ev->len[0] = len0 ;
 	ev->len[1] = len1 ;
-	_emit_capture( tv , len0+len1 ) ;
+	_emit_capture(tv) ;
 	return 0 ;
 }
 
@@ -654,33 +635,21 @@ int BPF_PROG( on_follow_link , struct dentry* dentry , struct inode* inode , boo
 // when it succeeds, path is the resolved object, and nothing has been modified yet
 SEC("fexit/filename_lookup")
 int BPF_PROG( on_filename_lookup , int dfd , struct filename* name , unsigned flags , struct path* path , struct path* root , int ret ) {
-	if (ret!=0) return 0 ;                                                                                                                // unresolved paths are handled at syscall exit
 	if (dfd==EBPF_ROOT_FD) {                                                                                                              // the daemon registers a root
 		if (_get_current_euid()!=0) return 0 ;
-		__u32           z  = 0                                 ;
-		struct RootReg* rr = bpf_map_lookup_elem(&root_reg,&z) ; if ( !rr || !rr->armed ) return 0 ;
+		__u32           z  = 0                                                                           ;
+		struct RootReg* rr = bpf_map_lookup_elem(&root_reg,&z)                                           ; if ( !rr || !rr->armed ) return 0 ;
 		struct RootKey  rk = { .dentry=(__u64)BPF_CORE_READ(path,dentry) , .job_id=rr->job_id , .pad=0 } ;
-		__u32           ri = rr->idx                           ;
+		__u32           ri = rr->idx                                                                     ;
 		if (bpf_map_update_elem(&roots,&rk,&ri,BPF_ANY)==0) { rr->done = 1 ; rr->dentry = rk.dentry ; }
 		rr->armed = 0 ;
 		return 0 ;
 	}
 	struct Task* tv = _capturing() ; if (!tv) return 0 ;
+	if (ret!=0) return 0 ;                                                                                                                // unresolved paths are handled at syscall exit
 	tv->seen     |= SEEN_RES ;
 	tv->ev.flags  = 0        ;
 	_capture_obj( tv , EBPF_LOOKUP , BPF_CORE_READ(path,dentry) , BPF_CORE_READ(path,mnt) ) ;
-	return 0 ;
-}
-
-// all the opens go through security_file_open, including execve and io_uring, once file is resolved and before it is truncated
-// it is not called with O_PATH, which is handled at syscall exit
-SEC("fentry/security_file_open")
-int BPF_PROG( on_file_open , struct file* file ) {
-	struct Task* tv = _capturing() ; if (!tv) return 0 ;
-	tv->seen          |= SEEN_OPEN|SEEN_RES                                               ;
-	tv->ev.flags       = (BPF_CORE_READ(file,f_mode)&FMODE_CREATED_) ? EBPF_F_CREATED : 0 ;
-	tv->ev.open_flags  = BPF_CORE_READ(file,f_flags)                                      ;
-	_capture_obj( tv , EBPF_OPEN , BPF_CORE_READ(file,f_path.dentry) , BPF_CORE_READ(file,f_path.mnt) ) ;
 	return 0 ;
 }
 
@@ -688,14 +657,15 @@ int BPF_PROG( on_file_open , struct file* file ) {
 // it is used to know what could not be opened : the file of an open, but also the interpreter of a script upon execve, which is not an arg of any syscall
 SEC("fexit/do_filp_open")
 int BPF_PROG( on_filp_open , int dfd , struct filename* pathname , const struct open_flags* op , struct file* ret ) {
-	struct Task* tv = _capturing() ; if (!tv) return 0 ;
+	struct Task* tv = _capturing()            ; if (!tv) return 0 ;
+	__u8         ok = (__u64)ret<(__u64)-4095 ;
 	tv->ptr[0] = (__u64)ret ;
-	if (tv->ptr[0]<(__u64)-4095) return 0 ;                                                                    // open is ok, it is dealt with by on_file_open
-	__u8 k = tv->cur_kind ;
-	if ( k==EBPF_SCK_OPEN || k==EBPF_SCK_CREAT || k==EBPF_SCK_OPENAT2 ) { tv->seen |= SEEN_FAIL ; return 0 ; } // path is an arg of the syscall, it is captured at exit, where repetitions are filtered
-	tv->seen |= SEEN_RAW ;
-	struct task_struct* t = bpf_get_current_task_btf() ;
-	_capture_raw( t , tv , (__u64)BPF_CORE_READ(pathname,name) , dfd , CAPTURE_KERNEL_STR ) ;
+	if (ok) {
+		tv->seen          |= SEEN_RES                                                        ;
+		tv->ev.flags       = (BPF_CORE_READ(ret,f_mode)&FMODE_CREATED_) ? EBPF_F_CREATED : 0 ;
+		tv->ev.open_flags  = BPF_CORE_READ(ret,f_flags)                                      ;
+		_capture_obj( tv , EBPF_OPEN , BPF_CORE_READ(ret,f_path.dentry) , BPF_CORE_READ(ret,f_path.mnt) ) ;
+	}
 	return 0 ;
 }
 
@@ -776,45 +746,16 @@ int BPF_PROG( on_path_rename , struct path* old_dir , struct dentry* old_dentry 
 //
 
 static __always_inline void _register( struct task_struct* t , __u32 job_id ) {
-	struct JobCfg* jc = bpf_map_lookup_elem( &job_cfg , &job_id                                ) ; if (!jc)                                       return ;
-	struct Task  * tv = bpf_task_storage_get( &tasks  , t , 0 , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if (!tv) { __sync_fetch_and_add(&jc->lost,1) ; return ; }
-	tv->job_id         = job_id                                                             ;
-	tv->deps_in_system = jc->deps_in_system                                                 ;
-	tv->enabled        = 1                                                                  ;
-	tv->suspend        = 0                                                                  ;
-	tv->pending        = 0                                                                  ;
-	tv->seen           = 0                                                                  ;
-	tv->tid            = _ns_nr( BPF_CORE_READ(t,thread_pid             ) , jc->pidns_ino ) ; // the job may run in a pid namespace nested in that of the client
-	tv->pid            = _ns_nr( BPF_CORE_READ(t,group_leader,thread_pid) , jc->pidns_ino ) ;
-	_proc_start( tv , tv , 0/*parent*/ ) ;
-}
-
-// a job that waits for a file by polling repeats the same failing syscall again and again, and several threads doing so are faster than the consumer, which finally makes the job fail
-// there is no point in reporting more than the first one : the same file is seen the same way
-// return true if syscall is the same as the last one reported by this thread : same syscall, same args, same path relative to the same dir, same error
-// else record it as a candidate, to be validated once reported
-// /!\ dir is identified by its dentry, which is not strictly safe if it is released and its address reused by another dir, this would need the dir to be changed by another thread
-static __always_inline bool _is_repeat( struct task_struct* t , struct Task* tv , __u32 nr , __u32 is32 , long ret , const __u64* args , __u64 path , bool has_dfd , int dfd ) {
-	struct Rep* last      = &tv->rep[0]   ;
-	struct Rep* cand      = &tv->rep[1]   ;
-	bool        was_valid = tv->rep_valid ;
-	tv->rep_valid = 0 ;
-	for( int i=0 ; i<8 ; i++ ) cand->path[i] = 0 ;
-	long n = bpf_probe_read_user_str( cand->path , sizeof(cand->path) , (const void*)path ) ;
-	if ( n<=1 || n>=(long)sizeof(cand->path) ) return false ;                                 // unreadable, empty or too long (it may have been truncated)
-	struct dentry* dir = 0 ;
-	if ( !has_dfd || dfd==AT_FDCWD_ ) { struct fs_struct* fs = BPF_CORE_READ( t , fs ) ; if (fs) dir = BPF_CORE_READ( fs , pwd.dentry    ) ; }
-	else                              { struct file*      f  = _fd_file(t,dfd)        ; if (f ) dir = BPF_CORE_READ( f  , f_path.dentry ) ; }
-	for( int i=0 ; i<6 ; i++ ) cand->args[i] = args[i] ;
-	cand->dir  = (__u64)dir ;
-	cand->rc   = ret        ;
-	cand->nr   = nr         ;
-	cand->is32 = is32       ;
-	bool same = was_valid && cand->dir==last->dir && cand->rc==last->rc && cand->nr==last->nr && cand->is32==last->is32 ;
-	for( int i=0 ; i<8 ; i++ ) same &= cand->path[i]==last->path[i] ;
-	for( int i=0 ; i<6 ; i++ ) same &= cand->args[i]==last->args[i] ;
-	if (same) tv->rep_valid = 1 ;
-	return same ;
+	struct JobCfg* jc = bpf_map_lookup_elem( &job_cfgs , &job_id )                                        ; if (!jc)                         return ;
+	struct Task  * tv = bpf_task_storage_get( &tasks  , t , 0/*value*/ , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if (!tv) { jc->overflow = true ; return ; }
+	tv->root_pid       = BPF_CORE_READ(t,tgid)                                   ;
+	tv->job_id         = job_id                                                  ;
+	tv->deps_in_system = jc->deps_in_system                                      ;
+	tv->enabled        = 1                                                       ;
+	tv->tid            = _ns_nr( BPF_CORE_READ(t,thread_pid             ) , jc ) ; // the job may run in a pid namespace nested in that of the client
+	tv->pid            = _ns_nr( BPF_CORE_READ(t,group_leader,thread_pid) , jc ) ;
+	tv->ev.kind        = EBPF_PROC_START                                         ;
+	_emit(tv) ;
 }
 
 SEC("tp_btf/sys_exit")
@@ -822,33 +763,29 @@ int BPF_PROG( on_sys_exit , struct pt_regs* regs , long ret ) {
 	long                nr   = SC_NR(regs)                ;
 	struct task_struct* t    = bpf_get_current_task_btf() ;
 	__u32               is32 = 0                          ;
-	#if HAS_32
-		if ( nr>=0 && (nr&X32_SYSCALL_BIT_) ) {                                                         // x32 ABI is not supported, such a syscall makes the job untrustable
+	#if !HAS_32
+		if ( nr>=0 && (nr&X32_SYSCALL_BIT_) ) {                                              // x32 ABI is not supported, such a syscall makes the job untrustable
 			struct Task* tv = bpf_task_storage_get( &tasks , t , 0 , 0 ) ;
-			if ( tv && tv->job_id ) _lost(tv) ;
+			if ( tv && tv->job_id ) _overflow(tv) ;
 			return 0 ;
 		}
 	#endif
 	if ( nr<0 || nr>=NSYSCALLS ) return 0 ;
 	#if HAS_32
 		is32 = (BPF_CORE_READ(t,thread_info.status)&TS_COMPAT_)!=0 ;
-		if (is32) {                                                                                     // exceptional, so we can afford to look for the task
-			struct Task* tv = bpf_task_storage_get( &tasks , t , 0 , 0 ) ;
-			if ( tv && tv->job_id && !HAS_32 ) { _lost(tv) ; return 0 ; }                               // nothing can be said about what this job does
-		}
 	#endif
 	// first filter on syscall for fast elimination of uninteresting syscalls
-	__u32  k = is32*NSYSCALLS + nr                    ;
-	__u32* d = bpf_map_lookup_elem( &syscalls , &k ) ; if ( !d || !*d ) return 0 ;
-	__u32  descr = *d                   ;
-	__u32  kind  = EBPF_SC_KIND (descr) ;
-	__u32  path1 = EBPF_SC_PATH1(descr) ;
-	__u32  dfd1  = EBPF_SC_DFD1 (descr) ;
-	__u32  path2 = EBPF_SC_PATH2(descr) ;
-	__u32  dfd2  = EBPF_SC_DFD2 (descr) ;
-	__u32  fd    = EBPF_SC_FD   (descr) ;
-	__u32  flg   = EBPF_SC_FLAGS(descr) ;
-	__u64  args[8] = {} ;                                                                               // 8 so that index can be masked rather than tested (7 means none)
+	__u32  k     = is32*NSYSCALLS + nr                   ;
+	__u32* d     = bpf_map_lookup_elem( &syscalls , &k ) ; if (!d    ) return 0 ;
+	__u32  descr = *d                                    ; if (!descr) return 0 ;
+	__u32  kind  = EBPF_SC_KIND (descr)                  ;
+	__u32  path1 = EBPF_SC_PATH1(descr)                  ;
+	__u32  dfd1  = EBPF_SC_DFD1 (descr)                  ;
+	__u32  path2 = EBPF_SC_PATH2(descr)                  ;
+	__u32  dfd2  = EBPF_SC_DFD2 (descr)                  ;
+	__u32  fd    = EBPF_SC_FD   (descr)                  ;
+	__u32  flg   = EBPF_SC_FLAGS(descr)                  ;
+	__u64  args[8] = {} ;                                                                    // 8 so that index can be masked rather than tested (7 means none)
 	#if defined(__TARGET_ARCH_x86)
 		if (is32) { args[0]=regs->bx ; args[1]=regs->cx ; args[2]=regs->dx ; args[3]=regs->si  ; args[4]=regs->di ; args[5]=regs->bp ; }
 		else      { args[0]=regs->di ; args[1]=regs->si ; args[2]=regs->dx ; args[3]=regs->r10 ; args[4]=regs->r8 ; args[5]=regs->r9 ; }
@@ -862,14 +799,13 @@ int BPF_PROG( on_sys_exit , struct pt_regs* regs , long ret ) {
 	struct Task* tv = bpf_task_storage_get( &tasks , t , 0 , 0 ) ; if ( !tv || !tv->job_id ) return 0 ;
 	if (is_marker) {
 		switch ((int)args[0]) {
-			case EBPF_MAGIC_FD        : if (ret<0) tv->suspend = 1          ; goto Discard ;            // backdoor is not processed by anybody, job will do it by itself
+			case EBPF_MAGIC_FD        : if (ret<0) tv->suspend = 1          ; goto Discard ; // backdoor is not processed by anybody, job will do it by itself
 			case EBPF_MAGIC_FD_END    :            tv->suspend = 0          ; goto Discard ;
 			case EBPF_MAGIC_FD_ENABLE :            tv->enabled = args[3]!=0 ; goto Discard ;
 		}
 	}
-	bool rep_cand = false ;
 	if ( tv->suspend || !tv->enabled               ) goto Discard ;
-	if ( ret<=-ERESTARTSYS_ && ret>=-ERESTART_MAX_ ) goto Discard ;                                     // syscall will be restarted
+	if ( ret<=-ERESTARTSYS_ && ret>=-ERESTART_MAX_ ) goto Discard ;                          // syscall will be restarted
 	//
 	if (ret>=0) {
 		// dir is designated by a fd
@@ -878,10 +814,10 @@ int BPF_PROG( on_sys_exit , struct pt_regs* regs , long ret ) {
 			if (f) { tv->ev.flags = 0 ; _capture_obj( tv , EBPF_DIR , BPF_CORE_READ(f,f_path.dentry) , BPF_CORE_READ(f,f_path.mnt) ) ; }
 		}
 		// with O_PATH, the open hook is not called, but the fd designates the file
-		if ( ( kind==EBPF_SCK_OPEN || kind==EBPF_SCK_OPENAT2 ) && !(tv->seen&SEEN_OPEN) ) {
+		if ( ( kind==EBPF_SCK_OPEN || kind==EBPF_SCK_OPENAT2 ) && !(tv->seen&SEEN_RES) ) {
 			struct file* f = _fd_file( t , (int)ret ) ;
 			if (f) {
-				tv->ev.flags      = 0                           ;
+				tv->ev.flags      = 0                            ;
 				tv->ev.open_flags = BPF_CORE_READ( f , f_flags ) ;
 				_capture_obj( tv , EBPF_OPEN , BPF_CORE_READ(f,f_path.dentry) , BPF_CORE_READ(f,f_path.mnt) ) ;
 			}
@@ -889,13 +825,8 @@ int BPF_PROG( on_sys_exit , struct pt_regs* regs , long ret ) {
 	} else {
 		// paths that could not be resolved, the kernel has just read them, so the page is resident
 		if (path2==EBPF_SC_NONE) {
-			if ( path1!=EBPF_SC_NONE && ( (tv->seen&SEEN_FAIL) || !(tv->seen&(SEEN_RES|SEEN_RAW)) ) ) {
-				if ( !tv->pending && kind!=EBPF_SCK_EXEC && kind!=EBPF_SCK_OPENAT2 ) {                  // syscall is fully described by its args and its path (openat2 has indirect flags)
-					if (_is_repeat( t , tv , nr , is32 , ret , args , args[path1&7] , dfd1!=EBPF_SC_NONE , (int)args[dfd1&7] )) { tv->seen = 0 ; return 0 ; }
-					rep_cand = true ;
-				}
+			if ( path1!=EBPF_SC_NONE && !(tv->seen&SEEN_RES) )
 				_capture_raw( t , tv , args[path1&7] , dfd1!=EBPF_SC_NONE?(int)args[dfd1&7]:AT_FDCWD_ , 0/*flags*/ ) ;
-			}
 		} else {
 			if (!(tv->seen&SEEN_PAIR)) {
 				_capture_raw( t , tv , args[path1&7] , dfd1!=EBPF_SC_NONE?(int)args[dfd1&7]:AT_FDCWD_ , 0/*flags*/  ) ;
@@ -903,20 +834,22 @@ int BPF_PROG( on_sys_exit , struct pt_regs* regs , long ret ) {
 			}
 		}
 	}
-	if (!tv->pending) { tv->seen = 0 ; return 0 ; }                                                     // nothing of interest, this is the most common case
+	if (!tv->pending) { tv->seen = 0 ; return 0 ; }                                          // nothing of interest, this is the most common case
 	//
 	for( int i=0 ; i<6 ; i++ ) tv->ev.args[i] = args[i] ;
 	switch (kind) {
-		case EBPF_SCK_CREAT   : tv->ev.open_flags = 01|0100|01000/*O_WRONLY|O_CREAT|O_TRUNC*/ ; break ;
+		case EBPF_SCK_CREAT :
+			tv->ev.open_flags = 01|0100|01000/*O_WRONLY|O_CREAT|O_TRUNC*/ ;
+		break ;
 		case EBPF_SCK_OPENAT2 : {
 			struct open_how how = {} ;
 			bpf_probe_read_user( &how , sizeof(how) , (const void*)args[flg&7] ) ;
 			tv->ev.open_flags = how.flags ;
 		} break ;
-		default               : tv->ev.open_flags = flg!=EBPF_SC_NONE ? args[flg&7] : 0 ;
+		default :
+			tv->ev.open_flags = flg!=EBPF_SC_NONE ? args[flg&7] : 0 ;
 	}
 	_emit_end( tv , 0/*flags*/ , nr , is32 , ret ) ;
-	if (rep_cand) { tv->rep[0] = tv->rep[1] ; tv->rep_valid = 1 ; }                                     // syscall has been reported, it need not be if it is repeated
 	return 0 ;
 Discard :
 	if (tv->pending) _emit_end( tv , EBPF_F_DISCARD , nr , is32 , ret ) ;
@@ -957,20 +890,19 @@ static __always_inline void _io_end( struct Task* tv , struct io_kiocb* req ) {
 }
 
 static __always_inline int _io_open( struct io_kiocb* req , int ret , bool outer ) {
-	struct Task* tv = _io_begin(req,ret)   ; if (!tv) return 0 ;
-	if (outer) {                                                 // io_openat calls io_openat2, which has already done the job if it is not inlined
+	struct Task* tv = _io_begin(req,ret) ; if (!tv) return 0 ;
+	if (outer) {                                               // io_openat calls io_openat2, which has already done the job if it is not inlined
 		bool done = tv->io_req==(__u64)req ;
 		tv->io_req = 0 ;
 		if (done) return 0 ;
 	} else {
 		tv->io_req = (__u64)req ;
 	}
-	struct io_open*  op = (struct io_open*)req ;                 // per-op data overlays the head of io_kiocb
-	int   dfd   = BPF_CORE_READ(op,dfd      ) ;
-	__u64 flags = BPF_CORE_READ(op,how.flags) ;
-	// if open failed, path has been captured by on_filp_open
+	struct io_open* op    = (struct io_open*)req        ;      // per-op data overlays the head of io_kiocb
+	int             dfd   = BPF_CORE_READ(op,dfd      ) ;
+	__u64           flags = BPF_CORE_READ(op,how.flags) ;
+	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,filename) , dfd , 0/*flags*/ ) ;
 	tv->ev.args[0]    = (__u64)dfd ;
-	tv->ev.args[1]    = 0          ; tv->ev.args[2] = 0 ; tv->ev.args[3] = 0 ; tv->ev.args[4] = 0 ; tv->ev.args[5] = 0 ;
 	tv->ev.open_flags = flags      ;
 	_io_end(tv,req) ;
 	return 0 ;
@@ -981,14 +913,15 @@ SEC("fexit/io_openat" ) int BPF_PROG( on_io_openat  , struct io_kiocb* req , uns
 
 SEC("fexit/io_statx")
 int BPF_PROG( on_io_statx , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
-	struct Task    * tv = _io_begin(req,ret)    ; if (!tv) return 0 ;
-	struct io_statx* op = (struct io_statx*)req ;
-	int   dfd   = BPF_CORE_READ(op,dfd  ) ;
-	__u64 flags = BPF_CORE_READ(op,flags) ;
-	__u64 mask  = BPF_CORE_READ(op,mask ) ;
+	struct Task    * tv    = _io_begin(req,ret)      ; if (!tv) return 0 ;
+	struct io_statx* op    = (struct io_statx*)req   ;
+	int              dfd   = BPF_CORE_READ(op,dfd  ) ;
+	__u64            flags = BPF_CORE_READ(op,flags) ;
+	__u64            mask  = BPF_CORE_READ(op,mask ) ;
 	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,filename) , dfd , 0/*flags*/ ) ;
-	tv->ev.args[0] = (__u64)dfd ; tv->ev.args[1] = 0 ; tv->ev.args[2] = flags ; tv->ev.args[3] = mask ; tv->ev.args[4] = 0 ; tv->ev.args[5] = 0 ;
-	tv->ev.open_flags = 0 ;
+	tv->ev.args[0]= (__u64)dfd ;
+	tv->ev.args[2]= flags      ;
+	tv->ev.args[3]= mask       ;
 	_io_end(tv,req) ;
 	return 0 ;
 }
@@ -1004,8 +937,9 @@ int BPF_PROG( on_io_renameat , struct io_kiocb* req , unsigned int issue_flags ,
 		_io_raw( tv , BPF_CORE_READ(op,oldpath) , old_dfd , 0/*flags*/  ) ;
 		_io_raw( tv , BPF_CORE_READ(op,newpath) , new_dfd , CAPTURE_DST ) ;
 	}
-	tv->ev.args[0] = (__u64)old_dfd ; tv->ev.args[1] = 0 ; tv->ev.args[2] = (__u64)new_dfd ; tv->ev.args[3] = 0 ; tv->ev.args[4] = flags ; tv->ev.args[5] = 0 ;
-	tv->ev.open_flags = 0 ;
+	tv->ev.args[0] = (__u64)old_dfd ;
+	tv->ev.args[2] = (__u64)new_dfd ;
+	tv->ev.args[4] = flags          ;
 	_io_end(tv,req) ;
 	return 0 ;
 }
@@ -1017,8 +951,8 @@ int BPF_PROG( on_io_unlinkat , struct io_kiocb* req , unsigned int issue_flags ,
 	int   dfd   = BPF_CORE_READ(op,dfd  ) ;
 	__u64 flags = BPF_CORE_READ(op,flags) ;
 	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,filename) , dfd , 0/*flags*/ ) ;
-	tv->ev.args[0] = (__u64)dfd ; tv->ev.args[1] = 0 ; tv->ev.args[2] = flags ; tv->ev.args[3] = 0 ; tv->ev.args[4] = 0 ; tv->ev.args[5] = 0 ;
-	tv->ev.open_flags = 0 ;
+	tv->ev.args[0] = (__u64)dfd ;
+	tv->ev.args[2] = flags      ;
 	_io_end(tv,req) ;
 	return 0 ;
 }
@@ -1029,8 +963,7 @@ int BPF_PROG( on_io_mkdirat , struct io_kiocb* req , unsigned int issue_flags , 
 	struct io_mkdir* op = (struct io_mkdir*)req ;
 	int dfd = BPF_CORE_READ(op,dfd) ;
 	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,filename) , dfd , 0/*flags*/ ) ;
-	tv->ev.args[0] = (__u64)dfd ; tv->ev.args[1] = 0 ; tv->ev.args[2] = 0 ; tv->ev.args[3] = 0 ; tv->ev.args[4] = 0 ; tv->ev.args[5] = 0 ;
-	tv->ev.open_flags = 0 ;
+	tv->ev.args[0] = (__u64)dfd ;
 	_io_end(tv,req) ;
 	return 0 ;
 }
@@ -1046,8 +979,9 @@ int BPF_PROG( on_io_linkat , struct io_kiocb* req , unsigned int issue_flags , i
 		_io_raw( tv , BPF_CORE_READ(op,oldpath) , old_dfd , 0/*flags*/  ) ;
 		_io_raw( tv , BPF_CORE_READ(op,newpath) , new_dfd , CAPTURE_DST ) ;
 	}
-	tv->ev.args[0] = (__u64)old_dfd ; tv->ev.args[1] = 0 ; tv->ev.args[2] = (__u64)new_dfd ; tv->ev.args[3] = 0 ; tv->ev.args[4] = flags ; tv->ev.args[5] = 0 ;
-	tv->ev.open_flags = 0 ;
+	tv->ev.args[0] = (__u64)old_dfd ;
+	tv->ev.args[2] = (__u64)new_dfd ;
+	tv->ev.args[4] = flags          ;
 	_io_end(tv,req) ;
 	return 0 ;
 }
@@ -1058,8 +992,7 @@ int BPF_PROG( on_io_symlinkat , struct io_kiocb* req , unsigned int issue_flags 
 	struct io_link* op      = (struct io_link*)req      ;                     // symlinkat uses struct io_link in io_uring
 	int             new_dfd = BPF_CORE_READ(op,new_dfd) ;
 	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,newpath) , new_dfd , 0/*flags*/ ) ;
-	tv->ev.args[0] = 0 ; tv->ev.args[1] = (__u64)new_dfd ; tv->ev.args[2] = 0 ; tv->ev.args[3] = 0 ; tv->ev.args[4] = 0 ; tv->ev.args[5] = 0 ;
-	tv->ev.open_flags = 0 ;
+	tv->ev.args[1] = (__u64)new_dfd ;
 	_io_end(tv,req) ;
 	return 0 ;
 }

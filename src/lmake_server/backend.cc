@@ -363,9 +363,16 @@ namespace Backends {
 		StartSteps                 steps                 ;
 		::vmap_s<DepSpec>          dep_specs             = rd.deps_attrs.dep_specs(match) ;                                         // this cannot fail as it was already run to construct job
 		//
-		bool no_incremental ;
-		{	Lock lock{Req::s_reqs_mutex} ;                                                                                          // taking Req::s_reqs_mutex is compulsory to derefence req
-			no_incremental = ::any_of( reqs , [&](Req r) { return r->options.flags[ReqFlag::NoIncremental] ; } ) ;
+		bool  no_incremental = false ;
+		Bool3 track_all_deps = No    ;     // No means track no deps, Maybe means track essential deps, Yes means track all deps
+		{	Lock lock{Req::s_reqs_mutex} ; // taking Req::s_reqs_mutex is compulsory to derefence req
+			for( Req r : reqs ) {
+				ReqFlags flags = r->options.flags ;
+				if      (flags[ReqFlag::NoIncremental]) no_incremental  = true  ;
+				if      (flags[ReqFlag::NoDeps       ]) {}
+				else if (flags[ReqFlag::EssentialDeps]) track_all_deps |= Maybe ;
+				else                                    track_all_deps |= Yes   ;
+			}
 		}
 		try {
 			try                       { start_ancillary_attrs = rd.start_ancillary_attrs.eval(match,rsrcs,&deps) ; steps |= StartStep::AncillaryAttrs ; }
@@ -374,7 +381,7 @@ namespace Backends {
 			start_msg_err.msg    << add_nl<<e.msg<<add_nl<<rd.start_ancillary_attrs.s_exc_msg(false/*using_static*/) ;
 			start_msg_err.stderr << add_nl<<e.stderr                                                                 ;
 		}
-		for( auto& [_,dd] : ::span( deps.data()+n_chked_deps , deps.size()-n_chked_deps ) ) { dd.accesses_=0 ; dd.dflags={} ; }     // no impact on job status nor target content
+		for( auto& [_,dd] : ::span( deps.data()+n_chked_deps , deps.size()-n_chked_deps ) ) { dd.accesses_=0 ; dd.dflags={} ; } // no impact on job status nor target content
 		n_chked_deps = deps.size() ;
 		try {
 			try                       { start_rsrcs_attrs = rd.start_rsrcs_attrs.eval(match,rsrcs,&deps) ; steps |= StartStep::RsrcsAttrs ; }
@@ -383,7 +390,7 @@ namespace Backends {
 			start_msg_err.msg    << add_nl<<e.msg<<add_nl<<rd.start_rsrcs_attrs.s_exc_msg(false/*using_static*/) ;
 			start_msg_err.stderr << add_nl<<e.stderr                                                             ;
 		}
-		for( auto& [_,dd] : ::span( deps.data()+n_chked_deps , deps.size()-n_chked_deps ) ) dd.dflags &=~Dflag::Full ;              // impact on job status but not on target content
+		for( auto& [_,dd] : ::span( deps.data()+n_chked_deps , deps.size()-n_chked_deps ) ) dd.dflags &=~Dflag::Full ;          // impact on job status but not on target content
 		try {
 			try                       { start_cmd_attrs = rd.start_cmd_attrs.eval(match,rsrcs,&deps) ; steps |= StartStep::CmdAttrs ; }
 			catch (::string const& e) { throw MsgStderr{.stderr=e} ;                                                                  }
@@ -422,12 +429,12 @@ namespace Backends {
 			reply.keep_tmp     |= start_ancillary_attrs.keep_tmp     ;
 			reply.kill_daemons  = start_ancillary_attrs.kill_daemons ;
 			#if HAS_ZLIB || HAS_ZSTD
-				reply.zlvl = start_ancillary_attrs.zlvl ;                                                                           // if no compression lib is available, dont compress
+				reply.zlvl = start_ancillary_attrs.zlvl ;                                                                       // if no compression lib is available, dont compress
 			#endif
 			//
 			for( ::pair_ss& kv : start_ancillary_attrs.env ) reply.env.push_back(::move(kv)) ;
 		} else {
-			steps |= StartStep::AncillaryAttrs ;                                                                                    // we may run job even with incomplete ancillary info
+			steps |= StartStep::AncillaryAttrs ;                                                                                // we may run job even with incomplete ancillary info
 		}
 		if (steps[StartStep::RsrcsAttrs]) {
 			reply.chk_abs_paths            =        start_rsrcs_attrs.chk_abs_paths   ;
@@ -500,7 +507,7 @@ namespace Backends {
 		if (tag!=Tag::Local) jis.pre_start.service.addr = SockFd::s_addr(fd,true/*peer*/)      ;
 		else                 SWEAR( jis.pre_start.service.addr==0 ) ;
 		if (+deps) {
-			::umap_s<VarIdx> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
+			::umap_s<size_t> dep_idxes ; for( VarIdx i : iota<VarIdx>(reply.deps.size()) ) dep_idxes[reply.deps[i].first] = i ;
 			for( auto const& [dn,dd] : deps )
 				if ( auto it=dep_idxes.find(dn) ; it!=dep_idxes.end() )                                       reply.deps[it->second].second.first |= dd ;              // update existing dep
 				else                                                    { dep_idxes[dn] = reply.deps.size() ; reply.deps.emplace_back(dn,::pair(dd,ExtraDflags())) ; } // create new dep
@@ -514,7 +521,9 @@ namespace Backends {
 					&&	::all_of(
 							::span( deps.data()+n_chked_deps , deps.size()-n_chked_deps )
 						,	[&](auto const& dn_dd) {
-								if (!dn_dd.second.accesses_) return true ;
+								if ( track_all_deps==No                                              ) return true ;
+								if ( track_all_deps==Maybe && !dn_dd.second.dflags[Dflag::Essential] ) return true ;
+								if ( !dn_dd.second.accesses_                                         ) return true ;
 								Node d { dn_dd.first } ;
 								return +d && d->done(r,NodeGoal::Dsk) ;
 							}

@@ -382,9 +382,6 @@ M port to Darwin
 		- provide a comfortable space
 		- but in case of overflow, provide an alternate communication means to panic (possibly send a signal to userland)
 * fix ebpf
-	- auto-launch lmake_bpfd
-		- make socket name /run/open-lmake/<lmake install path>
-			- so as to ensure client speaks to right daemon
 	- ensure 32 bits exe are supported
 	- duplicate auto-test feature to have 32-bits check as well
 		- this implies a separate exe for auto-test so as to have 64-bit and 32-bit versions
@@ -397,6 +394,8 @@ M port to Darwin
 		- restore autodep (through backdoor)
 			- per thread-id (not process wide)
 			- flush queues before
+	- manage so that Task allocation problems are correctly reported
+		- rather than a mere overflow
 * implement ptrace/seccomp with a single thread within job_exec
 	- rather than 2 : on that transform ptrace events into socket messages and one that processes messages similarly to ld_preload/ld_audit
 	- particularly important when ebpf is implemented as ebpf then becomes the standard autodep method

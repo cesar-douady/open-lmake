@@ -210,7 +210,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 //	// START_OF_VERSIONING CACHE
 //	struct LruEntry {
-//		// accesses
+//		// cxtors & co
 //		void operator>>(::string&) const ;
 //		bool operator+ (         ) const { return +newer || +older ; }
 //		// services
@@ -1377,7 +1377,7 @@ namespace Version {
 //					} ;
 //					// END_OF_VERSIONING
 //			// START_OF_VERSIONING REPO
-//			::vmap_s<uint8_t> targets ;
+//			::vmap_s<uint8_t> targets         ;
 //			::vector_s        stem_match_info ; for( VarIdx i : iota(n_target_stems) ) stem_match_info.push_back(stems[i].second) ; // only need stem content as long as used for targets
 //			for( bool star : {false,true} )
 //				for( VarIdx mi : matches_iotas[star][+MatchKind::Target] ) { // targets (static and star) must be kept first in matches so RuleTgt is stable when match_crc is stable

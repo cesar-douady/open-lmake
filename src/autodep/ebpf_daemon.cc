@@ -255,11 +255,6 @@ static bool/*done*/ _process_job(Job&/*inout*/ job) {
 	}
 	bool ok = false ;                                                                // as long as not recognized ok
 	switch (req) {
-		case ReqKey::Stats : {
-			JobCfg cfg   = {}                              ; ::bpf_map_lookup_elem( bpf_map__fd(g_skel->maps.job_cfg) , &job.job_id , &cfg ) ;
-			Stats  stats { .seq=cfg.seq , .lost=cfg.lost } ;
-			ok = ::send( job.conn , &stats , sizeof(stats) , MSG_NOSIGNAL )==ssize_t(sizeof(stats)) ;
-		} break ;
 		case ReqKey::Exclude : {
 			char done =
 				req_fd>=0

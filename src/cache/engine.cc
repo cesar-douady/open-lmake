@@ -281,16 +281,16 @@ void Ckey::victimize() {
 Cjob::Cjob(::string const& name_) {
 	CjobName jn = _g_job_name_file.search(name_) ; if (!jn) return ;
 	self = _g_job_name_file.at(jn) ;
-	SWEAR( +self , name_ ) ;
+	SWEAR( +self && self->_name==jn , name_,jn,self->_name ) ;
 }
 
 Cjob::Cjob( NewType , ::string const& name_ , VarIdx n_statics ) {
 	CjobName jn = _g_job_name_file.insert(name_).first ;
 	Cjob&    j  = _g_job_name_file.at(jn)              ;
-	if (!j) j = _g_job_file.emplace(jn,n_statics) ;
-	else    SWEAR( j->n_statics==n_statics , name_,n_statics,j ) ;
+	if (!j)   j = _g_job_file.emplace(jn,n_statics) ;
+	else    { SWEAR( j->_name==jn , name_,j,jn,j->_name ) ; SWEAR( j->n_statics==n_statics , name_,j,n_statics,j->n_statics ) ; }
 	self = j ;
-	SWEAR( +self , name_,n_statics ) ;
+	SWEAR( +self , name_,jn,n_statics ) ;
 }
 
 //
@@ -300,15 +300,16 @@ Cjob::Cjob( NewType , ::string const& name_ , VarIdx n_statics ) {
 Cnode::Cnode(::string const& name_) {
 	CnodeName nn = _g_node_name_file.search(name_) ; if (!nn) return ;
 	self = _g_node_name_file.at(nn) ;
-	SWEAR( +self , name_ ) ;
+	SWEAR( +self && self->_name==nn , name_,nn,self->_name ) ;
 }
 
 Cnode::Cnode( NewType , ::string const& name_ ) {
 	CnodeName nn = _g_node_name_file.insert(name_).first ;
 	Cnode&    n  = _g_node_name_file.at(nn)              ;
 	if (!n) n = _g_node_file.emplace(nn) ;
+	else    SWEAR( n->_name==nn , name_,n,nn,n->_name ) ;
 	self = n ;
-	SWEAR( +self , name_ ) ;
+	SWEAR( +self , name_,nn ) ;
 }
 
 //
@@ -672,7 +673,7 @@ CacheHitInfo CrunData::match( CompileDigest const& compile_digest , Cnode&/*out*
 	SWEAR( n_statics<=dep_crcs_view.size() && dep_crcs_view.size()<=deps_view.size() , n_statics,deps_view,dep_crcs_view ) ;
 	// first check static deps
 	for( NodeIdx i : iota(n_statics) ) {
-		SWEAR( deps_view[i]==deps_[i] , i,n_statics,deps_,deps_view ) ;                                                                              // static deps only depend on job
+		SWEAR_PROD( deps_view[i]==deps_[i] , self,i,deps_view[i],deps_[i] ) ;                                                                        // static deps only depend on job
 		if (!crc_ok(dep_crcs_view[i],dep_crcs_[i])) { trace("miss1",i,deps_view[i],dep_crcs_view[i],dep_crcs_[i]) ; return CacheHitInfo::BadDeps ; } // found with a different crc
 	}
 	NodeIdx j1 = n_statics        ;                                                                                                                  // index into provided deps, with    crc

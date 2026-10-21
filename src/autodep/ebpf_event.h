@@ -78,20 +78,24 @@ enum EbpfScKind {
 
 enum EbpfKind {
 	// process tracking
-	EBPF_PROC_START // a thread has been created in the job, nr is its parent
-,	EBPF_PROC_END   // a thread has exited, captures not closed by an End event are meaningless
+	EBPF_JOB_END      // job has exited
+,	EBPF_PROC_START   // a process has been created in the job (implies EBPF_THREAD_START)
+,	EBPF_THREAD_START // a thread  has been created in the job
+,	EBPF_PROC_END     // a process has exited                  (implies EBPF_THREAD_EXIT )
+,	EBPF_THREAD_END   // a thread  has exited
 	// captures : a path (and the info of the file it designates before the syscall modifies it), relative to root if root<EBPF_MAX_ROOTS
-,	EBPF_LINK       // a symlink has been traversed during path resolution , 2nd string is its target if EBPF_F_TARGET
-,	EBPF_LOOKUP     // a path has been resolved (filename_lookup)          , this is all for stat-like syscalls
-,	EBPF_OPEN       // a file has been opened                              , open_flags is meaningful
-,	EBPF_CREATE     // a file is about to be created (mknod, mkdir, symlink, link), it does not exist
-,	EBPF_UNLINK     // a file is about to be unlinked (unlink, rmdir)
-,	EBPF_RENAME_SRC // a file is about to be renamed, this is the source
-,	EBPF_RENAME_DST // .                              this is the destination
-,	EBPF_DIR        // a dir is read (getdents)
-,	EBPF_RAW        // a path could not be resolved : 1st string is the dir it is relative to (empty if absolute), 2nd string is the path as provided, nr is the index of the path (0 or 1)
+,	EBPF_LINK         // a symlink has been traversed during path resolution , 2nd string is its target if EBPF_F_TARGET
+,	EBPF_LOOKUP       // a path has been resolved (filename_lookup)          , this is all for stat-like syscalls
+,	EBPF_OPEN         // a file has been opened                              , open_flags is meaningful
+,	EBPF_CREATE       // a file is about to be created (mknod, mkdir, symlink, link), it does not exist
+,	EBPF_UNLINK       // a file is about to be unlinked (unlink, rmdir)
+,	EBPF_RENAME_SRC   // a file is about to be renamed, this is the source
+,	EBPF_RENAME_DST   // .                              this is the destination
+,	EBPF_DIR          // a dir is read (getdents)
+,	EBPF_RAW          // a path could not be resolved : 1st string is the dir it is relative to (empty if absolute), 2nd string is the path as provided, nr is the index of the path (0 or 1)
 	// end of syscall
-,	EBPF_END        // closes all the captures above for the same tid
+,	EBPF_END          // closes all the captures above for the same tid
+,	EBPF_PANIC        // an error occurred, reason is in data
 } ;
 
 #define EBPF_ROOT_ABS     0xff // path is not relative to a root but absolute, as seen by the job (i.e. relative to its root dir)
@@ -115,8 +119,7 @@ struct RootKey {
 struct JobCfg {
 	ebpf_u64 pidns_dev      ; // (dev,ino) of the client's pid namespace, so we can report tids as it sees them
 	ebpf_u64 pidns_ino      ;
-	ebpf_u64 seq            ; // number of events emitted (or tried)
-	ebpf_u64 lost           ; // number of events lost
+	ebpf_u32 overflow       ; // ring buffer has overflowed
 	ebpf_u32 deps_in_system ; // if 0, system files are simple and dropped
 } ;
 
@@ -129,7 +132,6 @@ struct RootReg {      // the daemon registers a root by doing a lookup with EBPF
 } ;
 
 struct EbpfEvent {
-	ebpf_u64 seq                ; // per job, increasing with no hole : a hole means an event has been lost
 	ebpf_u32 tid                ; // thread   id in the client's pid namespace
 	ebpf_u32 pid                ; // process id in the client's pid namespace
 	ebpf_u8  kind               ;
@@ -142,11 +144,10 @@ struct EbpfEvent {
 	ebpf_u64 args[6]            ; // End      : syscall args
 	ebpf_u64 stamp_ns           ; // End      : date (CLOCK_TAI), 0 if not available
 	// file info
-	ebpf_u32 mode               ; // captures : st_mode  if EBPF_F_EXISTS
 	ebpf_u32 open_flags         ; // Open,End : open flags, Rename_src,Rename_dst : st_mode of the other file (0 if it does not exist) as it is not reported if not of interest
+	ebpf_u32 mode               ; // captures : st_mode  if EBPF_F_EXISTS
 	ebpf_u64 size               ; // captures : st_size  if EBPF_F_EXISTS
-	ebpf_s64 mtime_s            ; // captures : st_mtime if EBPF_F_EXISTS
-	ebpf_u32 mtime_ns           ; // .
+	ebpf_u64 mtime_ns           ; // captures : st_mtime if EBPF_F_EXISTS
 	// strings
 	ebpf_u32 len [2           ] ; // number of bytes of each string, they are stored back-to-back in data
 	ebpf_u8  data[EBPF_DATA_SZ] ; // paths resolved by the kernel are stored as their components, leaf first, each followed by a null (the root dir has no component)

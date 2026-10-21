@@ -133,7 +133,7 @@ struct Cnode : Idxed<CnodeIdx> {
 	using Base = Idxed<CnodeIdx> ;
 	// cxtors & co
 	using Base::Base ;
-	Cnode(           ::string const& name ) ; // make empty if not found
+	Cnode(           ::string const& name ) ; // empty      if not found
 	Cnode( NewType , ::string const& name ) ; // create new if not found
 	void operator>>(::string&) const ;
 	// accesses
@@ -162,7 +162,7 @@ using Ccrcs  = Vector::Simple<CcrcsIdx ,Hash::Crc,DaemonCacheMrkr> ;
 
 // START_OF_VERSIONING CACHE
 struct LruEntry {
-	// accesses
+	// cxtors & co
 	void operator>>(::string&) const ;
 	bool operator+ (         ) const { return +newer || +older ; }
 	// services
@@ -178,10 +178,9 @@ struct LruEntry {
 
 struct CkeyData {
 	friend Ckey ;
-	// accesses
-	void operator>>(::string&) const ;
-	// services
+	// cxtors & co
 	bool operator==(CkeyData const&) const = default ;
+	void operator>>(::string&      ) const ;
 	// data
 	// START_OF_VERSIONING CACHE
 	CrunIdx ref_cnt = 0 ;
@@ -199,11 +198,11 @@ struct CjobData {
 	// cxtors & co
 	CjobData() = default ;
 	CjobData( CjobName n , VarIdx nss ) : n_statics{nss},_name{n} {}
+	bool operator+ (         ) const { return +n_runs ; }
 	void operator>>(::string&) const ;
 	// accesses
-	Cjob     idx       () const ;
-	bool     operator+ () const { return +n_runs     ; }
-	::string name      () const { return _name.str() ; }
+	Cjob     idx () const ;
+	::string name() const { return _name.str() ; }
 	// service
 	::pair<Crun,CacheHitInfo> match( CompileDigest const& ) ;                                    // updates lru related info when hit
 	bool/*done*/ insert(                                                                         // like match, but create when miss
@@ -241,10 +240,10 @@ struct CrunData {
 	CrunData() = default ;
 	CrunData( Ckey , bool key_is_last , Cjob , Hash::Crc targets_crc , Time::Pdate last_access , Disk::DiskSz , Rate , CompileDigest const& ) ;
 	void operator>>(::string&) const ;
+	bool operator+ (         ) const { return +job ; }
 	// accesses
-	bool     operator+ () const { return +job                                         ; }
-	Crun     idx       () const ;
-	::string name      () const { return run_file( job->name() , +key , key_is_last ) ; }
+	Crun     idx () const ;
+	::string name() const { return run_file( job->name() , +key , key_is_last ) ; }
 	// services
 	void                   access   (                                                               )       ; // move to top in LRU (both job and glb)
 	bool/*job_victimzied*/ victimize( bool victimize_job=true , SyncGuard* =nullptr                 )       ; // if victimize_job, victimize job if last run
@@ -279,11 +278,11 @@ struct CnodeData {
 	// cxtors & co
 	CnodeData() = default ;
 	CnodeData(CnodeName n) : _name{n} {}
+	bool operator+ (         ) const { return ref_cnt>0 ; }
 	void operator>>(::string&) const ;
 	// accesses
-	Cnode    idx       () const ;
-	bool     operator+ () const { return ref_cnt>0   ; }
-	::string name      () const { return _name.str() ; }
+	Cnode    idx () const ;
+	::string name() const { return _name.str() ; }
 	// services
 	void inc      () {                          ref_cnt++ ;                             }
 	void dec      () { SWEAR(ref_cnt>0,idx()) ; ref_cnt-- ; if (!ref_cnt) victimize() ; }

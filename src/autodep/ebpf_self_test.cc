@@ -39,19 +39,22 @@ static ::string _mk_path( uint8_t const* data , uint32_t len ) { // components a
 
 static const char* _kind_str(uint8_t k) {
 	switch (k) {
-		case EBPF_PROC_START : return "proc_start" ;
-		case EBPF_PROC_END   : return "proc_end"   ;
-		case EBPF_LINK       : return "link"       ;
-		case EBPF_LOOKUP     : return "lookup"     ;
-		case EBPF_OPEN       : return "open"       ;
-		case EBPF_CREATE     : return "create"     ;
-		case EBPF_UNLINK     : return "unlink"     ;
-		case EBPF_RENAME_SRC : return "rename_src" ;
-		case EBPF_RENAME_DST : return "rename_dst" ;
-		case EBPF_DIR        : return "dir"        ;
-		case EBPF_RAW        : return "raw"        ;
-		case EBPF_END        : return "end"        ;
-		default              : return "???"        ;
+		case EBPF_JOB_END      : return "job_end"      ;
+		case EBPF_PROC_START   : return "proc_start"   ;
+		case EBPF_THREAD_START : return "thread_start" ;
+		case EBPF_PROC_END     : return "proc_end"     ;
+		case EBPF_THREAD_END   : return "thread_end"   ;
+		case EBPF_LINK         : return "link"         ;
+		case EBPF_LOOKUP       : return "lookup"       ;
+		case EBPF_OPEN         : return "open"         ;
+		case EBPF_CREATE       : return "create"       ;
+		case EBPF_UNLINK       : return "unlink"       ;
+		case EBPF_RENAME_SRC   : return "rename_src"   ;
+		case EBPF_RENAME_DST   : return "rename_dst"   ;
+		case EBPF_DIR          : return "dir"          ;
+		case EBPF_RAW          : return "raw"          ;
+		case EBPF_END          : return "end"          ;
+		default                : return "???"          ;
 	}
 }
 
@@ -62,7 +65,6 @@ struct TestEvent {
 	uint8_t  root  = 0  ;
 	int32_t  nr    = 0  ;
 	int64_t  rc    = 0  ;
-	uint64_t seq   = 0  ;
 	uint32_t tid   = 0  ;
 	::string str0  = {} ;
 	::string str1  = {} ;
@@ -76,14 +78,14 @@ static int _test_event( void* ctx_ , void* data , size_t sz ) {
 	TestCtx&         ctx = *static_cast<TestCtx        *>(ctx_) ;
 	EbpfEvent const& ev  = *static_cast<EbpfEvent const*>(data) ;
 	if (sz<EBPF_HDR_SZ) return 0 ;
-	TestEvent te { .kind=ev.kind , .flags=ev.flags , .is32=ev.is32 , .root=ev.root , .nr=ev.nr , .rc=ev.rc , .seq=ev.seq , .tid=ev.tid } ;
-	uint32_t  l0 = ::min<uint32_t>( ev.len[0] , sz-EBPF_HDR_SZ    )                                                                      ;
-	uint32_t  l1 = ::min<uint32_t>( ev.len[1] , sz-EBPF_HDR_SZ-l0 )                                                                      ;
+	TestEvent te { .kind=ev.kind , .flags=ev.flags , .is32=ev.is32 , .root=ev.root , .nr=ev.nr , .rc=ev.rc , .tid=ev.tid } ;
+	uint32_t  l0 = ::min<uint32_t>( ev.len[0] , sz-EBPF_HDR_SZ    )                                                        ;
+	uint32_t  l1 = ::min<uint32_t>( ev.len[1] , sz-EBPF_HDR_SZ-l0 )                                                        ;
 	if (ev.kind==EBPF_RAW) { te.str0 = _mk_path(ev.data,l0)                                                 ; if (ev.root==EBPF_ROOT_ABS) te.str0 = '/'+te.str0 ; }
 	else                     te.str0 = _mk_path(ev.data,l0)                                                 ;
 	if (l1               )   te.str1 = ::string( reinterpret_cast<const char*>(ev.data+l0) , l1-1/*null*/ ) ;
 	if (ctx.verbose) {
-		fprintf( stderr , "  %4llu tid=%-7u %-10s" , (unsigned long long)te.seq , te.tid , _kind_str(te.kind) ) ;
+		fprintf( stderr , "  tid=%-7u %-10s" , te.tid , _kind_str(te.kind) ) ;
 		switch (ev.kind) {
 			case EBPF_END : {
 				const char* io      = ev.flags&EBPF_F_IO      ? "(io_uring)" : "" ;
@@ -96,11 +98,11 @@ static int _test_event( void* ctx_ , void* data , size_t sz ) {
 			case EBPF_RAW        : fprintf( stderr , " [%d] dir=%s path=%s" , te.nr , te.str0.c_str() , te.str1.c_str() ) ; break ;
 			default :
 				fprintf( stderr , " root=%u path=%s" , te.root , te.str0.c_str() ) ;
-				if (ev.flags&EBPF_F_TARGET ) fprintf( stderr , " target=%s" , te.str1.c_str()                                                                                      ) ;
-				if (ev.flags&EBPF_F_EXISTS ) fprintf( stderr , " mode=0%o size=%llu mtime=%lld.%09u" , ev.mode , (unsigned long long)ev.size , (long long)ev.mtime_s , ev.mtime_ns ) ;
-				else                         fprintf( stderr , " absent"                                                                                                           ) ;
-				if (ev.flags&EBPF_F_CREATED) fprintf( stderr , " created"                                                                                                          ) ;
-				if (ev.kind==EBPF_OPEN     ) fprintf( stderr , " open_flags=0%o" , ev.open_flags                                                                                   ) ;
+				if (ev.flags&EBPF_F_TARGET ) fprintf( stderr , " target=%s" , te.str1.c_str()                                                                                          ) ;
+				if (ev.flags&EBPF_F_EXISTS ) fprintf( stderr , " mode=0%o size=%lu mtime=%lu.%09lu" , ev.mode , (unsigned long)ev.size , ev.mtime_ns/1000000000,ev.mtime_ns%1000000000 ) ;
+				else                         fprintf( stderr , " absent"                                                                                                               ) ;
+				if (ev.flags&EBPF_F_CREATED) fprintf( stderr , " created"                                                                                                              ) ;
+				if (ev.kind==EBPF_OPEN     ) fprintf( stderr , " open_flags=0%o" , ev.open_flags                                                                                       ) ;
 		}
 		fputc('\n',stderr) ;
 	}
@@ -307,26 +309,28 @@ bool/*ok*/ self_test(bool verbose) {
 		//
 		JobCfg   cfg = {}        ;
 		uint32_t jid = TestJobId ;
-		::bpf_map_lookup_elem( bpf_map__fd(g_skel->maps.job_cfg) , &jid , &cfg ) ;
+		::bpf_map_lookup_elem( bpf_map__fd(g_skel->maps.job_cfgs) , &jid , &cfg ) ;
 		//
 		ok = WIFEXITED(wstatus) && (WEXITSTATUS(wstatus)&TF_Mark) ;
 		uint8_t missing = ok ? WEXITSTATUS(wstatus)&~TF_Mark : 0 ;
-		if (!ok                       )                log("self-test : child failed (wstatus=0x%x)",wstatus                                               ) ;
-		if (missing&TF_IoUring        )                log("self-test : io_uring is not usable, its tracking is not checked"                               ) ;
-		if (missing&TF_32             )                log("self-test : 32-bit syscalls are not usable, their tracking is not checked"                     ) ;
-		if (missing&TF_Exec           )                log("self-test : cannot execute a file in %s, tracking of execve is not checked",dir                ) ;
-		if (cfg.lost                  ) { ok = false ; log("self-test : %llu events lost",(unsigned long long)cfg.lost                                     ) ; }
-		if (cfg.seq!=ctx.events.size()) { ok = false ; log("self-test : %llu events emitted but %zu received",(unsigned long long)cfg.seq,ctx.events.size()) ; }
+		if (!ok               )                log("self-test : child failed (wstatus=0x%x)",wstatus                               ) ;
+		if (missing&TF_IoUring)                log("self-test : io_uring is not usable, its tracking is not checked"               ) ;
+		if (missing&TF_32     )                log("self-test : 32-bit syscalls are not usable, their tracking is not checked"     ) ;
+		if (missing&TF_Exec   )                log("self-test : cannot execute a file in %s, tracking of execve is not checked",dir) ;
+		if (cfg.overflow      ) { ok = false ; log("self-test : some events have been lost"                                        ) ; }
 		// events are processed in order : for each expected syscall, find its End and check captures seen since previous End
-		size_t pos       = 0     ;
-		bool   seen_fork = false ;
-		bool   seen_exit = false ;
+		size_t pos          = 0     ;
+		bool   seen_fork    = false ;
+		bool   seen_exit    = false ;
+		bool   seen_job_end = false ;
 		for( TestEvent const& te : ctx.events ) {
-			seen_fork |= te.kind==EBPF_PROC_START && te.nr!=0 ;
-			seen_exit |= te.kind==EBPF_PROC_END               ;
+			seen_fork    |= te.kind==EBPF_PROC_START ;
+			seen_exit    |= te.kind==EBPF_PROC_END   ;
+			seen_job_end |= te.kind==EBPF_JOB_END    ;
 		}
-		if (!seen_fork) { ok = false ; log("self-test : process creation not seen (hook sched_process_fork)") ; }
-		if (!seen_exit) { ok = false ; log("self-test : process exit not seen (hook sched_process_exit)"    ) ; }
+		if (!seen_fork   ) { ok = false ; log("self-test : process creation not seen (hook sched_process_fork)") ; }
+		if (!seen_exit   ) { ok = false ; log("self-test : process exit not seen (hook sched_process_exit)"    ) ; }
+		if (!seen_job_end) { ok = false ; log("self-test : job end not seen (hook sched_process_exit)"         ) ; }
 		for( TestExpect const& exp : _g_test_expects ) {
 			uint32_t kinds = 0     ;
 			bool     found = false ;

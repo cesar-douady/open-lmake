@@ -127,10 +127,10 @@ namespace AutodepEbpf {
 	static FileInfo _mk_info(EbpfEvent const& ev) {
 		if (!(ev.flags&EBPF_F_EXISTS)) return {} ;
 		FileStat st = {} ;
-		st.st_mode         = ev.mode     ;
-		st.st_size         = ev.size     ;
-		st.st_mtim.tv_sec  = ev.mtime_s  ;
-		st.st_mtim.tv_nsec = ev.mtime_ns ;
+		st.st_mode         = ev.mode                   ;
+		st.st_size         = ev.size                   ;
+		st.st_mtim.tv_sec  = ev.mtime_ns/1'000'000'000 ;
+		st.st_mtim.tv_nsec = ev.mtime_ns%1'000'000'000 ;
 		return FileInfo(st) ;
 	}
 
@@ -463,13 +463,12 @@ namespace AutodepEbpf {
 			if (+unlnks) _rec.report_cached({ .proc=Proc::Access , .comment=c , .comment_exts=CommentExt::Unlink , .digest={.write=w,.accesses=DataAccesses} , .date=_date , .files=::move(unlnks) }) ;
 			if ( +writes && w==Yes ) _rec.report_cached({ .proc=Proc::Access , .comment=c , .comment_exts=CommentExt::Write , .digest={.write=w} , .date=_date , .files=::move(writes) }) ;
 		}
-		Thread& _thread(                    EbpfEvent const& ev ) { Thread& th = _threads[ev.tid] ; th.pid = ev.pid ; th.tid = ev.tid ; return th ; }
-		void    _end   ( Thread const& th , EbpfEvent const& ev ) ;
+		void _end( Thread const& th , EbpfEvent const& ev ) ;
 	public :
 		void handle( void* data , size_t sz ) ;
 		// data
-		::string err      ;
-		size_t   n_events = 0 ;
+		::string err  ;
+		bool     done = false ;
 	private :
 		AutodepEnv const&    _env            ;
 		::vector_s           _abs_src_dirs_s ;
@@ -509,7 +508,7 @@ namespace AutodepEbpf {
 		// date
 		if (ev.stamp_ns      )   _date = Pdate( New , Pdate::Tick(ev.stamp_ns-_tai_offset_s*1'000'000'000l) ) ;
 		else                     _date = New                                                                  ;
-		if (_date<=_last_date) { _date = _last_date ; _date++ ; }                                       // ensure syscalls are seen in order, even if clock is coarse
+		if (_date<=_last_date) { _date = _last_date ; _date++ ; }                                               // ensure syscalls are seen in order, even if clock is coarse
 		//
 		int64_t         rc   = ev.rc          ;
 		int             err  = rc<0 ? -rc : 0 ;
@@ -688,23 +687,26 @@ namespace AutodepEbpf {
 	void Consumer::handle( void* data , size_t sz ) {
 		if (sz<EBPF_HDR_SZ) return ;
 		EbpfEvent const& ev = *static_cast<EbpfEvent const*>(data) ;
-		n_events++ ;
 		try {
-			uint32_t l0 = ::min<uint32_t>( ev.len[0] , sz-EBPF_HDR_SZ    ) ;
-			uint32_t l1 = ::min<uint32_t>( ev.len[1] , sz-EBPF_HDR_SZ-l0 ) ;
 			switch (ev.kind) {
-				case EBPF_PROC_START : _live.insert(ev.tid) ;                          break ;
-				case EBPF_PROC_END   : _live.erase (ev.tid) ; _threads.erase(ev.tid) ; break ;                         // captures not closed by an End are meaningless
+				case EBPF_JOB_END      : done = true ;          break           ;
+				case EBPF_PROC_START   : _live.insert(ev.pid) ; [[fallthrough]] ;
+				case EBPF_THREAD_START : {
+					Thread& th = _threads[ev.tid] ;
+					th.tid = ev.tid ;
+					th.pid = ev.pid ;
+				} break ;
+				case EBPF_PROC_END   : _live   .erase(ev.pid) ; [[fallthrough]] ;
+				case EBPF_THREAD_END : _threads.erase(ev.tid) ; break           ;
 				case EBPF_LINK : {
 					Lnk lnk ;
 					::tie(lnk.real,lnk.loc) = _mk_real( ev , &lnk.abs ) ;
 					lnk.info = _mk_info(ev) ;
-					if ( (ev.flags&EBPF_F_TARGET) && l1 ) {
-						lnk.target     = ::string( reinterpret_cast<const char*>(ev.data+l0) , l1-1/*null*/ ) ;
-						lnk.has_target = true                                                                 ;
+					if ( (ev.flags&EBPF_F_TARGET) && ev.len[1] ) {
+						lnk.target     = ::string( reinterpret_cast<const char*>(ev.data+ev.len[0]) , ev.len[1]-1/*null*/ ) ;
+						lnk.has_target = true                                                                               ;
 					}
-					::vector<Lnk>& lnks = _thread(ev).lnks ;
-					if (::none_of( lnks , [&](Lnk const& l) { return l.abs==lnk.abs ; } )) lnks.push_back(::move(lnk)) ; // a link may be reported several times if resolution is restarted
+					_threads.at(ev.tid).lnks.push_back(::move(lnk)) ;
 				} break ;
 				case EBPF_LOOKUP     :
 				case EBPF_OPEN       :
@@ -717,22 +719,22 @@ namespace AutodepEbpf {
 					if ( ev.kind==EBPF_RENAME_SRC || ev.kind==EBPF_RENAME_DST ) o.other_mode = ev.open_flags ;
 					::tie(o.real,o.loc) = _mk_real(ev) ;
 					o.info = _mk_info(ev) ;
-					_thread(ev).objs.push_back(::move(o)) ;
+					_threads.at(ev.tid).objs.push_back(::move(o)) ;
 				} break ;
 				case EBPF_RAW : {
 					Obj o { .kind=ev.kind , .raw=true , .slot=ev.nr } ;
 					_mk_real( ev , &o.dir ) ;
-					if (l1) o.path = ::string( reinterpret_cast<const char*>(ev.data+l0) , l1-1/*null*/ ) ;
-					_thread(ev).objs.push_back(::move(o)) ;
+					if (ev.len[1]) o.path = ::string( reinterpret_cast<const char*>(ev.data+ev.len[0]) , ev.len[1]-1/*null*/ ) ;
+					_threads.at(ev.tid).objs.push_back(::move(o)) ;
 				} break ;
 				case EBPF_END : {
-					auto it = _threads.find(ev.tid) ;
-					if (it==_threads.end()) break ;
-					Thread th = ::move(it->second) ;
-					_threads.erase(it) ;
+					Thread& th = _threads.at(ev.tid) ;
 					if (!(ev.flags&EBPF_F_DISCARD)) _end( th , ev ) ;
+					th = {} ;
 				} break ;
-			DN}
+				case EBPF_PANIC :
+					throw ::string( reinterpret_cast<const char*>(ev.data) , ev.len[0]-1/*null*/ ) ;
+			DF}
 		} catch (::string const& e) {
 			if (!err) err = e ;
 		}
@@ -792,19 +794,6 @@ namespace AutodepEbpf {
 		return res ;
 	}
 
-	static bool/*ok*/ _get_stats(EbpfDaemon::Stats* /*out*/ stats) {
-		EbpfDaemon::ReqKey req = EbpfDaemon::ReqKey::Stats ;
-		if (::send(_g_sock,&req,1,MSG_NOSIGNAL)!=1) return false ;
-		char*  p  = reinterpret_cast<char*>(stats) ;
-		size_t sz = sizeof(*stats)                 ;
-		while (sz) {
-			ssize_t n = ::recv( _g_sock , p , sz , 0/*flags*/ ) ; if (n<=0) return false ;
-			p  += n         ;
-			sz -= size_t(n) ;
-		}
-		return true ;
-	}
-
 	// tell the kernel that dir is not of interest, although it may lie in the repo
 	static bool/*ok*/ _exclude(::string const& dir) {
 		int dir_fd = ::open( dir.c_str() , O_PATH|O_DIRECTORY|O_CLOEXEC ) ; if (dir_fd<0) return true ; // nothing can be accessed there
@@ -843,35 +832,24 @@ namespace AutodepEbpf {
 
 	// runs in the tracer thread : consume this job's ring buffer until the child exits, then return its wstatus
 	static int/*wstatus*/ _process(pid_t child_pid) {
-		Lock           lock { Record::s_mutex }                                                ; // single consumer thread, but Record code asserts the lock is held (like the ptrace tracer)
+		Lock           lock { Record::s_mutex }                                                        ; // single consumer thread, but Record code asserts the lock is held (like the ptrace tracer)
 		Consumer       cons ;
-		::ring_buffer* rb   = ::ring_buffer__new( _g_rb_fd , _handle_event , &cons , nullptr ) ; throw_unless( rb , "cannot open ebpf ring buffer" ) ;
+		::ring_buffer* rb   = ::ring_buffer__new( _g_rb_fd , _handle_event , &cons , nullptr/*opts*/ ) ; throw_unless( rb , "cannot open ebpf ring buffer" ) ;
 		//
 		// wait for both events and end of child, so that the latter is seen at once (else, each job would last the polling period)
 		int      wstatus = 0                                                                                                      ;
 		AcFd     pid_fd  { int(::syscall( SYS_pidfd_open , child_pid , 0 ))                                                     } ; // if not available, child is polled
 		::pollfd pfds[2] { {.fd=::ring_buffer__epoll_fd(rb),.events=POLLIN,.revents=0} , {.fd=pid_fd,.events=POLLIN,.revents=0} } ;
 		for(;;) {
-			int r = ::poll( pfds , +pid_fd?2:1 , +pid_fd?-1:10/*ms*/ ) ; if ( r<0 && errno!=EINTR ) break ;
+			int   r = ::poll( pfds , +pid_fd?2:1 , +pid_fd?-1:10/*ms*/ ) ; if ( r<0 && errno!=EINTR ) break ;
+			pid_t w = ::waitpid( child_pid , &wstatus , WNOHANG )        ;
 			::ring_buffer__consume(rb) ;
-			pid_t w = ::waitpid( child_pid , &wstatus , WNOHANG ) ;
-			if ( w==child_pid                    ) break ;          // child is done
-			if ( w<0 && errno!=EINTR && errno!=0 ) break ;          // ECHILD or other : give up waiting
-		}
-		// ensure all events have been seen : an event is pushed before the syscall returns, so all what the job could observe before child ended has been pushed
-		// processes of the job which are still alive may go on pushing events, so we only wait for the events pushed so far
-		EbpfDaemon::Stats stats   = {}                 ;
-		bool              stat_ok = _get_stats(&stats) ;
-		for( int i=0 ; i<100 ; i++ ) {                              // an event may still be in the process of being pushed, wait for it at most 100ms
-			::ring_buffer__consume(rb) ;
-			if ( !stat_ok || stats.lost || cons.n_events>=stats.seq ) break ;
-			::usleep(1000) ;
+			if ( w==child_pid        ) break ;           // child is done
+			if ( w<0 && errno!=EINTR ) break ;           // ECHILD or other : give up waiting
 		}
 		::ring_buffer__free(rb) ;
-		throw_if    ( +cons.err                , cons.err                                                                                                            ) ;
-		throw_unless( stat_ok                  , "cannot get ebpf stats from daemon"                                                                                 ) ;
-		throw_if    ( stats.lost               , "some accesses could not be recorded by ebpf (",stats.lost," events lost), dependencies may be incomplete"          ) ;
-		throw_unless( cons.n_events>=stats.seq , "some accesses have been lost by ebpf (",stats.seq-cons.n_events," events missing), dependencies may be incomplete" ) ;
+		throw_if    ( +cons.err , cons.err                                      ) ;
+		throw_unless( cons.done , "some accesses could not be recorded by ebpf" ) ;
 		return wstatus ;
 	}
 

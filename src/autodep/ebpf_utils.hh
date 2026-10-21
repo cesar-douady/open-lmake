@@ -53,8 +53,8 @@ inline void reset_log() {
 struct Job {
 	// cxtors & co
 	~Job() {
-		::bpf_map_delete_elem( bpf_map__fd(g_skel->maps.job_rbs) , &job_id ) ;
-		::bpf_map_delete_elem( bpf_map__fd(g_skel->maps.job_cfg) , &job_id ) ;
+		::bpf_map_delete_elem( bpf_map__fd(g_skel->maps.job_rbs ) , &job_id ) ;
+		::bpf_map_delete_elem( bpf_map__fd(g_skel->maps.job_cfgs) , &job_id ) ;
 		for( RootKey const& rk : root_keys ) ::bpf_map_delete_elem( bpf_map__fd(g_skel->maps.roots) , &rk ) ;
 		for( int fd            : root_fds  ) ::close(fd   ) ;
 		if (rb_fd>=0)                        ::close(rb_fd) ;
@@ -89,10 +89,10 @@ struct Job {
 			log_errno("job %u : cannot create ring buffer",job_id) ;
 			return false ;
 		}
-		JobCfg cfg { .pidns_dev=hello.pidns_dev , .pidns_ino=hello.pidns_ino , .seq=0 , .lost=0 , .deps_in_system=hello.deps_in_system } ;
+		JobCfg cfg { .pidns_dev=hello.pidns_dev , .pidns_ino=hello.pidns_ino , .overflow=false , .deps_in_system=hello.deps_in_system } ;
 		if (
-			::bpf_map_update_elem( bpf_map__fd(g_skel->maps.job_rbs) , &job_id , &rb_fd , BPF_ANY )!=0
-		||	::bpf_map_update_elem( bpf_map__fd(g_skel->maps.job_cfg) , &job_id , &cfg   , BPF_ANY )!=0
+			::bpf_map_update_elem( bpf_map__fd(g_skel->maps.job_rbs ) , &job_id , &rb_fd , BPF_ANY )!=0
+		||	::bpf_map_update_elem( bpf_map__fd(g_skel->maps.job_cfgs) , &job_id , &cfg   , BPF_ANY )!=0
 		) {
 			log_errno("job %u : cannot register",job_id) ;
 			return false ;

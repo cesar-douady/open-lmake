@@ -98,13 +98,7 @@ namespace EbpfDaemon {
 	} ;
 
 	enum class ReqKey : uint8_t {
-		Stats
-	,	Exclude // this is used for the tmp dir, which usually lies in the repo, and may be seen by the job elsewhere
-	} ;
-
-	struct Stats {
-		uint64_t seq  = 0 ; // number of events the kernel has emitted (or tried to emit) for this job
-		uint64_t lost = 0 ; // number of events that could not be pushed to the ring buffer (or whose data could not be captured), the job cannot be trusted if not 0
+		Exclude                   // this is used for the tmp dir, which usually lies in the repo, and may be seen by the job elsewhere
 	} ;
 
 	// easy, fast and good enough
