@@ -266,9 +266,8 @@ static int/*rc*/ _pre_exec(void* arg) {
 			server_pid       = from_string<pid_t>(lines[1])             ;
 			server_is_local  = fqdn()==SockFd::s_host(file_service_str) ;
 			if ( server_is_local && !sense_process(server_pid) ) {
-				trace("remove marker",server_pid,server_mrkr) ;
-				Fd::Stderr.write(cat("server (pid=",server_pid,") has vanished, removing marker file ",server_mrkr,'\n')) ;
-				unlnk(server_mrkr) ;
+				trace("vanished",server_pid,server_mrkr) ;
+				Fd::Stderr.write(cat("server (pid=",server_pid,") has vanished\n")) ;
 				goto LaunchServer ;
 			}
 			try {
