@@ -163,7 +163,7 @@ namespace AutodepEbpf {
 			if (abs.starts_with(_env.repo_root_s)  ) { abs.erase(0,_env.repo_root_s.size()) ; FileLoc fl = _env.file_loc(abs) ; return { ::move(abs) , fl } ; }
 			for( size_t i : iota(_abs_src_dirs_s.size()) ) {
 				::string const& asd_s = _abs_src_dirs_s[i] ;
-				if (abs.size()+1==asd_s.size() && asd_s.starts_with(abs)) return { no_slash(_env.src_dirs_s[i])                       , FileLoc::SrcDir } ;
+				if (abs.size()+1==asd_s.size() && asd_s.starts_with(abs)) return { no_slash(_env.src_dirs_s[i])                     , FileLoc::SrcDir } ;
 				if (abs.starts_with(asd_s)                              ) return { _env.src_dirs_s[i]+substr_view(abs,asd_s.size()) , FileLoc::SrcDir } ;
 			}
 			if (!abs) abs = "/" ;

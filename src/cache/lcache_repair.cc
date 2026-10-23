@@ -223,9 +223,9 @@ int main( int argc , char* argv[] ) {
 	,	{ Flag::Force  , { .short_name='f' , .doc="execute actions without confirmation" } }
 	}} ;
 	CmdLine<Flag> cmd_line { syntax,argc,argv } ;
-	if ( cmd_line.args.size()>1                                 ) syntax.usage("cannot repair several cache dirs")                                                     ;
-	if ( +cmd_line.args && ::chdir(cmd_line.args[0].c_str())!=0 ) exit( Rc::System   , "cannot chdir (",StrErr(),") to ",cmd_line.args[0]                            ) ;
-	if ( FileInfo(File(ServerMrkr)).exists()                    ) exit( Rc::BadState , "after having ensured no lcache_server is running, consider : rm ",ServerMrkr ) ;
+	if ( cmd_line.args.size()>1                                 ) syntax.usage("cannot repair several cache dirs")                                                             ;
+	if ( +cmd_line.args && ::chdir(cmd_line.args[0].c_str())!=0 ) exit( Rc::System   , "cannot chdir (",StrErr(),") to ",cmd_line.args[0]                                    ) ;
+	if ( FileInfo(File(ADMIN_DIR_S "server")).exists()          ) exit( Rc::BadState , "after having ensured no lcache_server is running, consider : rm ",AdminDirS,"server" ) ;
 	//
 	FileStat st ; if (::lstat(".",&st)!=0) FAIL_PROD() ; SWEAR( S_ISDIR(st.st_mode) ) ;
 	::umask(~st.st_mode&0777) ;                                                         // ensure permissions on top-level dir are propagated to all underlying dirs and files

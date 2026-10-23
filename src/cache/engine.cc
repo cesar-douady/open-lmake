@@ -281,7 +281,7 @@ void Ckey::victimize() {
 Cjob::Cjob(::string const& name_) {
 	CjobName jn = _g_job_name_file.search(name_) ; if (!jn) return ;
 	self = _g_job_name_file.at(jn) ;
-	SWEAR( +self && self->_name==jn , name_,jn,self->_name ) ;
+	if (+self) SWEAR( self->_name==jn , name_,jn,self->_name ) ; // name might point to 0 in case of crash
 }
 
 Cjob::Cjob( NewType , ::string const& name_ , VarIdx n_statics ) {
@@ -300,7 +300,7 @@ Cjob::Cjob( NewType , ::string const& name_ , VarIdx n_statics ) {
 Cnode::Cnode(::string const& name_) {
 	CnodeName nn = _g_node_name_file.search(name_) ; if (!nn) return ;
 	self = _g_node_name_file.at(nn) ;
-	SWEAR( +self && self->_name==nn , name_,nn,self->_name ) ;
+	if (+self) SWEAR( self->_name==nn , name_,nn,self->_name ) ; // name might point to 0 in case of crash
 }
 
 Cnode::Cnode( NewType , ::string const& name_ ) {
@@ -660,12 +660,12 @@ bool/*job_victimized*/ CrunData::victimize( bool victimize_job , SyncGuard* sync
 }
 
 CacheHitInfo CrunData::match( CompileDigest const& compile_digest , Cnode&/*out*/ not_found ) const {
-	VarIdx              n_statics        = job->n_statics                                                     ;
-	CacheHitInfo        res              = has_hidden ? CacheHitInfo::HitHidden : CacheHitInfo::HitExhaustive ;
-	::span<Cnode const> deps_view        = deps    .view()                                                    ;
-	::span<Crc   const> dep_crcs_view    = dep_crcs.view()                                                    ;
-	::vector<Cnode>     const& deps_     = compile_digest.deps                                                ;
-	::vector<Hash::Crc> const& dep_crcs_ = compile_digest.dep_crcs                                            ;
+	VarIdx                     n_statics     = job->n_statics                                                     ;
+	CacheHitInfo               res           = has_hidden ? CacheHitInfo::HitHidden : CacheHitInfo::HitExhaustive ;
+	::span<Cnode const>        deps_view     = deps    .view()                                                    ;
+	::span<Crc   const>        dep_crcs_view = dep_crcs.view()                                                    ;
+	::vector<Cnode>     const& deps_         = compile_digest.deps                                                ;
+	::vector<Hash::Crc> const& dep_crcs_     = compile_digest.dep_crcs                                            ;
 	//
 	Trace trace("match",idx(),compile_digest,n_statics,deps_.size(),dep_crcs_.size()) ;
 	//

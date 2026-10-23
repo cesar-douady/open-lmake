@@ -100,5 +100,3 @@ static constexpr int JobExecBacklog = 4096 ; // max usual value as set in /proc/
 
 // must not be touched to fit needs
 using WatcherIdx = Largest<JobIdx,NodeIdx> ;
-
-static constexpr char ServerMrkr[] = ADMIN_DIR_S "server" ;

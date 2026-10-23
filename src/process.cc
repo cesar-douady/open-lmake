@@ -167,67 +167,67 @@ void Child::spawn() {
 // AutoServer
 //
 
-AutoServerBase::AutoServerBase(::string const& sm) : server_mrkr{sm} {
+AutoServerBase::AutoServerBase(NewType) {
 	// SIGCHLD,SIGHUP,SIGINT : to capture it using signalfd
 	// SIGPIPE               : to generate error on write rather than a signal when reading end is dead
 	// must be done before any thread is launched so that all threads block the signal
 	block_sigs({SIGCHLD,SIGHUP,SIGINT,SIGPIPE}) ;
 }
 
-static ::pair_s/*fqdn*/<pid_t> _get_mrkr(::string const& server_mrkr) {
+static ::pair_s/*fqdn*/<pid_t> _get_mrkr() {
 	try {
-		::vector_s lines = AcFd(server_mrkr).read_lines() ; throw_unless(lines.size()==2) ;
-		return { SockFd::s_host(lines[0]/*service*/) , from_string<pid_t>(lines[1]) } ; }
-	catch (::string const&) {
+		::vector_s lines = AcFd(ADMIN_DIR_S "server").read_lines() ;
+		if (lines.size()!=2) return { {}/*fqdn*/                          , -1/*pid*/                    } ;
+		/**/                 return { SockFd::s_host(lines[0]/*service*/) , from_string<pid_t>(lines[1]) } ;
+	} catch (::string const&) {
 		return { {}/*fqdn*/ , 0/*pid*/ } ;
 	}
 }
-static ::string _g_server_mrkr ;
 static void _server_cleanup() {
 	Trace trace("_server_cleanup") ;
-	unlnk(File(_g_server_mrkr)) ;
+	unlnk(File(ADMIN_DIR_S         "server")) ;
+	unlnk(File(PRIVATE_ADMIN_DIR_S "rescue")) ;
 }
 void AutoServerBase::start() {
-	::pair_s<pid_t> mrkr      { fqdn() , ::getpid() }  ;
-	::pair_s<pid_t> file_mrkr = _get_mrkr(server_mrkr) ;
+	::pair_s<pid_t> mrkr      { fqdn() , ::getpid() } ;
+	::pair_s<pid_t> file_mrkr = _get_mrkr()           ;
 	Trace trace("start_server",mrkr,file_mrkr) ;
 	if ( +file_mrkr.first && file_mrkr.first!=mrkr.first ) {
 		trace("already_existing_elsewhere",file_mrkr) ;
 		throw ::pair_s<Rc>( cat("server already running on ",file_mrkr.first) , Rc::Ok ) ; // must be ok in case of race to distinguish from real error
 	}
 	if (file_mrkr.second) {
-		if (sense_process(file_mrkr.second)) {                                 // another server exists on same host
+		if (sense_process(file_mrkr.second)) {                                  // another server exists on same host
 			trace("already_existing",file_mrkr) ;
-			throw ::pair_s<Rc>( "server already running" , Rc::Ok ) ;          // must be ok in case of race to distinguish from real error
+			throw ::pair_s<Rc>( "server already running" , Rc::Ok ) ;           // must be ok in case of race to distinguish from real error
 		}
-		unlnk(File(server_mrkr)) ;                                             // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
-		rescue = true ;
+		unlnk(File(ADMIN_DIR_S "server")) ;                                     // before doing anything, we create the marker, which is unlinked at the end, so it is a marker of a crash
 		trace("vanished",file_mrkr) ;
 	}
 	server_fd = { 0/*backlog*/ , false/*reuse_addr*/ } ;
 	if (!is_daemon)
-		AcFd(3).write(serialize(server_fd.service(0/*addr*/))) ;               // pass connection info to client, no need for addr as client is necessarily local
+		AcFd(3).write(serialize(server_fd.service(0/*addr*/))) ;                // pass connection info to client, no need for addr as client is necessarily local
 	if (writable) {
-		SWEAR(+server_mrkr) ;
-		mode_t   mod    = 0666 & ~((get_umask()&0222)<<1)                    ; // if we have access to server, we grant write access, so suppress read access for those not having write access
-		::string tmp    = cat(server_mrkr,'.',mrkr.first,'.',mrkr.second)    ;
-		AcFd     tmp_fd { tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=mod} } ;
+		mode_t   mod    = 0666 & ~((get_umask()&0222)<<1)                     ; // if we have access to server, we grant write access, so suppress read access for those not having write access
+		::string tmp    = cat(AdminDirS,"server.",mrkr.first,'.',mrkr.second) ;
+		AcFd     tmp_fd { tmp , {.flags=O_WRONLY|O_TRUNC|O_CREAT,.mod=mod} }  ;
 		tmp_fd.write(cat(
 			server_fd.service_str(mrkr.first) , '\n'
 		,	mrkr.second                       , '\n'
-		)) ; //!  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-		bool ok = ::link(tmp.c_str(),server_mrkr.c_str())==0 ;
-		//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		)) ; //!  vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+		bool ok = ::link(tmp.c_str(),ADMIN_DIR_S "server")==0 ;
+		//        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+		if (FileInfo(File(PRIVATE_ADMIN_DIR_S "rescue")).exists()) rescue = true ;
+		else                                                       AcFd( PRIVATE_ADMIN_DIR_S "rescue", {.flags=O_WRONLY|O_CREAT|O_TRUNC,.mod=0} ) ;
 		unlnk(tmp) ;
-		if (!ok) { trace("no_unlnk") ; throw ::pair_s<Rc>( cat(server_mrkr," : ",StrErr()) , Rc::Ok ) ; }
-		_g_server_mrkr = server_mrkr ;
+		if (!ok) { trace("no_unlnk") ; throw ::pair_s<Rc>( cat(AdminDirS,"server : ",StrErr()) , Rc::Ok ) ; }
 		//vvvvvvvvvvvvvvvvvvvvvvv
 		::atexit(_server_cleanup) ;
 		//^^^^^^^^^^^^^^^^^^^^^^^
 		// if server marker is touched by user, we do as we received a ^C
-		// ideally, we should watch server_mrkr before it is created to be sure to miss nothing, but inotify requires an existing file
+		// ideally, we should watch AdminDirS"server" before it is created to be sure to miss nothing, but inotify requires an existing file
 		if ( +(watch_fd=::inotify_init1(O_CLOEXEC)) )
-			if ( ::inotify_add_watch( watch_fd , server_mrkr.c_str() , IN_DELETE_SELF|IN_MOVE_SELF|IN_MODIFY )<0 )
+			if ( ::inotify_add_watch( watch_fd , ADMIN_DIR_S"server" , IN_DELETE_SELF|IN_MOVE_SELF|IN_MODIFY )<0 )
 				watch_fd.close() ;                                                                                 // useless if we cannot watch
 	}
 	trace("done",STR(rescue)) ;
@@ -240,7 +240,7 @@ static int/*rc*/ _pre_exec(void* arg) {
 	else                                                                                return 0/*rc*/ ;
 }
 
-::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , ::string const& server_mrkr , ::string const& dir_s , Channel chnl ) {
+::pair<ClientSockFd,pid_t> connect_to_server( bool try_old , uint64_t magic , ::vector_s&& cmd_line , uint64_t version , ::string const& dir_s , Channel chnl ) {
 	Trace trace(chnl,"connect_to_server",magic,cmd_line) ;
 	::string file_service_str ;
 	bool     server_is_local  = false/*garbage*/                                               ;
@@ -259,21 +259,29 @@ static int/*rc*/ _pre_exec(void* arg) {
 	for ( int i : iota(10) ) {
 		trace("try_old",i) ;
 		if (try_old) {
-			AcFd       server_mrkr_fd { dir_s+server_mrkr , {.err_ok=true} } ; if (!server_mrkr_fd) { trace("no_marker"  ) ; goto LaunchServer ; }
-			::vector_s lines          = server_mrkr_fd.read_lines()          ; if (lines.size()!=2) { trace("bad_markers") ; goto LaunchServer ; }
+			::string   server_file   = cat(dir_s,AdminDirS,"server" )  ;
+			::string   version_file  = cat(dir_s,AdminDirS,"version")  ;
+			AcFd       server_fd     { server_file  , {.err_ok=true} } ; if (!server_fd             ) { trace("no_server"  ) ; goto LaunchServer                                        ; }
+			AcFd       version_fd    { version_file , {.err_ok=true} } ; if (!version_fd            ) { trace("no_version" ) ; throw ::pair_s<Rc>( "no lcache version" , Rc::BadServer) ; }
+			::vector_s server_lines  = server_fd .read_lines()         ; if (server_lines .size()!=2) { trace("no_server2" ) ; goto LaunchServer                                        ; }
+			::vector_s version_lines = version_fd.read_lines()         ; if (version_lines.size()< 1) { trace("no_version2") ; throw ::pair_s<Rc>( "no lcache version" , Rc::BadServer) ; }
 			//
-			file_service_str = ::move            (lines[0])             ;
-			server_pid       = from_string<pid_t>(lines[1])             ;
+			if (uint64_t v=from_string<uint64_t>(version_lines[0]) ; v!=version ) {
+				trace("bad_version",v,version) ;
+				throw ::pair_s<Rc>( cat("bad lcache version : found ",v," expected ",version) , Rc::BadServer) ;
+			}
+			//
+			file_service_str = ::move            (server_lines[0])      ;
+			server_pid       = from_string<pid_t>(server_lines[1])      ;
 			server_is_local  = fqdn()==SockFd::s_host(file_service_str) ;
 			if ( server_is_local && !sense_process(server_pid) ) {
-				trace("remove marker",server_pid,server_mrkr) ;
-				Fd::Stderr.write(cat("server (pid=",server_pid,") has vanished, removing marker file ",server_mrkr,'\n')) ;
-				unlnk(server_mrkr) ;
+				trace("vanished",server_pid,dir_s) ;
+				Fd::Stderr.write(cat("server (pid=",server_pid,") has vanished\n")) ;
 				goto LaunchServer ;
 			}
 			try {
 				KeyedService service { file_service_str , true/*name_ok*/ } ;
-				if (server_is_local) service.addr = 0 ;                                   // dont use network if not necessary
+				if (server_is_local) service.addr = 0 ;                                        // dont use network if not necessary
 				//
 				try                     { return { mk_client(service) , server_pid } ; }
 				catch (::string const&) { goto LaunchServer                          ; }
@@ -315,7 +323,7 @@ static int/*rc*/ _pre_exec(void* arg) {
 			/**/                  msg << "kill "<<server_pid                          ;
 			/**/                  msg << '\n'                                         ;
 		}
-		msg << "\trm "<<dir_s<<server_mrkr ;
+		msg << "\trm "<<dir_s<<AdminDirS<<"server" ;
 	}
 	msg << '\n' ;
 	trace("bad",file_service_str,msg) ;

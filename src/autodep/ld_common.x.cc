@@ -151,8 +151,8 @@ using Chmod    = AuditAction<Record::Chmod              ,1   > ;
 using Chroot   = AuditAction<Record::Chroot             ,1   > ;
 using Glob     = AuditAction<Record::Glob               ,0   > ;
 using Hide     = AuditAction<Record::Hide               ,0   > ;
-using Mkdir    = AuditAction<Record::Mkdir              ,1   > ;
 using Lnk      = AuditAction<Record::Lnk                ,2   > ;
+using Mknod    = AuditAction<Record::Mknod              ,1   > ;
 using Mount    = AuditAction<Record::Mount              ,1   > ;
 using Open     = AuditAction<Record::Open               ,1   > ;
 using ReadDir  = AuditAction<Record::ReadDir            ,1   > ;
@@ -160,8 +160,6 @@ using Readlink = AuditAction<Record::Readlink           ,1   > ;
 using Rename   = AuditAction<Record::Rename             ,2   > ;
 using Solve    = AuditAction<Record::Solve<true/*Send*/>,1   > ;
 using Stat     = AuditAction<Record::Stat               ,1   > ;
-using Symlink  = AuditAction<Record::Symlink            ,1   > ;
-using Unlnk    = AuditAction<Record::Unlnk              ,1   > ;
 
 #if NEED_ELF
 
@@ -526,13 +524,34 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int link  (       CC* op,       CC* np      ) NE { HDR2(link  ,op,np,(   op,   np  )) ; NO_SERVER(link  ) ; Lnk r{    op ,    np ,false   ,Comment::link  } ; return r(orig(   op,   np  )) ; }
 	int linkat(int od,CC* op,int nd,CC* np,int f) NE { HDR2(linkat,op,np,(od,op,nd,np,f)) ; NO_SERVER(linkat) ; Lnk r{{od,op},{nd,np},ASLNF(f),Comment::linkat} ; return r(orig(od,op,nd,np,f)) ; }
 
-	// mkdir
-	int mkdir  (      CC* p,mode_t m) NE { HDR1(mkdir  ,p,(  p,m)) ; NO_SERVER(mkdir  ) ; Mkdir r{   p ,Comment::mkdir  } ; return r(orig(  p,m)) ; }
-	int mkdirat(int d,CC* p,mode_t m) NE { HDR1(mkdirat,p,(d,p,m)) ; NO_SERVER(mkdirat) ; Mkdir r{{d,p},Comment::mkdirat} ; return r(orig(d,p,m)) ; }
+	// mkdir                                                                                           no_follow read
+	int mkdir  (      CC* p,mode_t m) NE { HDR1(mkdir  ,p,(  p,m)) ; NO_SERVER(mkdir  ) ; Solve r{   p ,false   ,false,Comment::mkdir  } ; return r(orig(  p,m)) ; }
+	int mkdirat(int d,CC* p,mode_t m) NE { HDR1(mkdirat,p,(d,p,m)) ; NO_SERVER(mkdirat) ; Solve r{{d,p},false   ,false,Comment::mkdirat} ; return r(orig(d,p,m)) ; }
 
-	// mknod                                                                                no_follow read
-	int mknod  (      CC* p,mode_t m,dev_t dev) NE { HDR1(mknod  ,p,(  p,m,dev)) ; Solve r{p,false   ,false,Comment::mknod  } ; return r(orig(  p,m,dev)) ; }
-	int mknodat(int d,CC* p,mode_t m,dev_t dev) NE { HDR1(mknodat,p,(d,p,m,dev)) ; Solve r{p,false   ,false,Comment::mknodat} ; return r(orig(d,p,m,dev)) ; }
+	// mknod
+	int mknod(CC* p,mode_t mode,dev_t dev) NE {
+		HDR1( mknod , p , (p,mode,dev) ) ;
+		NO_SERVER(mknod) ;
+		if (S_ISREG(mode)) {
+			Mknod r{ p , Comment::mknod } ;
+			return r(orig(p,mode,dev)) ;
+		} else {
+			Solve r{ p , true/*no_follow*/ , false/*read*/ , Comment::mknod } ;
+			return r(orig(p,mode,dev)) ;
+		}
+	}
+	int mknodat( int d,CC* p , mode_t mode,dev_t dev) NE {
+		HDR1( mknodat , p , (d,p,mode,dev) ) ;
+		NO_SERVER(mknodat) ;
+		if (S_ISREG(mode)) {
+			Mknod r{ {d,p} , Comment::mknodat } ;
+			return r(orig(d,p,mode,dev)) ;
+		} else {
+			Solve r{ {d,p} , true/*no_follow*/ , false/*read*/ , Comment::mknodat } ;
+			return r(orig(d,p,mode,dev)) ;
+		}
+	}
+
 
 	// mkstemp
 	int mkstemp    (char* t             ) { HDR0(mkstemp    ,(t     )) ; Mkstemp r{t,   Comment::mkstemp    } ; return r(orig(t     )) ; }
@@ -635,13 +654,13 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		Rename r { op , np  , false/*exchange*/ , false/*no_replace*/ , Comment::rename } ;
 		return r(orig(op,np)) ;
 	}
-	int renameat( int od , CC* op , int nd , CC* np ) NE {
+	int renameat( int od,CC* op , int nd,CC* np ) NE {
 		HDR2(renameat,op,np,(od,op,nd,np)) ;
 		NO_SERVER(renameat) ;
 		Rename r{ {od,op} , {nd,np} , false/*exchange*/ , false/*no_replace*/ , Comment::renameat } ;
 		return r(orig(od,op,nd,np)) ;
 	}
-	int renameat2(int od,CC* op,int nd,CC* np,uint f) NE {
+	int renameat2( int od,CC* op , int nd,CC* np , uint f ) NE {
 		HDR2(renameat2,op,np,(od,op,nd,np,f)) ;
 		NO_SERVER(renameat2) ;
 		#ifdef RENAME_EXCHANGE
@@ -658,12 +677,12 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 		return r(orig(od,op,nd,np,f)) ;
 	}
 
-	// rmdir
-	int rmdir(CC* p) NE { HDR1(rmdir,p,(p)) ; NO_SERVER(rmdir) ; Unlnk r{p,true/*rmdir*/,Comment::rmdir} ; return r(orig(p)) ; }
+	// rmdir                                                              no_follow read
+	int rmdir(CC* p) NE { HDR1(rmdir,p,(p)) ; NO_SERVER(rmdir) ; Solve r{p,true    ,false,Comment::rmdir} ; return r(orig(p)) ; }
 
 	// symlink
-	int symlink  (CC* t,      CC* p) NE { HDR1(symlink  ,p,(t,  p)) ; NO_SERVER(symlink  ) ; Symlink r{   p ,Comment::symlink  } ; return r(orig(t,  p)) ; }
-	int symlinkat(CC* t,int d,CC* p) NE { HDR1(symlinkat,p,(t,d,p)) ; NO_SERVER(symlinkat) ; Symlink r{{d,p},Comment::symlinkat} ; return r(orig(t,d,p)) ; }
+	int symlink  (CC* t,      CC* p) NE { HDR1(symlink  ,p,(t,  p)) ; NO_SERVER(symlink  ) ; Mknod r{   p ,Comment::symlink  } ; return r(orig(t,  p)) ; }
+	int symlinkat(CC* t,int d,CC* p) NE { HDR1(symlinkat,p,(t,d,p)) ; NO_SERVER(symlinkat) ; Mknod r{{d,p},Comment::symlinkat} ; return r(orig(t,d,p)) ; }
 
 	// truncate
 	int truncate  (CC* p,off_t   l) NE { HDR1(truncate  ,p,(p,l)) ; NO_SERVER(truncate  ) ; Open r{p,l?O_RDWR:O_WRONLY,Comment::truncate  } ; return r(orig(p,l)) ; }
@@ -674,8 +693,23 @@ struct Mkstemp : AuditAction<Record::Mkstemp,1/*NPaths*/> {
 	int umount2( CC* p,int f) NE { HDR1(umount2,p,(p,f)) ; Solve r{p,false   ,false,Comment::umount2} ; return r(orig(p,f)) ; }
 
 	// unlink
-	int unlink  (      CC* p      ) NE { HDR1(unlink  ,p,(  p  )) ; NO_SERVER(unlink  ) ; Unlnk r{   p ,false/*rmdir*/      ,Comment::unlink  } ; return r(orig(  p  )) ; }
-	int unlinkat(int d,CC* p,int f) NE { HDR1(unlinkat,p,(d,p,f)) ; NO_SERVER(unlinkat) ; Unlnk r{{d,p},bool(f&AT_REMOVEDIR),Comment::unlinkat} ; return r(orig(d,p,f)) ; }
+	int unlink(CC* p) NE {
+		HDR1( unlink , p , (p) ) ;
+		NO_SERVER(unlink) ;
+		Mknod r { p , Comment::unlink } ;
+		return r(orig(p)) ;
+	}
+	int unlinkat( int d,CC* p , int f ) NE {
+		HDR1( unlinkat , p , (d,p,f) ) ;
+		NO_SERVER(unlinkat) ;
+		if (f&AT_REMOVEDIR) {
+			Solve r{ {d,p} , true/*no_follow*/ , false/*read*/ , Comment::unlinkat } ;
+			return r(orig(d,p,f)) ;
+		} else {
+			Mknod r{ {d,p} , Comment::unlinkat } ;
+			return r(orig(d,p,f)) ;
+		}
+	}
 
 	// utime                                                                                                    no_follow read
 	int utime    (      CC* p,const struct utimbuf* t         ) NE { HDR1(utime    ,p,(  p,t  )) ; Solve r{   p ,false   ,false,Comment::utime    } ; return r(orig(  p,t  )) ; }

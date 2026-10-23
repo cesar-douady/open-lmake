@@ -334,12 +334,6 @@ Record::Lnk::Lnk( Record& r , Path&& src_ , Path&& dst_ , bool no_follow , Comme
 	dst.send_report(r) ;
 }
 
-Record::Mkdir::Mkdir( Record& r , Path&& path , Comment c ) : Solve<>{ r , ::move(path) , true/*no_follow*/ , false/*read*/ , c } {
-	r.report_guard( file_loc , real )  ; // although dirs are not considered targets, it stays that disk has been modified and we want to propagate
-	report_dep( r , Access::Stat , c ) ; // fails if file exists, hence sensitive to existence
-	send_report(r) ;
-}
-
 int Record::Mount::operator()( Record& r , int rc ) {
 	if (rc==0) {
 		r.report_direct({.proc=JobExecProc::Mount,.comment=Comment::mount,.files={{real,FileInfo(real)}}}) ;
@@ -459,13 +453,7 @@ Record::Stat::Stat( Record& r , Path&& path , bool no_follow , Accesses a , Comm
 	send_report(r) ;
 }
 
-Record::Symlink::Symlink( Record& r , Path&& p , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,c} {
-	report_update( r , Access::Stat , c ) ;                                                                                 // fail if file exists, hence sensitive to existence
-	send_report(r) ;
-}
-
-Record::Unlnk::Unlnk( Record& r , Path&& p , bool remove_dir , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,c} {
-	if (remove_dir) r.report_guard( file_loc , real_write() ) ;
-	else            report_update( r , Access::Stat , c )     ; // fail if file does not exist, hence sensitive to existence
+Record::Mknod::Mknod( Record& r , Path&& p , Comment c ) : SolveModify{r,::move(p),true/*no_follow*/,false/*read*/,c} {
+	report_update( r , Access::Stat , c ) ;                                                                             // fail if file exists, hence sensitive to existence
 	send_report(r) ;
 }

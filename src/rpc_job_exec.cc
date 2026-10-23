@@ -213,14 +213,14 @@ namespace Codec {
 				Pdate    now { New                                               } ;
 				File     lnk { _root_fd , cat(_lock_dir_s(),_tab.hex(),'-',_num) } ;
 				FileInfo fi  { lnk                                               } ;
-				SWEAR_PROD( fi.date.val() >= (now-_SharedTimeout).val() , now,fi.date,_tab ) ; // if this fires, increase _SharedTimeout
+				SWEAR_PROD( fi.date.val()>=(now-_SharedTimeout).val() , now,fi.date,_tab ) ; // if this fires, increase _SharedTimeout
 				unlnk(lnk) ;
 		}
 	}
 
-	void CodecLock::lock_shared(::string const& id) {                                                                 // lock one lock at random
+	void CodecLock::lock_shared(::string const& id) {                                                               // lock one lock at random
 		SWEAR( !_num , _num,_tab ) ;
-		uint8_t r = (Pdate(New).val()%_NId)+1 ;                                                                       // random, 0 reserved to mean not locked
+		uint8_t r = (Pdate(New).val()%_NId)+1 ;                                                                     // random, 0 reserved to mean not locked
 		for(;;) {
 			for( uint8_t i : iota(_NId) ) {
 				_num = r+i ; if (_num>_NId) _num -= _NId ;
@@ -228,13 +228,13 @@ namespace Codec {
 			Retry :
 				try {
 					sym_lnk( lnk , "shared-"+id , {.mk_dir=false} ) ;
-					return ;                                                                                          // locked
+					return ;                                                                                        // locked
 				} catch (::string const&) {
-					if ( read_lnk(lnk)=="excl"                                        )                break      ;   // if held exclusively, no hope for now
-					if ( FileInfo(lnk).date.val() < (Pdate(New)-_SharedTimeout).val() ) { unlnk(lnk) ; goto Retry ; }
-				}                                                                                                     // try another id
+					if ( read_lnk(lnk)=="excl"                                      )                break      ;   // if held exclusively, no hope for now
+					if ( FileInfo(lnk).date.val()<(Pdate(New)-_SharedTimeout).val() ) { unlnk(lnk) ; goto Retry ; }
+				}                                                                                                   // try another id
 			}
-			Delay(1).sleep_for() ;                                                                                    // if all locks are taken, server is probably holding exclusive lock, try later
+			Delay(1).sleep_for() ;                                                                                  // if all locks are taken, server is probably holding exclusive lock, try later
 		}
 	}
 
@@ -251,7 +251,7 @@ namespace Codec {
 					done[i] = true ;
 					n_done++ ;
 				} catch (::string const&) {
-					if ( FileInfo(lnk).date.val() < (Pdate(New)-_SharedTimeout).val() ) { unlnk(lnk) ; goto Retry ; }
+					if ( FileInfo(lnk).date.val()<(Pdate(New)-_SharedTimeout).val() ) { unlnk(lnk) ; goto Retry ; }
 				}
 			}
 		_num = _Excl ;

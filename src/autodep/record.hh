@@ -398,10 +398,6 @@ public :
 		Solve<>     src ;
 		SolveModify dst ;
 	} ;
-	struct Mkdir : Solve<> {
-		Mkdir() = default ;
-		Mkdir( Record& , Path&& , Comment ) ;
-	} ;
 	struct Mount : Solve<> {
 		Mount() = default ;
 		Mount( Record& r , Path&& dst , bool no_follow , Comment c ) : Solve<>{r,::move(dst),no_follow,false/*read*/,c} { send_report(r) ; }
@@ -487,15 +483,9 @@ public :
 		/**/              void operator()( Record&           ) {                            }
 		template<class T> T    operator()( Record& , T&& res ) { return ::forward<T>(res) ; }
 	} ;
-	struct Symlink : SolveModify {
-		// cxtors & co
-		Symlink() = default ;
-		Symlink( Record& r , Path&& p , Comment ) ;
-	} ;
-	struct Unlnk : SolveModify {
-		// cxtors & co
-		Unlnk() = default ;
-		Unlnk( Record& , Path&& , bool remove_dir , Comment ) ;
+	struct Mknod : SolveModify {
+		Mknod() = default ;
+		Mknod( Record& , Path&& , Comment ) ;
 	} ;
 	//
 	void chdir() {

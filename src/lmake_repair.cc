@@ -142,8 +142,8 @@ int main( int argc , char* /*argv*/[] ) {
 	app_init({ .read_only_ok=false , .py_version=Py::Version }) ;
 	Record::s_autodep_env(New) ;
 	//
-	if (+*g_startup_dir_s                  ) exit(Rc::Usage   ,*g_exe_name," must be started from repo root, not from ",*g_startup_dir_s,rm_slash) ;
-	if (FileInfo(File(ServerMrkr)).exists()) exit(Rc::BadState,"after having ensured no lmake_server is running, consider : rm ",ServerMrkr      ) ;
+	if (+*g_startup_dir_s                            ) exit( Rc::Usage    , *g_exe_name," must be started from repo root, not from ",*g_startup_dir_s,rm_slash   ) ;
+	if (FileInfo(File(ADMIN_DIR_S "server")).exists()) exit( Rc::BadState , "after having ensured no lmake_server is running, consider : rm ",AdminDirS,"server" ) ;
 	//
 	if (FileInfo(cat(PrivateAdminDirS,"local_admin/job_data/")).tag()!=FileTag::Dir) exit(Rc::Fail,"nothing to repair") ;
 	//

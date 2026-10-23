@@ -128,9 +128,9 @@ Rc _out_proc( ::vector_s* /*out*/ files , ReqProc proc , bool read_only , bool r
 	if (!refresh ) server_cmd_line.emplace_back("-r") ;                                                               // -r means no refresh
 	if (read_only) server_cmd_line.emplace_back("-R") ;                                                               // -R means read-only
 	// if read-only and we connect to an old server, it could write for us but should not
-	try                           { tie(g_server_fd,server_pid) = connect_to_server( !(read_only||sync) , LmakeServerMagic , ::move(server_cmd_line) , ServerMrkr ) ; }
-	catch (::pair_s<Rc> const& e) { exit( e.second   , e.first ) ;                                                                                                    }
-	catch (::string     const& e) { exit( Rc::System , e       ) ;                                                                                                    }
+	try                           { tie(g_server_fd,server_pid) = connect_to_server( !(read_only||sync) , LmakeServerMagic , ::move(server_cmd_line) , Version::Repo ) ; }
+	catch (::pair_s<Rc> const& e) { exit( e.second   , e.first ) ;                                                                                                       }
+	catch (::string     const& e) { exit( Rc::System , e       ) ;                                                                                                       }
 	trace("starting",g_server_fd,rrr) ;
 	cb(true/*start*/) ;                                                                                               // block INT once server is initialized so as to be interruptible at all time
 	QueueThread<ReqRpcReply,true/*Flush*/> out_thread { 'O' , _out_thread_func } ;                                    // /!\ must be after call to cb so INT can be blocked before creating threads

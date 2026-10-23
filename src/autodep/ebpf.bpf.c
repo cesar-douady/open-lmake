@@ -107,8 +107,6 @@ struct {                                           // syscalls[is32*NSYSCALLS+nr
 struct Task {
 	__u32            root_pid       ;
 	__u32            job_id         ;                 // job this task belongs to, 0 if none
-	__u32            tid            ;                 // ids in the client's pid namespace
-	__u32            pid            ;
 	__u8             pending        ;                 // true if  captures have been emitted since last End
 	__u8             deps_in_system ;                 // cached from the job config
 	__u8             enabled        ;                 // mirrors the autodep enable bit (toggled through the backdoor), inherited by children
@@ -145,9 +143,6 @@ static __always_inline void _emit(struct Task* tv) {
 	struct JobCfg   * jc  = bpf_map_lookup_elem( &job_cfgs , &jid ) ; if (!jc) return ;
 	void            * rb  = bpf_map_lookup_elem( &job_rbs  , &jid ) ; if (!rb) return ;
 	struct EbpfEvent* ev  = &tv->ev                                 ;
-	//
-	ev->tid = tv->tid ;
-	ev->pid = tv->pid ;
 	//
 	if (jc->overflow) return ;
 	//
@@ -545,12 +540,12 @@ int BPF_PROG( on_fork , struct task_struct* parent , struct task_struct* child )
 	struct Task*   ptv = bpf_task_storage_get( &tasks , parent , 0/*value*/ , 0/*flags*/ )                     ; if ( !ptv || !ptv->job_id )                         return 0 ;
 	struct JobCfg* jc  = bpf_map_lookup_elem( &job_cfgs , &ptv->job_id )                                       ; if ( !jc                  )                         return 0 ;   // job is gone
 	struct Task*   ctv = bpf_task_storage_get( &tasks , child  , 0/*value*/ , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if ( !ctv                 ) { jc->overflow = true ; return 0 ; }
-	ctv->job_id         = ptv->job_id                                                 ;
-	ctv->deps_in_system = ptv->deps_in_system                                         ;
-	ctv->enabled        = ptv->enabled                                                ;
-	ctv->tid            = _ns_nr( BPF_CORE_READ(child,thread_pid)              , jc ) ;
-	ctv->pid            = _ns_nr( BPF_CORE_READ(child,group_leader,thread_pid) , jc ) ;
-	ctv->ev.kind        = ctv->tid==ctv->pid ? EBPF_PROC_START : EBPF_THREAD_START    ;
+	ctv->job_id         = ptv->job_id                                                    ;
+	ctv->deps_in_system = ptv->deps_in_system                                            ;
+	ctv->enabled        = ptv->enabled                                                   ;
+	ctv->ev.tid         = _ns_nr( BPF_CORE_READ(child,thread_pid)              , jc )    ;
+	ctv->ev.pid         = _ns_nr( BPF_CORE_READ(child,group_leader,thread_pid) , jc )    ;
+	ctv->ev.kind        = ctv->ev.tid==ctv->ev.pid ? EBPF_PROC_START : EBPF_THREAD_START ;
 	_emit(ctv) ;
 	return 0 ;
 }
@@ -567,8 +562,8 @@ int BPF_PROG( on_newtask , struct task_struct* p , __u64 clone_flags ) {
 	ctv->job_id         = ptv->job_id                                ;
 	ctv->deps_in_system = ptv->deps_in_system                        ;
 	ctv->enabled        = ptv->enabled                               ;
-	ctv->tid            = _ns_nr( BPF_CORE_READ(p,thread_pid) , jc ) ;
-	ctv->pid            = ptv->pid                                   ;
+	ctv->ev.tid         = _ns_nr( BPF_CORE_READ(p,thread_pid) , jc ) ;
+	ctv->ev.pid         = ptv->ev.pid                                ;
 	ctv->ev.kind        = EBPF_THREAD_START                          ;
 	_emit(ctv) ;
 	return 0 ;
@@ -679,6 +674,7 @@ int BPF_PROG( on_path_mknod , struct path* dir , struct dentry* dentry ) {
 	_capture_obj( tv , EBPF_CREATE , dentry , BPF_CORE_READ(dir,mnt) ) ;
 	return 0 ;
 }
+
 SEC("fentry/security_path_mkdir")
 int BPF_PROG( on_path_mkdir , struct path* dir , struct dentry* dentry ) {
 	struct Task* tv = _capturing() ; if (!tv) return 0 ;
@@ -687,6 +683,7 @@ int BPF_PROG( on_path_mkdir , struct path* dir , struct dentry* dentry ) {
 	_capture_obj( tv , EBPF_CREATE , dentry , BPF_CORE_READ(dir,mnt) ) ;
 	return 0 ;
 }
+
 SEC("fentry/security_path_symlink")
 int BPF_PROG( on_path_symlink , struct path* dir , struct dentry* dentry ) {
 	struct Task* tv = _capturing() ; if (!tv) return 0 ;
@@ -695,6 +692,7 @@ int BPF_PROG( on_path_symlink , struct path* dir , struct dentry* dentry ) {
 	_capture_obj( tv , EBPF_CREATE , dentry , BPF_CORE_READ(dir,mnt) ) ;
 	return 0 ;
 }
+
 SEC("fentry/security_path_link")
 int BPF_PROG( on_path_link , struct dentry* old_dentry , struct path* new_dir , struct dentry* new_dentry ) {
 	struct Task* tv = _capturing() ; if (!tv) return 0 ;
@@ -713,6 +711,7 @@ int BPF_PROG( on_path_unlink , struct path* dir , struct dentry* dentry ) {
 	_capture_obj( tv , EBPF_UNLINK , dentry , BPF_CORE_READ(dir,mnt) ) ;
 	return 0 ;
 }
+
 SEC("fentry/security_path_rmdir")
 int BPF_PROG( on_path_rmdir , struct path* dir , struct dentry* dentry ) {
 	struct Task* tv = _capturing() ; if (!tv) return 0 ;
@@ -752,8 +751,8 @@ static __always_inline void _register( struct task_struct* t , __u32 job_id ) {
 	tv->job_id         = job_id                                                  ;
 	tv->deps_in_system = jc->deps_in_system                                      ;
 	tv->enabled        = 1                                                       ;
-	tv->tid            = _ns_nr( BPF_CORE_READ(t,thread_pid             ) , jc ) ; // the job may run in a pid namespace nested in that of the client
-	tv->pid            = _ns_nr( BPF_CORE_READ(t,group_leader,thread_pid) , jc ) ;
+	tv->ev.tid         = _ns_nr( BPF_CORE_READ(t,thread_pid             ) , jc ) ; // the job may run in a pid namespace nested in that of the client
+	tv->ev.pid         = _ns_nr( BPF_CORE_READ(t,group_leader,thread_pid) , jc ) ;
 	tv->ev.kind        = EBPF_PROC_START                                         ;
 	_emit(tv) ;
 }
@@ -889,6 +888,35 @@ static __always_inline void _io_end( struct Task* tv , struct io_kiocb* req ) {
 	_emit_end( tv , EBPF_F_IO , BPF_CORE_READ(req,opcode) , 0/*is32*/ , BPF_CORE_READ(req,cqe.res) ) ;
 }
 
+SEC("fexit/io_linkat")
+int BPF_PROG( on_io_linkat , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
+	struct Task   * tv      = _io_begin(req,ret)        ; if (!tv) return 0 ;
+	struct io_link* op      = (struct io_link*)req      ;
+	int             old_dfd = BPF_CORE_READ(op,old_dfd) ;
+	int             new_dfd = BPF_CORE_READ(op,new_dfd) ;
+	__u64           flags   = BPF_CORE_READ(op,flags  ) ;
+	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_PAIR) ) {
+		_io_raw( tv , BPF_CORE_READ(op,oldpath) , old_dfd , 0/*flags*/  ) ;
+		_io_raw( tv , BPF_CORE_READ(op,newpath) , new_dfd , CAPTURE_DST ) ;
+	}
+	tv->ev.args[0] = (__u64)old_dfd ;
+	tv->ev.args[2] = (__u64)new_dfd ;
+	tv->ev.args[4] = flags          ;
+	_io_end(tv,req) ;
+	return 0 ;
+}
+
+SEC("fexit/io_mkdirat")
+int BPF_PROG( on_io_mkdirat , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
+	struct Task    * tv = _io_begin(req,ret)    ; if (!tv) return 0 ;
+	struct io_mkdir* op = (struct io_mkdir*)req ;
+	int dfd = BPF_CORE_READ(op,dfd) ;
+	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,filename) , dfd , 0/*flags*/ ) ;
+	tv->ev.args[0] = (__u64)dfd ;
+	_io_end(tv,req) ;
+	return 0 ;
+}
+
 static __always_inline int _io_open( struct io_kiocb* req , int ret , bool outer ) {
 	struct Task* tv = _io_begin(req,ret) ; if (!tv) return 0 ;
 	if (outer) {                                               // io_openat calls io_openat2, which has already done the job if it is not inlined
@@ -911,21 +939,6 @@ static __always_inline int _io_open( struct io_kiocb* req , int ret , bool outer
 SEC("fexit/io_openat2") int BPF_PROG( on_io_openat2 , struct io_kiocb* req , unsigned int issue_flags , int ret ) { return _io_open(req,ret,false/*outer*/) ; }
 SEC("fexit/io_openat" ) int BPF_PROG( on_io_openat  , struct io_kiocb* req , unsigned int issue_flags , int ret ) { return _io_open(req,ret,true /*outer*/) ; }
 
-SEC("fexit/io_statx")
-int BPF_PROG( on_io_statx , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
-	struct Task    * tv    = _io_begin(req,ret)      ; if (!tv) return 0 ;
-	struct io_statx* op    = (struct io_statx*)req   ;
-	int              dfd   = BPF_CORE_READ(op,dfd  ) ;
-	__u64            flags = BPF_CORE_READ(op,flags) ;
-	__u64            mask  = BPF_CORE_READ(op,mask ) ;
-	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,filename) , dfd , 0/*flags*/ ) ;
-	tv->ev.args[0]= (__u64)dfd ;
-	tv->ev.args[2]= flags      ;
-	tv->ev.args[3]= mask       ;
-	_io_end(tv,req) ;
-	return 0 ;
-}
-
 SEC("fexit/io_renameat")
 int BPF_PROG( on_io_renameat , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
 	struct Task     * tv = _io_begin(req,ret)     ; if (!tv) return 0 ;
@@ -944,44 +957,17 @@ int BPF_PROG( on_io_renameat , struct io_kiocb* req , unsigned int issue_flags ,
 	return 0 ;
 }
 
-SEC("fexit/io_unlinkat")
-int BPF_PROG( on_io_unlinkat , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
-	struct Task     * tv = _io_begin(req,ret)     ; if (!tv) return 0 ;
-	struct io_unlink* op = (struct io_unlink*)req ;
-	int   dfd   = BPF_CORE_READ(op,dfd  ) ;
-	__u64 flags = BPF_CORE_READ(op,flags) ;
+SEC("fexit/io_statx")
+int BPF_PROG( on_io_statx , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
+	struct Task    * tv    = _io_begin(req,ret)      ; if (!tv) return 0 ;
+	struct io_statx* op    = (struct io_statx*)req   ;
+	int              dfd   = BPF_CORE_READ(op,dfd  ) ;
+	__u64            flags = BPF_CORE_READ(op,flags) ;
+	__u64            mask  = BPF_CORE_READ(op,mask ) ;
 	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,filename) , dfd , 0/*flags*/ ) ;
 	tv->ev.args[0] = (__u64)dfd ;
 	tv->ev.args[2] = flags      ;
-	_io_end(tv,req) ;
-	return 0 ;
-}
-
-SEC("fexit/io_mkdirat")
-int BPF_PROG( on_io_mkdirat , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
-	struct Task    * tv = _io_begin(req,ret)    ; if (!tv) return 0 ;
-	struct io_mkdir* op = (struct io_mkdir*)req ;
-	int dfd = BPF_CORE_READ(op,dfd) ;
-	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,filename) , dfd , 0/*flags*/ ) ;
-	tv->ev.args[0] = (__u64)dfd ;
-	_io_end(tv,req) ;
-	return 0 ;
-}
-
-SEC("fexit/io_linkat")
-int BPF_PROG( on_io_linkat , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
-	struct Task   * tv      = _io_begin(req,ret)        ; if (!tv) return 0 ;
-	struct io_link* op      = (struct io_link*)req      ;
-	int             old_dfd = BPF_CORE_READ(op,old_dfd) ;
-	int             new_dfd = BPF_CORE_READ(op,new_dfd) ;
-	__u64           flags   = BPF_CORE_READ(op,flags  ) ;
-	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_PAIR) ) {
-		_io_raw( tv , BPF_CORE_READ(op,oldpath) , old_dfd , 0/*flags*/  ) ;
-		_io_raw( tv , BPF_CORE_READ(op,newpath) , new_dfd , CAPTURE_DST ) ;
-	}
-	tv->ev.args[0] = (__u64)old_dfd ;
-	tv->ev.args[2] = (__u64)new_dfd ;
-	tv->ev.args[4] = flags          ;
+	tv->ev.args[3] = mask       ;
 	_io_end(tv,req) ;
 	return 0 ;
 }
@@ -993,6 +979,19 @@ int BPF_PROG( on_io_symlinkat , struct io_kiocb* req , unsigned int issue_flags 
 	int             new_dfd = BPF_CORE_READ(op,new_dfd) ;
 	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,newpath) , new_dfd , 0/*flags*/ ) ;
 	tv->ev.args[1] = (__u64)new_dfd ;
+	_io_end(tv,req) ;
+	return 0 ;
+}
+
+SEC("fexit/io_unlinkat")
+int BPF_PROG( on_io_unlinkat , struct io_kiocb* req , unsigned int issue_flags , int ret ) {
+	struct Task     * tv = _io_begin(req,ret)     ; if (!tv) return 0 ;
+	struct io_unlink* op = (struct io_unlink*)req ;
+	int   dfd   = BPF_CORE_READ(op,dfd  ) ;
+	__u64 flags = BPF_CORE_READ(op,flags) ;
+	if ( BPF_CORE_READ(req,cqe.res)<0 && !(tv->seen&SEEN_RES) ) _io_raw( tv , BPF_CORE_READ(op,filename) , dfd , 0/*flags*/ ) ;
+	tv->ev.args[0] = (__u64)dfd ;
+	tv->ev.args[2] = flags      ;
 	_io_end(tv,req) ;
 	return 0 ;
 }

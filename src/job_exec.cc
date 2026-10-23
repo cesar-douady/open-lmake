@@ -456,7 +456,6 @@ End :
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache.dismiss( upload_key , g_start_info.cache.conn_id ) ;                                  // suppress temporary data if server cannot handle them
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}

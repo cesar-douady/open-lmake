@@ -20,6 +20,15 @@ items (also used in XXX comments) :
 * LACK (not implemented but necessary for lmake semantic)
 ****************************************************************************************************
 
+* handle xattr in autodep
+	- although we do not manage xattr per se, we must manage sym links traversed during path resolution
+		- getxattr, setxattr, removexattr, listxattr and their l and f flavors
+		- only get and set for io_uring
+	- in ld_common.x.cc
+	- in syscall_tab.cc
+	- in ebpf.bpf.c
+		- as syscalls
+		- as io_uring
 ! before erasing a dir, check for phony targets, not only files on disk
 	- then dir markers for gcc include dirs could be phony, which is more elegant
 ? make ignore_error transitive

@@ -202,12 +202,27 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 	) ;
 }
 
-// mkdir
-template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_mkdir( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
+// mknod
+struct MknodHelper {
+	Record::Mknod mknod ;
+	mode_t        mode  ;
+	dev_t         dev   ;
+} ;
+template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_mknod( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
 	try {
-		Record::Mkdir( r , _path<At>(proc_mem,args+0) , c ) ;
+		if (!S_ISREG(args[At+1])) return _entry_solve<At,FlagAlways>( r , proc_mem , args , false/*emulate*/ , c ) ; // only regular files and symlinks are deemed existing
+		//
+		MknodHelper& m = *new MknodHelper{ .mknod{r,_path<At>(proc_mem,args+0),c} , .mode=mode_t(args[At+1]) , .dev=dev_t(args[At+2]) } ;
+		if (m.mknod.confirm_id) return { &m , false/*refresh*/ } ;
+		else                    delete &m ;                                                  // nothing to do on exit
 	} catch (::string const&) {}
 	return {} ;
+}
+[[maybe_unused]] static int64_t/*rc*/ _exit_mknod( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
+	return _do_exit<MknodHelper>( ctx , rc
+	,	[ ](MknodHelper& m           )->int64_t { return ::mknod(m.mknod.real_write().c_str(),m.mode,m.dev) ; }
+	,	[&](MknodHelper& m,int64_t rc)          { m.mknod( r , rc ) ;                                         }
+	) ;
 }
 
 // mount
@@ -359,8 +374,8 @@ template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/
 
 // symlink
 struct SymlinkHelper {
-	Record::Symlink lnk    ;
-	uint64_t        target ;
+	Record::Mknod lnk    ;
+	uint64_t      target ;
 } ;
 template<bool At> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_symlink( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
 	try {
@@ -400,20 +415,18 @@ struct TruncateHelper {
 // unlink
 template<bool At,int FlagArg> [[maybe_unused]] static ::pair<void* /*ctx*/,bool/*refresh*/> _entry_unlink( Record& r , Fd proc_mem , uint64_t args[6] , bool /*emulate*/ , Comment c ) {
 	try {
-		bool rmdir = _flag<FlagArg>(args,AT_REMOVEDIR) ;
-		if (rmdir)           Record::Unlnk( r , _path<At>(proc_mem,args+0) , rmdir , c ) ; // rmdir calls us without exit, and we must not set ctx in that case
-		else {
-			Record::Unlnk& u = *new Record::Unlnk{ r , _path<At>(proc_mem,args+0) , rmdir , c } ;
-			if (u.confirm_id) return { &u , false/*refresh*/ } ;
-			else              delete &u ;                                                  // nothing to do on exit
-		}
+		if (_flag<FlagArg>(args,AT_REMOVEDIR)) return _entry_solve<At,FlagAlways>( r , proc_mem , args , false/*emulate*/ , c ) ;
+		//
+		Record::Mknod& u = *new Record::Mknod{ r , _path<At>(proc_mem,args+0) , c } ;
+		if (u.confirm_id) return { &u , false/*refresh*/ } ;
+		else              delete &u ;                                                  // nothing to do on exit
 	} catch (::string const&) {}
 	return {} ;
 }
 [[maybe_unused]] static int64_t/*rc*/ _exit_unlnk( void* ctx , Record& r , Fd /*proc_mem*/ , ::optional<int64_t> rc ) {
-	return _do_exit<Record::Unlnk>( ctx , rc
-	,	[ ](Record::Unlnk& u           )->int64_t { return ::unlink(u.real_write().c_str()) ; }
-	,	[&](Record::Unlnk& u,int64_t rc)          { u( r , rc ) ;                             }
+	return _do_exit<Record::Mknod>( ctx , rc
+	,	[ ](Record::Mknod& u           )->int64_t { return ::unlink(u.real_write().c_str()) ; }
+	,	[&](Record::Mknod& u,int64_t rc)          { u( r , rc ) ;                             }
 	) ;
 }
 
@@ -478,10 +491,10 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 	FILL_ENTRY( io_uring_setup    , { _entry_io_uring                     , nullptr        , -1 , SyscallConvention::Plain , Comment::io_uring_setup    } ) ;
 	FILL_ENTRY( link              , { _entry_lnk       <false,FlagNever > , _exit_lnk      ,  1 , SyscallConvention::Plain , Comment::link              } ) ;
 	FILL_ENTRY( linkat            , { _entry_lnk       <true ,4         > , _exit_lnk      ,  3 , SyscallConvention::Plain , Comment::linkat            } ) ;
-	FILL_ENTRY( mkdir             , { _entry_mkdir     <false           > , nullptr        ,  0 , SyscallConvention::Plain , Comment::mkdir             } ) ;
-	FILL_ENTRY( mkdirat           , { _entry_mkdir     <true            > , nullptr        ,  1 , SyscallConvention::Plain , Comment::mkdirat           } ) ;
-	FILL_ENTRY( mknod             , { _entry_solve     <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::mknod             } ) ;
-	FILL_ENTRY( mknodat           , { _entry_solve     <true ,FlagAlways> , nullptr        ,  1 , SyscallConvention::Plain , Comment::mknodat           } ) ;
+	FILL_ENTRY( mkdir             , { _entry_solve     <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::mkdir             } ) ;
+	FILL_ENTRY( mkdirat           , { _entry_solve     <true ,FlagAlways> , nullptr        ,  1 , SyscallConvention::Plain , Comment::mkdirat           } ) ;
+	FILL_ENTRY( mknod             , { _entry_mknod     <false           > , _exit_mknod    ,  0 , SyscallConvention::Plain , Comment::mknod             } ) ;
+	FILL_ENTRY( mknodat           , { _entry_mknod     <true            > , _exit_mknod    ,  1 , SyscallConvention::Plain , Comment::mknodat           } ) ;
 	FILL_ENTRY( mount             , { _entry_mount                        , _exit_mount    , -1 , SyscallConvention::Plain , Comment::mount             } ) ;
 	FILL_ENTRY( move_mount        , { _entry_move_mount                   , _exit_mount    , -1 , SyscallConvention::Plain , Comment::move_mount        } ) ;
 	FILL_ENTRY( name_to_handle_at , { _entry_solve     <true ,FlagAlways> , nullptr        ,  1 , SyscallConvention::Plain , Comment::name_to_handle_at } ) ;
@@ -495,7 +508,7 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 	FILL_ENTRY( rename            , { _entry_rename    <false,FlagNever > , _exit_rename   ,  1 , SyscallConvention::Plain , Comment::rename            } ) ;
 	FILL_ENTRY( renameat          , { _entry_rename    <true ,FlagNever > , _exit_rename   ,  3 , SyscallConvention::Plain , Comment::renameat          } ) ;
 	FILL_ENTRY( renameat2         , { _entry_rename    <true ,4         > , _exit_rename   ,  3 , SyscallConvention::Plain , Comment::renameat2         } ) ;
-	FILL_ENTRY( rmdir             , { _entry_unlink    <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::rmdir             } ) ;
+	FILL_ENTRY( rmdir             , { _entry_solve     <false,FlagAlways> , nullptr        ,  0 , SyscallConvention::Plain , Comment::rmdir             } ) ;
 	FILL_ENTRY( stat              , { _entry_stat      <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::stat              } ) ;
 	FILL_ENTRY( stat64            , { _entry_stat      <false,FlagNever > , nullptr        ,  0 , SyscallConvention::Plain , Comment::stat64            } ) ;
 	FILL_ENTRY( fstatat64         , { _entry_stat      <true ,3         > , nullptr        ,  1 , SyscallConvention::Plain , Comment::fstatat64         } ) ;

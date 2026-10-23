@@ -224,7 +224,7 @@ namespace Codec {
 	private :
 		static constexpr uint8_t     _NId           = 16   ;
 		static constexpr uint8_t     _Excl          = -1   ;
-		static constexpr Time::Delay _SharedTimeout { 10 } ; // shared locks older than that are deemed lost
+		static constexpr Time::Delay _SharedTimeout { 30 } ; // shared locks older than that are deemed lost
 		// statics
 	public :
 		static void s_init() ;

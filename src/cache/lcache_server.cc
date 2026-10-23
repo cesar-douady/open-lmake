@@ -174,7 +174,7 @@ int main( int argc , char** argv ) {
 	Trace trace("main",*g_lmake_root_s,*g_repo_root_s) ;
 	for( int i : iota(argc) ) trace("arg",i,argv[i]) ;
 	//
-	CacheServer server { ServerMrkr } ;
+	CacheServer server { New } ;
 	try {
 		server.is_daemon = is_daemon ;
 		server.writable  = true      ;

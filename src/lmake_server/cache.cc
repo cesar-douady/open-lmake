@@ -47,8 +47,8 @@ namespace Cache {
 		throw_unless(       +dir_s  , "dir must be specified for cache" ) ;
 		throw_unless( is_abs(dir_s) , "dir must be absolute for cache"  ) ;
 		::vector_s cmd_line = { *g_lmake_root_s+"bin/lcache_server" , "-d"/*no_daemon*/ } ;
-		try                           { _fd = connect_to_server( true/*try_old*/ , CacheMagic , ::move(cmd_line) , ServerMrkr , dir_s , CacheChnl ).first ; }
-		catch (::pair_s<Rc> const& e) { throw e.first ;                                                                                                     }
+		try                           { _fd = connect_to_server( true/*try_old*/ , CacheMagic , ::move(cmd_line) , Version::Cache , dir_s , CacheChnl ).first ; }
+		catch (::pair_s<Rc> const& e) { throw e.first ;                                                                                                         }
 		service = _fd.service()                                 ; service.addr = 0 ;                    // service.addr will be filled in from job replies after they have connected to cache
 		_dir_fd = AcFd( dir_s , {.flags=O_RDONLY|O_DIRECTORY} ) ;
 		//
