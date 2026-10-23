@@ -369,7 +369,7 @@ namespace Engine::Persistent {
 		::string sfx ;
 	} ;
 
-	template<bool IsSfx> static void _propag_to_longer( ::map_s<::uset<Rt>>& psfx_map , ::uset_s const& sub_repos_s={} ) {
+	template<bool IsSfx,class T> static void _propag_to_longer( T& psfx_map , ::uset_s const& sub_repos_s={} ) {
 		for( auto& [long_psfx,long_entry] : psfx_map ) {                // entries order guarantees that if an entry is a prefix/suffix of another, it is processed first
 			if ( !IsSfx && sub_repos_s.contains(long_psfx) ) continue ; // dont propagate through sub_repos boundaries
 			for( size_t shorten_by : iota(1,long_psfx.size()+1) ) {
@@ -389,7 +389,19 @@ namespace Engine::Persistent {
 		_g_pfxs_file.clear() ;
 		//
 		// first compute a suffix map
-		::map_s<::uset<Rt>> sfx_map ;
+		struct BackwardLess {                                                                // order strings by looking at last characters first
+			bool operator()( ::string const& a , ::string const& b ) const {
+				for( size_t i=0 ;; i++ ) {
+					if (i>=b.size()) return false ;                                          // b is a        suffix of a
+					if (i>=a.size()) return true  ;                                          // a is a strict suffix of b
+					char ac = a[a.size()-i-1] ;
+					char bc = b[b.size()-i-1] ;
+					if (bc<ac) return false ;
+					if (ac<bc) return true  ;
+				}
+			}
+		} ;
+		::map<::string,::uset<Rt>,BackwardLess> sfx_map ;                                    // sort suffixes so that shorter ones appear before
 		for( Rule r : rule_lst(true/*with_shared*/) )                                        // Codec is shared and matches, hence we must list shared rules here
 			for ( bool star : {false,true} )
 				for( VarIdx ti : r->matches_iotas[star][+MatchKind::Target] ) {
