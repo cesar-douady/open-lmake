@@ -21,9 +21,9 @@ namespace Hash {
 	template struct _Xxh<96> ; // .
 
 	template<uint8_t Sz> _Xxh<Sz>::_Xxh() {
-		/**/    XXH3_INITSTATE    (&_state) ;
-		if (Sz) XXH3_128bits_reset(&_state) ;
-		else    XXH3_64bits_reset (&_state) ;
+		/**/       XXH3_INITSTATE    (&_state) ;
+		if (Sz>64) XXH3_128bits_reset(&_state) ;
+		else       XXH3_64bits_reset (&_state) ;
 	} //!         Sz
 	template _Xxh<64>::_Xxh() ; // explicit instanciation
 	template _Xxh<96>::_Xxh() ; // .

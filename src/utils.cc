@@ -450,8 +450,13 @@ void SyncGuardReaddir::flush() {
 			case '\\' : res += "\\\\" ; break ;                   // .
 			case '\'' : res += "\\'"  ; break ;                   // .
 			default :
-				if (is_printable(c)) res << c                                               ;
-				else                 res << "\\x"<<('0'+uint8_t(c)/16)<<('0'+uint8_t(c)%16) ;
+				if (is_printable(c)) {
+					res << c ;
+				} else {
+					/**/                       res << "\\x"                           ;
+					{ uint8_t d = (c>>4)&0xf ; res << char( d<10 ? '0'+d : 'a'+d-10 ) ; }
+					{ uint8_t d =  c    &0xf ; res << char( d<10 ? '0'+d : 'a'+d-10 ) ; }
+				}
 		}
 	}
 	res += '\'' ;

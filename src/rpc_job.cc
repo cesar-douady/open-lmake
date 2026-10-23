@@ -1037,14 +1037,14 @@ CacheRemoteSide::UploadDigest CacheRemoteSide::upload( Delay exe_time , ::vmap_s
 		trace("done",reply.upload_key,data_fd.z_sz) ;
 		return { .upload_key=reply.upload_key , .z_sz=data_fd.z_sz } ;
 	} catch (::string const& e) {
-		dismiss(reply.upload_key) ;
+		remote_dismiss(reply.upload_key) ;
 		trace("failed") ;
 		throw ;
 	}
 }
 
-void CacheRemoteSide::dismiss( CacheUploadKey upload_key , uint32_t conn_id_ ) const {
-	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Dismiss , .conn_id=conn_id_ , .upload_key=upload_key } ).send( ClientSockFd(service) , {}/*key*/ ) ;
+void CacheRemoteSide::_dismiss( CacheUploadKey upload_key , uint32_t conn_id_ ) const {
+	OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Dismiss , .conn_id=conn_id_ , .upload_key=upload_key } ).send( ClientSockFd(service) ) ;
 }
 
 //

@@ -85,8 +85,8 @@ namespace Disk {
 		}
 		if (path.back()!='/') {
 			handle('/') ;
-			if (+res) res.pop_back (   ) ;
-			else      res.push_back('.') ;                                              // XXX/ : res = "." would generate a warning (i.e. an error with -Werror) when compiling for 32-bit with gcc-12
+			if      (!res    ) res.push_back('.') ;                                     // XXX/ : res = "." would generate a warning (i.e. an error with -Werror) when compiling for 32-bit with gcc-12
+			else if (res!="/") res.pop_back (   ) ;                                     // avoid generating empty for "/"
 		}
 		return res ;
 	}

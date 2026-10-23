@@ -729,12 +729,12 @@ namespace Engine {
 			trace("req_after",ri,job_reason,STR(done),STR(maybe_done)) ;
 		}
 		if (+digest.upload_key) {
-			/**/                                                                          SWEAR( cache_idx1 , cache_idx1 ) ;                  // cannot commit/dismiss without cache
-			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ;                  // .
-			end_digest.can_upload &= !( jd.missing() || jd.err() ) ;                                                                          // only cache execution without errors
+			/**/                                                                          SWEAR( cache_idx1 , cache_idx1 ) ;                         // cannot commit/dismiss without cache
+			Cache::CacheServerSide& cache = Cache::CacheServerSide::s_tab[cache_idx1-1] ; SWEAR( +cache     , cache_idx1 ) ;                         // .
+			end_digest.can_upload &= !( jd.missing() || jd.err() ) ;                                                                                 // only cache execution without errors
 			try {
-				if (end_digest.can_upload) cache.commit ( self , digest.upload_key , was_missing_audit , cache_force , digest.targets_crc ) ;
-				else                       cache.dismiss(        digest.upload_key                                                        ) ; // free up temporary storage copied in job_exec
+				if (end_digest.can_upload) cache.commit        ( self , digest.upload_key , was_missing_audit , cache_force , digest.targets_crc ) ;
+				else                       cache.server_dismiss(        digest.upload_key                                                        ) ; // free up temporary storage copied in job_exec
 			} catch (::string const& e) {
 				const char* action = end_digest.can_upload ? "upload" : "dismiss" ;
 				trace("cache_throw",action,e) ;

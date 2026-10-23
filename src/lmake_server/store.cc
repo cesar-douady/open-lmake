@@ -369,14 +369,17 @@ namespace Engine::Persistent {
 		::string sfx ;
 	} ;
 
-	template<bool IsSfx> static void _propag_to_longer( ::map_s<::uset<Rt>>& psfx_map , ::uset_s const& sub_repos_s={} ) {
+	template<bool IsSfx,class T> static void _propag_to_longer( T& psfx_map , ::uset_s const& sub_repos_s={} ) {
+		Trace trace("_propag_to_longer") ;
 		for( auto& [long_psfx,long_entry] : psfx_map ) {                // entries order guarantees that more general rules (with a shorter psfx) are processed first, so propagation is recursive
+			trace("long",long_psfx) ;
 			if ( !IsSfx && sub_repos_s.contains(long_psfx) ) continue ; // dont propagate through sub_repos boundaries
 			for( size_t shorten_by : iota(1,long_psfx.size()+1) ) {
 				::string short_psfx = long_psfx.substr( IsSfx?shorten_by:0 , long_psfx.size()-shorten_by ) ;
 				if ( !IsSfx && sub_repos_s.contains(short_psfx) ) break ;                                    // dont propagate through sub_repos boundaries
 				auto short_it = psfx_map.find(short_psfx) ;
 				if (short_it==psfx_map.end()) continue ;
+				trace("short",short_psfx) ;
 				long_entry.merge(::copy(short_it->second)) ; // copy arg as merge clobbers it
 				break ;                                      // psfx's are sorted shortest first, so as soon as a short one is found, it is already merged with previous ones
 			}
@@ -385,17 +388,31 @@ namespace Engine::Persistent {
 
 	// make a prefix/suffix map that records which rule has which prefix/suffix
 	static void _compile_psfxs() {
+		Trace trace("_compile_psfxs") ;
 		_g_sfxs_file.clear() ;
 		_g_pfxs_file.clear() ;
 		//
 		// first compute a suffix map
-		::map_s<::uset<Rt>> sfx_map ;
+		struct BackwardLess {                                                                // order strings by looking at last characters first
+			bool operator()( ::string const& a , ::string const& b ) const {
+				for( size_t i=0 ;; i++ ) {
+					if (i>=b.size()) return false ;                                          // b is a        suffix of a
+					if (i>=a.size()) return true  ;                                          // a is a strict suffix of b
+					char ac = a[a.size()-i-1] ;
+					char bc = b[b.size()-i-1] ;
+					if (bc<ac) return false ;
+					if (ac<bc) return true  ;
+				}
+			}
+		} ;
+		::map<::string,::uset<Rt>,BackwardLess> sfx_map ;                                    // sort suffixes so that shorter ones appear before
 		for( Rule r : rule_lst(true/*with_shared*/) )                                        // Codec is shared and matches, hence we must list shared rules here
 			for ( bool star : {false,true} )
 				for( VarIdx ti : r->matches_iotas[star][+MatchKind::Target] ) {
 					Rt rt { r->crc , ti } ;
 					sfx_map[rt.sfx].insert(rt) ;
 				}
+		trace("sfx") ;
 		_propag_to_longer<true/*IsSfx*/>(sfx_map) ;                                          // propagate to longer suffixes as a rule that matches a suffix also matches any longer suffix
 		//
 		// now, for each suffix, compute a prefix map
@@ -409,6 +426,7 @@ namespace Engine::Persistent {
 				for( Rt const& rt : sfx_rule_tgts ) if (sfx1.starts_with(rt.pfx)) pfx_map[""].insert(rt) ;
 			} else {
 				for( Rt const& rt : sfx_rule_tgts ) pfx_map[rt.pfx].insert(rt) ;
+				trace("pfx",sfx) ;
 				_propag_to_longer<false/*IsSfx*/>(pfx_map,sub_repos_s) ;                     // propagate to longer prefixes as a rule that matches a prefix also matches any longer prefix
 			}
 			//

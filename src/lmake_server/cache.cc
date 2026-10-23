@@ -178,7 +178,7 @@ namespace Cache {
 		JobInfo job_info = job.job_info() ;
 		if (!( +job_info.start && +job_info.end )) {                     // we need a full report to cache job
 			trace("no_ancillary_file") ;
-			dismiss(upload_key) ;
+			server_dismiss(upload_key) ;
 			throw "no ancillary file"s ;
 		}
 		//
@@ -193,7 +193,7 @@ namespace Cache {
 				repo_deps.emplace_back(dn,dd2) ;
 			} else {
 				trace("not_a_crc_dep",dn,dd) ;
-				dismiss(upload_key) ;
+				server_dismiss(upload_key) ;
 				throw cat("dep has no valid crc : ",dn) ;
 			}
 		}
