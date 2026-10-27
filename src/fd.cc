@@ -230,7 +230,7 @@ ServerSockFd::ServerSockFd( int backlog , bool reuse_addr , in_addr_t local_addr
 }
 
 SlaveSockFd ServerSockFd::accept() {
-	SlaveSockFd slave_fd { ::accept(fd,nullptr/*addr*/,nullptr/*addrlen*/) , key } ;
+	SlaveSockFd slave_fd { ::accept4(fd,nullptr/*addr*/,nullptr/*addrlen*/,SOCK_CLOEXEC) , key } ;
 	if (+slave_fd) {
 		::setsockopt( slave_fd , IPPROTO_TCP , TCP_NODELAY  , &::ref<int>(1) , sizeof(int) ) ;                                                              // avoid waiting for data packet aggregation
 		::setsockopt( slave_fd , IPPROTO_TCP , TCP_QUICKACK , &::ref<int>(1) , sizeof(int) ) ;                                                              // avoid waiting for ack  packet aggregation

@@ -224,4 +224,8 @@ namespace Cache {
 		trace("done") ;
 	}
 
+	void CacheServerSide::server_dismiss(CacheUploadKey upload_key) {
+		OMsgBuf( CacheRpcReq{ .proc=CacheRpcProc::Dismiss , .upload_key=upload_key } ).send(_fd) ;
+	}
+
 }

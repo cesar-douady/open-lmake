@@ -456,12 +456,12 @@ End :
 			//^^^^^^^^^^^^^^^^^^^^^^^^^^
 			trace("done",end_overhead) ;
 		} catch (::string const& e) {
-			if (+upload_key) g_start_info.cache.remote_dismiss(upload_key) ;                                                          // suppress temporary data if server cannot handle them
+			if (+upload_key) try { g_start_info.cache.remote_dismiss(upload_key) ; } catch (::string const&) {} // suppress temporary data if server cannot handle them, best effort
 			exit(Rc::Fail,"after job execution : ",e) ;
 		}
 	}
 	try                       { g_start_info.exit() ;                             }
-	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }                                                   // NO_COV defensive programming
+	catch (::string const& e) { exit(Rc::Fail,"cannot cleanup namespaces : ",e) ; }                             // NO_COV defensive programming
 	//
 	return 0 ;
 }

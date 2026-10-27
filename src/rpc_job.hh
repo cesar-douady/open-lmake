@@ -846,10 +846,7 @@ struct CacheRemoteSide {
 	bool operator+ (         ) const { return +dir_s ; }
 	// services
 	UploadDigest upload        ( Time::Delay exe_time , ::vmap_s<TargetDigest> const& , ::vector<Disk::FileInfo> const& , Zlvl ) const ;
-	void         server_dismiss( CacheUploadKey upload_key                                                                     ) const { _dismiss( upload_key , 0/*conn_id*/ ) ; }
-	void         remote_dismiss( CacheUploadKey upload_key                                                                     ) const { _dismiss( upload_key , conn_id      ) ; }
-private :
-	void _dismiss( CacheUploadKey upload_key , uint32_t conn_id ) const ;
+	void         remote_dismiss( CacheUploadKey upload_key                                                                     ) const ;
 	// data
 public :
 	::string     dir_s     ;
