@@ -8,7 +8,11 @@
 #include "basic_utils.hh"
 #include "enum.hh"
 
-static constexpr char Bash[] = "/bin/bash" ;
+#ifdef __X32_SYSCALL_BIT
+	static_assert( __X32_SYSCALL_BIT==0x40000000 ) ;
+#else
+	#define __X32_SYSCALL_BIT 0x40000000
+#endif
 
 // used to disambiguate some calls
 enum class NewType  : uint8_t { New  } ; static constexpr NewType  New  = NewType ::New  ;
@@ -190,8 +194,8 @@ inline bool is_printable(::string const& s) {
 
 template<char Delimiter=0> ::string mk_printable(::string const&    ) ;
 template<char Delimiter=0> ::string mk_printable(::string     && txt) {
-	for( char c : txt ) if ( !is_printable(c) || (Delimiter&&c==Delimiter) ) return mk_printable(txt) ;
-	return ::move(txt) ;                                                                                // fast path : avoid analysis & copy
+	for( char c : txt ) if ( !is_printable(c) || (Delimiter&&c==Delimiter) || c=='\\' ) return mk_printable(txt) ;
+	return ::move(txt) ;                                                                                           // fast path : avoid analysis & copy
 }
 template<char Delimiter=0> ::string parse_printable( ::string const& , size_t& pos=::ref(size_t()) ) ;
 

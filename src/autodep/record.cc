@@ -8,7 +8,7 @@
 #include "disk.hh"
 
 #include "backdoor.hh"
-
+#include "ebpf_event.h" // to analyze open flags which is shared with ebpf code
 #include "record.hh"
 
 #ifndef O_PATH
@@ -342,31 +342,31 @@ int Record::Mount::operator()( Record& r , int rc ) {
 	return rc ;
 }
 
-static bool _no_follow(int flags) { return (flags&O_NOFOLLOW) || ( (flags&O_CREAT) && (flags&O_EXCL) )                     ; }
-static bool _do_stat  (int flags) { return                       ( (flags&O_CREAT) && (flags&O_EXCL) ) || !(flags&O_CREAT) ; }
-static bool _do_read  (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_WRONLY ) && !(flags&O_TRUNC)          ; }
-static bool _do_write (int flags) { return ( !(flags&O_PATH) && (flags&O_ACCMODE)!=O_RDONLY ) ||  (flags&O_TRUNC)          ; }
-//
-Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveModify{ r , ::move(path) , _no_follow(flags) , _do_read(flags) , c } {
-	if ( !file || !file[0]             ) return ;
-	if ( flags&(O_DIRECTORY|O_TMPFILE) ) return ;                                                                                      // we already solved, this is enough
-	if ( file_loc>FileLoc::Dep         ) return ;                                                                                      // fast path
+// flags analysis comes from ebpf_event.h
+Record::Open::Open( Record& r , Path&& path , int flags , Comment c ) : SolveModify{ r , ::move(path) , _open_no_follow(flags) , _open_do_read(flags) , c } {
+	if ( !file || !file[0]     ) return ;
+	if ( _open_dir(flags)      ) return ; // we already solved, this is enough
+	if ( file_loc>FileLoc::Dep ) return ; // fast path
 	//
-	bool do_stat  = _do_stat (flags) ;
-	bool do_read  = _do_read (flags) ;
-	bool do_write = _do_write(flags) ;
-	//
-	if (!( do_stat || do_read || do_write )) return ;
+	bool do_stat  = _open_do_stat (flags) ;
+	bool do_read  = _open_do_read (flags) ;
+	bool do_write = _open_do_write(flags) ;
 	//
 	CommentExts ces ;
-	if ( _no_follow(flags)    )   ces |= CommentExt::NoFollow ;
-	if ( do_write             )   ces |= CommentExt::Write    ;
-	if ( do_read              ) { ces |= CommentExt::Read     ; accesses |= Access::Reg  ; if (!do_write) accesses |= DataAccesses ; } // if  not written, there may be a further fstat
-	if ( do_stat              ) {                                                          if (!do_write) accesses |= DataAccesses ; }
-	if ( do_stat && !accesses ) { ces |= CommentExt::Stat     ; accesses |= Access::Stat ;                                           } // Stat is only meaningful if alone
+	Accesses    a   ;
+	if ( _open_no_follow(flags)) ces |= CommentExt::NoFollow ;
+	if ( do_write              ) ces |= CommentExt::Write    ;
+	if ( do_read               ) ces |= CommentExt::Read     ;
+	if ( do_stat               ) ces |= CommentExt::Stat     ;
+	if (do_write) {
+		if (do_read) a |= Access::Reg  ;
+		if (do_stat) a |= Access::Stat ;
+	} else {
+		a |= DataAccesses ;               // if not written, there may be a further fstat
+	}
 	//
-	if (do_write) report_update( r , Accesses() , c , ces ) ;
-	else          report_dep   ( r , Accesses() , c , ces ) ;
+	if (do_write) report_update( r , a , c , ces ) ;
+	else          report_dep   ( r , a , c , ces ) ;
 	send_report(r) ;
 }
 

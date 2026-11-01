@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 61      ; // e85acb13f4d660e905b06450804a8342
+	uint64_t    constexpr Cache = 62      ; // 99476c0054c978b185d2141f79db59d7
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 66      ; // 58d11ddd0c0aac6297c3e40e6871e728
-	uint64_t    constexpr Job   = 34      ; // a4d8df9188776834d6876fbad8288bd0
+	uint64_t    constexpr Repo  = 67      ; // ee516fb9d9b1ab2e8ec38134915983aa
+	uint64_t    constexpr Job   = 35      ; // c3cb74797eb4a2e0750eccbca00dce2d
 	const char* const     Major = "26.10" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : e85acb13f4d660e905b06450804a8342 *
+// * Cache : 99476c0054c978b185d2141f79db59d7 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -877,7 +877,7 @@ namespace Version {
 //	,	oldlstat
 //	,	oldstat
 //	,	open                   , open64            , openat            , openat64       , openat2
-//	,	open_tree
+//	,	open_tree              , open_tree_attr
 //	,	opendir
 //	,	posix_spawn            , posix_spawnp
 //	,	readdir                , readdir64         , readdir_r         , readdir64_r
@@ -1247,7 +1247,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : 58d11ddd0c0aac6297c3e40e6871e728 *
+// * Repo : ee516fb9d9b1ab2e8ec38134915983aa *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2549,7 +2549,7 @@ namespace Version {
 //	,	oldlstat
 //	,	oldstat
 //	,	open                   , open64            , openat            , openat64       , openat2
-//	,	open_tree
+//	,	open_tree              , open_tree_attr
 //	,	opendir
 //	,	posix_spawn            , posix_spawnp
 //	,	readdir                , readdir64         , readdir_r         , readdir64_r
@@ -2766,7 +2766,7 @@ namespace Version {
 //	// END_OF_VERSIONING
 
 // ******************************************
-// * Job : a4d8df9188776834d6876fbad8288bd0 *
+// * Job : c3cb74797eb4a2e0750eccbca00dce2d *
 // ******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -3091,7 +3091,7 @@ namespace Version {
 //	,	oldlstat
 //	,	oldstat
 //	,	open                   , open64            , openat            , openat64       , openat2
-//	,	open_tree
+//	,	open_tree              , open_tree_attr
 //	,	opendir
 //	,	posix_spawn            , posix_spawnp
 //	,	readdir                , readdir64         , readdir_r         , readdir64_r

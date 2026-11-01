@@ -25,6 +25,8 @@ using namespace Disk  ;
 using namespace Hash  ;
 using namespace Time  ;
 
+static constexpr char Bash[] = "/bin/bash" ;
+
 //
 // get_os_info
 //
@@ -124,10 +126,10 @@ static bool is_special( char c , int esc_lvl , bool first=false ) {
 		default  :            return false ;
 	}
 }
-bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::string const& std_shell , ::vmap_ss const& cmd_env ) {
+bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::vmap_ss const& cmd_env ) {
 	::string const* path = &StdPath ;
 	/**/                                 if (cmd_line.size()!=1     ) goto Complex ;                                    // options passed to bash
-	/**/                                 if (cmd_line[0]!=std_shell ) goto Complex ;                                    // not standard bash
+	/**/                                 if (cmd_line[0]!=Bash      ) goto Complex ;                                    // not standard bash
 	for( auto const& [k,v] : cmd_env ) { if (SpecialVars.contains(k)) goto Complex ; if (k=="PATH") path=&v ; }
 	{
 		::vector_s simple_cmd_line { {} }        ;

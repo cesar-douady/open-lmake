@@ -81,7 +81,7 @@ JobStartRpcReply get_start_info() {
 	} else {
 		// large commands are forced use_script=true in server
 		SWEAR( g_start_info.cmd.size()<=ArgMax/2 , g_start_info.cmd.size() ) ;          // env+cmd line must not be larger than ARG_MAX, keep some margin for env
-		bool is_simple = mk_simple_cmd_line( /*inout*/g_start_info.interpreter , ::move(g_start_info.cmd) , Bash , g_start_info.env ) ; // interpreter becomes full cmd line
+		bool is_simple = mk_simple_cmd_line( /*inout*/g_start_info.interpreter , ::move(g_start_info.cmd) , g_start_info.env ) ; // interpreter becomes full cmd line
 		Trace("cmd_line",STR(is_simple),g_start_info.interpreter) ;
 		return ::move(g_start_info.interpreter) ;
 	}

@@ -187,17 +187,21 @@
 <ul>
 <li>if not under a git repository, you must first generate the file Manifest before constructing any artifact
 <ul>
-<li><code>find . -mindepth 1 -type d -o -print | sed </code>s:^./::' | sort -u &gt; Manifest`</li>
+<li><code>find . -mindepth 1 -type d -o -print | sed 's:^\./::' | sort -u &gt; Manifest</code></li>
 </ul>
 </li>
 <li>type <code>make</code>
 <ul>
 <li>note that no -j is necessary, the number of parallel jobs is automatically set to the available cpus</li>
-<li>this builds all necessary files and some unit tests</li>
+<li>this builds all necessary files and some unit tests
+<ul>
+<li>on systems requiring AppArmor tuning (see <a href="#apparmor">AppArmor</a> below), some of these unit tests fail until it is done</li>
+</ul>
+</li>
 <li>you must invoke <code>git clean -fdx</code> if you modified the Makefile or otherwise if you want a reliable build (<code>make</code> is not open-lmake)</li>
 <li>you may have to invoke <code>git clean -fdx lmake_env*</code> or even <code>git clean -fdx</code> after a <code>git pull</code>
 <ul>
-<li><code>lmake_env</code> is a dir which builds lmake under lmake, for test purpose, no guarantee that the resulting package is funtional for now</li>
+<li><code>lmake_env</code> is a dir which builds lmake under lmake, for test purpose, no guarantee that the resulting package is functional for now</li>
 <li><code>lmake_env-cache</code> is a dir containing cached results from jobs in <code>lmake_env</code></li>
 <li>they are not cleaned on purpose before running as this creates variability for testing lmake, but may fail</li>
 <li>and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary to get a reliable build</li>
@@ -237,15 +241,15 @@
 For example, <code>slurm.h</code> will be found as <code>$SLURM_ROOT/include/slurm/slurm.h</code></li>
 <li><code>$LMAKE_FLAGS</code> can be defined as O[0123]g?d?t?S[AB]P?
 <ul>
-<li>O[0123] controls the <code>-O option</code>                                      (default: 1 if profiling else 3                                                )</li>
-<li>g       controls the absence of <code>-g option</code>                           (default: debug                                                                )</li>
-<li>d       controls     <code>-DNDEBUG</code>                                       (default: asserts are enabled                                                  )</li>
-<li>T       controls     <code>-DTRACE=1</code>                                      (default: traces are disabled                                                  )</li>
-<li>U       controls     <code>-DTRACE=2</code>                                      (for use when fast mmap based tracing is not supported by underlying filesystem)</li>
-<li>Sa      controls the <code>-fsantize=address -fsanitize=undefined</code> options (exclusive with St                                                             )</li>
-<li>St      controls the <code>-fsantize=thread</code>                       option  (exclusive with Sa                                                             )</li>
-<li>P       controls the <code>-pg</code>                                    option  (profiling info is in gmon.out.<tool>.<pid>                                    )</li>
-<li>C       controls the <code>--coverage</code>                             option  (profiling info is in gmon.out.<tool>.<pid>                                    )</li>
+<li>O[0123] controls the <code>-O option</code>                                       (default: 1 if profiling else 3                                                )</li>
+<li>g       controls the absence of <code>-g option</code>                            (default: debug                                                                )</li>
+<li>d       controls     <code>-DNDEBUG</code>                                        (default: asserts are enabled                                                  )</li>
+<li>T       controls     <code>-DTRACE=1</code>                                       (default: traces are disabled                                                  )</li>
+<li>U       controls     <code>-DTRACE=2</code>                                       (for use when fast mmap based tracing is not supported by underlying filesystem)</li>
+<li>Sa      controls the <code>-fsanitize=address -fsanitize=undefined</code> options (exclusive with St                                                             )</li>
+<li>St      controls the <code>-fsanitize=thread</code>                       option  (exclusive with Sa                                                             )</li>
+<li>P       controls the <code>-pg</code>                                     option  (profiling info is in gmon.out.<tool>.<pid>                                    )</li>
+<li>C       controls the <code>--coverage</code>                              option  (profiling info is in gmon.out.<tool>.<pid>                                    )</li>
 <li>E       controls whether to install ebpf (for dev only, work in progress)</li>
 </ul>
 </li>
@@ -266,9 +270,17 @@ This is the simplest way unless you seek a system-wide installation.</p>
 <p>If running under Ubuntu and you have the necessary packages installed (that you can find by inspecting Makefile, the entry <code>DEBIAN_DEPS</code>),
 you can make a Debian package:</p>
 <ul>
-<li>type <code>make DEBIAN</code></li>
-<li>the package is <code>open-lmake_v25.02.7-1_&lt;arch&gt;.deb</code></li>
-<li>you can install it with <code>sudo apt install ./open-lmake_v25.02.7-1_&lt;arch&gt;.deb</code></li>
+<li>type <code>make DEBIAN_BIN</code>
+<ul>
+<li><code>make DEBIAN</code> also builds the source packages uploaded to launchpad.net, which requires a gpg key to sign them</li>
+</ul>
+</li>
+<li>the package is created in the top-level dir as <code>open-lmake_&lt;version&gt;-&lt;release&gt;_&lt;arch&gt;.deb</code>
+<ul>
+<li>its exact name is shown near the end of the build output, on the line starting with <code>dpkg-deb: building package</code></li>
+</ul>
+</li>
+<li>you can install it with <code>sudo apt install ./open-lmake_&lt;version&gt;-&lt;release&gt;_&lt;arch&gt;.deb</code></li>
 </ul>
 <p>Alternatively, you can untar <code>lmake.tar.gz</code> at any place.</p>
 <p>Installing system-wide with Debian package will take care of placing both binaries and man pages in the standard directories. Alternatively, you can:</p>
@@ -278,19 +290,35 @@ you can make a Debian package:</p>
 <p>This will simplify the user experience but is not required.</p>
 <h1 id="apparmor"><a class="header" href="#apparmor">AppArmor</a></h1>
 <p>AppArmor tuning is currently only known to be required on Ubuntu starting at 24.04.</p>
+<p>If open-lmake is installed with the Debian package, there is nothing to do.
+What follows is necessary when running open-lmake from the build dir or from an untarred <code>lmake.tar.gz</code>.</p>
+<h2 id="namespaces"><a class="header" href="#namespaces">Namespaces</a></h2>
 <p>In order to implement namespace related features (the <code>lmake_view</code>, <code>repo_view</code>, <code>tmp_view</code>, <code>views</code> and <code>chroot</code> rule attributes), and if your system is configured with AppArmor,
-sufficient permissions must be granted.</p>
++sufficient permissions must be granted (the Debian package installs and activates such a profile).</p>
 <p>In that case, do the following :</p>
 <ul>
 <li>create a file <code>/etc/apparmor.d/open-lmake</code> with the following content :
-<pre><code>	abi &lt;abit/4.0&gt;
+<pre><code>	abi &lt;abi/4.0&gt;
 	include &lt;tunables/global&gt;
 	profile open-lmake /**/{_bin/job_exec,bin/lautodep} flags=(unconfined) {
 		userns,
 	}
 </code></pre>
 </li>
-<li>activate it with <code>sudo aa-apparmor_parser -r /etc/apparamor.d/open-lmake</code></li>
+<li><code>/**/</code> matches open-lmake wherever it is placed, but also any executable with the same name placed anywhere.
+You may replace it with the actual dir (e.g. <code>/path/to/open-lmake/</code>) to restrict this permission to your installation.</li>
+<li>activate it with <code>sudo apparmor_parser -r /etc/apparmor.d/open-lmake</code></li>
+</ul>
+<h2 id="confined-commands"><a class="header" href="#confined-commands">Confined commands</a></h2>
+<p>Some commands are confined by an AppArmor profile provided by the system (look for <code>profile &lt;name&gt; &lt;path&gt;</code> in the files of <code>/etc/apparmor.d</code>).
+On Ubuntu 26.04, this is the case of <code>hostname</code>, <code>locale</code>, <code>lsblk</code> or <code>systemd-detect-virt</code>, among others.
+These profiles allow loading libraries from <code>/usr/lib</code>, where the Debian package installs open-lmake, but generally not from other dirs.</p>
+<p>Hence, if open-lmake is placed elsewhere, such commands cannot load the autodep library when executed in a job.
+The accesses they make are not tracked and a message such as the following is written on stderr, which makes the job fail (unless <code>stderr_ok</code> is set) :</p>
+<p>ERROR: ld.so: object '/path/to/open-lmake/_d$LIB/ld_preload.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.</p>
+<p>In that case, do the following for each such command (here, <code>hostname</code>) :</p>
+<ul>
+<li>add the line <code>/path/to/open-lmake/_dlib/** mr,</code> to the file <code>/etc/apparmor.d/local/hostname</code></li>
 </ul>
 <h1 id="rationale"><a class="header" href="#rationale">Rationale</a></h1>
 <p>Because of its unique features (auto-dep, views, ...), open-lmake is necessarily tighly coupled to the underlying OS.

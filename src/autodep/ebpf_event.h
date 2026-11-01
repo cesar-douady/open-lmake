@@ -18,140 +18,247 @@
 #define EBPF_EVENT_H
 
 #ifdef __cplusplus
-	using ebpf_u8  = uint8_t  ;
-	using ebpf_u32 = uint32_t ;
-	using ebpf_s32 = int32_t  ;
-	using ebpf_u64 = uint64_t ;
-	using ebpf_s64 = int64_t  ;
-#else
-	typedef __u8  ebpf_u8  ;
-	typedef __u32 ebpf_u32 ;
-	typedef __s32 ebpf_s32 ;
-	typedef __u64 ebpf_u64 ;
-	typedef __s64 ebpf_s64 ;
+	#include <errno.h>
+	#include <fcntl.h>
+	#include <limits.h>
+	#include <linux/stat.h>
+	#include <linux/unistd.h>
+	#include <stdint.h>
+	#include <stdio.h>
 #endif
 
-#define EBPF_PATH_MAX  4096              // max size of a captured string (PATH_MAX)
-#define EBPF_DATA_SZ   (2*EBPF_PATH_MAX) // an event holds at most 2 strings
-#define EBPF_MAX_ROOTS 16                // repo root + source dirs
-#define EBPF_NSYSCALLS 512               // >= SyscallDescr::NSyscalls ; sizes the syscall descriptor table (power of 2)
+typedef uint16_t EbpfJobId  ;
+typedef uint8_t  EbpfRootId ;
 
-// magic dir fds used as markers, any improbable negative value will do
-// /!\ EBPF_MAGIC_FD* must be in sync with Backdoor::MagicFd*
-#define EBPF_MAGIC_FD        (-200) // Backdoor::MagicFd       : a backdoor call, if it fails, it is processed by the job itself and its accesses must not be recorded ...
-#define EBPF_MAGIC_FD_END    (-201) // Backdoor::MagicFdEnd    : ... until this marker
-#define EBPF_MAGIC_FD_ENABLE (-202) // Backdoor::MagicFdEnable : set the autodep enable bit of the thread (carried by the size arg)
-#define EBPF_REGISTER_FD     (-300) // the child self-registers as the root of a traced sub-tree (job_id carried by the size arg), so the tid is the one seen by the kernel
-#define EBPF_ROOT_FD         (-301) // the daemon registers a root dir (cf. roots in ebpf.bpf.c)
+#define EBPF_AT_FDCWD            -100
+#define EBPF_AT_REMOVEDIR        0x200
+#define EBPF_AT_SYMLINK_FOLLOW   0x400
+#define EBPF_AT_SYMLINK_NOFOLLOW 0x100
+#define EBPF_EAGAIN               11
+#define EBPF_EINTR                 4
+#define EBPF_NAME_MAX             255
+#define EBPF_O_ACCMODE           000000003
+#define EBPF_O_CREAT             000000100
+#define EBPF_O_DIRECTORY         000200000
+#define EBPF_O_EXCL              000000200
+#define EBPF_O_NOFOLLOW          000400000
+#define EBPF_O_PATH              010000000
+#define EBPF_O_RDONLY            000000000
+#define EBPF_O_TMPFILE           020200000
+#define EBPF_O_TRUNC             000001000
+#define EBPF_PATH_MAX            4096
+#define EBPF_RENAME_EXCHANGE       0x2
+#define EBPF_STATX_MODE            0x2u
+#define EBPF_STATX_SIZE          0x200u
+#define EBPF_STATX_TYPE            0x1u
+#define EBPF_S_IFDIR             0040000
+#define EBPF_S_IFMT              0170000
+#define EBPF_S_IFLNK             0120000
+#define EBPF_S_IFREG             0100000
+#define EBPF_S_IXALL             0000111
+#define EBPF_X32_SYSCALL_BIT     0x40000000 // syscall is done with the x32 ABI
 
-// description of a syscall, so the kernel knows where to find paths when they have not been captured by a hook (i.e. when resolution failed)
-// arg indices are on 3 bits, 7 means none
-#define EBPF_SC_NONE  7u
-#define EBPF_SC_VALID (1u<<31)
-#define EBPF_SC( kind , dfd1 , path1 , dfd2 , path2 , fd , flags ) ( \
-	EBPF_SC_VALID             \
-|	((ebpf_u32)(dfd1 )&0x7)<<0  \
-|	((ebpf_u32)(path1)&0x7)<<3  \
-|	((ebpf_u32)(dfd2 )&0x7)<<6  \
-|	((ebpf_u32)(path2)&0x7)<<9  \
-|	((ebpf_u32)(fd   )&0x7)<<12 \
-|	((ebpf_u32)(flags)&0x7)<<15 \
-|	((ebpf_u32)(kind )&0xf)<<18 \
+#ifdef __cplusplus
+	static_assert( EBPF_AT_FDCWD            == AT_FDCWD            ) ;
+	static_assert( EBPF_AT_REMOVEDIR        == AT_REMOVEDIR        ) ;
+	static_assert( EBPF_AT_SYMLINK_FOLLOW   == AT_SYMLINK_FOLLOW   ) ;
+	static_assert( EBPF_AT_SYMLINK_NOFOLLOW == AT_SYMLINK_NOFOLLOW ) ;
+	static_assert( EBPF_EAGAIN              == EAGAIN              ) ;
+	static_assert( EBPF_EINTR               == EINTR               ) ;
+	static_assert( EBPF_NAME_MAX            == NAME_MAX            ) ;
+	static_assert( EBPF_O_ACCMODE           == O_ACCMODE           ) ;
+	static_assert( EBPF_O_CREAT             == O_CREAT             ) ;
+	static_assert( EBPF_O_DIRECTORY         == O_DIRECTORY         ) ;
+	static_assert( EBPF_O_EXCL              == O_EXCL              ) ;
+	static_assert( EBPF_O_NOFOLLOW          == O_NOFOLLOW          ) ;
+	static_assert( EBPF_O_PATH              == O_PATH              ) ;
+	static_assert( EBPF_O_RDONLY            == O_RDONLY            ) ;
+	static_assert( EBPF_O_TMPFILE           == O_TMPFILE           ) ;
+	static_assert( EBPF_O_TRUNC             == O_TRUNC             ) ;
+	static_assert( EBPF_PATH_MAX            == PATH_MAX            ) ;
+	#ifdef RENAME_EXCHANGE
+		static_assert( EBPF_RENAME_EXCHANGE == RENAME_EXCHANGE ) ;
+	#endif
+	#if defined(STATX_MODE) && defined(STATX_SIZ) && defined(STAX_TYPE)
+		static_assert( EBPF_STATX_MODE == STATX_MODE ) ;
+		static_assert( EBPF_STATX_SIZE == STATX_SIZE ) ;
+		static_assert( EBPF_STATX_TYPE == STATX_TYPE ) ;
+	#endif
+	static_assert( EBPF_S_IFDIR         == S_IFDIR                   ) ;
+	static_assert( EBPF_S_IFMT          == S_IFMT                    ) ;
+	static_assert( EBPF_S_IFLNK         == S_IFLNK                   ) ;
+	static_assert( EBPF_S_IFREG         == S_IFREG                   ) ;
+	static_assert( EBPF_S_IXALL         == (S_IXUSR|S_IXGRP|S_IXOTH) ) ;
+	static_assert( EBPF_X32_SYSCALL_BIT == __X32_SYSCALL_BIT         ) ;
+#else
+	#define AT_FDCWD            EBPF_AT_FDCWD
+	#define AT_REMOVEDIR        EBPF_AT_REMOVEDIR
+	#define AT_SYMLINK_FOLLOW   EBPF_AT_SYMLINK_FOLLOW
+	#define AT_SYMLINK_NOFOLLOW EBPF_AT_SYMLINK_NOFOLLOW
+	#define EAGAIN              EBPF_EAGAIN
+	#define EINTR               EBPF_EINTR
+	#define NAME_MAX            EBPF_NAME_MAX
+	#define O_ACCMODE           EBPF_O_ACCMODE
+	#define O_CREAT             EBPF_O_CREAT
+	#define O_DIRECTORY         EBPF_O_DIRECTORY
+	#define O_EXCL              EBPF_O_EXCL
+	#define O_NOFOLLOW          EBPF_O_NOFOLLOW
+	#define O_PATH              EBPF_O_PATH
+	#define O_RDONLY            EBPF_O_RDONLY
+	#define O_TMPFILE           EBPF_O_TMPFILE
+	#define O_TRUNC             EBPF_O_TRUNC
+	#define PATH_MAX            EBPF_PATH_MAX
+	#define RENAME_EXCHANGE     EBPF_RENAME_EXCHANGE
+	#define STATX_MODE          EBPF_STATX_MODE
+	#define STATX_SIZE          EBPF_STATX_SIZE
+	#define STATX_TYPE          EBPF_STATX_TYPE
+	#define S_IFDIR             EBPF_S_IFDIR
+	#define S_IFMT              EBPF_S_IFMT
+	#define S_IFLNK             EBPF_S_IFLNK
+	#define S_IFREG             EBPF_S_IFREG
+	#define S_IXALL             EBPF_S_IXALL
+	#define X32_SYSCALL_BIT     EBPF_X32_SYSCALL_BIT
+#endif
+
+typedef uint32_t EbpfScEntry ;
+#define EBPF_SCE_NO_ARG 7u
+#define EBPF_SCE( kind , dfd1 , path1 , dfd2 , path2 , fd , mod , flags , mask , nf ) ( \
+	( (EbpfScEntry)((EBPF_SC_##kind)&0xf) <<  0 ) \
+|	( (EbpfScEntry)((dfd1          )&0x7) <<  4 ) \
+|	( (EbpfScEntry)((path1         )&0x7) <<  7 ) \
+|	( (EbpfScEntry)((dfd2          )&0x7) << 10 ) \
+|	( (EbpfScEntry)((path2         )&0x7) << 13 ) \
+|	( (EbpfScEntry)((fd            )&0x7) << 16 ) \
+|	( (EbpfScEntry)((mod           )&0x7) << 19 ) \
+|	( (EbpfScEntry)((flags         )&0x7) << 22 ) \
+|	( (EbpfScEntry)((mask          )&0x7) << 25 ) \
+|	( (EbpfScEntry)((nf            )&0x3) << 28 ) \
+|	( (EbpfScEntry)1                      << 30 ) \
 )
 //
-#define EBPF_SC_DFD1( d) ( ((d)>> 0) & 0x7 ) // its dir fd arg (none means AT_FDCWD)
-#define EBPF_SC_PATH1(d) ( ((d)>> 3) & 0x7 ) // 1st path arg
-#define EBPF_SC_DFD2( d) ( ((d)>> 6) & 0x7 ) // its dir fd arg (none means AT_FDCWD)
-#define EBPF_SC_PATH2(d) ( ((d)>> 9) & 0x7 ) // 2nd path arg
-#define EBPF_SC_FD(   d) ( ((d)>>12) & 0x7 ) // arg holding a fd designating the accessed dir (getdents)
-#define EBPF_SC_FLAGS(d) ( ((d)>>15) & 0x7 ) // arg holding open flags
-#define EBPF_SC_KIND( d) ( ((d)>>18) & 0xf )
-enum EbpfScKind {
-	EBPF_SCK_PLAIN                           // nothing special
-,	EBPF_SCK_OPEN                            // returns a fd designating the accessed file, used when the open hook is not called (O_PATH)
-,	EBPF_SCK_CREAT                           // like open with flags O_WRONLY|O_CREAT|O_TRUNC
-,	EBPF_SCK_OPENAT2                         // like open, flags are in the open_how struct pointed to by the flags arg
-,	EBPF_SCK_READLINK                        // may carry markers
-,	EBPF_SCK_EXEC                            // args are meaningless upon success
-,	EBPF_SCK_IO_URING                        // may execute io_uring operations, which are closed by their own End event
+#define EBPF_SCE_KIND( d) ((uint8_t)( ((d)>> 0) & 0xf ))
+#define EBPF_SCE_DFD1( d) ((uint8_t)( ((d)>> 4) & 0x7 )) // 1st dir fd arg (none means AT_FDCWD)
+#define EBPF_SCE_PATH1(d) ((uint8_t)( ((d)>> 7) & 0x7 )) // 1st path   arg
+#define EBPF_SCE_DFD2( d) ((uint8_t)( ((d)>>10) & 0x7 )) // 2nd dir fd arg (none means AT_FDCWD)
+#define EBPF_SCE_PATH2(d) ((uint8_t)( ((d)>>13) & 0x7 )) // 2nd path   arg
+#define EBPF_SCE_FD(   d) ((uint8_t)( ((d)>>16) & 0x7 )) // fd         arg
+#define EBPF_SCE_MOD(  d) ((uint8_t)( ((d)>>19) & 0x7 )) // mode       arg
+#define EBPF_SCE_FLAGS(d) ((uint8_t)( ((d)>>22) & 0x7 )) // flags      arg
+#define EBPF_SCE_MASK( d) ((uint8_t)( ((d)>>25) & 0x7 )) // mask       arg
+#define EBPF_SCE_NF(   d) ((uint8_t)( ((d)>>28) & 0x3 )) // no_follow
+
+enum EbpfSyscallKind {
+	EBPF_SC_NONE = 0
+,	EBPF_SC_CREATE
+,	EBPF_SC_FORBIDDEN
+,	EBPF_SC_LINK      // hard link, data[0] : source, data[1] : dest
+,	EBPF_SC_OPEN
+,	EBPF_SC_PATH      // just analyze PATH, no access to file
+,	EBPF_SC_READDIR
+,	EBPF_SC_READLINK
+,	EBPF_SC_RENAME    // data[0] : source, data[1] : dest
+,	EBPF_SC_STAT
+,	EBPF_SC_UNLINK
+,	EBPF_SC_UPDATE
 } ;
 
-enum EbpfKind {
+#define EBPF_MAGIC_FD -200
+
+#ifdef __cplusplus
+	static_assert( EBPF_MAGIC_FD<-1 && EBPF_MAGIC_FD!=AT_FDCWD ) ; // check MAGIC_FD can be distingued with no ambiguity
+#endif
+
+enum EbpfMagicProc {
+	EBPF_MAGIC_REGISTER // from tracer : register as job tracer
+,	EBPF_MAGIC_ROOT     // from tracer : add a root dir to job
+,	EBPF_MAGIC_JOB      // from tracee : identify top level job thread
+,	EBPF_MAGIC_DISABLE  // from tracee : temporarily disable tracking
+,	EBPF_MAGIC_ENABLE   // from tracee : re-enable tracking
+} ;
+
+typedef struct {
+	enum EbpfMagicProc proc           ;
+	uint64_t           mrkr           ; // if proc=EBPF_MAGIC_REGISTER, ensure job_exec speaks to the right filter
+	EbpfJobId          job_id         ; // if proc=EBPF_MAGIC_REGISTER
+	bool               deps_in_system ; // if proc=EBPF_MAGIC_REGISTER
+	EbpfRootId         root_id        ; // if proc=EBPF_MAGIC_ROOT
+	int                root_fd        ; // if proc=EBPF_MAGIC_ROOT
+} EbpfMagicReq ;
+
+enum EbpfEventKind {
+	EBPF_NONE
 	// process tracking
-	EBPF_JOB_END      // job has exited
-,	EBPF_PROC_START   // a process has been created in the job (implies EBPF_THREAD_START)
-,	EBPF_THREAD_START // a thread  has been created in the job
-,	EBPF_PROC_END     // a process has exited                  (implies EBPF_THREAD_EXIT )
-,	EBPF_THREAD_END   // a thread  has exited
-	// captures : a path (and the info of the file it designates before the syscall modifies it), relative to root if root<EBPF_MAX_ROOTS
-,	EBPF_LINK         // a symlink has been traversed during path resolution , 2nd string is its target if EBPF_F_TARGET
-,	EBPF_LOOKUP       // a path has been resolved (filename_lookup)          , this is all for stat-like syscalls
-,	EBPF_OPEN         // a file has been opened                              , open_flags is meaningful
-,	EBPF_CREATE       // a file is about to be created (mknod, mkdir, symlink, link), it does not exist
-,	EBPF_UNLINK       // a file is about to be unlinked (unlink, rmdir)
-,	EBPF_RENAME_SRC   // a file is about to be renamed, this is the source
-,	EBPF_RENAME_DST   // .                              this is the destination
-,	EBPF_DIR          // a dir is read (getdents)
-,	EBPF_RAW          // a path could not be resolved : 1st string is the dir it is relative to (empty if absolute), 2nd string is the path as provided, nr is the index of the path (0 or 1)
-	// end of syscall
-,	EBPF_END          // closes all the captures above for the same tid
-,	EBPF_PANIC        // an error occurred, reason is in data
+,	EBPF_JOB_START             // job has exited
+,	EBPF_PROC_START            // a process has been created in the job (implies EBPF_THREAD_START)
+,	EBPF_THREAD_START          // a thread  has been created in the job
+,	EBPF_THREAD_END            // a thread  has exited
+,	EBPF_PROC_END              // a process has exited                  (implies EBPF_THREAD_EXIT )
+,	EBPF_JOB_END               // job has exited
+,	EBPF_PANIC                 // an error occurred, reason is in data
+	// 2 files events
+,	EBPF_TARGET                // targets are sent before main message
+	// path resolution
+,	EBPF_PATH_RES              // a symlink has been traversed during path resolution , 2nd string is its target
+	// accesses
+,	EBPF_READ
+,	EBPF_WRITE                 // may also read
+,	EBPF_UNLINK                // .
+,	EBPF_LINK                  // hard link
+,	EBPF_RENAME
+,	EBPF_EXCHANGE
+,	EBPF_READDIR
+// only in syscall table
+	// aliases
+,	EBPF_HAS_DATA = EBPF_PANIC // <EBPF_HAS_DATA means event has only hdr
 } ;
 
-#define EBPF_ROOT_ABS     0xff // path is not relative to a root but absolute, as seen by the job (i.e. relative to its root dir)
-#define EBPF_ROOT_EXCLUDE 0xfe // not reported : what lies in such a dir is not of interest, although it may lie in a root
-
-// flags
-#define EBPF_F_EXISTS  0x01 // file exists, info fields are meaningful
-#define EBPF_F_CREATED 0x02 // file has been created by the open
-#define EBPF_F_TARGET  0x04 // link target is present
-#define EBPF_F_IO      0x08 // End : this is the end of an io_uring operation, nr is its opcode (IORING_OP_*)
-#define EBPF_F_DISCARD 0x10 // End : captures must be discarded, the syscall will be restarted
-
-// only accesses lying in a root (the repo or a source dir) are of interest
-// roots are identified by their dentry, so recognizing them is independent of the way they are seen by the job (chroot, bind mounts, ...)
-struct RootKey {
-	ebpf_u64 dentry ;
-	ebpf_u32 job_id ;
-	ebpf_u32 pad    ;
+enum EbpfFileKind {
+	EBPF_FILE_NONE                // no info        (not emitted)
+,	EBPF_FILE_IGNORE              // file is simple (not emitted)
+,	EBPF_FILE_USER                // file is not resolved
+,	EBPF_FILE_NO_FILE             // file is not regular nor sym link
+,	EBPF_FILE_DIR                 // file is a dir (only for rename)
+,	EBPF_FILE_LNK                 // file is a sym link
+,	EBPF_FILE_REG                 // file is a regular, not executable
+,	EBPF_FILE_EXE                 // file is regular, executable
+	// aliases
+,	EBPF_FILE_EMIT=EBPF_FILE_USER // if >=, event can be emitted
 } ;
 
-struct JobCfg {
-	ebpf_u64 pidns_dev      ; // (dev,ino) of the client's pid namespace, so we can report tids as it sees them
-	ebpf_u64 pidns_ino      ;
-	ebpf_u32 overflow       ; // ring buffer has overflowed
-	ebpf_u32 deps_in_system ; // if 0, system files are simple and dropped
+enum EbpfFlag {
+	EBPF_F_STOPPED   = 1<<0                                        // thread was stopped and must be continued by userland after analysis
+	// only for accesses
+,	EBPF_F_NO_FOLLOW = 1<<1                                        // only for EBPF_FILE_USER, trailing symlink is not followed
+,	EBPF_F_DEP_LNK   = 1<<2                                        // access dep as readlink
+,	EBPF_F_DEP_REG   = 1<<3                                        // access dep as open
+,	EBPF_F_DEP_STAT  = 1<<4                                        // sense dep existence
+,	EBPF_F_OK        = 1<<5
+	// aliases
+,	EBPF_F_DEP_ALL = EBPF_F_DEP_LNK|EBPF_F_DEP_REG|EBPF_F_DEP_STAT // access all aspects of dep, such as with stat
 } ;
 
-struct RootReg {      // the daemon registers a root by doing a lookup with EBPF_ROOT_FD while this is armed
-	ebpf_u32 job_id ;
-	ebpf_u32 idx    ;
-	ebpf_u32 armed  ;
-	ebpf_u32 done   ;
-	ebpf_u64 dentry ; // out : the key under which root has been registered, so that it can be forgotten
-} ;
+typedef struct {                              // thread management messages only need this header
+	uint32_t tid       ;                      // thread  id in the client's pid namespace
+	uint8_t  kind      ;                      // enum : EbpfKind
+	uint8_t  file_kind ;                      // enum : EbpfFileKind
+	uint8_t  flags     ;                      // only for accesses (here for layout optimization)
+	uint8_t  n_lnks    ;                      // only for accesses (here for layout optimization) : number of symlinks traversed during path resolution, max 80 (40 for each file)
+} EbpfEventHdr ;
+typedef struct {
+	EbpfEventHdr hdr      ;
+	uint64_t     stamp_ns ;
+	uint64_t     size     ;                   // file size
+	uint64_t     mtime_ns ;                   // st_mtime*10^9+st_mtime_ns
+} EbpfEventBase ;
+typedef struct {
+	EbpfEventBase base                      ;
+	char          data[PATH_MAX+NAME_MAX+1] ; //we must take some margin to please verifier when assembling components
+} EbpfEvent ;
 
-struct EbpfEvent {
-	ebpf_u32 tid                ; // thread   id in the client's pid namespace
-	ebpf_u32 pid                ; // process id in the client's pid namespace
-	ebpf_u8  kind               ;
-	ebpf_u8  root               ; // captures : index of the root the path is relative to
-	ebpf_u8  flags              ;
-	ebpf_u8  is32               ; // End      : the syscall used the 32-bit ABI
-	ebpf_s32 nr                 ; // End      : syscall number
-	// end of syscall
-	ebpf_s64 rc                 ; // End      : syscall result (negative means -errno)
-	ebpf_u64 args[6]            ; // End      : syscall args
-	ebpf_u64 stamp_ns           ; // End      : date (CLOCK_TAI), 0 if not available
-	// file info
-	ebpf_u32 open_flags         ; // Open,End : open flags, Rename_src,Rename_dst : st_mode of the other file (0 if it does not exist) as it is not reported if not of interest
-	ebpf_u32 mode               ; // captures : st_mode  if EBPF_F_EXISTS
-	ebpf_u64 size               ; // captures : st_size  if EBPF_F_EXISTS
-	ebpf_u64 mtime_ns           ; // captures : st_mtime if EBPF_F_EXISTS
-	// strings
-	ebpf_u32 len [2           ] ; // number of bytes of each string, they are stored back-to-back in data
-	ebpf_u8  data[EBPF_DATA_SZ] ; // paths resolved by the kernel are stored as their components, leaf first, each followed by a null (the root dir has no component)
-} ;
-#define EBPF_HDR_SZ ( (ebpf_u32)__builtin_offsetof(struct EbpfEvent,data) )
+static inline bool _open_dir      (int flags) { return  (flags&O_DIRECTORY) || (  (flags&O_TMPFILE)                                ) ; }
+static inline bool _open_no_follow(int flags) { return  (flags&O_NOFOLLOW ) || (  (flags&O_CREAT  ) && (flags&O_EXCL)              ) ; }
+static inline bool _open_do_stat  (int flags) { return  (flags&O_PATH     ) || ( !(flags&O_CREAT  ) || (flags&O_EXCL)              ) ; } // sensitive to existence
+static inline bool _open_do_read  (int flags) { return !(flags&O_PATH     ) && ( !(flags&O_TRUNC  )                                ) ; } // even if we cant read, file may depend on previous content
+static inline bool _open_do_write (int flags) { return !(flags&O_PATH     ) && (  (flags&O_TRUNC  ) || (flags&O_ACCMODE)!=O_RDONLY ) ; }
 
 #endif

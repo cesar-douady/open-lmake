@@ -30,13 +30,21 @@
 	#define IF_HAS_32_IN_64(...)
 #endif
 
+//
+// syscalls
+//
+
 enum class SyscallConvention : uint8_t { // if ok                               , if error
 	Plain                                // return result (usually non-negative), return -1 and errno in errno
 ,	Fd                                   // return fd                           , return -1 and errno in errno
 } ;
 
 struct SyscallDescr {
-	static constexpr long NSyscalls = 440 ;                // must larger than higher syscall number
+	#ifdef __NR_syscalls
+		static constexpr long NSyscalls = __NR_syscalls ;
+	#else
+		static constexpr long NSyscalls = 512           ;                // must larger than higher syscall number
+	#endif
 	using Tab     = ::array<SyscallDescr,NSyscalls> ;      // must be an array and not an umap so as to avoid calls to malloc before it is known to be safe
 	using BpfProg = struct ::sock_fprog             ;
 	// static data
@@ -54,6 +62,10 @@ struct SyscallDescr {
 	SyscallConvention                         convention                                                                = {}            ;
 	Comment                                   comment                                                                   = Comment::None ;
 } ;
+
+//
+// libcalls (libc entries)
+//
 
 #ifdef LD_PRELOAD
 	#define ENUMERATE_LD_PRELOAD_LIBCALLS \

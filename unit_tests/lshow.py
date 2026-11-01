@@ -162,7 +162,6 @@ else :
 		x,px = lshow( ('-d','--deps') , 'dut' )
 		e    = px['dut'][('Dut','dut','generating')]
 		assert all( w in x for w in ('/','\\','SH','hello+world_sh','PY','hello+world_py') ),x
-		print(px)
 		assert len(e)==2 and len(e[0])==2,e
 
 		x,px = lshow( ('-E','--env') ,        'hello+world_sh' )
@@ -233,11 +232,11 @@ else :
 		,	'end_overhead'   , 'ok'
 		) :
 			assert w in x , f'in lshow -u : missing {w} in\n{x}'
-		assert any( t in x for t in ('open(read)','openat(read)','statx') ) , f'in lshow -u : missing open(read) or openat(read) or statx in\n{x}'
+		assert any( t in x for t in ('open(read|stat)','openat(read|stat)','statx') ) , f'in lshow -u : missing open(read|stat) or openat(read|stat) or statx in\n{x}'
 		y = tuple( e[1:] for e in px if e[1] not in ('static_dep','static_unlnk','static_match') )
 		z =      { e[1:] for e in px if e[1]     in ('static_dep','static_unlnk','static_match') }
 		ok = False
-		for o in ('open(read)','openat(read)','statx') :
+		for o in ('open(read|stat)','openat(read|stat)','statx') :
 			ok |= y==(
 				( 'start_overhead'    , ''                      )
 			,	( 'chdir'             , os.getcwd()             )

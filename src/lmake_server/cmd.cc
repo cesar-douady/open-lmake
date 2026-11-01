@@ -564,7 +564,7 @@ namespace Engine {
 			for( ::string const& c : jsrr.interpreter ) res << first("",","   )<<mk_py_str(c) ;
 			/**/                                        res << first("",",","")<<")\n"        ;
 		}
-		if ( mk_simple_cmd_line( jsrr.interpreter , ::move(jsrr.cmd) , Bash , env.first ) ) {   // jsrr.interpreter is now the entire cmd line
+		if ( mk_simple_cmd_line( jsrr.interpreter , ::move(jsrr.cmd) , env.first ) ) {          // jsrr.interpreter is now the entire cmd line
 			First first ;
 			/**/                                        res << ",\tsimple_cmd_line = ("       ;
 			for( ::string const& c : jsrr.interpreter ) res << first("",","   )<<mk_py_str(c) ; // .

@@ -85,6 +85,7 @@ X gather stdout/stderr from running job_exec when lshow -o/-e
 * ROBUSTNESS & MAINTENABILITY (fragile/difficult to read or maintain as long as not implemented)
 ****************************************************************************************************
 
+* unify ebpf syscall list and syscall table for ptrace/seccomp
 * support io_uring dep recording :
 	- IORING_OP_OPENAT
 	- IORING_OP_STATX
@@ -405,6 +406,19 @@ M port to Darwin
 			- flush queues before
 	- manage so that Task allocation problems are correctly reported
 		- rather than a mere overflow
+	- manage 2 methods : ebpf_fast and ebpf
+		- ebpf_fast never stops job and report an error if analysis proved too difficult in kernel
+		- ebpf stops job when too difficult to analyze in kernel
+		- need 2 methods as kernel cannot know if a long link is finally a dep or not
+			- so to be reliable, it must stop preventively, which can be slow
+		- cases :
+			- dir rename
+			- long symlink that is finally not a dep
+				- if a dep, link can be read in userland
+				- job will rerun anyway if it was modified between kernel time and userland time
+* implement ebpf_seccomp
+	- like seccomp, except filter is ebpf
+	- such as SEC("seccomp") int filter_syscalls(struct seccomp_data *ctx) { if (...) return SECCOMP_RET_USER_NOTIF ; else return SECCOMP_RET_ALLOW ; }
 * implement ptrace/seccomp with a single thread within job_exec
 	- rather than 2 : on that transform ptrace events into socket messages and one that processes messages similarly to ld_preload/ld_audit
 	- particularly important when ebpf is implemented as ebpf then becomes the standard autodep method

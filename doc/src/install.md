@@ -37,13 +37,14 @@ It has been tested with the dockers listed in the docker dir.
 ## Procedure
 
 - if not under a git repository, you must first generate the file Manifest before constructing any artifact
-	- `find . -mindepth 1 -type d -o -print | sed `s:^\./::' | sort -u > Manifest`
+	- `find . -mindepth 1 -type d -o -print | sed 's:^\./::' | sort -u > Manifest`
 - type `make`
 	- note that no -j is necessary, the number of parallel jobs is automatically set to the available cpus
 	- this builds all necessary files and some unit tests
+		- on systems requiring AppArmor tuning (see [AppArmor](#apparmor) below), some of these unit tests fail until it is done
 	- you must invoke `git clean -fdx` if you modified the Makefile or otherwise if you want a reliable build (`make` is not open-lmake)
 	- you may have to invoke `git clean -fdx lmake_env*` or even `git clean -fdx` after a `git pull`
-		- `lmake_env` is a dir which builds lmake under lmake, for test purpose, no guarantee that the resulting package is funtional for now
+		- `lmake_env` is a dir which builds lmake under lmake, for test purpose, no guarantee that the resulting package is functional for now
 		- `lmake_env-cache` is a dir containing cached results from jobs in `lmake_env`
 		- they are not cleaned on purpose before running as this creates variability for testing lmake, but may fail
 		- and generally speaking, make is not robust to past history, so a full 'git clean -fdx' may be necessary to get a reliable build
@@ -67,15 +68,15 @@ It has been tested with the dockers listed in the docker dir.
 		- `$SLURM_ROOT` can be set to the root dir of the slurm installation (by default, `slurm/slurm.h` will be searched in the standard include path).
 		  For example, `slurm.h` will be found as `$SLURM_ROOT/include/slurm/slurm.h`
 		- `$LMAKE_FLAGS` can be defined as O[0123]g?d?t?S[AB]P?
-			- O[0123] controls the `-O option`                                      (default: 1 if profiling else 3                                                )
-			- g       controls the absence of `-g option`                           (default: debug                                                                )
-			- d       controls     `-DNDEBUG`                                       (default: asserts are enabled                                                  )
-			- T       controls     `-DTRACE=1`                                      (default: traces are disabled                                                  )
-			- U       controls     `-DTRACE=2`                                      (for use when fast mmap based tracing is not supported by underlying filesystem)
-			- Sa      controls the `-fsantize=address -fsanitize=undefined` options (exclusive with St                                                             )
-			- St      controls the `-fsantize=thread`                       option  (exclusive with Sa                                                             )
-			- P       controls the `-pg`                                    option  (profiling info is in gmon.out.<tool>.<pid>                                    )
-			- C       controls the `--coverage`                             option  (profiling info is in gmon.out.<tool>.<pid>                                    )
+			- O[0123] controls the `-O option`                                       (default: 1 if profiling else 3                                                )
+			- g       controls the absence of `-g option`                            (default: debug                                                                )
+			- d       controls     `-DNDEBUG`                                        (default: asserts are enabled                                                  )
+			- T       controls     `-DTRACE=1`                                       (default: traces are disabled                                                  )
+			- U       controls     `-DTRACE=2`                                       (for use when fast mmap based tracing is not supported by underlying filesystem)
+			- Sa      controls the `-fsanitize=address -fsanitize=undefined` options (exclusive with St                                                             )
+			- St      controls the `-fsanitize=thread`                       option  (exclusive with Sa                                                             )
+			- P       controls the `-pg`                                     option  (profiling info is in gmon.out.<tool>.<pid>                                    )
+			- C       controls the `--coverage`                              option  (profiling info is in gmon.out.<tool>.<pid>                                    )
 			- E       controls whether to install ebpf (for dev only, work in progress)
 		- the `-j` flag of make is automatically set to the number of processors, you may want to override this, though
 	- this is true the first time you run make. After that, these values are remembered in the file `sys_config.env`.
@@ -91,9 +92,11 @@ This is the simplest way unless you seek a system-wide installation.
 
 If running under Ubuntu and you have the necessary packages installed (that you can find by inspecting Makefile, the entry `DEBIAN_DEPS`),
 you can make a Debian package:
-- type `make DEBIAN`
-- the package is `open-lmake_v25.02.7-1_<arch>.deb`
-- you can install it with `sudo apt install ./open-lmake_v25.02.7-1_<arch>.deb`
+- type `make DEBIAN_BIN`
+	- `make DEBIAN` also builds the source packages uploaded to launchpad.net, which requires a gpg key to sign them
+- the package is created in the top-level dir as `open-lmake_<version>-<release>_<arch>.deb`
+	- its exact name is shown near the end of the build output, on the line starting with `dpkg-deb: building package`
+- you can install it with `sudo apt install ./open-lmake_<version>-<release>_<arch>.deb`
 
 Alternatively, you can untar `lmake.tar.gz` at any place.
 
@@ -107,19 +110,40 @@ This will simplify the user experience but is not required.
 
 AppArmor tuning is currently only known to be required on Ubuntu starting at 24.04.
 
+If open-lmake is installed with the Debian package, there is nothing to do.
+What follows is necessary when running open-lmake from the build dir or from an untarred `lmake.tar.gz`.
+
+## Namespaces
+
 In order to implement namespace related features (the `lmake_view`, `repo_view`, `tmp_view`, `views` and `chroot` rule attributes), and if your system is configured with AppArmor,
-sufficient permissions must be granted.
++sufficient permissions must be granted (the Debian package installs and activates such a profile).
 
 In that case, do the following :
 - create a file `/etc/apparmor.d/open-lmake` with the following content :
 	```
-		abi <abit/4.0>
+		abi <abi/4.0>
 		include <tunables/global>
 		profile open-lmake /**/{_bin/job_exec,bin/lautodep} flags=(unconfined) {
 			userns,
 		}
 	```
-- activate it with `sudo aa-apparmor_parser -r /etc/apparamor.d/open-lmake`
+- `/**/` matches open-lmake wherever it is placed, but also any executable with the same name placed anywhere.
+  You may replace it with the actual dir (e.g. `/path/to/open-lmake/`) to restrict this permission to your installation.
+- activate it with `sudo apparmor_parser -r /etc/apparmor.d/open-lmake`
+
+## Confined commands
+
+Some commands are confined by an AppArmor profile provided by the system (look for `profile <name> <path>` in the files of `/etc/apparmor.d`).
+On Ubuntu 26.04, this is the case of `hostname`, `locale`, `lsblk` or `systemd-detect-virt`, among others.
+These profiles allow loading libraries from `/usr/lib`, where the Debian package installs open-lmake, but generally not from other dirs.
+
+Hence, if open-lmake is placed elsewhere, such commands cannot load the autodep library when executed in a job.
+The accesses they make are not tracked and a message such as the following is written on stderr, which makes the job fail (unless `stderr_ok` is set) :
+
+ERROR: ld.so: object '/path/to/open-lmake/_d$LIB/ld_preload.so' from LD_PRELOAD cannot be preloaded (cannot open shared object file): ignored.
+
+In that case, do the following for each such command (here, `hostname`) :
+- add the line `/path/to/open-lmake/_dlib/** mr,` to the file `/etc/apparmor.d/local/hostname`
 
 # Rationale
 

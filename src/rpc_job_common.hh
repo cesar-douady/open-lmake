@@ -209,7 +209,7 @@ enum class Comment : uint8_t {
 ,	oldlstat
 ,	oldstat
 ,	open                   , open64            , openat            , openat64       , openat2
-,	open_tree
+,	open_tree              , open_tree_attr
 ,	opendir
 ,	posix_spawn            , posix_spawnp
 ,	readdir                , readdir64         , readdir_r         , readdir64_r

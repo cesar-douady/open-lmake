@@ -36,7 +36,7 @@
 #include "syscall_tab.hh"
 #include "gather.hh"
 
-#include "ebpf_daemon.hh"
+#include "ebpf_client.hh"
 #include "ebpf_event.h"
 
 #include "ebpf.hh"
@@ -56,10 +56,10 @@ namespace AutodepEbpf {
 	using Proc = JobExecProc ;
 
 	// per-job state obtained from the daemon (a single job per job_exec / lautodep process)
-	static Fd               _g_sock   ;      // kept open for the whole job : closing it tells the daemon to release the job
-	static Fd               _g_rb_fd  ;      // this job's ring buffer, received via SCM_RIGHTS
-	static uint32_t         _g_job_id =  0 ; // carried to the kernel by the child's self-registration marker
-	static ::vector<size_t> _g_roots  ;      // roots registered in the kernel : Npos for the repo, else the index in src_dirs_s
+	static Fd               _g_sock   ;     // kept open for the whole job : closing it tells the daemon to release the job
+	static Fd               _g_rb_fd  ;     // this job's ring buffer, received via SCM_RIGHTS
+	static uint32_t         _g_job_id = 0 ; // carried to the kernel by the child's self-registration marker
+	static ::vector<size_t> _g_roots  ;     // roots registered in the kernel : Npos for the repo, else the index in src_dirs_s
 
 	//
 	// consumer
@@ -689,15 +689,17 @@ namespace AutodepEbpf {
 		EbpfEvent const& ev = *static_cast<EbpfEvent const*>(data) ;
 		try {
 			switch (ev.kind) {
-				case EBPF_JOB_END      : done = true ;          break           ;
+				case EBPF_JOB_START    :
 				case EBPF_PROC_START   : _live.insert(ev.pid) ; [[fallthrough]] ;
 				case EBPF_THREAD_START : {
 					Thread& th = _threads[ev.tid] ;
 					th.tid = ev.tid ;
 					th.pid = ev.pid ;
 				} break ;
+				case EBPF_JOB_END    : done = true ;            [[fallthrough]] ;
 				case EBPF_PROC_END   : _live   .erase(ev.pid) ; [[fallthrough]] ;
 				case EBPF_THREAD_END : _threads.erase(ev.tid) ; break           ;
+				case EBPF_PANIC      : throw ::string( reinterpret_cast<const char*>(ev.data) , ev.len[0]-1/*null*/ ) ;
 				case EBPF_LINK : {
 					Lnk lnk ;
 					::tie(lnk.real,lnk.loc) = _mk_real( ev , &lnk.abs ) ;
@@ -732,8 +734,6 @@ namespace AutodepEbpf {
 					if (!(ev.flags&EBPF_F_DISCARD)) _end( th , ev ) ;
 					th = {} ;
 				} break ;
-				case EBPF_PANIC :
-					throw ::string( reinterpret_cast<const char*>(ev.data) , ev.len[0]-1/*null*/ ) ;
 			DF}
 		} catch (::string const& e) {
 			if (!err) err = e ;
@@ -855,6 +855,7 @@ namespace AutodepEbpf {
 
 	// connect to the daemon, upload our pid namespace, the tracked syscalls and the dirs of interest, and receive this job's ring buffer
 	void load( bool deps_in_system , ::string const& phy_repo_root_s , ::vector_s const& src_dirs_s ) {
+		throw "ebpf not supported yet"s ;
 		if (+_g_sock) return ;                                                                          // already connected (defensive)
 		//
 		::string sock_name = EbpfDaemon::get_sock_name()                                      ;
@@ -865,7 +866,7 @@ namespace AutodepEbpf {
 			if (::connect(s,reinterpret_cast<struct sockaddr*>(&addr),sizeof(addr))==0) goto Connected ;
 			Child child {
 				.as_session = true
-			,	.cmd_line   = { *g_lmake_root_s+"_bin/lmake_bpfd" }
+			,	.cmd_line   = { *g_lmake_root_s+"_bin/lmake_ebpfd" }
 			,	.stdout     = Child::PipeFd
 			} ;
 			child.spawn() ;

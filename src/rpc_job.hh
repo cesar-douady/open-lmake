@@ -367,7 +367,7 @@ void quarantine( ::string const& file , SyncGuard* =nullptr ) ;
 
 // replace call to bash by direct execution if a single command can be identified
 // cmd_line initially contains interpreter and finally contains the enire cmd line
-bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::string const& std_shell , ::vmap_ss const& cmd_env ) ;
+bool/*is_simple*/ mk_simple_cmd_line( ::vector_s&/*inout*/ cmd_line , ::string&& cmd , ::vmap_ss const& cmd_env ) ;
 
 struct FileAction {
 	// accesses

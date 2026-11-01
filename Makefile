@@ -249,26 +249,26 @@ LMAKE_SERVER_PY_FILES := \
 	lib/usercustomize.py
 
 LMAKE_SERVER_BIN_FILES := \
-	_bin/align_comments               \
-	_bin/lmake_dump                   \
-	_bin/lcache_dump                  \
-	_bin/ldump_job                    \
-	_bin/lkpi                         \
-	_bin/find_cc_ld_library_path      \
-	$(if $(HAS_EBPF),_bin/lmake_bpfd) \
-	bin/lautodep                      \
-	bin/lcollect                      \
-	bin/ldebug                        \
-	bin/lforget                       \
-	bin/lmake                         \
-	bin/lmark                         \
-	bin/lmake_repair                  \
-	bin/lmake_server                  \
-	bin/lcache_server                 \
-	bin/lcache_repair                 \
-	bin/lcodec_repair                 \
-	bin/lrun_cc                       \
-	bin/lshow                         \
+	_bin/align_comments                \
+	_bin/lmake_dump                    \
+	_bin/lcache_dump                   \
+	_bin/ldump_job                     \
+	_bin/lkpi                          \
+	_bin/find_cc_ld_library_path       \
+	$(if $(HAS_EBPF),_bin/lmake_ebpfd) \
+	bin/lautodep                       \
+	bin/lcollect                       \
+	bin/ldebug                         \
+	bin/lforget                        \
+	bin/lmake                          \
+	bin/lmark                          \
+	bin/lmake_repair                   \
+	bin/lmake_server                   \
+	bin/lcache_server                  \
+	bin/lcache_repair                  \
+	bin/lcodec_repair                  \
+	bin/lrun_cc                        \
+	bin/lshow                          \
 	bin/xxhsum
 
 MAN_FILES := $(patsubst doc/%.m,%,$(filter-out %/common.1.m,$(filter doc/man/man1/%.1.m,$(SRCS))))
@@ -515,10 +515,8 @@ src/autodep/ebpf.bpf.o : src/autodep/ebpf.bpf.c src/autodep/ebpf_event.h src/aut
 src/autodep/ebpf.skel.h : src/autodep/ebpf.bpf.o
 	@echo generate skeleton to $@
 	@$(BPFTOOL) gen skeleton $< name ebpf >$@
-src/autodep/ebpf_daemon.o    : src/autodep/ebpf.skel.h # includes the skeleton ; the auto-dep .d does not exist on the first build, so make it an explicit prerequisite
-src/autodep/ebpf_self_test.o : src/autodep/ebpf.skel.h # .
-LMAKE_DBG_FILES += _bin/lmake_bpfd
-_bin/lmake_bpfd : src/autodep/ebpf_self_test.o src/autodep/ebpf_daemon.o
+LMAKE_DBG_FILES += _bin/lmake_ebpfd
+_bin/lmake_ebpfd : src/autodep/ebpf_client.o src/autodep/ebpf_utils.o src/autodep/ebpf_daemon.o
 	@mkdir -p $(@D)
 	@echo link to $@
 	@$(LINK) -o $@ $^ $(BPF_LIB)
@@ -777,15 +775,16 @@ REMOTE_OBJS  := \
 #	@$(SPLIT_DBG_CMD)
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)                      \
-	src/app.o                            \
-	src/re.o                             \
-	src/rpc_job.o                        \
-	src/zfd.o                            \
-	$(if $(HAS_EBPF),src/autodep/ebpf.o) \
-	src/autodep/gather.o                 \
-	src/autodep/ptrace_seccomp.o         \
-	src/autodep/record.o                 \
+	$(AUTODEP_OBJS)                             \
+	src/app.o                                   \
+	src/re.o                                    \
+	src/rpc_job.o                               \
+	src/zfd.o                                   \
+	$(if $(HAS_EBPF),src/autodep/ebpf.o       ) \
+	$(if $(HAS_EBPF),src/autodep/ebpf_client.o) \
+	src/autodep/gather.o                        \
+	src/autodep/ptrace_seccomp.o                \
+	src/autodep/record.o                        \
 	src/cache/rpc_cache.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS)          src/job_exec.o

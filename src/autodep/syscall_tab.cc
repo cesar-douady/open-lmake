@@ -502,6 +502,7 @@ template<bool Is32=false> static constexpr SyscallDescr::Tab _mk_syscall_descr_t
 	FILL_ENTRY( openat            , { _entry_open      <true            > , _exit_open     ,  1 , SyscallConvention::Fd    , Comment::openat            } ) ;
 	FILL_ENTRY( openat2           , { _entry_open2                        , _exit_open2    ,  1 , SyscallConvention::Fd    , Comment::openat2           } ) ;
 	FILL_ENTRY( open_tree         , { _entry_solve     <true ,2         > , nullptr        ,  1 , SyscallConvention::Fd    , Comment::open_tree         } ) ;
+	FILL_ENTRY( open_tree_attr    , { _entry_solve     <true ,2         > , nullptr        ,  1 , SyscallConvention::Fd    , Comment::open_tree_attr    } ) ;
 	FILL_ENTRY( readdir           , { _entry_getdents                     , _exit_getdents , -1 , SyscallConvention::Plain , Comment::readdir           } ) ;
 	FILL_ENTRY( readlink          , { _entry_read_lnk  <false           > , _exit_read_lnk ,  0 , SyscallConvention::Plain , Comment::readlink          } ) ;
 	FILL_ENTRY( readlinkat        , { _entry_read_lnk  <true            > , _exit_read_lnk ,  1 , SyscallConvention::Plain , Comment::readlinkat        } ) ;
@@ -542,13 +543,13 @@ IF_HAS_32_IN_64(           SyscallDescr::Tab const& SyscallDescr::s_tab32 = Sysc
 
 #if HAS_EBPF
 	// check all interesting syscalls are caught by ebpf
-	#include "ebpf_daemon.hh"
+	#include "syscall_tab.h"
 	static constexpr bool SyscallTabOk = []() {
 		bool EbpfSyscalls[SyscallDescr::NSyscalls] = {} ;
 		// tracked syscalls
-		#define X(name,kind,d1,p1,d2,p2,fd,fl) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
-		#define Y(name                       ) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
-		EBPF_SYSCALLS          (X)
+		#define X(name,kind,d1,p1,d2,p2,fd,mod,flags,msk) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
+		#define Y(name                                  ) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
+		EBPF_TRACKED_SYSCALLS  (X)
 		EBPF_UNTRACKED_SYSCALLS(Y)
 		#undef X
 		#undef Y
