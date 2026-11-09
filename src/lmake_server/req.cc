@@ -654,7 +654,7 @@ namespace Engine {
 		RuleTgt                         art       ;                        // set if an anti-rule matches
 		RuleIdx                         n_missing = 0            ;         // number of rules missing deps
 		//
-		if (node->buildable<=Buildable::No) {
+		if (node->buildable<Buildable::No) {
 			audit_node( Color::Warning , cat(BuildableAttrs[+node->buildable].second.descr," :") , node , lvl ) ;
 			switch (node->buildable) {
 				case Buildable::PathTooLong : audit_info( Color::Note , cat("consider : lmake.config.path_max = ",name.size()," # or larger") , lvl+1 ) ; break ;
@@ -662,8 +662,8 @@ namespace Engine {
 			return ;
 		}
 		//
-		if (node->status()>=NodeStatus::Uphill) {
-			Node dir ; for( dir=node->dir ; +dir && dir->status()>=NodeStatus::Uphill ; dir=dir->dir ) ;
+		if (is_uphill(node->status())) {
+			Node dir ; for( dir=node->dir ; +dir && is_uphill(dir->status()) ; dir=dir->dir ) ;
 			swear_prod( +dir                               , "dir is buildable for",name,"but cannot find buildable dir"                   ) ;
 			swear_prod( dir->status()<=NodeStatus::Makable , "dir is buildable for",name,"but cannot find buildable dir until",dir->name() ) ;
 			/**/                                audit_node( Color::Err  , "no rule for"        , node , lvl   ) ;

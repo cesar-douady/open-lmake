@@ -8,6 +8,9 @@
 #pragma once
 
 #include <bpf/libbpf.h>
+#include <signal.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 #include <stdio.h>
 
@@ -17,7 +20,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include <variant>
+#include <vector>
 
 #include "ebpf_event.h"
 
@@ -34,97 +37,116 @@ namespace EbpfDaemon {
 	struct Path {
 		bool operator+() const { return root_id || !path.empty() ; }
 		bool operator!() const { return !+*this                  ; }
-		EbpfRootId  root_id = 0 ;
-		std::string path    ;
+		EbpfRootId  root_id = 0  ;
+		std::string path    = {} ;
 	} ;
 	struct RingBufBase {
-		static void s_start_job(                                 ) ;                                                                // called by top level job thread
-		static void s_add_root ( EbpfRootId , std::string const& ) ;                                                                // called from tracer
+		static void s_start_job(                                 ) ;                                       // called by top level job thread
+		static void s_add_root ( EbpfRootId , std::string const& ) ;                                       // called from tracer
 	protected :
-		static Path _s_mk_path(std::string_view) ;                                                                                  // components are stored leaf first, separated by null
+		static Path _s_mk_path( EbpfRootId , std::string_view ) ;                                          // components are stored leaf first, separated by null
 	public :
 		// cxtors & co
 		RingBufBase() = default ;
-		RingBufBase(RingBufBase const& ) = delete ;                                                                                 // not copyable
-		RingBufBase( EbpfJobId jid , int rbfd , bool deps_in_system ) : job_id{jid} , _ring_buf_fd{rbfd} { init(deps_in_system) ; }
-		RingBufBase(                            bool deps_in_system ) ;
+		RingBufBase(RingBufBase const& ) = delete ;                                                        // not copyable
+		RingBufBase( EbpfJobId jid , int rbfd ) : job_id{jid} , _ring_buf_fd{rbfd} { init() ; }
 		~RingBufBase() ;
-		void init(bool deps_in_system) ;
 		bool operator+() const { return _ring_buf_fd>=0 ; }
 		bool operator!() const { return !+*this         ; }
+		// services
+		bool/*ok*/ connect_to_daemon() ;
+		void       init             () ;
 		// data
 		EbpfJobId job_id = 0 ;
 	protected :
 		int _ring_buf_fd = -1 ;
 	private :
-		int daemon_fd = -1 ;
+		int  _daemon_fd  = -1    ;
+		bool _registered = false ;
 	} ;
 
 	template<class Consumer> struct RingBuf : RingBufBase {
+		struct ThreadCtx {
+			pid_t pid_in_ns ;
+			pid_t tid_in_ns ;
+			Path  dst       ;                                                                                       // dest of 2-files events
+		} ;
 	private :
 		static int _s_handle_event( void* ctx , void* data , size_t sz ) {
 			RingBuf& ring_buf = *static_cast<RingBuf*>(ctx) ;
-			return ring_buf._handle_event(data,sz) ;
+			ring_buf._handle_event(data,sz) ;
+			return 0 ;
 		}
 		// cxtors & co
 	public :
-		template<class... A> RingBuf( EbpfJobId jid , int rbfd , bool deps_in_system , A&&... args ) : RingBufBase{jid,rbfd,deps_in_system} , consumer{std::forward<A>(args)...} { init() ; }
-		template<class... A> RingBuf(                            bool deps_in_system , A&&... args ) : RingBufBase{         deps_in_system} , consumer{std::forward<A>(args)...} { init() ; }
+		RingBuf() = default ;
+		RingBuf( EbpfJobId jid , int rbfd ) : RingBufBase{jid,rbfd} { init() ; }
 		~RingBuf() {
 			::ring_buffer__free(_ring_buf) ;
 		}
 		void init() {
 			using namespace std::string_literals ;
+			RingBufBase::init() ;
 			_ring_buf = ::ring_buffer__new( _ring_buf_fd , _s_handle_event , this , nullptr/*opts*/ ) ; if (!_ring_buf) throw "cannot open ebpf ring buffer"s ;
 			epoll_fd  = ::ring_buffer__epoll_fd(_ring_buf)                                            ;
 		}
 		// services
-		bool/*done*/ consume() {                // consume available events
+		bool/*done*/ consume() {                                                                                    // consume available events
 			::ring_buffer__consume(_ring_buf) ;
 			return _done ;
 		}
 	private :
-		void _chk_plain(EbpfEventHdr const& e) {
-			if (!_started) throw std::format("event {} while not started",e.kind) ;
-			if ( _done   ) throw std::format("event {} while done"       ,e.kind) ;
-		}
-		int _handle_event( void* data , size_t sz ) {
+		void _handle_event( void* data , size_t sz ) {
 			using namespace std::string_literals ;
-			EbpfEventHdr const& event_hdr = *static_cast<EbpfEventHdr const*>(data) ;
-			if (event_hdr.kind<EBPF_HAS_DATA) {
+			EbpfEventHdr const& hdr  = *static_cast<EbpfEventHdr const*>(data) ;
+			switch (hdr.kind) {
+				case EBPF_JOB_START : if ( _started) throw "double job start"s        ; if (_done) throw "event while done"s ; _started = true ; break ;
+				case EBPF_JOB_END   : if (!_started) throw "event while not started"s ; if (_done) throw "double job end"s   ; _done    = true ; break ;
+				default             : if (!_started) throw "event while not started"s ; if (_done) throw "event while done"s ;
+			}
+			if (hdr.kind<EBPF_HAS_DATA) {
 				if (sz!=sizeof(EbpfEventHdr)) throw "bad ebpf msg"s ;
-				switch (event_hdr.kind) {
-					case EBPF_NONE      :               throw "EBPF_NONE messages should have been filtered out"s ;
-					case EBPF_JOB_START : if (_started) throw "double start"s                                     ; _started = true ; break ;
-					case EBPF_JOB_END   : if (_done   ) throw "double end"s                                       ; _done    = true ; break ;
-					default             :
-						_chk_plain(event_hdr)            ;
-						consumer.handle_event(event_hdr) ;
+				switch (hdr.kind) {
+					case EBPF_NONE         :                                         throw "bad empty event"s     ; // EBPF_NONE messages should have been filtered out
+					case EBPF_JOB_START    :
+					case EBPF_PROC_START   :
+					case EBPF_THREAD_START : {
+						auto it_inserted = _ctxs.try_emplace(hdr.tid) ; if (!it_inserted.second) throw "double thread start"s ;
+						it_inserted.first->second.pid_in_ns = hdr.pid_in_ns ;
+						it_inserted.first->second.tid_in_ns = hdr.tid_in_ns ;
+					} break ;
+					case EBPF_JOB_END      :
+					case EBPF_PROC_END     :
+					case EBPF_THREAD_END   : if (!_ctxs.erase(hdr.tid)) throw "double thread end"s   ; break ;
+					default                :                            throw "unexpected event"s    ;
 				}
 			} else {
-				if (sz<sizeof(EbpfEventBase)) throw "bad ebpf msg"s ;
-				_chk_plain(event_hdr) ;
-				EbpfEventBase const& event = *static_cast<EbpfEventBase const*>(data)                                                                        ;
-				Path                 path  = _s_mk_path(std::string_view( static_cast<const char*>(data)+sizeof(EbpfEventBase) , sz-sizeof(EbpfEventBase) )) ;
-				if (event.hdr.kind==EBPF_TARGET) {
-					auto inserted = _targets.try_emplace( event.hdr.tid , std::move(path) ).second ; if (!inserted) throw "target clash"s ;
-				} else {
-					auto it = _targets.find(event.hdr.tid) ;
-					if (it==_targets.end())   consumer.handle_event( event , path              ) ;
-					else                    { consumer.handle_event( event , path , it->second ) ; _targets.erase(it) ; }
+				if (sz<sizeof(EbpfEventHdr)) throw "bad ebpf msg"s ;
+				bool             cont = hdr.flags&EBPF_F_STOPPED                                                                          ;
+				std::string_view view = std::string_view( static_cast<const char*>(data)+sizeof(EbpfEventHdr) , sz-sizeof(EbpfEventHdr) ) ;
+				Path             path = _s_mk_path( hdr.root_id , view )                                                                  ;
+				ThreadCtx&       ctx  = _ctxs.at(hdr.tid)                                                                                 ;
+fprintf(stderr,"_handle_event1 %2d <%d>:%s\n",hdr.kind,path.root_id,path.path.c_str());
+				switch (hdr.kind) {
+					case EBPF_PATH_RES :                                             consumer.handle_path_res(path) ; break ;
+					case EBPF_DST      : if (+ctx.dst) throw "double destination"s ; ctx.dst = path ;                 break ;
+					default :
+						consumer.handle_event( hdr , path , ctx.dst ) ;
+						ctx.dst  = {} ;
+						if (cont) { syscall( SYS_tkill , hdr.tid , SIGCONT ) ; cont = false ; }
 				}
+				if (cont) throw "misplaced STOPPED flag"s ;
 			}
-			return 0 ;
 		}
 		// data
 	public :
 		int      epoll_fd = -1 ;
 		Consumer consumer ;
 	private :
-		::ring_buffer*                 _ring_buf = nullptr ;
-		std::unordered_map<pid_t,Path> _targets  ;
-		bool                           _started  = false   ;
-		bool                           _done     = false   ;
+		::ring_buffer*                      _ring_buf = nullptr ;
+		std::unordered_map<pid_t,ThreadCtx> _ctxs     ;                                                             // context of currently handled syscall
+		bool                                _started  = false   ;
+		bool                                _done     = false   ;
 	} ;
 
 }

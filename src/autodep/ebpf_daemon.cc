@@ -282,7 +282,7 @@ static void _load_ebpf() {
 static const char* _g_exe = nullptr ;
 
 [[noreturn]] static void _usage() {
-	::fprintf( stderr , "usage : %s [timeout_sec] (default=300s, negative for no timeout)\n" , _g_exe ) ;
+	::fprintf( stderr , "usage : %s [lmake|daemon|test]\n" , _g_exe ) ;
 	::exit(2) ;
 }
 
@@ -291,14 +291,13 @@ void self_test() ;
 int main( int argc , char* argv[] ) {
 	_g_exe = argv[0] ;
 	try {
-		if (argc>2) _usage() ;
-		int timeout = 300'000 ;                                                                                                          // leave after idle for 300s as starting takes ~3s
-		if (argc==2) {
-			::errc rc = ::from_chars( argv[1] , argv[1]+::strlen(argv[1]) , /*out*/timeout ).ec ; if (rc!=::errc()) _usage() ;
-			if      (timeout>::numeric_limits<int>::max()/1000) _usage() ;
-			else if (timeout<0                                ) timeout  = -1   ;
-			else                                                timeout *= 1000 ;                                                        // timout is in ms
-		}
+		if (argc!=2) _usage() ;
+		::string arg     = argv[1] ;
+		int      timeout ;
+		if      (arg=="lmake" ) timeout = 300'000 ;                                                                                      // XXX? : auto calibrate by using 100*start_time
+		else if (arg=="daemon") timeout =      -1 ;
+		else if (arg=="test"  ) timeout =       0 ;
+		else                    _usage() ;
 		//
 		::filesystem::create_directories(SockDir) ;
 		Start start ;
@@ -308,9 +307,12 @@ int main( int argc , char* argv[] ) {
 			return 0 ;
 		}
 		reset_log() ;
-		_raise_n_open_files(10000) ;
+		_raise_n_open_files(10000) ;                                                                                                     // need 1 fd per running job
 		//
 		_load_ebpf() ;
+		//
+		self_test() ;
+		if (!timeout) return 0 ;
 		//
 		::string           master_name = get_sock_name()     ;
 		const char*        master_cn   = master_name.c_str() ;
@@ -324,11 +326,8 @@ int main( int argc , char* argv[] ) {
 		if (::listen( master_fd , 64                                   )!=0) { log_errno("cannot listen on %s",master_cn) ; return 1 ; }
 		log("ready, listening on %s",master_cn) ;
 		start.started() ;
-		::fprintf( stdout , "1\n" ) ;                 // report we are up and running
-		::fflush ( stdout         ) ;
-		::close(1/*stdout*/) ;                        // .
-		//
-		self_test() ;
+		::printf("1\n") ;                                                                                                                // report we are up and running
+		::fclose(stdout) ;
 		//
 		::vector<::epoll_event>  events ;
 		::unordered_map<int,Job> jobs   ;
@@ -337,11 +336,10 @@ int main( int argc , char* argv[] ) {
 		::epoll_event e { .events=EPOLLIN , .data{.fd=master_fd} } ;
 		if (::epoll_ctl(ep_fd,EPOLL_CTL_ADD,master_fd,&e)!=0) throw "cannot add master event to epoll fd"s ;
 		events.push_back({}) ;
-//		for( uint8_t n_wait_jobs=1 ;;) {              // wait for self-test + first job (that launched us)
-		for( uint8_t n_wait_jobs=0 ;;) {              // wait for first job (that launched us)
+		for( uint8_t n_wait_jobs=1 ;;) {                                                                                                 // wait for first job (that launched us)
 			int to = timeout ;
-			if (n_wait_jobs               ) to = -1 ; // waiting for mandatory jobs (self_test + job that launched us)
-			if (events.size()!=1/*master*/) to = -1 ;                                                                                    // waiting for on going jobs
+			if (n_wait_jobs              ) to = -1 ;
+			if (events.size()>1/*master*/) to = -1 ;                                                                                     // waiting for on going jobs
 			int n_events = ::epoll_wait( ep_fd , events.data() , events.size() , to ) ; if ( n_events<0) throw "cannot wait epoll fd"s ;
 			/**/                                                                        if (!n_events  ) break ;                         // timeout has expired
 			//
@@ -378,10 +376,12 @@ int main( int argc , char* argv[] ) {
 //
 
 struct Consumer {
-	void handle_event( EbpfEventHdr  const&                                       ) {}
-	void handle_event( EbpfEventBase const& event , Path const& , Path const& ={} ) {
-		if (event.hdr.file_kind==EBPF_FILE_USER) n_unsolved++ ;
-		else                                     n_solved  ++ ;
+	void handle_path_res(Path const&) {
+		n_solved++ ;
+	}
+	void handle_event( EbpfEventHdr const& hdr , Path const& /*file*/ , Path const& /*dst*/ ) {
+		if (hdr.file_kind==EBPF_FILE_USER) n_unsolved++ ;
+		else                               n_solved  ++ ;
 	}
 	// data
 	int n_solved   = 0 ;
@@ -489,13 +489,13 @@ struct IoUring {
 void self_test() {
 	::string msg ;
 	try {
-		::string          dir_name = get_file_name("test_dir")                                ;
+		::string          dir_name = get_file_name("test_dir")      ;
 		Job               job      ;
-		RingBuf<Consumer> ring_buf { job.job_id , job.ring_buf_fd , false/*deps_in_system*/ } ;
+		RingBuf<Consumer> ring_buf { job.job_id , job.ring_buf_fd } ;
 		//
 		::filesystem::remove_all( dir_name                ) ;
 		::mkdir                 ( dir_name.c_str() , 0777 ) ;
-		RingBufBase::s_add_root( 1/*root_id*/ , dir_name ) ;                                    // 0 is reserved for absolute paths
+		RingBufBase::s_add_root( EBPF_ROOT_ID_PLAIN , dir_name ) ;
 		//
 		::future<::pair<int/*solved*/,int/*unsolved*/>> n_events = ::async( ::launch::async , tracee , dir_name ) ; // launch tracee
 		//

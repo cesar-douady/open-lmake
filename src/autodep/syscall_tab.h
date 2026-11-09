@@ -73,3 +73,30 @@
 	X(io_uring_setup   )
 
 #endif
+
+#define IS_SYSTEM_PFX_FUNC( func_pfx , func_name ) \
+	func_pfx uint16_t func_name##_match( const char* pfx , const char* ref ) {          \
+		for( uint16_t i=0 ;; i++ ) {                                                    \
+			char p_ = pfx[i] ;                                                          \
+			char r_ = ref[i] ;                                                          \
+			if      (!r_   ) return p_==0||p_=='/' ? i : 0 ;                            \
+			else if (p_!=r_) return 0                      ;                            \
+		}                                                                               \
+	}                                                                                   \
+	func_pfx uint16_t func_name(const char* pfx) {                                      \
+		uint16_t pfx_len = 0 ;                                                          \
+		switch (*pfx) {                                                                 \
+			case 'b' : pfx_len = func_name##_match(pfx,"bin"   ) ;              break ; \
+			case 'e' : pfx_len = func_name##_match(pfx,"etc"   ) ;              break ; \
+			case 'l' : pfx_len = func_name##_match(pfx,"lib"   ) ; if (pfx_len) break ; \
+			/**/       pfx_len = func_name##_match(pfx,"lib32" ) ; if (pfx_len) break ; \
+			/**/       pfx_len = func_name##_match(pfx,"lib64" ) ; if (pfx_len) break ; \
+			/**/       pfx_len = func_name##_match(pfx,"libx32") ;              break ; \
+			case 'o' : pfx_len = func_name##_match(pfx,"opt"   ) ;              break ; \
+			case 's' : pfx_len = func_name##_match(pfx,"sbin"  ) ;              break ; \
+			case 'u' : pfx_len = func_name##_match(pfx,"usr"   ) ;              break ; \
+			case 'v' : pfx_len = func_name##_match(pfx,"var"   ) ;              break ; \
+			default  : ;                                                                \
+		}                                                                               \
+		return pfx_len ;                                                                \
+	}

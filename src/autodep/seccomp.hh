@@ -5,16 +5,12 @@
 
 #pragma once
 
-#include "syscall_tab.hh"
+#include "utils.hh"
 
-namespace AutodepPtrace {
-	int/*rc*/      prepare_child(void*          ) ; // must be called from child
-	int/*wstatus*/ process      (pid_t child_pid) ;
+struct AutodepSeccomp {
+	static int/*rc*/ s_prepare_child(void*) ; // must be called from child
+	// cxtors & co
+	AutodepSeccomp(NewType) {}
+	// services
+	int/*wstatus*/ process(pid_t child_pid) ;
 } ;
-
-#if HAS_SECCOMP
-	namespace AutodepSeccomp {
-		int/*rc*/      prepare_child(void*          ) ; // must be called from child
-		int/*wstatus*/ process      (pid_t child_pid) ;
-	} ;
-#endif

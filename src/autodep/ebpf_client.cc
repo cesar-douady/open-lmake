@@ -6,6 +6,7 @@
 // do not include "utils.hh" nor any other lmake .hh so as to keep ebpf daemon very simple to analyze
 
 #include <limits.h>
+#include <string.h>     // strerror
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/xattr.h>
@@ -52,19 +53,19 @@ namespace EbpfDaemon {
 		return res ;
 	}
 
-	RingBufBase::RingBufBase(bool deps_in_system) {
+	bool/*ok*/ RingBufBase::connect_to_daemon() {
 		//
 		// connect to daemon socket
 		//
 		::string      sn   = get_sock_name() ;
 		::sockaddr_un addr = {}              ; addr.sun_family=AF_UNIX ; ::strncpy(addr.sun_path,sn.c_str(),sizeof(addr.sun_path)-1) ;
 		//
-		/**/ daemon_fd = ::socket( AF_UNIX , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ )                    ; if (daemon_fd<0) throw "cannot create ebpf socket"s ;
-		int  rc        = ::connect( daemon_fd , reinterpret_cast<struct sockaddr*>(&addr) , sizeof(addr) ) ; if (rc!=0) return ;                                   // make an empty RingBuf
+		/**/ _daemon_fd = ::socket( AF_UNIX , SOCK_STREAM|SOCK_CLOEXEC , 0/*protocol*/ )                     ; if (_daemon_fd<0) throw "cannot create ebpf socket"s ;
+		int  rc         = ::connect( _daemon_fd , reinterpret_cast<struct sockaddr*>(&addr) , sizeof(addr) ) ; if (rc!=0       ) return false/*ok*/ ;                 // no daemon
 		//
 		// a stuck daemon must not block the job forever
 		{	::timeval to = { .tv_sec=60 , .tv_usec=0 } ;
-			::setsockopt( daemon_fd , SOL_SOCKET , SO_RCVTIMEO , &to , sizeof(to) ) ;
+			::setsockopt( _daemon_fd , SOL_SOCKET , SO_RCVTIMEO , &to , sizeof(to) ) ;
 		}
 		//
 		// get info from daemon
@@ -73,7 +74,7 @@ namespace EbpfDaemon {
 		char     cbuf[CMSG_SPACE(sizeof(int))] = {}                                                                                                                                       ;
 		::msghdr msg                           = { .msg_name=nullptr , .msg_namelen=0 , .msg_iov=&iov , .msg_iovlen=1 , .msg_control=cbuf , .msg_controllen=sizeof(cbuf) , .msg_flags=0 } ;
 		//
-		ssize_t msg_len = ::recvmsg( daemon_fd , &msg , MSG_CMSG_CLOEXEC ) ; if (msg_len!=ssize_t(sizeof(job_id))) throw "no/bad reply from ebpf daemon"s ;
+		ssize_t msg_len = ::recvmsg( _daemon_fd , &msg , MSG_CMSG_CLOEXEC ) ; if (msg_len!=ssize_t(sizeof(job_id))) throw "no/bad reply from ebpf daemon"s ;
 		//
 		for( cmsghdr* cm=CMSG_FIRSTHDR(&msg) ; cm ; cm=CMSG_NXTHDR(&msg,cm) )
 			if ( cm->cmsg_level==SOL_SOCKET && cm->cmsg_type==SCM_RIGHTS ) {
@@ -81,24 +82,23 @@ namespace EbpfDaemon {
 				break ;
 			}
 		if (_ring_buf_fd<0) throw "bad reply from ebpf daemon"s ;
-		//
-		// register in ebpf
-		//
-		init(deps_in_system) ;
+		return true/*ok*/ ;                                                                                                                                           // connected
 	}
 
-	void RingBufBase::init(bool deps_in_system) {
+	void RingBufBase::init() {
+		if (_registered) return ;
 		EbpfMagicReq req ;
-		req.proc           = EBPF_MAGIC_REGISTER ;
-		req.mrkr           = g_mrkr              ;
-		req.job_id         = job_id              ;
-		req.deps_in_system = deps_in_system      ;
+		req.proc   = EBPF_MAGIC_REGISTER ;
+		req.mrkr   = g_mrkr              ;
+		req.job_id = job_id              ;
 		::fsetxattr( EBPF_MAGIC_FD , nullptr/*name*/ , &req , sizeof(req) , 0/*flags*/ ) ;
+		s_add_root( EBPF_ROOT_ID_PROC , "/proc" ) ;
+		_registered = true ;
 	}
 
 	RingBufBase::~RingBufBase() {
-		/**/              ::close(_ring_buf_fd) ;
-		if (daemon_fd>=0) ::close(daemon_fd   ) ;
+		/**/               ::close(_ring_buf_fd) ;
+		if (_daemon_fd>=0) ::close(_daemon_fd  ) ;
 	}
 
 	void RingBufBase::s_start_job() {
@@ -106,29 +106,31 @@ namespace EbpfDaemon {
 		::fsetxattr( EBPF_MAGIC_FD , nullptr/*name*/ , &req , sizeof(req) , 0/*flags*/ ) ;
 	}
 
-	Path RingBufBase::_s_mk_path(::string_view data) {
-		Path res ;
-		if (!data.empty()) {
-			res.root_id = EbpfRootId(data.back()) ;
-			data.remove_suffix(1) ;
-			for (;;) {
-				size_t pos = data.rfind(char(0)) ;
-				res.path.append(data.substr(pos+1)) ;
-				if (pos==::string::npos) break ;
-				res.path.push_back('/') ;
-				data = data.substr(0,pos) ;
-			}
+	Path RingBufBase::_s_mk_path( EbpfRootId root_id , ::string_view data ) {
+		Path res { .root_id=root_id } ;
+		for (;;) {
+			size_t pos = data.rfind('\0') ;
+			res.path.append(data.substr(pos+1)) ;
+			if (pos==::string::npos) break ;
+			res.path.push_back('/') ;
+			data = data.substr(0,pos) ;
 		}
 		return res ;
 	}
 
-	void RingBufBase::s_add_root( EbpfRootId root_id , ::string const& root ) {
-		int          fd  = ::open( root.c_str() , O_DIRECTORY ) ; if (fd<0) throw "cannot add root"s ; // dont close fd so as to maintain its dentry live in kernel
+	void RingBufBase::s_add_root( EbpfRootId root_id , ::string const& root ) {                                                        // empty means /
+		const char*  r   = root.empty() ? "/" : root.c_str() ; if (r[0]!='/') throw "cannot add relative root"s ;
 		EbpfMagicReq req ;
-		req.proc    = EBPF_MAGIC_ROOT ;
-		req.root_id = root_id         ;
-		req.root_fd = fd              ;
-		::fsetxattr( EBPF_MAGIC_FD , nullptr/*name*/ , &req , sizeof(req) , 0/*flags*/ ) ;
+		req.proc    = EBPF_MAGIC_ROOT           ;
+		req.root_id = root_id                   ;
+		req.fd      = ::open( r , O_DIRECTORY ) ; ; if (req.fd<0     ) throw ::format("cannot add (%s) root {}",::strerror(errno),r) ; // dont close to maintain its dentry live in kernel
+		::fsetxattr( EBPF_MAGIC_FD , root.c_str() , &req , sizeof(req) , 0/*flags*/ ) ;
+		if (root_id!=EBPF_ROOT_ID_EXTERN)
+			for( ::string d=root ; !d.empty() ; d=d.substr(0,d.rfind('/')) ) {                                                         // super-dir of root dirs must be registered as well
+				req.root_id = EBPF_ROOT_ID_SUPER                ;
+				req.fd      = ::open( d.c_str() , O_DIRECTORY ) ;                                                                      // dont close to maintain its dentry live in kernel
+				::fsetxattr( EBPF_MAGIC_FD , root.c_str() , &req , sizeof(req) , 0/*flags*/ ) ;
+			}
 	}
 
 }

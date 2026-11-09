@@ -28,7 +28,7 @@
 #endif
 
 typedef uint16_t EbpfJobId  ;
-typedef uint8_t  EbpfRootId ;
+typedef uint16_t EbpfRootId ;
 
 #define EBPF_AT_FDCWD            -100
 #define EBPF_AT_REMOVEDIR        0x200
@@ -73,9 +73,11 @@ typedef uint8_t  EbpfRootId ;
 	static_assert( EBPF_O_NOFOLLOW          == O_NOFOLLOW          ) ;
 	static_assert( EBPF_O_PATH              == O_PATH              ) ;
 	static_assert( EBPF_O_RDONLY            == O_RDONLY            ) ;
-	static_assert( EBPF_O_TMPFILE           == O_TMPFILE           ) ;
-	static_assert( EBPF_O_TRUNC             == O_TRUNC             ) ;
-	static_assert( EBPF_PATH_MAX            == PATH_MAX            ) ;
+	#ifdef O_TMPFILE
+		static_assert( EBPF_O_TMPFILE == O_TMPFILE ) ;
+	#endif
+	static_assert( EBPF_O_TRUNC  == O_TRUNC  ) ;
+	static_assert( EBPF_PATH_MAX == PATH_MAX ) ;
 	#ifdef RENAME_EXCHANGE
 		static_assert( EBPF_RENAME_EXCHANGE == RENAME_EXCHANGE ) ;
 	#endif
@@ -168,24 +170,34 @@ enum EbpfSyscallKind {
 	static_assert( EBPF_MAGIC_FD<-1 && EBPF_MAGIC_FD!=AT_FDCWD ) ; // check MAGIC_FD can be distingued with no ambiguity
 #endif
 
-enum EbpfMagicProc {
+typedef enum {
 	EBPF_MAGIC_REGISTER // from tracer : register as job tracer
 ,	EBPF_MAGIC_ROOT     // from tracer : add a root dir to job
 ,	EBPF_MAGIC_JOB      // from tracee : identify top level job thread
 ,	EBPF_MAGIC_DISABLE  // from tracee : temporarily disable tracking
 ,	EBPF_MAGIC_ENABLE   // from tracee : re-enable tracking
-} ;
+} EbpfMagicProc ;
+
+typedef enum {
+	EBPF_ROOT_ID_UNKNOWN                   // not reported
+,	EBPF_ROOT_ID_SUPER                     // .
+,	EBPF_ROOT_ID_EXTERN                    // .
+,	EBPF_ROOT_ID_PROC                      // do not report, but report pid/tid (to interpret self and thread-self)
+,	EBPF_ROOT_ID_ABS
+,	EBPF_ROOT_ID_PLAIN                     // >=EBPF_ROOT_ID_PLAIN means repo root or a src dir
+	// aliases
+,	EBPF_ROOT_ID_REPORT = EBPF_ROOT_ID_ABS // >=EBPF_ROOT_ID_ABS means file must be reported
+} EbpfRootIdSpecial ;
 
 typedef struct {
-	enum EbpfMagicProc proc           ;
-	uint64_t           mrkr           ; // if proc=EBPF_MAGIC_REGISTER, ensure job_exec speaks to the right filter
-	EbpfJobId          job_id         ; // if proc=EBPF_MAGIC_REGISTER
-	bool               deps_in_system ; // if proc=EBPF_MAGIC_REGISTER
-	EbpfRootId         root_id        ; // if proc=EBPF_MAGIC_ROOT
-	int                root_fd        ; // if proc=EBPF_MAGIC_ROOT
+	uint8_t    proc    ; // enum : EbpfMagicProc
+	uint64_t   mrkr    ; // if proc=EBPF_MAGIC_REGISTER, ensure job_exec speaks to the right filter
+	EbpfJobId  job_id  ; // if proc=EBPF_MAGIC_REGISTER
+	EbpfRootId root_id ; // if proc=EBPF_MAGIC_ROOT
+	int        fd      ; // if proc=EBPF_MAGIC_ROOT
 } EbpfMagicReq ;
 
-enum EbpfEventKind {
+typedef enum {
 	EBPF_NONE
 	// process tracking
 ,	EBPF_JOB_START             // job has exited
@@ -195,37 +207,37 @@ enum EbpfEventKind {
 ,	EBPF_PROC_END              // a process has exited                  (implies EBPF_THREAD_EXIT )
 ,	EBPF_JOB_END               // job has exited
 ,	EBPF_PANIC                 // an error occurred, reason is in data
-	// 2 files events
-,	EBPF_TARGET                // targets are sent before main message
 	// path resolution
-,	EBPF_PATH_RES              // a symlink has been traversed during path resolution , 2nd string is its target
-	// accesses
+,	EBPF_PATH_RES              // a symlink has been traversed during path resolution
+,	EBPF_PATH_RES2             // a symlink has been traversed during path resolution, link target is appended to path after a null separator
+,	EBPF_PID_TID               // provide pid/tid as seen in task namespace to interpret /proc/self and /proc/thread-self
+	// 1-file accesses
 ,	EBPF_READ
-,	EBPF_WRITE                 // may also read
-,	EBPF_UNLINK                // .
+,	EBPF_READDIR
+,	EBPF_UNLINK                // may also read
+,	EBPF_WRITE                 // .
+	// 2-files accesses
+,	EBPF_DST                   // dest for 2-files events, sent before said event
 ,	EBPF_LINK                  // hard link
 ,	EBPF_RENAME
 ,	EBPF_EXCHANGE
-,	EBPF_READDIR
 // only in syscall table
 	// aliases
 ,	EBPF_HAS_DATA = EBPF_PANIC // <EBPF_HAS_DATA means event has only hdr
-} ;
+} EbpfEventKind ;
 
-enum EbpfFileKind {
-	EBPF_FILE_NONE                // no info        (not emitted)
-,	EBPF_FILE_IGNORE              // file is simple (not emitted)
-,	EBPF_FILE_USER                // file is not resolved
-,	EBPF_FILE_NO_FILE             // file is not regular nor sym link
-,	EBPF_FILE_DIR                 // file is a dir (only for rename)
-,	EBPF_FILE_LNK                 // file is a sym link
-,	EBPF_FILE_REG                 // file is a regular, not executable
-,	EBPF_FILE_EXE                 // file is regular, executable
-	// aliases
-,	EBPF_FILE_EMIT=EBPF_FILE_USER // if >=, event can be emitted
-} ;
+typedef enum {
+	EBPF_FILE_NONE    // no info        (not emitted)
+,	EBPF_FILE_IGNORE  // file is simple (not emitted)
+,	EBPF_FILE_USER    // file is not resolved
+,	EBPF_FILE_NO_FILE // file is not regular nor sym link
+,	EBPF_FILE_DIR     // file is a dir (only for rename)
+,	EBPF_FILE_LNK     // file is a sym link
+,	EBPF_FILE_REG     // file is a regular, not executable
+,	EBPF_FILE_EXE     // file is regular, executable
+} EbpfFileKind ;
 
-enum EbpfFlag {
+typedef enum {
 	EBPF_F_STOPPED   = 1<<0                                        // thread was stopped and must be continued by userland after analysis
 	// only for accesses
 ,	EBPF_F_NO_FOLLOW = 1<<1                                        // only for EBPF_FILE_USER, trailing symlink is not followed
@@ -233,26 +245,30 @@ enum EbpfFlag {
 ,	EBPF_F_DEP_REG   = 1<<3                                        // access dep as open
 ,	EBPF_F_DEP_STAT  = 1<<4                                        // sense dep existence
 ,	EBPF_F_OK        = 1<<5
+,	EBPF_F_SEEN_PROC = 1<<6                                        // a symlink has been followed in /proc, care must be taken in case it is /proc/self or /proc/thread-self
 	// aliases
 ,	EBPF_F_DEP_ALL = EBPF_F_DEP_LNK|EBPF_F_DEP_REG|EBPF_F_DEP_STAT // access all aspects of dep, such as with stat
-} ;
+} EbpfFlag ;
 
-typedef struct {                              // thread management messages only need this header
-	uint32_t tid       ;                      // thread  id in the client's pid namespace
-	uint8_t  kind      ;                      // enum : EbpfKind
-	uint8_t  file_kind ;                      // enum : EbpfFileKind
-	uint8_t  flags     ;                      // only for accesses (here for layout optimization)
-	uint8_t  n_lnks    ;                      // only for accesses (here for layout optimization) : number of symlinks traversed during path resolution, max 80 (40 for each file)
+typedef struct {
+	uint32_t     tid       ;                 // thread id in the top-level namespace, only used as a key to identify all the streams
+	uint8_t      kind      ;                 // enum : EbpfKind
+	EbpfRootId   root_id   ;
+	uint8_t      file_kind ;                 // enum : EbpfFileKind
+	uint8_t      flags     ;
+	union {
+		uint64_t stamp_ns  ;
+		uint32_t pid_in_ns ;                 // if kind=EBPF_START*
+	} ;
+	union {
+		uint64_t size      ;                 // file size
+		uint32_t tid_in_ns ;                 // if kind=EBPF_START*
+	} ;
+	uint64_t     mtime_ns  ;                 // st_mtime*10^9+st_mtime_ns before access
 } EbpfEventHdr ;
 typedef struct {
-	EbpfEventHdr hdr      ;
-	uint64_t     stamp_ns ;
-	uint64_t     size     ;                   // file size
-	uint64_t     mtime_ns ;                   // st_mtime*10^9+st_mtime_ns
-} EbpfEventBase ;
-typedef struct {
-	EbpfEventBase base                      ;
-	char          data[PATH_MAX+NAME_MAX+1] ; //we must take some margin to please verifier when assembling components
+	EbpfEventHdr hdr                       ;
+	char         data[PATH_MAX+NAME_MAX+1] ; // we must take some margin to please verifier when assembling components
 } EbpfEvent ;
 
 static inline bool _open_dir      (int flags) { return  (flags&O_DIRECTORY) || (  (flags&O_TMPFILE)                                ) ; }

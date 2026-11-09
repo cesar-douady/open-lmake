@@ -227,11 +227,6 @@ int main( int argc , char* argv[] ) {
 		}
 		//
 		jsrr.interpreter = ::move(cmd_line.args) ;
-		#if HAS_EBPF
-			if (jsrr.method==AutodepMethod::Ebpf)
-				try                       { AutodepEbpf::load( autodep_env.deps_in_system , *g_repo_root_s , autodep_env.src_dirs_s ) ; }
-				catch (::string const& e) { exit(Rc::System,e) ;                                                                        }
-		#endif
 		jsrr.enter(
 			/*out  */::ref(::vector_s())
 		,	/*.    */::ref(::string                ())/*repo_root_s*/

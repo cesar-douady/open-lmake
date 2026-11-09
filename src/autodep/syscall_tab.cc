@@ -547,8 +547,8 @@ IF_HAS_32_IN_64(           SyscallDescr::Tab const& SyscallDescr::s_tab32 = Sysc
 	static constexpr bool SyscallTabOk = []() {
 		bool EbpfSyscalls[SyscallDescr::NSyscalls] = {} ;
 		// tracked syscalls
-		#define X(name,kind,d1,p1,d2,p2,fd,mod,flags,msk) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
-		#define Y(name                                  ) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
+		#define X(name,kind,d1,p1,d2,p2,fd,mod,flags,msk,nf) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
+		#define Y(name                                     ) if ( long nr=MACRO_VAL(SYS_##name,-1L) ; nr>=0 ) EbpfSyscalls[nr] = true ;
 		EBPF_TRACKED_SYSCALLS  (X)
 		EBPF_UNTRACKED_SYSCALLS(Y)
 		#undef X

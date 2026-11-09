@@ -45,12 +45,6 @@ struct Gather {                                         // NOLINT(clang-analyzer
 	using PD   = Time::Pdate   ;
 	using DI   = DepInfo       ;
 	static constexpr Time::Delay HeartbeatTick { 10 } ; // heartbeat to probe server when waiting for it, there may be 1000's job_exec's waiting for it, 10s seems a good compromize
-	#if HAS_EBPF
-		// the ebpf tracer requires libbpf and is only linked in executables supporting it (job_exec & lautodep), which set these hooks
-		static void           (*s_ebpf_start        )(AutodepEnv const&) ;                      // called before child is spawned
-		static int/*rc*/      (*s_ebpf_prepare_child)(void*            ) ;
-		static int/*wstatus*/ (*s_ebpf_process      )(pid_t            ) ;
-	#endif
 	struct AccessInfo {
 		// cxtors & co
 		AccessInfo() = default ;
@@ -130,7 +124,7 @@ struct Gather {                                         // NOLINT(clang-analyzer
 	using AccessEntry = ::umap_s<AccessInfo>::value_type ;
 	// statics
 private :
-	static void _s_trace_child( void* self_ , Fd report_fd , ::latch* ready ) { reinterpret_cast<Gather*>(self_)->_trace_child(report_fd,ready) ; }
+	static void _s_trace_child( void* self_ , Fd report_fd , ::latch* ready , bool* early_err ) { reinterpret_cast<Gather*>(self_)->_trace_child(report_fd,ready,early_err) ; }
 public :
 	// accesses
 	void operator>>(::string&) const ;
@@ -170,11 +164,11 @@ public :
 		}
 	}
 private :
-	void                   _update_flags( bool drain_heartbeat          ) ;                     // update accesses to take star matches into account
-	::vector<AccessEntry*> _reorder     ( bool drain_heartbeat          ) ;                     // reorder accesses by first read access and suppress superfluous accesses
-	Fd                     _spawn_child (                               ) ;
-	Status                 _exec_child  (                               ) ;
-	void                   _trace_child ( Fd report_fd , ::latch* ready ) ;
+	void                   _update_flags( bool drain_heartbeat                            ) ;   // update accesses to take star matches into account
+	::vector<AccessEntry*> _reorder     ( bool drain_heartbeat                            ) ;   // reorder accesses by first read access and suppress superfluous accesses
+	Fd                     _spawn_child (                                                 ) ;
+	Status                 _exec_child  (                                                 ) ;
+	void                   _trace_child ( Fd report_fd , ::latch* ready , bool* early_err ) ;
 	//
 	void _user_trace( PD pd , Comment c , CommentExts ces={} , ::string const& file={} ) const { if (user_trace) user_trace->emplace_back(pd,c,ces,file) ; }
 	void _user_trace(         Comment c , CommentExts ces={} , ::string const& file={} ) const { _user_trace( New , c , ces , file ) ;                     }

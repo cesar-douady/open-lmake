@@ -271,12 +271,6 @@ int main( int argc , char* argv[] ) {
 			if ( size_t pos=chroot_tag.find('.') ; pos!=Npos ) chroot_tag.resize(pos) ;
 			else                                               rm_slash(chroot_tag)   ;
 		}
-		#if HAS_EBPF
-			// loading ebpf tracer requires privileges, hence it must be done before entering namespaces
-			if (g_start_info.method==AutodepMethod::Ebpf)
-				try                       { AutodepEbpf::load( g_start_info.autodep_env.deps_in_system , g_phy_repo_root_s , g_start_info.autodep_env.src_dirs_s ) ; }
-				catch (::string const& e) { end_report.msg_stderr.msg += e ; goto End ;                                                                              }
-		#endif
 		try {
 			g_start_info.enter(
 				/*out*/  enter_accesses

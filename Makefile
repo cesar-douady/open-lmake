@@ -179,8 +179,8 @@ LINT_OPTS  := '--header-filter=.*' $(LINT_CHKS)
 
 CC_FLAGS := -iquote ext -iquote src -iquote src/lmake_server -iquote .
 
-Z_LIB   := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
-BPF_LIB := $(if $(HAS_EBPF),-lbpf )
+Z_LIB    := $(if $(HAS_ZSTD),-lzstd) $(if $(HAS_ZLIB),-lz)
+EBPF_LIB := $(if $(HAS_EBPF),-lbpf )
 
 PY2_INC_DIRS := $(if $(PYTHON2),$(filter-out $(STD_INC_DIRS),$(PY2_INCLUDEDIR) $(PY2_INCLUDEPY))) # for some reasons, compilation breaks if standard inc dirs are given with -I
 PY_INC_DIRS  :=                 $(filter-out $(STD_INC_DIRS),$(PY_INCLUDEDIR)  $(PY_INCLUDEPY) )  # .
@@ -519,7 +519,7 @@ LMAKE_DBG_FILES += _bin/lmake_ebpfd
 _bin/lmake_ebpfd : src/autodep/ebpf_client.o src/autodep/ebpf_utils.o src/autodep/ebpf_daemon.o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) -o $@ $^ $(BPF_LIB)
+	@$(LINK) -o $@ $^ $(EBPF_LIB)
 	@$(SPLIT_DBG_CMD)
 	@sudo chown root:root $@
 	@sudo chmod ug+s      $@
@@ -620,27 +620,30 @@ CLIENT_SAN_OBJS := \
 	src/version$(SAN).o
 
 SERVER_SAN_OBJS := \
-	$(SERVER_COMMON_SAN_OBJS)          \
-	src/non_portable$(SAN).o           \
-	src/rpc_client$(SAN).o             \
-	src/autodep/backdoor$(SAN).o       \
-	src/autodep/gather$(SAN).o         \
-	src/autodep/ld_server$(SAN).o      \
-	src/autodep/ptrace_seccomp$(SAN).o \
-	src/autodep/record$(SAN).o         \
-	src/autodep/syscall_tab$(SAN).o    \
-	src/lmake_server/backend$(SAN).o   \
-	src/lmake_server/cache$(SAN).o     \
-	src/lmake_server/cmd$(SAN).o       \
-	src/lmake_server/global$(SAN).o    \
-	src/lmake_server/config$(SAN).o    \
-	src/lmake_server/job$(SAN).o       \
-	src/lmake_server/job_data$(SAN).o  \
-	src/lmake_server/makefiles$(SAN).o \
-	src/lmake_server/node$(SAN).o      \
-	src/lmake_server/req$(SAN).o       \
-	src/lmake_server/rule$(SAN).o      \
-	src/lmake_server/rule_data$(SAN).o \
+	$(SERVER_COMMON_SAN_OBJS)                            \
+	src/non_portable$(SAN).o                             \
+	src/rpc_client$(SAN).o                               \
+	src/autodep/backdoor$(SAN).o                         \
+	src/autodep/gather$(SAN).o                           \
+	src/autodep/ld_server$(SAN).o                        \
+	src/autodep/ptrace$(SAN).o                           \
+	$(if $(HAS_EBPF)   ,src/autodep/ebpf$(SAN).o       ) \
+	$(if $(HAS_EBPF)   ,src/autodep/ebpf_client$(SAN).o) \
+	$(if $(HAS_SECCOMP),src/autodep/seccomp$(SAN).o    ) \
+	src/autodep/record$(SAN).o                           \
+	src/autodep/syscall_tab$(SAN).o                      \
+	src/lmake_server/backend$(SAN).o                     \
+	src/lmake_server/cache$(SAN).o                       \
+	src/lmake_server/cmd$(SAN).o                         \
+	src/lmake_server/global$(SAN).o                      \
+	src/lmake_server/config$(SAN).o                      \
+	src/lmake_server/job$(SAN).o                         \
+	src/lmake_server/job_data$(SAN).o                    \
+	src/lmake_server/makefiles$(SAN).o                   \
+	src/lmake_server/node$(SAN).o                        \
+	src/lmake_server/req$(SAN).o                         \
+	src/lmake_server/rule$(SAN).o                        \
+	src/lmake_server/rule_data$(SAN).o                   \
 	src/lmake_server/store$(SAN).o
 
 CACHE_SAN_OBJS := \
@@ -670,7 +673,7 @@ LMAKE_DBG_FILES += bin/lmake_server bin/lmake_repair _bin/lmake_dump bin/lcache_
 bin/lmake_server bin/lmake_repair _bin/lmake_dump bin/lcache_server bin/lcache_repair _bin/lcache_dump bin/lcodec_repair _bin/lkpi :
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(EBPF_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 bin/lcollect : $(CLIENT_SAN_OBJS)                src/lcollect$(SAN).o
@@ -698,7 +701,7 @@ LMAKE_DBG_FILES += _bin/ldump_job
 _bin/ldump_job : $(SERVER_SAN_OBJS) src/ldump_job$(SAN).o
 	@mkdir -p $(@D)
 	@echo link to $@
-	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(LINK_LIB)
+	@$(LINK) $(SAN_FLAGS) -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(EBPF_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += _bin/align_comments
@@ -753,14 +756,17 @@ REMOTE_OBJS  := \
 
 # XXX! : make job_exec compatible with SAN
 #JOB_EXEC_SAN_OBJS := \
-#	$(AUTODEP_SAN_OBJS)                \
-#	src/app$(SAN).o                    \
-#	src/re$(SAN).o                     \
-#	src/rpc_job$(SAN).o                \
-#	src/zfd$(SAN).o                    \
-#	src/autodep/gather$(SAN).o         \
-#	src/autodep/ptrace_seccomp$(SAN).o \
-#	src/autodep/record$(SAN).o         \
+#	$(AUTODEP_SAN_OBJS)                                  \
+#	src/app$(SAN).o                                      \
+#	src/re$(SAN).o                                       \
+#	src/rpc_job$(SAN).o                                  \
+#	src/zfd$(SAN).o                                      \
+#	src/autodep/gather$(SAN).o                           \
+#	src/autodep/ptrace$(SAN).o                           \
+#	$(if $(HAS_EBPF)   ,src/autodep/ebpf$(SAN).o       ) \
+	$(if $(HAS_EBPF)   ,src/autodep/ebpf_client$(SAN).o) \
+#	$(if $(HAS_SECCOMP),src/autodep/seccomp$(SAN).o    ) \
+#	src/autodep/record$(SAN).o                           \
 #	src/cache/rpc_cache$(SAN).o
 
 #_bin/job_exec : $(JOB_EXEC_SAN_OBJS)                src/job_exec$(SAN).o
@@ -775,16 +781,17 @@ REMOTE_OBJS  := \
 #	@$(SPLIT_DBG_CMD)
 
 JOB_EXEC_OBJS := \
-	$(AUTODEP_OBJS)                             \
-	src/app.o                                   \
-	src/re.o                                    \
-	src/rpc_job.o                               \
-	src/zfd.o                                   \
-	$(if $(HAS_EBPF),src/autodep/ebpf.o       ) \
-	$(if $(HAS_EBPF),src/autodep/ebpf_client.o) \
-	src/autodep/gather.o                        \
-	src/autodep/ptrace_seccomp.o                \
-	src/autodep/record.o                        \
+	$(AUTODEP_OBJS)                                \
+	src/app.o                                      \
+	src/re.o                                       \
+	src/rpc_job.o                                  \
+	src/zfd.o                                      \
+	src/autodep/gather.o                           \
+	src/autodep/ptrace.o                           \
+	$(if $(HAS_EBPF)   ,src/autodep/ebpf.o       ) \
+	$(if $(HAS_EBPF)   ,src/autodep/ebpf_client.o) \
+	$(if $(HAS_SECCOMP),src/autodep/seccomp.o    ) \
+	src/autodep/record.o                           \
 	src/cache/rpc_cache.o
 
 _bin/job_exec : $(JOB_EXEC_OBJS)          src/job_exec.o
@@ -795,7 +802,7 @@ _bin/job_exec bin/lautodep :
 	@mkdir -p $(@D)
 	@echo link to $@
 	@# forces dynamic lib resolution as chroot may be called, so lazy binding could lead to wrong lib being loaded
-	@$(LINK) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(BPF_LIB) $(LINK_LIB)
+	@$(LINK) -z now -o $@ $^ $(PY_LINK_FLAGS) $(PCRE_LIB) $(Z_LIB) $(EBPF_LIB) $(LINK_LIB)
 	@$(SPLIT_DBG_CMD)
 
 LMAKE_DBG_FILES += bin/ldecode bin/ldepend bin/lencode bin/ltarget bin/lcheck_deps

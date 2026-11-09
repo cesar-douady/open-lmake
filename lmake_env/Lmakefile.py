@@ -167,16 +167,19 @@ class SysConfig(PathRule,TraceRule) :
 		OS={os.uname().sysname} CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/mk {H} 2>&1
 		while read k e v ; do
 			case $k in
-				'#'*      ) ;;
-				*HAS_EBPF*) echo    > {MK('$k')} ;;       # XXX : handle EBPF
-				*HAS_PCRE*) echo    > {MK('$k')} ;;       # XXX : handle PCRE
-				*         ) echo $v > {MK('$k')} ;;
+				'#'*         ) ;;
+				*HAS_EBPF*   ) echo    > {MK('$k')} ;;       # XXX : handle EBPF
+				*HAS_PCRE*   ) echo    > {MK('$k')} ;;       # XXX : handle PCRE
+				*HAS_SECCOMP*) echo    > {MK('$k')} ;;       # XXX : handle SECCOMP
+				*            ) echo $v > {MK('$k')} ;;
 			esac
 		done < $TMPDIR/mk
-		echo '#undef  HAS_EBPF'   >> {H} # XXX : handle EBPF
-		echo '#define HAS_EBPF 0' >> {H} # .
-		echo '#undef  HAS_PCRE'   >> {H} # XXX : handle PCRE
-		echo '#define HAS_PCRE 0' >> {H} # .
+		echo '#undef  HAS_EBPF'      >> {H} # XXX : handle EBPF
+		echo '#define HAS_EBPF 0'    >> {H} # .
+		echo '#undef  HAS_PCRE'      >> {H} # XXX : handle PCRE
+		echo '#define HAS_PCRE 0'    >> {H} # .
+		echo '#undef  HAS_SECCOMP'   >> {H} # XXX : handle SECCOMP
+		echo '#define HAS_SECCOMP 0' >> {H} # .
 	'''
 def sys_config(key) :
 	try    : return open(f'sys_config.dir/{key}').read().strip()
@@ -381,10 +384,9 @@ class GenCacheLight(BaseRule,PyRule) :
 		''')[1:])
 
 opt_tab.update({
-	r'.*'                         : ( '-I'         , sysconfig.get_path("include")  )
-,	r'src/.*'                     : ( '-iquote'    , 'ext_lnk'                      )
-,	r'src/autodep/clmake'         : (                '-Wno-cast-function-type'     ,)
-,	r'src/autodep/ptrace_seccomp' : ( '-idirafter' , f'/usr/include/linux'          ) # On ubuntu, seccomp.h is in /usr/include. On CenOS7, it is in /usr/include/linux, ...
+	r'.*'                 : ( '-I'      , sysconfig.get_path("include")  )
+,	r'src/.*'             : ( '-iquote' , 'ext_lnk'                      )
+,	r'src/autodep/clmake' : (             '-Wno-cast-function-type'     ,)
 })
 
 class Link(BaseRule) :
@@ -435,7 +437,7 @@ class LinkAutodep(LinkPython,LinkAutodepEnv) :
 	,	'ZFD'          : 'src/zfd.o'
 	,	'BACKDOOR'     : 'src/autodep/backdoor.o'
 	,	'GATHER'       : 'src/autodep/gather.o'
-	,	'PTRACE'       : 'src/autodep/ptrace_seccomp.o'
+	,	'PTRACE'       : 'src/autodep/ptrace.o'
 	,	'RECORD'       : 'src/autodep/record.o'
 	,	'SYSCALL'      : 'src/autodep/syscall_tab.o'
 	,	'RPC_CACHE'    : 'src/cache/rpc_cache.o'

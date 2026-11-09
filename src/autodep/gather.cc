@@ -6,7 +6,15 @@
 #include "thread.hh"
 #include "trace.hh"
 
-#include "ptrace_seccomp.hh"
+#include "ptrace.hh"
+#if HAS_EBPF
+	#include "ebpf.hh"
+#endif
+#if HAS_SECCOMP
+	#include "seccomp.hh"
+#endif
+
+#include "syscall_tab.hh"
 #include "record.hh"
 
 #include "gather.hh"
@@ -15,12 +23,6 @@ using namespace Disk ;
 using namespace Hash ;
 using namespace Re   ;
 using namespace Time ;
-
-#if HAS_EBPF
-	void          (*Gather::s_ebpf_start        )(AutodepEnv const&) = nullptr ;
-	int/*rc*/     (*Gather::s_ebpf_prepare_child)(void*)             = nullptr ;
-	int/*wstatus*/(*Gather::s_ebpf_process      )(pid_t) = nullptr ;
-#endif
 
 //
 // Gather::AccessInfo
@@ -517,29 +519,30 @@ void Gather::_send_to_server( Fd fd , Jerr&& jerr , JobSlaveEntry&/*inout*/ jse=
 	_n_server_req_pending++ ; trace("wait_server",_n_server_req_pending) ;
 }
 
-void Gather::_trace_child( Fd report_fd , ::latch* ready ) {
-	t_thread_key = 'T' ;
+template<class T> static void _launch_traced_child( Child& child , ::latch* ready , bool& early_err , Atomic<int>& wstatus ) {
+	T tracer { New } ;
+	child.pre_exec = T::s_prepare_child ;
+	child.spawn() ;                                                             // launch from tracing thread /!\ although not mentioned in man ptrace(2)
+	early_err = false ;
+	ready->count_down() ;                                                       // signal main thread that _child.pid is available
+	wstatus = tracer.process(child.pid) ;
+}
+void Gather::_trace_child( Fd report_fd , ::latch* ready , bool* early_err ) {
+	t_thread_key = 'T'  ;
+	*early_err   = true ;                                                       // until proven false
 	Record::s_autodep_env(autodep_env) ;
-	switch (method) {
-		/**/            case AutodepMethod::Ptrace  : _child.pre_exec = AutodepPtrace ::prepare_child ; break ;
-		IF_HAS_SECCOMP( case AutodepMethod::Seccomp : _child.pre_exec = AutodepSeccomp::prepare_child ; break ; )
-		IF_HAS_EBPF   ( case AutodepMethod::Ebpf    : _child.pre_exec = s_ebpf_prepare_child          ; break ; )
-	DF}                                                                                                           // NO_COV
-	//vvvvvvvvvvvv
-	_child.spawn() ;      // /!\ although not mentioned in man ptrace, child must be launched by the tracing thread
-	//^^^^^^^^^^^^
-	ready->count_down() ; // signal main thread that _child.pid is available
 	try {
 		switch (method) {
-			/**/            case AutodepMethod::Ptrace  : wstatus = AutodepPtrace ::process(_child.pid) ; break ;
-			IF_HAS_SECCOMP( case AutodepMethod::Seccomp : wstatus = AutodepSeccomp::process(_child.pid) ; break ; )
-			IF_HAS_EBPF   ( case AutodepMethod::Ebpf    : wstatus = s_ebpf_process         (_child.pid) ; break ; )
-		DF}                                                                                                         // NO_COV
+			/**/            case AutodepMethod::Ptrace  : _launch_traced_child<AutodepPtrace >( _child , ready , *early_err , wstatus ) ; break ;
+			IF_HAS_EBPF   ( case AutodepMethod::Ebpf    : _launch_traced_child<AutodepEbpf   >( _child , ready , *early_err , wstatus ) ; break ; )
+			IF_HAS_SECCOMP( case AutodepMethod::Seccomp : _launch_traced_child<AutodepSeccomp>( _child , ready , *early_err , wstatus ) ; break ; )
+		DF}
 	} catch (::string const& e) {
-		wstatus = 255<<8 ;                                                                                          // exit code 255
+		if (early_err) ready->count_down() ;
+		wstatus = 255<<8 ;                                                      // exit code 255
 		msg << add_nl<<e ;
 	}
-	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ;                                     // report child end
+	ssize_t cnt = ::write(report_fd,&::ref(char()),1) ; SWEAR( cnt==1 , cnt ) ; // report child end
 	Record::s_close_reports() ;
 }
 
@@ -562,19 +565,12 @@ Fd Gather::_spawn_child() {
 	_child.stdin      = child_stdin                           ;
 	_child.stdout     = child_stdout                          ;
 	_child.stderr     = child_stderr                          ;
-	#if HAS_EBPF
-		if (method==AutodepMethod::Ebpf) {
-			throw_unless( s_ebpf_prepare_child && s_ebpf_process , "autodep method ebpf is not available (tracer not loaded)"                              ) ;
-			throw_if    ( autodep_env.auto_mkdir                 , "auto_mkdir is not supported with autodep method ebpf (accesses are observed, not intercepted)" ) ;
-			if (s_ebpf_start) s_ebpf_start(autodep_env) ;
-		}
-	#endif
 	// PER_AUTODEP_METHOD : handle case
 Retry :
 	switch (method) {
 		/**/            case AutodepMethod::Ptrace  :
-		IF_HAS_SECCOMP( case AutodepMethod::Seccomp : )
-		IF_HAS_EBPF   ( case AutodepMethod::Ebpf    : ) {
+		IF_HAS_EBPF   ( case AutodepMethod::Ebpf    : )
+		IF_HAS_SECCOMP( case AutodepMethod::Seccomp : ) {
 			// we split the responsability into 2 threads :
 			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 			// - child launches target process and watches it using direct wait then report deps using normal socket report
@@ -606,9 +602,11 @@ Retry :
 	_child.add_env  = &_add_env              ;
 	_child.cwd_s    = autodep_env.sub_repo_s ;
 	if (+res) {
-		::latch ready { 1 } ;
-		_trace_thread = ::jthread( _s_trace_child , this , report_fd , &ready ) ; // /!\ _child must be spawned from tracing thread
+		::latch ready     { 1 }   ;
+		bool    early_err = false ;
+		_trace_thread = ::jthread( _s_trace_child , this , report_fd , &ready , &early_err ) ; // /!\ _child must be spawned from tracing thread
 		ready.wait() ;                                                            // wait until _child.pid is available
+		throw_if( early_err , "toto" ) ;
 	} else {
 		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
 		//vvvvvvvvvvvv
