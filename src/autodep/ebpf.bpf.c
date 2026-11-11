@@ -50,10 +50,9 @@ typedef EbpfRootId RootId ;
 
 char LICENSE[] SEC("license") = "GPL" ; // required to use GPL-only helpers
 
-#define IO_WORKER    0x10    // task is an io_uring worker
-#define ERESTART_MIN 512     // from 512 to 516, the syscall will be restarted
+#define IO_WORKER    0x10 // task is an io_uring worker
+#define ERESTART_MIN 512  // from 512 to 516, the syscall will be restarted
 #define ERESTART_MAX 516
-#define RING_BUF_SZ  (1<<22) // must be a power of 2 at least 4096
 
 #if HAS_32
 	#define SYSCALL_32 0x0002 // 32-bit syscall
@@ -70,6 +69,12 @@ const volatile uint32_t    NJobs                            = N_JOBS  ;
 const volatile uint32_t    NRoots                           = N_ROOTS ;
 
 //
+// globals
+//
+
+JobInfo job_infos[N_JOBS] ;
+
+//
 // maps
 //
 
@@ -83,16 +88,6 @@ struct {                                                  // job_id -> that job'
 	__type ( key         , uint32_t                   ) ;
 	__array( values      , struct RingBuf             ) ;
 } ring_bufs SEC(".maps") ;
-
-typedef struct {
-	bool overflow ;                              // true if an event could not be reported
-} JobInfo ;
-struct {                                         // job_id -> that job's ring buffer, so a consumer never sees another job's (possibly another user's) accesses
-	__uint( type        , BPF_MAP_TYPE_ARRAY ) ;
-	__uint( max_entries , N_JOBS             ) ;
-	__type( key         , uint32_t           ) ;
-	__type( value       , JobInfo            ) ;
-} job_infos SEC(".maps") ;
 
 typedef enum {
 	LOC_NONE
@@ -147,6 +142,10 @@ struct {                                           // state of the traced thread
 // utils
 //
 
+static __always_inline int32_t _atomic_ld ( int32_t* p             ) { return __atomic_fetch_sub ( p , 0 , __ATOMIC_RELAXED ) ; } // XXX/ : __atomic_load_n  is broken in clang
+static __always_inline void    _atomic_st ( int32_t* p , int32_t v ) {        __atomic_exchange_n( p , v , __ATOMIC_RELAXED ) ; } // XXX/ : __atomic_store_n is broken in clang
+static __always_inline void    _atomic_sub( int32_t* p , int32_t v ) {        __atomic_fetch_sub ( p , v , __ATOMIC_RELAXED ) ; }
+
 static __always_inline bool _is_ok(long ret) {
 	return (unsigned long)ret<=(unsigned long)-4096 ; // negative values -4095 to -1 are error codes
 }
@@ -192,7 +191,7 @@ static __always_inline Task* _capturing2() {
 typedef struct {
 	const char* file       ;
 	bool        seen_plain ;
-	uint8_t     n_dots     ;                                                          // number . seen in current components (max 3)
+	uint8_t     n_dots     ;                                                          // number of . seen in current components (max 3)
 	uint16_t    n_dot_dots ;
 } NDotDotsCtx ;
 static long/*stop*/ _n_dot_dots_step( uint64_t idx , void* ctx ) {
@@ -319,25 +318,48 @@ static __always_inline void _reset_ev(Task* tv) {
 }
 
 // push tv->ev to the ring buffer of its job, if the job is gone, the event is dropped
-static __always_inline bool/*ok*/ _emit(Task* tv) { //!                                            ok
-	/**/                                                        if ( tv->is_tracer        ) return false ; // defensive
-	uint32_t   jid = tv->job_id                               ; if ( !jid || jid>=N_JOBS  ) return false ; // cast to 32-bit so we can use it in bpf_map_lookup_elem
-	JobInfo  * ji  = bpf_map_lookup_elem( &job_infos , &jid ) ; if ( !ji  || ji->overflow ) return false ;
-	void     * rb  = bpf_map_lookup_elem( &ring_bufs , &jid ) ; if ( !rb                  ) return false ;
+static __always_inline bool/*ok*/ _emit( struct task_struct* t , Task* tv ) { //!                                  ok
+	/**/                                                        if ( tv->is_tracer                        ) return false ; // defensive
+	uint32_t   jid = tv->job_id                               ; if ( !jid || jid>=N_JOBS                  ) return false ; // 32-bits to access ring_bufs
+	JobInfo*   ji  = job_infos + jid                          ;
+	/**/                                                        if ( _atomic_ld(&ji->overflow) ) return false ;
+	void     * rb  = bpf_map_lookup_elem( &ring_bufs , &jid ) ; if ( !rb                                  ) return false ;
 	EbpfEvent* ev  = &tv->ev                                  ;
 	uint32_t   sz  = sizeof(EbpfEventHdr)                     ;
+	bool       ok  = true                                     ;
 	//
-	if (ev->hdr.kind==EBPF_NONE    ) goto Done ;
+	if ( ev->hdr.kind==EBPF_NONE                                            ) goto Done ;
+	if ( ev->hdr.kind>=EBPF_HAS_DATA && ev->hdr.root_id<EBPF_ROOT_ID_REPORT ) goto Done ;
+	//
+	if (!( ev->hdr.flags & EBPF_F_STOPPED )) {                                                                             // force stop if ring buf has not enough room
+		int32_t room = _atomic_ld(&ji->room) ;
+		if (room<RING_BUF_MARGIN) {
+			int room2 = RING_BUF_SZ - (int32_t)bpf_ringbuf_query( rb , BPF_RB_AVAIL_DATA ) ;
+			_atomic_st( &ji->room , room2 ) ;
+			room = RING_BUF_SZ - (int32_t)bpf_ringbuf_query( rb , BPF_RB_AVAIL_DATA ) ;                                    // ensure we do not leave an optimistic room
+			if (room<room2) _atomic_sub( &ji->room , room2-room ) ;                                                        // cancel optimism
+		}
+		if (room<RING_BUF_MARGIN) ev->hdr.flags |= EBPF_F_STOPPED ;
+	}
+	if ( ev->hdr.flags & EBPF_F_STOPPED ) {
+		if ( BPF_CORE_READ(t,flags) & IO_WORKER ) ev->hdr.flags &= ~EBPF_F_STOPPED ;                                       // io_uring worker threads cannot be stopped
+		else                                      bpf_send_signal_thread(SIGSTOP) ;
+	}
 	if (ev->hdr.kind>=EBPF_HAS_DATA) {
-		if (ev->hdr.root_id<EBPF_ROOT_ID_REPORT) goto Done ;
 		sz += tv->file_len ;
-		if (sz>=sizeof(EbpfEvent)) sz               = sizeof(EbpfEvent)      ;                             // please verifier
+		if (sz>=sizeof(EbpfEvent)) return false ;                                                                          // please verifier
 		if (HAS_STAMPS           ) ev->hdr.stamp_ns = bpf_ktime_get_tai_ns() ;
 	}
-	if (bpf_ringbuf_output(rb,ev,sz,0/*flags*/)!=0) { ji->overflow = true ; return false/*ok*/ ; }         // dont emit any further, in particular dont emit job end
+	ok = bpf_ringbuf_output( rb , ev , sz , 0/*flags*/ )==0 ;
+	if (ok) {
+		_atomic_sub( &ji->room , (int32_t)sz ) ;
+	} else {
+		if ( ev->hdr.flags & EBPF_F_STOPPED ) bpf_send_signal_thread(SIGCONT) ;                                            // restart thread as userland has not been told to do so
+		_atomic_st( &ji->overflow , true ) ;                                                                               // dont emit any further, in particular dont emit job end
+	}
 Done :
 	_reset_ev(tv) ;
-	return true/*ok*/ ;
+	return ok ;
 }
 
 static __always_inline void _panic( Task* tv , const char* reason ) {
@@ -346,7 +368,7 @@ static __always_inline void _panic( Task* tv , const char* reason ) {
 	ev->hdr.kind = EBPF_PANIC ;
 	for( n=0 ; n<256 && reason[n] ; n++ ) ev->data[n] = reason[n] ; // 256 must be low enough for the verifier, but large enough to hold any error message
 	tv->file_len = n ;
-	_emit(tv) ;
+	_emit( bpf_get_current_task_btf() , tv ) ;
 }
 
 //
@@ -364,14 +386,15 @@ int on_sys_enter_fsetxattr(struct trace_event_raw_sys_enter* ctx) {
 	EbpfMagicReq        req   ;
 	long                rc    = bpf_probe_read_user( &req , sizeof(EbpfMagicReq) , value ) ; if (rc!=0                     ) return 0 ;
 	if (req.proc==EBPF_MAGIC_REGISTER) {
-		/**/                                                                                               if (req.mrkr!=Mrkr) return 0 ; // not the right filter
-		uint32_t jid = req.job_id                                                                        ; if (jid>=N_JOBS   ) return 0 ; // 32-bit to allow bpf_map_lookup_elem
-		Task   * tv  = bpf_task_storage_get( &tasks  , t , 0/*value*/ , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if (!tv           ) return 0 ;
-		JobInfo* ji  = bpf_map_lookup_elem( &job_infos , &jid )                                          ; if (!ji           ) return 0 ;
+		/**/                                                                                               if ( req.mrkr!=Mrkr      ) return 0 ; // not the right filter
+		uint32_t jid = req.job_id                                                                        ; if ( !jid || jid>=N_JOBS ) return 0 ; // XXX/ : clang seems to bug with 16-bits indexes
+		JobInfo* ji  = job_infos + jid                                                                   ;
+		Task   * tv  = bpf_task_storage_get( &tasks  , t , 0/*value*/ , BPF_LOCAL_STORAGE_GET_F_CREATE ) ; if ( !tv                 ) return 0 ;
 		tv->job_id     = jid                  ;
-		tv->is_tracer  = true                 ;                                                                                           // jobs are registered by tracer
-		tv->ev.hdr.tid = BPF_CORE_READ(t,pid) ;                                                                                           // pid field is actually the tid
-		ji->overflow   = false                ;
+		tv->is_tracer  = true                 ;                                                                                                  // jobs are registered by tracer
+		tv->ev.hdr.tid = BPF_CORE_READ(t,pid) ;                                                                                                  // pid field is actually the tid
+		_atomic_st( &ji->overflow , false       ) ;
+		_atomic_st( &ji->room     , RING_BUF_SZ ) ;                                                                                              // when job registers, no events have been posted yet
 		return 0 ;
 	}
 	Task* tv = bpf_task_storage_get( &tasks , t , 0/*value*/ , 0/*flags*/ ) ; if (!tv) return 0 ; // note : do not consider disable_cnt to manipulate disable_cnt
@@ -383,7 +406,7 @@ int on_sys_enter_fsetxattr(struct trace_event_raw_sys_enter* ctx) {
 			tv->is_tracer   = false          ;
 			tv->is_job      = true           ;
 			tv->ev.hdr.kind = EBPF_JOB_START ;
-			_emit(tv) ;
+			_emit( t , tv ) ;
 		break ;
 		case EBPF_MAGIC_ROOT : {
 			if (!tv->is_tracer) break ;
@@ -424,7 +447,7 @@ static __always_inline int _new_task( struct task_struct* parent , struct task_s
 		!=	BPF_CORE_READ( parent , group_leader,thread_pid )
 	) ctv->ev.hdr.kind = EBPF_PROC_START ;
 	//
-	_emit(ctv) ;
+	_emit( child , ctv ) ;
 	return 0 ;
 }
 
@@ -452,11 +475,10 @@ int BPF_PROG( on_exit , struct task_struct* t ) {
 	if      (tv->is_job                           ) ev->hdr.kind = EBPF_JOB_END    ;
 	else if (BPF_CORE_READ(t,signal,nr_threads)==1) ev->hdr.kind = EBPF_PROC_END   ;
 	else                                            ev->hdr.kind = EBPF_THREAD_END ;
-	_emit(tv) ;
+	_emit( t , tv ) ;
 	if (tv->is_job) {
-		uint32_t jid = tv->job_id                               ; if ( !jid || jid>=N_JOBS  ) return 0 ; // cast to 32-bit so we can use it in bpf_map_lookup_elem
-		JobInfo* ji  = bpf_map_lookup_elem( &job_infos , &jid ) ; if ( !ji  || ji->overflow ) return 0 ;
-		ji->overflow = true ;                                                                            // ensure no further messages
+		uint32_t jid = tv->job_id ; if ( !jid || jid>=N_JOBS ) return 0 ; // XXX/ : clang seems to bug with 16-bits indexes
+		_atomic_st( &job_infos[jid].overflow , true ) ;                   // ensure no further messages
 	}
 	return 0 ;
 }
@@ -473,34 +495,27 @@ typedef struct {
 	uint16_t   off          ;
 	bool       ok           ;
 } WalkCtx ;
-static long/*stop*/ _walk_step( uint64_t idx , void* ctx_ ) { //!     stop
-	WalkCtx      * ctx    = ctx_                 ; if (!ctx   ) return 1 ;                                                                                                 // to please verifier
-	EbpfEvent    * ev     = ctx->ev              ; if (!ev    ) return 1 ;                                                                                                 // .
-	struct dentry* dentry = ctx->root_key.dentry ; if (!dentry) return 1 ;                                                                                                 // .
-	//
-	RootId* root_id = bpf_map_lookup_elem( &roots , &ctx->root_key ) ;
-	if (root_id) { //!                                                                     stop
-		if (*root_id>=EBPF_ROOT_ID_PLAIN) { ev->hdr.root_id = *root_id             ; return 1 ; }
-		/**/                                ev->hdr.root_id = EBPF_ROOT_ID_UNKNOWN ; return 1 ;
-	}
-	//                                                                                                                                                              stop
-	struct dentry* parent = BPF_CORE_READ( dentry , d_parent )                            ; if (parent==dentry   ) { ev->hdr.root_id = EBPF_ROOT_ID_EXTERN  ; return 1 ; } // unknown mount root
-	uint32_t       off    = ctx->off                                                      ; if (off     >PATH_MAX)   off             = PATH_MAX             ;              // to please verifier
-	const char*    name   = (const char*)BPF_CORE_READ( dentry , d_name.name )            ;
-	uint32_t       len1   =              BPF_CORE_READ( dentry , d_name.len  )+1/*null*/  ; if (off+len1>PATH_MAX) { ev->hdr.root_id = EBPF_ROOT_ID_EXTERN  ; return 1 ; } // path too long
-	long           n1     = bpf_probe_read_kernel_str( ev->data+off , NAME_MAX+1 , name ) ; if (n1!=len1         ) { ev->hdr.root_id = EBPF_ROOT_ID_UNKNOWN ; return 1 ; } // defensive
+static long/*stop*/ _walk_step( uint64_t idx , void* ctx_ ) { //!                                                                                                     stop
+	WalkCtx      * ctx     = ctx_                                                          ; if (!ctx             )                                            return true ;   // to please verifier
+	EbpfEvent    * ev      = ctx->ev                                                       ; if (!ev              )                                            return true ;   // .
+	struct dentry* dentry  = ctx->root_key.dentry                                          ; if (!dentry          )                                            return true ;   // .
+	RootId*        root_id = bpf_map_lookup_elem( &roots , &ctx->root_key )                ; if (root_id          ) { ev->hdr.root_id = *root_id             ; return true ; }
+	struct dentry* parent  = BPF_CORE_READ( dentry , d_parent )                            ; if (parent==dentry   ) { ev->hdr.root_id = EBPF_ROOT_ID_EXTERN  ; return true ; } // unknown mount root
+	uint32_t       off     = ctx->off                                                      ; if (off     >PATH_MAX)                                            return true ;   // to please verifier
+	const char*    name    = (const char*)BPF_CORE_READ( dentry , d_name.name )            ;
+	uint32_t       len1    =              BPF_CORE_READ( dentry , d_name.len  )+1/*null*/  ; if (off+len1>PATH_MAX) { ev->hdr.root_id = EBPF_ROOT_ID_EXTERN  ; return true ; } // path too long
+	long           n1      = bpf_probe_read_kernel_str( ev->data+off , NAME_MAX+1 , name ) ; if (n1!=len1         ) { ev->hdr.root_id = EBPF_ROOT_ID_UNKNOWN ; return true ; } // defensive
 	//
 	ctx->n_components++ ;
 	ctx->off             = off + (uint32_t)n1 ; // terminating null acts as a component separator and will be converted into / (in reverse order) in userland
 	ctx->root_key.dentry = parent             ;
-	return 0/*stop*/ ;
+	return false/*stop*/ ;
 }
 static __always_inline int16_t/*n_components*/ _walk( Task* tv , struct dentry* dentry ) {
-	uint32_t   jid = tv->job_id ;
-	EbpfEvent* ev  = &tv->ev    ;
+	EbpfEvent* ev = &tv->ev ;
 	ev->hdr.root_id = EBPF_ROOT_ID_UNKNOWN ;
 	WalkCtx ctx = {
-		.root_key = { .dentry=dentry , .job_id=(JobId)jid , .pad={0} }
+		.root_key = { .dentry=dentry , .job_id=tv->job_id , .pad={0} }
 	,	.ev           = ev
 	,	.n_components = 0
 	,	.off          = tv->file_len            // append to whatever is already there
@@ -546,9 +561,9 @@ static __noinline bool/*ok*/ _capture_solved( Task* tv , struct dentry* dentry )
 
 // capture a path that could not be resolved : the path as provided by the user and the dir it is relative to
 static __noinline bool/*ok*/ _capture_user( struct task_struct* t , Task* tv , int dfd,const char* path , bool kernel ) {
-	EbpfEvent* ev  = &tv->ev                                  ; if (ev->hdr.file_kind) return true /*ok*/ ;               // file is already known
-	uint32_t   jid = tv->job_id                               ;                                                           // 32-bit so as to allow bpf_map_lookup_elem
-	JobInfo*   ji  = bpf_map_lookup_elem( &job_infos , &jid ) ; if (!ji              ) return false/*. */ ;
+	EbpfEvent* ev  = &tv->ev         ; if ( ev->hdr.file_kind   ) return true /*ok*/ ;                                    // file is already known
+	uint32_t   jid = tv->job_id      ; if ( !jid || jid>=N_JOBS ) return false/*. */ ;                                    // XXX/ : clang seems to bug with 16-bits indexes
+	JobInfo*   ji  = job_infos + jid ;
 	//
 	if (tv->last_lnk_loc==LOC_EXTERN) { ev->hdr.root_id = EBPF_ROOT_ID_UNKNOWN ; return true/*ok*/ ; }
 	//
@@ -578,8 +593,16 @@ static __noinline bool/*ok*/ _capture_user( struct task_struct* t , Task* tv , i
 	}
 }
 
-static __always_inline bool/*ok*/ _emit_user  ( struct task_struct* t , Task* tv , int dfd,const char* path , bool kernel ) { return _capture_user  (t,tv,dfd,path,kernel) && _emit(tv) ; }
-static __always_inline bool/*ok*/ _emit_solved(                         Task* tv , struct dentry* dentry                  ) { return _capture_solved(  tv,dentry         ) && _emit(tv) ; }
+static __always_inline bool/*ok*/ _emit_user( struct task_struct* t , Task* tv , int dfd,const char* path , bool kernel ) {
+	if (!_capture_user(t,tv,dfd,path,kernel)) return false/*ok*/ ;
+	//
+	EbpfEvent* ev = &tv->ev ;
+	if ( ev->hdr.flags & EBPF_F_SEEN_LNK ) ev->hdr.flags |= EBPF_F_STOPPED ; // real path reconstruction is not trivial
+	return _emit( t , tv ) ;
+}
+static __always_inline bool/*ok*/ _emit_solved( struct task_struct* t , Task* tv , struct dentry* dentry ) {
+	return _capture_solved(tv,dentry) && _emit( t , tv ) ;
+}
 
 // symlinks traversed during path resolution
 // this is called for each traversed symlink, whether in rcu-walk or in ref-walk mode (a resolution may be restarted, in which case links are reported twice)
@@ -587,22 +610,24 @@ static __always_inline bool/*ok*/ _emit_solved(                         Task* tv
 // note : vfs_get_link is not used by path resolution, which directly calls the file system
 SEC("fentry/security_inode_follow_link")
 int BPF_PROG( on_follow_link , struct dentry* dentry , struct inode* inode , bool rcu ) {
-	Task     * tv           = _capturing2()        ; if (!tv           ) return 0 ;
-	int16_t    n_components = _walk( tv , dentry ) ; if (n_components<0) return 0 ;
-	EbpfEvent* ev           = &tv->ev              ;
-	RootId     root_id      = ev->hdr.root_id      ;
+	struct task_struct* t            = bpf_get_current_task_btf() ;
+	Task              * tv           = _capturing1(t)             ; if (!tv           ) return 0 ;
+	int16_t             n_components = _walk( tv , dentry )       ; if (n_components<0) return 0 ;
+	EbpfEvent         * ev           = &tv->ev                    ;
+	RootId              root_id      = ev->hdr.root_id            ;
 	//
-	bool seen_proc = ev->hdr.flags&EBPF_F_SEEN_PROC ;  // keep seen_proc flag until end of syscall
+	EbpfFlags flags = ev->hdr.flags & EBPF_F_SEEN_PROC ; // keep some flags until end of syscall
 	if (root_id>=EBPF_ROOT_ID_PLAIN) {
 		ev->hdr.kind  = EBPF_PATH_RES            ;
 		ev->hdr.flags = EBPF_F_DEP_LNK|EBPF_F_OK ;
 		_fill_ev_inode( ev , dentry ) ;
-		if (!_emit(tv)) return 0 ;
+		if (!_emit( t , tv )) return 0 ;
 	} else {
-		if (root_id==EBPF_ROOT_ID_PROC) seen_proc = true ;
+		if (root_id==EBPF_ROOT_ID_PROC) flags |= EBPF_F_SEEN_PROC ;
 		_reset_ev(tv) ;
 	}
-	if (seen_proc) ev->hdr.flags |= EBPF_F_SEEN_PROC ; // .
+	flags         |= EBPF_F_SEEN_LNK ;
+	ev->hdr.flags |= flags           ;
 	//
 	const char* target     = BPF_CORE_READ( inode , i_link )                       ; if (!target                          ) { tv->last_lnk_loc = LOC_UNKNOWN                  ; return 0 ; }
 	char*       data       = ev->data                                              ;
@@ -646,25 +671,26 @@ int BPF_PROG( on_filp_open , int dfd , struct filename* pathname , const struct 
 			ev->hdr.flags |= EBPF_F_DEP_ALL ; // a fstat can be performed on returned fd
 		}
 	}
-	if (ok) { ev->hdr.flags |= EBPF_F_OK ; _emit_solved(     tv , BPF_CORE_READ(ret,f_path.dentry)                  ) ; }
+	if (ok) { ev->hdr.flags |= EBPF_F_OK ; _emit_solved( t , tv , BPF_CORE_READ(ret,f_path.dentry)                  ) ; }
 	else                                   _emit_user  ( t , tv , dfd,BPF_CORE_READ(pathname,name) , true/*kernel*/ ) ;
 	return 0 ;
 }
 
 static __always_inline int _do_nod1(struct dentry* dentry) {
-	Task* tv = _capturing2() ; if (!tv) return 0 ;
+	Task * tv = _capturing2() ; if (!tv) return 0 ;
 	_capture_solved( tv , dentry ) ;
 	return 0 ;
 }
 static __always_inline int _do_nod2( struct dentry* old_dentry , struct dentry* new_dentry , bool exchange ) {
-	Task     * tv = _capturing2() ; if (!tv) return 0 ;
-	EbpfEvent* ev = &tv->ev       ;
-	_reset_ev(tv) ;                  // XXX : improve by using source resolution rather than redoing it
+	struct task_struct* t  = bpf_get_current_task_btf() ;
+	Task              * tv = _capturing1(t)             ; if (!tv) return 0 ;
+	EbpfEvent         * ev = &tv->ev                    ;
+	_reset_ev(tv) ;                                       // XXX : improve by using source resolution rather than redoing it
 	ev->hdr.kind  = EBPF_DST       ;
 	ev->hdr.flags = EBPF_F_DEP_ALL ;
 	//
-		_emit_solved   ( tv , new_dentry )
-	&&	_capture_solved( tv , old_dentry )
+		_emit_solved   ( t , tv , new_dentry )
+	&&	_capture_solved(     tv , old_dentry )
 	;
 	return 0 ;
 }

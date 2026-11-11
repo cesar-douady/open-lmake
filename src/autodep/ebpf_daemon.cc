@@ -36,6 +36,7 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #include <cerrno>
 #include <cstdarg>
@@ -394,7 +395,11 @@ struct IoUring {
 		return static_cast<T*>(::mmap( nullptr , sz , PROT_READ|PROT_WRITE , MAP_SHARED|MAP_POPULATE , fd , off )) ;
 	}
 	// cxtors & co
-	IoUring() {
+	IoUring(bool activate) {
+		if (!activate) return ;
+		//
+		::io_uring_params params = {} ;
+		//
 		params.flags          |= IORING_SETUP_SQPOLL                                                ;
 		params.sq_thread_idle  = 0                                                                  ;
 		ring_fd                = ::syscall( SYS_io_uring_setup , QueueSz , &params )                ; if (ring_fd<0         ) throw "cannot setup io_uring"s       ;
@@ -408,9 +413,11 @@ struct IoUring {
 		ring_mask              = *reinterpret_cast<uint    *>( sq_ptr + params.sq_off.ring_mask )   ;
 	}
 	~IoUring() {
-		::munmap( sqes   , sqe_sz     ) ;
-		::munmap( sq_ptr , sq_ring_sz ) ;
-		::close ( ring_fd             ) ;
+		if (ring_fd>=0) {
+			::munmap( sqes   , sqe_sz     ) ;
+			::munmap( sq_ptr , sq_ring_sz ) ;
+			::close ( ring_fd             ) ;
+		}
 	}
 	// services
 	void submit( uint8_t op , int fd1 , char const* addr1 , int fd2=-1 , char const* addr2=nullptr , uint32_t flags=0 ) {
@@ -434,17 +441,16 @@ struct IoUring {
 		int rc = ::syscall( SYS_io_uring_enter, ring_fd , 0 , n_reqs , IORING_ENTER_GETEVENTS , nullptr , 0 ) ; if (rc!=0) throw "cannot wait fo io_uring to complete"s ;
 	}
 	// data
-	::io_uring_params params     = {}      ;
-	int               ring_fd    = -1      ;
-	size_t            sq_ring_sz = 0       ;
-	size_t            sqe_sz     = 0       ;
-	char          *   sq_ptr     = nullptr ;
-	::io_uring_sqe*   sqes       = nullptr ;
-	uint          *   sq_tail    = nullptr ;
-	uint          *   sq_array   = nullptr ;
-	uint32_t      *   sq_flags   = nullptr ;
-	uint              ring_mask  = 0       ;
-	uint              n_reqs     = 0       ;
+	int             ring_fd    = -1      ;
+	size_t          sq_ring_sz = 0       ;
+	size_t          sqe_sz     = 0       ;
+	char          * sq_ptr     = nullptr ;
+	::io_uring_sqe* sqes       = nullptr ;
+	uint          * sq_tail    = nullptr ;
+	uint          * sq_array   = nullptr ;
+	uint32_t      * sq_flags   = nullptr ;
+	uint            ring_mask  = 0       ;
+	uint            n_reqs     = 0       ;
 } ;
 
 // goal of self test is to ensure all ebpf hooks are actually attached
@@ -452,37 +458,41 @@ struct IoUring {
 //	tp/syscalls/sys_enter_fsetxattr
 //	tp_btf/sched_process_fork
 //	tp_btf/sched_process_exit
-::pair<int/*n_solved*/,int/*n_unsolved*/> tracee(::string dir_name) {
+::pair<int/*n_solved*/,int/*n_unsolved*/> tracee(::string dir_name={}) {
+	bool work = !dir_name.empty() ;
+	//
 	int n_unsolved = 0 ;
 	int n_solved   = 0 ;
-	RingBufBase::s_start_job() ;
+	//
+	if (work) RingBufBase::s_start_job() ;
 	//
 	int          dir_fd ;
 	int          fd     ;
 	struct stat  st     ;
 	struct statx stx    ;
 	//
-	dir_fd = ::open( dir_name.c_str() , O_DIRECTORY ) ;                                       n_solved += 1 ;                      //                                   fexit/do_filp_open
-	fd     = ::openat   (       dir_fd,"f"  , O_CREAT|O_WRONLY|O_TRUNC,0644 ) ; ::close(fd) ; n_solved += 1 ;                      // fentry/security_path_mknod        fexit/do_filp_open
-	/**/     ::symlinkat( "f" , dir_fd,"l"                                  ) ;               n_solved += 1 ;                      // fentry/security_path_symlink      tp_btp/sys_exit
-	/**/     ::mkdirat  (       dir_fd,"d"  , 0755                          ) ;               n_solved += 1 ;                      // fentry/security_path_mkdir        tp_btp/sys_exit
-	/**/     ::linkat   (       dir_fd,"f"  , dir_fd,"f2",0                 ) ;               n_solved += 1 ;                      // fentry/security_path_link         tp_btp/sys_exit
-	/**/     ::renameat (       dir_fd,"f2" , dir_fd,"f3"                   ) ;               n_solved += 1 ;                      // fentry/security_path_rename       tp_btp/sys_exit
-	/**/     ::unlinkat (       dir_fd,"d"  , AT_REMOVEDIR                  ) ;               n_solved += 1 ;                      // fentry/security_path_rmdir        tp_btp/sys_exit
-	fd     = ::openat   (       dir_fd,"l"  , O_RDONLY                      ) ; ::close(fd) ; n_solved += 2 ;                      // fentry/security_inode_follow_link fexit/do_filp_open
-	/**/     ::fstatat  (       dir_fd,"l"  , &st,0                         ) ;               n_solved += 2 ;                      // fexit/filename_lookup             tp_btp/sys_exit
-	/**/     ::unlinkat (       dir_fd,"l"  , 0                             ) ;               n_solved += 1 ;                      // fentry/security_path_unlink       tp_btp/sys_exit
+	if (work)   dir_fd = ::open( dir_name.c_str() , O_DIRECTORY ) ;                                         else n_solved += 1 ; //                                   fexit/do_filp_open
+	if (work) { fd     = ::openat   (       dir_fd,"f"  , O_CREAT|O_WRONLY|O_TRUNC,0644 ) ; ::close(fd) ; } else n_solved += 1 ; // fentry/security_path_mknod        fexit/do_filp_open
+	if (work)            ::symlinkat( "f" , dir_fd,"l"                                  ) ;                 else n_solved += 1 ; // fentry/security_path_symlink      tp_btp/sys_exit
+	if (work)            ::mkdirat  (       dir_fd,"d"  , 0755                          ) ;                 else n_solved += 1 ; // fentry/security_path_mkdir        tp_btp/sys_exit
+	if (work)            ::linkat   (       dir_fd,"f"  , dir_fd,"f2",0                 ) ;                 else n_solved += 1 ; // fentry/security_path_link         tp_btp/sys_exit
+	if (work)            ::renameat (       dir_fd,"f2" , dir_fd,"f3"                   ) ;                 else n_solved += 1 ; // fentry/security_path_rename       tp_btp/sys_exit
+	if (work)            ::unlinkat (       dir_fd,"d"  , AT_REMOVEDIR                  ) ;                 else n_solved += 1 ; // fentry/security_path_rmdir        tp_btp/sys_exit
+	if (work) { fd     = ::openat   (       dir_fd,"l"  , O_RDONLY                      ) ; ::close(fd) ; } else n_solved += 2 ; // fentry/security_inode_follow_link fexit/do_filp_open
+	if (work)            ::fstatat  (       dir_fd,"l"  , &st,0                         ) ;                 else n_solved += 2 ; // fexit/filename_lookup             tp_btp/sys_exit
+	if (work)            ::unlinkat (       dir_fd,"l"  , 0                             ) ;                 else n_solved += 1 ; // fentry/security_path_unlink       tp_btp/sys_exit
 	//
-	IoUring uring ;                                                                                                                // tp_btf/task_newtask
-	uring.submit( IORING_OP_STATX     , dir_fd , "f"   , -1     , reinterpret_cast<char*>(&stx) , STATX_SIZE ) ; n_unsolved += 1 ; // fexit/io_statx
-	uring.submit( IORING_OP_MKDIRAT   , dir_fd , "d"   , 0755                                                ) ; n_solved   += 1 ; // fexit/io_mkdirat
-	uring.submit( IORING_OP_SYMLINKAT , dir_fd , "f"   , -1     , "l"                                        ) ; n_solved   += 1 ; // fexit/io_symlinkat,
-	uring.submit( IORING_OP_LINKAT    , dir_fd , "f"   , dir_fd , "f4"                                       ) ; n_solved   += 1 ; // fexit/io_linkat
-	uring.submit( IORING_OP_RENAMEAT  , dir_fd , "f4"  , dir_fd , "f5"                                       ) ; n_solved   += 1 ; // fexit/io_renameat
-	uring.submit( IORING_OP_UNLINKAT  , dir_fd , "f5"                                                        ) ; n_solved   += 1 ; // fexit/io_unlinkat
-	uring.flush() ;
+	IoUring uring { work } ;                                                                                                                       // tp_btf/task_newtask
+	if (work) uring.submit( IORING_OP_STATX     , dir_fd , "f"   , -1     , reinterpret_cast<char*>(&stx) , STATX_SIZE ) ; else n_unsolved += 1 ; // fexit/io_statx
+	if (work) uring.submit( IORING_OP_MKDIRAT   , dir_fd , "d"   , 0755                                                ) ; else n_solved   += 1 ; // fexit/io_mkdirat
+	if (work) uring.submit( IORING_OP_SYMLINKAT , dir_fd , "f"   , -1     , "l"                                        ) ; else n_solved   += 1 ; // fexit/io_symlinkat,
+	if (work) uring.submit( IORING_OP_LINKAT    , dir_fd , "f"   , dir_fd , "f4"                                       ) ; else n_solved   += 1 ; // fexit/io_linkat
+	if (work) uring.submit( IORING_OP_RENAMEAT  , dir_fd , "f4"  , dir_fd , "f5"                                       ) ; else n_solved   += 1 ; // fexit/io_renameat
+	if (work) uring.submit( IORING_OP_UNLINKAT  , dir_fd , "f5"                                                        ) ; else n_solved   += 1 ; // fexit/io_unlinkat
 	//
-	::close(dir_fd) ;
+	if (work) uring.flush()   ;
+	if (work) ::close(dir_fd) ;
+	//
 	return { n_solved , n_unsolved } ;
 }
 
@@ -497,18 +507,26 @@ void self_test() {
 		::mkdir                 ( dir_name.c_str() , 0777 ) ;
 		RingBufBase::s_add_root( EBPF_ROOT_ID_PLAIN , dir_name ) ;
 		//
-		::future<::pair<int/*solved*/,int/*unsolved*/>> n_events = ::async( ::launch::async , tracee , dir_name ) ; // launch tracee
-		//
-		int           fd    = ::epoll_create1(EPOLL_CLOEXEC)                                 ;
-		::epoll_event event { .events=EPOLLIN , .data={} }                                   ;
-		int           rc    = ::epoll_ctl( fd , EPOLL_CTL_ADD , ring_buf.epoll_fd , &event ) ; if (rc!=0) throw "cannot epoll"s ;
-		for (;;) {
-			::epoll_wait( fd , &event , 1/*maxevents*/ , -1/*timeout*/ ) ;
-			if (ring_buf.consume()) break ;
+		if ( pid_t child=fork() ; !child ) {            // in child
+			tracee(dir_name) ;
+			exit(0) ;
+		} else {                                        // in parent
+			if (child<0) throw "cannot spawn tracee"s ;
+			//
+			int           fd    = ::epoll_create1(EPOLL_CLOEXEC)                                 ;
+			::epoll_event event { .events=EPOLLIN , .data={} }                                   ;
+			int           rc    = ::epoll_ctl( fd , EPOLL_CTL_ADD , ring_buf.epoll_fd , &event ) ; if (rc!=0) throw "cannot epoll"s ;
+			//
+			for (;;) {
+				::epoll_wait( fd , &event , 1/*maxevents*/ , -1/*timeout*/ ) ;
+				if (ring_buf.consume()) break ;
+			}
+			::waitpid( child , nullptr/*wstatus*/ , 0/*options*/ ) ;
 		}
-		::pair<int/*solved*/,int/*unsolved*/> n_expected = n_events.get() ;
+		::pair<int/*solved*/,int/*unsolved*/> n_expected = tracee() ;
 		if (ring_buf.consumer.n_solved  !=n_expected.first ) throw ::format( "bad solved event count : expected {}, received {}"   , n_expected.first ,ring_buf.consumer.n_solved  ) ;
 		if (ring_buf.consumer.n_unsolved!=n_expected.second) throw ::format( "bad unsolved event count : expected {}, received {}" , n_expected.second,ring_buf.consumer.n_unsolved) ;
+		//
 	}
 	catch (::string    const& e) { msg = e        ; }
 	catch (::exception const& e) { msg = e.what() ; }

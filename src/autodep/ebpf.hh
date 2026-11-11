@@ -11,8 +11,8 @@
 
 struct AutodepEbpf {
 	struct Consumer {
-		void handle_path_res(                       EbpfDaemon::Path const& path                               ) ;
-		void handle_event   ( EbpfEventHdr const& , EbpfDaemon::Path const& file , EbpfDaemon::Path const& dst ) ;
+		void handle_path_res(                       EbpfDaemon::Path const& path                                  ) ;
+		void handle_event   ( EbpfEventHdr const& , EbpfDaemon::Path const& file , EbpfDaemon::Path const& dst={} ) ;
 	} ;
 	static int/*rc*/  s_prepare_child    (void*                      ) ; // must be called from child
 	static bool/*ok*/ s_register_mount_ok(::string const& mount_point) ;

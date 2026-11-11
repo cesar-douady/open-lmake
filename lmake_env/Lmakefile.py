@@ -164,7 +164,7 @@ class SysConfig(PathRule,TraceRule) :
 	deps    = { 'EXE' : '_bin/sys_config' }
 	autodep = 'ld_preload'                  # ptrace is not supported as _bin/sys_config calls ptrace and ptrace under ptrace is forbidden
 	cmd  = '''
-		OS={os.uname().sysname} CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/mk {H} 2>&1
+		OS={os.uname().sysname} CXX={gxx} PYTHON={sys.executable} ./{EXE} $TMPDIR/trial $TMPDIR/mk {H} 2>&1
 		while read k e v ; do
 			case $k in
 				'#'*         ) ;;

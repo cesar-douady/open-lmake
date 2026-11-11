@@ -49,13 +49,13 @@ void AutodepEbpf::Consumer::handle_event( EbpfEventHdr const& hdr , Path const& 
 	(void)dst  ;
 }
 
-//	static FileInfo _mk_info(EbpfEvent const& ev) {
-//		if (!(ev.flags&EBPF_F_EXISTS)) return {} ;
+//	static FileInfo _mk_info(EbpfEventHdr const& hdr) {
+//		if (!(hdr.flags&EBPF_F_EXISTS)) return {} ;
 //		FileStat st = {} ;
-//		st.st_mode         = ev.mode                   ;
-//		st.st_size         = ev.size                   ;
-//		st.st_mtim.tv_sec  = ev.mtime_ns/1'000'000'000 ;
-//		st.st_mtim.tv_nsec = ev.mtime_ns%1'000'000'000 ;
+//		st.st_mode         = hdr.mode                   ;
+//		st.st_size         = hdr.size                   ;
+//		st.st_mtim.tv_sec  = hdr.mtime_ns/1'000'000'000 ;
+//		st.st_mtim.tv_nsec = hdr.mtime_ns%1'000'000'000 ;
 //		return FileInfo(st) ;
 //	}
 

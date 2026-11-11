@@ -23,12 +23,17 @@
 	#include <limits.h>
 	#include <linux/stat.h>
 	#include <linux/unistd.h>
+	#include <signal.h>
 	#include <stdint.h>
 	#include <stdio.h>
 #endif
 
 typedef uint16_t EbpfJobId  ;
 typedef uint16_t EbpfRootId ;
+typedef uint8_t  EbpfFlags  ;
+
+#define EBPF_RING_BUF_SZ     (1<<22)               // must be a power of 2 at least 4096
+#define EBPF_RING_BUF_MARGIN (EBPF_RING_BUF_SZ>>2) // stop jobs when available room is below margin, restart them available data is below margin
 
 #define EBPF_AT_FDCWD            -100
 #define EBPF_AT_REMOVEDIR        0x200
@@ -48,6 +53,8 @@ typedef uint16_t EbpfRootId ;
 #define EBPF_O_TRUNC             000001000
 #define EBPF_PATH_MAX            4096
 #define EBPF_RENAME_EXCHANGE       0x2
+#define EBPF_SIGCONT               18
+#define EBPF_SIGSTOP               19
 #define EBPF_STATX_MODE            0x2u
 #define EBPF_STATX_SIZE          0x200u
 #define EBPF_STATX_TYPE            0x1u
@@ -81,6 +88,8 @@ typedef uint16_t EbpfRootId ;
 	#ifdef RENAME_EXCHANGE
 		static_assert( EBPF_RENAME_EXCHANGE == RENAME_EXCHANGE ) ;
 	#endif
+	static_assert( EBPF_SIGCONT == SIGCONT ) ;
+	static_assert( EBPF_SIGSTOP == SIGSTOP ) ;
 	#if defined(STATX_MODE) && defined(STATX_SIZ) && defined(STAX_TYPE)
 		static_assert( EBPF_STATX_MODE == STATX_MODE ) ;
 		static_assert( EBPF_STATX_SIZE == STATX_SIZE ) ;
@@ -93,6 +102,9 @@ typedef uint16_t EbpfRootId ;
 	static_assert( EBPF_S_IXALL         == (S_IXUSR|S_IXGRP|S_IXOTH) ) ;
 	static_assert( EBPF_X32_SYSCALL_BIT == __X32_SYSCALL_BIT         ) ;
 #else
+	#define RING_BUF_SZ     EBPF_RING_BUF_SZ
+	#define RING_BUF_MARGIN EBPF_RING_BUF_MARGIN
+	//
 	#define AT_FDCWD            EBPF_AT_FDCWD
 	#define AT_REMOVEDIR        EBPF_AT_REMOVEDIR
 	#define AT_SYMLINK_FOLLOW   EBPF_AT_SYMLINK_FOLLOW
@@ -111,6 +123,8 @@ typedef uint16_t EbpfRootId ;
 	#define O_TRUNC             EBPF_O_TRUNC
 	#define PATH_MAX            EBPF_PATH_MAX
 	#define RENAME_EXCHANGE     EBPF_RENAME_EXCHANGE
+	#define SIGCONT             EBPF_SIGCONT
+	#define SIGSTOP             EBPF_SIGSTOP
 	#define STATX_MODE          EBPF_STATX_MODE
 	#define STATX_SIZE          EBPF_STATX_SIZE
 	#define STATX_TYPE          EBPF_STATX_TYPE
@@ -186,7 +200,7 @@ typedef enum {
 ,	EBPF_ROOT_ID_ABS
 ,	EBPF_ROOT_ID_PLAIN                     // >=EBPF_ROOT_ID_PLAIN means repo root or a src dir
 	// aliases
-,	EBPF_ROOT_ID_REPORT = EBPF_ROOT_ID_ABS // >=EBPF_ROOT_ID_ABS means file must be reported
+,	EBPF_ROOT_ID_REPORT = EBPF_ROOT_ID_ABS // >=EBPF_ROOT_ID_REPORT means file must be reported
 } EbpfRootIdSpecial ;
 
 typedef struct {
@@ -210,7 +224,6 @@ typedef enum {
 	// path resolution
 ,	EBPF_PATH_RES              // a symlink has been traversed during path resolution
 ,	EBPF_PATH_RES2             // a symlink has been traversed during path resolution, link target is appended to path after a null separator
-,	EBPF_PID_TID               // provide pid/tid as seen in task namespace to interpret /proc/self and /proc/thread-self
 	// 1-file accesses
 ,	EBPF_READ
 ,	EBPF_READDIR
@@ -221,7 +234,6 @@ typedef enum {
 ,	EBPF_LINK                  // hard link
 ,	EBPF_RENAME
 ,	EBPF_EXCHANGE
-// only in syscall table
 	// aliases
 ,	EBPF_HAS_DATA = EBPF_PANIC // <EBPF_HAS_DATA means event has only hdr
 } EbpfEventKind ;
@@ -238,7 +250,7 @@ typedef enum {
 } EbpfFileKind ;
 
 typedef enum {
-	EBPF_F_STOPPED   = 1<<0                                        // thread was stopped and must be continued by userland after analysis
+	EBPF_F_STOPPED = 1<<0                                          // thread was stopped and must be continued by userland after analysis
 	// only for accesses
 ,	EBPF_F_NO_FOLLOW = 1<<1                                        // only for EBPF_FILE_USER, trailing symlink is not followed
 ,	EBPF_F_DEP_LNK   = 1<<2                                        // access dep as readlink
@@ -246,25 +258,26 @@ typedef enum {
 ,	EBPF_F_DEP_STAT  = 1<<4                                        // sense dep existence
 ,	EBPF_F_OK        = 1<<5
 ,	EBPF_F_SEEN_PROC = 1<<6                                        // a symlink has been followed in /proc, care must be taken in case it is /proc/self or /proc/thread-self
+,	EBPF_F_SEEN_LNK  = 1<<7                                        // a symlink has been followed during path resolution
 	// aliases
 ,	EBPF_F_DEP_ALL = EBPF_F_DEP_LNK|EBPF_F_DEP_REG|EBPF_F_DEP_STAT // access all aspects of dep, such as with stat
 } EbpfFlag ;
 
 typedef struct {
-	uint32_t     tid       ;                 // thread id in the top-level namespace, only used as a key to identify all the streams
-	uint8_t      kind      ;                 // enum : EbpfKind
-	EbpfRootId   root_id   ;
-	uint8_t      file_kind ;                 // enum : EbpfFileKind
-	uint8_t      flags     ;
+	uint32_t   tid       ;                   // thread id in the top-level namespace, only used as a key to identify all the streams
+	EbpfRootId root_id   ;
+	EbpfFlags  flags     ;
+	uint8_t    kind      ;                   // enum : EbpfKind
+	uint8_t    file_kind ;                   // enum : EbpfFileKind
 	union {
 		uint64_t stamp_ns  ;
-		uint32_t pid_in_ns ;                 // if kind=EBPF_START*
+		pid_t    pid_in_ns ;                 // if kind=EBPF_START*
 	} ;
 	union {
 		uint64_t size      ;                 // file size
-		uint32_t tid_in_ns ;                 // if kind=EBPF_START*
+		pid_t    tid_in_ns ;                 // if kind=EBPF_START*
 	} ;
-	uint64_t     mtime_ns  ;                 // st_mtime*10^9+st_mtime_ns before access
+	uint64_t mtime_ns ;                      // st_mtime*10^9+st_mtime_ns before access
 } EbpfEventHdr ;
 typedef struct {
 	EbpfEventHdr hdr                       ;
@@ -276,5 +289,11 @@ static inline bool _open_no_follow(int flags) { return  (flags&O_NOFOLLOW ) || (
 static inline bool _open_do_stat  (int flags) { return  (flags&O_PATH     ) || ( !(flags&O_CREAT  ) || (flags&O_EXCL)              ) ; } // sensitive to existence
 static inline bool _open_do_read  (int flags) { return !(flags&O_PATH     ) && ( !(flags&O_TRUNC  )                                ) ; } // even if we cant read, file may depend on previous content
 static inline bool _open_do_write (int flags) { return !(flags&O_PATH     ) && (  (flags&O_TRUNC  ) || (flags&O_ACCMODE)!=O_RDONLY ) ; }
+
+// only necessary on ebpf side, but must be published as skeleton will refer it
+typedef struct {
+	int32_t room     ; // a pessimistic version of the available room in the ring buffer, signed so that fugitive neg values have no impact
+	int32_t overflow ; // true if an event could not be reported, XXX/ : clang does not support other sizes for atomic operations
+} JobInfo ;
 
 #endif

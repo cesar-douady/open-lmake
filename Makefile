@@ -3,9 +3,7 @@
 # This program is free software: you can redistribute/modify under the terms of the GPL-v3 (https://www.gnu.org/licenses/gpl-3.0.html).
 # This program is distributed WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
-include sys_config.mk
-
-VERSION        := 26.10
+VERSION        := 26.11
 TAG            := 0
 # ubuntu20.04 (focal) is supported through the use of a g++-11 installation, but packages are not available on launchpad.net (because of debian packaging is not recent enough)
 DEBIAN_RELEASE := 1
@@ -50,12 +48,14 @@ sys_config.log : _bin/sys_config sys_config.env
 	PATH=$$(env -i bash -c 'echo $$PATH')     ; \
 	unset CXX GCOV PYTHON2 PYTHON LMAKE_FLAGS ; \
 	. ./sys_config.env                        ; \
-	./$< $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.py) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
+	./$< $(@:%.log=%.trial) $(@:%.log=%.mk) $(@:%.log=%.h) $(@:%.log=%.py) $(@:%.log=%.sum) $(@:%.log=%.err) 2>$@ ||:
 sys_config.mk  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.h   : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.py  : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.sum : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
 sys_config.err : sys_config.log ;+@[ -f $@ ] || { echo "cannot find $@" ; exit 1 ; }
+
+include sys_config.mk
 
 %.SUMMARY : %
 	@echo '***********'
@@ -512,6 +512,9 @@ src/autodep/vmlinux.h :
 src/autodep/ebpf.bpf.o : src/autodep/ebpf.bpf.c src/autodep/ebpf_event.h src/autodep/vmlinux.h
 	@echo $(BPF_CLANG) -target bpf to $@
 	@$(BPF_CLANG) -g -O3 -target bpf -D__TARGET_ARCH_$(BPF_ARCH) -iquote . -iquote src/autodep -I $(BPF_INC_DIR) -c -o $@ $<
+src/autodep/ebpf.bpf.i : src/autodep/ebpf.bpf.c src/autodep/ebpf_event.h src/autodep/vmlinux.h
+	@echo $(BPF_CLANG) -target bpf to $@
+	@$(BPF_CLANG) -D__TARGET_ARCH_$(BPF_ARCH) -iquote . -iquote src/autodep -I $(BPF_INC_DIR) -E -o $@ $<
 src/autodep/ebpf.skel.h : src/autodep/ebpf.bpf.o
 	@echo generate skeleton to $@
 	@$(BPFTOOL) gen skeleton $< name ebpf >$@
