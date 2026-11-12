@@ -11,18 +11,6 @@
 
 #include "record.hh"
 
-#if HAS_SECCOMP
-	#define IF_HAS_SECCOMP(...) __VA_ARGS__
-#else
-	#define IF_HAS_SECCOMP(...)
-#endif
-
-#if HAS_EBPF
-	#define IF_HAS_EBPF(...) __VA_ARGS__
-#else
-	#define IF_HAS_EBPF(...)
-#endif
-
 #define HAS_32_IN_64 ( HAS_32 && __SIZEOF_POINTER__==8 )
 #if HAS_32_IN_64
 	#define IF_HAS_32_IN_64(...) __VA_ARGS__

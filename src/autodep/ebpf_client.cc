@@ -101,21 +101,20 @@ namespace EbpfDaemon {
 		if (_daemon_fd>=0) ::close(_daemon_fd  ) ;
 	}
 
+	// /!\ this function must be malloc free as it may be called in preexec_func during a fork
 	void RingBufBase::s_start_job() {
 		EbpfMagicReq req {} ; req.proc = EBPF_MAGIC_JOB ;
 		::fsetxattr( EBPF_MAGIC_FD , nullptr/*name*/ , &req , sizeof(req) , 0/*flags*/ ) ;
 	}
 
-	Path RingBufBase::_s_mk_path( EbpfRootId root_id , ::string_view data ) {
-		Path res { .root_id=root_id } ;
+	Path::Path( EbpfRootId ri , ::string_view data ) : root_id{ri} {
 		for (;;) {
 			size_t pos = data.rfind('\0') ;
-			res.path.append(data.substr(pos+1)) ;
+			path.append(data.substr(pos+1)) ;
 			if (pos==::string::npos) break ;
-			res.path.push_back('/') ;
+			path.push_back('/') ;
 			data = data.substr(0,pos) ;
 		}
-		return res ;
 	}
 
 	void RingBufBase::s_add_root( EbpfRootId root_id , ::string const& root ) {                                                        // empty means /

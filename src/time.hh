@@ -53,15 +53,15 @@ namespace Time {
 		using Tick32   = ::conditional_t<IsUnsigned,uint32_t,int32_t> ;
 		// cxtors & co
 		constexpr          TimeBase() = default ;
-		constexpr explicit TimeBase(int             v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(long            v )                      : _val{   v*TicksPerSecond                           } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(uint            v ) requires(IsUnsigned) : _val{   v*TicksPerSecond                           } {                                     }
-		constexpr explicit TimeBase(ulong           v ) requires(IsUnsigned) : _val{   v*TicksPerSecond                           } {                                     }
-		constexpr explicit TimeBase(double          v )                      : _val{ T(v*TicksPerSecond)                          } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(float           v )                      : _val{ T(v*TicksPerSecond)                          } { if (IsUnsigned) SWEAR( v>=0 , v ) ; }
-		constexpr explicit TimeBase(TimeSpec const& ts)                      : _val{   ts.tv_sec*TicksPerSecond + ts.tv_nsec      } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(ts.tv_sec>=0) ; }
-		constexpr explicit TimeBase(TimeVal  const& tv)                      : _val{   tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 } { static_assert(IsNs) ; if (IsUnsigned) SWEAR(tv.tv_sec>=0) ; }
-		constexpr explicit TimeBase(NewType,Tick    v )                      : _val{   v                                          } {}
+		constexpr explicit TimeBase(int             v )                      : _val{   v*TicksPerSecond                           } {                       if (IsUnsigned) SWEAR( v>=0 , v     ) ; }
+		constexpr explicit TimeBase(long            v )                      : _val{   v*TicksPerSecond                           } {                       if (IsUnsigned) SWEAR( v>=0 , v     ) ; }
+		constexpr explicit TimeBase(uint            v ) requires(IsUnsigned) : _val{   v*TicksPerSecond                           } {                                                               }
+		constexpr explicit TimeBase(ulong           v ) requires(IsUnsigned) : _val{   v*TicksPerSecond                           } {                                                               }
+		constexpr explicit TimeBase(double          v )                      : _val{ T(v*TicksPerSecond)                          } {                       if (IsUnsigned) SWEAR( v>=0 , v     ) ; }
+		constexpr explicit TimeBase(float           v )                      : _val{ T(v*TicksPerSecond)                          } {                       if (IsUnsigned) SWEAR( v>=0 , v     ) ; }
+		constexpr explicit TimeBase(TimeSpec const& ts)                      : _val{   ts.tv_sec*TicksPerSecond + ts.tv_nsec      } { static_assert(IsNs) ; if (IsUnsigned) SWEAR( ts.tv_sec>=0 ) ; }
+		constexpr explicit TimeBase(TimeVal  const& tv)                      : _val{   tv.tv_sec*TicksPerSecond + tv.tv_usec*1000 } { static_assert(IsNs) ; if (IsUnsigned) SWEAR( tv.tv_sec>=0 ) ; }
+		constexpr explicit TimeBase(NewType,Tick    v ) requires(IsNs      ) : _val{   v                                          } {}
 		//
 		constexpr explicit operator TimeSpec() const { TimeSpec ts{ .tv_sec=time_t(sec()) , .tv_nsec=int32_t    (nsec_in_s()) } ; return ts                          ; }
 		constexpr explicit operator TimeVal () const { TimeVal  tv{ .tv_sec=time_t(sec()) , .tv_usec=suseconds_t(usec_in_s()) } ; return tv                          ; }
@@ -71,11 +71,11 @@ namespace Time {
 		constexpr bool operator+() const { return _val ; }
 		size_t         hash     () const { return _val ; }
 		// accesses
-		constexpr Tick val       (   ) const { return _val ;                     }
-		/**/      void operator++(   )       { SWEAR(_val!=Max<Tick>) ; _val++ ; }
-		/**/      void operator++(int)       { SWEAR(_val!=Max<Tick>) ; _val++ ; }
-		/**/      void operator--(   )       { SWEAR(_val!=Min<Tick>) ; _val-- ; }
-		/**/      void operator--(int)       { SWEAR(_val!=Min<Tick>) ; _val-- ; }
+		constexpr Tick val       (   ) const requires(IsNs) { return _val ;                     }
+		/**/      void operator++(   )                      { SWEAR(_val!=Max<Tick>) ; _val++ ; }
+		/**/      void operator++(int)                      { SWEAR(_val!=Max<Tick>) ; _val++ ; }
+		/**/      void operator--(   )                      { SWEAR(_val!=Min<Tick>) ; _val-- ; }
+		/**/      void operator--(int)                      { SWEAR(_val!=Min<Tick>) ; _val-- ; }
 		//
 		constexpr Tick   sec      () const {                       return _val       /TicksPerSecond ; }
 		constexpr Tick   msec     () const {                       return nsec     ()/1000'000       ; }
@@ -283,6 +283,7 @@ namespace Time {
 		using Date::Date ;
 		constexpr Ddate(                           FileTag tag=FileTag::None )                    {                    _val  = +tag ; }
 		constexpr Ddate( struct ::stat const& st , FileTag tag               ) : Date{st.st_mtim} { _val &= ~_TagMsk ; _val |= +tag ; }
+		constexpr Ddate( NewType , Tick v        , FileTag tag               ) : Date{New,v     } { _val &= ~_TagMsk ; _val |= +tag ; }
 		//
 		/**/      void operator>>(::string&      ) const ;
 		constexpr bool operator+ (               ) const { return _date()          ; }

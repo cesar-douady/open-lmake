@@ -377,12 +377,8 @@ int main( int argc , char* argv[] ) {
 //
 
 struct Consumer {
-	void handle_path_res(Path const&) {
-		n_solved++ ;
-	}
-	void handle_event( EbpfEventHdr const& hdr , Path const& /*file*/ , Path const& /*dst*/ ) {
-		if (hdr.file_kind==EBPF_FILE_USER) n_unsolved++ ;
-		else                               n_solved  ++ ;
+	void handle_event( EbpfEventHdr const& hdr , Path const& /*file*/ , Path const& /*dst*/={} ) {
+		if (hdr.file_kind==EBPF_FILE_USER) n_unsolved++ ; else n_solved++ ;
 	}
 	// data
 	int n_solved   = 0 ;

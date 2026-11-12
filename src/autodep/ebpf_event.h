@@ -163,19 +163,27 @@ typedef uint32_t EbpfScEntry ;
 #define EBPF_SCE_MASK( d) ((uint8_t)( ((d)>>25) & 0x7 )) // mask       arg
 #define EBPF_SCE_NF(   d) ((uint8_t)( ((d)>>28) & 0x3 )) // no_follow
 
+#define EBPF_SC_MAY_NO_FOLLOW 2 // no_follow if   flags&AT_SYMLINK_NOFOLLOW
+#define EBPF_SC_MAY_FOLLOW    3 // no_follow if !(flags&AT_SYMLINK_FOLLOW  )
+
 enum EbpfSyscallKind {
 	EBPF_SC_NONE = 0
+	// 1 file
 ,	EBPF_SC_CREATE
 ,	EBPF_SC_FORBIDDEN
-,	EBPF_SC_LINK      // hard link, data[0] : source, data[1] : dest
 ,	EBPF_SC_OPEN
-,	EBPF_SC_PATH      // just analyze PATH, no access to file
+,	EBPF_SC_PATH                   // just analyze PATH, no access to file
 ,	EBPF_SC_READDIR
 ,	EBPF_SC_READLINK
-,	EBPF_SC_RENAME    // data[0] : source, data[1] : dest
+,	EBPF_SC_SENSE
 ,	EBPF_SC_STAT
 ,	EBPF_SC_UNLINK
 ,	EBPF_SC_UPDATE
+	// 2 files
+,	EBPF_SC_LINK                   // hard link
+,	EBPF_SC_RENAME
+	// aliases
+,	EBPF_SC_HAS_DST = EBPF_SC_LINK // >=EBPF_SC_HAS_DST means syscall manages a source and a dest (previously sent with EBPF_DST)
 } ;
 
 #define EBPF_MAGIC_FD -200
@@ -193,14 +201,16 @@ typedef enum {
 } EbpfMagicProc ;
 
 typedef enum {
-	EBPF_ROOT_ID_UNKNOWN                   // not reported
-,	EBPF_ROOT_ID_SUPER                     // .
-,	EBPF_ROOT_ID_EXTERN                    // .
-,	EBPF_ROOT_ID_PROC                      // do not report, but report pid/tid (to interpret self and thread-self)
+	EBPF_ROOT_ID_UNKNOWN                    // not reported
+,	EBPF_ROOT_ID_SUPER                      // .
+,	EBPF_ROOT_ID_EXTERN                     // .
+,	EBPF_ROOT_ID_PROC                       // do not report, but report pid/tid (to interpret self and thread-self)
 ,	EBPF_ROOT_ID_ABS
-,	EBPF_ROOT_ID_PLAIN                     // >=EBPF_ROOT_ID_PLAIN means repo root or a src dir
+,	EBPF_ROOT_ID_REPO
+,	EBPF_ROOT_ID_SRC_DIR                    // >=EBPF_ROOT_ID_SRC_DIR means this represents a source dir
 	// aliases
-,	EBPF_ROOT_ID_REPORT = EBPF_ROOT_ID_ABS // >=EBPF_ROOT_ID_REPORT means file must be reported
+,	EBPF_ROOT_ID_REPORT = EBPF_ROOT_ID_ABS  // >=EBPF_ROOT_ID_REPORT means file must be reported
+,	EBPF_ROOT_ID_PLAIN  = EBPF_ROOT_ID_REPO // >=EBPF_ROOT_ID_PLAIN means repo root or a src dir
 } EbpfRootIdSpecial ;
 
 typedef struct {
@@ -214,28 +224,28 @@ typedef struct {
 typedef enum {
 	EBPF_NONE
 	// process tracking
-,	EBPF_JOB_START             // job has exited
-,	EBPF_PROC_START            // a process has been created in the job (implies EBPF_THREAD_START)
-,	EBPF_THREAD_START          // a thread  has been created in the job
-,	EBPF_THREAD_END            // a thread  has exited
-,	EBPF_PROC_END              // a process has exited                  (implies EBPF_THREAD_EXIT )
-,	EBPF_JOB_END               // job has exited
-,	EBPF_PANIC                 // an error occurred, reason is in data
+,	EBPF_JOB_START                // job has exited
+,	EBPF_PROC_START               // a process has been created in the job (implies EBPF_THREAD_START)
+,	EBPF_THREAD_START             // a thread  has been created in the job
+,	EBPF_THREAD_END               // a thread  has exited
+,	EBPF_PROC_END                 // a process has exited                  (implies EBPF_THREAD_EXIT )
+,	EBPF_JOB_END                  // job has exited
+,	EBPF_PANIC                    // an error occurred, reason is in data
+,	EBPF_DST                      // dest for 2-files events, sent before said event
 	// path resolution
-,	EBPF_PATH_RES              // a symlink has been traversed during path resolution
-,	EBPF_PATH_RES2             // a symlink has been traversed during path resolution, link target is appended to path after a null separator
+,	EBPF_PATH_RES                 // a symlink has been traversed during path resolution
 	// 1-file accesses
 ,	EBPF_READ
 ,	EBPF_READDIR
-,	EBPF_UNLINK                // may also read
-,	EBPF_WRITE                 // .
+,	EBPF_UNLINK                   // may also read
+,	EBPF_WRITE                    // .
 	// 2-files accesses
-,	EBPF_DST                   // dest for 2-files events, sent before said event
-,	EBPF_LINK                  // hard link
+,	EBPF_LINK                     // hard link
 ,	EBPF_RENAME
 ,	EBPF_EXCHANGE
 	// aliases
-,	EBPF_HAS_DATA = EBPF_PANIC // <EBPF_HAS_DATA means event has only hdr
+,	EBPF_HAS_DATA = EBPF_PANIC    // < EBPF_HAS_DATA means event has only hdr
+,	EBPF_ACCESS   = EBPF_PATH_RES // >=EBPF_ACCESS   means event has only hdr
 } EbpfEventKind ;
 
 typedef enum {

@@ -7,10 +7,10 @@
 
 #include "utils.hh"
 
+struct Gather ;
+
 struct AutodepPtrace {
 	static int/*rc*/ s_prepare_child(void*) ; // must be called from child
-	// cxtors & co
-	AutodepPtrace(NewType) {}
 	// services
 	int/*wstatus*/ process(pid_t child_pid) ;
 } ;

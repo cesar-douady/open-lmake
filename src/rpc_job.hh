@@ -18,28 +18,52 @@
 
 #include "rpc_job_common.hh"
 
+#if HAS_EBPF
+	#define IF_HAS_EBPF(...) __VA_ARGS__
+#else
+	#define IF_HAS_EBPF(...)
+#endif
+
+#if HAS_LD_AUDIT
+	#define IF_HAS_LD_AUDIT(...) __VA_ARGS__
+#else
+	#define IF_HAS_LD_AUDIT(...)
+#endif
+
+#if HAS_SECCOMP
+	#define IF_HAS_SECCOMP(...) __VA_ARGS__
+#else
+	#define IF_HAS_SECCOMP(...)
+#endif
+
 // START_OF_VERSIONING REPO CACHE
 // PER_AUTODEP_METHOD : add entry here
 // >=Ld means a lib is pre-loaded
 // by default, use a compromize between speed an reliability
+// ensure encoding is independent of compilation flags
 enum class AutodepMethod : uint8_t {
 	None
-#if HAS_EBPF
-	,	Ebpf
-#endif
-,	Ptrace
-#if HAS_SECCOMP
-	,	Seccomp
-#endif
-,	LdPreload
-,	LdPreloadJemalloc
-#if HAS_LD_AUDIT
-	,	LdAudit
-#endif
+	#if HAS_EBPF
+		, Ebpf
+	#else
+		, EbpfNotAvail
+	#endif
+	#if HAS_LD_AUDIT
+		, LdAudit
+	#else
+		, LdAuditNotAvail
+	#endif
+	, LdPreload
+	, LdPreloadJemalloc
+	, Ptrace
+	#if HAS_SECCOMP
+		, Seccomp
+	#else
+		, SeccompNotAvail
+	#endif
 // aliases
-,	Ld = LdPreload         // >=Ld means method is ld-based
 #if HAS_EBPF
-	,	DfltLd = LdAudit   // XXX> : change to Ebpf when reliable
+	,	DfltLd = LdPreload // XXX> : change to Ebpf when reliable
 #elif HAS_LD_AUDIT
 	,	DfltLd = LdAudit   // default value while ensuring it is of ld-based kind
 #else

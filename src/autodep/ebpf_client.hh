@@ -36,16 +36,18 @@ namespace EbpfDaemon {
 	inline std::string get_sock_name(                      ) { return get_file_name("sock") ; }
 
 	struct Path {
+		// cxtors & co
+		Path() = default ;
+		Path( EbpfRootId , std::string_view ) ;
 		bool operator+() const { return root_id || !path.empty() ; }
 		bool operator!() const { return !+*this                  ; }
+		// data
 		EbpfRootId  root_id = 0  ;
 		std::string path    = {} ;
 	} ;
 	struct RingBufBase {
 		static void s_start_job(                                 ) ;                            // called by top level job thread
 		static void s_add_root ( EbpfRootId , std::string const& ) ;                            // called from tracer
-	protected :
-		static Path _s_mk_path( EbpfRootId , std::string_view ) ;                               // components are stored leaf first, separated by null
 	public :
 		// cxtors & co
 		RingBufBase() = default ;
@@ -68,10 +70,9 @@ namespace EbpfDaemon {
 
 	template<class Consumer> struct RingBuf : RingBufBase {
 		struct ThreadCtx {
-			pid_t                     pid_in_ns  ;
-			pid_t                     tid_in_ns  ;
-			Path                      dst        = {} ;                                                                           // dest of 2-files events
-			std::unordered_set<pid_t> to_wake_up = {} ;                                                                           // pids to wake up when ring_buffer has enough room
+			pid_t pid_in_ns  ;
+			pid_t tid_in_ns  ;
+			Path  dst        = {} ;                                                                                            // dest of 2-files events
 		} ;
 	private :
 		static int _s_handle_event( void* ctx , void* data , size_t sz ) {
@@ -93,7 +94,7 @@ namespace EbpfDaemon {
 			epoll_fd  = ::ring_buffer__epoll_fd(_ring_buf)                                            ;
 		}
 		// services
-		bool/*done*/ consume() {                                                                                                  // consume available events
+		bool/*done*/ consume() {                                                                                               // consume available events
 			::ring_buffer__consume(_ring_buf) ;
 			return _done ;
 		}
@@ -104,7 +105,7 @@ namespace EbpfDaemon {
 			//
 			EbpfEventHdr const& hdr = *static_cast<EbpfEventHdr const*>(data) ;
 			switch (hdr.kind) {
-				case EBPF_NONE      : throw "bad empty event"s ;                                                                  // EBPF_NONE messages should have been filtered out
+				case EBPF_NONE      : throw "bad empty event"s ;                                                               // EBPF_NONE messages should have been filtered out
 				case EBPF_JOB_START : if ( _started) throw "double job start"s        ; if (_done) throw "event while done"s ; _started = true ; break ;
 				case EBPF_JOB_END   : if (!_started) throw "event while not started"s ; if (_done) throw "double job end"s   ; _done    = true ; break ;
 				default             : if (!_started) throw "event while not started"s ; if (_done) throw "event while done"s ;
@@ -117,27 +118,22 @@ namespace EbpfDaemon {
 			}
 			ThreadCtx & ctx = _ctxs.at(hdr.tid) ;
 			if (hdr.kind>=EBPF_HAS_DATA) {
-				std::string_view view = std::string_view( static_cast<const char*>(data)+sizeof(EbpfEventHdr) , sz-sizeof(EbpfEventHdr) ) ;
-				Path             path = _s_mk_path( hdr.root_id , view )                                                                  ;
+				Path path { hdr.root_id , { static_cast<const char*>(data)+sizeof(EbpfEventHdr) , sz-sizeof(EbpfEventHdr) } } ;
 				switch (hdr.kind) {
-					case EBPF_PATH_RES :                                             consumer.handle_path_res(path) ; break ;
-					case EBPF_DST      : if (+ctx.dst) throw "double destination"s ; ctx.dst = path ;                 break ;
-					default :
-						consumer.handle_event( hdr , path , ctx.dst ) ;
-						ctx.dst = {} ;
+					case EBPF_DST      : if (+ctx.dst) throw "double destination"s ;                                           ctx.dst = path ; break ;
+					case EBPF_PATH_RES :                                             consumer.handle_event(hdr,path        ) ;                  break ;
+					default            :                                             consumer.handle_event(hdr,path,ctx.dst) ; ctx.dst = {}   ;
 				}
-			}
-			if ( hdr.flags & EBPF_F_STOPPED )
-				ctx.to_wake_up.insert(ctx.pid_in_ns) ;                                                                            // restart
-			if ( !ctx.to_wake_up.empty() && ring__avail_data_size(ring_buffer__ring(_ring_buf,0/*idx*/))<EBPF_RING_BUF_MARGIN ) { // but only once we have enough room in ring buf
-				for( pid_t pid : ctx.to_wake_up ) kill( pid , SIGCONT ) ;
-				ctx.to_wake_up = {} ;
 			}
 			switch (hdr.kind) {
 				case EBPF_JOB_END    :
 				case EBPF_PROC_END   :
-				case EBPF_THREAD_END : if (!_ctxs.erase(hdr.tid)) throw "double thread end"s ; break ;
-				default              : ;
+				case EBPF_THREAD_END : if ( !_ctxs.erase(hdr.tid)      ) throw "double thread end"s ;        break ;
+				default              : if ( hdr.flags & EBPF_F_STOPPED ) _to_wake_up.insert(ctx.pid_in_ns) ;                   // restart if not ended
+			}
+			if ( !_to_wake_up.empty() && ring__avail_data_size(ring_buffer__ring(_ring_buf,0/*idx*/))<EBPF_RING_BUF_MARGIN ) { // restart stopped processes when queue level is low enough
+				for( pid_t pid : _to_wake_up ) kill( pid , SIGCONT ) ;
+				_to_wake_up = {} ;
 			}
 		}
 		// data
@@ -145,10 +141,11 @@ namespace EbpfDaemon {
 		int      epoll_fd = -1 ;
 		Consumer consumer ;
 	private :
-		::ring_buffer*                      _ring_buf = nullptr ;
-		std::unordered_map<pid_t,ThreadCtx> _ctxs     ;                                                                           // context of currently handled syscall
-		bool                                _started  = false   ;
-		bool                                _done     = false   ;
+		::ring_buffer*                      _ring_buf   = nullptr ;
+		std::unordered_map<pid_t,ThreadCtx> _ctxs       ;                                                                      // context of currently handled syscall
+		std::unordered_set<pid_t>           _to_wake_up ;                                                                      // pids to wake up when ring_buffer has enough room
+		bool                                _started    = false   ;
+		bool                                _done       = false   ;
 	} ;
 
 }

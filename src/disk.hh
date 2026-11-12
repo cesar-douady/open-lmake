@@ -171,9 +171,10 @@ namespace Disk {
 		using Action = _FileInfoAction ;
 		// cxtors & co
 		FileInfo() = default ;
-		FileInfo( FileTag tag               ) : date{tag} {}
-		FileInfo( FileRef path , Action ={} ) ;
-		FileInfo( FileStat const&           ) ;
+		FileInfo( DiskSz sz_ , Time::Ddate d ) : sz{sz_} , date{d  } {}
+		FileInfo( FileTag tag                ) :           date{tag} {}
+		FileInfo( FileRef path , Action ={}  ) ;
+		FileInfo( FileStat const&            ) ;
 		void operator>>(::string&      ) const ;
 		bool operator==(FileInfo const&) const = default ;
 		bool operator+ (               ) const { return +tag() ; }

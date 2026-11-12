@@ -1,15 +1,15 @@
 #include "version.hh"
 namespace Version {
-	uint64_t    constexpr Cache = 62      ; // 99476c0054c978b185d2141f79db59d7
+	uint64_t    constexpr Cache = 63      ; // be165f64116126269556f5e0ed6b63f7
 	uint64_t    constexpr Codec = 3       ; // 403dc2743b6e16290876935ae09d2242
-	uint64_t    constexpr Repo  = 67      ; // ee516fb9d9b1ab2e8ec38134915983aa
+	uint64_t    constexpr Repo  = 68      ; // 7294200e7304181bb0f332bd092ffeec
 	uint64_t    constexpr Job   = 35      ; // c3cb74797eb4a2e0750eccbca00dce2d
 	const char* const     Major = "26.11" ;
 	uint64_t    constexpr Tag   = 0       ;
 }
 
 // ********************************************
-// * Cache : 99476c0054c978b185d2141f79db59d7 *
+// * Cache : be165f64116126269556f5e0ed6b63f7 *
 // ********************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -428,24 +428,30 @@ namespace Version {
 //	// PER_AUTODEP_METHOD : add entry here
 //	// >=Ld means a lib is pre-loaded
 //	// by default, use a compromize between speed an reliability
+//	// ensure encoding is independent of compilation flags
 //	enum class AutodepMethod : uint8_t {
 //		None
-//	#if HAS_EBPF
-//		,	Ebpf
-//	#endif
-//	,	Ptrace
-//	#if HAS_SECCOMP
-//		,	Seccomp
-//	#endif
-//	,	LdPreload
-//	,	LdPreloadJemalloc
-//	#if HAS_LD_AUDIT
-//		,	LdAudit
-//	#endif
+//		#if HAS_EBPF
+//			, Ebpf
+//		#else
+//			, EbpfNotAvail
+//		#endif
+//		#if HAS_LD_AUDIT
+//			, LdAudit
+//		#else
+//			, LdAuditNotAvail
+//		#endif
+//		, LdPreload
+//		, LdPreloadJemalloc
+//		, Ptrace
+//		#if HAS_SECCOMP
+//			, Seccomp
+//		#else
+//			, SeccompNotAvail
+//		#endif
 //	// aliases
-//	,	Ld = LdPreload         // >=Ld means method is ld-based
 //	#if HAS_EBPF
-//		,	DfltLd = LdAudit   // XXX> : change to Ebpf when reliable
+//		,	DfltLd = LdPreload // XXX> : change to Ebpf when reliable
 //	#elif HAS_LD_AUDIT
 //		,	DfltLd = LdAudit   // default value while ensuring it is of ld-based kind
 //	#else
@@ -1247,7 +1253,7 @@ namespace Version {
 //		// END_OF_VERSIONING
 
 // *******************************************
-// * Repo : ee516fb9d9b1ab2e8ec38134915983aa *
+// * Repo : 7294200e7304181bb0f332bd092ffeec *
 // *******************************************
 //
 //	// START_OF_VERSIONING CACHE REPO JOB
@@ -2100,24 +2106,30 @@ namespace Version {
 //	// PER_AUTODEP_METHOD : add entry here
 //	// >=Ld means a lib is pre-loaded
 //	// by default, use a compromize between speed an reliability
+//	// ensure encoding is independent of compilation flags
 //	enum class AutodepMethod : uint8_t {
 //		None
-//	#if HAS_EBPF
-//		,	Ebpf
-//	#endif
-//	,	Ptrace
-//	#if HAS_SECCOMP
-//		,	Seccomp
-//	#endif
-//	,	LdPreload
-//	,	LdPreloadJemalloc
-//	#if HAS_LD_AUDIT
-//		,	LdAudit
-//	#endif
+//		#if HAS_EBPF
+//			, Ebpf
+//		#else
+//			, EbpfNotAvail
+//		#endif
+//		#if HAS_LD_AUDIT
+//			, LdAudit
+//		#else
+//			, LdAuditNotAvail
+//		#endif
+//		, LdPreload
+//		, LdPreloadJemalloc
+//		, Ptrace
+//		#if HAS_SECCOMP
+//			, Seccomp
+//		#else
+//			, SeccompNotAvail
+//		#endif
 //	// aliases
-//	,	Ld = LdPreload         // >=Ld means method is ld-based
 //	#if HAS_EBPF
-//		,	DfltLd = LdAudit   // XXX> : change to Ebpf when reliable
+//		,	DfltLd = LdPreload // XXX> : change to Ebpf when reliable
 //	#elif HAS_LD_AUDIT
 //		,	DfltLd = LdAudit   // default value while ensuring it is of ld-based kind
 //	#else

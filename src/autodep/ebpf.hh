@@ -9,17 +9,23 @@
 
 #include "utils.hh"
 
+struct Gather ;
+
 struct AutodepEbpf {
 	struct Consumer {
-		void handle_path_res(                       EbpfDaemon::Path const& path                                  ) ;
-		void handle_event   ( EbpfEventHdr const& , EbpfDaemon::Path const& file , EbpfDaemon::Path const& dst={} ) ;
+		void handle_event( EbpfEventHdr const& , EbpfDaemon::Path const& file , EbpfDaemon::Path const& dst={} ) ;
+		// data
+		Gather* gather = nullptr ;
 	} ;
-	static int/*rc*/  s_prepare_child    (void*                      ) ; // must be called from child
-	static bool/*ok*/ s_register_mount_ok(::string const& mount_point) ;
+	static int/*rc*/ s_prepare_child(void*) ; // must be called from child
 	// cxtors & co
-	AutodepEbpf(NewType) ;
+	AutodepEbpf() = default ;
+	AutodepEbpf(Gather&) ;
+	bool operator+() const { return +ring_buf ; }
+	// accesses
+	Fd epoll_fd() const { return ring_buf.epoll_fd ; }
 	// services
-	int/*wstatus*/ process(pid_t child_pid) ;
+	bool/*done*/ consume() { return ring_buf.consume() ; }
 	// data
 	EbpfDaemon::RingBuf<Consumer> ring_buf ;
 	::vector_s                    roots    ;

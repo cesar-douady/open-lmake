@@ -7,10 +7,10 @@
 
 #include "utils.hh"
 
+struct Gather ;
+
 struct AutodepSeccomp {
 	static int/*rc*/ s_prepare_child(void*) ; // must be called from child
-	// cxtors & co
-	AutodepSeccomp(NewType) {}
 	// services
 	int/*wstatus*/ process(pid_t child_pid) ;
 } ;

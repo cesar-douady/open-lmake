@@ -45,8 +45,8 @@ template<class T> static typename ::umap<pid_t,T>::const_iterator _get_ppid( pid
 struct PidInfoBase {
 	// cxtors & co
 	PidInfoBase() = default ;
-	PidInfoBase( pid_t pid , Bool3 enable ) : record{ New , enable , pid } {}
-	void operator>>(::string& os) const { os << proc_mem ; }                  // NO_COV
+	PidInfoBase( pid_t pid , Bool3 enable ) : record{New,enable,pid} {}
+	void operator>>(::string& os) const { os << proc_mem ; }            // NO_COV
 	// data
 	Record record   ;
 	AcFd   proc_mem ;
@@ -205,10 +205,10 @@ int/*wstatus*/ AutodepPtrace::process(pid_t child_pid) {
 	;
 	Trace trace("AutodepPtrace::process",child_pid) ;
 	//
-	Lock                        lock    { Record::s_mutex } ;                    // we have a single thread here, no need to lock record reporting, but Record code checks that lock is taken
+	Lock                        lock    { Record::s_mutex } ;              // we have a single thread here, no need to lock record reporting, but Record code checks that lock is taken
 	::umap<pid_t,PtracePidInfo> tab     ;
 	int                         wstatus ;
-	pid_t                       pid     = ::wait(&wstatus)  ;                    // wait for child to stop
+	pid_t                       pid     = ::wait(&wstatus)  ;              // wait for child to stop
 	SWEAR( pid==child_pid      , pid,child_pid ) ;                         // job has not started yet, only a single child exists
 	#if HAS_SECCOMP
 		throw_unless( WIFSTOPPED(wstatus) , "cannot ptrace, consider using autodep='seccomp' instead" ) ;

@@ -681,7 +681,7 @@ static __always_inline int _do_nod1(struct dentry* dentry) {
 	_capture_solved( tv , dentry ) ;
 	return 0 ;
 }
-static __always_inline int _do_nod2( struct dentry* old_dentry , struct dentry* new_dentry , bool exchange ) {
+static __always_inline int _do_nod2( struct dentry* old_dentry , struct dentry* new_dentry ) {
 	struct task_struct* t  = bpf_get_current_task_btf() ;
 	Task              * tv = _capturing1(t)             ; if (!tv) return 0 ;
 	EbpfEvent         * ev = &tv->ev                    ;
@@ -689,23 +689,30 @@ static __always_inline int _do_nod2( struct dentry* old_dentry , struct dentry* 
 	ev->hdr.kind  = EBPF_DST       ;
 	ev->hdr.flags = EBPF_F_DEP_ALL ;
 	//
-		_emit_solved   ( t , tv , new_dentry )
-	&&	_capture_solved(     tv , old_dentry )
-	;
+	if (!_capture_solved(tv,new_dentry) ) return 0 ;
+	if (ev->hdr.file_kind==EBPF_FILE_DIR) ev->hdr.flags |= EBPF_F_STOPPED ;
+	if (!_emit(t,tv)                    ) return 0 ;
+	//
+	_capture_solved( tv , old_dentry ) ;
 	return 0 ;
 }
 
-SEC("fentry/security_path_mkdir"  ) int BPF_PROG( on_path_mkdir   , struct path* d ,struct dentry* e                                               ) { return _do_nod1(e                      ) ; }
-SEC("fentry/security_path_mknod"  ) int BPF_PROG( on_path_mknod   , struct path* d ,struct dentry* e  , mode_t m                                   ) { return _do_nod1(e                      ) ; }
-SEC("fentry/security_path_symlink") int BPF_PROG( on_path_symlink , struct path* d ,struct dentry* e                                               ) { return _do_nod1(e                      ) ; }
-SEC("fentry/security_path_unlink" ) int BPF_PROG( on_path_unlink  , struct path* d ,struct dentry* e                                               ) { return _do_nod1(e                      ) ; }
-SEC("fentry/security_path_rmdir"  ) int BPF_PROG( on_path_rmdir   , struct path* d ,struct dentry* e                                               ) { return _do_nod1(e                      ) ; }
-SEC("fentry/security_path_link"   ) int BPF_PROG( on_path_link    ,                 struct dentry* oe , struct path* nd,struct dentry* ne          ) { return _do_nod2(oe,ne,false/*exchange*/) ; }
-SEC("fentry/security_path_rename" ) int BPF_PROG( on_path_rename  , struct path* od,struct dentry* oe , struct path* nd,struct dentry* ne , uint f ) { return _do_nod2(oe,ne,f&RENAME_EXCHANGE) ; }
+SEC("fentry/security_path_mkdir"  ) int BPF_PROG( on_path_mkdir   , struct path* d ,struct dentry* e                                               ) { return _do_nod1( e       ) ; }
+SEC("fentry/security_path_mknod"  ) int BPF_PROG( on_path_mknod   , struct path* d ,struct dentry* e  , mode_t m                                   ) { return _do_nod1( e       ) ; }
+SEC("fentry/security_path_symlink") int BPF_PROG( on_path_symlink , struct path* d ,struct dentry* e                                               ) { return _do_nod1( e       ) ; }
+SEC("fentry/security_path_unlink" ) int BPF_PROG( on_path_unlink  , struct path* d ,struct dentry* e                                               ) { return _do_nod1( e       ) ; }
+SEC("fentry/security_path_rmdir"  ) int BPF_PROG( on_path_rmdir   , struct path* d ,struct dentry* e                                               ) { return _do_nod1( e       ) ; }
+SEC("fentry/security_path_link"   ) int BPF_PROG( on_path_link    ,                 struct dentry* oe , struct path* nd,struct dentry* ne          ) { return _do_nod2( oe , ne ) ; }
+SEC("fentry/security_path_rename" ) int BPF_PROG( on_path_rename  , struct path* od,struct dentry* oe , struct path* nd,struct dentry* ne , uint f ) { return _do_nod2( oe , ne ) ; }
 
 //
 // end of syscalls
 //
+
+static __always_inline uint64_t get_arg( uint64_t args[8] , int i , uint64_t dflt ) {
+	if (i==EBPF_SCE_NO_ARG) return dflt        ;
+	else                    return args[i&0x7] ;
+}
 
 SEC("tp_btf/sys_exit")
 int BPF_PROG( on_sys_exit , struct pt_regs* regs , long ret ) {
@@ -718,7 +725,7 @@ int BPF_PROG( on_sys_exit , struct pt_regs* regs , long ret ) {
 		#error "unsupported architecture"
 	#endif
 	nr &= ~X32_SYSCALL_BIT ;
-	/**/                                                     if ( nr<0 || nr>=N_SYSCALLS ) return 0 ;          // x32 has no effect on data structures we are sensitive to
+	/**/                                                     if ( nr<0 || nr>=N_SYSCALLS ) return 0 ;       // x32 has no effect on data structures we are sensitive to
 	struct task_struct* t     = bpf_get_current_task_btf() ;
 	Task              * tv    = _capturing1(t)             ; if ( !tv                    ) return 0 ;
 	EbpfEvent         * ev    = &tv->ev                    ;
@@ -730,14 +737,15 @@ int BPF_PROG( on_sys_exit , struct pt_regs* regs , long ret ) {
 	//
 	EbpfScEntry descr     = Syscalls[is_32][nr]      ; if (!descr        ) return 0 ;
 	bool        report    = true                     ;
-	uint8_t     sc_kind   = EBPF_SCE_KIND (descr)    ; if (_is_retry(ret)) sc_kind = EBPF_SC_NONE ;            // error is external, no real dependency nor action
+	uint8_t     sc_kind   = EBPF_SCE_KIND (descr)    ; if (_is_retry(ret)) sc_kind = EBPF_SC_NONE ;         // error is external, no real dependency nor action
 	uint8_t     arg_dfd1  = EBPF_SCE_DFD1 (descr)    ;
 	uint8_t     arg_path1 = EBPF_SCE_PATH1(descr)    ;
 	uint8_t     arg_dfd2  = EBPF_SCE_DFD2 (descr)    ;
 	uint8_t     arg_path2 = EBPF_SCE_PATH2(descr)    ;
+	uint8_t     arg_mod   = EBPF_SCE_MOD  (descr)    ;
 	uint8_t     arg_flgs  = EBPF_SCE_FLAGS(descr)    ;
 	uint8_t     no_follow = EBPF_SCE_NF   (descr)    ;
-	uint64_t    args[8]   = {0,0,0,0,0,0,0,AT_FDCWD} ;                                                         // AT_FDCWD simplifies cases where there is no dfd
+	uint64_t    args[8]   = {0,0,0,0,0,0,0,AT_FDCWD} ;                                                      // AT_FDCWD simplifies cases where there is no dfd
 	#if defined(__TARGET_ARCH_x86)
 		if (is_32) { args[0]=regs->bx      ; args[1]=regs->cx      ; args[2]=regs->dx      ; args[3]=regs->si      ; args[4]=regs->di      ; args[5]=regs->bp      ; }
 		else       { args[0]=regs->di      ; args[1]=regs->si      ; args[2]=regs->dx      ; args[3]=regs->r10     ; args[4]=regs->r8      ; args[5]=regs->r9      ; }
@@ -746,48 +754,50 @@ int BPF_PROG( on_sys_exit , struct pt_regs* regs , long ret ) {
 	#else
 		#error "unsupported architecture"
 	#endif
-	if (ok          ) ev->hdr.flags |= EBPF_F_OK        ;
-	if (no_follow==1) ev->hdr.flags |= EBPF_F_NO_FOLLOW ;                                                      // no_follow>1 means value comes from syscall flags
-	switch (sc_kind) {
-		case EBPF_SC_FORBIDDEN : _panic(tv,"forbidden syscall") ;                               return 0     ;
-		case EBPF_SC_NONE      :                                                                break        ;
-		case EBPF_SC_OPEN      :                                                                break        ; // already handled in do_filp_open
-		case EBPF_SC_CREATE    : ev->hdr.kind = EBPF_WRITE ; ev->hdr.flags |= EBPF_F_DEP_STAT ; goto Handle1 ;
-		case EBPF_SC_PATH      : ev->hdr.kind = EBPF_READ  ;                                    goto Handle1 ;
-		case EBPF_SC_READLINK  : ev->hdr.kind = EBPF_READ  ; ev->hdr.flags |= EBPF_F_DEP_LNK  ; goto Handle1 ;
-		case EBPF_SC_STAT      : ev->hdr.kind = EBPF_READ  ; ev->hdr.flags |= EBPF_F_DEP_ALL  ; goto Handle1 ;
-		case EBPF_SC_UPDATE    : ev->hdr.kind = EBPF_WRITE ; ev->hdr.flags |= EBPF_F_DEP_ALL  ; goto Handle1 ;
-		case EBPF_SC_UNLINK    : {
-			if ( arg_flgs!=EBPF_SCE_NO_ARG && (args[arg_flgs]&AT_REMOVEDIR) )   ev->hdr.kind = EBPF_READ   ;
-			else                                                              { ev->hdr.kind = EBPF_UNLINK ; ev->hdr.flags |= EBPF_F_DEP_STAT ; }
-		} goto Handle1 ;
-		Handle1 : {
-			if ( no_follow>1 && arg_flgs!=EBPF_SCE_NO_ARG && (args[arg_flgs]&AT_SYMLINK_NOFOLLOW) ) ev->hdr.flags |= EBPF_F_NO_FOLLOW ;
-			_emit_user( t , tv , arg_dfd1==EBPF_SCE_NO_ARG?AT_FDCWD:(int)args[arg_dfd1&7] , (const char*)args[arg_path1&7] , false/*kernel*/ ) ;
-		} break ;
-		case EBPF_SC_LINK :
-			ev->hdr.kind   = EBPF_LINK        ;
-			ev->hdr.flags |= EBPF_F_NO_FOLLOW ;
-			if ( no_follow>1 && arg_flgs!=EBPF_SCE_NO_ARG && (args[arg_flgs]&AT_SYMLINK_FOLLOW) ) ev->hdr.flags &= ~EBPF_F_NO_FOLLOW ;
-		goto Handle2 ;
-		case EBPF_SC_RENAME :
-			if ( arg_flgs!=EBPF_SCE_NO_ARG && (args[arg_flgs]&RENAME_EXCHANGE) ) ev->hdr.kind = EBPF_EXCHANGE ;
-			else                                                                 ev->hdr.kind = EBPF_RENAME   ;
-		Handle2 : {
-			if (!ev->hdr.file_kind) {
-				uint8_t kind = ev->hdr.kind ;
-				ev->hdr.kind = EBPF_DST ;
-				if (!_emit_user( t , tv , arg_dfd2==EBPF_SCE_NO_ARG?AT_FDCWD:(int)args[arg_dfd2&7] , (const char*)args[arg_path2&7] , false/*kernel*/ )) return 0 ;
-				ev->hdr.kind = kind ;
-			}
-			_emit_user( t , tv , arg_dfd1==EBPF_SCE_NO_ARG?AT_FDCWD:(int)args[arg_dfd1&7] , (const char*)args[arg_path1&7] , false/*kernel*/ ) ;
-		} break ;
-		case EBPF_SC_READDIR :
-			ev->hdr.kind = EBPF_READDIR ;
-			_emit_user( t , tv , (int)args[arg_dfd1&7] , 0/*path*/ , false/*kernel*/ ) ;
-		break ;
-		default : _panic(tv,"bad syscall kind") ; return 0 ;
+	if ( sc_kind>=EBPF_SC_HAS_DST && !ev->hdr.file_kind ) {
+		ev->hdr.kind = EBPF_DST ;
+		if (!_emit_user( t , tv , (int)get_arg(args,arg_dfd2,AT_FDCWD) , (const char*)args[arg_path2&7] , false/*kernel*/ )) return 0 ;
 	}
+	switch (sc_kind) {
+		case EBPF_SC_OPEN     :                                                                             // already handled in do_filp_open
+		case EBPF_SC_PATH     :                                                                  return 0 ;
+		case EBPF_SC_READDIR  : ev->hdr.kind = EBPF_READDIR ;                                    break    ;
+		case EBPF_SC_READLINK : ev->hdr.kind = EBPF_READ    ; ev->hdr.flags |= EBPF_F_DEP_LNK  ; break    ;
+		case EBPF_SC_SENSE    : ev->hdr.kind = EBPF_READ    ; ev->hdr.flags |= EBPF_F_DEP_STAT ; break    ;
+		case EBPF_SC_STAT     : ev->hdr.kind = EBPF_READ    ; ev->hdr.flags |= EBPF_F_DEP_ALL  ; break    ;
+		case EBPF_SC_UPDATE   : ev->hdr.kind = EBPF_WRITE   ; ev->hdr.flags |= EBPF_F_DEP_STAT ; break    ;
+		case EBPF_SC_CREATE :
+			switch (get_arg(args,arg_mod,S_IFLNK)) {                                                        // default value must generate a (any kind of) file and in practice is symlink
+				case S_IFREG :
+				case S_IFLNK : ev->hdr.kind = EBPF_WRITE ; break ;
+				default      : ev->hdr.kind = EBPF_READ  ;                                                  // no managed file is created
+			}
+			ev->hdr.flags |= EBPF_F_DEP_STAT ;                                                              // sensitive to file existence (i.e. must not pre-exist)
+		break ;
+		case EBPF_SC_UNLINK :
+			if ( get_arg(args,arg_flgs,0/*dflt*/) & AT_REMOVEDIR ) return 0 ;
+			ev->hdr.kind   = EBPF_UNLINK     ;
+			ev->hdr.flags |= EBPF_F_DEP_STAT ;
+		break ;
+		case EBPF_SC_LINK :
+			/**/                            ev->hdr.kind   = EBPF_LINK      ;
+			if ( !ev->hdr.file_kind && ok ) ev->hdr.flags |= EBPF_F_STOPPED ;                               // in case it is a dir
+		break ;
+		case EBPF_SC_RENAME :
+			if ( get_arg(args,arg_flgs,0/*dflt*/) & RENAME_EXCHANGE ) ev->hdr.kind = EBPF_EXCHANGE ;
+			else                                                      ev->hdr.kind = EBPF_RENAME   ;
+		break ;
+		case EBPF_SC_FORBIDDEN : _panic(tv,"forbidden syscall") ; return 0 ;
+		default                : _panic(tv,"bad syscall kind" ) ; return 0 ;
+	}
+	switch (no_follow) {
+		 case 0                     :                                                                                                      break ;
+		 case 1                     :                                                                  ev->hdr.flags |= EBPF_F_NO_FOLLOW ; break ;
+		 case EBPF_SC_MAY_NO_FOLLOW : if (   get_arg(args,arg_flgs,0/*dflt*/) & AT_SYMLINK_NOFOLLOW  ) ev->hdr.flags |= EBPF_F_NO_FOLLOW ; break ;
+		 case EBPF_SC_MAY_FOLLOW    : if (!( get_arg(args,arg_flgs,0/*dflt*/) & AT_SYMLINK_FOLLOW   )) ev->hdr.flags |= EBPF_F_NO_FOLLOW ; break ;
+	}
+	if (ok) ev->hdr.flags |= EBPF_F_OK ;
+	_emit_user( t , tv , (int)get_arg(args,arg_dfd1,AT_FDCWD) , (const char*)get_arg(args,arg_path1,0/*dflt*/) , false/*kernel*/ ) ;
 	return 0 ;
 }
 
@@ -821,7 +831,7 @@ static __always_inline Task* _capturing_io( struct task_struct* t , int ret ) {
 		return 0 ;                                                                                \
 	}
 
-#define HANDLE_IO2( io_name , io_typ , kind_expr , no_follow_expr ) \
+#define HANDLE_IO2( io_name , io_typ , kind_expr , no_follow_expr , maybe_dir_expr ) \
 	SEC( "fexit/"#io_name )                                                                   \
 	int BPF_PROG( on_##io_name , struct io_kiocb* req_ , uint flags , int ret ) {             \
 		struct task_struct* t     = bpf_get_current_task_btf()          ;                     \
@@ -839,6 +849,7 @@ static __always_inline Task* _capturing_io( struct task_struct* t , int ret ) {
 		/**/                ev->hdr.kind   = kind_expr        ;                               \
 		if (no_follow_expr) ev->hdr.flags |= EBPF_F_NO_FOLLOW ;                               \
 		if (_is_ok(ret)   ) ev->hdr.flags |= EBPF_F_OK        ;                               \
+		if (maybe_dir_expr) ev->hdr.flags |= EBPF_F_STOPPED   ;                               \
 		_emit_user( t , tv , dfd1,path1 , true/*kernel*/ ) ;                                  \
 		return 0 ;                                                                            \
 	}
@@ -848,5 +859,5 @@ HANDLE_IO1( io_statx    , io_statx  , EBPF_READ   , EBPF_F_DEP_ALL  , dfd    ,fi
 HANDLE_IO1( io_symlinkat, io_link   , EBPF_WRITE  , EBPF_F_DEP_STAT , new_dfd,newpath  , true/*no_follow*/                            , true/*active*/                           )
 HANDLE_IO1( io_unlinkat , io_unlink , EBPF_UNLINK , EBPF_F_DEP_STAT , dfd    ,filename , true/*.        */                            , !(BPF_CORE_READ(req,flags)&AT_REMOVEDIR) )
 
-HANDLE_IO2( io_linkat   , io_link   , EBPF_LINK                                         , !(BPF_CORE_READ(req,flags)&AT_SYMLINK_FOLLOW) )
-HANDLE_IO2( io_renameat , io_rename , (flags&RENAME_EXCHANGE)?EBPF_RENAME:EBPF_EXCHANGE , true/*no_follow*/                             )
+HANDLE_IO2( io_linkat   , io_link   , EBPF_LINK                                         , !(BPF_CORE_READ(req,flags)&AT_SYMLINK_FOLLOW) , false/*maybe_dir_expr*/ )
+HANDLE_IO2( io_renameat , io_rename , (flags&RENAME_EXCHANGE)?EBPF_RENAME:EBPF_EXCHANGE , true/*no_follow*/                             , true/*.              */ )

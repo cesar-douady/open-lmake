@@ -39,47 +39,47 @@ using namespace Disk       ;
 using namespace Time       ;
 using namespace EbpfDaemon ;
 
-void AutodepEbpf::Consumer::handle_path_res(Path const& path) {
-	(void)path ;
+static FileInfo _mk_info( EbpfEventHdr const& hdr , ::string const& file={} ) {
+	FileTag tag ;
+	switch (hdr.file_kind) {
+		case EBPF_FILE_USER    :                                                  return {file} ; // XXX : ensure file is a dep or we arrive too late (file may have changed since it was accessed)
+		case EBPF_FILE_NO_FILE : tag = FileTag::None                            ; break         ;
+		case EBPF_FILE_DIR     : tag = FileTag::Dir                             ; break         ;
+		case EBPF_FILE_LNK     : tag = FileTag::Lnk                             ; break         ;
+		case EBPF_FILE_REG     : tag = hdr.size ? FileTag::Reg : FileTag::Empty ; break         ;
+		case EBPF_FILE_EXE     : tag = FileTag::Exe                             ; break         ;
+	DF}
+	return { hdr.size , {New,hdr.mtime_ns,tag} } ;
 }
 
-void AutodepEbpf::Consumer::handle_event( EbpfEventHdr const& hdr , Path const& file , Path const& dst ) {
-	(void)hdr  ;
-	(void)file ;
-	(void)dst  ;
+static Pdate _now(EbpfEventHdr const& hdr) {
+	if (hdr.stamp_ns) return Pdate( New , hdr.stamp_ns ) ;
+	else              return        New                  ;
+} ;
+
+void AutodepEbpf::Consumer::handle_event( EbpfEventHdr const& hdr , Path const& path , Path const& dst ) {
+	SWEAR( hdr.kind>=EBPF_ACCESS , hdr.kind ) ;
+	throw_unless(path.root_id==EBPF_ROOT_ID_REPO) ;                                                            // not yet implemented
+	throw_unless(!dst                           ) ;                                                            // .
+	//
+	::string file     = path.path.substr(1/* / */)                                                    ;
+	Bool3    write    = No | ( (hdr.kind==EBPF_WRITE||hdr.kind==EBPF_UNLINK) && hdr.flags&EBPF_F_OK ) ;
+	Accesses accesses ;
+	if (hdr.flags&EBPF_F_DEP_LNK ) accesses |= Access::Lnk  ;
+	if (hdr.flags&EBPF_F_DEP_REG ) accesses |= Access::Reg  ;
+	if (hdr.flags&EBPF_F_DEP_STAT) accesses |= Access::Stat ;
+	AccessDigest ad { .write=write , .read_dir=hdr.kind==EBPF_READDIR , .accesses=accesses } ;
+	gather->new_access( _now(hdr) , ::move(file) , ad , _mk_info(hdr) , Yes/*late*/ , Comment::None , CommentExt::Link ) ;
 }
 
-//	static FileInfo _mk_info(EbpfEventHdr const& hdr) {
-//		if (!(hdr.flags&EBPF_F_EXISTS)) return {} ;
-//		FileStat st = {} ;
-//		st.st_mode         = hdr.mode                   ;
-//		st.st_size         = hdr.size                   ;
-//		st.st_mtim.tv_sec  = hdr.mtime_ns/1'000'000'000 ;
-//		st.st_mtim.tv_nsec = hdr.mtime_ns%1'000'000'000 ;
-//		return FileInfo(st) ;
-//	}
-
-// runs in the child, just before execve /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
+// runs in the child, just before execve
+// /!\ this function must be malloc free as malloc takes a lock that may be held by another thread at the time process is cloned
 int/*rc*/ AutodepEbpf::s_prepare_child(void*) {
 	RingBufBase::s_start_job() ;
 	return 0 ;
 }
 
-bool/*ok*/ AutodepEbpf::s_register_mount_ok(::string const& m) {
-	static constexpr const char* NoMounts[] = {
-		"/dev/"
-	,	"/proc/"
-	,	"/run/"  // special case for /run/user/<uid>
-	,	"/snap/"
-	,	"/sys/"
-	} ;
-	static ::string run_uid = cat("/run/user/",::getuid()) ;
-	/**/                             if (m==run_uid       ) return true /*ok*/ ;
-	for( const char* nm : NoMounts ) if (m.starts_with(nm)) return false/*. */ ;
-	/**/                                                    return true /*. */ ;
-}
-
-AutodepEbpf::AutodepEbpf(NewType) {
+AutodepEbpf::AutodepEbpf(Gather& gather) {
 	for( [[maybe_unused]] int _ : iota(3) ) {
 		if (ring_buf.connect_to_daemon()) goto Connected ;
 		Child ebpfd {
@@ -98,37 +98,7 @@ AutodepEbpf::AutodepEbpf(NewType) {
 	throw "cannot connect to nor launch daemon"s ;
 Connected :
 	ring_buf.init() ;
+	ring_buf.consumer.gather = &gather ;
 	//
-	EbpfRootId root_id = 1 ;
-	RingBufBase::s_add_root( root_id++ , Record::s_autodep_env().repo_root_s ) ;
-	for( ::string const& l : AcFd("/proc/self/mounts").read_lines() ) {
-		::vector_s v = split(l) ; SWEAR( v.size()>1 , v ) ;
-		::string&  m = v[1]     ; if (m=="/") continue ;                                       // / is auto-registered as root_id 0
-		if (s_register_mount_ok(m)) {
-			RingBufBase::s_add_root( root_id++ , m ) ;
-			roots.push_back(::move(m)) ;
-		}
-	}
-}
-
-// runs in the tracer thread : consume this job's ring buffer until the child exits, then return its wstatus
-int/*wstatus*/ AutodepEbpf::process(pid_t child_pid) {
-	Lock          lock  { Record::s_mutex } ;                        // single consumer thread, but Record code asserts the lock is held (like the ptrace tracer)
-	Epoll         epoll { New             } ;
-	epoll.add_read(ring_buf.epoll_fd) ;
-	for (;;) {
-		bool has_events = +epoll.wait(Delay(1)) ;                    // check child status every second to detect ring buffer overflow
-		if (has_events) {
-			bool done = ring_buf.consume() ;
-			if (done) {
-				int   wstatus ;
-				pid_t pid     = ::waitpid( child_pid , &wstatus , 0/*options*/ ) ; if (pid!=child_pid) throw "cannot waitpid job"s ;
-				return wstatus ;
-			}
-		} else {
-			pid_t pid = ::waitpid( child_pid , nullptr , WNOHANG ) ;
-			if (pid==child_pid) throw "ring buffer overflow"s ;      // no job end seen in ring buffer
-			if (pid!=0        ) throw "cannot waitpid job"s   ;
-		}
-	}
+	RingBufBase::s_add_root( EBPF_ROOT_ID_REPO , Record::s_autodep_env().repo_root_s ) ;
 }

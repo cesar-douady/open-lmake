@@ -620,8 +620,8 @@ gather_ebpf_info() {
 		*   ) echo "no support for ebpf was explicitly asked although it is available" >>$SUM_FILE ; return 1 ;;
 	esac
 }
-HAS_EBPF=$(ok gather_ebpf_info)
-[ "$HAS_EBPF" ] || echo "no ebpf autodep support (requires clang>=20, libbpf>=1.0, bpftool and kernel BTF)" >>$SUM_FILE
+gather_ebpf_info && HAS_EBPF=1 || HAS_EBPF=0                                                     # dont use ok() as some variables are set in gather_ebpf_info and $() creates a sub-process
+[ "$HAS_EBPF" = 1 ] || echo "no ebpf autodep support (requires clang>=20, libbpf>=1.0, bpftool and kernel BTF)" >>$SUM_FILE
 
 #
 # SINGLE_THREADED (HAS_SINGLE_THREADED)
