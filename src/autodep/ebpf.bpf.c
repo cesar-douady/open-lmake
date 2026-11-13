@@ -701,7 +701,6 @@ SEC("fentry/security_path_mkdir"  ) int BPF_PROG( on_path_mkdir   , struct path*
 SEC("fentry/security_path_mknod"  ) int BPF_PROG( on_path_mknod   , struct path* d ,struct dentry* e  , mode_t m                                   ) { return _do_nod1( e       ) ; }
 SEC("fentry/security_path_symlink") int BPF_PROG( on_path_symlink , struct path* d ,struct dentry* e                                               ) { return _do_nod1( e       ) ; }
 SEC("fentry/security_path_unlink" ) int BPF_PROG( on_path_unlink  , struct path* d ,struct dentry* e                                               ) { return _do_nod1( e       ) ; }
-SEC("fentry/security_path_rmdir"  ) int BPF_PROG( on_path_rmdir   , struct path* d ,struct dentry* e                                               ) { return _do_nod1( e       ) ; }
 SEC("fentry/security_path_link"   ) int BPF_PROG( on_path_link    ,                 struct dentry* oe , struct path* nd,struct dentry* ne          ) { return _do_nod2( oe , ne ) ; }
 SEC("fentry/security_path_rename" ) int BPF_PROG( on_path_rename  , struct path* od,struct dentry* oe , struct path* nd,struct dentry* ne , uint f ) { return _do_nod2( oe , ne ) ; }
 

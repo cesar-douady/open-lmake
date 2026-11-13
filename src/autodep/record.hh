@@ -74,17 +74,19 @@ struct Record {
 		if (_s_report_fd[0]==_s_report_fd[1])   _s_report_fd[0].close() ;                                 // if both are identical we must only close one
 		else                                  { _s_report_fd[0].close() ; _s_report_fd[1].close() ; }
 	}
-	static AutodepEnv const& s_autodep_env         (                     ) { SWEAR( +_s_autodep_env && +s_access_cache , s_access_cache,_s_autodep_env ) ; return *_s_autodep_env ; }
-	static AutodepEnv      & s_autodep_env_writable(                     ) { SWEAR( +_s_autodep_env && +s_access_cache , s_access_cache,_s_autodep_env ) ; return *_s_autodep_env ; }
-	static AutodepEnv const& s_autodep_env         (AutodepEnv const& ade) {
-		SWEAR( !s_access_cache && !_s_autodep_env , s_access_cache,_s_autodep_env ) ;
-		_s_mk_autodep_env(new AutodepEnv{ade}) ;
+	static bool              s_has_autodep_env     (                ) { SWEAR( +s_access_cache==+_s_autodep_env   , s_access_cache,_s_autodep_env ) ; return +_s_autodep_env ; }
+	static AutodepEnv const& s_autodep_env         (                ) { SWEAR( +_s_autodep_env && +s_access_cache , s_access_cache,_s_autodep_env ) ; return *_s_autodep_env ; }
+	static AutodepEnv      & s_autodep_env_writable(                ) { SWEAR( +_s_autodep_env && +s_access_cache , s_access_cache,_s_autodep_env ) ; return *_s_autodep_env ; }
+	static AutodepEnv const& s_autodep_env         (AutodepEnv&& ade) {
+		{ if (!_s_autodep_env) _s_autodep_env = New ; } *_s_autodep_env = ::move(ade) ;
+		{ if (!s_access_cache) s_access_cache = New ; } *s_access_cache = {}          ;
 		return *_s_autodep_env ;
 	}
 	static AutodepEnv const& s_autodep_env(NewType) {
 		SWEAR( +s_access_cache==+_s_autodep_env , s_access_cache,_s_autodep_env ) ;
-		if (!_s_autodep_env) _s_mk_autodep_env(new AutodepEnv{New}) ;
-		return *_s_autodep_env ;
+		if (+_s_autodep_env) return s_autodep_env(               ) ;
+		else                 return s_autodep_env(AutodepEnv(New)) ;
+
 	}
 	static void s_hide(int fd) {
 		/**/                            if (_s_repo_root_fd.fd   ==fd) _s_repo_root_fd   .detach() ;
@@ -94,13 +96,7 @@ struct Record {
 		/**/                            if ( +_s_repo_root_fd    &&  uint(_s_repo_root_fd   .fd)>=min && uint(_s_repo_root_fd   .fd)<=max ) _s_repo_root_fd   .detach() ;
 		for( bool fast : {false,true} ) if ( +_s_report_fd[fast] &&  uint(_s_report_fd[fast].fd)>=min && uint(_s_report_fd[fast].fd)<=max ) _s_report_fd[fast].detach() ;
 	}
-private :
-	static void _s_mk_autodep_env(AutodepEnv* ade) {
-		_s_autodep_env = ade                      ;
-		s_access_cache = new ::umap_s<CacheEntry> ;
-	}
 	// static data
-public :
 	static constexpr char                      SpecialSystemDirMsg[] = "/dev, /proc or /sys" ;
 	static bool                                s_static_report       ;                                    // if true <=> report deps to s_deps instead of through slow/fast_report_fd() sockets
 	static bool                                s_enable_was_modified ;                                    // if true <=  the enable bit has been manipulated through the backdoor

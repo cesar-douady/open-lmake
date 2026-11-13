@@ -153,7 +153,7 @@ void Gather::new_exec( PD pd , ::string const& exe , Comment c ) {
 	RealPath              rp { autodep_env }                    ;
 	RealPath::SolveReport sr = rp.solve(exe,false/*no_follow*/) ;
 	for( auto&& [f,a] : rp.exec(::move(sr)) )
-		if (!Record::s_is_simple(f)) new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
+		if (!Record::s_is_simple(f,No|autodep_env.deps_in_system)) new_access( pd , ::move(f) , {.accesses=a} , FileInfo(f) , c ) ;
 }
 
 struct alignas(::hardware_destructive_interference_size) _Stat {
@@ -530,7 +530,7 @@ template<class T> static void _launch_traced_child( Child& child , ::latch* read
 void Gather::_trace_child( Fd report_fd , ::latch* ready , bool* early_err ) {
 	t_thread_key = 'T'  ;
 	*early_err   = true ;                                                       // until proven false
-	Record::s_autodep_env(autodep_env) ;
+	Record::s_autodep_env(::copy(autodep_env)) ;
 	try {
 		switch (method) {
 			/**/            case AutodepMethod::Ptrace  : _launch_traced_child<AutodepPtrace >( _child , ready , *early_err , wstatus ) ; break ;
@@ -558,7 +558,11 @@ Fd Gather::_spawn_child() {
 	//
 	Trace trace("_spawn_child",child_stdin,child_stdout,child_stderr,method,autodep_env) ;
 	//
-	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_add_env          = { {"LMAKE_AUTODEP_ENV",autodep_env} } ;                                    // required even with method==None or ptrace to allow support (ldepend, lmake module, ...) to work
+	_child.cmd_line   = cmd_line                              ;
+	_child.env        = env                                   ;
+	_child.add_env    = &_add_env                             ;
+	_child.cwd_s      = autodep_env.sub_repo_s                ;
 	_child.as_session = as_session                            ;
 	_child.nice       = nice                                  ;
 	_child.stdin      = child_stdin                           ;
@@ -566,24 +570,39 @@ Fd Gather::_spawn_child() {
 	_child.stderr     = child_stderr                          ;
 	// PER_AUTODEP_METHOD : handle case
 Retry :
+	start_date = New ;                                                                             // record job start time as late as possible
 	switch (method) {
 		/**/             case AutodepMethod::None              :                                                                                     break ;
-		IF_HAS_EBPF    ( case AutodepMethod::Ebpf              : _child.pre_exec = AutodepEbpf::s_prepare_child ; _ebpf_tracer = AutodepEbpf(self) ; break ; )
 		IF_HAS_LD_AUDIT( case AutodepMethod::LdAudit           : env_var = "LD_AUDIT"   ; env_val = lmake_root_s + "_d$LIB/ld_audit.so"            ; break ; )
 		/**/             case AutodepMethod::LdPreload         : env_var = "LD_PRELOAD" ; env_val = lmake_root_s + "_d$LIB/ld_preload.so"          ; break ;
 		/**/             case AutodepMethod::LdPreloadJemalloc : env_var = "LD_PRELOAD" ; env_val = lmake_root_s + "_d$LIB/ld_preload_jemalloc.so" ; break ;
-		/**/             case AutodepMethod::Ptrace            :
-		IF_HAS_SECCOMP ( case AutodepMethod::Seccomp           : ) {
+		#if HAS_EBPF
+			case AutodepMethod::Ebpf :
+				Record::s_autodep_env(::copy(autodep_env)) ;
+				_child.pre_exec = AutodepEbpf::s_prepare_child ;
+				_ebpf_tracer    = AutodepEbpf(self)            ;
+				res             = _ebpf_tracer.epoll_fd()      ;
+				break ;
+		#endif
+		/**/             case AutodepMethod::Ptrace  :
+		IF_HAS_SECCOMP ( case AutodepMethod::Seccomp : ) {
 			// we split the responsability into 2 threads :
 			// - parent watches for data (stdin, stdout, stderr & incoming connections to report deps)
 			// - child launches target process and watches it using direct wait then report deps using normal socket report
 			AcPipe pipe { New , 0/*flags*/ , true/*no_std*/ } ;
 			res       = pipe.read .detach() ;
 			report_fd = pipe.write.detach() ;
+			//
+			::latch ready     { 1 }   ;
+			bool    early_err = false ;
+			_trace_thread = ::jthread( _s_trace_child , this , report_fd , &ready , &early_err ) ; // /!\ _child must be spawned from tracing thread
+			ready.wait() ;                                                                         // wait until _child.pid is available
+			throw_if( early_err , "early error : ",StrErr() ) ;
+			return res ;
 		} break ;
 		default :
-			SWEAR( !retried , method ) ;                                                       // ensure no infinite loop
-			method  = AutodepMethod::Dflt ;                                                    // fall-back if method is not supported, which can occur with chroot'ed jobs
+			SWEAR( !retried , method ) ;                                                           // ensure no infinite loop
+			method  = AutodepMethod::Dflt ;                                                        // fall-back if method is not supported, which can occur with chroot'ed jobs
 			retried = true                ;
 			goto Retry/*BACKWARD*/ ;
 	}
@@ -592,35 +611,27 @@ Retry :
 		if (env) { if (env->contains(env_var                  )) entry << ':'<<env->at(env_var) ; }
 		else     { if (has_env      (env_var,false/*empty_ok*/)) entry << ':'<<get_env(env_var) ; }
 		trace("ld",method,env_var,entry) ;
-	}
-	start_date      = New                    ;                                                 // record job start time as late as possible
-	_child.cmd_line = cmd_line               ;
-	_child.env      = env                    ;
-	_child.add_env  = &_add_env              ;
-	_child.cwd_s    = autodep_env.sub_repo_s ;
-	if (+res) {
-		::latch ready     { 1 }   ;
-		bool    early_err = false ;
-		_trace_thread = ::jthread( _s_trace_child , this , report_fd , &ready , &early_err ) ; // /!\ _child must be spawned from tracing thread
-		ready.wait() ;                                                                         // wait until _child.pid is available
-		throw_if( early_err , "toto" ) ;
-	} else {
 		new_exec( New , mk_glb(cmd_line[0],autodep_env.sub_repo_s) ) ;
-		//vvvvvvvvvvvv
-		_child.spawn() ;
-		//^^^^^^^^^^^^
 	}
+	//vvvvvvvvvvvv
+	_child.spawn() ;
+	//^^^^^^^^^^^^
 	trace("child_pid",_child.pid) ;
-	return res ;                                                                               // used with seccomp and ptrace
+	return res ;                                                                                    // used with seccomp and ptrace
 }
 
 Status Gather::exec_child() {
+	bool       has_ade = Record::s_has_autodep_env() ;
+	AutodepEnv sav_ade ;                               if (has_ade) sav_ade = ::move(Record::s_autodep_env_writable()) ;
 	try {
-		return _exec_child() ;
-	} catch (::string const& e) {                       // START_OF_NO_COV defensive programming
-		if (!_wait[Kind::ChildStart]) _child.waited() ;
+		Status status = _exec_child() ;
+		if (has_ade) Record::s_autodep_env(::move(sav_ade)) ;
+		return status ;
+	} catch (::string const& e) {                                              // START_OF_NO_COV defensive programming
+		if (!_wait[Kind::ChildStart]) _child.waited()                        ;
+		if (has_ade                 ) Record::s_autodep_env(::move(sav_ade)) ;
 		throw ;
-	}                                                   // END_OF_NO_COV
+	}                                                                          // END_OF_NO_COV
 }
 
 Status Gather::_exec_child() {
@@ -806,18 +817,18 @@ Status Gather::_exec_child() {
 				_wait &= ~Kind::ChildStart ;
 				trace("started1","wait",_wait,+epoll) ;
 				//
-				if ( child_stdout==Child::PipeFd ) { epoll.add_read(_child.stdout,Kind::Stdout    ) ; _wait|=Kind::Stdout ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
-				if ( child_stderr==Child::PipeFd ) { epoll.add_read(_child.stderr,Kind::Stderr    ) ; _wait|=Kind::Stderr ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
-				/**/                                 epoll.add_read(job_master_fd,Kind::JobMaster ) ;                       trace("read_job_master",job_master_fd                     ) ;
+				if (child_stdout==Child::PipeFd) { epoll.add_read(_child.stdout,Kind::Stdout   ) ; _wait|=Kind::Stdout ; trace("read_stdout    ",_child.stdout ,"wait",_wait,+epoll) ; }
+				if (child_stderr==Child::PipeFd) { epoll.add_read(_child.stderr,Kind::Stderr   ) ; _wait|=Kind::Stderr ; trace("read_stderr    ",_child.stderr ,"wait",_wait,+epoll) ; }
+				/**/                               epoll.add_read(job_master_fd,Kind::JobMaster) ;                       trace("read_job_master",job_master_fd                     ) ;
 				switch (method) {
 					// PER_AUTODEP_METHOD : add entry here
-					IF_HAS_EBPF    ( case AutodepMethod::Ebpf              :   epoll.add_read(_ebpf_tracer.epoll_fd(),Kind::EbpfEvent ) ; trace("read_ebpf"  ,notify_fd) ; [[fallthrough]] ; )
+					IF_HAS_EBPF    ( case AutodepMethod::Ebpf              :   epoll.add_read(notify_fd ,Kind::EbpfEvent ) ; trace("read_ebpf"  ,notify_fd) ; [[fallthrough]] ; )
 					/**/             case AutodepMethod::None              :
 					IF_HAS_LD_AUDIT( case AutodepMethod::LdAudit           : )
 					/**/             case AutodepMethod::LdPreload         :
-					/**/             case AutodepMethod::LdPreloadJemalloc :   epoll.add_pid (_child.pid             ,Kind::ChildEnd  ) ; trace("read_ld"              ) ; break           ;
+					/**/             case AutodepMethod::LdPreloadJemalloc :   epoll.add_pid (_child.pid,Kind::ChildEnd  ) ; trace("read_ld"              ) ; break           ;
 					/**/             case AutodepMethod::Ptrace            :
-					IF_HAS_SECCOMP ( case AutodepMethod::Seccomp           : ) epoll.add_read(notify_fd              ,Kind::ChildEndFd) ; trace("read_ptrace",notify_fd) ; break           ;
+					IF_HAS_SECCOMP ( case AutodepMethod::Seccomp           : ) epoll.add_read(notify_fd ,Kind::ChildEndFd) ; trace("read_ptrace",notify_fd) ; break           ;
 				DF}
 				_wait|=Kind::ChildEnd ;
 				trace("started2","wait",_wait,+epoll) ;

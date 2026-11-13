@@ -73,6 +73,12 @@ using namespace std                  ;
 using namespace std::string_literals ;
 using namespace EbpfDaemon           ;
 
+static constexpr uint32_t MaxExcludes  = 16 ; // max number of dirs a job can exclude, so a client cannot make the daemon hold an unbounded number of fds
+static constexpr time_t   HelloTimeout = 10 ; // in seconds, a client must not be able to hold a thread without registering a job this memory is allocated in the kernel for each running job
+
+static struct ebpf* _g_skel         = nullptr ;
+static int          _g_ring_bufs_fd = -1      ;
+
 // use constexpr processing rather than #ifdef/#endif so as to discriminate between defined/undefined macros on a single line
 template<::integral I,I DfltVal> consteval I _macro_val_str(const char* n_str) {
 	I    n      = 0     ;
@@ -99,24 +105,11 @@ template<::integral I,I DfltVal> consteval I _macro_val_str(const char* n_str) {
 #define _MACRO_VAL_STR(x         ) #x                                                         // indirect macro to ensure we get the defined value when arg to MACRO_VAL is a defined macro
 #define MACRO_VAL(     macro,dflt) _macro_val_str<decltype(dflt),dflt>(_MACRO_VAL_STR(macro))
 
-static constexpr uint32_t MaxExcludes  = 16 ; // max number of dirs a job can exclude, so a client cannot make the daemon hold an unbounded number of fds
-static constexpr time_t   HelloTimeout = 10 ; // in seconds, a client must not be able to hold a thread without registering a job this memory is allocated in the kernel for each running job
-
-::atomic<bool> g_self_test_started = false ;
-::atomic<bool> g_self_test_done    = false ;
-::string       g_self_test_msg     ;
-
-struct ebpf* _g_skel         = nullptr ;
-int          _g_ring_bufs_fd = -1      ;
-
-static int _pr( enum libbpf_print_level lvl , const char* fmt , va_list ap ) {
-	if (lvl>LIBBPF_WARN)                                                       return 0 ;   // higher lvl means less critical
-	else                 { vlog(false/*with_errno*/,false/*with_nl*/,fmt,ap) ; return 1 ; }
-}
-
 // each running job needs a few fds (connection, ring buffer, dirs of interest), so the default limit would be reached with a few hundreds of jobs
-static void _raise_n_open_files(rlim_t n_open_files) {
+static void _raise_limits() {
 	struct rlimit old_rl = {} ;
+	// open files
+	rlim_t n_open_files = 100+_g_skel->rodata->NJobs*2 ; // 100 : overhead when loading ebpf filter, 2 : ring buf + client socket ;
 	if (::getrlimit(RLIMIT_NOFILE,&old_rl)!=0) {
 		log_errno("cannot get max number of open files") ;
 		return ;
@@ -129,6 +122,11 @@ static void _raise_n_open_files(rlim_t n_open_files) {
 		struct rlimit new_rl = { .rlim_cur=n_open_files , .rlim_max=::max(old_rl.rlim_max,n_open_files) } ;
 		if (::setrlimit(RLIMIT_NOFILE,&new_rl)!=0)
 			log_errno("cannot raise the number of open files from %u to %u",old_rl.rlim_cur,n_open_files) ;
+	}
+	// memlock
+	{	struct rlimit new_rl = { .rlim_cur=RLIM_INFINITY , .rlim_max=RLIM_INFINITY } ;
+		if (::setrlimit(RLIMIT_MEMLOCK,&new_rl)!=0)
+			log_errno("cannot raise memlock size") ;
 	}
 }
 //
@@ -181,7 +179,8 @@ static constexpr ::array<::array<EbpfScEntry,NSyscalls>,1+HAS_32> Syscalls = [](
 //
 
 // the syscall table is shared by all jobs
-void _ebpf_init(struct ebpf* skel) {
+static void _ebpf_init(struct ebpf* skel) {
+	_raise_limits() ;
 	// syscall table
 	for( uint32_t is_32=0 ; is_32<1+HAS_32 ; is_32++ )
 		for( uint32_t nr=0 ; nr<NSyscalls ; nr++ )
@@ -265,6 +264,10 @@ struct Job {
 } ;
 ::set<EbpfJobId> Job::s_free_ids ;
 
+static int _pr( enum libbpf_print_level lvl , const char* fmt , va_list ap ) {
+	if (lvl>LIBBPF_WARN)                                                       return 0 ;   // higher lvl means less critical
+	else                 { vlog(false/*with_errno*/,false/*with_nl*/,fmt,ap) ; return 1 ; }
+}
 static void _load_ebpf() {
 	int rc ;
 	/**/              ::libbpf_set_print(_pr                    ) ;
@@ -308,7 +311,6 @@ int main( int argc , char* argv[] ) {
 			return 0 ;
 		}
 		reset_log() ;
-		_raise_n_open_files(10000) ;                                                                                                     // need 1 fd per running job
 		//
 		_load_ebpf() ;
 		//
@@ -473,7 +475,7 @@ struct IoUring {
 	if (work)            ::mkdirat  (       dir_fd,"d"  , 0755                          ) ;                 else n_solved += 1 ; // fentry/security_path_mkdir        tp_btp/sys_exit
 	if (work)            ::linkat   (       dir_fd,"f"  , dir_fd,"f2",0                 ) ;                 else n_solved += 1 ; // fentry/security_path_link         tp_btp/sys_exit
 	if (work)            ::renameat (       dir_fd,"f2" , dir_fd,"f3"                   ) ;                 else n_solved += 1 ; // fentry/security_path_rename       tp_btp/sys_exit
-	if (work)            ::unlinkat (       dir_fd,"d"  , AT_REMOVEDIR                  ) ;                 else n_solved += 1 ; // fentry/security_path_rmdir        tp_btp/sys_exit
+	if (work)            ::unlinkat (       dir_fd,"d"  , AT_REMOVEDIR                  ) ;                                      // fentry/security_path_rmdir        tp_btp/sys_exit
 	if (work) { fd     = ::openat   (       dir_fd,"l"  , O_RDONLY                      ) ; ::close(fd) ; } else n_solved += 2 ; // fentry/security_inode_follow_link fexit/do_filp_open
 	if (work)            ::fstatat  (       dir_fd,"l"  , &st,0                         ) ;                 else n_solved += 2 ; // fexit/filename_lookup             tp_btp/sys_exit
 	if (work)            ::unlinkat (       dir_fd,"l"  , 0                             ) ;                 else n_solved += 1 ; // fentry/security_path_unlink       tp_btp/sys_exit

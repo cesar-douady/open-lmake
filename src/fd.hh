@@ -287,7 +287,7 @@ template<Enum E=NewType/*when_unused*/> struct Epoll {
 	}
 	void add( bool write , Fd fd , E data={} , bool wait=true ) {
 		Event event { write , fd , data } ;
-		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )!=0) FAIL_PROD(fd,_fd,StrErr()) ;
+		if (::epoll_ctl( _fd , EPOLL_CTL_ADD , fd , &event )!=0) FAIL_PROD(_fd,fd,StrErr()) ;
 		if (wait) _n_waits ++ ;
 		/**/      _n_events++ ;
 	}

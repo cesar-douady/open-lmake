@@ -85,13 +85,24 @@ namespace EbpfDaemon {
 		RingBuf() = default ;
 		RingBuf( EbpfJobId jid , int rbfd ) : RingBufBase{jid,rbfd} { init() ; }
 		~RingBuf() {
-			::ring_buffer__free(_ring_buf) ;
+			if (epoll_fd!=-1) ::close            (epoll_fd ) ;
+			if (_ring_buf   ) ::ring_buffer__free(_ring_buf) ;
 		}
 		void init() {
 			using namespace std::string_literals ;
 			RingBufBase::init() ;
 			_ring_buf = ::ring_buffer__new( _ring_buf_fd , _s_handle_event , this , nullptr/*opts*/ ) ; if (!_ring_buf) throw "cannot open ebpf ring buffer"s ;
 			epoll_fd  = ::ring_buffer__epoll_fd(_ring_buf)                                            ;
+		}
+		RingBuf& operator=(RingBuf&& rb) {
+			epoll_fd    =           rb.epoll_fd     ; rb.epoll_fd  = -1      ;
+			consumer    = std::move(rb.consumer   ) ;
+			_ring_buf   =           rb._ring_buf    ; rb._ring_buf = nullptr ;
+			_ctxs       = std::move(rb._ctxs      ) ;
+			_to_wake_up = std::move(rb._to_wake_up) ;
+			_started    =           rb._started     ;
+			_done       =           rb._done        ;
+			return *this ;
 		}
 		// services
 		bool/*done*/ consume() {                                                                                               // consume available events
